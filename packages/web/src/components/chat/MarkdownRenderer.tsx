@@ -131,37 +131,55 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
       return;
     }
 
-    let editorPath = sourcePath && !fileLink.serverAttachmentId
-      ? resolveEditorFileLink(href, sourcePath, workdir ?? null)?.path ?? fileLink.path
-      : fileLink.path;
-    if (fileLink.serverAttachmentId) {
-      const finishRequest = beginForegroundRequest();
-      try {
-        const response = await fetch(
-          `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
-          + `?session_id=${encodeURIComponent(fileLink.serverSessionId || sessionId)}`,
-        );
-        const metadata = await response.json() as { ok?: boolean; path?: unknown };
-        if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
-          throw new Error('文件引用已失效');
-        }
-        editorPath = metadata.path;
-      } catch (error) {
-        showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
-        return;
-      } finally {
-        finishRequest();
-      }
-    }
+    let stale = false;
+    const isCurrent = () => {
+      const state = useSessionStore.getState();
+      return !stale && state.currentSessionId === sessionId
+        && state.sessions.find((item) => item.id === sessionId)?.workdir === workdir;
+    };
 
-    // Keep the existing editor root in sync before opening. This also covers
-    // links clicked in Chat/DetailPanel before EditorView has mounted.
-    prepareEditorRoot(sessionId, workdir);
-    const location = fileLink.location && editorPath
-      ? { ...fileLink.location, path: editorPath }
-      : fileLink.location;
-    const opened = await useEditorStore.getState().openFile(editorPath, location);
-    if (opened) navigate('/editor');
+    const unsubscribe = useSessionStore.subscribe(() => {
+      if (!isCurrent()) stale = true;
+    });
+    try {
+      let editorPath = !fileLink.serverAttachmentId
+        ? resolveEditorFileLink(href, sourcePath ?? `${workdir.replace(/\\/g, '/')}/`, workdir)?.path ?? fileLink.path
+        : fileLink.path;
+      if (fileLink.serverAttachmentId) {
+        const finishRequest = beginForegroundRequest();
+        try {
+          const response = await fetch(
+            `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
+            + `?session_id=${encodeURIComponent(fileLink.serverSessionId || sessionId)}`,
+          );
+          const metadata = await response.json() as { ok?: boolean; path?: unknown };
+          if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
+            throw new Error('文件引用已失效');
+          }
+          editorPath = metadata.path;
+        } catch (error) {
+          showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
+          return;
+        } finally {
+          finishRequest();
+        }
+      }
+
+      // Keep the existing editor root in sync before opening. This also covers
+      // links clicked in Chat/DetailPanel before EditorView has mounted.
+      if (!isCurrent()) return;
+      prepareEditorRoot(sessionId, workdir);
+      const location = fileLink.location && editorPath
+        ? { ...fileLink.location, path: editorPath }
+        : fileLink.location;
+      const editor = useEditorStore.getState();
+      const opened = fileLink.serverAttachmentId
+        ? await editor.openFile(editorPath, location, isCurrent)
+        : await editor.openPath(editorPath, location, isCurrent);
+      if (opened && isCurrent()) navigate('/editor');
+    } finally {
+      unsubscribe();
+    }
   };
 
   const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {

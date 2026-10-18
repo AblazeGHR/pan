@@ -9,10 +9,11 @@ import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { listFiles, readFile } from '@/services/api';
+import { listFiles, readFile, fetchDirectories } from '@/services/api';
 
 vi.mock('@/services/api', () => ({
   listFiles: vi.fn(async () => []),
+  fetchDirectories: vi.fn(async () => { throw new Error('Not a directory'); }),
   readFile: vi.fn(async () => 'line 1\nline 2'),
   writeFile: vi.fn(async () => undefined),
   renameFs: vi.fn(async () => undefined),
@@ -28,6 +29,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(listFiles).mockResolvedValue([]);
+  vi.mocked(fetchDirectories).mockRejectedValue(new Error('Not a directory'));
   vi.mocked(readFile).mockResolvedValue('line 1\nline 2');
   useSessionStore.setState({
     currentSessionId: 's1',
@@ -48,6 +50,64 @@ beforeEach(() => {
 });
 
 describe('MarkdownRenderer', () => {
+  it.each([
+    ['same.md', 'D:/project/pan/same.md'],
+    ['./文档%20说明.md', 'D:/project/pan/文档 说明.md'],
+    ['../shared/guide.md#标题', 'D:/project/shared/guide.md'],
+    ['C:\\other\\guide.md:2', 'C:/other/guide.md'],
+  ])('resolves Chat %s against the Session cwd, independently of the Editor file', async (href, expected) => {
+    useEditorStore.setState({ activePath: 'E:/unrelated/docs/index.md' });
+    render(<MemoryRouter><MarkdownRenderer content={`[open](${href})`} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', expected));
+  });
+
+  it.each(['./目录%20名称/', '../目录%20名称'])('opens relative directory %s as an Editor root without reading it as a file', async (href) => {
+    const path = href.startsWith('../') ? 'D:/project/目录 名称' : 'D:/project/pan/目录 名称';
+    vi.mocked(fetchDirectories).mockResolvedValue({ current: path, parent: null, entries: [] });
+    render(<MemoryRouter><MarkdownRenderer content={`[directory](${href})`} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'directory' }));
+    await waitFor(() => expect(useEditorStore.getState().selectedPath).toBe(path));
+    expect(useEditorStore.getState().roots.some((root) => root.kind === 'temp' && root.path === path)).toBe(true);
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('resolves the same history link against each Session cwd', async () => {
+    render(<MemoryRouter><MarkdownRenderer content="[open](./same.md)" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'D:/project/pan/same.md'));
+    act(() => useSessionStore.setState((state) => ({
+      currentSessionId: 's2',
+      sessions: [...state.sessions, { ...state.sessions[0]!, id: 's2', workdir: 'E:/second' }],
+    })));
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s2', 'E:/second/same.md'));
+    expect(useEditorStore.getState().activePath).toBe('E:/second/same.md');
+  });
+
+  it('drops a directory result after switching away and back to the original Session', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof fetchDirectories>>) => void;
+    vi.mocked(fetchDirectories).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    render(<MemoryRouter><MarkdownRenderer content="[open](../directory/)" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(fetchDirectories).toHaveBeenCalled());
+    act(() => { useSessionStore.setState({ currentSessionId: 's2' }); useSessionStore.setState({ currentSessionId: 's1' }); });
+    await act(async () => resolve({ current: 'D:/project/directory', parent: null, entries: [] }));
+    expect(useEditorStore.getState().selectedPath).not.toBe('D:/project/directory');
+    expect(useEditorStore.getState().roots.some((root) => root.path === 'D:/project/directory')).toBe(false);
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('drops a file read after switching to a Session with another cwd', async () => {
+    let resolve!: (value: string) => void;
+    vi.mocked(readFile).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    render(<MemoryRouter><MarkdownRenderer content="[open](./slow.md)" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalled());
+    act(() => useSessionStore.setState((state) => ({ currentSessionId: 's2', sessions: [...state.sessions, { ...state.sessions[0]!, id: 's2', workdir: 'E:/second' }] })));
+    await act(async () => resolve('old file'));
+    expect(useEditorStore.getState().openPaths).not.toContain('D:/project/pan/slow.md');
+  });
   it('preserves the entire large plain paragraph, selection text, and subsequent rich Markdown', () => {
     const content='large plain-body '+ 'x'.repeat(2_000_000);
     const view=render(<MarkdownRenderer content={content} />);
@@ -375,12 +435,12 @@ describe('MarkdownRenderer', () => {
     );
 
     fireEvent.click(screen.getByRole('link', { name: 'open' }));
-    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'docs/My File.md'));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'D:/project/pan/docs/My File.md'));
     expect(useEditorStore.getState()).toMatchObject({
       sessionId: 's1',
       workdir: 'D:\\project\\pan',
-      activePath: 'docs/My File.md',
-      pendingLocation: { path: 'docs/My File.md', line: 42, endLine: 48 },
+      activePath: 'D:/project/pan/docs/My File.md',
+      pendingLocation: { path: 'D:/project/pan/docs/My File.md', line: 42, endLine: 48 },
     });
   });
 
@@ -421,9 +481,9 @@ describe('MarkdownRenderer', () => {
     );
 
     fireEvent.click(screen.getByRole('link', { name: 'open' }));
-    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'docs/My File.md'));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'D:/project/pan/docs/My File.md'));
     expect(useEditorStore.getState().pendingLocation).toEqual({
-      path: 'docs/My File.md', line: 42, endLine: 48,
+      path: 'D:/project/pan/docs/My File.md', line: 42, endLine: 48,
     });
   });
 

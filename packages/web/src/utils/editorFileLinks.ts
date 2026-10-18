@@ -21,6 +21,7 @@ export function resolveEditorFileLink(href: string, source: string, workdir: str
     else if (part !== '..') parts.push(part);
   }
   path = prefix + parts.join('/');
+  if (/^[A-Za-z]:$/.test(path)) path += '/';
   return { path, location: target.location ? { ...target.location, path } : undefined };
 }
 

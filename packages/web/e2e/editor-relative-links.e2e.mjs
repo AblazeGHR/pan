@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
+import { useMonacoCdnCache } from './monaco-cdn-cache.mjs';
 const runtime = process.env.PAN_E2E_RUNTIME;
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await useMonacoCdnCache(page);
 await page.context().tracing.start({ screenshots: true, snapshots: true });
 page.on('pageerror', (error) => console.error('browser error', error.message));
 const reads = [];
@@ -12,6 +14,17 @@ page.on('request', (r) => {
   if (r.url().includes('/api/fs/read?')) reads.push(new URL(r.url()).searchParams.get('path'));
 });
 async function clickSource(line, column = 8) {
+  await page.waitForFunction((line) => {
+    const editor = window.monaco?.editor?.getEditors()?.[0];
+    return editor
+      ?.getModel()
+      ?.getAllDecorations()
+      .some(
+        (decoration) =>
+          decoration.range.startLineNumber === line &&
+          JSON.stringify(decoration.options).includes('link'),
+      );
+  }, line);
   const point = await page.evaluate(
     ({ line, column }) => {
       const editor = window.monaco.editor.getEditors().find((e) => e.getDomNode());
@@ -99,7 +112,9 @@ try {
   await popup.close();
   await page.locator('button[title="Preview"]:visible').click();
   await page.getByRole('link', { name: '交付检查表', exact: true }).click();
-  await page.waitForFunction(() => document.body.textContent.replaceAll('\u00a0', ' ').includes('TARGET docs/CHECKLIST.md'));
+  await page.waitForFunction(() =>
+    document.body.textContent.replaceAll('\u00a0', ' ').includes('TARGET docs/CHECKLIST.md'),
+  );
   await page.screenshot({ path: path.join(runtime, 'preview-relative.png') });
   console.log(JSON.stringify({ passed: 9, source, reads }));
   await fs.writeFile(

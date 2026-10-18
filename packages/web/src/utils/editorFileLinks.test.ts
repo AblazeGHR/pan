@@ -65,6 +65,10 @@ describe('Editor document file destinations', () => {
       'D:/repo/docs/CHECKLIST.md',
     );
   });
+
+  it('keeps a Windows drive root absolute when navigating to a parent directory', () => {
+    expect(resolveEditorFileLink('../', 'D:/docs/index.md', 'D:/docs')?.path).toBe('D:/');
+  });
   it('retargets line ranges after resolution', () => {
     expect(resolveEditorFileLink('../file.ts:12-14', 'D:/repo/docs/index.md', null)).toEqual({
       path: 'D:/repo/file.ts',

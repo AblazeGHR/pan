@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Monaco } from '@monaco-editor/react';
 import type { FileNode } from '@/types';
-import { listFiles, readFile, writeFile, renameFs, deleteFs } from '@/services/api';
+import { listFiles, readFile, writeFile, renameFs, deleteFs, fetchDirectories } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
 
 // Module-level ref for Monaco model disposal on tab close.
@@ -252,7 +252,10 @@ interface EditorStore {
   refreshRoot: (rootId: string, dirPath?: string) => Promise<void>;
   loadRootTree: (rootId: string) => Promise<void>;
   toggleDir: (rootId: string, path: string) => Promise<void>;
-  openFile: (path: string, location?: EditorLocation) => Promise<boolean>;
+  openFile: (path: string, location?: EditorLocation, isCurrent?: () => boolean) => Promise<boolean>;
+  /** Open a resolved absolute path; directories reuse temporary Editor roots.
+   * isCurrent also fences callers whose Chat selection can change before Editor mounts. */
+  openPath: (path: string, location?: EditorLocation, isCurrent?: () => boolean) => Promise<boolean>;
   openImage: (path: string, preview: EditorImagePreviewSource) => boolean;
   consumePendingLocation: (location: EditorLocation) => void;
   closeFile: (path: string) => void;
@@ -652,10 +655,36 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  openFile: async (path: string, location?: EditorLocation) => {
+  openPath: async (path, location, isCurrent = () => true) => {
     const state = get();
     const root = captureSession(state);
-    if (!root) return false;
+    if (!root || !isCurrent()) return false;
+    const requestGeneration = state.openRequestGeneration + 1;
+    set({ openRequestGeneration: requestGeneration });
+    const current = () => isCurrent() && isCurrentSession(get(), root)
+      && get().openRequestGeneration === requestGeneration;
+    let directory: string | null = null;
+    try {
+      directory = (await fetchDirectories(path)).current || path;
+    } catch {
+      // Files (and missing targets) are handled by the existing file reader,
+      // including its precise failure feedback. No path guessing by extension.
+    }
+    if (!current()) return false;
+    if (directory) {
+      if (!get().roots.some((item) => item.path === normalizeEditorPath(directory))) {
+        get().addTempDir(directory);
+      }
+      set({ selectedPath: normalizeEditorPath(directory), pendingLocation: null });
+      return true;
+    }
+    return get().openFile(path, location, isCurrent);
+  },
+
+  openFile: async (path: string, location?: EditorLocation, isCurrent = () => true) => {
+    const state = get();
+    const root = captureSession(state);
+    if (!root || !isCurrent()) return false;
     const snapshot: OpenFileSnapshot = {
       ...root,
       requestGeneration: state.openRequestGeneration + 1,
@@ -686,10 +715,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     // Fetch content
     try {
       const content = await readFile(snapshot.sessionId, path);
-      if (!isCurrentOpenRequest(get(), snapshot)) return false;
+      if (!isCurrent() || !isCurrentOpenRequest(get(), snapshot)) return false;
       clearFilePathInvalidation(snapshot.sessionId, path);
       set((s) => {
-        if (!isCurrentOpenRequest(s, snapshot)) return {};
+        if (!isCurrent() || !isCurrentOpenRequest(s, snapshot)) return {};
         return {
           openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
           activePath: path,
@@ -699,7 +728,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       });
       return true;
     } catch (error) {
-      if (isCurrentOpenRequest(get(), snapshot)) {
+      if (isCurrent() && isCurrentOpenRequest(get(), snapshot)) {
         set({ pendingLocation: null });
         useUIStore.getState().showToast(`打开文件失败：${openFileErrorMessage(error)}`, 'error');
       }

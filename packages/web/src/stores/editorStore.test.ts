@@ -7,11 +7,12 @@ import {
   type EditorRoot,
 } from './editorStore';
 import { useUIStore } from '@/stores/uiStore';
-import { deleteFs, listFiles, readFile, renameFs, writeFile } from '@/services/api';
+import { deleteFs, listFiles, readFile, renameFs, writeFile, fetchDirectories } from '@/services/api';
 import type { ApiFsGenericResponse, ApiFsWriteResponse, FileNode, FsEntry } from '@/types';
 
 vi.mock('@/services/api', () => ({
   listFiles: vi.fn(async () => []),
+  fetchDirectories: vi.fn(async () => { throw new Error('Not a directory'); }),
   readFile: vi.fn(async () => ''),
   writeFile: vi.fn(async () => undefined),
   renameFs: vi.fn(async () => undefined),
@@ -72,8 +73,30 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetEditorStoreOperationState();
   vi.mocked(listFiles).mockResolvedValue([]);
+  vi.mocked(fetchDirectories).mockRejectedValue(new Error('Not a directory'));
   seedEditor();
   useUIStore.setState({ toastQueue: [] });
+});
+
+describe('editorStore.openPath', () => {
+  it('reuses an existing directory root without creating a duplicate', async () => {
+    vi.mocked(fetchDirectories).mockResolvedValue({ current: WORKDIR, parent: null, entries: [] });
+    expect(await useEditorStore.getState().openPath(WORKDIR_NORM)).toBe(true);
+    expect(useEditorStore.getState().roots.map((root) => root.path)).toEqual([WORKDIR_NORM]);
+    expect(useEditorStore.getState().selectedPath).toBe(WORKDIR_NORM);
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it('does not let a late directory probe override a newer file navigation', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof fetchDirectories>>) => void;
+    vi.mocked(fetchDirectories).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = useEditorStore.getState().openPath('D:/old-directory');
+    await useEditorStore.getState().openFile('D:/new.md');
+    resolve({ current: 'D:/old-directory', parent: null, entries: [] });
+    expect(await pending).toBe(false);
+    expect(useEditorStore.getState().selectedPath).toBe('D:/new.md');
+    expect(useEditorStore.getState().roots.some((root) => root.path === 'D:/old-directory')).toBe(false);
+  });
 });
 
 describe('editorStore.setRoot', () => {
