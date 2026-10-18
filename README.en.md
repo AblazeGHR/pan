@@ -4,7 +4,7 @@ Pan is a local web app for managing CLI Agent sessions and coordinating multi-ag
 
 **[中文](./README.md) · English**
 
-**Agent adapter maintenance**: the actively maintained Agent adapters are **Codex** and **CBC (CodeBuddy CLI)**. Other existing adapters (kimi, opencode, claude) remain in this repository and continue to work, but they are outside active maintenance; this page makes no maintenance commitment for them and does not imply their removal. To adapt a new Agent CLI, open an [issue](https://github.com/AblazeGHR/pan/issues) to request it, or implement an adapter yourself and send a [pull request](https://github.com/AblazeGHR/pan/pulls) — the [CLI adapter development guide](docs/developing-cli-adapters.md) (Chinese) describes the protocol, lifecycle, and PR checklist.
+**Agent adapter maintenance**: the actively maintained Agent adapters are **Codex** and **CBC (CodeBuddy CLI)**. Other existing adapters (kimi, opencode, claude) remain in this repository, but are outside active maintenance; compatibility needs to be verified against the CLI version in use. To adapt a new Agent CLI, open an [issue](https://github.com/AblazeGHR/pan/issues) to request it, or implement an adapter yourself and send a [pull request](https://github.com/AblazeGHR/pan/pulls) — the [CLI adapter development guide](docs/developing-cli-adapters.md) (Chinese) describes the protocol, lifecycle, and PR checklist.
 
 ## What Pan does
 

@@ -6,7 +6,7 @@ Pan 是一个用于管理 CLI Agent 会话并协调多 Agent 任务的本地 Web
 
 **插件开发者**：从 [开发指南与帮助入口](docs/plugins/README.md) 开始，包含 MCP/CLI/API bridge、Panel 注册、数据目录、可运行示例和只读静态检查工具。
 
-**Agent adapter 维护状态**：当前积极维护的 Agent adapter 为 **Codex** 与 **CBC（CodeBuddy CLI）**。kimi、opencode、claude 等其他已有 adapter 仍随版本保留、可继续使用，但不在积极维护范围内，本页面不承诺对其的维护节奏，也不代表它们会被移除。欢迎为新的 Agent CLI 提交 [issue](https://github.com/AblazeGHR/pan/issues) 反馈适配需求，或按 [CLI Adapter 开发指南](docs/developing-cli-adapters.md) 自行实现 adapter 后提交 [PR](https://github.com/AblazeGHR/pan/pulls)。
+**Agent adapter 维护状态**：当前积极维护的 Agent adapter 为 **Codex** 与 **CBC（CodeBuddy CLI）**。kimi、opencode、claude 等其他已有 adapter 仍保留在仓库中，但不在积极维护范围内，兼容性需按实际 CLI 版本验证。欢迎为新的 Agent CLI 提交 [issue](https://github.com/AblazeGHR/pan/issues) 反馈适配需求，或按 [CLI Adapter 开发指南](docs/developing-cli-adapters.md) 自行实现 adapter 后提交 [PR](https://github.com/AblazeGHR/pan/pulls)。
 
 ## Pan 可以做什么
 
