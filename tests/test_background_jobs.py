@@ -517,6 +517,9 @@ def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
     from packages.core import background_runner
     assert background_runner.main() == 0
     assert jobs.get(job["jobId"])["status"] == "completed"
+    assert events[0]["type"] == "job.created"
+    assert any(event["job"]["status"] == "running" for event in events)
+    events.clear()  # Observe only terminal recovery below, as in a detached runner.
 
     async def notify(target, text, **kwargs):
         return {"ok": True}
@@ -589,6 +592,8 @@ def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
     job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
     jobs.runner_update(job["jobId"], status="completed", exitCode=0,
                        scheduledParentJobId="sch_parent")
+    assert events[0]["type"] == "job.created"
+    events.clear()  # Child identity is established before the recovery observation.
     asyncio.run(jobs.recover_notifications())
     assert events == []
     assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
@@ -701,3 +706,43 @@ def test_hidden_runner_claim_finishes_already_accepted_cancel(monkeypatch, tmp_p
     result = jobs.get(job['jobId'])
     assert result['status'] == 'cancelled'
     assert result['notificationState'] == 'pending'
+
+
+@pytest.mark.parametrize("kind", ["single", "broadcast"])
+def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
+    _session(tmp_path)
+    _session(tmp_path, "ses_other")
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+    schedule = {"type": "interval", "intervalSeconds": 3600}
+    if kind == "single":
+        job = jobs.start_message("ses_target", "context", schedule)
+    else:
+        job = jobs.start_broadcast(["ses_target", "ses_other"], "context", schedule)
+    assert events[-1]["type"] == "job.created"
+    assert events[-1]["job"]["target"]["sessionId"] == "ses_target"
+    original = events[-1]["job"]
+    jobs.update_job_field(job["jobId"], {"target": {"sessionId": "ses_other"}})
+    assert events[-1]["job"]["target"]["sessionId"] == "ses_other"
+    assert original["target"]["sessionId"] == "ses_target", "freeze prior snapshots"
+    async def send(*args, **kwargs):
+        assert events[-1]["job"]["status"] == "running", "publish claim before delivery"
+        return {"status": "queued"}
+    monkeypatch.setattr(worker, "send_session", send)
+    asyncio.run(jobs.run_due_message_jobs(now=jobs.time.time() + 7200))
+    assert any(e["job"]["status"] == "running" for e in events)
+    assert events[-1]["job"]["status"] == "scheduled"
+    jobs.cancel(job["jobId"])
+    assert events[-1]["job"]["status"] == "cancelled"
+    assert all(isinstance(e["job"]["source"], dict) and "target" in e["job"] for e in events)
+
+
+def test_failed_job_commit_does_not_publish_live_state(monkeypatch, tmp_path):
+    events = []
+    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+    def fail(*args, **kwargs):
+        raise OSError("owned injected persistence failure")
+    monkeypatch.setattr(jobs, "_atomic_write", fail)
+    with pytest.raises(OSError):
+        jobs._write_job(tmp_path / "job_owned.json", {"jobId": "job_owned"})
+    assert events == []

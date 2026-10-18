@@ -88,6 +88,24 @@ def _atomic_write(path: Path, value: dict) -> None:
             time.sleep(0.01 * (attempt + 1))
 
 
+def _write_job(path: Path, job: dict, *, created: bool = False) -> None:
+    """Publish a full public snapshot only after the registry commit succeeds.
+
+    Message/scheduler state machines and agent-facing APIs share this boundary.
+    Detached runners have no event callback; their terminal recovery remains
+    responsible for broadcasting after Pan observes the durable result.
+    """
+    _atomic_write(path, job)
+    if (not job.get("scheduledParentJobId")
+            and not (job.get("kind") == BACKGROUND_PROCESS_KIND
+                     and job.get("status") in {"completed", "failed", "cancelled"})):
+        # Process terminal delivery retains the strict retry/ack recovery path.
+        # Freeze nested schedule/target fields before an async broadcaster runs.
+        snapshot = json.loads(json.dumps(job_public_view(job)))
+        _scheduled_task_emit({"type": "job.created" if created else "job.updated",
+                              "jobId": job["jobId"], "job": snapshot})
+
+
 @contextmanager
 def _windows_named_mutex(lock_path: Path, namespace: str):
     """Acquire a named Windows mutex with correctly typed Win32 handles."""
@@ -230,7 +248,7 @@ def _normalize_job(job: dict | None) -> dict | None:
 
 def _save(job: dict, registry_root: str | Path | None = None) -> dict:
     with _lock, _job_lock(job["jobId"], registry_root):
-        _atomic_write(_job_path(job["jobId"], registry_root), job)
+        _write_job(_job_path(job["jobId"], registry_root), job)
     return job
 
 
@@ -240,7 +258,7 @@ def _create(job: dict, registry_root: str | Path | None = None) -> dict:
         path = _job_path(job["jobId"], registry_root)
         if path.exists():
             raise ValueError("job id already exists")
-        _atomic_write(path, job)
+        _write_job(path, job, created=True)
     return job
 
 
@@ -253,7 +271,7 @@ def _update(job_id: str, changes: dict[str, Any], *, replace: dict | None = None
         if not current:
             raise ValueError("job not found")
         current.update(changes)
-        _atomic_write(path, current)
+        _write_job(path, current)
         return current
 
 
@@ -625,7 +643,7 @@ def retarget_session_jobs(old_session_id: str, new_session_id: str,
                     if not _retarget_job_record(current, old_session_id, new_session_id):
                         summary["unchanged"] += 1
                         continue
-                    _atomic_write(path, current)
+                    _write_job(path, current)
                     summary["updated"] += 1
             except Exception as exc:
                 summary["errors"].append({
@@ -676,7 +694,7 @@ def update_job_field(job_id: str, changes: dict[str, Any],
             patch.pop("status", None)  # 循环/状态机按 nextFireAt 自行归类
         patch["updatedAt"] = time.time()
         current.update(patch)
-        _atomic_write(path, current)
+        _write_job(path, current)
         return current
 
 
@@ -756,7 +774,7 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
         if current.get("status") == "starting":
             current["status"] = "running"
         current["updatedAt"] = time.time()
-        _atomic_write(path, current)
+        _write_job(path, current)
         return _normalize_job(current)
 
 
@@ -784,7 +802,10 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
             "name": name, "description": description,
         })
         if remote is not None:
-            return pan_bridge.public_job(remote)
+            public = pan_bridge.public_job(remote)
+            _scheduled_task_emit({"type": "job.created", "jobId": public["jobId"],
+                                  "job": job_public_view(public)})
+            return public
     job_id = "job_" + secrets.token_hex(12)
     now = time.time()
     log_path = _root(registry_root) / "logs" / f"{job_id}.log"
@@ -1173,7 +1194,7 @@ def update_message(job_id: str, *, text: str | None = None,
         if current.get("status") in MESSAGE_JOB_TERMINAL:
             raise ValueError("terminal message Jobs cannot be edited")
         current.update(changes)
-        _atomic_write(path, current)
+        _write_job(path, current)
         return current
 
 
@@ -1213,7 +1234,7 @@ async def run_due_message_jobs(now: float | None = None,
                                    nextRunAt=_iso_utc(current_time - 0.001),
                                    lastError="recovered after scheduler restart",
                                    updatedAt=current_time)
-                    _atomic_write(path, current)
+                    _write_job(path, current)
     claimed: list[dict] = []
     for candidate in list_jobs(registry_root):
         if candidate.get("kind") not in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
@@ -1239,7 +1260,7 @@ async def run_due_message_jobs(now: float | None = None,
                 continue
             job.update(status="running", runStartedAt=current_time,
                        updatedAt=current_time)
-            _atomic_write(path, job)
+            _write_job(path, job)
             claimed.append(job)
     delivered = 0
     for job in claimed:
@@ -1332,7 +1353,7 @@ async def run_due_message_jobs(now: float | None = None,
             latest = _load_path(path)
             if latest and latest.get("status") == "running":
                 latest.update(changes)
-                _atomic_write(path, latest)
+                _write_job(path, latest)
     return delivered
 
 
@@ -2236,6 +2257,10 @@ def _scheduled_task_emit(event: dict) -> None:
             loop = None
         if loop is not None:
             loop.create_task(_consume_emitted(result))
+        else:
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
 
 
 async def _consume_emitted(awaitable) -> None:
@@ -2296,7 +2321,7 @@ def _apply_entry_change(job_id: str, entry_id: str, entry_patch: dict,
         current.update(job_patch)
         current["nextFireAt"] = _job_next_fire(current)
         current["updatedAt"] = time.time()
-        _atomic_write(path, current)
+        _write_job(path, current)
         return current
 
 
@@ -2394,7 +2419,7 @@ def _reconcile_scheduled_processes(registry_root: str | Path) -> int:
                         current["lastError"] = (
                             str(error) if delivery["status"] == "error" else None)
                     current["updatedAt"] = time.time()
-                    _atomic_write(path, current)
+                    _write_job(path, current)
                     _scheduled_task_emit({
                         "type": "job.updated",
                         "jobId": parent_id,
@@ -2527,7 +2552,7 @@ async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) ->
             elif delivered:
                 latest.update(lastStatus="dispatched", lastError=None,
                               updatedAt=time.time())
-            _atomic_write(path, latest)
+            _write_job(path, latest)
         for note, delivered_job, result in delivered:
             fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
             is_qq = (isinstance(delivered_job.get("action"), dict)
@@ -2823,7 +2848,7 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
                 continue
             current.update(status="running", runStartedAt=now_ts,
                             updatedAt=now_ts)
-            _atomic_write(path, current)
+            _write_job(path, current)
             claimed.append(current)
 
     # 3) 执行被认领的到期 entries（认领即「落盘先于派发」）。每个 entry 前重载
@@ -2902,7 +2927,7 @@ def cancel(job_id: str) -> dict:
         if not current: raise ValueError("job not found")
         if current.get("status") in {"completed", "failed", "cancelled"}: return current
         current["cancelRequestedAt"] = time.time()
-        _atomic_write(_job_path(job_id), current)
+        _write_job(_job_path(job_id), current)
     if proc:
         _kill_tree(proc)
     if runner and getattr(runner, "pid", None) != getattr(proc, "pid", None):
@@ -2915,7 +2940,7 @@ def cancel(job_id: str) -> dict:
             return current
         current.update(status="cancelled", exitCode=None, updatedAt=time.time(),
                        terminalEventId=f"{job_id}:terminal", notificationState="pending")
-        _atomic_write(_job_path(job_id), current)
+        _write_job(_job_path(job_id), current)
         return current
 
 
@@ -3092,7 +3117,7 @@ def transition_service_job(job_id: str, phase: str, *, registry_root: str | Path
         } else (
             phase if phase in {"failed", "timed_out"} else "running")
         current.update(phase=phase, status=status, updatedAt=time.time())
-        _atomic_write(path, current)
+        _write_job(path, current)
         return _normalize_job(current)
 
 
@@ -3126,12 +3151,12 @@ def claim_hidden_runner(job_id: str) -> bool:
             current.update(status="cancelled", exitCode=None,
                            terminalEventId=f"{job_id}:terminal", notificationState="pending")
             current["updatedAt"] = time.time()
-            _atomic_write(path, current)
+            _write_job(path, current)
             return False
         current.update(runnerPid=pid, runnerFiletime=str(filetime),
                        runnerProcessCreatedAt=filetime / 10_000_000 - 11644473600,
                        runnerClaim=secrets.token_hex(16), updatedAt=time.time())
-        _atomic_write(path, current)
+        _write_job(path, current)
         return True
 
 
@@ -3153,7 +3178,7 @@ def runner_update(job_id: str, **changes: Any) -> dict:
             changes.update(status="cancelled", exitCode=None)
         if current.get("status") == "cancelled": changes.pop("status", None)
         current.update(changes)
-        _atomic_write(_job_path(job_id), current)
+        _write_job(_job_path(job_id), current)
         return current
 
 
@@ -3204,7 +3229,7 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
             current.update(status="failed", error="orphaned: " + reason,
                            terminalEventId=f"{job['jobId']}:terminal",
                            notificationState="pending", updatedAt=time.time())
-            _atomic_write(path, current)
+            _write_job(path, current)
             changed += 1
     return changed
 
@@ -3271,7 +3296,7 @@ def _mark_terminal_broadcast(job_id: str, root: str | Path) -> None:
         if current.get("terminalEventEmittedFor") == current_event_id:
             return
         current["terminalEventEmittedFor"] = current_event_id
-        _atomic_write(_job_path(job_id, root), current)
+        _write_job(_job_path(job_id, root), current)
 
 
 def _terminal_broadcast_ledger_path() -> Path:
@@ -3399,7 +3424,7 @@ async def recover_notifications() -> int:
                 if not target:
                     current["notificationState"] = "not_applicable"
                     current["updatedAt"] = time.time()
-                    _atomic_write(_job_path(current["jobId"], root), current)
+                    _write_job(_job_path(current["jobId"], root), current)
                     continue
                 event_id = current.get("terminalEventId") or f"{current['jobId']}:terminal"
                 text = json.dumps({
@@ -3420,7 +3445,7 @@ async def recover_notifications() -> int:
                     current["notificationState"] = "delivered"
                     current["terminalEventId"] = event_id
                     current["updatedAt"] = time.time()
-                    _atomic_write(_job_path(current["jobId"], root), current)
+                    _write_job(_job_path(current["jobId"], root), current)
                     delivered += 1
     # 独立 Job 服务路径：远程注册表的终态补发（与 legacy 循环同一严格契约）。
     await _broadcast_independent_terminals()

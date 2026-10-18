@@ -112,12 +112,6 @@ export function useWebSocket() {
     // handlers on the singleton wsClient.
     const unsubscribers: Array<() => void> = [];
 
-    // ── 流式 lastMessage 卡片预览（throttle）──
-    // worker.stream 对每个回复块广播一次；除当前 session 消息区外，侧边栏所有
-    // session 的卡片预览也要实时跟随。为不因每个 chunk 都更新 store 而拖累列表，
-    // 按 session 做 500ms 节流：窗口内合并到最新文本，到点 flush 一次。result 落地
-    // 时取消 pending，保证最终 lastMessage 以 result 为准（节流 timer 不会迟到
-    // 覆盖 result）。状态放 effect 闭包里，卸载即清，StrictMode 重挂载不残留。
     // Lead on the next event-loop turn, then bound follow-up request starts.
     // Bounded coalescing, not trailing debounce: sustained traffic cannot
     // postpone the first authoritative read forever. At most one read runs;
@@ -164,52 +158,15 @@ export function useWebSocket() {
       }, Math.max(0, nextHistoryAt - Date.now()));
     }
 
-    const STREAM_PREVIEW_THROTTLE_MS = 500;
-    const streamPreviewPending = new Map<string, string>(); // sessionId → 最新待 flush 文本
-    const streamPreviewLastFlush = new Map<string, number>(); // sessionId → 上次 flush 时间戳
-    const streamPreviewTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-    const flushStreamPreview = (sessionId: string, now: number): void => {
-      const text = streamPreviewPending.get(sessionId);
-      if (text === undefined) return;
-      useSessionStore.getState().updateSession(sessionId, {
-        lastMessage: text.slice(0, 200),
-      });
-      streamPreviewPending.delete(sessionId);
-      streamPreviewLastFlush.set(sessionId, now);
-    };
-
-    const throttledLastMessageUpdate = (
-      sessionId: string,
-      text: string,
-    ): void => {
-      // 保留最新文本，窗口内合并
-      streamPreviewPending.set(sessionId, text);
-      const now = Date.now();
-      const last = streamPreviewLastFlush.get(sessionId) ?? 0;
-      if (now - last >= STREAM_PREVIEW_THROTTLE_MS) {
-        flushStreamPreview(sessionId, now);
-      } else if (!streamPreviewTimers.has(sessionId)) {
-        // 距上次 flush 未满 500ms → 排一个尾随 timer，到点 flush 最新文本
-        const delay = STREAM_PREVIEW_THROTTLE_MS - (now - last);
-        streamPreviewTimers.set(
-          sessionId,
-          setTimeout(() => {
-            streamPreviewTimers.delete(sessionId);
-            flushStreamPreview(sessionId, Date.now());
-          }, delay),
-        );
+    // Completed Worker frames carry the authoritative Session summary at the
+    // same server-side history boundary as the frame.  Ingest it for every
+    // Session, including background/unselected ones; projecting the frame only
+    // into currentMessages leaves sidebar cards and history cursors stale until
+    // a later page visit or list refresh.
+    const ingestLiveSessionSummary = (e: StreamEvent): void => {
+      if (e.sessionId && e.session) {
+        useSessionStore.getState().updateSession(e.sessionId, { ...e.session }, true);
       }
-    };
-
-    const cancelStreamPreview = (sessionId: string): void => {
-      streamPreviewPending.delete(sessionId);
-      const timer = streamPreviewTimers.get(sessionId);
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        streamPreviewTimers.delete(sessionId);
-      }
-      streamPreviewLastFlush.delete(sessionId);
     };
 
     let lastInteractiveSyncGeneration: number | null = null;
@@ -529,7 +486,8 @@ export function useWebSocket() {
         if (e.queueRevision === undefined || !completePayload) refreshAgentQueue(e.sessionId);
         // 队列事件附带的最新 Session 摘要（queuePendingCount / queueAllLocked /
         // queueRevision）就地合入卡片徽标；缺失时由既有防抖列表刷新兜底。
-        if (e.sessionId && e.session) {
+        if ((e.type !== 'queue.item_delivered' || !Array.isArray(e.messages) || !e.messages.length)
+            && e.sessionId && e.session) {
           useSessionStore.getState().updateSession(e.sessionId, { ...e.session }, true);
         }
       }));
@@ -538,7 +496,7 @@ export function useWebSocket() {
       if (!e.sessionId || !Array.isArray(e.messages)) return;
       useSessionStore.getState().appendDeliveredMessages(e.sessionId, e.messages, {
         workerId: e.workerId, generation: e.generation, executionSeq: e.executionSeq,
-      });
+      }, e.session);
     }));
 
     // Worker spawned / restarted / reconfigured
@@ -584,7 +542,6 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('worker.destroyed', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e, true)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
-      if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       if (!handleWorkerUpdate(e, null, true)) return;
       refreshAgentQueue(e.sessionId);
@@ -597,7 +554,6 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('worker.crashed', (e: StreamEvent) => {
       if (!isCurrentWorkerEvent(e, true)) return;
       if (e.sessionId) clearNativeTurnAliases(e.sessionId);
-      if (e.sessionId) cancelStreamPreview(e.sessionId);
       clearInteractiveRequests(e.sessionId);
       if (!handleWorkerUpdate(e, null, true)) return;
       refreshAgentQueue(e.sessionId);
@@ -607,6 +563,7 @@ export function useWebSocket() {
 
     // Worker status update
     unsubscribers.push(wsClient.on('worker.status', (e: StreamEvent) => {
+      ingestLiveSessionSummary(e);
       if (!handleWorkerUpdate(e, e.status ?? 'idle')) return;
       // A task/report remains in the durable server queue until the provider
       // hand-off boundary (stream write+drain, or one-shot process creation).
@@ -763,14 +720,19 @@ export function useWebSocket() {
       // Persist a transient live suffix for every session. The store projects
       // it into currentMessages only when that session is selected, so A→B→A
       // does not lose deltas while the selected-session viewport changes.
-      appendEvent(e.sessionId, e.event, e);
-      // 卡片预览：所有 session 就地 throttle 更新 lastMessage（无文本事件跳过）
-      const text = extractStreamText(e.event);
-      if (text) throttledLastMessageUpdate(e.sessionId, text);
+      if (appendEvent(e.sessionId, e.event, e)) {
+        const text = extractStreamText(e.event);
+        if (text && !e.session) useSessionStore.getState().updateSession(e.sessionId, {
+          lastMessage: text.slice(0, 200), lastAssistantPreview: text.slice(0, 200),
+          lastDisplayPreview: text.slice(0, 200),
+        });
+      }
+      ingestLiveSessionSummary(e);
     }));
 
     // Result event
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
+      ingestLiveSessionSummary(e);
       if (!isCurrentWorkerEvent(e, true)) {
         // A terminal event attributed to an older worker generation is dropped
         // (a late result must not clear its replacement), but the drop must not
@@ -812,10 +774,6 @@ export function useWebSocket() {
         return;
       }
       appendTerminalResultMarker(sessionId, e);
-      // 流式预览节流：result 为最终 lastMessage，先清掉该 session 未 flush 的
-      // pending 文本与尾随 timer，防止其迟到覆盖 result（applyResultToSession
-      // 紧接着以 result 写入 lastMessage）。
-      cancelStreamPreview(sessionId);
       clearNativeTurnAliases(sessionId);
       handleWorkerUpdate(e, 'idle');
       refreshAgentQueue(e.sessionId);
@@ -931,15 +889,15 @@ export function useWebSocket() {
     // Incremental payloads carry the full job, so no REST refresh is needed.
     unsubscribers.push(wsClient.on('job.created', (e: StreamEvent) => {
       const job = (e as unknown as { job?: Job }).job;
-      if (job) useJobStore.getState().upsertJob(job);
+      if (job) useJobStore.getState().upsertJob(job, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });
     }));
     unsubscribers.push(wsClient.on('job.updated', (e: StreamEvent) => {
       const job = (e as unknown as { job?: Job }).job;
-      if (job) useJobStore.getState().upsertJob(job);
+      if (job) useJobStore.getState().upsertJob(job, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });
     }));
     unsubscribers.push(wsClient.on('job.deleted', (e: StreamEvent) => {
       const jobId = (e as unknown as { jobId?: string }).jobId;
-      if (jobId) useJobStore.getState().removeJob(jobId);
+      if (jobId) useJobStore.getState().removeJob(jobId, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });
     }));
     // Custom session order persisted (POST /api/sessions/order broadcast). A
     // debounced full-list refresh re-reads the server snapshot; in custom sort
@@ -980,11 +938,6 @@ export function useWebSocket() {
       active = false;
       if (refreshTimer) clearTimeout(refreshTimer);
       if (historyTimer) clearTimeout(historyTimer);
-      // 卸载时清掉流式预览节流 timer，避免迟到 flush 更新卸载后的 store
-      for (const timer of streamPreviewTimers.values()) clearTimeout(timer);
-      streamPreviewTimers.clear();
-      streamPreviewPending.clear();
-      streamPreviewLastFlush.clear();
       for (const timer of queueRefreshTimers.values()) clearTimeout(timer);
       queueRefreshTimers.clear();
       if (recoveryTimer) clearTimeout(recoveryTimer);

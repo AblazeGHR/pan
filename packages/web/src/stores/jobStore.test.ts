@@ -32,7 +32,7 @@ const job = (overrides: Partial<Job> = {}): Job => ({
 
 const resetStore = () => useJobStore.setState({
   jobs: [], loaded: false, loading: false, error: null, pinMetadataUnavailable: false,
-  loadSeq: 0, mutationSeq: 0,
+  loadSeq: 0, mutationSeq: 0, eventSeqByJob: {},
 });
 
 /** A manually resolved fetchJobs response, for deterministic race ordering. */
@@ -101,6 +101,8 @@ describe('jobStore', () => {
     useJobStore.getState().upsertJob(job({ jobId: 'a', pinned: false }));
     row = useJobStore.getState().jobs[0]!;
     expect(row.pinned).toBe(false);
+    expect(row.status).toBe('running');
+    expect(row.updatedAt).toBe(2);
 
     useJobStore.getState().upsertJob(job({ jobId: 'a', pinned: true, pinMetadataStatus: 'unavailable' }));
     row = useJobStore.getState().jobs[0]!;

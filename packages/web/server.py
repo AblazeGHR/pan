@@ -1528,7 +1528,12 @@ def _attach_session_summary_patch(data: dict) -> dict:
                 task_id=task_id,
                 task_seq=task_seq,
             )
-    if event_type not in (_SUMMARY_WORKER_EVENT_TYPES
+    # Completed provider blocks have already advanced append_history's
+    # projection. Deltas stay lightweight and use the client's live suffix.
+    completed_stream = (event_type == "worker.stream"
+                        and isinstance(data.get("event"), dict)
+                        and not data["event"].get("delta"))
+    if not completed_stream and event_type not in (_SUMMARY_WORKER_EVENT_TYPES
                           | _SUMMARY_SESSION_EVENT_TYPES
                           | _SUMMARY_QUEUE_EVENT_TYPES):
         return data

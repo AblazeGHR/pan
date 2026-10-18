@@ -707,3 +707,21 @@ def test_metadata_and_full_views_keep_summary_fields_without_changing_history_co
     assert metadata["lastUserPreview"] == "keep me"
     assert "history" not in metadata
     assert full["history"][-1]["content"] == "keep me"
+
+
+@pytest.mark.parametrize("source", ["agent", "report", "automation", "system_prompt", "user"])
+def test_completed_stream_publishes_current_summary_after_injected_input(source):
+    target = _new_session("background-live")
+    sess.append_history(target, {"role": "user", "source": source,
+                                 "content": "////by agent : sender"})
+    sess.append_history(target, {"role": "assistant", "content": "current answer"})
+    event = {"type": "worker.stream", "sessionId": target.id,
+             "event": {"type": "assistant", "content": "current answer"}}
+    patch = server._attach_session_summary_patch(event)["session"]
+    assert patch["lastMessage"] == patch["lastDisplayPreview"] == "current answer"
+    assert patch["lastAssistantPreview"] == "current answer"
+    assert patch["historyRevision"] == target.history_revision
+    assert patch["historyTotal"] == 2
+    # High-frequency deltas remain transient, without duplicating full metadata.
+    delta = {**event, "event": {"type": "assistant", "delta": True, "stream_text": "partial"}}
+    assert "session" not in server._attach_session_summary_patch(delta)

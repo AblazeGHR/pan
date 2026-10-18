@@ -2679,23 +2679,13 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(lastMessageOf('B')).toBe(long.slice(0, 200));
   });
 
-  it('throttles lastMessage updates within 500ms, flushing the latest text', () => {
+  it('updates every accepted background preview synchronously without a timer', () => {
     renderHook(() => useWebSocket());
-
     streamText('B', 'a');
-    expect(lastMessageOf('B')).toBe('a'); // 首个事件立即 flush
-
-    // 500ms 窗口内的事件合并，未到点不更新卡片
-    vi.advanceTimersByTime(100);
-    streamText('B', 'ab');
-    vi.advanceTimersByTime(100);
-    streamText('B', 'abc');
     expect(lastMessageOf('B')).toBe('a');
-
-    // 到点 → 尾随 timer flush 最新文本
-    act(() => {
-      vi.advanceTimersByTime(400);
-    });
+    streamText('B', 'ab');
+    expect(lastMessageOf('B')).toBe('ab');
+    streamText('B', 'abc');
     expect(lastMessageOf('B')).toBe('abc');
   });
 
@@ -2715,14 +2705,14 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(lastMessageOf('B')).toBeUndefined();
   });
 
-  it('result wins over a pending throttled stream preview', () => {
+  it('result remains authoritative after earlier stream previews', () => {
     renderHook(() => useWebSocket());
 
     streamText('B', 'first');
     expect(lastMessageOf('B')).toBe('first');
 
     vi.advanceTimersByTime(100);
-    streamText('B', 'pending-stream'); // 排了尾随 timer
+    streamText('B', 'pending-stream');
 
     act(() => {
       wsMock.trigger('worker.result', {
@@ -2735,7 +2725,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
     expect(lastMessageOf('B')).toBe('final-result');
 
-    // 迟到的节流 timer 不得覆盖 result
+    // Advancing time cannot resurrect an earlier stream preview.
     act(() => {
       vi.advanceTimersByTime(1000);
     });
