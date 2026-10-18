@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -340,6 +342,97 @@ def test_live_result_and_stream_projection_match_history_projection(monkeypatch,
     # GET must not touch the registry or stat local paths.
     assert srv._session_summary(first)["lastMessage"] == content
     assert "/api/attachments/editor/att_" not in srv._session_summary(first)["lastMessage"]
+
+
+def test_editor_projection_does_not_resolve_unrelated_registry_paths(monkeypatch, tmp_path):
+    first, _ = _setup(tmp_path, monkeypatch)
+    source = tmp_path / "live.md"
+    source.write_text("body", encoding="utf-8")
+    canonical = str(source.resolve())
+    registry = {
+        f"att_{index:032x}": {
+            "source": "server_file", "path": str(tmp_path / f"missing-{index}.md"),
+            "line": None, "endLine": None, "completed": True,
+        } for index in range(1000)
+    }
+    identity = "att_" + "f" * 32
+    registry[identity] = {"source": "server_file", "path": canonical,
+                          "line": None, "endLine": None, "completed": True}
+    monkeypatch.setattr(srv, "_read_attachment_registry", lambda _sid: registry)
+    original = Path.resolve
+    resolved = []
+
+    def resolve(path, *args, **kwargs):
+        resolved.append(str(path))
+        assert "missing-" not in str(path), "unrelated registry path touched"
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    assert srv._editor_reference_id(first.id, canonical, None, None) == identity
+    assert resolved == [canonical]
+
+
+def test_repeated_live_links_resolve_once_per_content(monkeypatch, tmp_path):
+    first, _ = _setup(tmp_path, monkeypatch)
+    source = tmp_path / "repeat.md"
+    source.write_text("body", encoding="utf-8")
+    original = srv._resolve_attachment_source_path
+    calls = []
+
+    def resolve(sid, path):
+        calls.append(path)
+        return original(sid, path)
+
+    monkeypatch.setattr(srv, "_resolve_attachment_source_path", resolve)
+    content = " ".join(f"[label-{i}](repeat.md)" for i in range(100))
+    result = srv._project_editor_links(first.id, content)
+    assert calls == ["repeat.md"]
+    assert result.count("/api/attachments/editor/att_") == 100
+    assert "label-99" in result
+    assert len(srv._read_attachment_registry(first.id)) == 1
+
+
+def test_live_link_projection_keeps_event_loop_responsive(monkeypatch):
+    main_thread = threading.get_ident()
+    threads = []
+
+    def project(data):
+        threads.append(threading.get_ident())
+        time.sleep(0.1)  # Model a slow filesystem path without touching one.
+        return data
+
+    monkeypatch.setattr(srv, "_project_worker_event", project)
+    monkeypatch.setattr(srv, "_attach_session_summary_patch", lambda data: data)
+    monkeypatch.setattr(srv, "ws_clients", set())
+    monkeypatch.setattr(srv, "agent_clients", set())
+
+    async def scenario():
+        task = asyncio.create_task(srv.broadcast({"type": "worker.stream"}))
+        await asyncio.sleep(0.02)
+        try:
+            assert not task.done(), "projection blocked the event loop"
+            assert (await srv.health())["status"] == "ok"
+        finally:
+            await task
+
+    asyncio.run(scenario())
+    assert threads and all(thread != main_thread for thread in threads)
+
+
+def test_concurrent_editor_projections_reuse_one_reference(monkeypatch, tmp_path):
+    first, _ = _setup(tmp_path, monkeypatch)
+    source = tmp_path / "concurrent.md"
+    source.write_text("body", encoding="utf-8")
+
+    async def scenario():
+        return await asyncio.gather(*[
+            asyncio.to_thread(srv._project_editor_links, first.id,
+                              "[file](concurrent.md#L1)") for _ in range(8)
+        ])
+
+    results = asyncio.run(scenario())
+    assert len(set(results)) == 1
+    assert len(srv._read_attachment_registry(first.id)) == 1
 
 
 def test_attachment_source_rejects_relative_workdir_escape(tmp_path):

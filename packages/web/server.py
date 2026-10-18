@@ -1559,6 +1559,10 @@ def _stamp_live_event(data: dict) -> dict:
     }
 
 
+_LINK_PROJECTION_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="pan-link-projection")
+
+
 def _project_worker_event(data: dict) -> dict:
     """Project local Markdown links before exposing a Worker event to UI.
 
@@ -1659,8 +1663,15 @@ async def broadcast(data: dict):
     # Keep the persisted provider/history representation untouched.  This is
     # the common outbound boundary for live browser events and is intentionally
     # before both dashboard and agent-client fan-out.
+    # Resolving local links can stat files and read/write the attachment
+    # registry. Never do that on the event loop driving HTTP and Worker IO.
+    # The producer awaits its own projection, preserving its event order.
+    if data.get("type") in {"worker.stream", "worker.result"}:
+        data = await asyncio.get_running_loop().run_in_executor(
+            _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
+    # Capture live summary authority after the await, not before another
+    # producer may have advanced this Session while filesystem work ran.
     data = _attach_session_summary_patch(data)
-    data = _project_worker_event(data)
     data = _stamp_live_event(data)
     _stamp_ws_event_ts(data)
     for ws in list(ws_clients):
@@ -2197,27 +2208,15 @@ def _session_to_api(
 _PAGE_UNSET = object()
 _NOT_FOUND = object()
 
-# One dedicated thread serves serialized Session-index reads. These reads
-# include Python JSON parsing and nested page copies, so a pool cannot make a
-# single index read faster. An unbounded pool (the default executor's
+# One dedicated thread serves every offloaded store read.  The reads are
+# store reads include Python JSON parsing and nested page copies, so a pool
+# cannot make one read faster. An unbounded pool (the default executor's
 # min(32, cpu+4)) also lets a cold-read storm create many competing Python
-# threads. Read-only history pages use the separate bounded executor below;
-# the index queue remains serialized for the store's cache/lock contract.
+# threads. A single worker preserves the previous store serialization while
+# the bounded tail-page cache avoids repeating full-file work for unchanged
+# default-tail requests.
 _STORE_READ_EXECUTOR = ThreadPoolExecutor(
     max_workers=1, thread_name_prefix="pan-store-read")
-
-# History pages only read the store and return copied rows; they do not mutate
-# the Session cache. Keep them off the summary/list queue so a large history
-# read cannot head-of-line block Session cards, worker snapshots, or queue
-# acknowledgements during a refresh.
-_HISTORY_READ_EXECUTOR = ThreadPoolExecutor(
-    max_workers=2, thread_name_prefix="pan-history-read")
-
-# JSON encoding is CPU-bound but independent after the payload has been
-# snapshotted. A separate bounded executor prevents a large response body from
-# delaying the next store read while preserving a cap on concurrent encoders.
-_RESPONSE_ENCODER_EXECUTOR = ThreadPoolExecutor(
-    max_workers=2, thread_name_prefix="pan-response-encode")
 
 
 async def _store_read(func, /, *args, **kwargs):
@@ -2227,24 +2226,13 @@ async def _store_read(func, /, *args, **kwargs):
         _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
 
 
-async def _history_read(func, /, *args, **kwargs):
-    """Run a copied, read-only history lookup outside the summary queue."""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _HISTORY_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
-
-
 async def _history_network_response(payload: dict, request: Request | None):
     # Direct internal callers retain the dict contract. Returning a Response
     # for HTTP skips FastAPI's synchronous recursive encoder and JSON render.
     # Reuse the single worker so a burst cannot fan out GIL-bound encoders.
     if request is None:
         return payload
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _RESPONSE_ENCODER_EXECUTOR,
-        lambda: NetworkJSONResponse(jsonable_encoder(payload)),
-    )
+    return await _store_read(lambda: NetworkJSONResponse(jsonable_encoder(payload)))
 
 
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:
@@ -4285,12 +4273,23 @@ def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | Non
 
 def _editor_reference_id(session_id: str, path: str, line: int | None, end_line: int | None) -> str:
     canonical_path = str(Path(path).resolve())
+    # Concurrent history/live projections must reuse one durable reference.
+    with _ATTACHMENT_REGISTRY_LOCK:
+        return _editor_reference_id_locked(session_id, canonical_path, line, end_line)
+
+
+def _editor_reference_id_locked(session_id: str, canonical_path: str,
+                                line: int | None, end_line: int | None) -> str:
+    # Registry paths are resolved at registration. Comparing these stored
+    # canonical strings must not resolve every unrelated file again: stale
+    # network drives in the registry can otherwise block each live delta.
+    canonical_key = os.path.normcase(os.path.normpath(canonical_path))
     registry = _read_attachment_registry(session_id)
     for attachment_id, record in registry.items():
         if (
             isinstance(record, dict)
             and record.get("source") == "server_file"
-            and str(Path(str(record.get("path", ""))).resolve()) == canonical_path
+            and os.path.normcase(os.path.normpath(str(record.get("path", "")))) == canonical_key
             and record.get("line") == line
             and record.get("endLine") == end_line
             and record.get("completed", True) is True
@@ -4316,7 +4315,14 @@ def _project_editor_links(session_id: str, content: str) -> str:
     be upgraded to a draggable opaque reference; missing or ambiguous legacy
     links remain ordinary editor links and retain click-only compatibility.
     """
+    destinations: dict[str, str | None] = {}
+
     def replace(match: re.Match[str]) -> str:
+        href = match.group("href")
+        if href in destinations:
+            projected = destinations[href]
+            return f"{match.group('label')}({projected})" if projected else match.group(0)
+        destinations[href] = None
         parsed = _parse_editor_destination(match.group("href"))
         if parsed is None:
             return match.group(0)
@@ -4328,7 +4334,9 @@ def _project_editor_links(session_id: str, content: str) -> str:
             if not target.is_file():
                 return match.group(0)
             attachment_id = _editor_reference_id(session_id, str(target), line, end_line)
-            return f"{match.group('label')}({_editor_attachment_href(session_id, attachment_id, line, end_line)})"
+            projected = _editor_attachment_href(session_id, attachment_id, line, end_line)
+            destinations[href] = projected
+            return f"{match.group('label')}({projected})"
         except (OSError, RuntimeError, ValueError):
             return match.group(0)
 
@@ -5372,7 +5380,7 @@ async def ws_agent_endpoint(ws: WebSocket):
 
             elif msg_type == "list":
                 sessions = await _store_read(sess.list_all, load_history=False)
-                pages = await _history_read(
+                pages = await _store_read(
                     _history_pages_for, [s.id for s in sessions], 50)
                 app_config = load_config()
                 await _send_ws(ws, {
@@ -5484,7 +5492,7 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
             _session_summary(s, active_workers, pin_projection_for(s.id), manager_by_id)
             for s in sessions
         ]}, request)
-    pages = await _history_read(
+    pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     # Resolve dynamic configuration once per response. Reading and deep-merging
     # config.json for each Session made list shaping perform one filesystem
@@ -6072,7 +6080,7 @@ async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
         active_workers = worker.find_alive_workers_by_session()
         return {"ok": True, "workspaceId": workspace_id,
                 "sessions": [_session_summary(s, active_workers) for s in sessions]}
-    pages = await _history_read(
+    pages = await _store_read(
         _history_pages_for, [s.id for s in sessions], 50)
     app_config = load_config()
     return {"ok": True, "workspaceId": workspace_id,
@@ -7026,7 +7034,7 @@ async def api_session_managers(session_id: str):
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
                               searchJump: bool = False, request: Request = None):
     """Paginated session history for lazy-loading older messages."""
-    page = await _history_read(
+    page = await _store_read(
         _history_page_lookup, session_id, before, limit, searchJump)
     if page is _NOT_FOUND:
         return await _history_network_response({"error": "Session not found"}, request)
@@ -7096,7 +7104,7 @@ async def api_session_navigation(session_id: str, before: int = 0, limit: int = 
     Coverage is canonical start/total/epoch; every row, including non-targets,
     is represented so the client can prove nearest and full completion.
     """
-    page = await _history_read(_navigation_page_lookup, session_id, before, limit)
+    page = await _store_read(_navigation_page_lookup, session_id, before, limit)
     if page is _NOT_FOUND:
         raise HTTPException(status_code=404, detail="Session not found")
     return page
