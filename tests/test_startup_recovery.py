@@ -20,7 +20,8 @@ def recovery_env(tmp_path, monkeypatch):
     sess._newline_terminated_jsonl.clear()
     server._STARTUP_RECOVERY_INFLIGHT.clear()
     created = sess.create("startup-candidate")
-    created.last_legal_worker_state = "running"
+    created.recovery_requested = True
+    created.last_legal_worker_state = "idle"  # stale legacy does not control recovery
     sess.save(created)
     yield tmp_path, created
     sess._cache.clear()
@@ -279,7 +280,7 @@ def test_sync_actual_preference_waits_for_explicit_startup_choice(recovery_env, 
     assert result["decision"] is None
     assert result["state"] == "pending"
     assert result["attempts"] == 0
-    assert sess.get(candidate.id, load_history=False).last_legal_worker_state == "running"
+    assert sess.get(candidate.id, load_history=False).recovery_requested is True
     assert json.loads(metadata_path.read_text(encoding="utf-8")) == before
 
     claim_owner()
@@ -289,9 +290,9 @@ def test_sync_actual_preference_waits_for_explicit_startup_choice(recovery_env, 
 
     assert chosen["state"] == "completed"
     assert chosen["decision"] == "sync-actual"
-    assert chosen["results"][0]["legalWorkerState"] == "offline"
-    assert sess.get(candidate.id, load_history=False).last_legal_worker_state == "offline"
-    assert json.loads(metadata_path.read_text(encoding="utf-8"))["last_legal_worker_state"] == "offline"
+    assert chosen["results"][0]["recoveryRequested"] is False
+    assert sess.get(candidate.id, load_history=False).recovery_requested is False
+    assert json.loads(metadata_path.read_text(encoding="utf-8"))["recovery_requested"] is False
 
 
 def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env, monkeypatch):
@@ -310,9 +311,9 @@ def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env,
     assert result["results"] == [{
         "sessionId": candidate.id,
         "status": "preserved",
-        "legalWorkerState": "running",
+        "recoveryRequested": True,
     }]
-    assert sess.get(candidate.id, load_history=False).last_legal_worker_state == "running"
+    assert sess.get(candidate.id, load_history=False).recovery_requested is True
 
 
 def test_automatic_startup_with_no_candidates_is_a_quiet_noop(recovery_env, monkeypatch):

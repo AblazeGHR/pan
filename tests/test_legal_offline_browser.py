@@ -22,6 +22,7 @@ def test_browser_illegal_dot_recovers_on_successor_idle_without_reload(runtime, 
             page.goto(runtime.base_url + "/react/", wait_until="networkidle")
             card = page.locator(f'[data-session-card-id="{sid}"]')
             expect(card).to_be_visible()
+            card.click()
             illegal = card.get_by_label("Illegal offline: previous execution did not finalize safely")
             expect(illegal).to_have_count(0)
             kill_owned_provider(runtime, active["pid"], session["workdir"])
@@ -33,6 +34,7 @@ def test_browser_illegal_dot_recovers_on_successor_idle_without_reload(runtime, 
                 print("BROWSER_DIAG_WS", json.dumps([json.loads(frame) for frame in frames
                       if 'queue.snapshot' in frame or 'worker.crashed' in frame], ensure_ascii=False))
                 raise
+            expect(page.get_by_test_id("topbar").get_by_label("Illegal offline: previous execution did not finalize safely")).to_be_visible()
             card.screenshot(path=str(tmp_path / "illegal.png"))
             _spawn(runtime, sid)
             expect(illegal).to_have_count(0, timeout=10000)

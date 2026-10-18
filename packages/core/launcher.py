@@ -766,7 +766,7 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
         # config reload has changed config.json.
         child_env["PAN_PORT"] = str(port)
         process = subprocess.Popen(
-            argv, cwd=str(root), stdin=subprocess.DEVNULL,
+            argv, cwd=str(root), stdin=subprocess.DEVNULL if hidden else None,
             stdout=stdout_handle if hidden else None,
             stderr=stderr_handle if hidden else None,
             close_fds=True, creationflags=_creation_flags(hidden),

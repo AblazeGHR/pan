@@ -105,11 +105,12 @@ def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
     isolated_sessions, monkeypatch,
 ):
     candidate = sess.create("recovery-candidate")
-    candidate.last_legal_worker_state = "running"
+    candidate.last_legal_worker_state = "idle"  # conflicting legacy must not win
+    candidate.recovery_requested = True
     sess.save(candidate)
 
     active = sess.create("worker-still-live")
-    active.last_legal_worker_state = "running"
+    active.recovery_requested = True
     sess.save(active)
 
     not_running = sess.create("not-running")
@@ -140,7 +141,8 @@ def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
             "adapter": candidate.adapter,
             "workdir": candidate.workdir,
             "updatedAt": candidate.updated_at,
-            "lastLegalWorkerState": "running",
+            "lastLegalWorkerState": "idle",
+            "recoveryRequested": True,
         }],
     }
     assert candidate_metadata.read_bytes() == persisted_before
@@ -153,15 +155,12 @@ def test_runtime_sync_helper_persists_observed_offline_state(isolated_sessions):
 
     result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
 
-    assert result == {
-        "sessionId": session.id,
-        "status": "updated",
-        "legalWorkerState": "offline",
-        "runtimeWorkerStatus": "offline",
-    }
-    assert session.last_legal_worker_state == "offline"
+    assert result["status"] == "updated"
+    assert result["recoveryRequested"] is False
+    assert result["illegalOffline"] is False
+    assert session.last_legal_worker_state == "running"  # compatibility data is read only
     metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
-    assert metadata["last_legal_worker_state"] == "offline"
+    assert metadata["recovery_requested"] is False
 
 
 def test_explicit_running_write_serializes_after_details_runtime_sync(
@@ -170,48 +169,19 @@ def test_explicit_running_write_serializes_after_details_runtime_sync(
     session = sess.create("explicit-running-sync-race")
     session.last_legal_worker_state = "idle"
     sess.save(session)
-    sync_has_legal_lock = asyncio.Event()
-    allow_sync_persist = asyncio.Event()
-    original_persist = worker._persist_session_legal_worker_state
-
-    async def pause_sync_persist(session_id, state, source, *, _locked=False):
-        if source == "test-details-sync":
-            sync_has_legal_lock.set()
-            await allow_sync_persist.wait()
-        return await original_persist(
-            session_id, state, source, _locked=_locked,
-        )
-
-    monkeypatch.setattr(
-        worker, "_persist_session_legal_worker_state", pause_sync_persist,
-    )
-
     async def run_race():
-        sync_task = asyncio.create_task(
-            worker.sync_legal_worker_state_to_runtime(
-                session.id, source="test-details-sync",
-            )
-        )
-        await sync_has_legal_lock.wait()
-        set_running_task = asyncio.create_task(
-            worker.set_session_legal_worker_state_running(session.id)
-        )
-        await asyncio.sleep(0)
-        assert not set_running_task.done()
-        allow_sync_persist.set()
-        return await sync_task, await set_running_task
-
+        async with worker.queue_lock(session.id):
+            sync_task = asyncio.create_task(worker.sync_legal_worker_state_to_runtime(session.id))
+            await asyncio.sleep(0)
+            running_task = asyncio.create_task(worker.set_session_legal_worker_state_running(session.id))
+            await asyncio.sleep(0)
+            assert not sync_task.done() and not running_task.done()
+        return await sync_task, await running_task
     sync_result, running_result = asyncio.run(run_race())
-
-    assert sync_result["legalWorkerState"] == "offline"
-    assert running_result == {
-        "sessionId": session.id,
-        "status": "updated",
-        "legalWorkerState": "running",
-    }
-    assert session.last_legal_worker_state == "running"
-    metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
-    assert metadata["last_legal_worker_state"] == "running"
+    assert sync_result["recoveryRequested"] is False
+    assert running_result["recoveryRequested"] is True
+    assert session.last_legal_worker_state == "idle"
+    assert json.loads((isolated_sessions / f"{session.id}.json").read_text())["recovery_requested"] is True
 
 
 def test_runtime_sync_does_not_mark_a_still_running_provider_process_offline(
@@ -269,9 +239,8 @@ def test_runtime_sync_uses_live_worker_status(isolated_sessions):
     try:
         result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
         assert result["status"] == "updated"
-        assert result["legalWorkerState"] == "held"
-        assert result["runtimeWorkerStatus"] == "held"
-        assert session.last_legal_worker_state == "held"
+        assert result["recoveryRequested"] is False
+        assert session.last_legal_worker_state == "running"
     finally:
         worker.workers.pop(runtime.worker_id, None)
         worker._workers_by_session.pop(session.id, None)
@@ -322,6 +291,6 @@ def test_shutdown_marks_requested_persisted_running_session_offline_without_work
         mark_legal_offline_session_ids=[session.id],
     ))
 
-    assert session.last_legal_worker_state == "offline"
+    assert session.last_legal_worker_state == "running"
     metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
-    assert metadata["last_legal_worker_state"] == "offline"
+    assert metadata["recovery_requested"] is False

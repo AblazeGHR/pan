@@ -225,7 +225,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     <div data-testid="topbar" className="flex items-center justify-between pl-9 pr-1 md:pl-4 md:pr-4 py-1 md:py-2 border-b border-border-default bg-bg-primary gap-0.5 md:gap-2 flex-wrap max-md:flex-nowrap shrink-0">
       <div className="flex items-center gap-1 md:gap-3 min-w-0 max-md:flex-1">
         <div className="flex items-center gap-0.5 md:gap-2 min-w-0 max-md:flex-1">
-          <WorkerDot status={status} className="shrink-0" />
+          <WorkerDot status={status} illegalOffline={currentSession.illegalOffline} className="shrink-0" />
           {/* Mobile: the name region is the top bar's only flexible item, so
               it takes every px left of the fixed-size controls — ≥ half of
               the bar's usable width even at 320px. Truncation keeps overflow

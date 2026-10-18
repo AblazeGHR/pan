@@ -24,13 +24,13 @@ const CHOICES: Array<{
   },
   {
     value: 'preserve-running',
-    title: 'Keep their legal state as running',
-    detail: 'Do not restart them and leave their persisted legal state unchanged.',
+    title: 'Keep recovery intent and Illegal status',
+    detail: 'Do not restart them; retain recovery intent and existing execution incidents.',
   },
   {
     value: 'sync-actual',
-    title: 'Update legal state to current Worker state',
-    detail: 'Do not restart them; Pan will read each current runtime state and persist it.',
+    title: 'Reconcile facts and dismiss recovery intent',
+    detail: 'Do not restart them; reconcile owners and clear recovery intent. Illegal incidents require a ready successor.',
   },
 ];
 
@@ -188,7 +188,7 @@ export function StartupRecoveryPrompt() {
           Continue previous Sessions?
         </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          Pan found {record.candidateSnapshot.length} Session(s) whose persisted legal state is running
+          Pan found {record.candidateSnapshot.length} Session(s) with unfinished execution or saved recovery intent
           and which currently have no live Worker.
         </p>
         <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary">

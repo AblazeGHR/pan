@@ -180,3 +180,59 @@ def test_all_locked_restart_stays_dormant_and_constructed_idle_does_not_recover(
         _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="B"))
     print("LEGAL_DELAYED_READY", json.dumps({"port": real.PORT, "failedReady": failed_ready,
           "batch": batch, "dataRoot": str(runtime.data_root)}))
+
+
+@pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+    monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    assert port not in {8767, 8768}
+    monkeypatch.setattr(real, "PORT", port)
+    instance = _PanRuntime(tmp_path / "host-exit")
+    if method in {"q-config", "q-triple"}:
+        instance.data_root.mkdir(parents=True)
+        (instance.data_root / "config.json").write_text(
+            json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+    instance.start()
+    try:
+        session = _create(instance, "real-fifo-host-exit-proof")
+        sid = session["id"]
+        _enqueue(instance, sid, "hold-A", "active")
+        _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+        paused(instance, sid, True)
+        _enqueue(instance, sid, "B", "pending")
+        assert durable(instance, sid)["legal_offline"] is False
+        if method.startswith("idle-"):
+            instance.gates["hold-A"].touch()
+            _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+        if method.startswith("q-"):
+            from packages.core.console_exit import ConsoleExit
+            now = [0.0]
+            console = ConsoleExit(lambda payload: instance.request("POST", "/api/main/exit", json=payload),
+                lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+            console.line("qqq" if method == "q-triple" else "q")
+            now[0] = 2.1
+            console.tick()
+            if method.startswith("q-menu"):
+                console.line(method[-1] if method[-1].isdigit() else "1")
+            assert console.accepted
+        elif method.endswith("api"):
+            payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+            assert instance.request("POST", "/api/main/exit", json=payload)["accepted"]
+        else:
+            instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+        _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+        value = durable(instance, sid)
+        illegal = method not in {"safe-api", "q-config", "q-menu", "idle-SIGINT", "idle-SIGTERM"}
+        assert value["legal_offline"] is (not illegal)
+        assert bool(value["illegal_batches"]) is illegal
+        assert value["recovery_requested"] is illegal
+        instance.stop()
+        instance.start()
+        again = durable(instance, sid)
+        assert again["illegal_batches"] == value["illegal_batches"]
+        print("HOST_EXIT_PROOF", method, port, instance.data_root)
+    finally:
+        _stop_owned(instance, SimpleNamespace(stop=lambda: None), None)

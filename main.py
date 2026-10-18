@@ -391,11 +391,15 @@ if __name__ == "__main__":
     atexit.register(_stop_wechat_bot)
 
     config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=False)
-    server = uvicorn.Server(config)
+    from packages.core.host_server import PanServer
+    server = PanServer(config)
     # launcher.exit/restart requests this object through the loopback internal
     # coordination endpoint.  Uvicorn then runs the normal lifespan teardown,
     # which remains the sole graceful owner of Worker and QQ cleanup.
     app.state.pan_uvicorn_server = server
+    from packages.core.console_exit import start_console_exit
+    from packages.web.server import _session_lifecycle_preferences
+    start_console_exit(port, lambda: _session_lifecycle_preferences()["exitStrategy"])
     server.run()
 
     # uvicorn returns after a graceful shutdown (Ctrl+C / SIGTERM handled

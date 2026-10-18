@@ -6,6 +6,17 @@
 
 ## 0. 审阅后确定的最小技术契约
 
+### 2026-10-18 补充：旧字段迁移与 Pan 主服务退出（最新用户决定优先）
+
+- 合法性权威为 `execution_operations` 聚合的 `legal_offline`；`illegalOffline` 仅代表仍未退休的 operation 已被确认 Illegal。执行中或等待可靠终态时可以是 `legalOffline=false, illegalOffline=false`。事故锁及继任恢复继续依赖精确 run/owner/generation，不依赖 UI 状态或旧字段。
+- `recovery_requested` / API `recoveryRequested` 是独立的恢复意图，用于启动候选、退出快照和 Job resume。它不能证明执行正在运行、已经安全结束或发生 Illegal。新字段存在时（包括 False）优先；没有新字段的稳定 v1/v2 执行账本优先于旧 UI 状态。只有缺少新执行事实的历史数据才从旧 `last_legal_worker_state=running` 导入恢复意图，绝不制造 run、事故或锁。启动阶段在任何 provider 准入前经原有有序 writer 原子保存迁移；失败仅阻止该 Session 交接，可重试，重复迁移不覆盖新值。
+- 本阶段完成删除前迁移：旧字段保留只读序列化/API 兼容，产品生命周期不再写入，不再用于新数据的恢复、退出或 Illegal 判断。React 使用新投影。新 API 为 `/legality/reconcile`、`/legality/request-recovery`；旧 `/legal-state/sync`、`/legal-state/running` 仅为 deprecated 路由别名，执行新语义，不再写旧状态。reconcile 核对失主执行并清除恢复意图，不能清除已确认 Illegal；request-recovery 仅持久化意图，不启动 Worker。
+- **Pan 主服务** Ctrl+C/SIGINT、SIGTERM、服务管理停止、强杀均不是安全退出授权。信号边界立即关闭新准入并禁止迟到 result/ready 把待收尾责任合法化；正常可处理退出将责任判 Illegal 并原子锁快照，无法运行收尾的强杀在下次启动对账。已安全 Idle 且没有辅助未终态 operation 的 Session 保持合法；常驻 CLI 仍活不改变这一点。Worker、Job、原生终端内部 Ctrl+C 保留原有语义。
+- 显式 Exit API 和既有 Restart API 才按选定策略安全停止、核验 owner 退休并持久化；选择保留策略则保留未收尾责任为 Illegal。安全退出也不能直接清除历史事故，仍须有效继任就绪。CLI/process/Job 停止失败不假报安全退休。
+- 可交互的 Pan 服务控制台支持 `q` 后回车。首个 q 等待 2 秒覆盖窗口；已配置策略则调用同一 Exit API，未配置/ask 显示 1 安全退出、2 保留未收尾责任为 Illegal、3 强制保留全部未收尾责任为 Illegal。2 秒内三次 q（或 `qqq` 回车）通过 `preserveRunningIllegal=true` 覆盖已保存的安全退出策略。只读取 Pan 主控制台 stdin，不接管 Worker/Job 终端；无 TTY 时仍使用 API。q 不是额外的退出实现。
+- Session 卡片、顶部 WorkerDot、Illegal 筛选、详情诊断均使用新权威事实；详情展示 coverage、revision、恢复意图、历史迁移不确定性和未退休 operation 原因。恢复意图和安全/Illegal 展示分开，不以旧 running 推导红灯。
+- 下文早期 Codex 原生准入缺口描述保留为历史审阅依据；当前受控 ResidentTui 的事前 ACK 和多 operation 实现以 `PAN_MULTI_OPERATION_LEGALITY_PROPOSAL_20261018.md` 及已提交交付报告为准。外部未观测客户端仍不作全覆盖承诺，unknown owner 拒第二 writer 约束保留。
+
 - `legal_offline` 保护一次执行，不要求正常 Idle 的 CLI 物理退出。开始执行前，将 False 与新的不可复用 run UUID 同次提交；安全终态在 history/result/恢复信息的同次提交中写 True。失败的提交不能放行 provider 写入。
 - Worker owner token + generation 只负责当前所有权；持久 run UUID 负责跨 Pan 重启事件幂等。回调捕获原身份，并在 queue exclusion 及实际 writer ticket 内再次验证。旧状态刷新、Details 的 set-running、restore intent 不代表新执行或恢复。
 - 所属 Session 完成失主交接对账后，在 queue exclusion 内以现有 Lock All 的 queued 选择范围形成快照。批次、精确新增锁成员、失败 run 的已判定状态、pending/可恢复 ledger 和 queue revision 同次保存到 Session JSON。物理死亡到检测之间没有持久记录的瞬间快照不作虚假保证。

@@ -35,6 +35,8 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 
 ## 0.5 面向最终用户：怎么回复「怎么玩转 Pan」
 
+主服务退出与执行合法性：SIGINT/Ctrl+C、SIGTERM、服务管理停止不构成安全退出授权；需要安全退出时使用显式 Exit API，控制台 q 也调用该 API。恢复/退出决策使用新的执行账本及 `recoveryRequested`，旧 `lastLegalWorkerState` 只读兼容；具体端点与信号/Worker 边界见 [HTTP API](references/http-api.md)。
+
 > **触发**：最终用户（非 agent、不写代码的人）问「怎么使用 / 玩转 Pan」「你能干什么」时，**不要**向用户抛 MCP 工具名、API、session_id 等开发者 / agent 术语——本文件其余章节都是编排视角，直接照讲用户听不懂。
 >
 > **正确做法**：按 [`references/user-guide.md`](references/user-guide.md) 的标准回答框架回复，用「你（用户）/ 我（Pan）」对话口吻，核心一句话——**用自然语言告诉我要什么，我来拆解、派帮手、汇报结果**。该文档含可直接发送的正文（含示例对话）与回复注意事项。

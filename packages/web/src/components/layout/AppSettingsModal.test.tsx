@@ -367,8 +367,8 @@ describe('AppSettingsModal', () => {
   });
 
   it.each([
-    ['offline', 'stop all Workers and mark legal running Sessions offline.'],
-    ['preserve-running', 'stop all Workers and preserve legal running state.'],
+    ['offline', 'stop all Workers and safely retire stopped execution.'],
+    ['preserve-running', 'stop all Workers and preserve unfinished execution as Illegal.'],
   ] as const)(
     'confirms Exit using the saved %s policy without asking again',
     async (exitStrategy, expectedSummary) => {
@@ -398,8 +398,8 @@ describe('AppSettingsModal', () => {
   );
 
   it.each([
-    ['offline', 'mark legal running Sessions offline'],
-    ['preserve-running', 'preserve legal running state'],
+    ['offline', 'safely retire stopped execution'],
+    ['preserve-running', 'preserve unfinished execution as Illegal'],
   ] as const)(
     'confirms Restart using the saved %s policy without asking again',
     async (exitStrategy, expectedSummary) => {
@@ -569,7 +569,7 @@ describe('AppSettingsModal', () => {
       document.body.querySelectorAll<HTMLInputElement>(
         'input[name="main-restart-running-session-state"]',
       ),
-    ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+    ).find((input) => input.parentElement?.textContent?.includes('preserve unfinished execution as Illegal'))!);
     fireEvent.click(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.includes('Confirm restart'))!);
     await waitFor(() => expect(restartMainServiceMock).toHaveBeenCalledTimes(1));
@@ -1255,7 +1255,7 @@ describe('AppSettingsModal', () => {
     expect(restartConfirmButton.disabled).toBe(true);
     const preserveRunningChoice = Array.from(
       document.body.querySelectorAll<HTMLInputElement>('input[name="main-restart-running-session-state"]'),
-    ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!;
+    ).find((input) => input.parentElement?.textContent?.includes('preserve unfinished execution as Illegal'))!;
     fireEvent.click(preserveRunningChoice);
     fireEvent.click(
       restartConfirmButton,
@@ -1342,7 +1342,7 @@ describe('AppSettingsModal', () => {
         document.body.querySelectorAll<HTMLInputElement>(
           'input[name="main-restart-running-session-state"]',
         ),
-      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+      ).find((input) => input.parentElement?.textContent?.includes('preserve unfinished execution as Illegal'))!);
       fireEvent.click(
         Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
           b.textContent?.includes('Confirm restart'),
@@ -1404,7 +1404,7 @@ describe('AppSettingsModal', () => {
         document.body.querySelectorAll<HTMLInputElement>(
           'input[name="main-restart-running-session-state"]',
         ),
-      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+      ).find((input) => input.parentElement?.textContent?.includes('preserve unfinished execution as Illegal'))!);
       fireEvent.click(
         Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
           b.textContent?.includes('Confirm restart'),
@@ -1438,7 +1438,7 @@ describe('AppSettingsModal', () => {
         document.body.querySelectorAll<HTMLInputElement>(
           'input[name="main-restart-running-session-state"]',
         ),
-      ).find((input) => input.parentElement?.textContent?.includes('No, stop'))!);
+      ).find((input) => input.parentElement?.textContent?.includes('preserve unfinished execution as Illegal'))!);
       fireEvent.click(
         Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
           b.textContent?.includes('Confirm restart'),

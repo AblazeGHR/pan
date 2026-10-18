@@ -695,6 +695,8 @@ export interface LiveStreamMeta {
   lastLegalWorkerState?: string | null;
   legalOffline?: boolean;
   illegalOffline?: boolean;
+  recoveryRequested?: boolean;
+  legalityDiagnostics?: Session["legalityDiagnostics"];
   workerId?: string;
   generation?: number;
   taskSeq?: number;
@@ -846,6 +848,8 @@ function isOlderMeta(incoming: LiveStreamMeta, known: LiveStreamMeta): boolean {
 
 function workerStatusMetadata(meta: LiveStreamMeta): Partial<Session> {
   return {
+    ...(meta.recoveryRequested !== undefined ? { recoveryRequested: meta.recoveryRequested } : {}),
+    ...(meta.legalityDiagnostics !== undefined ? { legalityDiagnostics: meta.legalityDiagnostics } : {}),
     ...(meta.legalOffline !== undefined ? { legalOffline: meta.legalOffline } : {}),
     ...(meta.illegalOffline !== undefined ? { illegalOffline: meta.illegalOffline } : {}),
     ...(meta.generation !== undefined ? { workerGeneration: meta.generation } : {}),
@@ -933,7 +937,7 @@ const SUMMARY_PROJECTION_FIELDS = [
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
   // Execution legality is a durable Session fact, independent of live Worker
   // task cursors (a crash snapshot legitimately omits executionSeq).
-  'legalOffline', 'illegalOffline',
+  'legalOffline', 'illegalOffline', 'recoveryRequested', 'legalityDiagnostics',
 ] as const;
 
 const WORKER_SNAPSHOT_FIELDS = ['workerId', 'workerStatus', 'workerGeneration',

@@ -102,8 +102,8 @@ function MainLifecycleRunningChoice({
     return (
       <p className="mt-3 text-[11px] text-text-secondary">
         Saved policy: stop all Workers and {strategy === 'offline'
-          ? 'mark legal running Sessions offline.'
-          : 'preserve legal running state.'}
+          ? 'safely retire stopped execution.'
+          : 'preserve unfinished execution as Illegal.'}
       </p>
     );
   }
@@ -111,7 +111,7 @@ function MainLifecycleRunningChoice({
   return (
     <fieldset className="mt-3 space-y-2">
       <legend className="text-[11px] text-text-secondary">
-        For Sessions whose last legal state is running:
+        For Sessions with outstanding execution or recovery intent:
       </legend>
       <label className="flex items-start gap-2 text-[11px] text-text-primary">
         <input
@@ -120,7 +120,7 @@ function MainLifecycleRunningChoice({
           checked={markRunningOffline === true}
           onChange={() => onChange(true)}
         />
-        <span>Yes, mark them offline when their Workers have stopped.</span>
+        <span>Safely retire execution after all Workers have stopped.</span>
       </label>
       <label className="flex items-start gap-2 text-[11px] text-text-primary">
         <input
@@ -129,7 +129,7 @@ function MainLifecycleRunningChoice({
           checked={markRunningOffline === false}
           onChange={() => onChange(false)}
         />
-        <span>No, stop the Workers but preserve their legal running state.</span>
+        <span>Stop Workers and preserve unfinished execution as Illegal.</span>
       </label>
     </fieldset>
   );
@@ -1958,8 +1958,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
                       >
                         <option value="ask">Ask every time</option>
-                        <option value="offline">Default to marking legal running Sessions offline</option>
-                        <option value="preserve-running">Default to preserving legal running state</option>
+                        <option value="offline">Default to safely retiring stopped execution</option>
+                        <option value="preserve-running">Default to preserving unfinished execution as Illegal</option>
                       </select>
                       <p className="mt-1 text-[10px] text-text-tertiary">
                         Every option stops live Workers before Restart or Exit.
@@ -1979,12 +1979,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
                       >
                         <option value="ask">Ask every time</option>
-                        <option value="wake-running">Automatically wake legal running Sessions</option>
-                        <option value="sync-actual">Ask before syncing legal state to actual Worker state</option>
-                        <option value="preserve-running">Preserve legal state without waking Sessions</option>
+                        <option value="wake-running">Automatically wake Sessions with recovery intent</option>
+                        <option value="sync-actual">Ask before reconciling facts and dismissing recovery intent</option>
+                        <option value="preserve-running">Preserve recovery intent without waking Sessions</option>
                       </select>
                       <p className="mt-1 text-[10px] text-text-tertiary">
-                        Syncing actual Worker state always waits for an explicit startup recovery choice.
+                        Reconciliation waits for an explicit choice and does not clear Illegal incidents.
                       </p>
                     </div>
                   </div>

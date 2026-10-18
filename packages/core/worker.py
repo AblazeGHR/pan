@@ -293,6 +293,7 @@ class Worker:
     # being reported, so a stale capture from a previous turn can never leak into
     # a queued item or a later run.
     _current_task_last_assistant_seq: int | None = None
+    _host_exit_illegal: bool = False
     _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
     _current_serialized: bytes | None = None
@@ -601,7 +602,7 @@ _LEGAL_WORKER_STATES = frozenset({
 _legal_state_locks: dict[str, asyncio.Lock] = {}
 
 
-async def _commit_offline(s, mutate) -> bool:
+async def _commit_offline(s, mutate, *, force: bool = False) -> bool:
     """Caller owns queue_lock. Stage/rollback inside the ordered writer ticket.
 
     Earlier/later metadata writers must never save an uncommitted candidate.
@@ -623,7 +624,7 @@ async def _commit_offline(s, mutate) -> bool:
         _offline.aggregate(candidate)
         values = _offline.snapshot(candidate)
         changed = old != values
-        if changed:
+        if changed or force:
             _sess._save_body(s, offline_override=values)
         return result
     await _sess._persist_async_outcome(s.id, commit)
@@ -643,6 +644,7 @@ async def _offline_snapshot_event(s) -> None:
     await _bcast({"type": "queue.snapshot", "sessionId": s.id,
                   "queueRevision": s.queue_revision,
                   "session": {
+                      "recoveryRequested": s.recovery_requested,
                       "legalOffline": s.legal_offline,
                       "illegalOffline": _offline.is_illegal(s),
                       "legalityDiagnostics": _offline.diagnostics(s),
@@ -652,6 +654,9 @@ async def _offline_snapshot_event(s) -> None:
 async def _prepare_offline_recovery(s) -> None:
     """Before any new provider can start, classify the previous unfinished run."""
     async with queue_lock(s.id):
+        if getattr(s, "_recovery_migration_pending", False):
+            await _commit_offline(s, lambda candidate: None, force=True)
+            s._recovery_migration_pending = False
         owner = s.offline_owner
         tracked_owner = find_worker_by_session(s.id)
         if owner and not (tracked_owner and _offline.same_owner(owner, _offline.owner(tracked_owner))
@@ -714,6 +719,8 @@ async def _claim_offline_owner(w: Worker) -> None:
 
 async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
                                    expected_owner: dict | None = None) -> None:
+    if w._host_exit_illegal:
+        return
     if expected_owner is not None and (w.offline_token != expected_owner["token"]
             or w.generation != expected_owner["generation"]):
         return
@@ -727,7 +734,7 @@ async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
         if workers.get(w.worker_id) is not w or w.offline_token != identity["token"]:
             raise RuntimeError("Worker changed before activation")
         def activate(candidate):
-            if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+            if (w._host_exit_illegal or workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                     or w.generation != identity["generation"]):
                 raise RuntimeError("Worker changed while activation waited for persistence")
             return _offline.activate(candidate, identity, predecessors=w._offline_predecessors,
@@ -745,11 +752,13 @@ async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
 async def _begin_offline_run(w: Worker, *, locked: bool = False) -> dict:
     identity = _offline.owner(w)
     s = _session(w)
+    if _shutdown_started or w._host_exit_illegal:
+        raise RuntimeError("Host is shutting down")
     if s is None:
         raise RuntimeError("Session disappeared before execution")
     async def commit():
         def begin(candidate):
-            if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+            if (_shutdown_started or w._host_exit_illegal or workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                     or w.generation != identity["generation"] or w.status == "restarting"):
                 raise RuntimeError("Stale execution owner")
             _offline.begin(candidate, identity)
@@ -764,6 +773,9 @@ async def _begin_offline_run(w: Worker, *, locked: bool = False) -> dict:
 
 async def _finish_offline_stop(w: Worker, identity: dict, reason: str) -> None:
     s = _session(w)
+    if w._host_exit_illegal:
+        await _detect_offline_exit(w, identity, "host/signal")
+        return
     if s is not None and _offline.outstanding(s, identity):
         if not _runtime_stopped(w):
             raise RuntimeError("Runtime stop is unconfirmed; legality retained")
@@ -795,114 +807,37 @@ async def _detect_offline_exit(w: Worker, identity: dict, reason: str) -> None:
         await _offline_snapshot_event(s)
 
 
-async def _record_legal_worker_state(
-    w: Worker, state: str, source: str, *, persist: bool = True,
-) -> bool:
-    """Persist a state reached by an explicit, successful Pan transition.
+async def _record_legal_worker_state(w: Worker, state: str, source: str, *, persist: bool = True) -> bool:
+    """Deprecated internal hook: operation admission/terminal owns legality now.
 
-    ``worker.status`` remains the live runtime truth and is broadcast at its
-    existing call sites.  This separate ledger is intentionally never called
-    from EOF/zombie handling: an observed process death is not evidence that
-    Pan legally stopped that worker.
+    Retained for embedders until removal; never writes legacy metadata.
     """
     if state not in _LEGAL_WORKER_STATES:
         raise ValueError(f"unsupported legal worker state: {state}")
-    s = _session(w)
-    if s is None:
-        return False
-    if persist:
-        if not await _persist_session_legal_worker_state(w.session_id, state, source):
-            _log.warning(
-                "[Worker %s] failed to persist legal state=%s source=%s",
-                w.worker_id, state, source,
-            )
-            return False
-    else:
-        # Terminal result preparation batches this metadata change with the
-        # surrounding Session save. Serialize the in-memory transition with
-        # durable legal-state helpers so concurrent transitions have a clear
-        # per-Session order.
-        lock = _legal_state_locks.setdefault(w.session_id, asyncio.Lock())
-        async with lock:
-            s = _session(w)
-            if s is None:
-                return False
-            s.last_legal_worker_state = state
-    _log.info(
-        "[Worker %s] legal state=%s source=%s session=%s",
-        w.worker_id, state, source, w.session_id,
-    )
-    return True
+    return _session(w) is not None
 
 
-async def _persist_session_legal_worker_state(
-    session_id: str, state: str, source: str, *, _locked: bool = False,
-) -> bool:
-    """Persist one legal state on Session metadata and roll back on I/O failure."""
-    if state not in _LEGAL_WORKER_STATES:
-        raise ValueError(f"unsupported legal worker state: {state}")
-    if not _locked:
-        lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with lock:
-            return await _persist_session_legal_worker_state(
-                session_id, state, source, _locked=True,
-            )
+async def set_session_recovery_intent(session_id: str, requested: bool, *, source: str) -> dict:
     s = _sess.get(session_id)
     if s is None:
-        return False
-    previous = s.last_legal_worker_state
-    s.last_legal_worker_state = state
-    try:
-        await _sess.save_async(s)
-    except Exception as exc:
-        # The in-memory Session is also a source for API projections. Keep it
-        # aligned with durable metadata when the atomic save did not succeed.
-        s.last_legal_worker_state = previous
-        _log.warning(
-            "[Session %s] failed to persist legal state=%s source=%s: %s",
-            session_id, state, source, exc,
-        )
-        return False
-    return True
+        return {"sessionId": session_id, "status": "error", "error": "Session not found"}
+    async with queue_lock(session_id):
+        def update(candidate):
+            if candidate.recovery_requested != requested:
+                candidate.recovery_requested = requested
+                candidate.operation_revision += 1
+        await _commit_offline(s, update)
+    await _offline_snapshot_event(s)
+    return {"sessionId": session_id, "status": "updated", "recoveryRequested": s.recovery_requested,
+            "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s),
+            "legalityDiagnostics": _offline.diagnostics(s)}
 
 
-async def set_session_legal_worker_state_running(
-    session_id: str, *, source: str = "session-details/set-running",
-) -> dict:
-    """Explicitly record running without observing or changing Worker runtime.
-
-    This shares the per-Session legal-state lock with runtime synchronization
-    and every other legal-state writer.  The value is intentionally fixed so
-    callers cannot turn this Details action into an arbitrary state update.
-    """
-    lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+async def set_session_legal_worker_state_running(session_id: str, *, source: str = "legacy/set-running") -> dict:
+    """Compatibility endpoint: request recovery, never fabricate an execution."""
+    lock = await _session_spawn_lock(session_id)
     async with lock:
-        if _sess.get(session_id) is None:
-            return {
-                "sessionId": session_id,
-                "status": "error",
-                "error": f"Session {session_id} not found",
-            }
-        if not await _persist_session_legal_worker_state(
-                session_id, "running", source, _locked=True):
-            # The Session may have been removed between the first lookup and
-            # the persistence helper's own lookup.
-            if _sess.get(session_id) is None:
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": f"Session {session_id} not found",
-                }
-            return {
-                "sessionId": session_id,
-                "status": "error",
-                "error": "failed to persist Session legal state",
-            }
-    return {
-        "sessionId": session_id,
-        "status": "updated",
-        "legalWorkerState": "running",
-    }
+        return await set_session_recovery_intent(session_id, True, source=source)
 
 
 def _terminal_enrichment_key(
@@ -1358,6 +1293,8 @@ async def _persist_terminal_state(
 async def _persist_terminal_state_locked(
     w: Worker, s, status: str, result_text: str | None,
 ) -> dict | None:
+    if w._host_exit_illegal:
+        return None
     if w._terminal_handled:
         _log.warning(
             "[Worker %s] duplicate terminal event ignored generation=%s",
@@ -1448,7 +1385,7 @@ async def _persist_terminal_state_locked(
         "unread_done_read_generation": s.unread_done_read_generation,
         "unread_done_count": s.unread_done_count,
         "active_task_id": s.active_task_id,
-        "last_legal_worker_state": s.last_legal_worker_state,
+        "recovery_requested": s.recovery_requested,
         "usage_enrichment_pending": list(s.usage_enrichment_pending),
     }
     old_runtime_state = {
@@ -1693,6 +1630,13 @@ def _runtime_stopped(w: Worker) -> bool:
         if process is not None and getattr(process, "returncode", None) is None:
             return False
     return True
+
+
+def begin_host_exit() -> None:
+    """Synchronous signal fence: host signals never constitute safe completion."""
+    begin_shutdown()
+    for w in workers.values():
+        w._host_exit_illegal = True
 
 
 def begin_shutdown() -> None:
@@ -2121,7 +2065,8 @@ async def _flush_history_now(
                     for key, value in _offline.snapshot(s).items():
                         setattr(candidate, key, value)
                     _offline.attach_foreground(candidate)
-                    _offline.finish(candidate, offline_identity, reason="task/safe-terminal")
+                    if not w._host_exit_illegal:
+                        _offline.finish(candidate, offline_identity, reason="task/safe-terminal")
                     offline_values = _offline.snapshot(candidate)
                 _sess._save_body(s, offline_override=offline_values)
             except BaseException:
@@ -2155,7 +2100,7 @@ async def _admit_native_operation(w, runtime, *, request_id, thread_id, control_
     async with queue_lock(w.session_id):
         s = _session(w)
         def valid():
-            return (s is not None and _control_runtime_matches(w.worker_id, runtime)
+            return (not _shutdown_started and not w._host_exit_illegal and s is not None and _control_runtime_matches(w.worker_id, runtime)
                     and w.offline_token == identity["token"] and w.native_control_mode == "native"
                     and w.native_control_generation == control_generation
                     and thread_id == s.cli_session_id and w.status not in {"held", "restarting"})
@@ -2183,6 +2128,8 @@ async def _admit_native_operation(w, runtime, *, request_id, thread_id, control_
 
 
 async def _native_operation_event(w, runtime, event) -> bool:
+    if w._host_exit_illegal:
+        return False
     async with queue_lock(w.session_id):
         s = _session(w)
         if s is None or not _control_runtime_matches(w.worker_id, runtime):
@@ -2197,7 +2144,7 @@ async def _native_operation_event(w, runtime, event) -> bool:
                 or record.get("retirement")):
             return False
         def commit(candidate):
-            if not _control_runtime_matches(w.worker_id, runtime):
+            if w._host_exit_illegal or not _control_runtime_matches(w.worker_id, runtime):
                 raise RuntimeError("Auxiliary runtime changed before persistence")
             op = candidate.execution_operations[key]
             action = event.get("type")
@@ -2244,7 +2191,7 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
     async with queue_lock(w.session_id):
         s = _session(w)
         def valid():
-            if not _control_runtime_matches(w.worker_id, runtime):
+            if _shutdown_started or w._host_exit_illegal or not _control_runtime_matches(w.worker_id, runtime):
                 return False
             if codex:
                 return (s is not None and thread_id == s.cli_session_id
@@ -10007,66 +9954,18 @@ def find_alive_workers_by_session() -> dict[str, Worker]:
     }
 
 
-async def sync_legal_worker_state_to_runtime(
-    session_id: str, *, source: str = "session-recovery/sync-actual",
-) -> dict:
-    """Copy a Session's observed runtime state into its legal-state ledger.
-
-    The per-Session spawn lock makes this snapshot mutually exclusive with
-    create/restart. The UI and HTTP layer never choose or write a state value.
-    When no Worker or provider process remains, the runtime state is offline.
-    """
+async def sync_legal_worker_state_to_runtime(session_id: str, *, source: str = "legacy/sync-actual") -> dict:
+    """Reconcile execution facts; clearing recovery intent never erases Illegal."""
     lock = await _session_spawn_lock(session_id)
     async with lock:
-        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with legal_lock:
-            w = find_alive_worker_by_session(session_id)
-            if w is None:
-                tracked = find_worker_by_session(session_id)
-                if tracked is not None and not _runtime_stopped(tracked):
-                    return {
-                        "sessionId": session_id,
-                        "status": "error",
-                        "error": f"Worker runtime is not stopped (status: {tracked.status})",
-                    }
-                state = "offline"
-                runtime_status = "offline"
-            elif w.status in _LEGAL_WORKER_STATES:
-                state = w.status
-                runtime_status = w.status
-            else:
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": f"unsupported runtime Worker state: {w.status}",
-                }
-            if not await _persist_session_legal_worker_state(
-                    session_id, state, source, _locked=True):
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": "failed to persist Session legal state",
-                }
-            return {
-                "sessionId": session_id,
-                "status": "updated",
-                "legalWorkerState": state,
-                "runtimeWorkerStatus": runtime_status,
-            }
-
-
-async def _sync_legal_state_if_stopped(session_id: str, state: str, source: str) -> bool:
-    """Persist a requested exit state only while the Session has no live Worker."""
-    lock = await _session_spawn_lock(session_id)
-    async with lock:
-        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with legal_lock:
-            tracked = find_worker_by_session(session_id)
-            if tracked is not None and not _runtime_stopped(tracked):
-                return False
-            return await _persist_session_legal_worker_state(
-                session_id, state, source, _locked=True,
-            )
+        s = _sess.get(session_id)
+        if s is None:
+            return {"sessionId": session_id, "status": "error", "error": "Session not found"}
+        tracked = find_worker_by_session(session_id)
+        if tracked is not None and not _runtime_stopped(tracked) and tracked.status == "zombie":
+            return {"sessionId": session_id, "status": "error", "error": "Worker runtime is not stopped"}
+        await _prepare_offline_recovery(s)
+        return await set_session_recovery_intent(session_id, False, source=source)
 
 
 async def shutdown_all(
@@ -10106,6 +10005,11 @@ async def shutdown_all(
         if not w:
             continue
         worker_errors_before = len(errors)
+        if not mark_legal_offline or w.session_id in preserve_ids:
+            try:
+                await _detect_offline_exit(w, _offline.owner(w), legal_state_source + "/unauthorized-or-preserved")
+            except Exception as exc:
+                errors.append(f"Worker {wid} Illegal commit failed: {exc}")
         stop_steps = (
             (w._watchdog_task, "watchdog cancellation"),
             (w._consume_task, "consumer cancellation"),
@@ -10136,7 +10040,8 @@ async def shutdown_all(
             await _kill_takeover_terminal(w)
         except Exception as exc:
             errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
-        if _runtime_stopped(w) and len(errors) == worker_errors_before:
+        if (mark_legal_offline and w.session_id not in preserve_ids
+                and _runtime_stopped(w) and len(errors) == worker_errors_before):
             try:
                 await _finish_offline_stop(w, _offline.owner(w), legal_state_source)
             except Exception as exc:
@@ -10146,21 +10051,12 @@ async def shutdown_all(
             if not await _record_legal_worker_state(w, "offline", legal_state_source):
                 errors.append(f"Worker {wid} legal offline state was not persisted")
 
-    for session_id in sorted(offline_ids):
-        # Includes persisted running Sessions that had no Worker at shutdown.
-        # The check under the Session spawn lock prevents marking a concurrent
-        # live Worker offline.
-        if not await _sync_legal_state_if_stopped(
-                session_id, "offline", legal_state_source):
-            errors.append(f"Session {session_id} legal offline state was not persisted")
-
-    for session_id in sorted(preserve_ids):
-        # Worker cancellation/finalization may have recorded a terminal state
-        # while Exit was draining. Restore the pre-exit legal running snapshot
-        # after every Worker has stopped.
-        if not await _persist_session_legal_worker_state(
-                session_id, "running", f"{legal_state_source}-preserve-running"):
-            errors.append(f"Session {session_id} legal running state was not persisted")
+    for session_id in sorted(offline_ids | preserve_ids):
+        try:
+            await set_session_recovery_intent(session_id, session_id in preserve_ids,
+                                             source=legal_state_source)
+        except Exception as exc:
+            errors.append(f"Session {session_id} recovery intent failed: {exc}")
 
     workers.clear()
     _workers_by_session.clear()

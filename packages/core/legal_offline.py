@@ -16,9 +16,20 @@ import psutil
 from . import queue_locks
 
 SERVICE_ID = uuid.uuid4().hex
-FIELDS = ("task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
+FIELDS = ("recovery_requested", "task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
           "queue_delivery_ledger", "queue_idempotency_index", "queue_revision",
           "legality_schema_version", "operation_revision", "execution_operations", "owner_retirements")
+
+
+def recovery_needed(s) -> bool:
+    """New metadata wins, even when False; legacy is read only compatibility."""
+    if hasattr(s, "recovery_requested"):
+        return s.recovery_requested
+    return getattr(s, "last_legal_worker_state", None) == "running"
+
+
+def recovery_intent(s) -> bool:
+    return getattr(s, "recovery_requested", getattr(s, "last_legal_worker_state", None) == "running")
 
 
 def snapshot(s) -> dict:
@@ -48,7 +59,7 @@ def attach_foreground(s) -> None:
 
 
 def outstanding(s, identity: dict | None = None) -> list[dict]:
-    return [op for op in s.execution_operations.values()
+    return [op for op in getattr(s, "execution_operations", {}).values()
             if not op.get("safeTerminal") and not op.get("retirement", {}).get("safe")
             and (identity is None or same_owner(op, identity))]
 
@@ -91,6 +102,7 @@ def admit(s, identity: dict, *, kind: str, operation_id: str | None = None, **me
               "startedAt": time.time(), "safeTerminal": False}
     s.execution_operations[key] = record
     s.offline_owner = dict(identity)
+    s.recovery_requested = True
     aggregate(s)
     return record
 
@@ -107,6 +119,8 @@ def finish_operation(s, operation_id: str, identity: dict, *, reason: str,
     s.operation_revision += 1
     attach_foreground(s)
     aggregate(s)
+    if s.legal_offline:
+        s.recovery_requested = False
     return True
 
 
@@ -119,6 +133,8 @@ def retire_owner(s, identity: dict, *, reason: str, proof: dict) -> None:
                       "proof": copy.deepcopy(proof), "committedAt": time.time()})
         s.operation_revision += 1
     aggregate(s)
+    if s.legal_offline:
+        s.recovery_requested = False
 
 
 def has_batches(s) -> bool:
@@ -226,7 +242,7 @@ def detect(s, reason: str, *, eligible, remember, identity: dict | None = None) 
         s.illegal_batches[op_id] = {"id": op_id, "run": copy.deepcopy(record),
             "messages": members if op_id == key else [], "incidentId": key,
             "reason": reason, "createdAt": time.time(), "recovered": False}
-        record.update(state="illegal", incidentId=key)
+        record.update(state="illegal", incidentId=key, reason=reason)
     s.operation_revision += 1
     attach_foreground(s)
     aggregate(s)
@@ -237,6 +253,7 @@ def detect(s, reason: str, *, eligible, remember, identity: dict | None = None) 
 def activate(s, identity: dict, *, remember, predecessors: set[str] | None = None) -> bool:
     """Called only with adapter readiness proof; preserve any admitted execution."""
     changed = False
+    previous_recovery = s.recovery_requested
     s.offline_owner = dict(identity)
     for batch in s.illegal_batches.values():
         if batch.get("recovered") or (predecessors is not None and batch["id"] not in predecessors):
@@ -269,7 +286,9 @@ def activate(s, identity: dict, *, remember, predecessors: set[str] | None = Non
     for key in removable:
         del s.execution_operations[key]
     aggregate(s)
-    if changed or removable:
+    if s.legal_offline:
+        s.recovery_requested = False
+    if changed or removable or previous_recovery != s.recovery_requested:
         s.operation_revision += 1
     if changed:
         s.queue_revision += 1
@@ -278,7 +297,7 @@ def activate(s, identity: dict, *, remember, predecessors: set[str] | None = Non
 
 def diagnostics(s) -> dict:
     """False is unresolved responsibility; it does not imply a diagnosed incident."""
-    return {"coverage": "external-owner-only" if (s.offline_owner or {}).get("externalTakeover") else "pan-managed",
+    return {"recoveryRequested": recovery_intent(s), "migrationUncertainty": s.offline_migration_uncertainty, "coverage": "external-owner-only" if (s.offline_owner or {}).get("externalTakeover") else "pan-managed",
             "revision": s.operation_revision,
             "outstanding": [{"operationId": op["id"], "kind": op.get("kind"),
                 "state": op.get("state"), "reason": op.get("uncertainty") or op.get("reason")}

@@ -1,6 +1,8 @@
 # Legal Offline / Multi-operation 人工验收清单
 
-适用提交：`3a2a7c5da9c4914bc874260d153e6434cfe03647`。验收应在本工作树进行，使用动态 loopback 端口；不要使用 8767、8768 或既有 Pan 服务。当前工作树的 `data/` 是服务默认持久化目录，验收会写入 Session、history、日志和 workdir。验收前确认可以接受这些临时记录，完成后从 UI 删除测试 Session 并检查遗留文件。
+适用分支：`review/legal-offline-illegal-lock-20261018` 的最新迁移提交（包含原 `3a2a7c5da9c4914bc874260d153e6434cfe03647` 多 operation 实现；精确交付 hash 见本次迁移报告）。验收应在本工作树进行，使用动态 loopback 端口；不要使用 8767、8768 或既有 Pan 服务。当前工作树的 `data/` 是服务默认持久化目录，验收会写入 Session、history、日志和 workdir。验收前确认可以接受这些临时记录，完成后从 UI 删除测试 Session 并检查遗留文件。
+
+本树依赖已准备，React 已构建；node_modules 为指向 `D:/project/Pan/packages/web/node_modules` 的只读使用 junction。不要对共享依赖运行安装命令。服务尚未为人工验收启动。
 
 ## 0. 前置检查
 
@@ -84,6 +86,17 @@ Start-Process "http://127.0.0.1:$port/react/"
 4. 非 Job 根 PID 消失但后代覆盖未知时，应拒绝自动退休并保留 unknown。Safe Idle 与 external owner unknown 可以同时存在。
 
 ## 7. 每项记录的通过证据
+
+### 本次新增：旧字段迁移和主服务退出
+
+1. 在 Session Details 的 Execution legality 区观察 Safe / Unresolved execution / Illegal，以及 recovery requested、operation reason。运行中 False 不应直接显示 Illegal；卡片与顶部灯必须一致，事故与恢复无需刷新页面。
+2. 测试 Session 正在 Running 时，在 **Pan 主服务窗口** Ctrl+C；重启同一数据根，预期 Illegal 和一次精确队列锁快照。Worker/Job/原生终端中的 Ctrl+C 不属于该测试。
+3. 同样测试 SIGTERM/自己的服务管理停止；若 OS 强杀不能运行收尾，重启时才形成事故快照。不要停止其它 Pan 实例。
+4. 让任务安全进入 Idle、保留常驻 CLI，再对 Pan 主服务 Ctrl+C；重启后应保持合法。前台 Idle 但辅助 operation 未结束则仍按未收尾责任处理。
+5. 通过设置页 Exit 或 Exit API 选择安全退出，检查所有可核验已停止 operation 安全退休；选择 preserve 则仍 Illegal。已有事故不能仅靠安全退出消除。
+6. 无配置/ask 时输入 `q` 回车，等待 2 秒，分别验收菜单 1/2/3；配置 offline 后 q 应遵循配置，输入 `qqq` 回车应强制保留 Illegal。q 仅可在可交互主控制台使用，不适用于隐藏后台窗口。
+7. Request recovery 只写恢复意图，不立即启动 Worker、不清 Illegal。Reconcile execution facts 只核对失主事实并清恢复意图，不用 Idle 覆盖 Illegal。启动恢复候选和 resume Job 使用新意图。
+8. 用独立备份测试历史数据：旧字段 running、缺新字段时仅导入恢复意图，不制造事故/锁；新 recoveryRequested=False 或新安全账本优先于旧 running。旧字段将保留原值，不再随生命周期变化。
 
 至少保存：服务 PID/端口、Session ID、Worker ID、operation/request/run UUID、generation/control generation、关键时间、UI 截图或 API JSON、服务日志片段、队列 revision/lock source、最终退出码。分别标记“实测”“代码推断”“未验证”。
 

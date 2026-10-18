@@ -9,6 +9,18 @@ description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills
 
 Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`（代码默认 **8768**；main/test 测试或隔离运行使用 8767 或 8765；由 `config.json` 的 `port` 字段或 `PAN_PORT` 环境变量覆盖）。全部返回 JSON；错误通常返回 `{"error": "..."}`。**API 无鉴权、绑 loopback（127.0.0.1）**——不要在非本机环境暴露端口。
 
+## 执行合法性与主服务退出（2026-10-18）
+
+Session 摘要/详情返回 `legalOffline`、`illegalOffline`、`recoveryRequested` 和 `legalityDiagnostics`。`legalOffline=false` 表示尚有未安全退休的执行责任，不能单独推断 Illegal；`illegalOffline=true` 表示已有确定事故。恢复意图不代表 Running 或 Illegal。旧 `lastLegalWorkerState` 仅为只读兼容元数据，新数据不使用它作决策。
+
+- `POST /api/sessions/{id}/legality/reconcile` 核对执行事实并清除恢复意图，不清除确定 Illegal 或消息锁。
+- `POST /api/sessions/{id}/legality/request-recovery` 只持久化恢复意图，不启动 Worker，不制造执行。
+- 旧 `/legal-state/sync`、`/legal-state/running` 为 deprecated 别名，执行上述新语义。
+- `POST /api/main/exit` 与既有 `/api/main/restart` 使用保存的 `session_lifecycle.exitStrategy`；ask 时传 `{"options":{"markRunningSessionsOffline":true}}` 安全退休，False 保留未收尾执行为 Illegal。`{"options":{"preserveRunningIllegal":true}}` 可覆盖保存的安全策略。只有可核验 runtime 退休及必要落盘成功才算安全。
+- Pan 主服务 SIGINT/Ctrl+C、SIGTERM、服务管理停止/强杀不构成安全退出授权；已安全 Idle 不因此 Illegal。可交互主控制台 q 后回车使用同一 Exit API；ask 显示 1/2/3 菜单，2 秒内三次 q 或 qqq 回车强制保留未收尾执行。Worker/Job/原生终端内部 Ctrl+C 语义不变。
+
+验证必须使用自己拥有的临时数据根、进程及动态非保护端口；运行目录不是数据隔离。执行合法性迁移与受控原生 operation 边界见设计及交付报告。
+
 ## Agent taskId / send 继承（T-040）
 
 `POST /api/assign` 的 `taskId` 是正式任务幂等键。成功入队后，它成为目标

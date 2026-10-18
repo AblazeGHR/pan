@@ -153,13 +153,25 @@ def main() -> None:
 
     import uvicorn
 
-    uvicorn.run(
-        server.app,
-        host="127.0.0.1",
-        port=args.port,
-        log_level="warning",
-        access_log=False,
-    )
+    from packages.core.host_server import PanServer
+    host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,
+                                    log_level="warning", access_log=False))
+    server.app.state.pan_uvicorn_server = host
+    if os.environ.get("PAN_TEST_HOST_EXIT_PROBE") == "1":
+        import signal
+        @server.app.post("/__test/host-signal/{kind}")
+        async def host_signal(kind: str):
+            selected = {"SIGINT": signal.SIGINT, "SIGTERM": signal.SIGTERM}[kind]
+            asyncio.get_running_loop().call_later(.05, signal.raise_signal, selected)
+            return {"ok": True}
+        # Real API/Job/worker shutdown, with only the detached production
+        # supervisor replaced by stopping this owned temporary test server.
+        server._main_exit_status = lambda: {"available": True, "pending": server._main_exit_pending, "port": args.port}
+        server._main_restart_status = lambda: {"pending": False}
+        server._main_restart_registry_root = lambda: data_root / "background_jobs"
+        server._launch_main_exit_supervisor = lambda request_id: setattr(host, "should_exit", True)
+    host.run()
+
 
 
 if __name__ == "__main__":

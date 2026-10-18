@@ -165,6 +165,14 @@ export interface Session {
   /** Durable execution safety; False alone is not an Illegal condition. */
   legalOffline?: boolean;
   illegalOffline?: boolean;
+  recoveryRequested?: boolean;
+  legalityDiagnostics?: {
+    coverage: string;
+    revision: number;
+    recoveryRequested?: boolean;
+    migrationUncertainty?: string | null;
+    outstanding: Array<{ operationId: string; kind?: string; state?: string; reason?: string | null }>;
+  };
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
   /** True when the managing session has blocked outbound operations to this session. */
@@ -1140,7 +1148,11 @@ export interface ApiSessionLifecyclePreferences {
 export interface ApiSessionLegalStateSyncResult {
   sessionId: string;
   status: 'updated' | 'error';
-  legalWorkerState?: string;
+  legalWorkerState?: string; // deprecated compatibility
+  recoveryRequested?: boolean;
+  legalOffline?: boolean;
+  illegalOffline?: boolean;
+  legalityDiagnostics?: Session["legalityDiagnostics"];
   runtimeWorkerStatus?: string;
   error?: string;
 }
@@ -1153,7 +1165,8 @@ export interface ApiStartupRecoveryCandidate {
   adapter: string;
   workdir?: string;
   updatedAt?: string;
-  lastLegalWorkerState: 'running';
+  lastLegalWorkerState?: 'running';
+  recoveryRequested?: boolean;
 }
 
 export interface ApiStartupRecoveryRecord {

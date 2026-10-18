@@ -50,6 +50,23 @@ describe('session summary reconciliation', () => {
     expect(useSessionStore.getState().sessions[0]).toBe(first);
   });
 
+  it('keeps authoritative legality and recovery intent when an older HTTP summary arrives', async () => {
+    const diagnostics = { coverage: 'pan-managed', revision: 9, outstanding: [] };
+    useSessionStore.setState({ sessions: [mk('s1', {
+      summaryRevision: 20, legalOffline: false, illegalOffline: true,
+      recoveryRequested: true, legalityDiagnostics: diagnostics,
+    })] });
+    api.fetchSessions.mockResolvedValueOnce([mk('s1', {
+      summaryRevision: 19, legalOffline: true, illegalOffline: false,
+      recoveryRequested: false, legalityDiagnostics: { ...diagnostics, revision: 8 },
+    })]);
+    await useSessionStore.getState().loadSessions();
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({
+      summaryRevision: 20, legalOffline: false, illegalOffline: true,
+      recoveryRequested: true, legalityDiagnostics: diagnostics,
+    });
+  });
+
   it('does not let an older summary erase a local completion during the fetch', async () => {
     const first = mk('s1', { historyTotal: 1, lastMessage: 'old' });
     let resolveSnapshot!: (sessions: Session[]) => void;
