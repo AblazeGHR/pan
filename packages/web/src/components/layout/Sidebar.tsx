@@ -219,34 +219,10 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   // are included, while sessions filtered out by search/filters/workspace or
   // hidden are out of scope and keep their own collapse state. Key
   // normalization mirrors SessionList's workdir/manager grouping.
-  const groupKeys = useMemo(() => {
-    if (effectiveGroupBy !== 'workdir' && effectiveGroupBy !== 'manager') return [] as string[];
-    const scoped = getSessionListCandidates(sessions, {
-      multiSelectMode,
-      hiddenSessionIds,
-      searchQuery,
-      specialFilters,
-      adapterFilters,
-      activeWorkspaceId,
-      matchingSessionIds,
-    });
-    if (effectiveGroupBy === 'workdir') {
-      const keys = new Set<string>();
-      for (const s of scoped) {
-        keys.add(s.workdir ? s.workdir.replace(/\\/g, '/').replace(/\/$/, '') : '__no_workdir');
-      }
-      return [...keys];
-    }
-    return scoped.map((s) => s.id);
-  }, [sessions, effectiveGroupBy, multiSelectMode, hiddenSessionIds, searchQuery, specialFilters, adapterFilters, activeWorkspaceId, matchingSessionIds]);
-
-  // Binary toggle judged against the operation scope only: collapsed state of
-  // out-of-scope keys must not flip the button (e.g. a group collapsed in
-  // another workspace or before a filter was applied).
-  const allScopeCollapsed = groupKeys.length > 0 && groupKeys.every((k) => collapsedGroups.has(k));
-
   const selectableSessions = useMemo(
     () => getSessionListCandidates(sessions, {
+      // Select-all deliberately includes hidden sessions; the normal group
+      // scope below applies the hidden-session projection when needed.
       multiSelectMode: true,
       hiddenSessionIds,
       searchQuery,
@@ -257,6 +233,27 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     }),
     [sessions, hiddenSessionIds, searchQuery, specialFilters, adapterFilters, activeWorkspaceId, matchingSessionIds],
   );
+
+  const groupKeys = useMemo(() => {
+    if (effectiveGroupBy !== 'workdir' && effectiveGroupBy !== 'manager') return [] as string[];
+    const scoped = multiSelectMode
+      ? selectableSessions
+      : selectableSessions.filter((session) => !hiddenSessionIds.has(session.id));
+    if (effectiveGroupBy === 'workdir') {
+      const keys = new Set<string>();
+      for (const s of scoped) {
+        keys.add(s.workdir ? s.workdir.replace(/\\/g, '/').replace(/\/$/, '') : '__no_workdir');
+      }
+      return [...keys];
+    }
+    return scoped.map((s) => s.id);
+  }, [effectiveGroupBy, multiSelectMode, hiddenSessionIds, selectableSessions]);
+
+  // Binary toggle judged against the operation scope only: collapsed state of
+  // out-of-scope keys must not flip the button (e.g. a group collapsed in
+  // another workspace or before a filter was applied).
+  const allScopeCollapsed = groupKeys.length > 0 && groupKeys.every((k) => collapsedGroups.has(k));
+
   const selectableIds = useMemo(
     () => selectableSessions.map((session) => session.id),
     [selectableSessions],
