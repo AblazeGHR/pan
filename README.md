@@ -4,6 +4,8 @@ Pan 是一个用于管理 CLI Agent 会话并协调多 Agent 任务的本地 Web
 
 **[English](./README.en.md) · 中文**
 
+**插件开发者**：从 [开发指南与帮助入口](docs/plugins/README.md) 开始，包含 MCP/CLI/API bridge、Panel 注册、数据目录、可运行示例和只读静态检查工具。
+
 ## Pan 可以做什么
 
 - **管理 Sessions**：在一个 Dashboard 中创建、导入、重命名、分支、置顶和删除会话；使用 cbc、kimi、opencode、claude 或 codex adapter。实际可用项取决于本机安装的 CLI。
