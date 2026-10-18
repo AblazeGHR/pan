@@ -8552,6 +8552,9 @@ def _queue_edit_body(item: dict) -> tuple[str, str, str]:
     if field == "text" and not isinstance(value, str):
         raise ValueError("Task/channel body must be a string")
     parts = item.get("parts")
+    if kind == "task" and not parts and isinstance(item.get("attachments"), list) and item["attachments"]:
+        parts = [{"type": "text", "text": value}] + [
+            {**attachment, "type": "attachment"} for attachment in item["attachments"]]
     if field == "text" and isinstance(parts, list) and any(
             not isinstance(part, dict) or part.get("type") != "text"
             or set(part) - {"type", "text", "value"} for part in parts):
@@ -8630,6 +8633,12 @@ async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict)
             return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
         try:
             _, full_text, body_format = _queue_edit_body(target)
+            if body_format == "text" and worker._queue_item_kind(target) == "task":
+                legacy_parts, _, legacy_error = _normalize_text_attachment_parts(session_id, full_text)
+                if legacy_error is not None:
+                    raise ValueError(legacy_error["message"])
+                if legacy_parts:
+                    _, full_text, body_format = _queue_edit_body({**target, "parts": legacy_parts})
         except (ValueError, TypeError, RecursionError) as error:
             return _queue_error("queue_body_not_editable", str(error), s)
         body = ({"text": full_text, "bodyFormat": body_format, "revision": current_revision}
@@ -8706,6 +8715,48 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
         try:
             field, _, body_format = _queue_edit_body(target)
             new_value = _queue_parse_edit_json(text) if body_format == "json" else text
+            composer_parts = data.get("composerParts")
+            if composer_parts is not None:
+                kind = worker._queue_item_kind(target)
+                if target.get("type") is None and isinstance(target.get("text"), str):
+                    kind = "task"
+                if kind != "task" or field != "text":
+                    return _queue_error("queue_parts_unsupported", "Only task messages support composer parts", s)
+                normalized_parts, new_value, error = _normalize_message_parts(session_id, composer_parts)
+                if error is not None:
+                    return _queue_error(error["code"], error["message"], s)
+                # Occurrences are editor identities, never resource authorization.
+                # All resource metadata and paths still come from the registry.
+                occurrences = set()
+                original_parts = target.get("parts") or ([{"type": "text", "text": target.get("text", "")}] +
+                    [{**attachment, "type": "attachment"} for attachment in target.get("attachments", [])])
+                original_occurrences = {
+                    part.get("occurrenceId", f"queue-occurrence-{index}"): part
+                    for index, part in enumerate(_queue_edit_parts_template(original_parts))
+                    if part.get("type") == "attachment"
+                }
+                for ref, normalized in zip(composer_parts, normalized_parts):
+                    if ref.get("type") == "text" and "editorUrl" in ref:
+                        url = ref["editorUrl"]
+                        if (not isinstance(url, dict) or set(url) - {"id", "url", "label"}
+                                or not isinstance(url.get("id"), str) or not url["id"]
+                                or not isinstance(url.get("url"), str)
+                                or urlsplit(url["url"]).scheme not in {"http", "https"}
+                                or not urlsplit(url["url"]).netloc
+                                or any(not isinstance(value, str) or len(value) > 32768 for value in url.values())):
+                            raise ValueError("Invalid URL node")
+                        normalized["editorUrl"] = dict(url)
+                    if ref.get("type") == "attachment":
+                        occurrence = ref.get("occurrenceId")
+                        if not isinstance(occurrence, str) or not occurrence or len(occurrence) > 200 or occurrence in occurrences:
+                            raise ValueError("Attachment occurrences must be unique nonempty strings")
+                        occurrences.add(occurrence)
+                        before = original_occurrences.get(occurrence)
+                        if before and before.get("attachmentId") != ref["attachmentId"]:
+                            raise ValueError("An existing occurrence cannot change its attachment identity")
+                        if before:
+                            normalized.update({**before, **normalized})
+                        normalized["occurrenceId"] = occurrence
             # Optional new-attachment references. The client may only name the
             # opaque attachmentId; every other field is supplied by the Session
             # attachment registry via _normalize_message_parts.  Only task
@@ -8714,7 +8765,7 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
             # channel bodies render from result/text alone, so attachments on
             # those kinds would never reach the consumer.
             added_parts: list | None = None
-            if requested_parts is not None:
+            if composer_parts is None and requested_parts is not None:
                 kind = worker._queue_item_kind(target)
                 if target.get("type") is None and isinstance(target.get("text"), str):
                     kind = "task"  # Mirror _queue_edit_body's legacy envelope rule.
@@ -8730,14 +8781,16 @@ async def api_session_queue_update(session_id: str, item_id: str, data: dict):
                             or not isinstance(ref.get("attachmentId"), str)
                             or not ref["attachmentId"]):
                         return _queue_error("invalid_parts", "attachment part is invalid", s)
-            if requested_parts:
+            if composer_parts is None and requested_parts:
                 added_parts, _, parts_error = _normalize_message_parts(
                     session_id,
                     [{"type": "attachment", "attachmentId": ref["attachmentId"]}
                      for ref in requested_parts])
                 if parts_error is not None:
                     return _queue_error(parts_error["code"], parts_error["message"], s)
-            if body_format == "parts":
+            if composer_parts is not None:
+                pass
+            elif body_format == "parts":
                 normalized_parts, new_value = _queue_edit_parts(session_id, target["parts"], text)
                 if added_parts:
                     # Existing attachment parts keep their server-side identity,

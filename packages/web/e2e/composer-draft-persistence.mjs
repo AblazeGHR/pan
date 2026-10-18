@@ -198,11 +198,14 @@ function moduleUrl(relPath, aliasMap) {
 // nothing about the code that runs.
 const typeOnlyUrl =
   'data:text/javascript,export const attachmentLocation=0';
+const filesUrl = moduleUrl('src/stores/draftFiles.ts', []);
 const codecUrl = moduleUrl('src/stores/composerDraftCodec.ts', [
+  ['./draftFiles', filesUrl],
   ['@/services/api', stubApiUrl],
   ['@/types/attachment', typeOnlyUrl],
 ]);
 const storeUrl = moduleUrl('src/stores/composerDraftStore.ts', [
+  ['./draftFiles', filesUrl],
   ['@/services/api', stubApiUrl],
   ['@/stores/composerDraftCodec', codecUrl],
 ]);

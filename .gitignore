@@ -119,6 +119,7 @@ packages/web/test-results/
 /evidence/queue-latency-ma-runtime-red.xml
 
 # Isolated plugin-platform validation dependencies and mutable runtime data.
+/.validation/
 /audit/plugin-platform-20261018/tmp-*/
 /audit/plugin-platform-20261018/pytest-cache/
 /audit/plugin-platform-20261018/venv/

@@ -71,10 +71,6 @@ const PILL_CLASS =
 
 const DROPDOWN_ITEM = 'px-2 py-1 text-xs hover:bg-bg-hover cursor-pointer whitespace-nowrap';
 
-// 队列编辑器正文容器固定无内联附件：新增附件经 chips 区管理（追加模式），
-// 保存时由服务端把新附件 part 追加到 parts 末尾。
-const QUEUE_EDIT_ATTACHMENTS: never[] = [];
-
 // 新增队列编辑附件的稳定空列表（chips 渲染回退值，保持引用稳定）。
 const EMPTY_QUEUE_EDIT_ATTACHMENTS: QueuedEditAttachment[] = [];
 
@@ -94,6 +90,7 @@ function permBorderClass(value: string): string {
 type AttachmentStatus = 'uploading' | 'registering' | 'ready' | 'error';
 
 interface PendingAttachment {
+  localFileId?: string;
   /** UI occurrence identity. Multiple occurrences may share attachmentId. */
   occurrenceId: string;
   /** Compatibility alias used by the existing chip/test selectors. */
@@ -471,7 +468,7 @@ export function InputRow() {
         value: clonedValue,
         attachments: clonedAttachments,
       });
-      recordDraft(sessionId, toDraft(clonedValue, clonedAttachments));
+      recordDraft(sessionId, toDraft(clonedValue, clonedAttachments, sessionId));
     },
     [],
   );
@@ -526,8 +523,12 @@ export function InputRow() {
   const handleQueueComposerChange = useCallback(
     // The queue editor owns one plain-text body, so URL nodes are projected to
     // the exact Markdown link that will be sent (no attachment parts exist here).
-    (value: ComposerValue) => updateQueueEdit(composerTextWithUrls(value)),
-    [updateQueueEdit],
+    (value: ComposerValue) => {
+      const edit = currentSessionId ? useQueueStore.getState().edits[currentSessionId] : null;
+      if (edit?.composerValue) useQueueStore.getState().updateEditComposer(value);
+      else updateQueueEdit(composerTextWithUrls(value));
+    },
+    [updateQueueEdit, currentSessionId],
   );
   // ── Queued-edit attachments（仅 task 来源；report/notice/channel 派发不消费
   // parts，见 _deliver_queue_unit/_format_report_batch，故不提供附件入口）──
@@ -705,9 +706,7 @@ export function InputRow() {
       for (const attachment of added) {
         void uploadQueueEditAttachment(attachment, token, sessionId);
       }
-      // 追加模式：附件经 chips 区管理，保存时由服务端追加到 parts 末尾，
-      // 不向正文文本流插入内联节点（bodyFormat==='parts' 时正文是 JSON 模板）。
-      return [];
+      return added.map((attachment) => attachment.occurrenceId);
     },
     [queueEdit, uploadQueueEditAttachment, updateQueueEditAttachments],
   );
@@ -717,6 +716,10 @@ export function InputRow() {
       if (!isAttachmentPayloadForSession(payload, currentSessionId)) {
         showToast('附件属于其他 Session，不能拖入当前输入框', 'error');
         return null;
+      }
+      if (payload.attachmentId && (payload.source === 'composer' || payload.source === 'attachment-chip')) {
+        const existing = queueEdit.attachments?.find(item => item.occurrenceId === payload.attachmentId);
+        if (existing) return existing.occurrenceId;
       }
       const remoteId = payload.serverAttachmentId || uploadAttachmentIdFromHref(payload.href);
       const needsRegistration = !remoteId && !!payload.path;
@@ -739,7 +742,7 @@ export function InputRow() {
       if (needsRegistration) {
         registerQueueEditAttachment(occurrenceId, payload.path!, token, sessionId);
       }
-      return null;
+      return occurrenceId;
     },
     [queueEdit, currentSessionId, registerQueueEditAttachment, showToast, updateQueueEditAttachments],
   );
@@ -754,6 +757,17 @@ export function InputRow() {
       updateQueueEditAttachments(sessionId, (current) =>
         current.filter((item) => item.occurrenceId !== occurrenceId),
       );
+      const edit = useQueueStore.getState().edits[sessionId];
+      if (edit?.composerValue && useSessionStore.getState().currentSessionId === sessionId) {
+        const value = edit.composerValue;
+        const next = { ...value,
+          parts: value.parts.filter(part => part.type !== 'attachment' || (part.occurrenceId || part.attachmentId) !== occurrenceId),
+          occurrenceIds: value.occurrenceIds.filter(id => id !== occurrenceId),
+          attachmentIds: value.attachmentIds.filter(id => id !== occurrenceId),
+        };
+        useQueueStore.getState().updateEditComposer(next);
+        queueComposerRef.current?.replaceValue(next);
+      }
     },
     [updateQueueEditAttachments],
   );
@@ -889,7 +903,10 @@ export function InputRow() {
   useEffect(() => {
     const previousSessionId = activeAttachmentSessionRef.current;
     if (previousSessionId && previousSessionId !== currentSessionId) {
-      rememberSessionDraft(previousSessionId, composerValueRef.current, attachmentsRef.current);
+      const interrupted = attachmentsRef.current.map((attachment) =>
+        attachment.status === 'uploading' || attachment.status === 'registering'
+          ? { ...attachment, status: 'error' as const, error: '上传已中断，请重试' } : attachment);
+      rememberSessionDraft(previousSessionId, composerValueRef.current, interrupted);
       // Leaving a Session is the last chance to persist it cheaply: the
       // outgoing draft is complete and the user is not typing it any more, so
       // skip the debounce and write now.  Fire-and-forget; navigation to the
@@ -1506,7 +1523,7 @@ export function InputRow() {
         // tried to send.
         recordDraft(
           snapshot.sessionId,
-          toDraft(value, restoredAttachments),
+          toDraft(value, restoredAttachments, snapshot.sessionId),
         );
         return;
       }
@@ -1553,7 +1570,7 @@ export function InputRow() {
             ),
           ),
           ...snapshot.attachments,
-        ]),
+        ], snapshot.sessionId),
       );
     },
     [setInputDraft, updateAttachments],
@@ -1949,7 +1966,7 @@ export function InputRow() {
             {queueEdit.acquiring && <p className="shrink-0 text-xs text-text-secondary">正在取得编辑锁与完整正文…</p>}
             {queueEdit.saving && <p className="shrink-0 text-xs text-text-secondary">正在保存…</p>}
             {queueEdit.bodyFormat === 'json' && <p className="shrink-0 text-xs text-text-secondary">此报告正文为 JSON；请保留有效 JSON，保存时保留结构化值。</p>}
-            {queueEdit.bodyFormat === 'parts' && <p className="shrink-0 text-xs text-text-secondary">此消息含附件；正文为 JSON 模板，仅修改 text 片段；已有附件保持原样，可追加新附件。</p>}
+
             {queueEdit.error && <p role="alert" className="shrink-0 text-xs text-danger">{queueEdit.error}</p>}
             {(queueEditAttachmentsSupported || queueEditAttachments.length > 0) && (
               <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-testid="queue-edit-attachments">
@@ -2005,7 +2022,7 @@ export function InputRow() {
                     type="button"
                     data-testid="queue-edit-attachment-button"
                     aria-label="为队列消息添加附件"
-                    title="添加附件（保存时追加到消息末尾）"
+                    title="添加附件"
                     disabled={queueEdit.saving || queueEdit.releasing}
                     onClick={() => {
                       attachmentTargetRef.current = 'queue-edit';
@@ -2023,22 +2040,22 @@ export function InputRow() {
             {/* 仅在 lease 取得完整正文后挂载编辑器：initialText 恒为服务端全文，
                 绝不把面板里的截断预览当作编辑正文。saving/releasing 时编辑器
                 真禁用（contentEditable=false + 键盘守卫），DOM 冻结，保存失败
-                解除后 DOM 与 store 草稿一致。新增附件走上方 chips（追加模式），
-                不向正文文本流插入内联节点。 */}
+                解除后 DOM 与 store 草稿一致。附件与 URL 复用普通 composer 原子节点。 */}
             {!queueEdit.acquiring && (
               <RichTextComposer
                 key={`queue-edit:${currentSessionId ?? 'no-session'}:${queueEdit.editToken ?? 'none'}`}
                 ref={queueComposerRef}
                 editorTestId="queue-rich-text-composer"
-                initialText={queueEdit.text}
-                attachments={QUEUE_EDIT_ATTACHMENTS}
+                initialText={queueEdit.composerValue ? undefined : queueEdit.text}
+                initialValue={queueEdit.composerValue}
+                attachments={queueEditAttachments}
                 sessionId={currentSessionId || undefined}
                 disabled={queueEdit.saving || queueEdit.releasing || currentSession?.readonlySession}
                 onChange={handleQueueComposerChange}
                 onAttachmentDrop={handleQueueEditAttachmentDrop}
                 onNativeFiles={addQueueEditClientFiles}
                 onNativeInputIssue={handleNativeInputIssue}
-                onRemoveAttachment={() => {}}
+                onRemoveAttachment={(id) => removeQueueEditAttachment(currentSessionId || undefined, id)}
                 onKeyDown={handleQueueComposerKeyDown}
               />
             )}
@@ -2257,7 +2274,7 @@ export function InputRow() {
                   role="group"
                   aria-label={`附件 ${attachment.displayName}`}
                   className={`inline-flex max-w-full items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-secondary ${attachment.status === 'ready' ? 'cursor-pointer' : ''}`}
-                  title={attachment.path || attachment.displayName}
+                  title={attachment.error || attachment.path || attachment.displayName}
                 >
                   <FileIcon size={13} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{attachment.displayName}</span>
@@ -2275,6 +2292,8 @@ export function InputRow() {
                       type="button"
                       className="text-danger hover:underline"
                       aria-label={`重试上传 ${attachment.displayName}`}
+                      title={attachment.error}
+                      disabled={!attachment.file && !attachment.path}
                       onClick={() => {
                         if (attachment.file) {
                           updateAttachments((current) =>
