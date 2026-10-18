@@ -90,14 +90,14 @@ export function EditorPane() {
           </div>
           <div className="flex-1 min-w-0 overflow-auto bg-bg-primary">
             <div className="p-4">
-              <MarkdownRenderer content={content ?? ''} />
+              <MarkdownRenderer content={content ?? ''} sourcePath={activePath} />
             </div>
           </div>
         </div>
       ) : currentMode === 'preview' ? (
         <div className="flex-1 overflow-auto bg-bg-primary">
           <div className="p-4 max-w-3xl mx-auto">
-            <MarkdownRenderer content={content ?? ''} />
+            <MarkdownRenderer content={content ?? ''} sourcePath={activePath} />
           </div>
         </div>
       ) : (

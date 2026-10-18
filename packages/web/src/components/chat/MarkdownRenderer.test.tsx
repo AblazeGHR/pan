@@ -384,6 +384,17 @@ describe('MarkdownRenderer', () => {
     });
   });
 
+  it('uses the Editor preview document directory when supplied and preserves line targets', async () => {
+    render(
+      <MemoryRouter>
+        <MarkdownRenderer sourcePath="D:/project/pan/docs/index.md" content="[open](./CHECKLIST.md#L2)" />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'open' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('s1', 'D:/project/pan/docs/CHECKLIST.md'));
+    expect(useEditorStore.getState().pendingLocation).toEqual({ path: 'D:/project/pan/docs/CHECKLIST.md', line: 2 });
+  });
+
   it('opens a root-relative Windows drive href without the synthetic leading slash', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>

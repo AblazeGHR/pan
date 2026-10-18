@@ -11,6 +11,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
+import { resolveEditorFileLink } from '@/utils/editorFileLinks';
 import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
 import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
@@ -39,7 +40,7 @@ function looksLikeImageLink(href: string, label: React.ReactNode): boolean {
     || extensionPattern.test(extractLinkText(label));
 }
 
-function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: LinkProps & { attachmentId?: string }) {
+function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, ...props }: LinkProps & { attachmentId?: string; sourcePath?: string }) {
   const navigate = useNavigate();
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const workdir = useSessionStore((s) => s.sessions.find(x => x.id === s.currentSessionId)?.workdir);
@@ -130,7 +131,9 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       return;
     }
 
-    let editorPath = fileLink.path;
+    let editorPath = sourcePath && !fileLink.serverAttachmentId
+      ? resolveEditorFileLink(href, sourcePath, workdir ?? null)?.path ?? fileLink.path
+      : fileLink.path;
     if (fileLink.serverAttachmentId) {
       const finishRequest = beginForegroundRequest();
       try {
@@ -246,6 +249,8 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   attachmentIds?: string[];
+  /** Editor document context; Chat links retain their session-root semantics. */
+  sourcePath?: string;
 }
 
 // Keep plugin identity stable so react-markdown does not rebuild its unified
@@ -354,7 +359,7 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath }: MarkdownRendererProps) {
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
@@ -376,7 +381,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
             const attachmentId = props.href && isSafeAttachmentHref(props.href)
               ? attachmentIds[attachmentIndex++]
               : undefined;
-            return <MarkdownLink {...props} attachmentId={attachmentId} />;
+            return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
           },
         }}
         urlTransform={transformMarkdownUrl}
