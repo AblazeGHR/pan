@@ -3022,7 +3022,13 @@ def _build_session_params(
                 raise ValueError(
                     f"Session template {template.name!r} locks MCP servers to {locked_label}"
                 )
-        _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
+        # An explicit empty list deliberately disables MCP.  It is a complete
+        # selection and must remain usable before the optional plugin manifest
+        # has been loaded (for example, during isolated session construction).
+        if not requested_servers:
+            _set_plugin_config(params["adapter_config"], [])
+        else:
+            _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
     elif template.mcp_mode == "always" and template.plugin_bindings is not None:
         _set_plugin_config(params["adapter_config"], _plugin_catalog().bindings(template.plugin_bindings))
     elif template.mcp_mode == "always" and template.mcp_servers:
@@ -3186,6 +3192,10 @@ def _session_plugin_fields(s):
 
 
 def _set_plugin_config(ac, bindings):
+    if not bindings:
+        ac.update(plugin_config_version=2, plugin_bindings=[], mcp_servers=[],
+                  plugin_selection_revision=ac.get("plugin_selection_revision", 0) + 1)
+        return
     catalog = _plugin_catalog()
     from packages.plugins.runtime import read_api_document
     bindings = catalog.bindings(bindings)
