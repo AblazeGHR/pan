@@ -635,8 +635,18 @@ def _remember_offline_lock(s, item):
 
 
 async def _offline_snapshot_event(s) -> None:
+    # Offline legality changes are committed together with queue state.  The
+    # queue snapshot is also the immediate event emitted by EOF/illegal
+    # detection, so carry the authoritative Session legality projection here;
+    # otherwise the web store refreshes queue rows but keeps the old dot colour
+    # until a later full Session refresh.
     await _bcast({"type": "queue.snapshot", "sessionId": s.id,
-                  "queueRevision": s.queue_revision})
+                  "queueRevision": s.queue_revision,
+                  "session": {
+                      "legalOffline": s.legal_offline,
+                      "illegalOffline": _offline.is_illegal(s),
+                      "legalityDiagnostics": _offline.diagnostics(s),
+                  }})
 
 
 async def _prepare_offline_recovery(s) -> None:

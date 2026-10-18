@@ -106,6 +106,21 @@ def test_same_failed_run_never_expands_or_relocks_and_successor_restores_only_il
     asyncio.run(run())
 
 
+def test_illegal_snapshot_carries_authoritative_web_projection():
+    async def run():
+        s, w = setup(["A"])
+        events = []
+        worker.set_broadcaster(lambda event: events.append(event))
+        identity = await begin(s, w)
+        await worker._detect_offline_exit(w, identity, "console-interrupt")
+        snapshot = next(event for event in reversed(events)
+                        if event["type"] == "queue.snapshot")
+        assert snapshot["session"]["illegalOffline"] is True
+        assert snapshot["session"]["legalOffline"] is False
+        assert snapshot["session"]["legalityDiagnostics"]["outstanding"]
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("all_rows", [False, True])
 def test_manual_unlock_accepts_illegal_and_lock_all_claims_it(all_rows):
     async def run():
