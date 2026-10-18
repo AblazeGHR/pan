@@ -335,8 +335,14 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
     setMenuSession(id);
   }, []);
 
+  // 真实卡片激活的统一回聊语义：从任何非聊天路由（Editor / Jobs / Terminal /
+  // 插件 Panel / Manage 等）点击 Session 卡片都回到 Chat 并显示所点 Session；
+  // 已选中同一 Session 再次点击也同样回聊。已经在聊天路由时不再 navigate，
+  // 避免无意义的历史堆叠。只有卡片主体点击经 SessionList.handleSelect →
+  // onSessionClick 到达这里；批量选择、右键菜单、卡片快捷操作、拖动和后台
+  // store 选择都不会触发导航。
   const handleSessionClick = useCallback(() => {
-    if (location.pathname !== '/jobs') return;
+    if (location.pathname === '/') return;
     navigate('/');
     if (isMobile) setMobileSidebarOpen(false);
   }, [isMobile, location.pathname, navigate, setMobileSidebarOpen]);
