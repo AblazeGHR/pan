@@ -305,7 +305,7 @@ describe('automatic quota refresh on a controlled clock', () => {
     }
   });
 
-  it('treats unknown and future query times as needing a query but never queries fresh siblings', async () => {
+  it('queries unknown times, treats future clock skew as fresh, and skips fresh siblings', async () => {
     states.codex = snapshot('codex', ['p-a', 'p-b', 'p-c'], {
       'p-a': null, 'p-b': quotaAt(NOW + 60_000), 'p-c': quotaAt(NOW - 300_001) });
     render(<AccountSwitcher panel={panel} />);
@@ -473,5 +473,81 @@ describe('automatic quota refresh on a controlled clock', () => {
     await flushAll();
     expect(screen.getByText('Main')).toBeTruthy();
     expect(screen.getByText(/读取列表失败：列表读取失败（已保留上次数据，可重试）/)).toBeTruthy();
+  });
+
+  it('does not write an old mount quota response back over a switch made by a newer mount', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b'],
+      { 'p-a': quotaAt(NOW - 60_000, 40), 'p-b': quotaAt(NOW - 60_000) });
+    let releaseQuota: (value: unknown) => void = () => {};
+    const base = vi.mocked(invokePluginPanel).getMockImplementation();
+    vi.mocked(invokePluginPanel).mockImplementation((plugin, panelId, action, args, requestId) => {
+      if (action === 'quota' && args.id === 'p-a') return new Promise((resolve) => { releaseQuota = resolve; });
+      return base!(plugin, panelId, action, args, requestId);
+    });
+    const first = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    // A manual read keeps a quota promise in flight while the panel unmounts.
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    first.unmount();
+
+    // The newer mount has a fresh cached quota, so it does not await that
+    // promise; it switches to p-b and writes the shared cache.
+    const second = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+
+    // The old mount's quota finally lands: it may only patch the quota onto
+    // the latest shared snapshot, never restore its own old current ID.
+    const provider = states.codex.providers.find((item) => item.id === 'p-a');
+    if (provider) provider.quota = quotaAt(NOW, 77);
+    releaseQuota({ id: 'p-a', app: 'codex', quota: quotaAt(NOW, 77) });
+    await flushAll();
+    second.unmount();
+
+    render(<AccountSwitcher panel={panel} />);
+    // Read the cache before the entry list resolves: it must already be p-b.
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    expect(screen.getByText('77%')).toBeTruthy();
+  });
+
+  it('does not let a shared list started before a switch overwrite it on later re-entry', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b'],
+      { 'p-a': quotaAt(NOW - 60_000), 'p-b': quotaAt(NOW - 60_000) });
+    const seed = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    const stale = structuredClone(states.codex);
+    let releaseList: (value: AccountSnapshot) => void = () => {};
+    vi.mocked(invokePluginPanel).mockImplementationOnce(() =>
+      new Promise<AccountSnapshot>((resolve) => { releaseList = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }));
+    seed.unmount();
+
+    // Two more mounts share the same pending list; the second one switches.
+    const middle = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    middle.unmount();
+    const switching = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    switching.unmount();
+
+    // Re-entry must not adopt the pre-switch list; a fresh list is requested.
+    const latest = render(<AccountSwitcher panel={panel} />);
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    releaseList(stale);
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    expect(callsOf('switch')).toHaveLength(1);
+    latest.unmount();
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
   });
 });

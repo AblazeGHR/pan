@@ -18,9 +18,10 @@ export interface PanelScope {
   panelId: string;
 }
 
-/** Unknown and future timestamps both need a query: an absent timestamp cannot
- *  prove freshness, and a future one (clock skew) must not produce a negative
- *  age that would otherwise look fresh. */
+/** Unknown timestamps need a query: an absent timestamp cannot prove
+ *  freshness. A timestamp from the future (clock skew) yields a negative age,
+ *  which is treated as fresh rather than inventing an age; it never needs a
+ *  query just because the clock disagrees. */
 export function needsQuotaRefresh(quota: AccountQuota | null | undefined, now: number): boolean {
   if (!quota) return true;
   const queriedAt = quota.queriedAt;
@@ -52,11 +53,21 @@ export function mergeSnapshots(
  *  already renders and never credentials. Keys are isolated per plugin, panel
  *  and app, so remounting or switching apps cannot leak another view's data. */
 const snapshots = new Map<string, AccountSnapshot>();
-const listRequests = new Map<string, Promise<AccountSnapshot>>();
+const listRequests = new Map<string, ListEntry>();
 const quotaRequests = new Map<string, Promise<QuotaResult>>();
+/** Generation of the shared snapshot. A pending list started before a write
+ *  must not be applied after that write, even when a different mount reuses it. */
+const snapshotVersions = new Map<string, number>();
+/** Generation of each provider's quota patch, shared across mounts. */
+const quotaVersions = new Map<string, number>();
+let quotaVersionSeq = 0;
 
 function keyFor(scope: PanelScope, app: string): string {
   return `${scope.pluginId}\u0000${scope.panelId}\u0000${app}`;
+}
+
+function quotaKeyFor(scope: PanelScope, app: string, providerId: string): string {
+  return keyFor(scope, app) + '\u0000' + providerId;
 }
 
 export function readCachedSnapshot(scope: PanelScope, app: string): AccountSnapshot | null {
@@ -65,6 +76,67 @@ export function readCachedSnapshot(scope: PanelScope, app: string): AccountSnaps
 
 export function writeCachedSnapshot(scope: PanelScope, snapshot: AccountSnapshot): void {
   snapshots.set(keyFor(scope, snapshot.app), snapshot);
+}
+
+export function currentSnapshotVersion(scope: PanelScope, app: string): number {
+  return snapshotVersions.get(keyFor(scope, app)) ?? 0;
+}
+
+export function bumpSnapshotVersion(scope: PanelScope, app: string): number {
+  const next = currentSnapshotVersion(scope, app) + 1;
+  snapshotVersions.set(keyFor(scope, app), next);
+  return next;
+}
+
+export function markQuotaVersion(scope: PanelScope, app: string, providerId: string): number {
+  quotaVersionSeq += 1;
+  quotaVersions.set(quotaKeyFor(scope, app, providerId), quotaVersionSeq);
+  return quotaVersionSeq;
+}
+
+export function currentQuotaVersion(scope: PanelScope, app: string, providerId: string): number {
+  return quotaVersions.get(quotaKeyFor(scope, app, providerId)) ?? 0;
+}
+
+export function captureQuotaVersions(scope: PanelScope, app: string): Record<string, number> {
+  const prefix = keyFor(scope, app) + '\u0000';
+  const captured: Record<string, number> = {};
+  for (const [key, version] of quotaVersions) {
+    if (key.startsWith(prefix)) captured[key.slice(prefix.length)] = version;
+  }
+  return captured;
+}
+
+interface ListEntry {
+  promise: Promise<AccountSnapshot>;
+  quotaVersions: Record<string, number>;
+  snapshotVersion: number;
+}
+
+export interface ListTicket extends ListEntry {
+  reused: boolean;
+}
+
+/** Deduplicates a list read across mounts (including StrictMode replay), while
+ *  carrying the runtime generations captured when the request actually began.
+ *  A ticket started before a switch is not reused afterwards and its response
+ *  is discarded by the caller. */
+export function startListRequest(scope: PanelScope, app: string,
+  factory: () => Promise<AccountSnapshot>): ListTicket {
+  const key = keyFor(scope, app);
+  const snapshotVersion = currentSnapshotVersion(scope, app);
+  const existing = listRequests.get(key);
+  if (existing && existing.snapshotVersion === snapshotVersion) {
+    return { ...existing, reused: true };
+  }
+  const quotaVersionsAtStart = captureQuotaVersions(scope, app);
+  const created = factory();
+  const entry: ListEntry = { promise: created, quotaVersions: quotaVersionsAtStart, snapshotVersion };
+  entry.promise = created.finally(() => {
+    if (listRequests.get(key) === entry) listRequests.delete(key);
+  });
+  listRequests.set(key, entry);
+  return { ...entry, reused: false };
 }
 
 function dedupe<T>(requests: Map<string, Promise<T>>, key: string, factory: () => Promise<T>):
@@ -76,15 +148,10 @@ function dedupe<T>(requests: Map<string, Promise<T>>, key: string, factory: () =
   return { promise: tracked, reused: false };
 }
 
-/** A second mount, StrictMode replay, or quick away-and-back trip shares the
- *  request already in flight instead of sending another CLI call. */
-export function dedupeListRequest(scope: PanelScope, app: string, factory: () => Promise<AccountSnapshot>) {
-  return dedupe(listRequests, keyFor(scope, app), factory);
-}
-
+/** A second mount or StrictMode replay shares the quota read already in flight. */
 export function dedupeQuotaRequest(scope: PanelScope, app: string, providerId: string,
   factory: () => Promise<QuotaResult>) {
-  return dedupe(quotaRequests, keyFor(scope, app) + '\u0000' + providerId, factory);
+  return dedupe(quotaRequests, quotaKeyFor(scope, app, providerId), factory);
 }
 
 /** Run at most `limit` tasks at once; a rejected task never blocks the rest. */
@@ -106,4 +173,7 @@ export function resetPluginPanelRuntime(): void {
   snapshots.clear();
   listRequests.clear();
   quotaRequests.clear();
+  snapshotVersions.clear();
+  quotaVersions.clear();
+  quotaVersionSeq = 0;
 }

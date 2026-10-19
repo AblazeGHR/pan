@@ -5,8 +5,9 @@ import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 import { invokePluginPanel } from '@/services/api';
 import type { AccountQuota, AccountSnapshot, PluginPanel } from '@/types/pluginPanels';
 import {
-  QUOTA_REFRESH_CONCURRENCY, dedupeListRequest, dedupeQuotaRequest, mergeSnapshots,
-  needsQuotaRefresh, readCachedSnapshot, runLimited, writeCachedSnapshot,
+  QUOTA_REFRESH_CONCURRENCY, bumpSnapshotVersion, captureQuotaVersions, currentQuotaVersion,
+  currentSnapshotVersion, dedupeQuotaRequest, markQuotaVersion, mergeSnapshots, needsQuotaRefresh,
+  readCachedSnapshot, runLimited, startListRequest, writeCachedSnapshot,
   type PanelScope, type QuotaResult,
 } from './pluginPanelRuntime';
 
@@ -76,10 +77,6 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   /** One token per app and snapshot-producing request; a late list response
    *  cannot roll back a switch that was requested after it. */
   const viewTokens = useRef<Record<string, number>>({});
-  /** Monotonic marker per app/provider for quota reads that landed after a
-   *  list or switch request started. */
-  const quotaVersions = useRef<Record<string, number>>({});
-  const versionSeq = useRef(0);
   /** Providers already auto-queried during this app visit, so a failed read is
    *  reported once and retried explicitly instead of looping. */
   const autoAttempted = useRef<Set<string>>(new Set());
@@ -92,17 +89,10 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     return () => { mounted.current = false; };
   }, []);
 
-  const markQuota = useCallback((targetApp: string, providerId: string) => {
-    versionSeq.current += 1;
-    quotaVersions.current[`${targetApp}:${providerId}`] = versionSeq.current;
-  }, []);
-
-  const keepQuotaSince = useCallback((targetApp: string, versions: Record<string, number>) =>
-    (providerId: string) => (quotaVersions.current[`${targetApp}:${providerId}`] ?? 0)
-      > (versions[`${targetApp}:${providerId}`] ?? 0), []);
-
   const mergeInto = useCallback((next: AccountSnapshot, keepQuota?: (providerId: string) => boolean) => {
-    const previous = snapshotsRef.current[next.app] ?? readCachedSnapshot(scope, next.app);
+    // The shared cache is the source of truth: another mount may have switched
+    // providers after this component captured its own last snapshot.
+    const previous = readCachedSnapshot(scope, next.app) ?? snapshotsRef.current[next.app];
     const merged = mergeSnapshots(previous ?? null, next, keepQuota);
     snapshotsRef.current = { ...snapshotsRef.current, [next.app]: merged };
     writeCachedSnapshot(scope, merged);
@@ -117,18 +107,23 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     if (!reused) setRefreshing((current) => current.includes(key) ? current : [...current, key]);
     try {
       const value = await promise;
-      const previous = snapshotsRef.current[targetApp] ?? readCachedSnapshot(scope, targetApp);
-      if (previous) {
+      // Patch the latest shared snapshot, not this mount's last copy: the panel
+      // may have been unmounted, and a newer mount may already have switched.
+      const shared = readCachedSnapshot(scope, targetApp);
+      const base = shared ?? (mounted.current ? snapshotsRef.current[targetApp] : null);
+      if (base?.providers.some((provider) => provider.id === value.id)) {
         const merged = {
-          ...previous,
-          providers: previous.providers.map((provider) =>
+          ...base,
+          providers: base.providers.map((provider) =>
             provider.id === value.id ? { ...provider, quota: value.quota } : provider),
         };
-        snapshotsRef.current = { ...snapshotsRef.current, [targetApp]: merged };
         writeCachedSnapshot(scope, merged);
-        if (mounted.current) setSnapshots((current) => ({ ...current, [targetApp]: merged }));
+        markQuotaVersion(scope, targetApp, value.id);
+        if (mounted.current) {
+          snapshotsRef.current = { ...snapshotsRef.current, [targetApp]: merged };
+          setSnapshots((current) => ({ ...current, [targetApp]: merged }));
+        }
       }
-      markQuota(targetApp, value.id);
       if (mounted.current) {
         setQuotaErrors((current) => {
           if (!(key in current)) return current;
@@ -143,9 +138,11 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
           [key]: reason instanceof Error ? reason.message : '额度刷新失败' }));
       }
     } finally {
-      if (!reused) setRefreshing((current) => current.filter((entry) => entry !== key));
+      if (!reused && mounted.current) {
+        setRefreshing((current) => current.filter((entry) => entry !== key));
+      }
     }
-  }, [scope, panel.pluginId, panel.id, markQuota]);
+  }, [scope, panel.pluginId, panel.id]);
 
   /** Query only providers whose last real query is unknown or older than five
    *  minutes. Called on entry and after the entry list, never on a timer. */
@@ -162,15 +159,19 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   const loadSnapshot = useCallback(async (targetApp: string, refreshQuotaAfter: boolean) => {
     viewTokens.current[targetApp] = (viewTokens.current[targetApp] ?? 0) + 1;
     const token = viewTokens.current[targetApp];
-    const versions = { ...quotaVersions.current };
     setListLoading((current) => ({ ...current, [targetApp]: true }));
     setListErrors((current) => ({ ...current, [targetApp]: null }));
     try {
-      const { promise } = dedupeListRequest(scope, targetApp, () =>
+      const ticket = startListRequest(scope, targetApp, () =>
         invokePluginPanel<AccountSnapshot>(panel.pluginId, panel.id, 'list', { app: targetApp }));
-      const value = await promise;
+      const value = await ticket.promise;
       if (!mounted.current || viewTokens.current[targetApp] !== token) return;
-      const merged = mergeInto(value, keepQuotaSince(targetApp, versions));
+      // A write completed after this request started, even when a newer mount
+      // reused the same promise: its result must not restore the old state.
+      if (ticket.snapshotVersion !== currentSnapshotVersion(scope, targetApp)) return;
+      const keepQuota = (providerId: string) => currentQuotaVersion(scope, targetApp, providerId)
+        > (ticket.quotaVersions[providerId] ?? 0);
+      const merged = mergeInto(value, keepQuota);
       if (appRef.current === targetApp) setUncertain(false);
       if (refreshQuotaAfter) autoRefresh(merged);
     } catch (reason) {
@@ -182,7 +183,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
         setListLoading((current) => ({ ...current, [targetApp]: false }));
       }
     }
-  }, [scope, panel.pluginId, panel.id, mergeInto, keepQuotaSince, autoRefresh]);
+  }, [scope, panel.pluginId, panel.id, mergeInto, autoRefresh]);
 
   // Entry and app switch are the only automatic trigger. The cached snapshot is
   // already on screen; stale quotas start immediately while the list refreshes.
@@ -208,18 +209,23 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     const writing = panel.actions[action]?.effect === 'write_external';
     viewTokens.current[targetApp] = (viewTokens.current[targetApp] ?? 0) + 1;
     const token = viewTokens.current[targetApp];
-    const versions = { ...quotaVersions.current };
+    const versions = captureQuotaVersions(scope, targetApp);
+    const startVersion = currentSnapshotVersion(scope, targetApp);
     try {
-      const current = snapshotsRef.current[targetApp] ?? null;
+      const current = readCachedSnapshot(scope, targetApp) ?? snapshotsRef.current[targetApp] ?? null;
       const args: Record<string, unknown> = { app: targetApp, ...(id ? { id } : {}) };
       if (writing) args.expectedCurrentId = action === 'default_account'
         ? current?.accounts.find((account) => account.isDefault)?.id ?? null
         : current?.currentProviderId ?? null;
       const value = await invokePluginPanel<AccountSnapshot>(
         panel.pluginId, panel.id, action, args, writing ? crypto.randomUUID() : undefined);
-      if (!mounted.current || viewTokens.current[targetApp] !== token) return;
-      mergeInto(value, keepQuotaSince(targetApp, versions));
-      setUncertain(false);
+      // Another write finished first; its snapshot is the newer shared truth.
+      if (currentSnapshotVersion(scope, targetApp) !== startVersion) return;
+      bumpSnapshotVersion(scope, targetApp);
+      const keepQuota = (providerId: string) => currentQuotaVersion(scope, targetApp, providerId)
+        > (versions[providerId] ?? 0);
+      mergeInto(value, keepQuota);
+      if (mounted.current && viewTokens.current[targetApp] === token) setUncertain(false);
     } catch (reason) {
       if (!mounted.current) return;
       setError(reason instanceof Error ? reason.message : '操作失败');

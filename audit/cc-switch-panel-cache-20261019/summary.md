@@ -11,9 +11,10 @@
 ## 本次实现
 
 - `src/views/pluginPanelRuntime.ts`
-  - 严格过期判定：`now - queriedAt > 300000`；`queriedAt` 未知或未来时间都视为需要查询。
+  - 严格过期判定：`now - queriedAt > 300000`；`queriedAt` 未知时查询，未来时间（时钟偏差）按新鲜处理、不编造年龄。
   - 按 `plugin/panel/app` 隔离的内存快照缓存（仅渲染所需字段，不存凭据、不落盘）。
   - list/quota 进行中请求去重，覆盖 StrictMode 双执行、重复 mount、快速切回同一配置。
+  - 共享快照代次与额度版本位于 runtime：跨卸载/重进共享的旧 list 不能覆盖已完成的新 switch；旧 quota 回包只把对应额度 patch 到最新共享快照。
   - 并发上限 2，单个失败不影响同批其他配置。
   - 快照合并保留“请求开始后才落地的额度”，避免旧列表回退新额度。
 - `src/views/PluginPanelView.tsx`
@@ -27,7 +28,7 @@
 ## 验证
 
 - 单元测试（受控时钟）：`pnpm exec vitest run src/views/PluginPanelView.test.tsx --no-cache`
-  - 24 passed；覆盖 299999/300000/300001ms 边界、未知/未来时间、缓存复入、StrictMode 去重、应用隔离、乱序响应、失败保留与手动重试、并发上限、自动查询期间切应用、不自动 switch。
+  - 24→26 passed；覆盖 299999/300000/300001ms 边界、未知/未来时间、缓存复入、StrictMode 去重、应用隔离、乱序响应、失败保留与手动重试、并发上限、自动查询期间切应用、不自动 switch、跨卸载旧 quota 回包与跨组件共享旧 list 覆盖新 switch。
 - 全量前端测试（锁文件一致的完整验证树 `.validation/web`，依赖 junction 只读）：
   - `pnpm exec vitest run --no-cache` → 165 files / 1995 tests passed。
 - 类型与构建（同一完整验证树）：
