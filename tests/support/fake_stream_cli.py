@@ -36,7 +36,8 @@ def _gate_for(text: str) -> str | None:
 
 def main() -> None:
     pid = os.getpid()
-    _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time()})
+    _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time(),
+             "stdinEncoding": sys.stdin.encoding, "stdoutEncoding": sys.stdout.encoding})
     init_gate = os.environ.get("PAN_E2E_INIT_GATE")
     while init_gate and not Path(init_gate).exists():
         time.sleep(.01)

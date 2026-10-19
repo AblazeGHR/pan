@@ -1,0 +1,5 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\takeover-lifecycle-20261019
+TERMINAL_READER_CONFLICT http://127.0.0.1:50530 [{'winerror': 5, 'target': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3140\\test_http_first_terminal_survi0\\runtime\\sessions\\ses_6d5a919fabd9e26d.json'}] gbk
+.CLEANUP http://127.0.0.1:50530 owned server stopped; port released
+
+1 passed, 5 deselected in 2.00s

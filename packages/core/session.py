@@ -2488,6 +2488,22 @@ def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
             state.cancel_before_begin(ticket)
 
 
+def _replace_session_metadata(source: Path, target: Path) -> None:
+    """Keep the same ordered atomic write across brief Windows reader locks."""
+    for attempt in range(6):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError as exc:
+            if (os.name != "nt" or getattr(exc, "winerror", None) not in {5, 32, 33}
+                    or attempt == 5):
+                raise
+            # Readers (including shallow API reads) can deny delete-sharing.
+            # Retry only this prepared replace, never the provider input or
+            # terminal admission. Persistent errors still reach rollback.
+            time.sleep(.01 * (attempt + 1))
+
+
 def _save_body(s: Session, force_full: bool = False, *,
                unread_done_read_generation: int | None = None,
                unread_done_generation: int | None = None,
@@ -2580,7 +2596,7 @@ def _save_body(s: Session, force_full: bool = False, *,
         tmp_path.write_text(
             json.dumps(d, ensure_ascii=False, indent=2),
             encoding="utf-8")
-        os.replace(tmp_path, main_path)
+        _replace_session_metadata(tmp_path, main_path)
         s._last_meta_sig = meta_sig
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot

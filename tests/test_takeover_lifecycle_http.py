@@ -17,6 +17,34 @@ def probe(monkeypatch):
     monkeypatch.setenv('PAN_E2E_TAKEOVER_PROBE', '1')
 
 
+@pytest.fixture
+def narrow_console(monkeypatch):
+    monkeypatch.setenv('PYTHONUTF8', '0')
+    monkeypatch.setenv('PYTHONIOENCODING', 'cp936:backslashreplace')
+
+
+@pytest.mark.usefixtures('narrow_console')
+def test_http_first_terminal_survives_real_reader_conflict_without_resend(runtime):
+    s = _create(runtime, 'takeover-reader-conflict')
+    sid = s['id']
+    _spawn(runtime, sid)
+    _wait_for(lambda: runtime.request('GET', f'/api/sessions/{sid}').get('cliSessionId'))
+    (runtime.data_root / 'hold-terminal-reader').touch()
+    _enqueue(runtime, sid, 'establish-native-session', 'first')
+    _wait_for(lambda: durable(runtime, sid)['last_result'])
+    value = durable(runtime, sid)
+    assert value['last_result']['status'] == 'done' and value['result_cursor'] == 1
+    assert value['legal_offline'] and not value['queue_pending']
+    conflicts = [json.loads(line) for line in (runtime.data_root / 'reader-conflicts.jsonl').read_text().splitlines()]
+    assert [row['winerror'] for row in conflicts] == [5]
+    received = [row for row in runtime.fake_records() if row['kind'] == 'received' and row['cwd'] == s['workdir']]
+    assert len(received) == 1 and received[0]['text'] == 'establish-native-session'
+    init = [row for row in runtime.fake_records() if row['kind'] == 'init' and row['cwd'] == s['workdir']][-1]
+    assert init['stdinEncoding'] == init['stdoutEncoding'] == 'gbk'
+    assert not (runtime.data_root / 'terminal-exceptions.txt').exists()
+    print('TERMINAL_READER_CONFLICT', runtime.base_url, conflicts, init['stdinEncoding'])
+
+
 @pytest.mark.parametrize('action', ['kill', 'restart'])
 @pytest.mark.parametrize('closed', [False, True])
 def test_http_takeover_controls_retire_real_job(runtime, action, closed):

@@ -6,6 +6,37 @@ import sys
 
 
 def install(server, root):
+    import traceback
+    from packages.core import worker
+    from packages.core import session as session_store
+    persist_terminal = worker._persist_terminal_state
+    async def terminal(*args, **kwargs):
+        reader = None
+        replace = os.replace
+        if (root / 'hold-terminal-reader').exists():
+            metadata_path = session_store._path(args[0].session_id)
+            reader = metadata_path.open('rb')
+            def observed_replace(source, target):
+                try:
+                    return replace(source, target)
+                except PermissionError as exc:
+                    if Path(target) == metadata_path and not reader.closed:
+                        with (root / 'reader-conflicts.jsonl').open('a', encoding='utf-8') as handle:
+                            handle.write(json.dumps({'winerror': exc.winerror, 'target': str(target)}) + '\n')
+                        reader.close()
+                    raise
+            os.replace = observed_replace
+        try:
+            return await persist_terminal(*args, **kwargs)
+        except BaseException:
+            with (root / 'terminal-exceptions.txt').open('a', encoding='utf-8') as handle:
+                handle.write(traceback.format_exc())
+            raise
+        finally:
+            os.replace = replace
+            if reader is not None:
+                reader.close()
+    worker._persist_terminal_state = terminal
     from packages.core.adapters.cbc import sessions
     from packages.core.takeover_job import TakeoverJob
     terminate = TakeoverJob.terminate_and_verify

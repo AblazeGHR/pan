@@ -1841,6 +1841,9 @@ async def _persist_terminal_state(
         # Persistence owns its rollback/committed-outcome decision. Never turn
         # an aborted terminal chain into an idle restart or hide its exception.
         w._terminal_finishing = False
+        if not isinstance(exc, asyncio.CancelledError):
+            _log.error("[Worker %s] terminal persistence failed session=%s generation=%s",
+                       w.worker_id, w.session_id, w.generation, exc_info=True)
         _abort_delayed_restart(w, "terminal persistence", exc)
         raise
 

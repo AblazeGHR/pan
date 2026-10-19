@@ -1,0 +1,5 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\takeover-lifecycle-20261019
+TAKEOVER_HTTP {"port": 50086, "action": "restart", "closed": false, "process": {"pid": 38328, "filetime": 134368895638136348, "child": 16492}, "proof": {"kind": "windows-job-empty", "jobId": "15a301ead83846b5a8483569dceefd9e", "activeProcesses": 0, "verifiedAt": 1792415963.9038515}, "dataRoot": "D:\\project\\pan-worktrees\\takeover-lifecycle-20261019\\evidence\\takeover-lifecycle-20261019\\diagnostic-run\\test_http_takeover_controls_re0\\runtime", "responses": [{"workerId": "worker-1", "sessionId": "ses_d4519d229b9c4764", "status": "idle"}, {"workerId": "worker-1", "sessionId": "ses_d4519d229b9c4764", "status": "idle"}]}
+.CLEANUP http://127.0.0.1:50086 owned server stopped; port released
+
+1 passed, 4 deselected in 2.71s

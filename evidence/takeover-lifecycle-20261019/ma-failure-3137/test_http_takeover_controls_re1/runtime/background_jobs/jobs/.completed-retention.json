@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "completed": {
+      "enabled": false
+    },
+    "failed": {
+      "enabled": false
+    },
+    "timed_out": {
+      "enabled": false
+    },
+    "cancelled": {
+      "enabled": false
+    },
+    "logs": {
+      "enabled": false
+    }
+  }
+}

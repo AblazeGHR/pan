@@ -1,0 +1,89 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\takeover-lifecycle-20261019
+F                                                                        [100%]
+================================== FAILURES ===================================
+____________ test_terminal_commit_survives_metadata_reader_release ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027DE188F6F0>
+
+    @pytest.mark.skipif(sys.platform != 'win32', reason='Windows delete sharing semantics')
+    def test_terminal_commit_survives_metadata_reader_release(monkeypatch):
+        async def run():
+            s, w = setup()
+            await begin(s, w)
+            w._current_seq = 1
+            reader = sess._path(s.id).open('rb')
+            replace = sess.os.replace
+            conflicts = []
+            def observed_replace(source, target):
+                try:
+                    return replace(source, target)
+                except PermissionError as exc:
+                    # Same ordinary read handle used by durable(runtime, sid).
+                    # Release it only after the actual kernel sharing conflict.
+                    conflicts.append(exc.winerror)
+                    reader.close()
+                    raise
+            monkeypatch.setattr(sess.os, 'replace', observed_replace)
+            try:
+                terminal = await worker._persist_terminal_state(w, s, 'done', 'establish-native-session')
+                assert conflicts == [5]
+                assert terminal['result'] == 'establish-native-session'
+                data = json.loads(sess._path(s.id).read_text(encoding='utf-8'))
+                assert data['last_result']['status'] == 'done'
+                assert data['result_cursor'] == 1 and data['legal_offline']
+                assert w._terminal_handled
+            finally:
+                reader.close()
+>       asyncio.run(run())
+
+tests\test_takeover_terminal_reader.py:41:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_takeover_terminal_reader.py:32: in run
+    terminal = await worker._persist_terminal_state(w, s, 'done', 'establish-native-session')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:1838: in _persist_terminal_state
+    return await _persist_terminal_state_locked(
+packages\core\worker.py:2099: in _persist_terminal_state_locked
+    await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal,
+packages\core\worker.py:2714: in _flush_history_now
+    await _sess._persist_async_outcome(s.id, commit, outcome)
+packages\core\session.py:2746: in _persist_async_outcome
+    raise outcome.error
+packages\core\session.py:2733: in _persist_async_outcome
+    await asyncio.shield(inner)
+packages\core\session.py:143: in run
+    value = operation()
+            ^^^^^^^^^^^
+packages\core\session.py:2721: in <lambda>
+    ticket, lambda: context.run(
+packages\core\session.py:2477: in _run_persistence_ticket
+    return operation()
+           ^^^^^^^^^^^
+packages\core\worker.py:2709: in commit
+    _sess._save_body(s, offline_override=offline_values)
+packages\core\session.py:2583: in _save_body
+    os.replace(tmp_path, main_path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+source = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3138/test_terminal_commit_survives_0/sessions/ses_0ef6ab166909ad1a.json.tmp')
+target = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3138/test_terminal_commit_survives_0/sessions/ses_0ef6ab166909ad1a.json')
+
+    def observed_replace(source, target):
+        try:
+>           return replace(source, target)
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+E           PermissionError: [WinError 5] �ܾ����ʡ�: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3138\\test_terminal_commit_survives_0\\sessions\\ses_0ef6ab166909ad1a.json.tmp' -> 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3138\\test_terminal_commit_survives_0\\sessions\\ses_0ef6ab166909ad1a.json'
+
+tests\test_takeover_terminal_reader.py:23: PermissionError
+=========================== short test summary info ===========================
+FAILED tests/test_takeover_terminal_reader.py::test_terminal_commit_survives_metadata_reader_release
+1 failed in 1.00s

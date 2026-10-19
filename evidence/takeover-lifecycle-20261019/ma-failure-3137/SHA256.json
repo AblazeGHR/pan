@@ -1,0 +1,47 @@
+[
+  {
+    "path": "runtime/background_jobs/jobs/.completed-retention.json",
+    "bytes": 276,
+    "sha256": "8e3cb755d5f625985ff9d94c4562f7bdba7f74e9bf5b22de330d0e0bd9b294d9"
+  },
+  {
+    "path": "runtime/fake-42088.resume.json",
+    "bytes": 57,
+    "sha256": "478a10e31aa4889d29f62bb41f3b98cc159d096480f1db594c8861697ab9956e"
+  },
+  {
+    "path": "runtime/fake-cli.jsonl",
+    "bytes": 574,
+    "sha256": "a75b95e6c5a1223fbeb947fbde966ad76747b7e8274f011cd6a6da5b868993d2"
+  },
+  {
+    "path": "runtime/mcp-configs/ses_b483f2723e97eabb.mcp.json",
+    "bytes": 631,
+    "sha256": "4de28f34eae94804324f4abe597787ffc25ec9faf409e2f9c93307509feaef08"
+  },
+  {
+    "path": "runtime/pan.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "runtime/release-A",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "runtime/sessions/ses_b483f2723e97eabb.history.jsonl",
+    "bytes": 961,
+    "sha256": "b475c025bb75e1ec31772d465b3936acad8fd9e419996b2d64aa88bbcd17b348"
+  },
+  {
+    "path": "runtime/sessions/ses_b483f2723e97eabb.json",
+    "bytes": 7435,
+    "sha256": "5fff5f7030b769cd67d2fd9f02f2212ee1505b3201ecba40d1c6cd7eb65656ef"
+  },
+  {
+    "path": "runtime/startup_recovery/e638f4d1ed3c4c92a41a18f0ba6a1e66.json",
+    "bytes": 301,
+    "sha256": "faf18079c146e041edfe3160c0d18d8514f0a84c05eb7ad2996ee920c8a2cd95"
+  }
+]
