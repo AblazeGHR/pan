@@ -105,17 +105,18 @@ If the Session history is empty or not loaded, `previousMessage` is `null` and
 
 `_iter_stdout_lines` keeps the existing 256 KiB parse threshold. When a line
 exceeds it, the overflow is written to a temporary file instead of being held
-in memory. The worker reads the full line back only when its JSON envelope is
-error-shaped (`result`, `error`, `codex.turn_error`, `codex.item_error`,
-`pan.native_error`); a `result` is only accepted when `is_error`/`cancelled` is
-true. That full event then follows the normal terminal/transient path, so the
-error payload is complete and the stream parser still runs normally afterwards.
+in memory. Recognition is **order-independent** and **top-level-only**: a
+streaming scanner tracks string/object/array depth and checks the top-level
+`type`/`is_error`/`cancelled` keys, so `{"error": {...}, "type": "result",
+"is_error": true}` and a `type` appearing after 256 KiB are handled, while a
+nested `"type":"result"` inside assistant/tool text is ignored. Only after that
+scan does the worker read the full line back; a `result` is accepted only when
+`is_error`/`cancelled` is true. Normal oversized non-error output keeps the
+previous cap/drop behavior and is never relabelled as an error.
 
 Non-JSON stream text (stdout and stderr are merged by the worker) is copied to a
 per-run scratch file. It is attached to terminal/crash samples as
 `rawDiagnostics` with an explicit source and is never written into `errorText`.
-Normal oversized non-error structured output keeps the previous cap/drop
-behavior and is never relabelled as an error.
 
 ## Concurrency, dedupe and ordering
 
@@ -145,6 +146,11 @@ behavior and is never relabelled as an error.
 - Async submissions are FIFO on the single executor and `processSequence` is
   assigned at preparation time, so file order matches detection order for one
   process.
+- An `eventId` is reserved in the in-memory in-flight set only inside the
+  writer function and is released in a `finally` block. Cancelling the awaiting
+  coroutine can therefore not leave a permanently in-flight id: if the write
+  already runs it finishes and clears; if it was cancelled before the writer
+  started it never reserved anything. `flush()` drains either outcome.
 - `flush()` waits for the writer executor; it is called from Pan's
   `begin_shutdown`. Every async caller already awaits its own write, so no
   unbounded background queue exists.
@@ -188,9 +194,15 @@ heartbeat.
 - Non-JSON text is attached only when that run produces a terminal/crash
   sample. A successful run with non-JSON stderr produces no error sample, so
   that text is not persisted.
-- An oversized line whose first 256 KiB looks like a structured JSON object or
-  array but is neither parseable nor error-shaped is treated as normal output
-  and dropped, not as raw diagnostic text.
+- Oversized non-object text (including a `[...]` log line) is raw diagnostic.
+  Oversized JSON objects that are not error-shaped, or have no top-level
+  `type`, are treated as normal output and dropped. Only the error-shaped full
+  line is read into memory; one such line at a time, bounded by available
+  memory for that single error.
+- The streaming scanner reads the whole oversized line to find a top-level
+  `type` even when it appears late. This is disk/CPU work in a thread, not a
+  reason to read normal oversized output into memory or lower the 256 KiB
+  parser threshold.
 - Terminal PTY/native-UI errors that are not attached to a Session worker are
   not sampled. Pan startup/exit errors without a Session are also out of scope.
 - Credential redaction is best-effort (credential-shaped keys and common token
@@ -238,18 +250,21 @@ re-derive `retryable` from wording.
 - `tests/test_session_error_log.py` – schema, full Chinese multiline text,
   provenance, previous roles, concurrency, dedupe, restart retention, I/O
   failure, lock failure (no unlocked write), async offload/heartbeat,
-  submission order, flush, partial-line repair, redaction.
+  submission order, flush, cancelled-await/queued-cancel in-flight cleanup,
+  BaseException cleanup, partial-line repair, redaction.
 - `tests/test_session_error_log_worker.py` – Codex raw error vs assistant text,
   tool-failure layering, startup failure, normal `done` not recorded,
-  >256 KiB error spill, normal oversized result not reinterpreted, raw
-  diagnostics attached but not used as `errorText`.
+  >256 KiB error spill, order-independent key detection (type second, type
+  after 256 KiB, nested type rejection), normal oversized result not
+  reinterpreted, raw diagnostics attached but not used as `errorText`.
 - `tests/test_session_error_log_multiprocess.py` – four real processes writing
   large records without interleaving; a long-lived writer must repair another
   process's crashed half line (tail re-check under lock).
 - `tests/test_session_error_log_e2e.py` – real isolated HTTP/uvicorn + local
   deterministic CLI on an ephemeral port (never 8767/8768), stream/one-shot,
-  crash, huge text, >256 KiB structured error, non-JSON diagnostics,
-  concurrent Sessions and process restart read-back.
+  crash, huge text, >256 KiB structured error (type first, error first,
+  is_error first), non-JSON diagnostics, concurrent Sessions and process
+  restart read-back.
 - `tests/test_codex_adapter.py` – wrapper keeps `turn.error` beside assistant
   text and emits a recovered transient notice.
 

@@ -525,17 +525,21 @@ def _write_prepared(prepared: tuple[dict, str, Any]) -> str | None:
     try:
         _append_line(path(), line)
     except Exception as exc:  # lock/write failure: drop the sample, keep the task
-        with _THREAD_LOCK:
-            _INFLIGHT_EVENT_IDS.discard(event_id)
         _record_failure(exc)
         return None
-    with _THREAD_LOCK:
-        _INFLIGHT_EVENT_IDS.discard(event_id)
-        _remember_event_id(event_id)
-        _STATS["written"] += 1
-        _STATS["lastEventAt"] = record["timestamp"]
-        _STATS["lastEventId"] = event_id
-    return event_id
+    else:
+        with _THREAD_LOCK:
+            _remember_event_id(event_id)
+            _STATS["written"] += 1
+            _STATS["lastEventAt"] = record["timestamp"]
+            _STATS["lastEventId"] = event_id
+        return event_id
+    finally:
+        # Covers success, OSError, and BaseException (cancellation of the
+        # executor future / interpreter shutdown).  A cancelled awaiter can
+        # never leave a permanently "inflight" event that blocks flush.
+        with _THREAD_LOCK:
+            _INFLIGHT_EVENT_IDS.discard(event_id)
 
 
 def _resolve_raw_diagnostics(source: Any) -> tuple[str | None, int]:

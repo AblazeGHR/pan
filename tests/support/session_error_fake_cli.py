@@ -72,6 +72,21 @@ def _handle(text: str, mode: str) -> None:
         _assistant("partial answer before huge error")
         _result_error(huge, partial="partial answer before huge error")
         return
+    if "err-oversize-error-first" in text:
+        huge = "错" * 120000
+        # error is the first key, so type/is_error are after the 256 KiB cap.
+        _emit({"error": {"message": huge, "code": "rate_limit",
+                         "retryable": True},
+               "type": "result", "is_error": True, "turn_status": "failed",
+               "result": "partial before error-first"})
+        return
+    if "err-oversize-is-error-first" in text:
+        huge = "错" * 120000
+        _emit({"is_error": True, "type": "result",
+               "error": {"message": huge, "code": "rate_limit",
+                         "retryable": True},
+               "result": "partial before is_error-first"})
+        return
     if "err-oversize" in text:
         oversize = "错" * 120000
         _assistant("partial answer before oversize error")

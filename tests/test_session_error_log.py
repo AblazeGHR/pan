@@ -36,6 +36,8 @@ def _isolated_log(tmp_path):
 
 
 def _read_records(path):
+    if not path.exists():
+        return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
@@ -407,3 +409,100 @@ def test_flush_waits_for_inflight_write(monkeypatch):
 
     asyncio.run(run())
     assert _read_records(session_error_log.path())[0]["errorText"] == "flush me"
+
+
+def test_cancelled_awaiter_does_not_leak_inflight_and_flush_drains(monkeypatch):
+    real_append = session_error_log._append_line
+    started = threading.Event()
+
+    def slow_append(path, line):
+        started.set()
+        time.sleep(0.3)
+        return real_append(path, line)
+
+    monkeypatch.setattr(session_error_log, "_append_line", slow_append)
+
+    async def run():
+        task = asyncio.create_task(session_error_log.record_session_error_async(
+            kind="terminal_error",
+            error_text="cancelled while writing",
+            error_text_source="pan.runtime",
+            terminal=True,
+            session_id="ses_cancel",
+            worker_id="worker-cancel",
+        ))
+        for _ in range(200):
+            if started.is_set() and session_error_log.stats()["pending"] == 1:
+                break
+            await asyncio.sleep(0.01)
+        assert started.is_set()
+        assert session_error_log.stats()["pending"] == 1
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        began = time.monotonic()
+        assert session_error_log.flush(timeout=5) is True
+        assert time.monotonic() - began < 3
+        assert session_error_log.stats()["pending"] == 0
+
+    asyncio.run(run())
+    records = _read_records(session_error_log.path())
+    assert len(records) == 1
+    assert records[0]["errorText"] == "cancelled while writing"
+
+
+def test_cancel_before_executor_runs_leaves_no_inflight():
+    release = threading.Event()
+    started = threading.Event()
+
+    def blocker():
+        started.set()
+        release.wait(5)
+
+    session_error_log._WRITE_EXECUTOR.submit(blocker)
+    assert started.wait(5)
+
+    async def run():
+        task = asyncio.create_task(session_error_log.record_session_error_async(
+            kind="terminal_error",
+            error_text="queued then cancelled",
+            error_text_source="pan.runtime",
+            terminal=True,
+            session_id="ses_cancel_queued",
+            worker_id="worker-cancel-queued",
+        ))
+        await asyncio.sleep(0.05)
+        assert session_error_log.stats()["pending"] == 0
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    try:
+        asyncio.run(run())
+    finally:
+        release.set()
+    assert session_error_log.flush(timeout=5) is True
+    assert session_error_log.stats()["pending"] == 0
+    # The queued work may have been cancelled or may run after release; both
+    # outcomes are complete and must not leave an inflight marker.
+    assert len(_read_records(session_error_log.path())) in (0, 1)
+
+
+def test_inflight_cleanup_even_on_base_exception(monkeypatch):
+    prepared = session_error_log._prepare_record(
+        kind="terminal_error",
+        error_text="base exception",
+        error_text_source="pan.runtime",
+        terminal=True,
+        session_id="ses_base",
+        worker_id="worker-base",
+    )
+    assert prepared is not None
+
+    def raise_interrupt(*_args, **_kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(session_error_log, "_append_line", raise_interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        session_error_log._write_prepared(prepared)
+    assert session_error_log.stats()["pending"] == 0

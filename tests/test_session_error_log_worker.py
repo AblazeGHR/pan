@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import tempfile
 from types import SimpleNamespace
 
 from packages.core import session as sess
@@ -207,3 +208,83 @@ def test_raw_stream_diagnostics_are_attached_but_not_error_text():
     assert record["rawDiagnosticLineCount"] == 2
     assert record["rawDiagnosticSource"] == "unparsed_stream_text"
     assert record["rawDiagnosticComplete"] is True
+
+
+def _split_oversized(event):
+    wire = (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
+    prefix = wire[:worker._STDOUT_MAX_LINE]
+    spill = tempfile.TemporaryFile()
+    spill.write(wire[worker._STDOUT_MAX_LINE:])
+    spill.seek(0)
+    return wire, prefix, spill
+
+
+def test_oversized_error_detection_is_key_order_independent():
+    big = "错" * 120000
+    true_cases = [
+        # type is after 256 KiB because the huge error object comes first.
+        {"error": {"message": big}, "type": "result", "is_error": True},
+        # type is the second key.
+        {"is_error": True, "type": "result", "error": {"message": big}},
+        # huge result before type, with is_error after it.
+        {"result": big, "type": "result", "is_error": True},
+        # type after an unrelated huge field.
+        {"junk": big, "type": "result", "is_error": True},
+        # non-result error event with type after the payload.
+        {"error": {"message": big}, "type": "error"},
+    ]
+    for event in true_cases:
+        _, prefix, spill = _split_oversized(event)
+        try:
+            assert worker._classify_oversized_json(prefix, spill) is True, event.keys()
+        finally:
+            spill.close()
+
+    false_cases = [
+        {"result": big, "type": "result", "is_error": False},
+        {"type": "assistant", "message": {"content": [{"type": "result", "text": big}]}},
+        {"message": {"content": [{"type": "result", "text": big}]}, "is_error": True},
+        {"junk": big, "type": "assistant"},
+    ]
+    for event in false_cases:
+        _, prefix, spill = _split_oversized(event)
+        try:
+            assert worker._classify_oversized_json(prefix, spill) is False, event.keys()
+        finally:
+            spill.close()
+
+
+def test_oversized_line_classifier_reads_full_error_and_keeps_normal_capped():
+    big = "错" * 120000
+    error_first = {"error": {"message": big}, "type": "result", "is_error": True}
+    wire, prefix, spill = _split_oversized(error_first)
+    try:
+        status, event = asyncio.run(worker._classify_oversized_line(
+            SimpleNamespace(parse_event=lambda text: json.loads(text)), wire, spill))
+    finally:
+        spill.close()
+    assert status == "error"
+    assert event["error"]["message"] == big
+
+    normal = {"result": big, "type": "result", "is_error": False}
+    wire, prefix, spill = _split_oversized(normal)
+    try:
+        status, event = asyncio.run(worker._classify_oversized_line(
+            SimpleNamespace(parse_event=lambda text: json.loads(text)), wire, spill))
+    finally:
+        spill.close()
+    assert status == "drop"
+    assert event is None
+
+    raw_wire = ("stderr 诊断 " + "x" * 120000 + "\n").encode("utf-8")
+    prefix = raw_wire[:worker._STDOUT_MAX_LINE]
+    spill = tempfile.TemporaryFile()
+    spill.write(raw_wire[worker._STDOUT_MAX_LINE:])
+    spill.seek(0)
+    try:
+        status, event = asyncio.run(worker._classify_oversized_line(
+            SimpleNamespace(parse_event=lambda text: None), raw_wire, spill))
+    finally:
+        spill.close()
+    assert status == "raw"
+    assert event is None

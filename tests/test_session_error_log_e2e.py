@@ -251,6 +251,32 @@ def test_stream_terminal_tool_transient_native_cancelled_and_duplicate(runtime):
     assert len(duplicate_rows) == 1
 
 
+def test_oversized_error_detection_is_key_order_independent(runtime):
+    cases = [
+        ("error-first", "err-oversize-error-first", "partial before error-first"),
+        ("is-error-first", "err-oversize-is-error-first",
+         "partial before is_error-first"),
+    ]
+    for label, prompt, terminal_result in cases:
+        sid = _new_session(runtime, f"oversize-{label}")
+        _spawn(runtime, sid)
+        _enqueue(runtime, sid, prompt)
+        _wait_last_result(runtime, sid, "error")
+        record = _wait_matching(
+            runtime,
+            lambda r, sid=sid: (r.get("sessionId") == sid
+                                and r.get("kind") == "terminal_error"),
+        )[-1]
+        assert len(record["errorText"]) == 120000, label
+        assert record["errorText"] == "错" * 120000, label
+        assert record["errorTextSource"] == "cli.error", label
+        assert record["cli"]["raw"]["error"]["message"] == "错" * 120000, label
+        assert record["pan"]["terminalResult"] == terminal_result, label
+        # The provider stream is still usable after the oversized error.
+        _enqueue(runtime, sid, "err-normal")
+        _wait_last_result(runtime, sid, "done")
+
+
 def test_crash_huge_and_concurrent_sessions(runtime):
     crash_sid = _new_session(runtime, "crash-error")
     _spawn(runtime, crash_sid)

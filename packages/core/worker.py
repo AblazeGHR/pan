@@ -22,7 +22,6 @@ import inspect
 import json
 import logging
 import os
-import re
 import tempfile
 import time
 import uuid
@@ -1330,12 +1329,168 @@ _TOOL_ITEM_TYPES = frozenset({
 })
 
 # A stream line over the parser cap is only read back in full when its JSON
-# envelope can be an error.  Normal oversized output keeps the existing
-# 256 KiB drop behavior and is never mislabelled as an error.
-_OVERSIZE_ERROR_RE = re.compile(
-    rb'^\s*\{\s*"type"\s*:\s*"'
-    rb'(?:result|error|codex\.turn_error|codex\.item_error|pan\.native_error)"'
-)
+# envelope can be an error.  Recognition is order-independent and top-level
+# only: scanning tracks string/depth state instead of regex-matching nested
+# "type" text, so {"error": ..., "type": "result", ...} is handled.
+_TOP_LEVEL_ERROR_TYPES = frozenset({
+    "error", "codex.turn_error", "codex.item_error", "pan.native_error",
+})
+_TOP_LEVEL_INTEREST = frozenset({
+    "type", "is_error", "cancelled", "is_cancelled",
+})
+
+
+def _decode_json_token(buf: bytearray):
+    try:
+        return json.loads(b'"' + bytes(buf) + b'"')
+    except (ValueError, TypeError):
+        return bytes(buf).decode("utf-8", errors="replace")
+
+
+def _decode_json_scalar(buf: bytearray):
+    try:
+        return json.loads(bytes(buf).strip().decode("utf-8"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _decide_oversized_fields(fields: dict):
+    """Return True/False when the top-level fields already decide, else None."""
+    if "type" not in fields:
+        return None
+    value = fields.get("type")
+    if value not in _TOP_LEVEL_ERROR_TYPES and value != "result":
+        return False
+    if value != "result":
+        return True
+    if (fields.get("is_error") is True
+            or fields.get("cancelled") is True
+            or fields.get("is_cancelled") is True):
+        return True
+    return None
+
+
+def _classify_oversized_json(prefix: bytes, spill) -> bool:
+    """Order-independent, top-level-only error-envelope detection.
+
+    Streams the prefix and the spill file; keeps only the current top-level
+    key/scalar.  Nested objects/arrays are skipped by depth, so a nested
+    ``"type":"result"`` inside assistant/tool text cannot match.  ``type`` may
+    appear after 256 KiB because the spill is scanned too.
+    """
+    def chunks():
+        yield prefix
+        spill.seek(0)
+        while True:
+            chunk = spill.read(65536)
+            if not chunk:
+                return
+            yield chunk
+
+    depth = 0
+    in_string = False
+    escape = False
+    buf = bytearray()
+    state = "start"  # start | key | colon | value | after_value
+    current_key = None
+    fields: dict = {}
+
+    for chunk in chunks():
+        for byte in chunk:
+            if in_string:
+                collect = depth == 1 and (
+                    state == "key"
+                    or (state == "value" and current_key in _TOP_LEVEL_INTEREST)
+                )
+                if escape:
+                    if collect:
+                        buf.append(byte)
+                    escape = False
+                elif byte == 0x5C:  # backslash
+                    if collect:
+                        buf.append(byte)
+                    escape = True
+                elif byte == 0x22:  # quote
+                    in_string = False
+                    if depth == 1:
+                        if state == "key":
+                            current_key = _decode_json_token(buf)
+                            buf.clear()
+                            state = "colon"
+                        elif state == "value":
+                            if current_key in _TOP_LEVEL_INTEREST:
+                                fields[current_key] = _decode_json_token(buf)
+                                buf.clear()
+                                decision = _decide_oversized_fields(fields)
+                                if decision is not None:
+                                    return decision
+                            state = "after_value"
+                else:
+                    if collect:
+                        buf.append(byte)
+                continue
+
+            if depth == 0:
+                if byte == 0x7B:  # {
+                    depth = 1
+                    state = "key"
+                elif byte not in b" \t\r\n":
+                    return False
+                continue
+
+            if byte == 0x22:  # string starts
+                in_string = True
+                escape = False
+                buf.clear()
+                continue
+
+            if depth == 1:
+                if byte in (0x7B, 0x5B):  # nested { or [
+                    depth += 1
+                    if depth == 2:
+                        state = "after_value"
+                    continue
+                if byte == 0x7D:  # }
+                    if (state == "value" and buf
+                            and current_key in _TOP_LEVEL_INTEREST):
+                        fields[current_key] = _decode_json_scalar(buf)
+                    depth -= 1
+                    if depth == 0:
+                        break
+                    continue
+                if byte == 0x5D:  # ]
+                    depth -= 1
+                    continue
+                if byte == 0x3A:  # :
+                    if state == "colon":
+                        state = "value"
+                    continue
+                if byte == 0x2C:  # ,
+                    if (state == "value" and buf
+                            and current_key in _TOP_LEVEL_INTEREST):
+                        fields[current_key] = _decode_json_scalar(buf)
+                        buf.clear()
+                        decision = _decide_oversized_fields(fields)
+                        if decision is not None:
+                            return decision
+                    state = "key"
+                    continue
+                if byte in b" \t\r\n":
+                    continue
+                if state == "value":
+                    if current_key in _TOP_LEVEL_INTEREST:
+                        buf.append(byte)
+                continue
+
+            # depth > 1: skip nested structure without buffering content
+            if byte in (0x7B, 0x5B):
+                depth += 1
+            elif byte in (0x7D, 0x5D):
+                depth -= 1
+        if depth == 0:
+            break
+
+    return bool(_decide_oversized_fields(fields))
 
 
 def _raw_capture(w: Worker):
@@ -1416,10 +1571,7 @@ def _looks_like_structured_text(text: str) -> bool:
         return False
 
 
-def _oversized_error_event(adapter, raw_line: bytes, spill):
-    prefix = bytes(raw_line)[:_STDOUT_MAX_LINE]
-    if not _OVERSIZE_ERROR_RE.match(prefix):
-        return None
+def _oversized_error_event(adapter, prefix: bytes, spill):
     spill.seek(0)
     full = prefix + spill.read()
     event = adapter.parse_event(full.decode("utf-8", errors="replace"))
@@ -1431,6 +1583,25 @@ def _oversized_error_event(adapter, raw_line: bytes, spill):
             or event.get("is_cancelled")):
         return None
     return event
+
+
+async def _classify_oversized_line(adapter, raw_line: bytes, spill):
+    """Classify an over-cap line as error / raw diagnostic / normal.
+
+    Returns ``("error", event)``, ``("raw", None)`` or ``("drop", None)``.
+    The order-independent top-level scan runs off the event loop; the full
+    event is read only after the scan says it is error-shaped.
+    """
+    prefix = bytes(raw_line)[:_STDOUT_MAX_LINE]
+    if not prefix.lstrip().startswith(b"{"):
+        return "raw", None
+    shaped = await asyncio.to_thread(_classify_oversized_json, prefix, spill)
+    if not shaped:
+        return "drop", None
+    event = _oversized_error_event(adapter, prefix, spill)
+    if event is None:
+        return "drop", None
+    return "error", event
 
 
 def _error_log_identity(w: Worker, s) -> dict:
@@ -2766,14 +2937,30 @@ async def _read_stdout(w: Worker):
         if event is None:
             spill = getattr(line, "spill", None)
             if spill is not None:
-                # The parser cap hid the tail.  Only an error-shaped envelope
-                # is read back in full; normal oversized output keeps the
-                # existing cap/drop behavior.
-                event = _oversized_error_event(adapter, line_bytes, spill)
+                # The parser cap hid the tail.  Recognition is order-
+                # independent and top-level-only; only an error-shaped
+                # envelope is read back in full.
+                try:
+                    status, event = await _classify_oversized_line(
+                        adapter, line_bytes, spill)
+                except (OSError, ValueError) as exc:
+                    _log.warning(
+                        "[Worker %s] oversized line classification failed: %s",
+                        w.worker_id, exc,
+                    )
+                    status, event = "drop", None
+                if status == "raw":
+                    try:
+                        await asyncio.to_thread(
+                            _capture_raw_oversized, w,
+                            line_bytes[:_STDOUT_MAX_LINE], spill)
+                    except OSError as exc:
+                        _log.warning(
+                            "[Worker %s] raw diagnostic capture failed: %s",
+                            w.worker_id, exc,
+                        )
+                    continue
                 if event is None:
-                    prefix = line_bytes[:_STDOUT_MAX_LINE]
-                    if not prefix.lstrip().startswith((b"{", b"[")):
-                        _capture_raw_oversized(w, prefix, spill)
                     continue
             else:
                 # Unrecognized text is retained as raw diagnostic context for a
