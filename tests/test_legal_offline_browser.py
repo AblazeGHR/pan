@@ -44,3 +44,27 @@ def test_browser_illegal_dot_recovers_on_successor_idle_without_reload(runtime, 
             print("LEGAL_BROWSER", runtime.base_url, sid, str(tmp_path), "Chromium", browser.version)
         finally:
             browser.close()
+
+
+def test_browser_illegal_lock_icon_and_manual_unlock(runtime, tmp_path):
+    session = _create(runtime, "illegal-icon-browser")
+    sid = session["id"]
+    paused(runtime, sid, True)
+    _enqueue(runtime, sid, "locked-icon-preview", "pending")
+    runtime.request("POST", f"/api/sessions/{sid}/legality/mark-illegal")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page(viewport={"width": 1440, "height": 960})
+            page.goto(runtime.base_url + "/react/", wait_until="networkidle")
+            page.locator(f'[data-session-card-id="{sid}"]').click()
+            page.locator("#send-queue-button").click()
+            lock = page.get_by_role("button", name="Unlock queued message 1", exact=True)
+            expect(lock).to_be_visible()
+            expect(lock).to_have_attribute("title", "This message is locked because the Worker entered Illegal status. You can unlock it manually, or mark the Session as safely offline to unlock it automatically.")
+            expect(lock.get_by_text("i", exact=True)).to_be_visible()
+            lock.screenshot(path=str(tmp_path / "illegal-lock-icon.png"), scale="css")
+            lock.click()
+            expect(page.get_by_role("button", name="Lock queued message 1", exact=True)).to_be_visible()
+        finally:
+            browser.close()

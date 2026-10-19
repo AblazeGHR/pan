@@ -840,10 +840,17 @@ async def clear_session_illegal_for_startup(session_id: str, *, reconcile: bool 
                             eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item),
                             remember=lambda item: _remember_offline_lock(candidate, item))
                 return _offline.clear_illegal(candidate, remember=lambda item: _remember_offline_lock(candidate, item))
-            await _commit_offline(s, clear)
+            changed = await _commit_offline(s, clear)
+        result = {"sessionId": session_id, "status": "updated", "legalityDiagnostics": _offline.diagnostics(s),
+                  "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s)}
+    # create_worker takes the same spawn lock: release it before requesting
+    # immediate recovery. Persistence must succeed before any consumer wakes.
+    try:
         await _offline_snapshot_event(s)
-        return {"sessionId": session_id, "status": "updated", "legalityDiagnostics": _offline.diagnostics(s),
-                "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s)}
+    finally:
+        if changed and _has_dispatchable_items(s):
+            await _wake_worker(session_id, auto_spawn=False)
+    return result
 
 
 async def set_session_legal_worker_state_running(session_id: str, *, source: str = "manual/mark-illegal") -> dict:

@@ -1418,6 +1418,8 @@ export interface AgentQueueItem {
     steerError?: string;
     lockManual?: boolean;
     lockAutoReport?: boolean;
+    lockSource?: 'manual' | 'illegal' | null;
+    illegalBatchId?: string | null;
   };
 }
 

@@ -83,6 +83,9 @@ def main() -> None:
 
     import packages.web.server as server
     from packages.core import background_jobs
+    if os.environ.get("PAN_TEST_DISABLE_QUEUE_WATCHDOG") == "1":
+        from packages.core import worker
+        worker._GLOBAL_WATCHDOG_TICK_SEC = 3600
     from packages.scheduler import store as scheduler
     from packages.core.terminal import registry as terminals
     background_jobs.DEFAULT_ROOT = data_root / "background_jobs"

@@ -298,3 +298,20 @@ def test_manual_pending_recovery_and_safe_offline_are_one_state(runtime):
     rows = {row["id"]: row for row in value["queue_pending"]}
     assert rows[a]["queueLockSource"] == "manual" and not rows[b].get("queueLockSource")
     assert not runtime.request("GET", f"/api/sessions/{sid}")["workerId"]
+
+
+def test_safe_unlock_dispatches_without_waiting_for_watchdog(runtime, monkeypatch):
+    session = _create(runtime, "immediate-safe-unlock")
+    sid = session["id"]
+    paused(runtime, sid, True)
+    _enqueue(runtime, sid, "send-after-safe", "pending")
+    runtime.request("POST", f"/api/sessions/{sid}/legality/mark-illegal")
+    monkeypatch.setenv("PAN_TEST_DISABLE_QUEUE_WATCHDOG", "1")
+    runtime.stop()
+    runtime.start()
+    paused(runtime, sid, False)  # Illegal-only backlog cannot start a Worker.
+    assert not runtime.request("GET", f"/api/sessions/{sid}")["workerId"]
+    result = runtime.request("POST", f"/api/sessions/{sid}/legality/mark-safe-offline")
+    assert result["status"] == "updated"
+    _wait_for(lambda: _received(runtime, cwd=session["workdir"], text="send-after-safe"),
+              timeout=8, label="immediate handoff with watchdog delayed for an hour")

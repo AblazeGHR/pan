@@ -832,6 +832,25 @@ def test_manual_pending_recovery_is_illegal_and_safe_offline_cancels_it():
     asyncio.run(run())
 
 
+def test_safe_unlock_wakes_queue_after_commit_and_spawn_lock_release(monkeypatch):
+    async def run():
+        s, w = setup(["B"])
+        await die(s, w, await begin(s, w))
+        async def wake(session_id, *, auto_spawn):
+            assert session_id == s.id and auto_spawn is False
+            assert not (await worker._session_spawn_lock(s.id)).locked()
+            data = json.loads(sess._path(s.id).read_text(encoding="utf-8"))
+            assert data["legal_offline"]
+            assert not data["queue_pending"][0].get("queueLockSource")
+        wake_mock = AsyncMock(side_effect=wake)
+        monkeypatch.setattr(worker, "_wake_worker", wake_mock)
+        await worker.clear_session_illegal_for_startup(s.id)
+        wake_mock.assert_awaited_once()
+        await worker.clear_session_illegal_for_startup(s.id)
+        wake_mock.assert_awaited_once()  # no-op does not start an idle Worker
+    asyncio.run(run())
+
+
 def test_explicit_clear_illegal_retires_incident_and_only_its_locks(monkeypatch):
     async def run():
         s, w = setup(["A", "B", "C"])

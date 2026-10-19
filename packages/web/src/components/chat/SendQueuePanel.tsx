@@ -331,6 +331,7 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
                 {displayItems.map((item, index) => {
                   const editable = item.meta?.dispatchState === 'queued';
                   const locked = item.meta?.locked === true;
+                  const illegalLock = locked && item.meta?.lockSource === 'illegal';
                   const steerReason = readonlySession ? 'Session 为只读'
                     : queuePaused ? 'Pause everything 阻止队列 Steer'
                     : !queuePauseLoaded || queuePauseUpdating ? '正在确认服务端队列状态'
@@ -369,8 +370,13 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
                         onClick={() => { if (sessionId) void setItemLocked(sessionId, item.id, !locked); }}
                         aria-label={locked ? `Unlock queued message ${index + 1}` : `Lock queued message ${index + 1}`}
                         aria-pressed={locked}
-                        title={locked ? 'Unlock' : 'Lock'}>
-                        {locked ? <Lock size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
+                        title={illegalLock ? "This message is locked because the Worker entered Illegal status. You can unlock it manually, or mark the Session as safely offline to unlock it automatically." : locked ? 'Unlock' : 'Lock'}>
+                        {illegalLock ? (
+                          <span className="relative block h-3 w-3 text-danger" aria-hidden="true">
+                            <span className="absolute -top-0.5 left-0 text-[13px] font-bold italic leading-none">i</span>
+                            <Lock size={8} className="absolute -bottom-0.5 -right-0.5" strokeWidth={2.5} />
+                          </span>
+                        ) : locked ? <Lock size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
                       </button>
                     </div>
                   );
