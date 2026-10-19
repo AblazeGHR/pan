@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-19
+
+### Added
+
+- Chat TopBar 用量标签自适应收纳，支持复制 Session 名称；Appearance 增加桌面侧边栏折叠把手和视图切换按钮的显示设置。
+- README 中英文文档索引带 CLI 的 `cc-switch-pan` 仓库；Panel 在列表、配额或写入操作缺少 CLI 时显示安装仓库入口，并保留结构化错误信息。
+
+### Changed
+
+- 生命周期恢复统一通过 Illegal 与 pending recovery 表达；支持启动时显式将旧 Illegal 事件安全退役为 offline，安全解锁后立即派发待处理队列。
+- CC Switch 面板按应用缓存并自动刷新过期配额，显示刷新倒计时。
+
+### Fixed
+
+- 切换 Chat、Editor 和 Jobs 等页面时保留草稿附件；删除书签后即时更新所有消费者。
+- Session 卡片激活后返回 Chat；Codex 任务完成时封存临时聚合内容；CC Switch 跨组件重新挂载时保留共享缓存中的最新状态。
+
+<!-- Earlier unreleased entries predate the v0.3.3 tag and are retained below. -->
+
+## Historical unreleased notes
+
 ### Added
 
 - **定时任务插件（scheduler）HTTP API**：`/api/scheduler/*` 提供定时任务的增删改查、暂停/恢复、立即执行、执行历史与下次触发预览，统一返回 `{"ok":...}` 包络并广播 `scheduler.task.*` 事件；调度循环接入服务 lifespan，到点以 `source="automation"` 把任务文本派发给目标 session。
@@ -66,6 +87,7 @@
 - delivery 语义收敛：reports / tasks 改为 session 级投递（`51c6d6f`）
 - QQ bot 解释器路径收敛为 `config.json` 的 `qq.python` 单一事实源（`aa430a0`）
 
-[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/AblazeGHR/pan/compare/v0.3.3...v0.3.4
 [0.3.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.3.0
 [0.1.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.1.0

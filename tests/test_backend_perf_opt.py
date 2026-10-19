@@ -173,16 +173,19 @@ def test_stream_block_count_cap_flushes(monkeypatch):
 
 
 def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
-    """集成：assistant 块防抖 + result 强制 flush → 全程恰好 1 次落盘。"""
+    """Ready 后 assistant 块防抖 + result 强制 flush 恰好 1 次落盘。"""
     _cleanup()
     s, w = _make_worker()
     saved = []
 
+    # Readiness now has its own durable legality commit. Establish it before
+    # measuring streaming history writes so the result-flush contract is exact.
+    asyncio.run(worker._activate_offline_worker(w, ready_proof=True))
     original_save = _sess._save_body
 
-    def fake_save(sess):
+    def fake_save(sess, *, offline_override=None):
         saved.append(len(sess.history))
-        return original_save(sess)
+        return original_save(sess, offline_override=offline_override)
 
     monkeypatch.setattr(_sess, "_save_body", fake_save)
     w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])

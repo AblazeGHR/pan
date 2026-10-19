@@ -14,6 +14,19 @@ from contextlib import contextmanager
 APPS = {'codex', 'claude', 'gemini'}
 
 
+class CliError(ValueError):
+    """A bridge failure with a stable code the Panel can act on.
+
+    The Panel only offers installation guidance for the CLI-availability codes
+    below; ordinary execution or quota failures must not be mistaken for a
+    missing CLI.
+    """
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 class Bridge:
     def __init__(self, data_dir, runner=None):
         self.data_dir = Path(data_dir)
@@ -24,11 +37,16 @@ class Bridge:
         configured = json.loads(settings.read_text(encoding='utf-8')) if settings.exists() else {}
         executable = configured.get('executable') or os.environ.get('PAN_CC_SWITCH_CLI') or shutil.which('cc-switch')
         if not executable:
-            raise ValueError('未找到 GUI Fork 的 cc-switch 入口；请安装或在插件 settings.json 配置 executable')
+            raise CliError('cli_not_found', '未找到 GUI Fork 的 cc-switch 入口；请安装或在插件 settings.json 配置 executable')
         if getattr(self, '_verified_executable', None) != executable:
-            version = self._call_cli(executable, ['--version'])
+            try:
+                version = self._call_cli(executable, ['--version'])
+            except CliError as exc:
+                if exc.code in {'cli_not_found', 'cli_unavailable'}:
+                    raise
+                raise CliError('cli_incompatible', '此入口不是兼容的 cc-switch GUI Fork；旧 CLI 已停用，请配置新入口') from exc
             if not isinstance(version, dict) or version.get('contract') != 'pan-cc-switch-gui/v1':
-                raise ValueError('此入口不是兼容的 cc-switch GUI Fork；旧 CLI 已停用，请配置新入口')
+                raise CliError('cli_incompatible', '此入口不是兼容的 cc-switch GUI Fork；旧 CLI 已停用，请配置新入口')
             self._verified_executable = executable
         return self._call_cli(executable, args, json_output)
 
@@ -43,16 +61,16 @@ class Bridge:
         except subprocess.TimeoutExpired as exc:
             raise ValueError('CLI 超时，操作结果不确定；请重新读取状态，勿自动重试切换') from exc
         except OSError as exc:
-            raise ValueError('无法启动已配置的 cc-switch CLI') from exc
+            raise CliError('cli_unavailable', '无法启动已配置的 cc-switch CLI') from exc
         if result.returncode:
             # CLI errors can contain credentials; never relay raw stdout/stderr.
-            raise ValueError(f'cc-switch 执行失败（退出码 {result.returncode}）；请在本机检查 CLI')
+            raise CliError('cli_failed', f'cc-switch 执行失败（退出码 {result.returncode}）；请在本机检查 CLI')
         if not json_output:
             return None
         try:
             return json.loads(result.stdout)
         except ValueError as exc:
-            raise ValueError('CLI 未返回兼容的 JSON；请使用 cc-switch GUI Fork 的控制台入口') from exc
+            raise CliError('cli_incompatible', 'CLI 未返回兼容的 JSON；请使用 cc-switch GUI Fork 的控制台入口') from exc
 
     def listing(self, app):
         raw = self.runner(['--app', app, 'provider', 'list', '--json'])
@@ -208,6 +226,13 @@ def normalize_quota(raw):
         'message': '查询失败或凭据不可用' if raw.get('error') or value.get('error') else None}
 
 
+def error_text(exc):
+    """Return the Panel-visible error text, preserving a stable code."""
+    if isinstance(exc, CliError):
+        return json.dumps({'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}, ensure_ascii=False)
+    return str(exc) if isinstance(exc, ValueError) else 'Bridge 操作失败，请检查插件配置'
+
+
 def main():
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
@@ -227,8 +252,7 @@ def main():
             response = {'jsonrpc': '2.0', 'id': request['id'], 'result': result}
         except Exception as exc:
             response = {'jsonrpc': '2.0', 'id': request['id'], 'result': {'isError': True,
-                'content': [{'type': 'text', 'text': str(exc) if isinstance(exc, ValueError)
-                    else 'Bridge 操作失败，请检查插件配置'}]}}
+                'content': [{'type': 'text', 'text': error_text(exc)}]}}
         print(json.dumps(response, ensure_ascii=False), flush=True)
 
 

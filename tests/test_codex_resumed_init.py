@@ -58,7 +58,7 @@ def test_resumed_init_marks_worker_ready_without_replaying_queue_or_history(monk
     s.queue_pending = [{"type": "task", "text": "queued work", "seq": 1}]
     before = json.dumps([s.history, s.queue_pending])
     save = AsyncMock()
-    monkeypatch.setattr(worker, "_session", lambda _: s)
+    monkeypatch.setitem(worker._sess._cache, s.id, s)
     monkeypatch.setattr(worker._sess, "save_async", save)
     monkeypatch.setattr(worker, "_bcast", AsyncMock())
     monkeypatch.setattr(worker, "workers", {})
@@ -69,6 +69,7 @@ def test_resumed_init_marks_worker_ready_without_replaying_queue_or_history(monk
         stream.feed_eof()
         w = worker.Worker("init-probe", s.id, CodexAdapter(),
                           process=SimpleNamespace(stdout=stream, returncode=0))
+        worker.workers[w.worker_id] = w
         assert not w.native_kernel_ready
         await worker._read_stdout(w)
         assert w.native_kernel_ready

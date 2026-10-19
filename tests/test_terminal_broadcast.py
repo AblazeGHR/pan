@@ -397,7 +397,7 @@ def test_base_terminal_save_failure_sends_no_completion(monkeypatch):
     s, w = _stream_setup("ses_t041_save_fail")
     events = []
 
-    def fail_save(_session):
+    def fail_save(_session, *, offline_override=None):
         raise OSError("disk unavailable")
 
     async def broadcast(value):
