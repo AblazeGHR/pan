@@ -9,6 +9,7 @@ import {
   Database,
   Eye,
   Globe,
+  Keyboard,
   Power,
   Puzzle,
   SlidersHorizontal,
@@ -57,6 +58,7 @@ import { DataSettingsPanel } from './DataSettingsPanel';
 import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { UnreadRecordingPanel } from './UnreadRecordingPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
+import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
 import { useCurrentSession } from '@/stores/sessionStore';
 
@@ -154,6 +156,7 @@ const SETTINGS_TAB_META: Record<SettingsTab, { label: string; Icon: LucideIcon }
   behavior: { label: 'Behavior', Icon: ToggleLeft },
   remote: { label: 'Remote', Icon: Globe },
   appearance: { label: 'Appearance', Icon: Eye },
+  shortcuts: { label: 'Shortcuts', Icon: Keyboard },
   notifications: { label: 'Notifications', Icon: Bell },
   adapters: { label: 'Adapters', Icon: SlidersHorizontal },
   plugins: { label: 'Plugins', Icon: Puzzle },
@@ -1607,6 +1610,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </button>
               </section>
             </>
+          ) : activeTab === 'shortcuts' ? (
+            <ShortcutsSettings />
           ) : activeTab === 'behavior' ? (
             <>
               <section

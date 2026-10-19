@@ -53,6 +53,7 @@ import {
   mockUploadSessionAttachment,
 } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
+import { registerLockedEnqueueHandler } from '@/shortcuts/composerBridge';
 import {
   ChevronDown,
   ChevronUp,
@@ -1610,7 +1611,7 @@ export function InputRow() {
   );
 
   const handleSend = useCallback(
-    (_text: string, action: 'send' | 'steer' = 'send') => {
+    (_text: string, action: 'send' | 'steer' = 'send', options?: { forceLocked?: boolean }) => {
       if (!currentSessionId) {
         showToast('Select a session first');
         return;
@@ -1620,7 +1621,8 @@ export function InputRow() {
         return;
       }
       if ([...sendSnapshotsRef.current.values()].some((pending) => pending.sessionId === currentSessionId)) return;
-      const lockedSend = useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
+      const lockedSend = options?.forceLocked === true ||
+        useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
       if (lockedSend && [...sendSnapshotsRef.current.values()].some(
         (pending) => pending.sessionId === currentSessionId && pending.locked,
       )) return;
@@ -1850,6 +1852,19 @@ export function InputRow() {
       setAttachmentMenuOpen,
     ],
   );
+
+  // The global "enqueue as locked" shortcut reuses this exact send transaction
+  // (draft, URL nodes, attachment occurrences, idempotency key, failure
+  // recovery).  The handler is scoped to the mounted Session, so an async
+  // Session switch can never retarget the shortcut at its successor.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    return registerLockedEnqueueHandler((sessionId) => {
+      if (sessionId !== currentSessionId) return false;
+      handleSend('', 'send', { forceLocked: true });
+      return true;
+    });
+  }, [currentSessionId, handleSend]);
 
   const handleSteer = (text: string) => handleSend(text, 'steer');
 

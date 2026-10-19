@@ -163,8 +163,8 @@ describe('ChatView: message navigation rail switch', () => {
     expect(panel.getAttribute('aria-hidden')).toBe('true');
     expect(panel.hasAttribute('inert')).toBe(true);
     expect(container.querySelector('.chat-tools-sidebar__navigation')).toBeNull();
-    // Ctrl+F remains usable while the buttons are folded: the popup is portaled.
-    fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+    // The centralized shell action remains usable while the buttons are folded.
+    fireEvent(window, new Event('pan:shortcut:history-search'));
     expect(await findByTestId('session-history-search-input')).not.toBeNull();
   });
 
@@ -268,7 +268,7 @@ describe('ChatView: message navigation rail switch', () => {
     expect(chatStylesSource).toContain('right: 96px;\n    width: min(560px, calc(100% - 112px));');
   });
 
-  it('mounts a mobile search control below the Session title and opens it with Ctrl+F', async () => {
+  it('mounts a mobile search control below the Session title and opens it with the centralized action', async () => {
     viewport.isMobile = true;
     useAppSettingsStore.setState({ showHistorySearch: true });
     const { container, findByTestId } = render(<ChatView />);
@@ -277,16 +277,13 @@ describe('ChatView: message navigation rail switch', () => {
     expect(search.getAttribute('data-layout'))
       .toBe('mobile-below-session-title');
     expect(mockedHistory).not.toHaveBeenCalled();
-    const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
-    fireEvent(window, shortcut);
-    expect(shortcut.defaultPrevented).toBe(true);
+    fireEvent(window, new Event('pan:shortcut:history-search'));
     expect(await findByTestId('session-history-search-input')).not.toBeNull();
 
     act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
     expect(container.querySelector('[data-testid="session-history-search"]')).toBeNull();
-    const afterDisable = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
-    fireEvent(window, afterDisable);
-    expect(afterDisable.defaultPrevented).toBe(false);
+    fireEvent(window, new Event('pan:shortcut:history-search'));
+    expect(container.querySelector('[data-testid="session-history-search-input"]')).toBeNull();
   });
 
   it('mounts the enabled desktop control in the chat top-right contract', async () => {

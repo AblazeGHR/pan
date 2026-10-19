@@ -196,6 +196,32 @@ def test_put_ui_unknown_keys_kept_forward_compat(tmp_path, monkeypatch):
     assert _read(p)["ui"]["futureField"] == "x"
 
 
+def test_put_ui_shortcuts_round_trip_stable_ids_and_explicit_clear(tmp_path, monkeypatch):
+    """Shortcut bindings are keyed by stable action ids, not array positions.
+
+    A ``null`` value is an intentional "cleared" override and must survive the
+    round trip; a later PUT replaces the whole shortcuts object, matching the
+    frontend's full-map write.
+    """
+    p = _use_temp_config(tmp_path, monkeypatch)
+    shortcuts = {
+        "app.toggleSidebar": "Mod+Shift+B",
+        "panel:builtin:chat": "Mod+1",
+        "panel:plugin:alpha/one": None,
+        "queue.lockAll": "Mod+Shift+L",
+    }
+    response = asyncio.run(srv.api_put_settings_ui({"shortcuts": shortcuts}))
+    assert response["shortcuts"] == shortcuts
+    assert _read(p)["ui"]["shortcuts"] == shortcuts
+    assert asyncio.run(srv.api_get_settings_ui())["shortcuts"] == shortcuts
+
+    replacement = {"session.toggleNotification": "Mod+Shift+N"}
+    response = asyncio.run(srv.api_put_settings_ui({"shortcuts": replacement}))
+    assert response["shortcuts"] == replacement
+    assert _read(p)["ui"]["shortcuts"] == replacement
+    assert _read(p)["ui"]["showQQ"] is True  # unrelated default untouched
+
+
 # ── save_config atomicity ──
 
 def test_save_config_atomic_no_tmp_leftover_and_valid_json(tmp_path, monkeypatch):

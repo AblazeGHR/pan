@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.571" timestamp="2026-10-19T22:54:35.852495+08:00" hostname="ablaze"><testcase classname="tests.test_backend_perf_opt" name="test_result_flushes_debounced_blocks_through_read_stdout" time="0.009"><failure message="TypeError: test_result_flushes_debounced_blocks_through_read_stdout.&lt;locals&gt;.fake_save() got an unexpected keyword argument 'offline_override'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B28A9F7820&gt;
+
+    def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
+        """集成：assistant 块防抖 + result 强制 flush → 全程恰好 1 次落盘。"""
+        _cleanup()
+        s, w = _make_worker()
+        saved = []
+    
+        original_save = _sess._save_body
+    
+        def fake_save(sess):
+            saved.append(len(sess.history))
+            return original_save(sess)
+    
+        monkeypatch.setattr(_sess, "_save_body", fake_save)
+        w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
+    
+&gt;       asyncio.run(worker._read_stdout(w))
+
+tests\test_backend_perf_opt.py:190: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:2539: in _read_stdout
+    await _activate_offline_worker(w, ready_proof=True, expected_owner=execution_owner)
+packages\core\worker.py:741: in _activate_offline_worker
+    changed = await _commit_offline(s, activate)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\worker.py:630: in _commit_offline
+    await _sess._persist_async_outcome(s.id, commit)
+packages\core\session.py:2714: in _persist_async_outcome
+    raise outcome.error
+packages\core\session.py:2701: in _persist_async_outcome
+    await asyncio.shield(inner)
+packages\core\session.py:143: in run
+    value = operation()
+            ^^^^^^^^^^^
+packages\core\session.py:2689: in &lt;lambda&gt;
+    ticket, lambda: context.run(
+packages\core\session.py:2445: in _run_persistence_ticket
+    return operation()
+           ^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def commit():
+        nonlocal changed
+        if _sess.get(s.id, load_history=False) is not s:
+            raise RuntimeError("Session owner changed before legality commit")
+        old = _offline.snapshot(s)
+        candidate = copy.copy(s)
+        for key, value in copy.deepcopy(old).items():
+            setattr(candidate, key, value)
+        _offline.attach_foreground(candidate)
+        result = mutate(candidate)
+        if candidate.offline_run and candidate.offline_run.get("id") in candidate.execution_operations:
+            candidate.execution_operations[candidate.offline_run["id"]] = candidate.offline_run
+        _offline.aggregate(candidate)
+        values = _offline.snapshot(candidate)
+        changed = old != values
+        if changed or force:
+&gt;           _sess._save_body(s, offline_override=values)
+E           TypeError: test_result_flushes_debounced_blocks_through_read_stdout.&lt;locals&gt;.fake_save() got an unexpected keyword argument 'offline_override'
+
+packages\core\worker.py:628: TypeError</failure></testcase><testcase classname="tests.test_codex_resumed_init" name="test_resumed_init_marks_worker_ready_without_replaying_queue_or_history" time="0.005"><failure message="AssertionError: assert False&#10; +  where False = Worker(worker_id='init-probe', session_id='ses-resumed-init', adapter=&lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000001B28AAF3390&gt;, status='idle', process=namespace(stdout=&lt;StreamReader eof&gt;, returncode=0), system_prompt_file=None, _mcp_proc=None, _stdout_task=None, _consume_task=None, _watchdog_task=None, pending_signal=None, pending_interactions={}, native_status=None, native_control_mode='pan', native_control_enabled=False, native_passthrough_enabled=None, native_control_generation=0, native_output=bytearray(b''), native_output_total=0, native_control_error=None, _offline_ready_token=None, _offline_predecessors=None, _native_reservation_busy=False, _native_admission_id=None, _native_admission_ids=set(), native_kernel_ready=False, _native_external_turn_active=False, native_input_uncertain=False, _native_mode_receipts={}, _native_mode_request_id=None, _native_mode_lock=&lt;asyncio.locks.Lock object at 0x000001B28AB70510 [unlocked]&gt;, native_usage=None, native_rate_limits=None, native_rate_limits_received_at=None, native_rate_limits_updated_at=None, codex_profile_key=None, native_plan=None, native_diff=None, _task_done=None, _replaying=False, takeover_pid=None, takeover_job=None, pending_restart=False, _queue_unit_active=False, _terminal_finishing=False, last_activity=0.0, _task_started_at=0.0, _execution_seq=0, _current_seq=None, _current_task_id=None, _current_task_idempotent=False, _current_task_assistant_ids=set(), _current_source_session_id=None, _current_queue_item=None, _current_task_last_assistant_text=None, _current_task_last_assistant_seq=None, _host_exit_illegal=False, _terminal_handled=False, _current_serialized=None, _claimed_queue_index=None, _current_report_items=[], _current_handoff_acked=False, _zombie_reported=False, _hist_dirty=False, _hist_block_count=0, _hist_force_flush=False, _hist_wake_count=0, _hist_flush_event=None, _hist_save_task=None, generation=0, offline_token='d2b3816fe3c44f61bb269c1a6684a16e', _interrupt_guard_task=None, _steer_receipts={}, _steer_contexts={}, _steer_run_id=None, _direct_steer_pending=False).native_kernel_ready">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B28A9F55B0&gt;
+
+    def test_resumed_init_marks_worker_ready_without_replaying_queue_or_history(monkeypatch):
+        emitted = []
+        monkeypatch.setattr(
+            "packages.core.adapters.codex.app_server_wrapper._write_stdout", emitted.append
+        )
+        app = AppServer("node", "codex.js", ".", [], native_control=True)
+        app.thread_id = "retained-old-thread"
+        app._emit_thread_started({"id": app.thread_id, "turns": [{"text": "x" * 1000000}]})
+        s = Session(id="ses-resumed-init", name="old", adapter="codex")
+        s.cli_session_id = app.thread_id
+        s.history = [{"role": "user", "content": "retained history"}]
+        s.queue_pending = [{"type": "task", "text": "queued work", "seq": 1}]
+        before = json.dumps([s.history, s.queue_pending])
+        save = AsyncMock()
+        monkeypatch.setattr(worker, "_session", lambda _: s)
+        monkeypatch.setattr(worker._sess, "save_async", save)
+        monkeypatch.setattr(worker, "_bcast", AsyncMock())
+        monkeypatch.setattr(worker, "workers", {})
+    
+        async def read():
+            stream = asyncio.StreamReader()
+            stream.feed_data((json.dumps(emitted[0]) + "\n").encode())
+            stream.feed_eof()
+            w = worker.Worker("init-probe", s.id, CodexAdapter(),
+                              process=SimpleNamespace(stdout=stream, returncode=0))
+            assert not w.native_kernel_ready
+            await worker._read_stdout(w)
+            assert w.native_kernel_ready
+    
+&gt;       asyncio.run(read())
+
+tests\test_codex_resumed_init.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def read():
+        stream = asyncio.StreamReader()
+        stream.feed_data((json.dumps(emitted[0]) + "\n").encode())
+        stream.feed_eof()
+        w = worker.Worker("init-probe", s.id, CodexAdapter(),
+                          process=SimpleNamespace(stdout=stream, returncode=0))
+        assert not w.native_kernel_ready
+        await worker._read_stdout(w)
+&gt;       assert w.native_kernel_ready
+E       AssertionError: assert False
+E        +  where False = Worker(worker_id='init-probe', session_id='ses-resumed-init', adapter=&lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000001B28AAF3390&gt;, status='idle', process=namespace(stdout=&lt;StreamReader eof&gt;, returncode=0), system_prompt_file=None, _mcp_proc=None, _stdout_task=None, _consume_task=None, _watchdog_task=None, pending_signal=None, pending_interactions={}, native_status=None, native_control_mode='pan', native_control_enabled=False, native_passthrough_enabled=None, native_control_generation=0, native_output=bytearray(b''), native_output_total=0, native_control_error=None, _offline_ready_token=None, _offline_predecessors=None, _native_reservation_busy=False, _native_admission_id=None, _native_admission_ids=set(), native_kernel_ready=False, _native_external_turn_active=False, native_input_uncertain=False, _native_mode_receipts={}, _native_mode_request_id=None, _native_mode_lock=&lt;asyncio.locks.Lock object at 0x000001B28AB70510 [unlocked]&gt;, native_usage=None, native_rate_limits=None, native_rate_limits_received_at=None, native_rate_limits_updated_at=None, codex_profile_key=None, native_plan=None, native_diff=None, _task_done=None, _replaying=False, takeover_pid=None, takeover_job=None, pending_restart=False, _queue_unit_active=False, _terminal_finishing=False, last_activity=0.0, _task_started_at=0.0, _execution_seq=0, _current_seq=None, _current_task_id=None, _current_task_idempotent=False, _current_task_assistant_ids=set(), _current_source_session_id=None, _current_queue_item=None, _current_task_last_assistant_text=None, _current_task_last_assistant_seq=None, _host_exit_illegal=False, _terminal_handled=False, _current_serialized=None, _claimed_queue_index=None, _current_report_items=[], _current_handoff_acked=False, _zombie_reported=False, _hist_dirty=False, _hist_block_count=0, _hist_force_flush=False, _hist_wake_count=0, _hist_flush_event=None, _hist_save_task=None, generation=0, offline_token='d2b3816fe3c44f61bb269c1a6684a16e', _interrupt_guard_task=None, _steer_receipts={}, _steer_contexts={}, _steer_run_id=None, _direct_steer_pending=False).native_kernel_ready
+
+tests\test_codex_resumed_init.py:74: AssertionError</failure></testcase></testsuite></testsuites>

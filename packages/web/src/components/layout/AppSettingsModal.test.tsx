@@ -633,6 +633,7 @@ describe('AppSettingsModal', () => {
       'Remote',
       'Appearance',
       'Notifications',
+      'Shortcuts',
       'Adapters',
       'Plugins',
       'Data',
@@ -647,17 +648,17 @@ describe('AppSettingsModal', () => {
     expect(panel.className).not.toContain('overflow-x-auto');
 
     fireEvent.keyDown(tabs[0]!, { key: 'End' });
+    expect(tabs[8]!.getAttribute('aria-selected')).toBe('true');
+    expect(tabs[8]!.tabIndex).toBe(0);
+    expect(tabs.slice(0, 8).every((tab) => tab.tabIndex === -1)).toBe(true);
+    fireEvent.keyDown(tabs[8]!, { key: 'ArrowLeft' });
     expect(tabs[7]!.getAttribute('aria-selected')).toBe('true');
-    expect(tabs[7]!.tabIndex).toBe(0);
-    expect(tabs.slice(0, 7).every((tab) => tab.tabIndex === -1)).toBe(true);
-    fireEvent.keyDown(tabs[7]!, { key: 'ArrowLeft' });
-    expect(tabs[6]!.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(tabs[6]!, { key: 'Home' });
+    fireEvent.keyDown(tabs[7]!, { key: 'Home' });
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     expect(panel.getAttribute('aria-labelledby')).toBe('app-settings-tab-lifecycle');
   });
 
-  it('keeps the canonical category order contract with the Shortcuts slot reserved', () => {
+  it('keeps the canonical category order with the integrated Shortcuts page', () => {
     expect(SETTINGS_CATEGORY_ORDER).toEqual([
       'lifecycle',
       'behavior',
@@ -676,18 +677,20 @@ describe('AppSettingsModal', () => {
       'remote',
       'appearance',
       'notifications',
+      'shortcuts',
       'adapters',
       'plugins',
       'data',
     ]);
     render(<AppSettingsModal open onClose={() => {}} />);
-    expect(document.getElementById('app-settings-tab-shortcuts')).toBeNull();
+    expect(document.getElementById('app-settings-tab-shortcuts')).not.toBeNull();
     expect(tabLabels()).toEqual([
       'Lifecycle',
       'Behavior',
       'Remote',
       'Appearance',
       'Notifications',
+      'Shortcuts',
       'Adapters',
       'Plugins',
       'Data',
@@ -873,7 +876,7 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(panel.querySelector(
       '[aria-label="Keep Completed Jobs for days"]',
     )).not.toBeNull());
-    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(8);
+    expect(document.querySelectorAll('[role="tab"]')).toHaveLength(9);
     expect(updateUiSettingsMock).not.toHaveBeenCalled();
   });
 
@@ -1041,7 +1044,7 @@ describe('AppSettingsModal', () => {
       'app-settings-tab-appearance',
     ) as HTMLButtonElement;
 
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(9);
     expect(appearanceTab.getAttribute('aria-selected')).toBe('false');
     expect(cardEl().textContent).not.toContain('Message visibility');
     expect(cardEl().textContent).not.toContain('Show meta-agent info');
