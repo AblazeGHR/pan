@@ -122,6 +122,10 @@ def setup_logging() -> logging.Logger:
 
     # 文件 handler（大小/天双轮转）
     log_path = _resolve_log_path(cfg)
+    # The session error sample log lives beside the configured Pan log and is
+    # deliberately outside Pan's rotation/retention rules.
+    from . import session_error_log
+    session_error_log.configure(log_path.parent / "session-errors.jsonl")
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         fh = _SizeTimeRotatingFileHandler(

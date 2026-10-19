@@ -71,6 +71,9 @@ def main() -> None:
 
     data_root = args.data_root.resolve()
     data_root.mkdir(parents=True, exist_ok=True)
+    # Keep the append-only sample log inside this test's owned data root.
+    os.environ["PAN_SESSION_ERROR_LOG_PATH"] = str(
+        data_root / "logs" / "session-errors.jsonl")
 
     from packages.core import session as session_store
     from packages.core import config

@@ -568,6 +568,87 @@ def test_app_server_turn_error_with_failed_status_stays_an_error(monkeypatch):
     print("PASS: failed turn still reports error")
 
 
+def test_app_server_failed_turn_preserves_raw_error_beside_assistant_text(monkeypatch):
+    """A failed turn can still carry partial assistant text.
+
+    Pan must receive the provider error object as well, otherwise the Worker
+    only sees ``result=<assistant text>`` and the real failure is lost.
+    """
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    raw_error = {
+        "message": "stream disconnected before completion",
+        "code": "rate_limit",
+        "codexErrorInfo": {
+            "responseStreamDisconnected": {"httpStatusCode": 429},
+        },
+        "additionalDetails": "retry after 12s",
+    }
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {
+                "id": "turn-1", "status": "failed", "error": raw_error,
+                "items": [{"type": "agentMessage", "text": "partial answer"}],
+            }},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("hello")
+
+    result = emitted[-1]
+    assert result["type"] == "result"
+    assert result["is_error"] is True
+    assert result["result"] == "partial answer"
+    assert result["error"] == raw_error
+    print("PASS: failed turn keeps raw error beside assistant text")
+
+
+def test_app_server_completed_turn_emits_recovered_transient_error(monkeypatch):
+    """A reconnect notice followed by a completed turn is a recovered,
+    non-terminal CLI error, not a task failure and not silence."""
+    app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
+    app.thread_id = "thread-1"
+    emitted: list[dict] = []
+    monkeypatch.setattr(app_server_wrapper, "_write_stdout", emitted.append)
+    raw_error = {
+        "message": "Reconnecting... 2/5",
+        "codexErrorInfo": {"responseStreamDisconnected": {"httpStatusCode": None}},
+    }
+
+    def request(method: str, params: dict) -> int:
+        assert method == "turn/start"
+        app.incoming.put({"id": 1, "result": {"turn": {"id": "turn-1"}}})
+        app.incoming.put({
+            "method": "error",
+            "params": {"threadId": "thread-1", "turnId": "turn-1", "error": raw_error},
+        })
+        app.incoming.put({
+            "method": "turn/completed",
+            "params": {"turn": {"id": "turn-1", "status": "completed",
+                                  "items": [{"type": "agentMessage", "text": "391"}]}},
+        })
+        return 1
+
+    monkeypatch.setattr(app, "_request", request)
+    app.run_turn("17*23?")
+
+    recovered = [event for event in emitted
+                 if event.get("type") == "codex.transient_error_recovered"]
+    assert len(recovered) == 1
+    assert recovered[0]["error"] == raw_error
+    assert recovered[0]["turn_status"] == "completed"
+    assert emitted[-1]["is_error"] is False
+    assert emitted[-1]["result"] == "391"
+    print("PASS: completed turn reports recovered transient error")
+
+
 def test_app_server_error_is_normalized_for_pan(monkeypatch):
     app = app_server_wrapper.AppServer("node", "codex.js", "C:/work", [])
     emitted: list[dict] = []
