@@ -82,6 +82,26 @@ def main():
             emit({'type': 'result', 'result': f'answer:{label}', 'is_error': False})
             continue
         turn = f'turn:{label}'
+        if label.startswith('codex-aggregate-ghost-'):
+            runtime = Path(os.environ['PAN_E2E_RUNTIME'])
+            emit({'type': 'assistant', 'final': True, 'item_id': f'tool:{label}', 'turn_id': turn,
+                  'message': {'content': [{'type': 'tool_use', 'name': 'Command',
+                                           'input': {'command': label}}]}})
+            emit({'type': 'codex.plan', 'item_id': f'plan:{turn}', 'turn_id': turn,
+                  'delta': True, 'replace': True,
+                  'plan': [{'step': 'Inspect', 'status': 'completed'}]})
+            answer = f'answer:{label}'
+            emit({'type': 'assistant', 'final': True, 'item_id': f'answer:{label}', 'turn_id': turn,
+                  'message': {'content': [{'type': 'text', 'text': answer}]}})
+            diff = {'type': 'codex.diff', 'item_id': f'diff:{turn}', 'turn_id': turn,
+                    'delta': True, 'replace': True, 'diff': '+fixture change'}
+            emit(diff)
+            (runtime / f'{label}-ready').write_text('ready', encoding='utf-8')
+            while not (runtime / f'{label}-release').exists():
+                time.sleep(.01)
+            emit({'type': 'result', 'result': answer, 'is_error': False})
+            emit(diff)  # Buffered aggregate echo after the sealed execution.
+            continue
         if label == 'thinking-scroll-regression':
             runtime = Path(os.environ['PAN_E2E_RUNTIME'])
             thinking = '\n\n'.join(f'Thought {i}: keep reading this paragraph.' for i in range(80))
