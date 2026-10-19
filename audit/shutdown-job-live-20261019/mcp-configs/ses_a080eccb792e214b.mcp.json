@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "pan": {
+      "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "packages.mcp.server"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018",
+      "env": {
+        "PYTHONPATH": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018",
+        "PAN_API_URL": "http://127.0.0.1:8768",
+        "PAN_PYTHON": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "PAN_AGENT_SESSION_ID": "ses_a080eccb792e214b",
+        "PAN_AGENT_SESSION_TITLE": "real-fifo-shutdown-job"
+      },
+      "type": "stdio"
+    }
+  }
+}

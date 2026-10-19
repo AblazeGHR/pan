@@ -1,0 +1,723 @@
+{
+  "before": {
+    "port": 51666,
+    "dataRoot": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019",
+    "sessionId": "ses_a080eccb792e214b",
+    "workdir": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+    "jobId": "job_9af540402c4e5e0acdb45bae",
+    "panPid": 9356,
+    "jobPid": 25456,
+    "jobBefore": {
+      "jobId": "job_9af540402c4e5e0acdb45bae",
+      "targetSessionId": "ses_a080eccb792e214b",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-c",
+        "import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)"
+      ],
+      "hideWindow": true,
+      "kind": "background-process",
+      "operation": "run",
+      "creatorSessionId": "ses_a080eccb792e214b",
+      "sourceStruct": {
+        "type": "agent",
+        "sessionId": "ses_a080eccb792e214b"
+      },
+      "targetStruct": {
+        "sessionId": "ses_a080eccb792e214b"
+      },
+      "name": "job-1",
+      "description": "",
+      "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)",
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019",
+      "label": "shutdown-long-job",
+      "status": "running",
+      "createdAt": 1792399515.59278,
+      "updatedAt": 1792399515.7982137,
+      "pid": 25456,
+      "processCreatedAt": 1792399515.7913713,
+      "logPath": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\background_jobs\\logs\\job_9af540402c4e5e0acdb45bae.log",
+      "notificationState": "pending",
+      "terminalEventId": null,
+      "runnerPid": 32200,
+      "runnerProcessCreatedAt": 1792399515.61771,
+      "runnerFiletime": "134368731156177105",
+      "runnerClaim": "3d61541d9c945ef908ccf38ddce79de8",
+      "paused": false
+    },
+    "sessionBefore": {
+      "id": "ses_a080eccb792e214b",
+      "name": "real-fifo-shutdown-job",
+      "adapter": "cbc",
+      "cliSessionId": "fake-12372",
+      "nativeControl": false,
+      "model": "deepseek-v4-flash",
+      "permissionMode": "bypassPermissions",
+      "panAccess": {
+        "restrictToManaged": false,
+        "canClaimUnmanaged": false,
+        "autoClaimCreated": false
+      },
+      "restrictToManaged": false,
+      "canClaimUnmanaged": false,
+      "autoClaimCreated": false,
+      "sessionTemplate": null,
+      "originalPrompt": "",
+      "handoffPrompt": null,
+      "systemPrompt": "",
+      "alwaysThinkingEnabled": false,
+      "effort": "",
+      "maxThinkingTokens": null,
+      "modelContextWindow": null,
+      "modelAutoCompactTokenLimit": null,
+      "workdir": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "queuePendingCount": 0,
+      "queueAllLocked": false,
+      "queueRevision": 3,
+      "queuePaused": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "hold-A",
+          "queueItemIds": [
+            "q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+          ],
+          "kind": "task",
+          "queueEnvelopes": [
+            {
+              "type": "task",
+              "kind": "task",
+              "id": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+              "queueItemId": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+              "text": "hold-A",
+              "source": "user",
+              "seq": 1,
+              "taskId": null,
+              "deliveryState": "writing",
+              "dispatchState": "queued",
+              "revision": 1,
+              "createdAt": 1792399511.6172593,
+              "clientMessageId": "shutdown-hold",
+              "position": 0
+            }
+          ],
+          "source": "user",
+          "taskId": null,
+          "clientMessageId": "shutdown-hold",
+          "messageId": "pan:c7457ae1b18942c299b383246c0ff73e",
+          "ts": "2026-10-19T16:45:11.631764",
+          "deliveryKeys": [
+            "task:q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+          ]
+        }
+      ],
+      "lastResult": null,
+      "activeTaskId": null,
+      "lastLegalWorkerState": null,
+      "legalOffline": false,
+      "illegalOffline": false,
+      "legalityDiagnostics": {
+        "migrationUncertainty": null,
+        "coverage": "pan-managed",
+        "revision": 1,
+        "outstanding": [
+          {
+            "operationId": "a21b7fa1e07941949eaac65347e4db58",
+            "kind": "foreground",
+            "state": "running",
+            "reason": null
+          }
+        ]
+      },
+      "rawUsage": null,
+      "totalUsage": null,
+      "usageEnrichmentPending": [],
+      "unreadDoneCount": 0,
+      "unreadDoneGeneration": 0,
+      "unreadDoneReadGeneration": 0,
+      "unreadTracking": true,
+      "unreadRecordingOverride": null,
+      "createdAt": "2026-10-19T16:45:09.873999",
+      "updatedAt": "2026-10-19T16:45:11.640665",
+      "order": null,
+      "pinned": false,
+      "pinOrder": null,
+      "pinRevision": 0,
+      "workspaceIds": [],
+      "managed": [],
+      "managedBy": null,
+      "readonlySession": false,
+      "reportsToManager": null,
+      "agentLevel": 1,
+      "reportSubscriptions": [],
+      "qqSubscriptions": [],
+      "qqReportTargets": [],
+      "wechatSubscriptions": [],
+      "notificationSettings": {
+        "browser": false,
+        "system": false
+      },
+      "msgBridgeEnabled": false,
+      "workerStatus": "running",
+      "workerId": "worker-1",
+      "mcpEnabled": true,
+      "mcpLocked": false,
+      "mcpLockReason": null,
+      "mcpServers": [
+        "pan"
+      ],
+      "pluginBindings": [
+        {
+          "plugin_id": "pan",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ],
+      "pluginSelectionRevision": 1,
+      "pluginRestart": null,
+      "pluginConfigVersion": 2,
+      "outputMode": "stream",
+      "executionModes": [
+        "stream",
+        "oneshot"
+      ],
+      "gameId": null,
+      "summaryRevision": 7,
+      "lastUserPreview": "hold-A",
+      "lastAssistantPreview": "",
+      "lastDisplayPreview": "hold-A",
+      "historyTotal": 1,
+      "historyEpoch": "95655202b01f474fa070eb2a6d43741d",
+      "historyRevision": 1
+    },
+    "recordsBefore": [
+      {
+        "kind": "init",
+        "pid": 4072,
+        "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018",
+        "at": 1792399509.8617487
+      },
+      {
+        "kind": "init",
+        "pid": 12372,
+        "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+        "at": 1792399510.6136339
+      },
+      {
+        "kind": "received",
+        "pid": 12372,
+        "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+        "text": "hold-A",
+        "at": 1792399511.6317773
+      }
+    ],
+    "panOwned": [
+      {
+        "pid": 9356,
+        "create": 1792399507.952998,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\tests\\support\\isolated_http_server.py --port 51666 --data-root D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019"
+      },
+      {
+        "pid": 25136,
+        "create": 1792399507.959859,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\tests\\support\\isolated_http_server.py --port 51666 --data-root D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019"
+      },
+      {
+        "pid": 28512,
+        "create": 1792399510.5620625,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\mcp-configs\\ses_a080eccb792e214b.mcp.json"
+      },
+      {
+        "pid": 3280,
+        "create": 1792399515.5974295,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -m packages.core.background_runner --job-id job_9af540402c4e5e0acdb45bae"
+      },
+      {
+        "pid": 31992,
+        "create": 1792399515.603194,
+        "cmd": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+      },
+      {
+        "pid": 32200,
+        "create": 1792399515.6177104,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -m packages.core.background_runner --job-id job_9af540402c4e5e0acdb45bae"
+      },
+      {
+        "pid": 25456,
+        "create": 1792399515.7913713,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)"
+      },
+      {
+        "pid": 17484,
+        "create": 1792399515.7989988,
+        "cmd": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+      },
+      {
+        "pid": 23704,
+        "create": 1792399515.8146822,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)"
+      },
+      {
+        "pid": 11224,
+        "create": 1792399510.5676463,
+        "cmd": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+      },
+      {
+        "pid": 12372,
+        "create": 1792399510.5810876,
+        "cmd": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\mcp-configs\\ses_a080eccb792e214b.mcp.json"
+      }
+    ]
+  },
+  "afterJob": {
+    "jobId": "job_9af540402c4e5e0acdb45bae",
+    "targetSessionId": "ses_a080eccb792e214b",
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-c",
+      "import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)"
+    ],
+    "hideWindow": true,
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": "ses_a080eccb792e214b",
+    "sourceStruct": {
+      "type": "agent",
+      "sessionId": "ses_a080eccb792e214b"
+    },
+    "targetStruct": {
+      "sessionId": "ses_a080eccb792e214b"
+    },
+    "name": "job-1",
+    "description": "",
+    "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)",
+    "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019",
+    "label": "shutdown-long-job",
+    "status": "failed",
+    "createdAt": 1792399515.59278,
+    "updatedAt": 1792399517.6978831,
+    "pid": 25456,
+    "processCreatedAt": 1792399515.7913713,
+    "logPath": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\background_jobs\\logs\\job_9af540402c4e5e0acdb45bae.log",
+    "notificationState": "delivered",
+    "terminalEventId": "job_9af540402c4e5e0acdb45bae:terminal",
+    "runnerPid": 32200,
+    "runnerProcessCreatedAt": 1792399515.61771,
+    "runnerFiletime": "134368731156177105",
+    "runnerClaim": "3d61541d9c945ef908ccf38ddce79de8",
+    "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+    "terminalEventEmittedFor": "job_9af540402c4e5e0acdb45bae:terminal",
+    "paused": false
+  },
+  "afterSession": {
+    "id": "ses_a080eccb792e214b",
+    "name": "real-fifo-shutdown-job",
+    "adapter": "cbc",
+    "cliSessionId": "fake-12372",
+    "nativeControl": false,
+    "model": "deepseek-v4-flash",
+    "permissionMode": "bypassPermissions",
+    "panAccess": {
+      "restrictToManaged": false,
+      "canClaimUnmanaged": false,
+      "autoClaimCreated": false
+    },
+    "restrictToManaged": false,
+    "canClaimUnmanaged": false,
+    "autoClaimCreated": false,
+    "sessionTemplate": null,
+    "originalPrompt": "",
+    "handoffPrompt": null,
+    "systemPrompt": "",
+    "alwaysThinkingEnabled": false,
+    "effort": "",
+    "maxThinkingTokens": null,
+    "modelContextWindow": null,
+    "modelAutoCompactTokenLimit": null,
+    "workdir": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+    "queuePendingCount": 0,
+    "queueAllLocked": false,
+    "queueRevision": 8,
+    "queuePaused": false,
+    "history": [
+      {
+        "role": "user",
+        "content": "hold-A",
+        "queueItemIds": [
+          "q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+            "queueItemId": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+            "text": "hold-A",
+            "source": "user",
+            "seq": 1,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792399511.6172593,
+            "clientMessageId": "shutdown-hold",
+            "position": 0
+          }
+        ],
+        "source": "user",
+        "taskId": null,
+        "clientMessageId": "shutdown-hold",
+        "messageId": "pan:c7457ae1b18942c299b383246c0ff73e",
+        "ts": "2026-10-19T16:45:11.631764",
+        "deliveryKeys": [
+          "task:q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+        ]
+      },
+      {
+        "role": "user",
+        "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+        "queueItemIds": [
+          "q_f5a6b7c678d74c7cae7f88e8a36a819a"
+        ],
+        "kind": "report",
+        "queueEnvelopes": [
+          {
+            "kind": "report",
+            "id": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+            "queueItemId": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+            "source": "automation",
+            "status": "failed",
+            "type": "notice",
+            "result": "{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+            "sessionId": "ses_a080eccb792e214b",
+            "taskId": null,
+            "workerId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792399517.4627638,
+            "eventId": "job_9af540402c4e5e0acdb45bae:terminal",
+            "noticeKind": "background_job_terminal",
+            "jobId": "job_9af540402c4e5e0acdb45bae",
+            "creatorSessionId": "ses_a080eccb792e214b",
+            "targetSessionId": "ses_a080eccb792e214b",
+            "targetSessionIds": [
+              "ses_a080eccb792e214b"
+            ],
+            "position": 0
+          }
+        ],
+        "source": "automation",
+        "taskId": null,
+        "eventId": "job_9af540402c4e5e0acdb45bae:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_9af540402c4e5e0acdb45bae",
+        "messageId": "pan:72784256efb249c68a5c5f3e0ad317cc",
+        "ts": "2026-10-19T16:45:17.708593",
+        "deliveryKeys": [
+          "report:anon:3b13c139bf93"
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+        "messageId": "pan:96b4819a40754bc5a7dc51afafe9889b",
+        "ts": "2026-10-19T16:45:17.742928"
+      },
+      {
+        "role": "assistant",
+        "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+        "messageId": "pan:0ba8b9171e6541db9071cd6bbf3d3413",
+        "ts": "2026-10-19T16:45:17.743017"
+      }
+    ],
+    "lastResult": {
+      "status": "done",
+      "result": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "cli_session_id": "fake-12372",
+      "timestamp": "2026-10-19T16:45:17.743003",
+      "taskSeq": null,
+      "executionSeq": 1,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "resultCursor": 1,
+      "sourceSessionId": null,
+      "terminalKey": "worker:worker-1:generation:0:0f55aaae944b47f4ac6defc9d75d5415",
+      "historyEpoch": "95655202b01f474fa070eb2a6d43741d",
+      "historyRevision": 4,
+      "usageEnrichmentKey": "worker:worker-1:generation:0:7c4a011f222545b6a86f95d9cdc51447"
+    },
+    "activeTaskId": null,
+    "lastLegalWorkerState": null,
+    "legalOffline": true,
+    "illegalOffline": false,
+    "legalityDiagnostics": {
+      "migrationUncertainty": null,
+      "coverage": "pan-managed",
+      "revision": 5,
+      "outstanding": []
+    },
+    "rawUsage": null,
+    "totalUsage": null,
+    "usageEnrichmentPending": [],
+    "unreadDoneCount": 0,
+    "unreadDoneGeneration": 0,
+    "unreadDoneReadGeneration": 0,
+    "unreadTracking": true,
+    "unreadRecordingOverride": null,
+    "createdAt": "2026-10-19T16:45:09.873999",
+    "updatedAt": "2026-10-19T16:45:17.763980",
+    "order": null,
+    "pinned": false,
+    "pinOrder": null,
+    "pinRevision": 0,
+    "workspaceIds": [],
+    "managed": [],
+    "managedBy": null,
+    "readonlySession": false,
+    "reportsToManager": null,
+    "agentLevel": 1,
+    "reportSubscriptions": [],
+    "qqSubscriptions": [],
+    "qqReportTargets": [],
+    "wechatSubscriptions": [],
+    "notificationSettings": {
+      "browser": false,
+      "system": false
+    },
+    "msgBridgeEnabled": false,
+    "workerStatus": "idle",
+    "workerId": "worker-1",
+    "mcpEnabled": true,
+    "mcpLocked": false,
+    "mcpLockReason": null,
+    "mcpServers": [
+      "pan"
+    ],
+    "pluginBindings": [
+      {
+        "plugin_id": "pan",
+        "enabled": true,
+        "mode": "standalone"
+      }
+    ],
+    "pluginSelectionRevision": 1,
+    "pluginRestart": null,
+    "pluginConfigVersion": 2,
+    "outputMode": "stream",
+    "executionModes": [
+      "stream",
+      "oneshot"
+    ],
+    "gameId": null,
+    "summaryRevision": 19,
+    "lastUserPreview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "lastAssistantPreview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "lastDisplayPreview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "historyTotal": 4,
+    "historyEpoch": "95655202b01f474fa070eb2a6d43741d",
+    "historyRevision": 4
+  },
+  "recordsAfter": [
+    {
+      "kind": "init",
+      "pid": 4072,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018",
+      "at": 1792399509.8617487
+    },
+    {
+      "kind": "init",
+      "pid": 12372,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "at": 1792399510.6136339
+    },
+    {
+      "kind": "received",
+      "pid": 12372,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "text": "hold-A",
+      "at": 1792399511.6317773
+    },
+    {
+      "kind": "init",
+      "pid": 29876,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "at": 1792399517.7331257
+    },
+    {
+      "kind": "received",
+      "pid": 29876,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "text": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "at": 1792399517.7336624
+    }
+  ],
+  "raw": {
+    "legal_offline": true,
+    "illegal_batches": {
+      "a21b7fa1e07941949eaac65347e4db58": {
+        "id": "a21b7fa1e07941949eaac65347e4db58",
+        "run": {
+          "runtimeExpected": true,
+          "token": "8a84098743c840fab19ed3dc5e9831be",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "16992b6a347d427f933405a1d5bfc7a0",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 28512,
+              "createdAt": 1792399510.5620625
+            },
+            {
+              "pid": 11224,
+              "createdAt": 1792399510.5676463
+            },
+            {
+              "pid": 12372,
+              "createdAt": 1792399510.5810876
+            }
+          ],
+          "id": "a21b7fa1e07941949eaac65347e4db58",
+          "kind": "foreground",
+          "admittedRevision": 1,
+          "state": "running",
+          "startedAt": 1792399511.6281013,
+          "safeTerminal": false
+        },
+        "messages": [],
+        "incidentId": "a21b7fa1e07941949eaac65347e4db58",
+        "reason": "unfinished-run",
+        "createdAt": 1792399517.438178,
+        "recovered": true,
+        "recoveredAt": 1792399517.7393684,
+        "recoveredBy": {
+          "runtimeExpected": true,
+          "token": "5ffb7acc23c742ea8b967a7512d270a5",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "672e3029859d492e8d52704c809e14c9",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 10160,
+              "createdAt": 1792399517.673901
+            },
+            {
+              "pid": 2052,
+              "createdAt": 1792399517.68314
+            },
+            {
+              "pid": 29876,
+              "createdAt": 1792399517.697648
+            }
+          ]
+        }
+      }
+    },
+    "offline_run": {
+      "runtimeExpected": true,
+      "token": "5ffb7acc23c742ea8b967a7512d270a5",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "672e3029859d492e8d52704c809e14c9",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 10160,
+          "createdAt": 1792399517.673901
+        },
+        {
+          "pid": 2052,
+          "createdAt": 1792399517.68314
+        },
+        {
+          "pid": 29876,
+          "createdAt": 1792399517.697648
+        }
+      ],
+      "id": "047e605eeb004c4e880739ac5f0940d8",
+      "kind": "foreground",
+      "admittedRevision": 3,
+      "state": "idle",
+      "startedAt": 1792399517.7066545,
+      "safeTerminal": true,
+      "endedAt": 1792399517.748304,
+      "reason": "task/safe-terminal",
+      "terminalProof": "safe-terminal"
+    },
+    "execution_operations": {
+      "a21b7fa1e07941949eaac65347e4db58": {
+        "runtimeExpected": true,
+        "token": "8a84098743c840fab19ed3dc5e9831be",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "16992b6a347d427f933405a1d5bfc7a0",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 28512,
+            "createdAt": 1792399510.5620625
+          },
+          {
+            "pid": 11224,
+            "createdAt": 1792399510.5676463
+          },
+          {
+            "pid": 12372,
+            "createdAt": 1792399510.5810876
+          }
+        ],
+        "id": "a21b7fa1e07941949eaac65347e4db58",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "illegal",
+        "startedAt": 1792399511.6281013,
+        "safeTerminal": false,
+        "incidentId": "a21b7fa1e07941949eaac65347e4db58",
+        "reason": "unfinished-run",
+        "retirement": {
+          "safe": true,
+          "proof": "successor-ready-after-owner-reconciliation",
+          "committedAt": 1792399517.7393699
+        }
+      },
+      "047e605eeb004c4e880739ac5f0940d8": {
+        "runtimeExpected": true,
+        "token": "5ffb7acc23c742ea8b967a7512d270a5",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "672e3029859d492e8d52704c809e14c9",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 10160,
+            "createdAt": 1792399517.673901
+          },
+          {
+            "pid": 2052,
+            "createdAt": 1792399517.68314
+          },
+          {
+            "pid": 29876,
+            "createdAt": 1792399517.697648
+          }
+        ],
+        "id": "047e605eeb004c4e880739ac5f0940d8",
+        "kind": "foreground",
+        "admittedRevision": 3,
+        "state": "idle",
+        "startedAt": 1792399517.7066545,
+        "safeTerminal": true,
+        "endedAt": 1792399517.748304,
+        "reason": "task/safe-terminal",
+        "terminalProof": "safe-terminal"
+      }
+    },
+    "queue_pending": [],
+    "last_legal_worker_state": null
+  }
+}
