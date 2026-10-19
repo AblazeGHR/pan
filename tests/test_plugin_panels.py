@@ -151,6 +151,51 @@ def test_cancelled_panel_caller_does_not_replay_admitted_mutation(manifest, tmp_
     asyncio.run(run())
 
 
+def test_cli_availability_codes_are_stable_and_do_not_hide_success(tmp_path, monkeypatch):
+    from packages.cc_switch_bridge import provider
+    monkeypatch.delenv('PAN_CC_SWITCH_CLI', raising=False)
+    monkeypatch.setattr(provider.shutil, 'which', lambda _: None)
+    with pytest.raises(provider.CliError) as missing:
+        Bridge(tmp_path)._run(['--version'])
+    assert missing.value.code == 'cli_not_found'
+    assert json.loads(provider.error_text(missing.value))['error']['code'] == 'cli_not_found'
+
+    monkeypatch.setenv('PAN_CC_SWITCH_CLI', 'retired-fixture.exe')
+    monkeypatch.setattr(provider.subprocess, 'run', Mock(return_value=SimpleNamespace(
+        returncode=0, stdout='cc-switch 5.10.5', stderr='')))
+    with pytest.raises(provider.CliError) as incompatible:
+        Bridge(tmp_path)._run(['--version'])
+    assert incompatible.value.code == 'cli_incompatible'
+
+    monkeypatch.setattr(provider.subprocess, 'run', Mock(side_effect=OSError('not runnable')))
+    with pytest.raises(provider.CliError) as unavailable:
+        Bridge(tmp_path)._run(['--version'])
+    assert unavailable.value.code == 'cli_unavailable'
+
+    monkeypatch.setattr(provider.subprocess, 'run', Mock(return_value=SimpleNamespace(
+        returncode=1, stdout='secret-token', stderr='secret-token')))
+    with pytest.raises(provider.CliError) as legacy:
+        Bridge(tmp_path)._run(['--version'])
+    assert legacy.value.code == 'cli_incompatible'
+    with pytest.raises(provider.CliError) as failed:
+        Bridge(tmp_path)._call_cli('fixture-only.exe', ['--app', 'codex', 'provider', 'list', '--json'])
+    assert failed.value.code == 'cli_failed'
+    assert 'secret' not in provider.error_text(failed.value)
+
+    monkeypatch.setattr(provider.subprocess, 'run', Mock(side_effect=[
+        SimpleNamespace(returncode=0, stdout=json.dumps({'contract': 'pan-cc-switch-gui/v1'}), stderr=''),
+        SimpleNamespace(returncode=0, stdout=json.dumps({'providers': []}), stderr='')]))
+    assert Bridge(tmp_path)._run(['--app', 'codex', 'provider', 'list', '--json']) == {'providers': []}
+
+
+def test_readmes_index_the_external_compatible_cli_fork():
+    for name in ('README.md', 'README.en.md'):
+        text = (REPO_ROOT / name).read_text(encoding='utf-8')
+        assert 'https://github.com/AblazeGHR/cc-switch-pan' in text
+        assert 'cc-switch-bridge' in text
+        assert ('不捆绑' in text) or ('does not bundle' in text)
+
+
 def test_cli_errors_and_quota_normalization_do_not_expose_credentials(tmp_path, monkeypatch):
     from packages.cc_switch_bridge import provider
     runner = Mock(side_effect=[
