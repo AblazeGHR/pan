@@ -53,7 +53,7 @@ interface QqJobTarget {
 const TEMPLATES: { id: TemplateId; label: string; hint: string }[] = [
   { id: 'scheduled', label: '创建定时任务', hint: '按计划执行 Session action 或 shell 命令' },
   { id: 'scheduled_qq', label: 'Scheduled QQ message', hint: 'Send text to a selected QQ contact on a schedule' },
-  { id: 'resume_legal_running', label: '唤醒所有合法 running 的 Session', hint: '每次触发时重新筛选合法状态为 running 且没有活 Worker 的 Session，并发送“继续”' },
+  { id: 'resume_legal_running', label: '恢复所有 Illegal / 待恢复 Session', hint: '每次触发时重新筛选 Illegal / 待恢复且没有活 Worker 的 Session，并发送“继续”' },
   { id: 'custom', label: '自定义', hint: '选择可创建 Job 类型与适用字段' },
 ];
 
@@ -927,7 +927,7 @@ export function NewJobForm({
               <option value="assign">Assign task to Session</option>
               <option value="send_session">Send Session message</option>
               <option value="send_qq">Scheduled QQ message</option>
-              <option value="resume_legal_running">唤醒所有合法 running 的 Session</option>
+              <option value="resume_legal_running">恢复所有 Illegal / 待恢复 Session</option>
               <option value="shell">Run shell command on Pan server</option>
             </select>
           </Field>
@@ -951,7 +951,7 @@ export function NewJobForm({
             </>
           ) : actionApi === 'resume_legal_running' ? (
             <div className="rounded border border-border-default bg-bg-tertiary px-2.5 py-2 text-[11px] text-text-secondary">
-              每次 Job 触发时，服务端都会重新扫描持久合法状态为 running 且当前没有活 Worker 的 Session，
+              每次 Job 触发时，服务端都会重新扫描Illegal / 待恢复且当前没有活 Worker 的 Session，
               再通过正常消息投递发送正文“继续”。创建时不会固定 Session ID，也不会运行 shell 命令。
             </div>
           ) : actionApi === 'shell' ? (

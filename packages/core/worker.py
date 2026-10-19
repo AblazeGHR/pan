@@ -644,7 +644,6 @@ async def _offline_snapshot_event(s) -> None:
     await _bcast({"type": "queue.snapshot", "sessionId": s.id,
                   "queueRevision": s.queue_revision,
                   "session": {
-                      "recoveryRequested": s.recovery_requested,
                       "legalOffline": s.legal_offline,
                       "illegalOffline": _offline.is_illegal(s),
                       "legalityDiagnostics": _offline.diagnostics(s),
@@ -654,9 +653,9 @@ async def _offline_snapshot_event(s) -> None:
 async def _prepare_offline_recovery(s) -> None:
     """Before any new provider can start, classify the previous unfinished run."""
     async with queue_lock(s.id):
-        if getattr(s, "_recovery_migration_pending", False):
+        if getattr(s, "_obsolete_legality_fields_pending", False):
             await _commit_offline(s, lambda candidate: None, force=True)
-            s._recovery_migration_pending = False
+            s._obsolete_legality_fields_pending = False
         owner = s.offline_owner
         tracked_owner = find_worker_by_session(s.id)
         if owner and not (tracked_owner and _offline.same_owner(owner, _offline.owner(tracked_owner))
@@ -817,23 +816,7 @@ async def _record_legal_worker_state(w: Worker, state: str, source: str, *, pers
     return _session(w) is not None
 
 
-async def set_session_recovery_intent(session_id: str, requested: bool, *, source: str) -> dict:
-    s = _sess.get(session_id)
-    if s is None:
-        return {"sessionId": session_id, "status": "error", "error": "Session not found"}
-    async with queue_lock(session_id):
-        def update(candidate):
-            if candidate.recovery_requested != requested:
-                candidate.recovery_requested = requested
-                candidate.operation_revision += 1
-        await _commit_offline(s, update)
-    await _offline_snapshot_event(s)
-    return {"sessionId": session_id, "status": "updated", "recoveryRequested": s.recovery_requested,
-            "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s),
-            "legalityDiagnostics": _offline.diagnostics(s)}
-
-
-async def clear_session_illegal_for_startup(session_id: str) -> dict:
+async def clear_session_illegal_for_startup(session_id: str, *, reconcile: bool = False) -> dict:
     """Retire only diagnosed incidents; never release a live/unknown owner."""
     lock = await _session_spawn_lock(session_id)
     async with lock:
@@ -842,23 +825,58 @@ async def clear_session_illegal_for_startup(session_id: str) -> dict:
             return {"sessionId": session_id, "status": "error", "error": "Session not found"}
         async with queue_lock(session_id):
             # Do not let this policy classify or retire a new running operation.
-            incidents = [op for op in _offline.outstanding(s) if op.get("state") == "illegal"]
+            tracked = find_worker_by_session(session_id)
+            if tracked is not None and not _runtime_stopped(tracked):
+                raise RuntimeError("Worker runtime is not stopped")
+            incidents = [op for op in _offline.outstanding(s) if reconcile or op.get("state") == "illegal"]
             for identity in [s.offline_owner, *incidents]:
                 if identity and await asyncio.to_thread(_offline.previous_owner_status, identity) != "dead":
                     raise RuntimeError("Execution owner alive or unknown; refusing Illegal retirement")
             def clear(candidate):
+                if reconcile:
+                    _migrate_queue_delivery_state(candidate, restore_ledger=True)
+                    for identity in incidents:
+                        _offline.detect(candidate, "manual/mark-safe-offline", identity=identity,
+                            eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item),
+                            remember=lambda item: _remember_offline_lock(candidate, item))
                 return _offline.clear_illegal(candidate, remember=lambda item: _remember_offline_lock(candidate, item))
             await _commit_offline(s, clear)
         await _offline_snapshot_event(s)
-        return {"sessionId": session_id, "status": "updated", "recoveryRequested": s.recovery_requested,
+        return {"sessionId": session_id, "status": "updated", "legalityDiagnostics": _offline.diagnostics(s),
                 "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s)}
 
 
-async def set_session_legal_worker_state_running(session_id: str, *, source: str = "legacy/set-running") -> dict:
-    """Compatibility endpoint: request recovery, never fabricate an execution."""
+async def set_session_legal_worker_state_running(session_id: str, *, source: str = "manual/mark-illegal") -> dict:
+    """Explicitly mark an offline Session Illegal, using the existing incident ledger."""
     lock = await _session_spawn_lock(session_id)
     async with lock:
-        return await set_session_recovery_intent(session_id, True, source=source)
+        s = _sess.get(session_id)
+        if s is None:
+            return {"sessionId": session_id, "status": "error", "error": "Session not found"}
+        async with queue_lock(session_id):
+            tracked = find_worker_by_session(session_id)
+            if tracked is not None and not _runtime_stopped(tracked):
+                raise RuntimeError("Worker runtime is not stopped")
+            for identity in [s.offline_owner, *_offline.outstanding(s)]:
+                if identity and await asyncio.to_thread(_offline.previous_owner_status, identity) != "dead":
+                    raise RuntimeError("Execution owner alive or unknown; refusing manual state change")
+            def mark(candidate):
+                if _offline.is_illegal(candidate):
+                    return
+                _migrate_queue_delivery_state(candidate, restore_ledger=True)
+                if not _offline.outstanding(candidate):
+                    # Administrative state change, not an invented provider execution.
+                    identity = {"token": uuid.uuid4().hex, "generation": 0, "executionSeq": 0,
+                                "serviceId": _offline.SERVICE_ID, "processes": []}
+                    _offline.admit(candidate, identity, kind="manual-recovery")
+                for identity in list(_offline.outstanding(candidate)):
+                    _offline.detect(candidate, source, identity=identity,
+                        eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item),
+                        remember=lambda item: _remember_offline_lock(candidate, item))
+            await _commit_offline(s, mark)
+        await _offline_snapshot_event(s)
+        return {"sessionId": session_id, "status": "updated", "legalOffline": s.legal_offline,
+                "illegalOffline": _offline.is_illegal(s), "legalityDiagnostics": _offline.diagnostics(s)}
 
 
 def _terminal_enrichment_key(
@@ -1406,7 +1424,6 @@ async def _persist_terminal_state_locked(
         "unread_done_read_generation": s.unread_done_read_generation,
         "unread_done_count": s.unread_done_count,
         "active_task_id": s.active_task_id,
-        "recovery_requested": s.recovery_requested,
         "usage_enrichment_pending": list(s.usage_enrichment_pending),
     }
     old_runtime_state = {
@@ -9975,18 +9992,12 @@ def find_alive_workers_by_session() -> dict[str, Worker]:
     }
 
 
-async def sync_legal_worker_state_to_runtime(session_id: str, *, source: str = "legacy/sync-actual") -> dict:
-    """Reconcile execution facts; clearing recovery intent never erases Illegal."""
-    lock = await _session_spawn_lock(session_id)
-    async with lock:
-        s = _sess.get(session_id)
-        if s is None:
-            return {"sessionId": session_id, "status": "error", "error": "Session not found"}
-        tracked = find_worker_by_session(session_id)
-        if tracked is not None and not _runtime_stopped(tracked) and tracked.status == "zombie":
-            return {"sessionId": session_id, "status": "error", "error": "Worker runtime is not stopped"}
-        await _prepare_offline_recovery(s)
-        return await set_session_recovery_intent(session_id, False, source=source)
+async def sync_legal_worker_state_to_runtime(session_id: str, *, source: str = "manual/mark-safe-offline") -> dict:
+    """Compatibility entry point: explicitly cancel pending recovery/Illegal."""
+    try:
+        return await clear_session_illegal_for_startup(session_id, reconcile=True)
+    except RuntimeError as exc:
+        return {"sessionId": session_id, "status": "error", "error": str(exc)}
 
 
 async def shutdown_all(
@@ -10071,13 +10082,6 @@ async def shutdown_all(
                 and _runtime_stopped(w)):
             if not await _record_legal_worker_state(w, "offline", legal_state_source):
                 errors.append(f"Worker {wid} legal offline state was not persisted")
-
-    for session_id in sorted(offline_ids | preserve_ids):
-        try:
-            await set_session_recovery_intent(session_id, session_id in preserve_ids,
-                                             source=legal_state_source)
-        except Exception as exc:
-            errors.append(f"Session {session_id} recovery intent failed: {exc}")
 
     workers.clear()
     _workers_by_session.clear()

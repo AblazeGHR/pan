@@ -630,7 +630,7 @@ async def _snapshot_main_lifecycle_options(options: dict, operation: str) -> dic
     sessions = await _store_read(sess.list_all, load_history=False)
     running_session_ids = sorted(
         session.id for session in sessions
-        if legal_offline.recovery_needed(session) or legal_offline.outstanding(session)
+        if legal_offline.is_illegal(session) or legal_offline.outstanding(session)
     )
     return {
         **options,
@@ -2125,7 +2125,7 @@ def _session_to_api(
         **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
         "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
-        "recoveryRequested": legal_offline.recovery_intent(s),
+
         "legalOffline": s.legal_offline,
         "illegalOffline": legal_offline.is_illegal(s),
         "legalityDiagnostics": legal_offline.diagnostics(s),
@@ -2156,7 +2156,7 @@ def _session_to_api(
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
         "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
-        "recoveryRequested": legal_offline.recovery_intent(s),
+
         "legalOffline": s.legal_offline,
         "illegalOffline": legal_offline.is_illegal(s),
         "legalityDiagnostics": legal_offline.diagnostics(s),
@@ -2432,7 +2432,7 @@ def _session_summary(
         "workerTaskSeq": worker_task_seq,
         "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
         "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
-        "recoveryRequested": legal_offline.recovery_intent(s),
+
         "legalOffline": s.legal_offline,
         "illegalOffline": legal_offline.is_illegal(s),
         "legalityDiagnostics": legal_offline.diagnostics(s),
@@ -5503,10 +5503,10 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
 
 
 def _startup_recovery_candidates(sessions) -> list[dict]:
-    """Snapshot durable recovery requests with no live Worker."""
+    """Illegal is the sole pending-recovery state; exclude live Workers."""
     candidates = []
     for s in sessions:
-        if not legal_offline.recovery_needed(s):
+        if not legal_offline.is_illegal(s):
             continue
         if worker.find_alive_worker_by_session(s.id) is not None:
             continue
@@ -5517,7 +5517,7 @@ def _startup_recovery_candidates(sessions) -> list[dict]:
             "workdir": s.workdir,
             "updatedAt": s.updated_at,
             "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
-            "recoveryRequested": legal_offline.recovery_intent(s),
+
         })
     return candidates
 
@@ -5673,7 +5673,7 @@ async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
         elif choice == "preserve-running":
             results = [
                 {"sessionId": candidate["id"], "status": "preserved",
-                 "recoveryRequested": True}
+                 "illegalOffline": True}
                 for candidate in candidates
             ]
         elif choice == "clear-illegal":
@@ -6916,10 +6916,11 @@ async def api_get_session(session_id: str, view: str = "full",
     return _session_to_api(s)
 
 
-@app.post("/api/sessions/{session_id}/legality/reconcile")
+@app.post("/api/sessions/{session_id}/legality/mark-safe-offline")
+@app.post("/api/sessions/{session_id}/legality/reconcile", deprecated=True)
 @app.post("/api/sessions/{session_id}/legal-state/sync", deprecated=True)
 async def api_sync_session_legal_worker_state(session_id: str):
-    """Reconcile durable execution facts without clearing confirmed Illegal."""
+    """Explicitly mark prior Illegal executions safely offline."""
     session = await _store_read(_summary_session_get, session_id)
     if not session:
         return {
@@ -6929,7 +6930,7 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
     try:
         return await worker.sync_legal_worker_state_to_runtime(
-            session_id, source="session-details/sync-actual",
+            session_id, source="manual/mark-safe-offline",
         )
     except Exception as exc:
         return {
@@ -6939,13 +6940,14 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
 
 
-@app.post("/api/sessions/{session_id}/legality/request-recovery")
+@app.post("/api/sessions/{session_id}/legality/mark-illegal")
+@app.post("/api/sessions/{session_id}/legality/request-recovery", deprecated=True)
 @app.post("/api/sessions/{session_id}/legal-state/running", deprecated=True)
 async def api_set_session_legal_worker_state_running(session_id: str):
-    """Request future recovery without starting a Worker or inventing a run."""
+    """Explicitly mark an offline Session Illegal / pending recovery."""
     try:
         result = await worker.set_session_legal_worker_state_running(
-            session_id, source="session-details/set-running",
+            session_id, source="manual/mark-illegal",
         )
     except Exception as exc:
         return {

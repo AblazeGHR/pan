@@ -228,7 +228,7 @@ def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
         illegal = method not in {"safe-api", "q-config", "q-menu", "idle-SIGINT", "idle-SIGTERM"}
         assert value["legal_offline"] is (not illegal)
         assert bool(value["illegal_batches"]) is illegal
-        assert value["recovery_requested"] is illegal
+        assert "recovery_requested" not in value
         instance.stop()
         instance.start()
         again = durable(instance, sid)
@@ -257,7 +257,7 @@ def test_clear_illegal_startup_policy_retires_persisted_incident_without_success
     runtime.stop()
     runtime.start()
     value = durable(runtime, sid)
-    assert value["legal_offline"] and not value["recovery_requested"]
+    assert value["legal_offline"] and "recovery_requested" not in value
     assert all(op["state"] == "offline" for op in value["execution_operations"].values())
     rows = {row["id"]: row for row in value["queue_pending"]}
     assert not rows[b].get("queueLockSource")
@@ -269,3 +269,32 @@ def test_clear_illegal_startup_policy_retires_persisted_incident_without_success
     runtime.stop()
     runtime.start()
     assert durable(runtime, sid)["illegal_batches"] == batches
+
+
+def test_manual_pending_recovery_and_safe_offline_are_one_state(runtime):
+    session = _create(runtime, "manual-illegal-state")
+    sid = session["id"]
+    paused(runtime, sid, True)
+    a = _enqueue(runtime, sid, "A", "A")["item"]["queueItemId"]
+    b = _enqueue(runtime, sid, "B", "B")["item"]["queueItemId"]
+    runtime.request("PATCH", f"/api/sessions/{sid}/queue/{a}/lock", json={"locked": True})
+    marked = runtime.request("POST", f"/api/sessions/{sid}/legality/mark-illegal")
+    assert marked["illegalOffline"] and not marked["legalOffline"]
+    assert "recoveryRequested" not in marked
+    value = durable(runtime, sid)
+    assert "recovery_requested" not in value
+    rows = {row["id"]: row for row in value["queue_pending"]}
+    assert rows[a]["queueLockSource"] == "manual" and rows[b]["queueLockSource"] == "illegal"
+    candidates = runtime.request("GET", "/api/sessions/recovery-candidates")
+    assert sid in [row["id"] for row in candidates["sessions"]]
+    batches = value["illegal_batches"]
+    runtime.request("POST", f"/api/sessions/{sid}/legality/mark-illegal")
+    assert durable(runtime, sid)["illegal_batches"] == batches
+    safe = runtime.request("POST", f"/api/sessions/{sid}/legality/mark-safe-offline")
+    assert safe["legalOffline"] and not safe["illegalOffline"]
+    candidates = runtime.request("GET", "/api/sessions/recovery-candidates")
+    assert sid not in [row["id"] for row in candidates["sessions"]]
+    value = durable(runtime, sid)
+    rows = {row["id"]: row for row in value["queue_pending"]}
+    assert rows[a]["queueLockSource"] == "manual" and not rows[b].get("queueLockSource")
+    assert not runtime.request("GET", f"/api/sessions/{sid}")["workerId"]

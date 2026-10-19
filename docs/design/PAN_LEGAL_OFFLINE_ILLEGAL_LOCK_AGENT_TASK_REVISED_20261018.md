@@ -6,6 +6,14 @@
 
 ## 0. 审阅后确定的最小技术契约
 
+### 2026-10-19 最终补充：Illegal 即待恢复，删除独立恢复意图
+
+最新用户决定覆盖下文早期设计：Illegal 和待恢复是同一状态，不再存在恢复意图与 Illegal 的独立组合。删除 `recovery_requested` / `recoveryRequested` 的模型字段、持久输出、摘要/详情/WS/诊断和前端类型。加载旧数据时丢弃旧键，在原有启动交接准备、有序 writer 内持久清理；不从旧布尔值制造事故，因为此前正常 Running 也写过 True。已有 operation、事故和队列来源保持权威。
+
+启动恢复候选、自动恢复和后台恢复 Job 均直接选择 Illegal。正常执行 `legalOffline=false, illegalOffline=false` 不代表待恢复。手动“标记待恢复”与“标记 Illegal”同一个操作：核验 owner 死亡后，在现有账本中记录明确的 administrative operation（不伪造 provider 执行），同次提交 Illegal 与精确已有未锁 queued 快照；重复点击不扩大或重锁。取消待恢复即把已有责任安全退休为 offline，并解除仍匹配其事故归属的自动锁、保留 Manual 和独立安全 gate。活/未知 owner 拒绝手动状态转换。
+
+详情按钮改为 **Mark as Illegal / Pending recovery**、**Mark as safely offline**。API 为 `/legality/mark-illegal` 和 `/legality/mark-safe-offline`，旧接口仅是新语义 deprecated 别名。启动询问弹窗取消待恢复操作同样改为安全下线，不再只是取消提示。设置页、Job 创建模板与详情均更新统一术语。`clear-illegal` 启动策略继续保留；解除锁后遵守原队列调度与 Pause，不额外停止正常队列。
+
 ### 2026-10-19 补充：显式清除 Illegal 的启动策略
 
 用户批准用新的 `startupPreference=clear-illegal` 替换重复的设置项 `sync-actual`，英文显示 **Clear Illegal status for all Sessions and treat them as safely offline**。这是启动时自动执行的独立管理员策略，不是“每次询问”的别名。旧持久配置 `sync-actual` 兼容读取为 ask，后续保存设置时写入规范值；不因升级而启用事故清除。

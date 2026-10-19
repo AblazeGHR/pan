@@ -2159,7 +2159,7 @@ async def _run_job_action(job: dict, target: str | None,
         candidates = sorted(
             (
                 session for session in _sessions.list_all(load_history=False)
-                if (_legality.recovery_needed(session)
+                if (_legality.is_illegal(session)
                     and isinstance(getattr(session, "id", None), str)
                     and _worker.find_alive_worker_by_session(session.id) is None)
             ),

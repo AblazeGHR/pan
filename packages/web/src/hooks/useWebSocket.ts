@@ -1028,7 +1028,6 @@ function handleWorkerUpdate(
       lastLegalWorkerState: e.session?.lastLegalWorkerState,
       legalOffline: e.session?.legalOffline,
       illegalOffline: e.session?.illegalOffline,
-      recoveryRequested: e.session?.recoveryRequested,
       legalityDiagnostics: e.session?.legalityDiagnostics,
       workerId: e.workerId,
       generation: e.generation,

@@ -742,17 +742,17 @@ def test_host_signal_fences_late_result_but_safe_idle_is_not_illegal(monkeypatch
 
 def test_legacy_recovery_import_is_idempotent_and_new_false_wins():
     legacy = sess.create("legacy-import").to_dict()
-    legacy.pop("recovery_requested")
+    legacy["recovery_requested"] = True
     legacy.pop("execution_operations")
     legacy.pop("legality_schema_version")
     legacy["last_legal_worker_state"] = "running"
     imported = sess.Session._from_data(copy.deepcopy(legacy))
-    assert imported.recovery_requested and not offline.is_illegal(imported)
+    assert not hasattr(imported, "recovery_requested") and not offline.is_illegal(imported)
     assert imported.execution_operations == {}  # no fabricated run/locks
     upgraded = imported.to_dict()
     upgraded["recovery_requested"] = False
     again = sess.Session._from_data(upgraded)
-    assert not offline.recovery_needed(again)
+    assert not offline.is_illegal(again) and "recovery_requested" not in again.to_dict()
 
 
 
@@ -760,6 +760,7 @@ def test_recovery_intent_replace_failure_never_publishes_or_changes_old_field(mo
     async def run():
         s, w = setup()
         s.last_legal_worker_state = "idle"
+        w.process.returncode = 0
         sess.save(s)
         events = []
         worker.set_broadcaster(events.append)
@@ -767,7 +768,7 @@ def test_recovery_intent_replace_failure_never_publishes_or_changes_old_field(mo
         monkeypatch.setattr(sess.os, "replace", Mock(side_effect=OSError("replace failed")))
         with pytest.raises(OSError, match="replace failed"):
             await worker.set_session_legal_worker_state_running(s.id)
-        assert not s.recovery_requested
+        assert not hasattr(s, "recovery_requested")
         assert s.last_legal_worker_state == "idle"
         assert sess._path(s.id).read_bytes() == before
         assert not events
@@ -776,18 +777,19 @@ def test_recovery_intent_replace_failure_never_publishes_or_changes_old_field(mo
 
 def test_new_safe_ledger_wins_over_legacy_running_without_recovery_field():
     data = sess.create("new-ledger").to_dict()
-    data.pop("recovery_requested")
+    data["recovery_requested"] = True
     data["last_legal_worker_state"] = "running"
     s = sess.Session._from_data(data)
-    assert not s.recovery_requested
-    assert s._recovery_migration_pending
+    assert not hasattr(s, "recovery_requested")
+    assert s._obsolete_legality_fields_pending
 
 
 def test_recovery_migration_is_durable_before_provider_and_retries_replace_failure(monkeypatch):
     async def run():
         original = sess.create("migration-disk")
         data = original.to_dict()
-        for key in ("recovery_requested", "execution_operations", "legality_schema_version"):
+        data["recovery_requested"] = True
+        for key in ("execution_operations", "legality_schema_version"):
             data.pop(key)
         data["last_legal_worker_state"] = "running"
         sess._path(original.id).write_text(json.dumps(data), encoding="utf-8")
@@ -797,13 +799,13 @@ def test_recovery_migration_is_durable_before_provider_and_retries_replace_failu
         monkeypatch.setattr(sess.os, "replace", Mock(side_effect=OSError("migration replace failed")))
         with pytest.raises(OSError, match="migration replace failed"):
             await worker._prepare_offline_recovery(s)
-        assert s._recovery_migration_pending and s.recovery_requested
+        assert s._obsolete_legality_fields_pending and not hasattr(s, "recovery_requested")
         assert sess._path(s.id).read_bytes() == before
         monkeypatch.setattr(sess.os, "replace", replace)
         await worker._prepare_offline_recovery(s)
         migrated = sess._path(s.id).read_bytes()
-        assert not s._recovery_migration_pending
-        assert json.loads(migrated)["recovery_requested"] is True
+        assert not s._obsolete_legality_fields_pending
+        assert "recovery_requested" not in json.loads(migrated)
         assert not s.execution_operations and not s.illegal_batches
         s = reload(s)
         await worker._prepare_offline_recovery(s)
@@ -811,14 +813,22 @@ def test_recovery_migration_is_durable_before_provider_and_retries_replace_failu
     asyncio.run(run())
 
 
-def test_ready_clears_recovery_intent_with_diagnostics_revision():
+def test_manual_pending_recovery_is_illegal_and_safe_offline_cancels_it():
     async def run():
-        s, w = setup()
-        await worker.set_session_recovery_intent(s.id, True, source="test")
-        revision = s.operation_revision
-        await worker._activate_offline_worker(w, ready_proof=True)
-        assert not s.recovery_requested and s.operation_revision > revision
-        assert reload(s).recovery_requested is False
+        s, w = setup(["B"])
+        w.process.returncode = 0
+        before = s.operation_revision
+        marked = await worker.set_session_legal_worker_state_running(s.id)
+        assert marked["illegalOffline"] and not marked["legalOffline"]
+        assert s.operation_revision > before
+        assert queue_locks.source(s.queue_pending[0]) == "illegal"
+        batches = copy.deepcopy(s.illegal_batches)
+        await worker.set_session_legal_worker_state_running(s.id)
+        assert s.illegal_batches == batches
+        cleared = await worker.sync_legal_worker_state_to_runtime(s.id)
+        assert cleared["legalOffline"] and not cleared["illegalOffline"]
+        assert queue_locks.source(s.queue_pending[0]) is None
+        assert "recovery_requested" not in reload(s).to_dict()
     asyncio.run(run())
 
 
@@ -835,7 +845,7 @@ def test_explicit_clear_illegal_retires_incident_and_only_its_locks(monkeypatch)
         # A dead provider owner with no native ownership uncertainty.
         result = await worker.clear_session_illegal_for_startup(s.id)
         assert result["legalOffline"] and not result["illegalOffline"]
-        assert not result["recoveryRequested"]
+        assert "recoveryRequested" not in result
         assert queue_locks.source(s.queue_pending[0]) == "manual"
         assert queue_locks.source(s.queue_pending[1]) is None
         assert s.queue_pending[1]["queueLockAutoReport"]
@@ -863,7 +873,7 @@ def test_clear_illegal_replace_failure_rolls_back_all_facts_and_locks(monkeypatc
         monkeypatch.setattr(sess.os, "replace", Mock(side_effect=OSError("clear replace failed")))
         with pytest.raises(OSError, match="clear replace failed"):
             await worker.clear_session_illegal_for_startup(s.id)
-        assert offline.is_illegal(s) and s.recovery_requested
+        assert offline.is_illegal(s) and not hasattr(s, "recovery_requested")
         assert queue_locks.source(s.queue_pending[0]) == "illegal"
         assert sess._path(s.id).read_bytes() == before
         assert not events
@@ -892,7 +902,7 @@ def test_clear_illegal_preserves_independent_running_responsibility():
         extra = offline.admit(s, {"token": "new", "generation": 2, "executionSeq": 1}, kind="command/exec")
         await worker.clear_session_illegal_for_startup(s.id)
         assert not offline.is_illegal(s) and not s.legal_offline
-        assert s.recovery_requested and extra["id"] in s.execution_operations
+        assert not s.legal_offline and extra["id"] in s.execution_operations
         assert not s.execution_operations[extra["id"]]["safeTerminal"]
     asyncio.run(run())
 

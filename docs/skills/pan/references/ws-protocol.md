@@ -18,7 +18,7 @@ description: Pan /ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测
 
 ## /ws/agent 订阅协议
 
-`queue.snapshot`、`worker.status` 等事件携带的 `session` 摘要使用新的 `legalOffline`、`illegalOffline`、`recoveryRequested`、`legalityDiagnostics`；按 `summaryRevision` 合并，较旧 HTTP 快照不得覆盖新事实。Illegal 是持久执行账本判定，不按 `workerStatus`、旧 `lastLegalWorkerState` 或 CLI 是否仍活推导。队列事件可能不带执行序号，不能因此丢弃其较新的 Session 摘要。
+`queue.snapshot`、`worker.status` 等事件携带的 `session` 摘要使用新的 `legalOffline`、`illegalOffline`、`legalityDiagnostics`；按 `summaryRevision` 合并，较旧 HTTP 快照不得覆盖新事实。Illegal 是持久执行账本判定，不按 `workerStatus`、旧 `lastLegalWorkerState` 或 CLI 是否仍活推导。队列事件可能不带执行序号，不能因此丢弃其较新的 Session 摘要。
 
 WebSocket 端点 `ws://127.0.0.1:<port>/ws/agent`。
 

@@ -111,7 +111,7 @@ function MainLifecycleRunningChoice({
   return (
     <fieldset className="mt-3 space-y-2">
       <legend className="text-[11px] text-text-secondary">
-        For Sessions with outstanding execution or recovery intent:
+        For Sessions with outstanding execution or Illegal status:
       </legend>
       <label className="flex items-start gap-2 text-[11px] text-text-primary">
         <input
@@ -1979,9 +1979,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent disabled:opacity-60"
                       >
                         <option value="ask">Ask every time</option>
-                        <option value="wake-running">Automatically wake Sessions with recovery intent</option>
+                        <option value="wake-running">Automatically recover Illegal Sessions</option>
                         <option value="clear-illegal">Clear Illegal status for all Sessions and treat them as safely offline</option>
-                        <option value="preserve-running">Preserve recovery intent without waking Sessions</option>
+                        <option value="preserve-running">Keep Illegal Sessions pending recovery without waking them</option>
                       </select>
                       <p className="mt-1 text-[10px] text-text-tertiary">
                         Clear Illegal retires previous incidents and releases their automatic locks; Manual locks and live or unknown owner protections remain.

@@ -5,8 +5,8 @@ import {
   fetchCodexQuota,
   fetchSession,
   fetchSessionUsage,
-  requestSessionRecovery,
-  reconcileSessionLegality,
+  markSessionIllegal,
+  markSessionSafelyOffline,
 } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -285,7 +285,7 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
   const usageUpdatedAt = usage?.updatedAt ?? usageCache?.cachedAt ?? null;
   const retryUsage = () => setUsageRetrySeq((value) => value + 1);
   const runLegalStateAction = async (
-    action: () => ReturnType<typeof reconcileSessionLegality>,
+    action: () => ReturnType<typeof markSessionSafelyOffline>,
     successLabel: (state: string, runtimeStatus?: string) => string,
 
   ) => {
@@ -301,9 +301,9 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
           || activeSessionIdRef.current !== targetSessionId) return;
       if (result.sessionId !== targetSessionId) {
         setLegalSyncFeedback({ kind: 'error', message: 'Legal state update returned a different Session.' });
-      } else if (result.status === 'updated' && typeof result.recoveryRequested === 'boolean') {
+      } else if (result.status === 'updated' && typeof result.illegalOffline === 'boolean') {
         const latest = detailCache.current.get(targetSessionId) ?? currentDetailSession;
-        const patch = { recoveryRequested: result.recoveryRequested, legalOffline: result.legalOffline, illegalOffline: result.illegalOffline, legalityDiagnostics: result.legalityDiagnostics };
+        const patch = { legalOffline: result.legalOffline, illegalOffline: result.illegalOffline, legalityDiagnostics: result.legalityDiagnostics };
         const updated = { ...latest, ...patch };
         detailCache.current.set(targetSessionId, updated);
         useSessionStore.getState().updateSession(
@@ -319,12 +319,12 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
         detailRequestId.current += 1;
         setLegalSyncFeedback({
           kind: 'success',
-          message: successLabel(result.recoveryRequested ? "requested" : "cleared", result.runtimeWorkerStatus),
+          message: successLabel(result.illegalOffline ? "Illegal / Pending recovery" : "Safely offline", result.runtimeWorkerStatus),
         });
       } else {
         setLegalSyncFeedback({
           kind: 'error',
-          message: result.error || 'Could not update recovery intent.',
+          message: result.error || 'Could not update execution legality.',
         });
       }
     } catch (error) {
@@ -343,13 +343,13 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
     }
   };
   const syncLegalState = () => runLegalStateAction(
-    () => reconcileSessionLegality(sessionId!),
-    (state, runtimeStatus) => `Recovery intent ${state}`
+    () => markSessionSafelyOffline(sessionId!),
+    (state, runtimeStatus) => `Session marked: ${state}`
       + (runtimeStatus ? ` (runtime: ${runtimeStatus})` : ''),
   );
   const setLegalStateRunning = () => runLegalStateAction(
-    () => requestSessionRecovery(sessionId!),
-    (state) => `Recovery intent ${state}`,
+    () => markSessionIllegal(sessionId!),
+    (state) => `Session marked: ${state}`,
   );
   const copyValue = (label: string, value: string | undefined) => {
     if (!value) {
@@ -446,27 +446,26 @@ export function SessionDetailsModal({ session, onClose }: SessionDetailsModalPro
                 disabled={!currentDetailSession || detailLoading || legalStateBusy}
                 className="shrink-0 rounded border border-border-default px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {legalStateBusy ? 'Updating…' : 'Reconcile execution facts'}
+                {legalStateBusy ? 'Updating…' : 'Mark as safely offline'}
               </button>
               <button
                 type="button"
-                aria-label="Request recovery"
-                aria-describedby="set-legal-state-running-help"
+                aria-label="Mark as Illegal / Pending recovery"
+                aria-describedby="execution-legality-actions-help"
                 onClick={() => void setLegalStateRunning()}
                 disabled={!currentDetailSession || detailLoading || legalStateBusy}
                 className="shrink-0 rounded border border-border-default px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Request recovery
+                Mark as Illegal / Pending recovery
               </button>
             </div>
           </div>
-          <p id="set-legal-state-running-help" className="mt-2 text-[11px] text-text-tertiary">
-            Recovery intent does not start a Worker or clear Illegal operations. Reconciliation never treats idle alone as safe completion.
+          <p id="execution-legality-actions-help" className="mt-2 text-[11px] text-text-tertiary">
+            Illegal means pending recovery. Marking safely offline clears prior Illegal incidents and their automatic locks; Manual locks remain. Neither action starts a Worker.
           </p>
           {legalitySession?.legalityDiagnostics && (
             <div className="mt-2 text-xs text-text-secondary" aria-label="Legality diagnostics">
               <p>Scope: {legalitySession.legalityDiagnostics.coverage}; revision: {legalitySession.legalityDiagnostics.revision}</p>
-              <p>Recovery requested: {String(legalitySession.recoveryRequested === true)}</p>
               {legalitySession.legalityDiagnostics.migrationUncertainty && <p>{legalitySession.legalityDiagnostics.migrationUncertainty}</p>}
               {legalitySession.legalityDiagnostics.outstanding.map(op => (
                 <p key={op.operationId}>{op.kind}: {op.state} — {op.reason || 'Awaiting safe completion'} ({op.operationId})</p>

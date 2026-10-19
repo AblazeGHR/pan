@@ -11,13 +11,13 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 
 ## 执行合法性与主服务退出（2026-10-18）
 
-Session 摘要/详情返回 `legalOffline`、`illegalOffline`、`recoveryRequested` 和 `legalityDiagnostics`。`legalOffline=false` 表示尚有未安全退休的执行责任，不能单独推断 Illegal；`illegalOffline=true` 表示已有确定事故。恢复意图不代表 Running 或 Illegal。旧 `lastLegalWorkerState` 仅为只读兼容元数据，新数据不使用它作决策。
+Session 摘要/详情返回 `legalOffline`、`illegalOffline` 和 `legalityDiagnostics`。**Illegal 就是待恢复，没有独立的恢复意图字段。** `legalOffline=false, illegalOffline=false` 仅表示正常执行尚未安全结束，不属于待恢复。旧 `lastLegalWorkerState` 仅为只读兼容元数据。历史 `recovery_requested` / `recoveryRequested` 加载时清理，不据其布尔值制造事故。
 
-2026-10-19：`PUT /api/settings/session-lifecycle` 支持 `startupPreference: "clear-illegal"`。下次启动自动将已有 Illegal operation 安全退休为 offline，解除精确归属仍匹配的事故自动锁，保留 Manual 和独立安全 gate；活/未知 owner 拒绝清除并允许从启动弹窗重试。处理范围包括已清恢复意图的 Illegal Session。旧设置值 `sync-actual` 按 ask 兼容读取，设置选项已移除；启动询问弹窗的 `sync-actual` 操作仍是核对事实，不会清事故。策略不生成继续消息，解锁后的正常队列调度仍遵守 Pause。
+`PUT /api/settings/session-lifecycle` 的 `startupPreference=clear-illegal` 会在下次启动将已有 Illegal 改为安全 offline，并解除仍归属对应事故的自动锁；保留 Manual 和独立安全 gate。旧设置值 sync-actual 按 ask 读取；询问弹窗里的“标记安全下线”现在也会取消 Illegal，而不是只改一个恢复意图字段。自动恢复及 resume Job 只选择 Illegal Session。
 
-- `POST /api/sessions/{id}/legality/reconcile` 核对执行事实并清除恢复意图，不清除确定 Illegal 或消息锁。
-- `POST /api/sessions/{id}/legality/request-recovery` 只持久化恢复意图，不启动 Worker，不制造执行。
-- 旧 `/legal-state/sync`、`/legal-state/running` 为 deprecated 别名，执行上述新语义。
+- `POST /api/sessions/{id}/legality/mark-illegal` 显式标记 Illegal / 待恢复，并按现有 queued 范围建立一次事故自动锁；Manual 不覆盖，重复不扩大。没有未结束 provider run 时记录独立 administrative operation，明确不是观测到 provider 执行。不会启动 Worker。
+- `POST /api/sessions/{id}/legality/mark-safe-offline` 显式取消 Illegal / 待恢复，将旧责任安全退休并解除其精确自动锁，保留 Manual。活/未知 owner 拒绝手动状态转换，不以 UI Idle 猜进程已停止。
+- `/legality/reconcile`、`/legal-state/sync` 为 mark-safe-offline 的 deprecated 别名；`/legality/request-recovery`、`/legal-state/running` 为 mark-illegal 的 deprecated 别名，不保留旧恢复意图行为。
 - `POST /api/main/exit` 与既有 `/api/main/restart` 使用保存的 `session_lifecycle.exitStrategy`；ask 时传 `{"options":{"markRunningSessionsOffline":true}}` 安全退休，False 保留未收尾执行为 Illegal。`{"options":{"preserveRunningIllegal":true}}` 可覆盖保存的安全策略。只有可核验 runtime 退休及必要落盘成功才算安全。
 - Pan 主服务 SIGINT/Ctrl+C、SIGTERM、服务管理停止/强杀不构成安全退出授权；已安全 Idle 不因此 Illegal。可交互主控制台 q 后回车使用同一 Exit API；ask 显示 1/2/3 菜单，2 秒内三次 q 或 qqq 回车强制保留未收尾执行。Worker/Job/原生终端内部 Ctrl+C 语义不变。
 

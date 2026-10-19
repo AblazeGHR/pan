@@ -24,13 +24,13 @@ const CHOICES: Array<{
   },
   {
     value: 'preserve-running',
-    title: 'Keep recovery intent and Illegal status',
-    detail: 'Do not restart them; retain recovery intent and existing execution incidents.',
+    title: 'Keep Illegal / pending recovery',
+    detail: 'Do not restart them; retain Illegal status and its automatic locks.',
   },
   {
     value: 'sync-actual',
-    title: 'Reconcile facts and dismiss recovery intent',
-    detail: 'Do not restart them; reconcile owners and clear recovery intent. Illegal incidents require a ready successor.',
+    title: 'Mark these Sessions as safely offline',
+    detail: 'Clear Illegal status and its automatic locks; preserve Manual locks. Do not send a recovery message.',
   },
 ];
 
@@ -188,7 +188,7 @@ export function StartupRecoveryPrompt() {
           Continue previous Sessions?
         </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          Pan found {record.candidateSnapshot.length} Session(s) with unfinished execution or saved recovery intent
+          Pan found {record.candidateSnapshot.length} Illegal Session(s) pending recovery
           and which currently have no live Worker.
         </p>
         <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary">

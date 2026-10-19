@@ -165,11 +165,9 @@ export interface Session {
   /** Durable execution safety; False alone is not an Illegal condition. */
   legalOffline?: boolean;
   illegalOffline?: boolean;
-  recoveryRequested?: boolean;
   legalityDiagnostics?: {
     coverage: string;
     revision: number;
-    recoveryRequested?: boolean;
     migrationUncertainty?: string | null;
     outstanding: Array<{ operationId: string; kind?: string; state?: string; reason?: string | null }>;
   };
@@ -1149,7 +1147,6 @@ export interface ApiSessionLegalStateSyncResult {
   sessionId: string;
   status: 'updated' | 'error';
   legalWorkerState?: string; // deprecated compatibility
-  recoveryRequested?: boolean;
   legalOffline?: boolean;
   illegalOffline?: boolean;
   legalityDiagnostics?: Session["legalityDiagnostics"];
@@ -1166,7 +1163,6 @@ export interface ApiStartupRecoveryCandidate {
   workdir?: string;
   updatedAt?: string;
   lastLegalWorkerState?: 'running';
-  recoveryRequested?: boolean;
 }
 
 export interface ApiStartupRecoveryRecord {

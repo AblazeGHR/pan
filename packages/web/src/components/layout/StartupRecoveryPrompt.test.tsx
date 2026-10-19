@@ -107,8 +107,8 @@ describe('StartupRecoveryPrompt', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog.className).toContain('max-w-[36rem]');
     expect(screen.getByText(/Restart these Sessions/)).toBeTruthy();
-    expect(screen.getByText(/Keep recovery intent and Illegal status/)).toBeTruthy();
-    expect(screen.getByText(/Reconcile facts and dismiss recovery intent/)).toBeTruthy();
+    expect(screen.getByText(/Keep Illegal \/ pending recovery/)).toBeTruthy();
+    expect(screen.getByText(/Mark these Sessions as safely offline/)).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', { name: /Restart these Sessions/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -141,7 +141,7 @@ describe('StartupRecoveryPrompt', () => {
 
     expect(await screen.findByRole('dialog')).toBeTruthy();
     const restart = screen.getByRole('radio', { name: /Restart these Sessions/ });
-    const sync = screen.getByRole('radio', { name: /Reconcile facts and dismiss recovery intent/ });
+    const sync = screen.getByRole('radio', { name: /Mark these Sessions as safely offline/ });
     expect((restart as HTMLInputElement).disabled).toBe(true);
     expect((sync as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
@@ -172,7 +172,7 @@ describe('StartupRecoveryPrompt', () => {
     expect(screen.getByText('session-1: queue store unavailable')).toBeTruthy();
     expect((screen.getByRole('radio', { name: /Restart these Sessions/ }) as HTMLInputElement).checked)
       .toBe(true);
-    expect((screen.getByRole('radio', { name: /Keep recovery intent and Illegal status/ }) as HTMLInputElement).disabled)
+    expect((screen.getByRole('radio', { name: /Keep Illegal \/ pending recovery/ }) as HTMLInputElement).disabled)
       .toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
     await waitFor(() => expect(decideMock).toHaveBeenCalledWith(
@@ -192,7 +192,7 @@ describe('StartupRecoveryPrompt', () => {
     render(<StartupRecoveryPrompt />);
 
     await screen.findByRole('dialog');
-    fireEvent.click(screen.getByRole('radio', { name: /Reconcile facts and dismiss recovery intent/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Mark these Sessions as safely offline/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await waitFor(() => expect(decideMock).toHaveBeenCalled());

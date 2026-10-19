@@ -51,7 +51,7 @@ describe('JobDetailDrawer width', () => {
       ...job,
       jobId: 'job_resume',
       kind: 'scheduled-task',
-      name: 'Resume legal running Sessions',
+      name: 'Recover Illegal Sessions',
       source: { type: 'system' },
       target: { sessionId: null },
       action: { api: 'resume_legal_running' },
@@ -78,7 +78,7 @@ describe('JobDetailDrawer width', () => {
 
     expect(screen.getByRole('button', { name: 'Run now' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Change target' })).toBeNull();
-    expect(screen.getAllByText(/dynamic: legal running Sessions without a live Worker/).length)
+    expect(screen.getAllByText(/dynamic: Illegal Sessions pending recovery without a live Worker/).length)
       .toBeGreaterThan(0);
     expect(screen.getByText('继续')).toBeTruthy();
   });

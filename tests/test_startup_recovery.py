@@ -6,6 +6,7 @@ import json
 import pytest
 
 from packages.core import session as sess
+from packages.core import legal_offline as legality
 from packages.core import worker
 from packages.web import server
 
@@ -20,7 +21,9 @@ def recovery_env(tmp_path, monkeypatch):
     sess._newline_terminated_jsonl.clear()
     server._STARTUP_RECOVERY_INFLIGHT.clear()
     created = sess.create("startup-candidate")
-    created.recovery_requested = True
+    from packages.core import legal_offline as legality
+    legality.begin(created, {"token": "failed", "generation": 1, "executionSeq": 1})
+    legality.detect(created, "crash", eligible=lambda _: True, remember=lambda _: None)
     created.last_legal_worker_state = "idle"  # stale legacy does not control recovery
     sess.save(created)
     yield tmp_path, created
@@ -280,7 +283,7 @@ def test_sync_actual_preference_waits_for_explicit_startup_choice(recovery_env, 
     assert result["decision"] is None
     assert result["state"] == "pending"
     assert result["attempts"] == 0
-    assert sess.get(candidate.id, load_history=False).recovery_requested is True
+    assert legality.is_illegal(sess.get(candidate.id, load_history=False)) is True
     assert json.loads(metadata_path.read_text(encoding="utf-8")) == before
 
     claim_owner()
@@ -290,9 +293,9 @@ def test_sync_actual_preference_waits_for_explicit_startup_choice(recovery_env, 
 
     assert chosen["state"] == "completed"
     assert chosen["decision"] == "sync-actual"
-    assert chosen["results"][0]["recoveryRequested"] is False
-    assert sess.get(candidate.id, load_history=False).recovery_requested is False
-    assert json.loads(metadata_path.read_text(encoding="utf-8"))["recovery_requested"] is False
+    assert chosen["results"][0]["illegalOffline"] is False
+    assert legality.is_illegal(sess.get(candidate.id, load_history=False)) is False
+    assert "recovery_requested" not in json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
 def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env, monkeypatch):
@@ -311,9 +314,9 @@ def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env,
     assert result["results"] == [{
         "sessionId": candidate.id,
         "status": "preserved",
-        "recoveryRequested": True,
+        "illegalOffline": True,
     }]
-    assert sess.get(candidate.id, load_history=False).recovery_requested is True
+    assert legality.is_illegal(sess.get(candidate.id, load_history=False)) is True
 
 
 def test_automatic_startup_with_no_candidates_is_a_quiet_noop(recovery_env, monkeypatch):
@@ -396,12 +399,8 @@ def test_clear_illegal_policy_selects_incidents_even_without_recovery_intent(rec
     _, candidate = recovery_env
     from packages.core import legal_offline as legality
     identity = {"token": "failed", "generation": 1, "executionSeq": 1}
-    legality.begin(candidate, identity)
-    legality.detect(candidate, "crash", eligible=lambda _: True, remember=lambda _: None)
-    candidate.recovery_requested = False
     sess.save(candidate)
     unaffected = sess.create("intent-only")
-    unaffected.recovery_requested = True
     sess.save(unaffected)
     set_startup_preference(monkeypatch, "clear-illegal")
     async def unexpected(*_args, **_kwargs):
@@ -411,15 +410,13 @@ def test_clear_illegal_policy_selects_incidents_even_without_recovery_intent(rec
     assert result["decision"] == "clear-illegal" and result["state"] == "completed"
     assert [row["id"] for row in result["candidateSnapshot"]] == [candidate.id]
     assert candidate.legal_offline and not legality.is_illegal(candidate)
-    assert unaffected.recovery_requested
+    assert not legality.is_illegal(unaffected)
     assert asyncio.run(server._initialize_startup_recovery([candidate, unaffected]))["attempts"] == 1
 
 
 def test_failed_clear_policy_retries_saved_choice_without_new_incident(recovery_env, monkeypatch):
     _, candidate = recovery_env
     from packages.core import legal_offline as legality
-    legality.begin(candidate, {"token": "failed", "generation": 1, "executionSeq": 1})
-    legality.detect(candidate, "crash", eligible=lambda _: True, remember=lambda _: None)
     sess.save(candidate)
     set_startup_preference(monkeypatch, "clear-illegal")
     status = ["unknown"]

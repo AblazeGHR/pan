@@ -1358,7 +1358,6 @@ class Session:
     last_legal_worker_state: str | None = None
     # Independent execution safety ledger; missing legacy data is unverified,
     # never evidence of an unfinished run. Explicit run tokens start the policy.
-    recovery_requested: bool = False
     legal_offline: bool = True
     offline_migration_uncertainty: str | None = None
     offline_owner: dict | None = None
@@ -1467,7 +1466,6 @@ class Session:
                  result_cursor: int = 0,
                  terminal_results: list[dict] | None = None,
                  last_legal_worker_state: str | None = None,
-                 recovery_requested: bool | None = None,
                  legal_offline: bool = True,
                  offline_migration_uncertainty: str | None = None,
                  offline_owner: dict | None = None,
@@ -1567,14 +1565,6 @@ class Session:
             last_legal_worker_state if isinstance(last_legal_worker_state, str)
             else None
         )
-        # One-time compatibility import. Explicit new False always wins.
-        if type(recovery_requested) is bool:
-            self.recovery_requested = recovery_requested
-        elif execution_operations is not None and legality_schema_version >= 2:
-            self.recovery_requested = any(not op.get("safeTerminal") and not op.get("retirement", {}).get("safe")
-                                          for op in execution_operations.values())
-        else:
-            self.recovery_requested = last_legal_worker_state == "running"
         self.offline_migration_uncertainty = offline_migration_uncertainty
         self.legal_offline = legal_offline if type(legal_offline) is bool else True
         self.offline_owner = copy.deepcopy(offline_owner) if isinstance(offline_owner, dict) else None
@@ -1599,9 +1589,6 @@ class Session:
             self.offline_run = None
         from .legal_offline import migrate
         migrate(self)
-        if type(recovery_requested) is not bool and self.execution_operations:
-            # Stable v1 runs also outrank the older UI-state ledger.
-            self.recovery_requested = not self.legal_offline
         self.created_at = created_at
         self.updated_at = updated_at
         try:
@@ -1871,7 +1858,9 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
-        needs_recovery_migration = "recovery_requested" not in data
+        has_obsolete_legality_fields = "recovery_requested" in data or "recoveryRequested" in data
+        data.pop("recovery_requested", None)
+        data.pop("recoveryRequested", None)
         if "legal_offline" not in data and not data.get("offline_migration_uncertainty"):
             data["offline_migration_uncertainty"] = "legacy-missing-legality"
         _canonicalize_summary_projection_data(data)
@@ -1916,7 +1905,7 @@ class Session:
         data["pan_access"] = pa
         data["adapter_config"] = ac
         instance = cls(**data)
-        instance._recovery_migration_pending = needs_recovery_migration
+        instance._obsolete_legality_fields_pending = has_obsolete_legality_fields
         return instance
 
     def to_dict(self) -> dict:
@@ -1945,7 +1934,6 @@ class Session:
             "result_cursor": self.result_cursor,
             "terminal_results": self.terminal_results,
             "last_legal_worker_state": self.last_legal_worker_state,
-            "recovery_requested": self.recovery_requested,
             "legal_offline": self.legal_offline,
             "offline_migration_uncertainty": self.offline_migration_uncertainty,
             "offline_owner": self.offline_owner,
@@ -2124,7 +2112,6 @@ def _summary_metadata_signature(s: Session) -> str:
         "adapter_config": s.adapter_config,
         "session_template": s.session_template,
         "workdir": s.workdir,
-        "recovery_requested": s.recovery_requested,
         "legal_offline": s.legal_offline,
         "operation_revision": s.operation_revision,
         "offline_owner": s.offline_owner,

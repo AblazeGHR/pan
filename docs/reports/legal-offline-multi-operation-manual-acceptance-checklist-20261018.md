@@ -1,5 +1,7 @@
 # Legal Offline / Multi-operation 人工验收清单
 
+**2026-10-19 最新语义：Illegal 就是待恢复，独立恢复意图字段已经删除；本节覆盖下文历史步骤里“仅清除恢复意图”的说法。** 详情使用 Mark as Illegal / Pending recovery 和 Mark as safely offline：前者应同时显示红灯、进入待恢复列表并建立一次事故自动锁；后者应安全下线、退出待恢复列表并解除对应自动锁。Manual、报告锁、Pause 保留。重复标记不能扩大/重锁；活/未知 owner 应拒绝手动转换。新摘要、详情、WS、诊断与落盘 JSON 均不应再有 recoveryRequested/recovery_requested。启动自动恢复与恢复 Job 只选择 Illegal。clear-illegal 设置在下次启动自动执行同样的安全退休，旧字段不得被升级解释成新事故。
+
 适用分支：`review/legal-offline-illegal-lock-20261018` 的最新迁移提交（包含原 `3a2a7c5da9c4914bc874260d153e6434cfe03647` 多 operation 实现；精确交付 hash 见本次迁移报告）。验收应在本工作树进行，使用动态 loopback 端口；不要使用 8767、8768 或既有 Pan 服务。当前工作树的 `data/` 是服务默认持久化目录，验收会写入 Session、history、日志和 workdir。验收前确认可以接受这些临时记录，完成后从 UI 删除测试 Session 并检查遗留文件。
 
 本树依赖已准备，React 已构建；node_modules 为指向 `D:/project/Pan/packages/web/node_modules` 的只读使用 junction。不要对共享依赖运行安装命令。服务尚未为人工验收启动。

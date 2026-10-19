@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from packages.core import session as sess  # noqa: E402
+from packages.core import legal_offline as offline
 from packages.core import worker  # noqa: E402
 from packages.core.adapters import CbcAdapter  # noqa: E402
 from packages.web import server as web_server  # noqa: E402
@@ -106,11 +107,13 @@ def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
 ):
     candidate = sess.create("recovery-candidate")
     candidate.last_legal_worker_state = "idle"  # conflicting legacy must not win
-    candidate.recovery_requested = True
+    offline.begin(candidate, {"token": "candidate", "generation": 1, "executionSeq": 1})
+    offline.detect(candidate, "crash", eligible=lambda _: True, remember=lambda _: None)
     sess.save(candidate)
 
     active = sess.create("worker-still-live")
-    active.recovery_requested = True
+    offline.begin(active, {"token": "active", "generation": 1, "executionSeq": 1})
+    offline.detect(active, "crash", eligible=lambda _: True, remember=lambda _: None)
     sess.save(active)
 
     not_running = sess.create("not-running")
@@ -142,7 +145,6 @@ def test_recovery_candidates_use_persisted_running_state_and_skip_live_workers(
             "workdir": candidate.workdir,
             "updatedAt": candidate.updated_at,
             "lastLegalWorkerState": "idle",
-            "recoveryRequested": True,
         }],
     }
     assert candidate_metadata.read_bytes() == persisted_before
@@ -156,11 +158,11 @@ def test_runtime_sync_helper_persists_observed_offline_state(isolated_sessions):
     result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
 
     assert result["status"] == "updated"
-    assert result["recoveryRequested"] is False
+    assert result["illegalOffline"] is False
     assert result["illegalOffline"] is False
     assert session.last_legal_worker_state == "running"  # compatibility data is read only
     metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
-    assert metadata["recovery_requested"] is False
+    assert "recovery_requested" not in metadata
 
 
 def test_explicit_running_write_serializes_after_details_runtime_sync(
@@ -178,10 +180,10 @@ def test_explicit_running_write_serializes_after_details_runtime_sync(
             assert not sync_task.done() and not running_task.done()
         return await sync_task, await running_task
     sync_result, running_result = asyncio.run(run_race())
-    assert sync_result["recoveryRequested"] is False
-    assert running_result["recoveryRequested"] is True
+    assert sync_result["illegalOffline"] is False
+    assert running_result["illegalOffline"] is True
     assert session.last_legal_worker_state == "idle"
-    assert json.loads((isolated_sessions / f"{session.id}.json").read_text())["recovery_requested"] is True
+    assert offline.is_illegal(session)
 
 
 def test_runtime_sync_does_not_mark_a_still_running_provider_process_offline(
@@ -238,8 +240,8 @@ def test_runtime_sync_uses_live_worker_status(isolated_sessions):
     worker._register_worker(runtime)
     try:
         result = asyncio.run(worker.sync_legal_worker_state_to_runtime(session.id))
-        assert result["status"] == "updated"
-        assert result["recoveryRequested"] is False
+        assert result["status"] == "error"
+        assert "not stopped" in result["error"]
         assert session.last_legal_worker_state == "running"
     finally:
         worker.workers.pop(runtime.worker_id, None)
@@ -293,4 +295,4 @@ def test_shutdown_marks_requested_persisted_running_session_offline_without_work
 
     assert session.last_legal_worker_state == "running"
     metadata = json.loads((isolated_sessions / f"{session.id}.json").read_text())
-    assert metadata["recovery_requested"] is False
+    assert "recovery_requested" not in metadata
