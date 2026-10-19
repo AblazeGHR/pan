@@ -61,24 +61,44 @@
 - `packages/web/src/views/PluginPanelView.test.tsx`
   - 缺 CLI 指引、链接 `href/target/rel`；
   - 不兼容与普通失败区分；
-  - 成功列表和普通额度错误不展示安装指引。
+  - list 成功后 quota `cli_unavailable`、switch/default `cli_unavailable` 均展示仓库链接；
+  - 普通 `cli_failed`（读/写）不展示链接；
+  - quota 成功、list 恢复后清理陈旧指引，同时保留普通错误消息、`uncertain` 与防重状态；
+  - 额度指引按 app 隔离，不泄漏到其他 app。
 - `packages/web/e2e/cc-switch-cli-guidance.e2e.mjs`
   - 真实 Chromium + 生产组件 + Vite fixture；
   - 全部 API 为拦截的 `isError` fixture，外部导航（含仓库链接）被 context route 拦截，未访问网络、未执行真实 CLI；
+  - 场景一：list `cli_not_found`；场景二：list 成功后 quota `cli_unavailable`；场景三：list 成功后 switch `cli_unavailable` 并验证 `uncertain` 与刷新后恢复；
   - 点击链接后核对 popup 的目标 URL 为仓库地址；
   - 390×844 窄屏无横向溢出。
+
+## Follow-up：list 成功后的 quota / write CLI 失败
+
+源码复核指出，首版只从 list 错误推导安装指引；list 成功后 CLI 被删除/无法启动时，
+quota、switch、default_account 的异常仍被存成纯字符串，code 丢失。本次最小补齐：
+
+- `PluginPanelView` 的 `actionErrors`（写操作）与 `quotaErrors` 改为 `{message, code?}`，
+  并都按 app 保存；`cliIssue` 依次从 list、写操作、当前 app 的 quota 错误中取 CLI
+  availability code，任一来源命中都展示同一个安装指引/仓库链接。
+- 写操作失败仍设置 `uncertain`；`expectedCurrentId`、requestId 防重、未知结果不自动
+  重试、额度缓存/代次逻辑均未改。
+- `clearCliGuidance` 在 list、写操作或 quota 成功后只剥离 CLI code、保留普通错误消息：
+  quota 自身成功会删除该 provider 的额度错误；list/写操作成功会清除同一 app 的陈旧
+  安装指引，但不会清掉其他 app 的状态，也不会清除 `uncertain` 的未知结果栅栏。
+- 普通 `cli_failed`、网络/额度失败没有 CLI availability code，仍只显示普通错误，不展示
+  仓库链接。
 
 ## 验证结果
 
 | 检查 | 命令（工作目录） | 结果 |
 |---|---|---|
 | 后端 bridge / 插件回归 | `E:/software/miniforge/python.exe scripts/run_tests_isolated.py -- E:/software/miniforge/python.exe -m pytest tests/test_plugin_panels.py tests/test_plugin_developer_help.py -q` | 21 passed |
-| 定向前端测试 | `.validation/web`：`pnpm exec vitest run src/views/PluginPanelView.test.tsx src/services/api.test.ts --no-cache` | 2 files / 59 tests passed |
-| 全量前端测试 | `.validation/web`：`pnpm exec vitest run --no-cache` | 169 files / 2053 tests passed |
+| 定向前端测试 | `.validation/web`：`pnpm exec vitest run src/views/PluginPanelView.test.tsx src/services/api.test.ts --no-cache` | 2 files / 64 tests passed |
+| 全量前端测试 | `.validation/web`：`pnpm exec vitest run --no-cache` | 169 files / 2058 tests passed |
 | 类型检查 | `.validation/web`：`pnpm exec tsc -b` | exit 0 |
 | 构建 | `.validation/web`：`pnpm build` | exit 0，72 个预压缩资源校验通过 |
 | 改动 lint | `.validation/web`：`pnpm exec eslint src/views/PluginPanelView.tsx src/views/PluginPanelView.test.tsx src/services/api.ts src/services/api.test.ts` | 0 error；`PluginPanelView.tsx` 保留既有 react-refresh warning |
-| 真实 Chromium | `.validation/web`：`node e2e/cc-switch-cli-guidance.e2e.mjs` | passed；`realCliExecuted:false` |
+| 真实 Chromium | `.validation/web`：`node e2e/cc-switch-cli-guidance.e2e.mjs` | 3 个场景 passed；`realCliExecuted:false` |
 
 依赖环境：`.validation/web` 为 gitignored 的隔离验证树，`node_modules` 指向
 `D:/project/pan-dependency-cache/249D2FC3A1A0FD51/node_modules/`，与
@@ -90,18 +110,23 @@ canonical junction。提交 hook 需要 canonical 树具备完整依赖时，仅
 ## 证据 hash
 
 实现提交：`742d7371933a2a9e60793d758a3392e6db70280e`
+Follow-up 提交：`5265c871cfe75a66e5cdc48b9dc90f89eb019130`
+（`fix(cc-switch): keep CLI guidance for quota and write failures`）
 
 | git blob | 文件 |
 |---|---|
-| `400d8d06f2153d1bdf730664e1a9bf518d47a016` | `audit/cc-switch-cli-guidance-20261019/browser-result.json` |
+| `0dbf1015c203783f0a795fb016c129549a960406` | `audit/cc-switch-cli-guidance-20261019/browser-result.json` |
 | `2e67d29d8c270b2eceed4f651e76bac5da9c3f7b` | `audit/cc-switch-cli-guidance-20261019/missing-cli.png` |
 | `9210db7b5c0e3fc4e22efa5f12c289a71f75b1d3` | `audit/cc-switch-cli-guidance-20261019/missing-cli-mobile.png` |
-| `55b34cdb721301300ff3ea38f3ad4689246b627f` | `packages/web/e2e/cc-switch-cli-guidance.e2e.mjs` |
+| `fccd0d1538fce4bb21dcaf9987e1614ca2b2d07c` | `audit/cc-switch-cli-guidance-20261019/quota-unavailable.png` |
+| `46426e2f2c07eed4d71a3bc4946d6581a15e8015` | `audit/cc-switch-cli-guidance-20261019/write-unavailable.png` |
+| `4b268f8e1b41d2c16b707e69d66ef8ac1aada923` | `packages/web/e2e/cc-switch-cli-guidance.e2e.mjs` |
 
 ## 边界与未验证
 
 - 未使用真实 cc-switch CLI、账号、数据库或凭据；未执行真实换号，未下载或安装外部 CLI。
 - 浏览器测试的外部页面只被拦截并核对 URL；未加载 GitHub 内容。
-- 未覆盖“列表成功后才移除 CLI，随后写操作失败”的 UI 指引；当前指引由列表读取的 CLI 可用性错误触发，写操作仍保留原错误与 `uncertain` 语义。
+- 浏览器真实 Chromium 覆盖 list 缺 CLI、list 成功后 quota 失败、list 成功后 switch 失败；default_account 的同一写路径由单元测试覆盖，未单独跑浏览器。
+- 未用真实 CLI 验证“切换过程中 CLI 被删除”的进程级时序；fixture 只模拟返回 `cli_unavailable` 的结构化错误。
 - 未修改 `expectedCurrentId`、写操作幂等/防重、`uncertain` 阻塞、额度缓存与自动刷新逻辑。
 - 未 push、未合并、未追 main、未创建 tag/release。
