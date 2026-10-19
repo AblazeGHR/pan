@@ -3,6 +3,7 @@
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import psutil
@@ -38,11 +39,13 @@ def test_takeover_holds_worker_without_respawning(monkeypatch):
         session_id=session.id,
         adapter=CbcAdapter(),
         status="idle",
-        process=object(),
+        process=SimpleNamespace(returncode=None),
         pending_signal=asyncio.Queue(),
     )
     worker.workers[w.worker_id] = w
-    kill_tree = AsyncMock()
+    async def stopped(runtime):
+        runtime.process.returncode = 0
+    kill_tree = AsyncMock(side_effect=stopped)
     kill_terminal = AsyncMock()
     spawn = AsyncMock()
     monkeypatch.setattr(worker, "_kill_process_tree", kill_tree)
@@ -109,7 +112,7 @@ def test_takeover_stop_failure_preserves_owner_and_blocks_spawn(monkeypatch, ope
         action = worker.restart_worker if operation == "restart" else worker.kill_worker
         error = asyncio.run(action(w.worker_id))
         assert "writer still active" in error
-        assert w.status == "held"
+        assert w.status == "error"
         assert w.takeover_job is owner and w.takeover_pid == 123
         assert worker.get_worker(w.worker_id) is w
         spawn.assert_not_awaited()
@@ -194,6 +197,9 @@ def test_takeover_route_restart_during_broadcast_does_not_open_writer(monkeypatc
     _cleanup()
     s = _sess.Session(id="route-race", name="isolated", adapter="codex")
     s.cli_session_id = "fake-thread-no-runtime"
+    # This race test starts after native resume admission; separate tests
+    # exercise missing/fabricated CLI storage through the real admission gate.
+    monkeypatch.setattr(server, "_takeover_readiness", lambda _: {"ready": True, "reason": None})
     _sess._cache[s.id] = s
     w = worker.Worker(worker_id="route-worker", session_id=s.id, adapter=CodexAdapter(), status="idle")
     worker.workers[w.worker_id] = w

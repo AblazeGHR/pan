@@ -26,6 +26,7 @@ function mockMatchMedia(matches = false) {
 beforeEach(() => {
   mockMatchMedia();
   vi.spyOn(api, 'requestDelayedRestart').mockResolvedValue(null);
+  vi.spyOn(api, 'fetchTakeoverReadiness').mockResolvedValue({ ready: true, reason: null });
   useSessionStore.setState({
     currentSessionId: 'session-123456789',
     sessions: [{
@@ -148,6 +149,7 @@ describe('TopBar compact worker presentation', () => {
     useNativeControlStore.setState({ sessions: { [sid]: { workerId: 'worker-123', mode: 'native', generation: 1, error: null } } });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<TopBar />);
+    await waitFor(() => expect(screen.getByTitle('Takeover').hasAttribute('disabled')).toBe(false));
     for (const title of ['Restart worker', 'Interrupt', 'Takeover', 'Kill worker']) fireEvent.click(screen.getByTitle(title));
     await waitFor(() => {
       for (const action of ['restart', 'interrupt', 'takeover', 'killCurrent'] as const)
@@ -246,8 +248,9 @@ describe('TopBar compact worker presentation', () => {
     expect(tui.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('hides model/status/worker text while retaining the dot and worker actions', () => {
+  it('hides model/status/worker text while retaining the dot and worker actions', async () => {
     render(<TopBar />);
+    await waitFor(() => expect(screen.getByTitle('Takeover').hasAttribute('disabled')).toBe(false));
 
     expect(screen.queryByText('secret-model')).toBeNull();
     expect(screen.queryByText(/waiting for approval|active|running|worker-123|no worker/)).toBeNull();

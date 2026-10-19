@@ -1826,6 +1826,10 @@ export async function takeoverWorker(workerId: string): Promise<ApiGenericRespon
   return data;
 }
 
+export async function fetchTakeoverReadiness(sessionId: string): Promise<{ ready: boolean; reason: string | null }> {
+  return request(`${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/takeover-readiness`);
+}
+
 export async function takeoverSessionWorker(sessionId: string): Promise<ApiGenericResponse> {
   const data = await request<ApiGenericResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}/worker/takeover`,

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTerminalTuiEntry, terminalTuiTitle } from '@/hooks/useTerminalTuiEntry';
 import { useTopBarUsageFit } from '@/hooks/useTopBarUsageFit';
+import { useTakeoverReadiness } from '@/hooks/useTakeoverReadiness';
 import { fetchSessionUsage } from '@/services/api';
 import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/codexRateLimits';
 import type { CodexQuotaProjection } from '@/types';
@@ -112,6 +113,7 @@ function cachedQuotaLabel(quota: unknown): string | undefined {
 
 export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   const currentSession = useCurrentSession();
+  const takeoverReadiness = useTakeoverReadiness(currentSession);
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   // TopBar is the always-mounted poller driving the shared Terminal TUI
   // contract (including the auto-enter after a "pending idle" upgrade that
@@ -479,7 +481,8 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
                     )
                     .catch((e) => showToast(e.message, 'error'));
                 }}
-                title="Takeover"
+                disabled={!takeoverReadiness.ready}
+                title={takeoverReadiness.reason || 'Takeover'}
               >
                 <Download size={14} />
               </Button>
@@ -491,7 +494,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
               onClick={() => {
                 if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
                 killCurrent(currentSession.id)
-                  .then(() => showToast('Kill sent'))
+                  .then(() => showToast('Worker stopped'))
                   .catch((e) => showToast(e.message, 'error'));
               }}
               title="Kill worker"

@@ -404,7 +404,15 @@ class KimiAdapter:
         if not s.cli_session_id:
             return []
         # 用绝对路径 _KIMI_PATH（Windows 下 PATH 不一定有 kimi，裸 "kimi" 会失败）。
-        return [self._KIMI_PATH, "-S", s.cli_session_id]
+        command = [self._KIMI_PATH, "-S", s.cli_session_id]
+        home = s.adapter_config.get("kimi_home_dir")
+        if home:
+            # Interactive resume must use the same native profile as Pan's
+            # wrapper; changing profile can make a real session look absent.
+            return [sys.executable, "-c",
+                    "import os,sys; os.environ['KIMI_CODE_HOME']=sys.argv[1]; os.execv(sys.argv[2],sys.argv[2:])",
+                    str(home), *command]
+        return command
 
     # ── enrich ──
 

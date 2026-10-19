@@ -158,6 +158,9 @@ def main() -> None:
         worker._spawn_process = probe_spawn
 
     import uvicorn
+    if os.environ.get("PAN_E2E_TAKEOVER_PROBE") == "1":
+        from takeover_probe import install
+        install(server, data_root)
 
     from packages.core.host_server import PanServer
     host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,

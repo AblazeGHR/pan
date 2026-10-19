@@ -742,6 +742,45 @@ def session_exists(session_id: str, cwd: str | None = None) -> bool:
         con.close()
 
 
+def takeover_resume_available(session_id: str) -> bool:
+    """A minted thread/index row alone cannot be resumed by the native TUI.
+
+    Require the actual rollout, its matching session identity and a native
+    conversation item. Stop at the first item instead of projecting a large
+    transcript or accepting the possibly stale thread_history fallback.
+    """
+    con = _connect_ro(_STATE_DB)
+    if con is None:
+        return False
+    try:
+        row = _thread_row(con, session_id)
+    finally:
+        con.close()
+    path = _rollout_full_path(row.get("rollout_path")) if row else None
+    if path is None:
+        return False
+    matched = False
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            payload = event.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            if event.get("type") == "session_meta":
+                matched = (payload.get("id") or payload.get("session_id")) == session_id
+                if not matched:
+                    return False
+            if (matched and event.get("type") == "response_item"
+                    and payload.get("type") == "message"
+                    and payload.get("role") in {"user", "assistant"}
+                    and payload.get("content")):
+                return True
+    return False
+
+
 def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     """SessionsProvider：fork codex thread（DB 行复制 + parent 指向）。"""
     return fork_codex_session(parent_id, name, cwd)

@@ -49,6 +49,7 @@ import httpx
 import psutil
 
 from packages.core import worker
+from packages.core.takeover import readiness as _takeover_readiness
 from packages.core import legal_offline, queue_locks
 from packages.core import session as sess
 from packages.core import session_bookmarks
@@ -1863,7 +1864,8 @@ def _resync_snapshot(
     workers = []
     active_workers = worker.find_alive_workers_by_session()
     for runtime in worker.list_workers():
-        if active_workers.get(runtime.session_id) is not runtime:
+        if (active_workers.get(runtime.session_id) is not runtime
+                and worker._find_control_worker(runtime.session_id) is not runtime):
             continue
         if requested and runtime.session_id not in requested:
             continue
@@ -2093,7 +2095,7 @@ def _session_to_api(
     pin_projection: dict | None = None,
 ):
     """Convert Session to API response dict."""
-    w = worker.find_alive_worker_by_session(s.id)
+    w = worker._find_control_worker(s.id)
     a = get_adapter(s.adapter)
     config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
@@ -2431,6 +2433,8 @@ def _session_summary(
     """
     w = (active_workers.get(s.id) if active_workers is not None
          else worker.find_alive_worker_by_session(s.id))
+    if w is None and (s.offline_owner or {}).get("externalTakeover"):
+        w = worker._find_control_worker(s.id)
     projection = sess.summary_projection(s)
     worker_state = getattr(s, "_summary_worker_state", None) or {}
     worker_status = w.status if w else worker_state.get("status")
@@ -3511,10 +3515,16 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
     async with lock:
         if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
             raise OSError("Takeover superseded by another lifecycle operation")
-        await worker.reserve_takeover_owner(w)
-        if sys.platform == "win32" and w.adapter.name == "codex":
+        if sys.platform == "win32":
             from packages.core.takeover_job import TakeoverJob
             job = TakeoverJob()
+            try:
+                await worker.reserve_takeover_owner(w)
+            except BaseException:
+                # No launch occurred. Release only this newly allocated empty
+                # Job; a failed reservation leaves existing metadata intact.
+                await asyncio.to_thread(job.stop)
+                raise
             w.takeover_job = job
             try:
                 w.takeover_pid = _open_terminal(cmd, cwd, takeover_job=job)
@@ -3522,6 +3532,7 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
                 await worker._kill_takeover_terminal(w)
                 raise
         else:
+            await worker.reserve_takeover_owner(w)
             w.takeover_pid = _open_terminal(cmd, cwd)
 
 
@@ -13286,8 +13297,9 @@ async def api_takeover(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+    admission = _takeover_readiness(s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
     if w.status == "held":
         return {"error": "Worker already in takeover mode"}
 
@@ -13320,7 +13332,7 @@ async def api_takeover(worker_id: str):
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
-    except OSError as e:
+    except (OSError, RuntimeError) as e:
         return {"error": str(e)}
 
     return {
@@ -13337,17 +13349,26 @@ async def api_takeover(worker_id: str):
     }
 
 
+@app.get("/api/sessions/{session_id}/worker/takeover-readiness")
+async def api_takeover_readiness(session_id: str):
+    s = _summary_session_get(session_id)
+    if s is None:
+        return {"ready": False, "reason": "Session not found"}
+    return await asyncio.to_thread(_takeover_readiness, s)
+
+
 @app.post("/api/sessions/{session_id}/worker/takeover")
 async def api_session_takeover(session_id: str):
     """Take over the session's live worker using sessionId as the control key."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    w = worker.find_alive_worker_by_session(session_id)
+    admission = _takeover_readiness(s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
     if not w:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+        return {"error": "Worker is offline. Start the worker before takeover."}
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
@@ -13356,7 +13377,7 @@ async def api_session_takeover(session_id: str):
     if isinstance(result, str):
         return {"error": result}
     if result is None:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+        return {"error": "Worker went offline before takeover. Start the worker and retry."}
     w = result
     generation = w.generation
     await broadcast({
@@ -13372,7 +13393,7 @@ async def api_session_takeover(session_id: str):
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
-    except OSError as e:
+    except (OSError, RuntimeError) as e:
         return {"error": str(e)}
     return {
         "workerId": w.worker_id,
@@ -13398,8 +13419,9 @@ async def api_takeover_command(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+    admission = _takeover_readiness(s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
 
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
@@ -13421,11 +13443,12 @@ async def api_session_takeover_command(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    w = worker.find_alive_worker_by_session(session_id)
+    admission = _takeover_readiness(s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
     if not w:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+        return {"error": "Worker is offline. Start the worker before takeover."}
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}

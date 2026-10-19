@@ -15,6 +15,7 @@ import type { AdapterConfig, PermissionMode, Session } from '@/types';
 import { FreshnessStatus } from '@/components/session/FreshnessStatus';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useTakeoverReadiness } from '@/hooks/useTakeoverReadiness';
 import { useTerminalTuiEntry, terminalTuiTitle } from '@/hooks/useTerminalTuiEntry';
 import { ArrowUp, Loader2, TerminalSquare } from 'lucide-react';
 
@@ -59,6 +60,7 @@ function pickSettings(session: Session): SessionSettingPatch {
  */
 export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverProps) {
   const session = useCurrentSession();
+  const takeoverReadiness = useTakeoverReadiness(session);
   const { isMobile } = useMediaQuery();
   // Mobile-only Terminal TUI entry (the mobile top bar no longer shows it).
   // poll:false — the always-mounted TopBar drives the shared refresh/auto-enter
@@ -688,6 +690,8 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                     .then(() => showToast('PowerShell opened for takeover'))
                     .catch((e) => showToast(e.message, 'error'))
                 }
+                disabled={!takeoverReadiness.ready}
+                title={takeoverReadiness.reason || 'Takeover'}
               >
                 ⤓ Takeover
               </Button>
@@ -697,7 +701,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                 onClick={() => {
                   if (!confirm(`Kill worker ${effectiveWorkerId}?`)) return;
                   killCurrent(session.id)
-                    .then(() => showToast('Kill sent'))
+                    .then(() => showToast('Worker stopped'))
                     .catch((e) => showToast(e.message, 'error'));
                 }}
               >

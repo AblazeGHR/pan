@@ -1,0 +1,237 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\takeover-lifecycle-20261019
+...FFFF                                                                  [100%]
+================================== FAILURES ===================================
+_______ test_unestablished_cli_id_cannot_bypass_takeover[api_takeover] ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002416BAEE470>
+route_name = 'api_takeover'
+
+    @pytest.mark.parametrize('route_name', ['api_takeover', 'api_session_takeover',
+                                          'api_takeover_command', 'api_session_takeover_command'])
+    def test_unestablished_cli_id_cannot_bypass_takeover(monkeypatch, route_name):
+        from packages.web import server
+        async def run():
+            s, w = setup()
+            s.cli_session_id = 'fabricated-no-native-session'
+            w.status = 'idle'
+            hold = AsyncMock(return_value=w)
+            opened = AsyncMock()
+            monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+            monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+            monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+            monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+            route = getattr(server, route_name)
+            result = await route(s.id if 'session_' in route_name else w.worker_id)
+            assert 'error' in result and 'resume' in result['error'].lower()
+            hold.assert_not_awaited()
+            opened.assert_not_awaited()
+>       asyncio.run(run())
+
+tests\test_takeover_lifecycle.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w = setup()
+        s.cli_session_id = 'fabricated-no-native-session'
+        w.status = 'idle'
+        hold = AsyncMock(return_value=w)
+        opened = AsyncMock()
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+        monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+        monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+        monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+        route = getattr(server, route_name)
+        result = await route(s.id if 'session_' in route_name else w.worker_id)
+>       assert 'error' in result and 'resume' in result['error'].lower()
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: argument of type 'coroutine' is not a container or iterable
+
+tests\test_takeover_lifecycle.py:95: TypeError
+___ test_unestablished_cli_id_cannot_bypass_takeover[api_session_takeover] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002416BAEFF00>
+route_name = 'api_session_takeover'
+
+    @pytest.mark.parametrize('route_name', ['api_takeover', 'api_session_takeover',
+                                          'api_takeover_command', 'api_session_takeover_command'])
+    def test_unestablished_cli_id_cannot_bypass_takeover(monkeypatch, route_name):
+        from packages.web import server
+        async def run():
+            s, w = setup()
+            s.cli_session_id = 'fabricated-no-native-session'
+            w.status = 'idle'
+            hold = AsyncMock(return_value=w)
+            opened = AsyncMock()
+            monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+            monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+            monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+            monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+            route = getattr(server, route_name)
+            result = await route(s.id if 'session_' in route_name else w.worker_id)
+            assert 'error' in result and 'resume' in result['error'].lower()
+            hold.assert_not_awaited()
+            opened.assert_not_awaited()
+>       asyncio.run(run())
+
+tests\test_takeover_lifecycle.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w = setup()
+        s.cli_session_id = 'fabricated-no-native-session'
+        w.status = 'idle'
+        hold = AsyncMock(return_value=w)
+        opened = AsyncMock()
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+        monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+        monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+        monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+        route = getattr(server, route_name)
+        result = await route(s.id if 'session_' in route_name else w.worker_id)
+>       assert 'error' in result and 'resume' in result['error'].lower()
+E       AssertionError: assert ('error' in {'workerId': 'ses_17aafc572fbc6a67-worker', 'sessionId': 'ses_17aafc572fbc6a67', 'cliSessionId': 'fabricated-no-native...e.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js resume fabricated-no-native-session', ...})
+
+tests\test_takeover_lifecycle.py:95: AssertionError
+___ test_unestablished_cli_id_cannot_bypass_takeover[api_takeover_command] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002416F0EAF50>
+route_name = 'api_takeover_command'
+
+    @pytest.mark.parametrize('route_name', ['api_takeover', 'api_session_takeover',
+                                          'api_takeover_command', 'api_session_takeover_command'])
+    def test_unestablished_cli_id_cannot_bypass_takeover(monkeypatch, route_name):
+        from packages.web import server
+        async def run():
+            s, w = setup()
+            s.cli_session_id = 'fabricated-no-native-session'
+            w.status = 'idle'
+            hold = AsyncMock(return_value=w)
+            opened = AsyncMock()
+            monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+            monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+            monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+            monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+            route = getattr(server, route_name)
+            result = await route(s.id if 'session_' in route_name else w.worker_id)
+            assert 'error' in result and 'resume' in result['error'].lower()
+            hold.assert_not_awaited()
+            opened.assert_not_awaited()
+>       asyncio.run(run())
+
+tests\test_takeover_lifecycle.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w = setup()
+        s.cli_session_id = 'fabricated-no-native-session'
+        w.status = 'idle'
+        hold = AsyncMock(return_value=w)
+        opened = AsyncMock()
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+        monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+        monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+        monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+        route = getattr(server, route_name)
+        result = await route(s.id if 'session_' in route_name else w.worker_id)
+>       assert 'error' in result and 'resume' in result['error'].lower()
+E       AssertionError: assert ('error' in {'workerId': 'ses_d13b0bbb2d365c00-worker', 'sessionId': 'ses_d13b0bbb2d365c00', 'cliSessionId': 'fabricated-no-native...\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js resume fabricated-no-native-session'})
+
+tests\test_takeover_lifecycle.py:95: AssertionError
+_ test_unestablished_cli_id_cannot_bypass_takeover[api_session_takeover_command] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002416F0EB650>
+route_name = 'api_session_takeover_command'
+
+    @pytest.mark.parametrize('route_name', ['api_takeover', 'api_session_takeover',
+                                          'api_takeover_command', 'api_session_takeover_command'])
+    def test_unestablished_cli_id_cannot_bypass_takeover(monkeypatch, route_name):
+        from packages.web import server
+        async def run():
+            s, w = setup()
+            s.cli_session_id = 'fabricated-no-native-session'
+            w.status = 'idle'
+            hold = AsyncMock(return_value=w)
+            opened = AsyncMock()
+            monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+            monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+            monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+            monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+            route = getattr(server, route_name)
+            result = await route(s.id if 'session_' in route_name else w.worker_id)
+            assert 'error' in result and 'resume' in result['error'].lower()
+            hold.assert_not_awaited()
+            opened.assert_not_awaited()
+>       asyncio.run(run())
+
+tests\test_takeover_lifecycle.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w = setup()
+        s.cli_session_id = 'fabricated-no-native-session'
+        w.status = 'idle'
+        hold = AsyncMock(return_value=w)
+        opened = AsyncMock()
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda _: w)
+        monkeypatch.setattr(worker, 'takeover_session_worker', hold)
+        monkeypatch.setattr(worker, 'takeover_worker', AsyncMock())
+        monkeypatch.setattr(server, '_open_takeover_terminal', opened)
+        route = getattr(server, route_name)
+        result = await route(s.id if 'session_' in route_name else w.worker_id)
+>       assert 'error' in result and 'resume' in result['error'].lower()
+E       AssertionError: assert ('error' in {'workerId': 'ses_514dc9de1a5789bb-worker', 'sessionId': 'ses_514dc9de1a5789bb', 'cliSessionId': 'fabricated-no-native...\\node.EXE D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\bin\\codex.js resume fabricated-no-native-session'})
+
+tests\test_takeover_lifecycle.py:95: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_takeover_lifecycle.py::test_unestablished_cli_id_cannot_bypass_takeover[api_takeover]
+FAILED tests/test_takeover_lifecycle.py::test_unestablished_cli_id_cannot_bypass_takeover[api_session_takeover]
+FAILED tests/test_takeover_lifecycle.py::test_unestablished_cli_id_cannot_bypass_takeover[api_takeover_command]
+FAILED tests/test_takeover_lifecycle.py::test_unestablished_cli_id_cannot_bypass_takeover[api_session_takeover_command]
+4 failed, 3 passed, 1 warning in 1.33s

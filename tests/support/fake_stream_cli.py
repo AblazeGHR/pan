@@ -59,6 +59,9 @@ def main() -> None:
         gate = _gate_for(text)
         while gate and not Path(gate).exists():
             time.sleep(0.01)
+        if os.environ.get('PAN_E2E_TAKEOVER_PROBE') == '1':
+            (Path(os.environ['PAN_E2E_DATA_ROOT']) / f'fake-{pid}.resume.json').write_text(
+                json.dumps([{'role': 'user', 'content': text}]), encoding='utf-8')
         print(json.dumps({
             "type": "assistant",
             "message": {"content": [{"type": "text", "text": f"ack:{text}"}]},

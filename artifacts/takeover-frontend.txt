@@ -1,0 +1,17 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/takeover-lifecycle-20261019/packages/web/src
+
+ ✓ stores/workerStore.test.ts (8 tests) 4ms
+ ✓ hooks/useTakeoverReadiness.test.ts (2 tests) 236ms
+ ✓ components/layout/TopBar.test.tsx (23 tests) 12252ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > never auto-enters session B because of a pending upgrade scheduled on session A 1325ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > completes session A's deferred switch when the user returns to it at the idle boundary 1235ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > opening a history view cancels the pending auto-enter entirely 2342ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > issues the deferred native switch exactly once across repeated polls 3365ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > a late configure response cannot revive the auto-enter after a history-view cancel 2335ms
+   ✓ shared Terminal TUI auto-enter contract (module-level pending target) > a configure gated across a session switch stays scoped to session A 1360ms
+
+ Test Files  3 passed (3)
+      Tests  33 passed (33)
+   Start at  21:09:01
+   Duration  14.36s (transform 244ms, setup 15ms, collect 785ms, tests 12.49s, environment 1.75s, prepare 392ms)

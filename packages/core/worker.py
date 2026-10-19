@@ -266,6 +266,7 @@ class Worker:
     _replaying: bool = False  # 遗留：cbc --resume 的 stdout 重放标志（worker-resume-replay 结论：stdin 有 prompt 时 cbc 不重放，恒为 False；_read_stdout 的 replay 分支保留作 EOF 型重放的死代码兜底）
     takeover_pid: int | None = None  # PID of takeover PowerShell terminal
     takeover_job: object | None = None  # Windows Codex descendants, including orphans
+    _takeover_stop_task: asyncio.Task | None = None
     pending_restart: bool = False  # 进程相关配置变更后待重启（idle 时自动 respawn）
     _queue_unit_active: bool = False  # includes terminal publication and queue cleanup
     _terminal_finishing: bool = False
@@ -7750,11 +7751,15 @@ async def restart_or_start_worker(session_id: str, *, expected_worker_id: str | 
     if _get_session_shallow(session_id) is None:
         return f"Session {session_id} not found"
     recovery_pending = session_id in _recovery_required
+    requested = find_worker_by_session(session_id)
+    requested_generation = requested.generation if requested else None
     lock = await _session_spawn_lock(session_id)
     async with lock:
         if _shutdown_started:
             return "Pan main service is shutting down"
-        alive = find_alive_worker_by_session(session_id)
+        alive = _find_control_worker(session_id)
+        if alive is not None and requested is alive and alive.generation != requested_generation:
+            return alive  # A concurrent click already supplied this generation.
         if expected_generation is not None and (
                 alive is None or alive.worker_id != expected_worker_id
                 or alive.generation != expected_generation):
@@ -7768,12 +7773,18 @@ async def restart_or_start_worker(session_id: str, *, expected_worker_id: str | 
                 # supplied the replacement.  Do not immediately respawn it
                 # again merely because the user clicked Restart meanwhile.
                 return alive
-            error = await _restart_worker_unlocked(alive.worker_id)
+            try:
+                error = await _restart_worker_unlocked(alive.worker_id)
+            except (RuntimeError, OSError) as exc:
+                return await _control_stop_failed(alive, exc)
             if error:
                 return error
             _recovery_required.discard(session_id)
             return alive
-        result = await _create_worker(session_id)
+        try:
+            result = await _create_worker(session_id)
+        except (RuntimeError, OSError) as exc:
+            return f"Worker start refused: {exc}"
         if isinstance(result, Worker):
             _recovery_required.discard(session_id)
         return result
@@ -8066,7 +8077,25 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
         if not hasattr(job, "terminate_and_verify"):
             await asyncio.to_thread(job.stop)
             raise RuntimeError("Takeover Job has no verifiable retirement proof")
-        proof = await asyncio.to_thread(job.terminate_and_verify)
+        # Bound the control response even if a kernel/provider stop stalls.
+        # Keep the single in-flight verifier: a retry must never close/reuse
+        # its Job handle while the original thread still owns the call.
+        if w._takeover_stop_task is None:
+            w._takeover_stop_task = asyncio.create_task(asyncio.to_thread(job.terminate_and_verify))
+        try:
+            proof = await asyncio.wait_for(asyncio.shield(w._takeover_stop_task),
+                                           timeout=_TAKEOVER_STOP_TIMEOUT)
+        except TimeoutError as exc:
+            if w._takeover_stop_task.done():
+                w._takeover_stop_task = None
+                raise
+            raise RuntimeError(
+                f"Takeover retirement timed out after {_TAKEOVER_STOP_TIMEOUT:g}s; verifier retained for retry"
+            ) from exc
+        except Exception:
+            if w._takeover_stop_task.done():
+                w._takeover_stop_task = None
+            raise
         s = _session(w)
         if s is not None:
             captured = copy.deepcopy(s.offline_owner)
@@ -8084,12 +8113,21 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
                         key = captured.get("ownerId") or f"{captured['token']}:{captured['generation']}"
                         candidate.owner_retirements[key] = {"owner": captured, "proof": proof}
                         _offline.retire_owner(candidate, captured, reason="takeover/stopped", proof=proof)
+                        # A failed Kill may already have classified this external
+                        # operation Illegal. Whole-Job proof now retires it, while
+                        # its queue incident stays locked until successor readiness.
+                        for op in _offline.outstanding(candidate, captured):
+                            if op.get("kind") == "external-takeover":
+                                op["retirement"] = {"safe": True, "proof": proof,
+                                                    "reason": "takeover/stopped"}
+                        _offline.aggregate(candidate)
                         candidate.offline_owner = {**_offline.owner(w), "previousOwnerRetirement": key}
                     await _commit_offline(s, retire)
         # Preserve both the Job and its verifiable empty state until the
         # ordered metadata replace succeeds. A failed write is retryable.
         await asyncio.to_thread(job.close_retired)
         w.takeover_job = None
+        w._takeover_stop_task = None
         w.takeover_pid = None
         return True
     if not w.takeover_pid:
@@ -8123,6 +8161,59 @@ async def _kill_takeover_terminal(w: Worker) -> bool:
     w.takeover_pid = None
     await _claim_offline_owner(w)
     return True
+
+
+_TAKEOVER_STOP_TIMEOUT = 8.0  # Job verification itself normally finishes within 5s.
+
+
+def _find_control_worker(session_id: str) -> Worker | None:
+    """Control retires registered ownership, even without a reusable consumer.
+
+    Queue dispatch deliberately continues using find_alive_worker_by_session.
+    A dead/failed consumer never makes its process or external owner disappear.
+    """
+    return find_worker_by_session(session_id)
+
+
+async def _stop_takeover_for_control(w: Worker) -> str | None:
+    try:
+        await _kill_takeover_terminal(w)
+        return None
+    except Exception as exc:
+        return await _control_stop_failed(w, exc)
+
+
+async def _control_stop_failed(w: Worker, exc: Exception) -> str:
+    # Never report success or leave the UI held after an unconfirmed stop.
+    # Preserve the exact owner and retained Job for a safe retry.
+    w.status = "error"
+    _log.error("[Worker %s] control stop failed; retaining owner", w.worker_id,
+               exc_info=(type(exc), exc, exc.__traceback__))
+    error = f"Worker/Takeover stop failed; owner retained, retry Kill: {exc}"
+    s = _session(w)
+    if s is not None:
+        try:
+            async with queue_lock(s.id):
+                def failed(candidate):
+                    identity = candidate.offline_owner
+                    if not identity:
+                        return
+                    if not _offline.outstanding(candidate, identity):
+                        _offline.admit(candidate, identity,
+                            kind="external-takeover" if identity.get("externalTakeover") else "control-stop",
+                            operation_id=identity.get("ownerId") or f"{identity['token']}:{identity['generation']}:stop")
+                    _offline.detect(candidate, "takeover/stop-failed", identity=identity,
+                        eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED
+                            and not _queue_item_locked(item),
+                        remember=lambda item: _remember_offline_lock(candidate, item))
+                await _commit_offline(s, failed)
+            await _offline_snapshot_event(s)
+        except Exception as persistence_error:
+            error += f"; Illegal Offline persistence failed (retry required): {persistence_error}"
+    await _bcast({"type": "worker.status", "workerId": w.worker_id,
+                  "sessionId": w.session_id, "generation": w.generation,
+                  "status": "error", "error": error})
+    return error
 
 
 def _confirm_native_input_retirement(w: Worker) -> bool:
@@ -8240,6 +8331,8 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     clear_native_runtime_state(w)
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
+    if not _runtime_stopped(w):
+        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; takeover refused"))
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
@@ -8286,11 +8379,9 @@ async def _kill_worker_unlocked(
     if not preserve_restart_intent:
         _cancel_pending_restart(w)
 
-    if w.takeover_job is not None:
-        try:
-            await _kill_takeover_terminal(w)
-        except Exception as exc:
-            return f"Takeover stop failed: {exc}"
+    error = await _stop_takeover_for_control(w)
+    if error:
+        return error
 
     abnormal = w.status in {"running", "queued"}
     retiring_owner = _offline.owner(w)
@@ -8324,6 +8415,9 @@ async def _kill_worker_unlocked(
     await _stop_worker_tasks(w)
     await _kill_process_tree(w)
     await _kill_takeover_terminal(w)
+
+    if not _runtime_stopped(w):
+        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; process is still alive"))
 
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/kill")
@@ -8373,10 +8467,13 @@ async def kill_worker(worker_id: str, *, recover: bool = False,
         current = workers.get(worker_id)
         if current is not w or w.generation != generation:
             # A concurrent restart already owns this lifecycle transition.
-            return None
-        return await _kill_worker_unlocked(
-            worker_id, recover=recover, report_abnormal=report_abnormal,
-        )
+            return "Worker identity changed during Kill; retry against the current worker"
+        try:
+            return await _kill_worker_unlocked(
+                worker_id, recover=recover, report_abnormal=report_abnormal,
+            )
+        except (RuntimeError, OSError) as exc:
+            return await _control_stop_failed(w, exc)
 
 
 async def kill_session_worker(session_id: str, *,
@@ -8387,12 +8484,26 @@ async def kill_session_worker(session_id: str, *,
     _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
-        w = find_alive_worker_by_session(session_id)
+        w = _find_control_worker(session_id)
         if w is None:
+            s = _get_session_shallow(session_id)
+            identity = (s.offline_owner or {}) if s else {}
+            if identity.get("externalTakeover"):
+                # After host loss there is no retained Job handle. Reconstruct
+                # only the control identity to diagnose the incident, never a
+                # provider/runtime or permission to start a second writer.
+                retained = Worker(worker_id=identity["workerId"], session_id=session_id,
+                                  adapter=get_adapter(s.adapter), status="error",
+                                  offline_token=identity["token"], generation=identity["generation"])
+                return await _control_stop_failed(retained, RuntimeError(
+                    "External takeover owner is unknown after host loss; verify its process tree before recovery"))
             return None
-        error = await _kill_worker_unlocked(
-            w.worker_id, report_abnormal=report_abnormal,
-        )
+        try:
+            error = await _kill_worker_unlocked(
+                w.worker_id, report_abnormal=report_abnormal,
+            )
+        except (RuntimeError, OSError) as exc:
+            return await _control_stop_failed(w, exc)
         return error or w
 
 
@@ -8408,7 +8519,10 @@ async def takeover_worker(worker_id: str) -> str | None:
         current = workers.get(worker_id)
         if current is not w or w.generation != generation:
             return None
-        return await _takeover_worker_unlocked(worker_id)
+        try:
+            return await _takeover_worker_unlocked(worker_id)
+        except (RuntimeError, OSError) as exc:
+            return await _control_stop_failed(w, exc)
 
 
 async def takeover_session_worker(session_id: str) -> Worker | str | None:
@@ -8418,10 +8532,13 @@ async def takeover_session_worker(session_id: str) -> Worker | str | None:
     _cancel_session_restart(session_id)
     lock = await _session_spawn_lock(session_id)
     async with lock:
-        w = find_alive_worker_by_session(session_id)
+        w = _find_control_worker(session_id)
         if w is None:
             return None
-        error = await _takeover_worker_unlocked(w.worker_id)
+        try:
+            error = await _takeover_worker_unlocked(w.worker_id)
+        except (RuntimeError, OSError) as exc:
+            return await _control_stop_failed(w, exc)
         return error or w
 
 
@@ -8723,11 +8840,9 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
     # Stop the takeover owner before changing generation/state or spawning.
     # A failed stop leaves a held worker retryable and cannot create a writer.
-    if w.takeover_job is not None:
-        try:
-            await _kill_takeover_terminal(w)
-        except Exception as exc:
-            return f"Takeover stop failed: {exc}"
+    error = await _stop_takeover_for_control(w)
+    if error:
+        return error
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was restarted")
 
@@ -8758,6 +8873,8 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
 
     # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
+    if not _runtime_stopped(w):
+        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; process is still alive"))
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
     if w._hist_dirty:
@@ -8829,7 +8946,10 @@ async def restart_worker(worker_id: str) -> str | None:
         current = workers.get(worker_id)
         if current is not w or w.generation != generation:
             return None
-        return await _restart_worker_unlocked(worker_id)
+        try:
+            return await _restart_worker_unlocked(worker_id)
+        except (RuntimeError, OSError) as exc:
+            return await _control_stop_failed(w, exc)
 
 
 async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None = None) -> str | None:
