@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bookmark, BookmarkMinus, BookmarkPlus, Check, Send, Undo2 } from 'lucide-react';
 import { useSessionStore, manualTaskReportKey } from '@/stores/sessionStore';
-import { isPanMessageId, useBookmarkStore } from '@/stores/bookmarkStore';
+import { isPanMessageId, selectBookmarkMark, useBookmarkStore } from '@/stores/bookmarkStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ThinkingGroup } from './ThinkingGroup';
@@ -139,12 +139,14 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
   // The bookmark entry exists only for converged, durable, bookmarkable rows:
   // a streaming or unpersisted row has no addressable identity yet, and tool /
   // thinking / system rows are not bookmark content (the backend rejects them
-  // with `message_not_bookmarkable`).  The store overlay wins over the
-  // projected flag while a mutation is fresher.
+  // with `message_not_bookmarkable`).  Proven store state wins over the
+  // projected flag, including proven absence after a removal.
   const sessionId = useSessionStore((s) => s.currentSessionId);
-  const liftedBookmarked = useBookmarkStore((s) => Boolean(
-    sessionId && message.messageId ? s.sessions[sessionId]?.marks[message.messageId] : undefined));
-  const bookmarked = liftedBookmarked || Boolean(message.bookmarked);
+  // Proven store state (including proven ABSENCE after a removal) wins over
+  // the row's projected flag; the projection is only a fallback until this
+  // client has any evidence for the id.
+  const liftedBookmarked = useBookmarkStore(selectBookmarkMark(sessionId ?? '', message.messageId));
+  const bookmarked = liftedBookmarked ?? Boolean(message.bookmarked);
   const addBookmark = useBookmarkStore((s) => s.addBookmark);
   const removeBookmark = useBookmarkStore((s) => s.removeBookmark);
   const bookmarkable = (role === 'user' || role === 'assistant')

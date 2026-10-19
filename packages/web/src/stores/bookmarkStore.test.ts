@@ -97,6 +97,71 @@ describe('bookmark store', () => {
     expect(api.removeSessionBookmark).not.toHaveBeenCalled();
   });
 
+  it('a remove before the cold load still reaches the server', async () => {
+    // The row's projected `bookmarked` flag can offer Remove before the
+    // Session envelope has loaded.  Without store evidence the request must
+    // still be sent (the delete is idempotent), never silently skipped.
+    api.removeSessionBookmark.mockResolvedValue({
+      ok: true, sessionId: 'ses_a', messageId: ID_A, bookmarked: false, changed: true,
+      revision: 1, updatedAt: '2026-10-16T00:00:00', bookmarks: {},
+    });
+    expect(await useBookmarkStore.getState().removeBookmark('ses_a', ID_A)).toBe(true);
+    expect(api.removeSessionBookmark).toHaveBeenCalledWith('ses_a', ID_A);
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    expect(sessionState('ses_a').loaded).toBe(true);
+  });
+
+  it('a late cold GET issued before a remove cannot resurrect the bookmark', async () => {
+    // Production ordering: the list GET is in flight, the user removes the
+    // projected bookmark, and the old snapshot lands afterwards.  The
+    // deletion's complete envelope (rev 2) outranks the rev-1 snapshot.
+    const gate = deferred<ReturnType<typeof envelope>>();
+    api.fetchSessionBookmarks.mockReturnValue(gate.promise);
+    const load = useBookmarkStore.getState().loadBookmarks('ses_a');
+    api.removeSessionBookmark.mockResolvedValue({
+      ok: true, sessionId: 'ses_a', messageId: ID_A, bookmarked: false, changed: true,
+      revision: 2, updatedAt: '2026-10-16T00:00:00', bookmarks: {},
+    });
+    expect(await useBookmarkStore.getState().removeBookmark('ses_a', ID_A)).toBe(true);
+    gate.resolve(envelope(1, [ID_A]));
+    await load;
+
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    expect(sessionState('ses_a').appliedThrough).toBe(2);
+    expect(sessionState('ses_a').snapshotRevision).toBe(2);
+  });
+
+  it('the same message id is isolated per Session', async () => {
+    api.fetchSessionBookmarks.mockResolvedValue(envelope(1, [ID_A]));
+    await useBookmarkStore.getState().loadBookmarks('ses_a');
+    useBookmarkStore.getState().applyBookmarkEvent({
+      type: 'bookmarks.changed', sessionId: 'ses_b', revision: 1,
+      action: 'removed', messageIds: [ID_A],
+    });
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(true);
+    expect(useBookmarkStore.getState().isBookmarked('ses_b', ID_A)).toBe(false);
+  });
+
+  it('a late remove response stays in its own Session after a switch', async () => {
+    const gate = deferred<ReturnType<typeof mutation>>();
+    api.removeSessionBookmark.mockReturnValue(gate.promise);
+    const removing = useBookmarkStore.getState().removeBookmark('ses_a', ID_A);
+    api.fetchSessionBookmarks.mockResolvedValue({
+      sessionId: 'ses_b', revision: 3, updatedAt: null, bookmarks: {}, dangling: [],
+    });
+    await useBookmarkStore.getState().loadBookmarks('ses_b');
+    gate.resolve({
+      ok: true, sessionId: 'ses_a', messageId: ID_A, bookmarked: false, changed: true,
+      revision: 2, updatedAt: '2026-10-16T00:00:00', bookmarks: {},
+    });
+    expect(await removing).toBe(true);
+
+    expect(useBookmarkStore.getState().isBookmarked('ses_a', ID_A)).toBe(false);
+    expect(useBookmarkStore.getState().isBookmarked('ses_b', ID_A)).toBe(false);
+    expect(sessionState('ses_a').appliedThrough).toBe(2);
+    expect(sessionState('ses_b').appliedThrough).toBe(3);
+  });
+
   it('keeps one in-flight mutation per target', async () => {
     let release!: (value: unknown) => void;
     api.addSessionBookmark.mockImplementation(() => new Promise((resolve) => { release = resolve; }));

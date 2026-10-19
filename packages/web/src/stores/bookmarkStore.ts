@@ -398,7 +398,12 @@ async function mutate(
   // intent already reflects the desired state, so a duplicate click must not
   // start a second request.
   if (messageId in current.transactions) return false;
-  if (effectiveMark(current, messageId) === add) return true;   // already there
+  // "Already there" is only proven once this client has evidence.  A row can
+  // offer Remove from the backend projection before the envelope has loaded;
+  // that click must still reach the (idempotent) endpoint instead of being
+  // mistaken for a repeat of the unknown state.
+  const known = current.loaded || messageId in current.authoritativeTouched;
+  if (known && effectiveMark(current, messageId) === add) return true;
 
   const token = ++transactionSeq;
   set((state) => {
@@ -443,7 +448,7 @@ async function mutate(
       };
     });
     useUIStore.getState().showToast(
-      error instanceof Error ? error.message : '书签保存失败',
+      error instanceof Error ? error.message : (add ? '书签保存失败' : '书签删除失败'),
       'error',
     );
     return false;
@@ -477,11 +482,35 @@ async function mutate(
   return true;
 }
 
+/** The freshest PROVEN mark for one row, or `undefined` when this client has
+ *  no evidence yet.  A loaded envelope (or an applied delta for the id) makes
+ *  absence authoritative, so a stale `bookmarked: true` projection on a
+ *  history row can never outlive a confirmed removal.  Callers fall back to
+ *  the projection only while the answer is genuinely unknown. */
+export function bookmarkMark(state: BookmarkStore, sessionId: string, messageId: string | undefined): boolean | undefined {
+  if (!sessionId || !messageId) return undefined;
+  const current = sessionState(state, sessionId);
+  const transaction = current.transactions[messageId];
+  if (transaction) return transaction.desired;
+  if (current.loaded || messageId in current.authoritativeTouched) {
+    return Boolean(current.authoritativeMarks[messageId]);
+  }
+  return undefined;
+}
+
 /** Stable selector for one row's bookmark state (primitive → no rerender
  *  churn when unrelated bookmarks change). */
 export function selectBookmarked(sessionId: string, messageId: string | undefined) {
   return (state: BookmarkStore): boolean =>
     Boolean(messageId && effectiveMark(sessionState(state, sessionId), messageId));
+}
+
+/** Stable tri-state selector for consumers that also carry the backend's
+ *  `bookmarked` projection.  `undefined` means "the store has no evidence";
+ *  `false` is proven absence and wins over the projection. */
+export function selectBookmarkMark(sessionId: string, messageId: string | undefined) {
+  return (state: BookmarkStore): boolean | undefined =>
+    bookmarkMark(state, sessionId, messageId);
 }
 
 export const EMPTY_BOOKMARK_MARKS = EMPTY_MARKS;
