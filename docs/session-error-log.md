@@ -42,6 +42,7 @@ fact):
 |---|---|---|
 | `schemaVersion` | Pan | `1`. |
 | `eventId` | Pan (derived) | Deterministic UUIDv5 from session/worker/generation/taskSeq/kind/origin (+ dedupe token). Process-local duplicate suppression. |
+| `processSequence` | Pan (derived) | Monotonic process-local preparation order; file order follows it for async submissions. |
 | `timestamp` | Pan | UTC ISO-8601. |
 | `kind` | Pan (call site) | See taxonomy above. |
 | `terminal` | Pan (call site) | Whether this observation is a terminal outcome. |
@@ -55,6 +56,10 @@ fact):
 | `recovered` | Pan (only when known) | `true` for a transient error followed by a completed turn. |
 | `previousMessage` | Pan history | Full deep copy of the last history row at error detection. |
 | `previousMessageMissing` | Pan | `true` when history was empty/unloaded. |
+| `rawDiagnostics` | CLI/wrapper text | Complete non-JSON stream text for this run, attached to terminal/crash samples only. Never used as `errorText`. |
+| `rawDiagnosticLineCount` | Pan | Number of unparsed lines included in `rawDiagnostics`. |
+| `rawDiagnosticSource` | Pan | Always `unparsed_stream_text`. |
+| `rawDiagnosticComplete` | Pan | `true`; the scratch file is read in full by the writer thread. |
 | `cli` | CLI/wrapper | Raw provider facts; `null` if the entry point has no CLI payload. |
 | `pan` | Pan | Derived runtime facts (`origin`, `terminalResult`, `returncode`, `workerStatus`, `terminalKey`, item/native details). |
 
@@ -96,13 +101,39 @@ last user message. It includes:
 If the Session history is empty or not loaded, `previousMessage` is `null` and
 `previousMessageMissing` is `true`; no older user row is substituted.
 
+## Stream fidelity
+
+`_iter_stdout_lines` keeps the existing 256 KiB parse threshold. When a line
+exceeds it, the overflow is written to a temporary file instead of being held
+in memory. The worker reads the full line back only when its JSON envelope is
+error-shaped (`result`, `error`, `codex.turn_error`, `codex.item_error`,
+`pan.native_error`); a `result` is only accepted when `is_error`/`cancelled` is
+true. That full event then follows the normal terminal/transient path, so the
+error payload is complete and the stream parser still runs normally afterwards.
+
+Non-JSON stream text (stdout and stderr are merged by the worker) is copied to a
+per-run scratch file. It is attached to terminal/crash samples as
+`rawDiagnostics` with an explicit source and is never written into `errorText`.
+Normal oversized non-error structured output keeps the previous cap/drop
+behavior and is never relabelled as an error.
+
 ## Concurrency, dedupe and ordering
 
-- One writer lock per process plus a bounded advisory cross-process lock
-  (`session-errors.jsonl.lock`). Each record is a single `os.write` loop under
-  `O_APPEND`, so concurrent threads/processes cannot interleave bytes.
-- A partial trailing line from a crash is repaired with a newline before the
-  next append; readers should still skip unparseable lines.
+- `record_session_error_async` prepares the record (timestamp,
+  `processSequence`, previous-message snapshot) on the caller's event loop,
+  then submits file locking and writing to one dedicated executor thread.
+  Heartbeats and other tasks continue while a write waits.
+- A single writer thread plus a bounded advisory cross-process lock
+  (`session-errors.jsonl.lock`). Each record is written by one `os.write` loop
+  under `O_APPEND` while the lock is held, so concurrent threads/processes
+  cannot interleave bytes.
+- The lock is mandatory. If acquisition fails (bounded ~1s in the writer
+  thread), no unlocked write is attempted; the sample is dropped and
+  `lockFailures`/`failures` increment.
+- The file tail is re-checked under the lock before **every** append. There is
+  deliberately no process-local "already newline terminated" cache: another
+  process may crash after a half line between this process's writes. A partial
+  trailing line is repaired with a newline before the next append.
 - `eventId` is deterministic. A duplicate terminal observation in the same
   process is skipped; a failed write is not remembered, so a retry can persist
   it. Dedupe does not scan the file across process restarts and is not
@@ -111,6 +142,12 @@ If the Session history is empty or not loaded, `previousMessage` is `null` and
 - Out-of-order or repeated provider frames are recorded as they arrive. Only
   the terminal boundary is deduped; transient occurrences keep their own
   records via a content/identity dedupe token.
+- Async submissions are FIFO on the single executor and `processSequence` is
+  assigned at preparation time, so file order matches detection order for one
+  process.
+- `flush()` waits for the writer executor; it is called from Pan's
+  `begin_shutdown`. Every async caller already awaits its own write, so no
+  unbounded background queue exists.
 - No `fsync`: the write reaches the OS page cache before the task continues, so
   it survives a process restart but not necessarily a power loss.
 
@@ -120,13 +157,15 @@ If opening/locking/writing fails (permissions, disk full, antivirus lock):
 
 1. a warning is logged to `pan.log` with the exception type;
 2. `sessionErrorLog.failures` / `lastErrorType` increment in
-   `GET /api/diagnostics/persistence`;
+   `GET /api/diagnostics/persistence`, and lock failures also increment
+   `lockFailures`;
 3. the sample is dropped;
 4. the task, queue, retry and legality paths continue unchanged. No hand-off
    is repeated and no lock is held across the failure.
 
-The lock wait is bounded (~2s); after that the append proceeds without the
-cross-process lock and increments `lockFailures`.
+A lock failure never falls back to an unlocked append. The lock wait is bounded
+(~1s) and runs on the writer thread, so it cannot block the event loop or
+heartbeat.
 
 ## Adapter/path availability
 
@@ -138,29 +177,33 @@ cross-process lock and increments `lockFailures`.
 | Codex app-server stream | yes | `turn.error`, in-turn `method=error`, recovered notices, item errors are preserved by the wrapper; assistant text is never used as the error detail when an error object exists. |
 | Codex `exec` fallback | yes | `error` object; non-zero exit keeps full stderr in `errorText`. |
 | Claude/Kimi/OpenCode | depends | Their result `error`/`error_text` is copied if present; no adapter-specific synthesis. |
-| Pan spawn/preflight/crash | no CLI payload | `pan.runtime` text, `returncode` in `pan`. |
+| Pan spawn/preflight/crash | no CLI payload | `pan.runtime` text, `returncode` in `pan`; non-JSON stream text appears in `rawDiagnostics` when a run failed. |
 
 ## Known boundaries (not verified or not represented)
 
-- A single provider stream line above the existing 256 KiB reader limit is
-  truncated by `_iter_stdout_lines`, so that event cannot produce a sample.
-  Large one-shot output (parsed after collection) is not subject to that cap.
-- Non-JSON stream stdout/stderr lines (including some wrapper diagnostics and
-  reconnect chatter) are dropped by the existing reader; only structured
-  events are sampled. One-shot non-JSON output is retained in
-  `cli.rawOutputText`.
+- The 256 KiB threshold still bounds what the normal parser and history see.
+  Only error-shaped oversized envelopes are read back in full; normal oversized
+  output (including a huge assistant message) keeps the existing cap/drop
+  behavior.
+- Non-JSON text is attached only when that run produces a terminal/crash
+  sample. A successful run with non-JSON stderr produces no error sample, so
+  that text is not persisted.
+- An oversized line whose first 256 KiB looks like a structured JSON object or
+  array but is neither parseable nor error-shaped is treated as normal output
+  and dropped, not as raw diagnostic text.
 - Terminal PTY/native-UI errors that are not attached to a Session worker are
   not sampled. Pan startup/exit errors without a Session are also out of scope.
 - Credential redaction is best-effort (credential-shaped keys and common token
   formats). This module never collects process argv or environment, but a
-  provider payload or history message can still contain sensitive text.
+  provider payload, raw diagnostic or history message can still contain
+  sensitive text.
 - `previousMessage` is deliberately not redacted (full-fidelity requirement).
-- Record ordering in the file follows append order, which may differ from
-  provider event order under concurrent sessions. Use `timestamp`, `eventId`,
-  `workerId`, `generation` and `taskSeq` for ordering within a Session.
+- Record ordering in the file follows append order. Across concurrent Sessions
+  use `timestamp`, `processSequence`, `eventId`, `workerId`, `generation` and
+  `taskSeq` for ordering; `processSequence` is process-local.
 - No real remote provider was used to validate the exact error-object shapes;
-  Codex/CBC shapes are covered by wrapper/unit and deterministic local E2E
-  tests.
+  Codex/CBC shapes are covered by wrapper/unit, deterministic local E2E and
+  real multi-process tests.
 
 ## Reading samples
 
@@ -194,12 +237,19 @@ re-derive `retryable` from wording.
 
 - `tests/test_session_error_log.py` – schema, full Chinese multiline text,
   provenance, previous roles, concurrency, dedupe, restart retention, I/O
-  failure, partial-line repair, redaction.
+  failure, lock failure (no unlocked write), async offload/heartbeat,
+  submission order, flush, partial-line repair, redaction.
 - `tests/test_session_error_log_worker.py` – Codex raw error vs assistant text,
-  tool-failure layering, startup failure, normal `done` not recorded.
+  tool-failure layering, startup failure, normal `done` not recorded,
+  >256 KiB error spill, normal oversized result not reinterpreted, raw
+  diagnostics attached but not used as `errorText`.
+- `tests/test_session_error_log_multiprocess.py` – four real processes writing
+  large records without interleaving; a long-lived writer must repair another
+  process's crashed half line (tail re-check under lock).
 - `tests/test_session_error_log_e2e.py` – real isolated HTTP/uvicorn + local
   deterministic CLI on an ephemeral port (never 8767/8768), stream/one-shot,
-  crash, huge text, concurrent Sessions and process restart read-back.
+  crash, huge text, >256 KiB structured error, non-JSON diagnostics,
+  concurrent Sessions and process restart read-back.
 - `tests/test_codex_adapter.py` – wrapper keeps `turn.error` beside assistant
   text and emits a recovered transient notice.
 
@@ -207,5 +257,5 @@ Run with the repository Python env:
 
 ```powershell
 python -m pytest tests/test_session_error_log.py tests/test_session_error_log_worker.py `
-  tests/test_session_error_log_e2e.py -q
+  tests/test_session_error_log_multiprocess.py tests/test_session_error_log_e2e.py -q
 ```

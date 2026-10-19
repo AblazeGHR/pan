@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -283,3 +285,125 @@ def test_cancelled_and_tool_failure_are_not_terminal_errors(tmp_path):
     assert records[1]["kind"] == "tool_failure"
     assert records[1]["terminal"] is False
     assert records[1]["panStatus"] is None
+
+
+def test_lock_failure_drops_sample_and_never_writes_unlocked(tmp_path, monkeypatch, caplog):
+    class _FailedLock:
+        acquired = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(
+        session_error_log, "_cross_process_lock", lambda _path: _FailedLock())
+    with caplog.at_level("WARNING", logger="packages.core.session_error_log"):
+        assert _record(error_text="must not be written") is None
+    assert not (tmp_path / "logs" / "session-errors.jsonl").exists()
+    stats = session_error_log.stats()
+    assert stats["lockFailures"] == 1
+    assert stats["failures"] == 1
+    assert any("sample lost" in message for message in caplog.messages)
+
+
+def test_async_write_does_not_block_event_loop(monkeypatch):
+    real_write = session_error_log._write_prepared
+    calls = []
+
+    def slow_write(prepared):
+        calls.append(prepared[1])
+        time.sleep(0.4)
+        return real_write(prepared)
+
+    monkeypatch.setattr(session_error_log, "_write_prepared", slow_write)
+
+    async def run():
+        ticks = 0
+
+        async def heartbeat():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.01)
+                ticks += 1
+
+        task = asyncio.create_task(heartbeat())
+        event_id = await session_error_log.record_session_error_async(
+            kind="terminal_error",
+            error_text="async error",
+            error_text_source="pan.runtime",
+            terminal=True,
+            session_id="ses_async",
+            worker_id="worker-async",
+        )
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        return event_id, ticks
+
+    event_id, ticks = asyncio.run(run())
+    assert event_id
+    assert calls == [event_id]
+    assert ticks >= 20, f"event loop was blocked (ticks={ticks})"
+    records = _read_records(session_error_log.path())
+    assert records[0]["errorText"] == "async error"
+
+
+def test_async_submission_sequence_matches_file_order():
+    async def run():
+        await asyncio.gather(*[
+            session_error_log.record_session_error_async(
+                kind="transient_provider_error",
+                terminal=False,
+                error_text=f"e{index}",
+                error_text_source="pan.runtime",
+                session_id="ses_seq",
+                worker_id="worker-seq",
+                dedupe_token=f"seq-{index}",
+            )
+            for index in range(20)
+        ])
+
+    asyncio.run(run())
+    records = _read_records(session_error_log.path())
+    assert len(records) == 20
+    assert [record["processSequence"] for record in records] == list(range(20))
+    assert [record["errorText"] for record in records] == [
+        f"e{index}" for index in range(20)
+    ]
+
+
+def test_flush_waits_for_inflight_write(monkeypatch):
+    real_write = session_error_log._write_prepared
+    started = threading.Event()
+
+    def slow_write(prepared):
+        started.set()
+        time.sleep(0.2)
+        return real_write(prepared)
+
+    monkeypatch.setattr(session_error_log, "_write_prepared", slow_write)
+
+    async def run():
+        task = asyncio.create_task(session_error_log.record_session_error_async(
+            kind="terminal_error",
+            error_text="flush me",
+            error_text_source="pan.runtime",
+            terminal=True,
+            session_id="ses_flush",
+            worker_id="worker-flush",
+        ))
+        await asyncio.sleep(0.01)
+        for _ in range(100):
+            if started.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert started.is_set()
+        assert session_error_log.flush()
+        assert await task
+
+    asyncio.run(run())
+    assert _read_records(session_error_log.path())[0]["errorText"] == "flush me"

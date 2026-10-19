@@ -22,6 +22,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -294,6 +295,12 @@ class Worker:
     # being reported, so a stale capture from a previous turn can never leak into
     # a queued item or a later run.
     _current_task_last_assistant_seq: int | None = None
+    # Per-run scratch file for non-JSON stdout/stderr.  It is attached to
+    # terminal/crash error samples as ``rawDiagnostics`` (never as errorText)
+    # and is reset at each task hand-off.  Kept on disk so a long diagnostic
+    # stream cannot grow the event-loop heap.
+    _stream_raw_spill: object | None = None
+    _stream_raw_line_count: int = 0
     _host_exit_illegal: bool = False
     _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
@@ -341,6 +348,7 @@ def _register_worker(w: Worker) -> None:
 
 
 def _unregister_worker(w: Worker) -> None:
+    _close_raw_capture(w)
     if _workers_by_session.get(w.session_id) is w:
         _workers_by_session.pop(w.session_id, None)
 
@@ -1321,6 +1329,109 @@ _TOOL_ITEM_TYPES = frozenset({
     "filechange", "patchapply", "websearch",
 })
 
+# A stream line over the parser cap is only read back in full when its JSON
+# envelope can be an error.  Normal oversized output keeps the existing
+# 256 KiB drop behavior and is never mislabelled as an error.
+_OVERSIZE_ERROR_RE = re.compile(
+    rb'^\s*\{\s*"type"\s*:\s*"'
+    rb'(?:result|error|codex\.turn_error|codex\.item_error|pan\.native_error)"'
+)
+
+
+def _raw_capture(w: Worker):
+    handle = getattr(w, "_stream_raw_spill", None)
+    if handle is None:
+        handle = tempfile.TemporaryFile()
+        w._stream_raw_spill = handle
+        w._stream_raw_line_count = 0
+    return handle
+
+
+def _capture_raw_line(w: Worker, line: bytes) -> None:
+    """Attribute one unparsed stream line as raw diagnostic text, not error."""
+    handle = _raw_capture(w)
+    handle.write(line)
+    if not line.endswith(b"\n"):
+        handle.write(b"\n")
+    w._stream_raw_line_count = int(getattr(w, "_stream_raw_line_count", 0) or 0) + 1
+
+
+def _capture_raw_oversized(w: Worker, prefix: bytes, spill) -> None:
+    """Copy an oversized unparsed line to the diagnostic spill without RAM."""
+    handle = _raw_capture(w)
+    handle.write(prefix)
+    spill.seek(0)
+    while True:
+        chunk = spill.read(65536)
+        if not chunk:
+            break
+        handle.write(chunk)
+    handle.write(b"\n")
+    w._stream_raw_line_count = int(getattr(w, "_stream_raw_line_count", 0) or 0) + 1
+
+
+def _raw_capture_source(w: Worker):
+    handle = getattr(w, "_stream_raw_spill", None)
+    count = int(getattr(w, "_stream_raw_line_count", 0) or 0)
+    if handle is None or count <= 0:
+        return None
+    return (handle, count)
+
+
+def _reset_raw_capture(w: Worker) -> None:
+    handle = getattr(w, "_stream_raw_spill", None)
+    if handle is not None:
+        try:
+            handle.seek(0)
+            handle.truncate(0)
+        except OSError:
+            pass
+    w._stream_raw_line_count = 0
+
+
+def _close_raw_capture(w: Worker) -> None:
+    handle = getattr(w, "_stream_raw_spill", None)
+    if handle is not None:
+        try:
+            handle.close()
+        except OSError:
+            pass
+    w._stream_raw_spill = None
+    w._stream_raw_line_count = 0
+
+
+def _looks_like_structured_text(text: str) -> bool:
+    """True only for a complete JSON object/array, not for arbitrary text.
+
+    A log line such as ``[second stderr line]`` starts with ``[`` but is not
+    JSON; it must be attributed as raw diagnostic text.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith(("{", "[")):
+        return False
+    try:
+        json.loads(stripped)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _oversized_error_event(adapter, raw_line: bytes, spill):
+    prefix = bytes(raw_line)[:_STDOUT_MAX_LINE]
+    if not _OVERSIZE_ERROR_RE.match(prefix):
+        return None
+    spill.seek(0)
+    full = prefix + spill.read()
+    event = adapter.parse_event(full.decode("utf-8", errors="replace"))
+    if not isinstance(event, dict):
+        return None
+    if event.get("type") == "result" and not (
+            event.get("is_error")
+            or event.get("cancelled")
+            or event.get("is_cancelled")):
+        return None
+    return event
+
 
 def _error_log_identity(w: Worker, s) -> dict:
     item = getattr(w, "_current_queue_item", None)
@@ -1345,7 +1456,7 @@ def _error_log_identity(w: Worker, s) -> dict:
     }
 
 
-def _record_terminal_error_sample(
+async def _record_terminal_error_sample(
     w: Worker, s, status: str, result_text: str | None,
     error_context: dict | None,
 ) -> None:
@@ -1383,7 +1494,7 @@ def _record_terminal_error_sample(
             previous = _sess.history_tail_snapshot(s) if s is not None else None
     except Exception:
         previous = None
-    _error_log.record_session_error(
+    await _error_log.record_session_error_async(
         kind="cancelled" if status == "cancelled" else "terminal_error",
         error_text=text,
         error_text_source=source,
@@ -1406,11 +1517,12 @@ def _record_terminal_error_sample(
         },
         previous_message=previous,
         previous_captured=True,
+        raw_diagnostics_source=_raw_capture_source(w),
         **_error_log_identity(w, s),
     )
 
 
-def _record_transient_error_sample(
+async def _record_transient_error_sample(
     w: Worker, event: dict, kind: str, *, recovered: bool | None = None,
 ) -> None:
     """Record a non-terminal CLI/native/tool error without changing its flow."""
@@ -1454,7 +1566,7 @@ def _record_transient_error_sample(
         str(recovered),
         fingerprint,
     ])
-    _error_log.record_session_error(
+    await _error_log.record_session_error_async(
         kind=kind,
         error_text=text,
         error_text_source=source,
@@ -1476,7 +1588,7 @@ def _record_transient_error_sample(
     )
 
 
-def _record_worker_start_failure(
+async def _record_worker_start_failure(
     s, session_id: str, worker_id: str, message: str, *,
     w: Worker | None = None, origin: str = "worker.create",
 ) -> None:
@@ -1495,7 +1607,7 @@ def _record_worker_start_failure(
             "generation": None,
         }
     )
-    _error_log.record_session_error(
+    await _error_log.record_session_error_async(
         kind="worker_start_failure",
         error_text=message,
         error_text_source="pan.runtime",
@@ -1508,14 +1620,14 @@ def _record_worker_start_failure(
     )
 
 
-def _record_worker_crash(
+async def _record_worker_crash(
     w: Worker, s, returncode, detail: str, *, origin: str,
 ) -> None:
     try:
         previous = _sess.history_tail_snapshot(s) if s is not None else None
     except Exception:
         previous = None
-    _error_log.record_session_error(
+    await _error_log.record_session_error_async(
         kind="worker_crash",
         error_text=detail,
         error_text_source="pan.runtime",
@@ -1528,6 +1640,7 @@ def _record_worker_crash(
         },
         previous_message=previous,
         previous_captured=True,
+        raw_diagnostics_source=_raw_capture_source(w),
         **_error_log_identity(w, s),
     )
 
@@ -1646,7 +1759,7 @@ async def _persist_terminal_state_locked(
     # The previous-message snapshot is taken synchronously inside this call,
     # so a later report/steer/native append cannot replace it.
     if status in {"error", "cancelled"}:
-        _record_terminal_error_sample(
+        await _record_terminal_error_sample(
             w, s, status, result_text,
             {**(error_context or {}), "terminal_key": terminal_key},
         )
@@ -1923,6 +2036,9 @@ def begin_shutdown() -> None:
     global _shutdown_started
     _shutdown_started = True
     stop_global_watchdog()
+    # Writes are awaited per sample, so this only waits for an in-flight
+    # executor task; it does not introduce a background queue.
+    _error_log.flush()
 
 
 def reopen_after_failed_shutdown() -> None:
@@ -2130,39 +2246,101 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_output_total = 0
 
 
+_STDOUT_MAX_LINE = 256 * 1024  # 单行解析上限 256KB（既有阈值，不改变）
+_OVERSIZE_MARKER = b" ... [tool result truncated]"
+
+
+class _CapturedLine(bytes):
+    """One stdout line plus an optional spill file for its overflow.
+
+    A plain ``bytes`` subclass keeps the existing iteration contract and tests
+    working.  ``spill`` is a temporary file containing everything after the
+    first ``_STDOUT_MAX_LINE`` bytes; it is closed by the generator when the
+    consumer advances or the generator is closed.
+    """
+
+    def __new__(cls, value, spill=None):
+        obj = super().__new__(cls, value)
+        obj.spill = spill
+        return obj
+
+
 async def _iter_stdout_lines(w: Worker):
-    """分块读取 worker stdout，按换行切分产出完整行。
+    """分块读取 worker stdout，按换行切分产出行对象。
 
     替代 ``readline()``：Windows asyncio 管道上，超大单行（如 Read 大文件的
     tool result，几百 KB ~ MB）会让 readline 永久挂起（Pan 卡死根因）。分块
-    read(65536) + 自切行不依赖单次读完一行；超过 _STDOUT_MAX_LINE 的行截断为
-    占位，避免大行占满 history 上下文。
+    read(65536) + 自切行不依赖单次读完一行。
+
+    解析阈值仍是 256KB。超过阈值的行只保留前 256KB 供原解析路径使用；溢出
+    字节写入临时文件（``_CapturedLine.spill``），供错误保真路径在识别为错误
+    后完整读取。这样不会把整行堆在内存里，也不改变既有历史截断阈值。
     """
-    _STDOUT_MAX_LINE = 256 * 1024  # 单行上限 256KB，超出截断
-    buf = b""
-    while True:
-        try:
-            chunk = await asyncio.wait_for(
-                w.process.stdout.read(65536), timeout=_STDOUT_READ_TIMEOUT_SEC)
-        except asyncio.TimeoutError:
-            # cbc 静默（长思考 / idle 等待新任务）是正常状态，不代表不活跃；
-            # last_activity 只由真实输出路径（_read_stdout 有效事件）与任务
-            # 入队刷新。此处若刷新会让 watchdog 的 idle/queued 判定永不触发。
-            _log.debug(
-                "[Worker %s] stdout 静默 %.0fs（read timeout），继续等待",
-                w.worker_id, _STDOUT_READ_TIMEOUT_SEC,
-            )
-            continue
-        if not chunk:
-            break  # EOF
-        buf += chunk
-        while b"\n" in buf:
-            line, buf = buf.split(b"\n", 1)
-            if len(line) > _STDOUT_MAX_LINE:
-                line = line[:_STDOUT_MAX_LINE] + b" ... [tool result truncated]"
-            yield line
-    if buf:
-        yield buf  # 最后一行无换行（EOF 残留）
+    current = bytearray()
+    spill = None
+    last_spill = None
+    try:
+        while True:
+            try:
+                chunk = await asyncio.wait_for(
+                    w.process.stdout.read(65536), timeout=_STDOUT_READ_TIMEOUT_SEC)
+            except asyncio.TimeoutError:
+                # cbc 静默（长思考 / idle 等待新任务）是正常状态，不代表不活跃；
+                # last_activity 只由真实输出路径（_read_stdout 有效事件）与任务
+                # 入队刷新。此处若刷新会让 watchdog 的 idle/queued 判定永不触发。
+                _log.debug(
+                    "[Worker %s] stdout 静默 %.0fs（read timeout），继续等待",
+                    w.worker_id, _STDOUT_READ_TIMEOUT_SEC,
+                )
+                continue
+            if not chunk:
+                break  # EOF
+            start = 0
+            while True:
+                newline = chunk.find(b"\n", start)
+                segment = chunk[start:] if newline < 0 else chunk[start:newline]
+                if segment:
+                    room = max(0, _STDOUT_MAX_LINE - len(current))
+                    if spill is None and len(segment) <= room:
+                        current.extend(segment)
+                    else:
+                        if room:
+                            current.extend(segment[:room])
+                            segment = segment[room:]
+                        if segment:
+                            if spill is None:
+                                spill = tempfile.TemporaryFile()
+                            spill.write(segment)
+                if newline < 0:
+                    break
+                if last_spill is not None:
+                    last_spill.close()
+                    last_spill = None
+                if spill is not None:
+                    spill.seek(0)
+                    line = _CapturedLine(bytes(current) + _OVERSIZE_MARKER, spill)
+                    last_spill = spill
+                    spill = None
+                else:
+                    line = _CapturedLine(bytes(current), None)
+                current.clear()
+                yield line
+                start = newline + 1
+        if last_spill is not None:
+            last_spill.close()
+            last_spill = None
+        if spill is not None:
+            spill.seek(0)
+            yield _CapturedLine(bytes(current) + _OVERSIZE_MARKER, spill)
+            last_spill = spill
+            spill = None
+        elif current:
+            yield _CapturedLine(bytes(current), None)  # 最后一行无换行（EOF 残留）
+    finally:
+        if last_spill is not None:
+            last_spill.close()
+        if spill is not None:
+            spill.close()
 
 
 def _signal_task_done(w: Worker) -> None:
@@ -2580,12 +2758,29 @@ async def _read_stdout(w: Worker):
         if not _control_runtime_matches(w.worker_id, receipt_runtime):
             return
         line_count += 1
-        line_str = line.decode("utf-8", errors="replace").rstrip("\n")
+        line_bytes = bytes(line)
+        line_str = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
         if not line_str:
             continue
         event = adapter.parse_event(line_str)
         if event is None:
-            continue
+            spill = getattr(line, "spill", None)
+            if spill is not None:
+                # The parser cap hid the tail.  Only an error-shaped envelope
+                # is read back in full; normal oversized output keeps the
+                # existing cap/drop behavior.
+                event = _oversized_error_event(adapter, line_bytes, spill)
+                if event is None:
+                    prefix = line_bytes[:_STDOUT_MAX_LINE]
+                    if not prefix.lstrip().startswith((b"{", b"[")):
+                        _capture_raw_oversized(w, prefix, spill)
+                    continue
+            else:
+                # Unrecognized text is retained as raw diagnostic context for a
+                # later terminal/crash sample; it is never classified as error.
+                if not _looks_like_structured_text(line_str):
+                    _capture_raw_line(w, line_bytes)
+                continue
         if _route_steer_receipt(w, event, runtime=receipt_runtime):
             continue
         if (getattr(adapter, "steer_requires_run_id", False) and not w._terminal_handled
@@ -2638,7 +2833,7 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.native_error":
             # Keep the existing generic Worker field unchanged; the sample log
             # retains the raw code/detail that field intentionally flattens.
-            _record_transient_error_sample(w, event, "native_operation_error")
+            await _record_transient_error_sample(w, event, "native_operation_error")
             w.native_control_error = "Native terminal operation failed"
             continue
         if event.get("type") == "pan.native_settings_uncertain":
@@ -2735,14 +2930,14 @@ async def _read_stdout(w: Worker):
         if event_type == "codex.turn_error":
             # Transient in-turn notice. Existing stream broadcast is preserved;
             # the sample consumes nothing from it.
-            _record_transient_error_sample(w, event, "transient_provider_error")
+            await _record_transient_error_sample(w, event, "transient_provider_error")
         elif event_type == "codex.transient_error_recovered":
-            _record_transient_error_sample(
+            await _record_transient_error_sample(
                 w, event, "transient_provider_error", recovered=True)
             continue
         elif event_type == "codex.item_error":
             item_type = str(event.get("item_type") or "")
-            _record_transient_error_sample(
+            await _record_transient_error_sample(
                 w, event,
                 "tool_failure" if item_type in _TOOL_ITEM_TYPES else "transient_provider_error",
             )
@@ -2750,7 +2945,7 @@ async def _read_stdout(w: Worker):
         elif event_type == "error":
             # A bare provider error event is not a terminal result. Keep it
             # observable without promoting it to a task failure.
-            _record_transient_error_sample(w, event, "transient_provider_error")
+            await _record_transient_error_sample(w, event, "transient_provider_error")
         # Keep only native interactive prompts in the worker-local replay
         # cache.  The cache is consumed by the dashboard after a WS reconnect;
         # normal stream events remain live-only to avoid retaining history.
@@ -2895,7 +3090,17 @@ async def _read_stdout(w: Worker):
         return
     _cleanup_system_prompt_file(w.system_prompt_file)
     w.system_prompt_file = None
-    code = w.process.returncode if w.process else "unknown"
+    process = w.process
+    if process is not None and getattr(process, "returncode", None) is None:
+        # Observed EOF can precede asyncio's returncode update on Windows.
+        # Wait briefly so crash diagnostics carry the actual exit code.
+        wait = getattr(process, "wait", None)
+        if callable(wait):
+            try:
+                await asyncio.wait_for(wait(), timeout=1.0)
+            except (asyncio.TimeoutError, ProcessLookupError, OSError):
+                pass
+    code = process.returncode if process is not None else "unknown"
     _log.info("[Worker %s] %s 进程退出，返回码 %s", w.worker_id, adapter.name, code)
     _cancel_claude_permission_requests(w.worker_id, "Claude worker exited")
 
@@ -2910,7 +3115,7 @@ async def _read_stdout(w: Worker):
         await _kill_process_tree(w)
         if not _runtime_stopped(w):
             w.status = "error"
-            _record_worker_crash(
+            await _record_worker_crash(
                 w, _session(w), code,
                 f"{adapter.name} process exited but its runtime did not stop "
                 f"(returncode={code})",
@@ -2926,7 +3131,7 @@ async def _read_stdout(w: Worker):
         w.status = "idle"
     else:
         w.status = "error"
-        _record_worker_crash(
+        await _record_worker_crash(
             w, _session(w), code,
             f"{adapter.name} process exited unexpectedly (returncode={code})",
             origin="worker.eof",
@@ -6781,6 +6986,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
         # boundary so already-buffered post-terminal frames cannot be assigned
         # to this queue item's taskSeq.
         async def write_input():
+            _reset_raw_capture(w)
             w._current_task_last_assistant_text = None
             w._current_task_last_assistant_seq = None
             w._current_task_assistant_ids.clear()
@@ -6913,6 +7119,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     """
     if w.status == "restarting" or (w.pending_restart and w.status in {"idle", "queued"}):
         return
+    _reset_raw_capture(w)
     w._current_task_last_assistant_text = None
     w._current_task_last_assistant_seq = None
     w._current_task_assistant_ids.clear()
@@ -7544,7 +7751,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         if isinstance(proc, str):
             for path in prompt_files:
                 _cleanup_system_prompt_file(path)
-            _record_worker_start_failure(s, session_id, worker_id, proc)
+            await _record_worker_start_failure(s, session_id, worker_id, proc)
             return proc
 
     w = Worker(worker_id=worker_id, session_id=session_id,
@@ -8395,7 +8602,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     proc = await _spawn_process(w.session_id, adapter=w.adapter)
     if isinstance(proc, str):
         w.status = "error"
-        _record_worker_start_failure(
+        await _record_worker_start_failure(
             _session(w), w.session_id, w.worker_id, proc,
             w=w, origin="worker.pan_restart",
         )
@@ -8495,7 +8702,7 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     proc = await _spawn_process(w.session_id, adapter=w.adapter, extra_args=extra_args)
     if isinstance(proc, str):
         w.status = "error"
-        _record_worker_start_failure(
+        await _record_worker_start_failure(
             _session(w), w.session_id, w.worker_id, proc,
             w=w, origin="worker.restart",
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 from packages.core import session as sess
 from packages.core import session_error_log
@@ -63,7 +64,7 @@ def test_normal_terminal_does_not_record(monkeypatch):
     # Directly exercise the classifier boundary used by the terminal hook.
     w = worker.Worker(worker_id="worker-x", session_id=s.id,
                       adapter=object(), status="idle")
-    worker._record_terminal_error_sample(w, s, "done", "ok", None)
+    asyncio.run(worker._record_terminal_error_sample(w, s, "done", "ok", None))
     assert _records(session_error_log.path()) == []
 
 
@@ -83,7 +84,7 @@ def test_codex_result_error_preserves_raw_payload_and_never_impersonates_assista
         "code": "rate_limit",
         "codexErrorInfo": {"responseStreamDisconnected": {"httpStatusCode": 429}},
     }
-    worker._record_terminal_error_sample(
+    asyncio.run(worker._record_terminal_error_sample(
         w, s, "error", "partial answer",
         {
             "origin": "worker.stream.result",
@@ -92,7 +93,7 @@ def test_codex_result_error_preserves_raw_payload_and_never_impersonates_assista
                 "error": raw_error, "error_source": "codex_error_payload",
             },
         },
-    )
+    ))
     record = _records(session_error_log.path())[0]
     assert record["errorText"] == "stream disconnected"
     assert record["errorTextSource"] == "codex_error_payload"
@@ -109,7 +110,7 @@ def test_tool_item_failure_is_non_terminal():
     s = sess.create("tool-failure-unit")
     w = worker.Worker(worker_id="worker-tool", session_id=s.id,
                       adapter=_NamedAdapter(), status="running")
-    worker._record_transient_error_sample(
+    asyncio.run(worker._record_transient_error_sample(
         w,
         {
             "type": "codex.item_error",
@@ -121,7 +122,7 @@ def test_tool_item_failure_is_non_terminal():
             "error": {"message": "tool failed normally"},
         },
         "tool_failure",
-    )
+    ))
     record = _records(session_error_log.path())[0]
     assert record["kind"] == "tool_failure"
     assert record["terminal"] is False
@@ -134,3 +135,75 @@ def test_diagnostics_expose_sample_log_counters():
     assert "sessionErrorLog" in diagnostics
     assert diagnostics["sessionErrorLog"]["path"].endswith("session-errors.jsonl")
     assert "failures" in diagnostics["sessionErrorLog"]
+
+
+def test_oversized_stdout_line_keeps_full_error_without_changing_cap():
+    giant = "错" * 120000  # > 256 KiB after UTF-8 encoding
+    event = {
+        "type": "result", "is_error": True, "result": "partial",
+        "error": {"message": giant, "code": "rate_limit", "retryable": True},
+    }
+    wire = (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
+    assert len(wire) > 256 * 1024
+
+    async def collect():
+        stream = asyncio.StreamReader()
+        stream.feed_data(wire)
+        stream.feed_eof()
+        probe = SimpleNamespace(process=SimpleNamespace(stdout=stream),
+                                worker_id="oversize-probe")
+        lines = []
+        async for line in worker._iter_stdout_lines(probe):
+            spill = getattr(line, "spill", None)
+            prefix = bytes(line)[:worker._STDOUT_MAX_LINE]
+            lines.append((line, prefix, spill.read() if spill is not None else b""))
+        return lines
+
+    lines = asyncio.run(collect())
+    assert len(lines) == 1
+    line, prefix, overflow = lines[0]
+    assert len(prefix) == 256 * 1024
+    assert line.endswith(b" ... [tool result truncated]")
+    full = prefix + overflow
+    assert json.loads(full.decode("utf-8")) == event
+    assert len(json.loads(full.decode("utf-8"))["error"]["message"]) == 120000
+
+
+def test_oversized_normal_result_is_not_reinterpreted_as_error():
+    event = {"type": "result", "is_error": False, "result": "正" * 120000}
+    wire = (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
+
+    async def collect():
+        stream = asyncio.StreamReader()
+        stream.feed_data(wire)
+        stream.feed_eof()
+        probe = SimpleNamespace(process=SimpleNamespace(stdout=stream),
+                                worker_id="oversize-normal")
+        async for line in worker._iter_stdout_lines(probe):
+            spill = getattr(line, "spill", None)
+            parsed = worker._oversized_error_event(
+                SimpleNamespace(parse_event=lambda text: json.loads(text)),
+                bytes(line), spill,
+            )
+            return parsed
+
+    assert asyncio.run(collect()) is None
+
+
+def test_raw_stream_diagnostics_are_attached_but_not_error_text():
+    s = sess.create("raw-diagnostic-unit")
+    w = worker.Worker(worker_id="worker-raw", session_id=s.id,
+                      adapter=_NamedAdapter(), status="error")
+    worker._capture_raw_line(w, "第一行 stderr 诊断".encode("utf-8"))
+    worker._capture_raw_line(w, b"[second line]")
+    asyncio.run(worker._record_worker_crash(
+        w, s, 7, "process exited unexpectedly", origin="test.eof"))
+    worker._close_raw_capture(w)
+
+    record = _records(session_error_log.path())[0]
+    assert record["kind"] == "worker_crash"
+    assert record["errorText"] == "process exited unexpectedly"
+    assert record["rawDiagnostics"] == "第一行 stderr 诊断\n[second line]\n"
+    assert record["rawDiagnosticLineCount"] == 2
+    assert record["rawDiagnosticSource"] == "unparsed_stream_text"
+    assert record["rawDiagnosticComplete"] is True

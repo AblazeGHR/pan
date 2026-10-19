@@ -10,17 +10,27 @@ Design rules enforced here:
 * Never infer ``retryable``/``code``/``status``/``type`` from message text.
   Only values actually present in a provider payload are copied.
 * Keep CLI facts (``cli``) separate from Pan-derived facts (``pan`` and the
-  top-level outcome fields).
+  top-level outcome fields).  Unparsed stream text is attached as
+  ``rawDiagnostics`` and is never called an error.
 * The previous message is snapshotted by the caller at the moment the error is
   detected, before later concurrent messages can be appended.
-* A write failure is observable (warning + ``stats()``) and never raises into
-  worker/task/queue code.  It cannot cause a retry, hand-off or deadlock.
+* Async callers use ``record_session_error_async``: file locking and writes run
+  on a single dedicated executor thread, so the event loop is never blocked.
+  Records are prepared (timestamp/sequence/previous message) on the caller's
+  thread and written FIFO.
+* A lock failure or write failure drops the sample, increments observable
+  counters and logs a warning.  It never writes without the cross-process lock
+  and never raises into worker/task/queue code.
+* The file tail is re-checked under the lock before every append; an in-process
+  "already newline terminated" cache is intentionally not used.
 * Credentials are best-effort redacted; process argv/environment are never
   collected by this module.
 """
 
 from __future__ import annotations
 
+import asyncio
+import atexit
 import json
 import logging
 import os
@@ -29,6 +39,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -57,11 +68,28 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_LOG_FILE = "data/logs/pan.log"
 
 _THREAD_LOCK = threading.RLock()
-_NEWLINE_TERMINATED: set[str] = set()
 _RECENT_EVENT_IDS: deque[str] = deque()
 _RECENT_EVENT_ID_SET: set[str] = set()
+_INFLIGHT_EVENT_IDS: set[str] = set()
 _MAX_RECENT_EVENT_IDS = 8192
 _OCCURRENCE: dict[str, int] = {}
+_SEQUENCE = 0
+
+# One writer thread preserves submission order and keeps lock/disk waits off
+# the event loop.  Each async caller awaits its own write (bounded by the lock
+# timeout); there is no unbounded background queue and no silent drop.
+_WRITE_EXECUTOR = ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="pan-session-error-log")
+
+
+def _shutdown_executor() -> None:
+    try:
+        _WRITE_EXECUTOR.shutdown(wait=True)
+    except Exception:
+        pass
+
+
+atexit.register(_shutdown_executor)
 
 _path_override: Path | None = None
 
@@ -70,6 +98,7 @@ _STATS = {
     "duplicates": 0,
     "failures": 0,
     "lockFailures": 0,
+    "pending": 0,
     "lastErrorType": None,
     "lastErrorAt": None,
     "lastEventAt": None,
@@ -104,17 +133,18 @@ def configure(path: str | os.PathLike[str] | None) -> None:
 
 def reset_state() -> None:
     """Clear process-local caches and counters.  Tests only."""
-    global _path_override
+    global _path_override, _SEQUENCE
     with _THREAD_LOCK:
         _path_override = None
-        _NEWLINE_TERMINATED.clear()
         _RECENT_EVENT_IDS.clear()
         _RECENT_EVENT_ID_SET.clear()
+        _INFLIGHT_EVENT_IDS.clear()
         _OCCURRENCE.clear()
+        _SEQUENCE = 0
         _STATS.update({
             "written": 0, "duplicates": 0, "failures": 0, "lockFailures": 0,
-            "lastErrorType": None, "lastErrorAt": None, "lastEventAt": None,
-            "lastEventId": None,
+            "pending": 0, "lastErrorType": None, "lastErrorAt": None,
+            "lastEventAt": None, "lastEventId": None,
         })
 
 
@@ -140,8 +170,19 @@ def path() -> Path:
 def stats() -> dict:
     with _THREAD_LOCK:
         result = dict(_STATS)
+        result["pending"] = len(_INFLIGHT_EVENT_IDS)
         result["path"] = str(path())
     return result
+
+
+def flush(timeout: float = 5.0) -> bool:
+    """Wait until all submitted writes have run.  Safe to call at shutdown."""
+    try:
+        _WRITE_EXECUTOR.submit(lambda: None).result(timeout=timeout)
+        return True
+    except Exception as exc:
+        _LOG.warning("session-error-log: flush failed: %s", exc)
+        return False
 
 
 def sanitize(value: Any, *, key: str | None = None) -> Any:
@@ -185,8 +226,6 @@ def cli_error_fields(event: Any) -> tuple[Any, str | None, str | None]:
             message = json.dumps(message, ensure_ascii=False, default=str)
         if message is not None and str(message).strip():
             return error, str(message), "cli.error"
-        # A dict without a message is still a raw fact; keep it and use a
-        # complete JSON rendering as text rather than dropping the payload.
         return error, json.dumps(error, ensure_ascii=False, default=str), "cli.error"
     if isinstance(error, str) and error.strip():
         return error, error, "cli.error"
@@ -245,12 +284,111 @@ def record_session_error(
     previous_message: dict | None = None,
     previous_captured: bool = False,
     dedupe_token: str | None = None,
+    raw_diagnostics: str | None = None,
+    raw_diagnostics_source: Any = None,
 ) -> str | None:
-    """Append one sample.  Never raises; returns the eventId or None.
+    """Synchronously append one sample.  Never raises; returns eventId/None."""
+    try:
+        prepared = _prepare_record(
+            kind=kind,
+            error_text=error_text,
+            error_text_source=error_text_source,
+            terminal=terminal,
+            session=session,
+            session_id=session_id,
+            session_name=session_name,
+            adapter=adapter,
+            model=model,
+            worker_id=worker_id,
+            generation=generation,
+            task_seq=task_seq,
+            task_id=task_id,
+            execution_seq=execution_seq,
+            queue_item_id=queue_item_id,
+            source_session_id=source_session_id,
+            pan_status=pan_status,
+            cancelled=cancelled,
+            recovered=recovered,
+            cli_raw=cli_raw,
+            cli_error_events=cli_error_events,
+            cli_raw_output=cli_raw_output,
+            cli_origin=cli_origin,
+            cli_returncode=cli_returncode,
+            cli_timed_out=cli_timed_out,
+            pan_extra=pan_extra,
+            previous_message=previous_message,
+            previous_captured=previous_captured,
+            dedupe_token=dedupe_token,
+            raw_diagnostics=raw_diagnostics,
+            raw_diagnostics_source=raw_diagnostics_source,
+        )
+    except Exception as exc:
+        _record_failure(exc)
+        return None
+    if prepared is None:
+        return None
+    return _write_prepared(prepared)
 
-    ``previous_captured`` lets a caller pass an already-taken snapshot (or an
-    explicit None snapshot) so later appends cannot change the answer.
+
+async def record_session_error_async(**kwargs) -> str | None:
+    """Prepare on the caller thread, then write on the dedicated executor.
+
+    The previous-message snapshot and processSequence are taken before the
+    first await, preserving detection-time facts and submission order.  The
+    event loop is not blocked by lock waits or disk I/O.
     """
+    try:
+        prepared = _prepare_record(**kwargs)
+    except Exception as exc:
+        _record_failure(exc)
+        return None
+    if prepared is None:
+        return None
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return _write_prepared(prepared)
+    try:
+        return await loop.run_in_executor(_WRITE_EXECUTOR, _write_prepared, prepared)
+    except Exception as exc:  # executor shutdown / cancellation of the submit
+        _record_failure(exc)
+        return None
+
+
+def _prepare_record(
+    *,
+    kind: str,
+    error_text: str,
+    error_text_source: str,
+    terminal: bool,
+    session: Any = None,
+    session_id: str | None = None,
+    session_name: str | None = None,
+    adapter: str | None = None,
+    model: str | None = None,
+    worker_id: str | None = None,
+    generation: int | None = None,
+    task_seq: int | None = None,
+    task_id: str | None = None,
+    execution_seq: int | None = None,
+    queue_item_id: str | None = None,
+    source_session_id: str | None = None,
+    pan_status: str | None = None,
+    cancelled: bool = False,
+    recovered: bool | None = None,
+    cli_raw: Any = None,
+    cli_error_events: list | None = None,
+    cli_raw_output: str | None = None,
+    cli_origin: str | None = None,
+    cli_returncode: Any = None,
+    cli_timed_out: bool | None = None,
+    pan_extra: dict | None = None,
+    previous_message: dict | None = None,
+    previous_captured: bool = False,
+    dedupe_token: str | None = None,
+    raw_diagnostics: str | None = None,
+    raw_diagnostics_source: Any = None,
+) -> tuple[dict, str, Any] | None:
     if kind not in KINDS:
         kind = "terminal_error"
     if session is not None:
@@ -320,6 +458,7 @@ def record_session_error(
     record = {
         "schemaVersion": SCHEMA_VERSION,
         "eventId": event_id,
+        "processSequence": _next_sequence(),
         "timestamp": timestamp,
         "kind": kind,
         "terminal": bool(terminal),
@@ -353,25 +492,72 @@ def record_session_error(
         record["recovered"] = bool(recovered)
     if previous_message is None:
         record["previousMessageMissing"] = True
+    if raw_diagnostics is not None:
+        record["rawDiagnostics"] = sanitize(raw_diagnostics)
+        record["rawDiagnosticSource"] = "unparsed_stream_text"
+        record["rawDiagnosticComplete"] = True
+    return record, event_id, raw_diagnostics_source
 
+
+def _write_prepared(prepared: tuple[dict, str, Any]) -> str | None:
+    record, event_id, raw_source = prepared
+    if raw_source is not None:
+        text, count = _resolve_raw_diagnostics(raw_source)
+        if text:
+            record = {
+                **record,
+                "rawDiagnostics": sanitize(text),
+                "rawDiagnosticLineCount": count,
+                "rawDiagnosticSource": "unparsed_stream_text",
+                "rawDiagnosticComplete": True,
+            }
     line = (json.dumps(record, ensure_ascii=False, default=str,
                        separators=(",", ":")) + "\n").encode("utf-8")
-    # Check + append + remember under one lock so two threads observing the
-    # same logical event cannot both append it.
     with _THREAD_LOCK:
         if event_id in _RECENT_EVENT_ID_SET:
             _STATS["duplicates"] += 1
             return event_id
-        try:
-            _append_line(path(), line)
-        except Exception as exc:  # never propagate into task/queue code
-            _record_failure(exc)
-            return None
+        if event_id in _INFLIGHT_EVENT_IDS:
+            # Another writer already owns this logical event; it will either
+            # persist it or report the failure.
+            return event_id
+        _INFLIGHT_EVENT_IDS.add(event_id)
+    try:
+        _append_line(path(), line)
+    except Exception as exc:  # lock/write failure: drop the sample, keep the task
+        with _THREAD_LOCK:
+            _INFLIGHT_EVENT_IDS.discard(event_id)
+        _record_failure(exc)
+        return None
+    with _THREAD_LOCK:
+        _INFLIGHT_EVENT_IDS.discard(event_id)
         _remember_event_id(event_id)
         _STATS["written"] += 1
-        _STATS["lastEventAt"] = timestamp
+        _STATS["lastEventAt"] = record["timestamp"]
         _STATS["lastEventId"] = event_id
     return event_id
+
+
+def _resolve_raw_diagnostics(source: Any) -> tuple[str | None, int]:
+    """Read a per-run scratch file without touching the event loop."""
+    try:
+        handle, count = source
+    except (TypeError, ValueError):
+        return None, 0
+    try:
+        handle.seek(0)
+        data = handle.read()
+    except Exception:
+        return None, 0
+    if isinstance(data, bytes):
+        text = data.decode("utf-8", errors="replace")
+    else:
+        text = str(data)
+    try:
+        line_count = int(count)
+    except (TypeError, ValueError):
+        line_count = 0
+    return text, line_count
 
 
 def _build_cli_block(
@@ -426,6 +612,14 @@ def _next_occurrence(base_key: str) -> int:
         return value
 
 
+def _next_sequence() -> int:
+    global _SEQUENCE
+    with _THREAD_LOCK:
+        value = _SEQUENCE
+        _SEQUENCE += 1
+        return value
+
+
 def _remember_event_id(event_id: str) -> None:
     with _THREAD_LOCK:
         if event_id in _RECENT_EVENT_ID_SET:
@@ -452,7 +646,17 @@ def _append_line(destination: Path, line: bytes) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     lock_path = Path(str(destination) + ".lock")
     with _THREAD_LOCK:
-        with _cross_process_lock(lock_path):
+        with _cross_process_lock(lock_path) as lock:
+            # Never append without the cross-process lock: an unlocked
+            # os.write loop can interleave with another writer and corrupt
+            # the JSONL line.  A dropped sample is observable and safe.
+            if not lock.acquired:
+                with _THREAD_LOCK:
+                    _STATS["lockFailures"] += 1
+                raise OSError("session-error-log cross-process lock unavailable")
+            # Always re-check the tail under the lock.  Another process may
+            # have crashed after a partial line even though this process
+            # previously wrote a newline-terminated record.
             _ensure_newline(destination)
             flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
             flags |= getattr(os, "O_BINARY", 0)
@@ -466,13 +670,9 @@ def _append_line(destination: Path, line: bytes) -> None:
                     view = view[written:]
             finally:
                 os.close(fd)
-        _NEWLINE_TERMINATED.add(str(destination))
 
 
 def _ensure_newline(destination: Path) -> None:
-    key = str(destination)
-    if key in _NEWLINE_TERMINATED:
-        return
     try:
         with open(destination, "rb") as handle:
             handle.seek(0, os.SEEK_END)
@@ -481,28 +681,26 @@ def _ensure_newline(destination: Path) -> None:
                 return
             handle.seek(size - 1)
             if handle.read(1) == b"\n":
-                _NEWLINE_TERMINATED.add(key)
                 return
     except FileNotFoundError:
         return
     with open(destination, "ab") as handle:
         handle.write(b"\n")
         handle.flush()
-    _NEWLINE_TERMINATED.add(key)
 
 
 class _cross_process_lock:
     """Advisory lock shared by Pan's threads/processes for this one file.
 
     The lock is a sibling ``.lock`` file so the append handle can stay in
-    pure O_APPEND mode.  Failure to acquire is reported but still attempts the
-    append: losing one sample is preferable to blocking or failing a task.
+    pure O_APPEND mode.  Acquisition is bounded and never raises; callers must
+    check ``acquired`` and refuse to write when it is false.
     """
 
     def __init__(self, lock_path: Path):
         self._path = lock_path
         self._handle = None
-        self._acquired = False
+        self.acquired = False
 
     def __enter__(self):
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -513,9 +711,9 @@ class _cross_process_lock:
                 self._handle.write(b"\0")
                 self._handle.flush()
             self._handle.seek(0)
-            # Bounded acquisition: an abandoned lock must not stall a worker
-            # terminal path for msvcrt's default ~10s retry loop.
-            deadline = time.monotonic() + 2.0
+            # Bounded acquisition in the writer thread.  A failed lock must
+            # not become an unlocked append.
+            deadline = time.monotonic() + 1.0
             while True:
                 try:
                     if os.name == "nt":
@@ -525,23 +723,24 @@ class _cross_process_lock:
                         import fcntl
                         fcntl.flock(self._handle.fileno(),
                                     fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    self._acquired = True
+                    self.acquired = True
                     break
                 except OSError:
                     if time.monotonic() >= deadline:
-                        raise
+                        break
                     time.sleep(0.01)
         except OSError as exc:
-            with _THREAD_LOCK:
-                _STATS["lockFailures"] += 1
-            _LOG.warning("session-error-log: lock acquisition failed: %s", exc)
+            _LOG.warning("session-error-log: lock open failed: %s", exc)
+        if not self.acquired:
+            _LOG.warning(
+                "session-error-log: lock acquisition failed; sample will be dropped")
         return self
 
     def __exit__(self, exc_type, exc, tb):
         if self._handle is None:
             return False
         try:
-            if self._acquired:
+            if self.acquired:
                 self._handle.seek(0)
                 if os.name == "nt":
                     import msvcrt
@@ -558,5 +757,5 @@ class _cross_process_lock:
         finally:
             self._handle.close()
             self._handle = None
-            self._acquired = False
+            self.acquired = False
         return False

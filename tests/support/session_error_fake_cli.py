@@ -72,6 +72,18 @@ def _handle(text: str, mode: str) -> None:
         _assistant("partial answer before huge error")
         _result_error(huge, partial="partial answer before huge error")
         return
+    if "err-oversize" in text:
+        oversize = "错" * 120000
+        _assistant("partial answer before oversize error")
+        _result_error(oversize, partial="partial answer before oversize error")
+        return
+    if "err-rawdiag" in text:
+        print("第一行 stderr 诊断：磁盘警告", flush=True)
+        print("[second raw line] 重连日志", flush=True)
+        _assistant("partial answer before raw diagnostic error")
+        _result_error("raw diagnostic scenario failed",
+                      partial="partial answer before raw diagnostic error")
+        return
     if "err-tool" in text:
         _emit({"type": "assistant", "message": {"content": [{
             "type": "thinking", "thinking": "checking the tool"}]}})

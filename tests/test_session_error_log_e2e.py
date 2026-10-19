@@ -204,6 +204,26 @@ def test_stream_terminal_tool_transient_native_cancelled_and_duplicate(runtime):
     assert recovered["terminal"] is False
     assert recovered["cli"]["raw"]["turn_status"] == "completed"
 
+    # Non-JSON stream text is raw diagnostic context, never the error text.
+    _enqueue(runtime, sid, "err-rawdiag")
+    _wait_last_result(runtime, sid, "error")
+    rawdiag = _wait_matching(
+        runtime,
+        lambda r: (r.get("sessionId") == sid
+                   and r.get("kind") == "terminal_error"
+                   and r.get("errorText") == "raw diagnostic scenario failed"),
+    )[-1]
+    assert rawdiag["rawDiagnostics"].replace("\r\n", "\n") == (
+        "第一行 stderr 诊断：磁盘警告\n[second raw line] 重连日志\n")
+    assert rawdiag["rawDiagnosticLineCount"] == 2
+    assert rawdiag["rawDiagnosticSource"] == "unparsed_stream_text"
+    assert "第一行 stderr" not in rawdiag["errorText"]
+    assert not any(
+        record.get("sessionId") == sid
+        and "第一行 stderr" in (record.get("errorText") or "")
+        for record in _records(runtime)
+    )
+
     # Cancellation is layered as cancelled, not as an error.
     _enqueue(runtime, sid, "err-cancelled")
     _wait_last_result(runtime, sid, "cancelled")
@@ -258,6 +278,25 @@ def test_crash_huge_and_concurrent_sessions(runtime):
     assert huge["errorText"].endswith("尾部")
     assert huge["errorText"] != "partial answer before huge error"
     assert huge["pan"]["terminalResult"] == "partial answer before huge error"
+
+    # A single structured error line above the 256 KiB parser cap is read back
+    # from the spill file in full, and the stream keeps working afterwards.
+    oversize_sid = _new_session(runtime, "oversize-error")
+    _spawn(runtime, oversize_sid)
+    _enqueue(runtime, oversize_sid, "err-oversize")
+    _wait_last_result(runtime, oversize_sid, "error")
+    oversize = _wait_matching(
+        runtime,
+        lambda r: (r.get("sessionId") == oversize_sid
+                   and r.get("kind") == "terminal_error"),
+    )[-1]
+    assert len(oversize["errorText"]) == 120000
+    assert oversize["errorText"] == "错" * 120000
+    assert len(oversize["cli"]["raw"]["error"]["message"]) == 120000
+    assert oversize["errorTextSource"] == "cli.error"
+    assert oversize["pan"]["terminalResult"] == "partial answer before oversize error"
+    _enqueue(runtime, oversize_sid, "err-normal")
+    _wait_last_result(runtime, oversize_sid, "done")
 
     one = _new_session(runtime, "concurrent-one")
     two = _new_session(runtime, "concurrent-two")
