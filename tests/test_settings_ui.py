@@ -42,6 +42,7 @@ def _read(p):
 _UI_DEFAULTS = {
     "defaultGroupBy": "none",
     "showGroupBy": False,
+    "showSidebarCollapseHandle": True,
     "defaultNewSessionToCurrentWorkspace": True,
     "showMetaAgent": True,
     "showTaskAgent": True,
