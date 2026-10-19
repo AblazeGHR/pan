@@ -182,13 +182,41 @@ export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels'
   return data.panels;
 }
 
+/** A panel action failure that kept a stable host-provided code. */
+export class PluginPanelError extends Error {
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'PluginPanelError';
+    this.code = code;
+  }
+}
+
+/** Host errors may carry `{"ok":false,"error":{"code","message"}}` JSON; keep
+ *  the code so callers can react to a known condition instead of matching
+ *  broad message text. Plain-text errors remain plain failures. */
+export function pluginPanelFailure(text: string): PluginPanelError {
+  try {
+    const payload = JSON.parse(text) as { error?: { code?: unknown; message?: unknown } };
+    const code = payload?.error?.code;
+    const message = payload?.error?.message;
+    if (typeof code === 'string' && code) {
+      return new PluginPanelError(typeof message === 'string' && message ? message : text, code);
+    }
+  } catch {
+    // Not structured; keep the original text below.
+  }
+  return new PluginPanelError(text);
+}
+
 export async function invokePluginPanel<T>(plugin: string, panel: string, action: string,
   args: Record<string, unknown>, requestId?: string): Promise<T> {
   const result = await request<{ isError?: boolean; structuredContent?: T; content?: { type: string; text?: string }[] }>(
     `/api/plugins/${encodeURIComponent(plugin)}/panels/${encodeURIComponent(panel)}/actions/${encodeURIComponent(action)}`,
     { method: 'POST', body: JSON.stringify({ arguments: args, ...(requestId ? { requestId } : {}) }) });
   if (result.isError || result.structuredContent === undefined) {
-    throw new Error(result.content?.find((item) => item.type === 'text')?.text || '插件未返回有效结果');
+    throw pluginPanelFailure(result.content?.find((item) => item.type === 'text')?.text || '插件未返回有效结果');
   }
   return result.structuredContent;
 }

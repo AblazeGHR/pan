@@ -175,6 +175,48 @@ describe('plugin account panel', () => {
   });
 });
 
+describe('CLI availability guidance', () => {
+  const withCode = (message: string, code: string) => Object.assign(new Error(message), { code });
+
+  it('shows install guidance and a safe repository link when the CLI is missing', async () => {
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('未找到 GUI Fork 的 cc-switch 入口', 'cli_not_found'));
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByRole('heading', { name: '未找到 cc-switch CLI' })).toBeTruthy();
+    expect(screen.getByText(/Pan 不捆绑 CLI，也不会自动下载或安装/)).toBeTruthy();
+    const link = screen.getByRole('link', { name: /AblazeGHR\/cc-switch-pan/ });
+    expect(link.getAttribute('href')).toBe('https://github.com/AblazeGHR/cc-switch-pan');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(screen.queryByText(/读取列表失败/)).toBe(null);
+  });
+
+  it('distinguishes an incompatible CLI from an ordinary execution failure', async () => {
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('此入口不是兼容的 cc-switch GUI Fork', 'cli_incompatible'));
+    const view = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByRole('heading', { name: '当前 cc-switch CLI 不兼容' })).toBeTruthy();
+    view.unmount(); cleanup(); resetPluginPanelRuntime();
+
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('cc-switch 执行失败（退出码 1）', 'cli_failed'));
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByText(/读取列表失败：cc-switch 执行失败（退出码 1）/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+  });
+
+  it('does not show install guidance after a successful list or an ordinary quota error', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(new Error('网络请求失败'));
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    expect(screen.getByText(/额度刷新失败：网络请求失败/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+  });
+});
+
 describe('quota relative times on a controlled clock', () => {
   const quota = (overrides: Partial<AccountQuota>): AccountQuota => ({
     status: 'ok', available: true, queriedAt: NOW, message: null, tiers: [], balances: [], ...overrides });

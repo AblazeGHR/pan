@@ -15,6 +15,9 @@ import {
   fetchJobs,
   fetchCompletedJobRetentionSettings,
   updateCompletedJobRetentionSettings,
+  invokePluginPanel,
+  pluginPanelFailure,
+  PluginPanelError,
 } from './api';
 
 class FakeXMLHttpRequest {
@@ -452,5 +455,28 @@ describe('Jobs pin metadata envelope', () => {
     const status = vi.fn();
     expect(await fetchJobs(status)).toEqual([]);
     expect(status).toHaveBeenCalledWith('available');
+  });
+});
+
+describe('plugin panel structured failures', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('keeps a host-provided code and leaves plain text uncoded', () => {
+    const coded = pluginPanelFailure(JSON.stringify({ ok: false, error: { code: 'cli_not_found', message: 'missing' } }));
+    expect(coded).toBeInstanceOf(PluginPanelError);
+    expect(coded.code).toBe('cli_not_found');
+    expect(coded.message).toBe('missing');
+    expect(pluginPanelFailure('plain failure').code).toBeUndefined();
+    expect(pluginPanelFailure(JSON.stringify({ ok: false, error: { code: 'cli_failed', message: 'boom' } })).code)
+      .toBe('cli_failed');
+  });
+
+  it('throws the coded failure from an isError action response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      isError: true,
+      content: [{ type: 'text', text: JSON.stringify({ ok: false, error: { code: 'cli_not_found', message: 'missing' } }) }],
+    }), { status: 200 })));
+    await expect(invokePluginPanel('cc-switch-bridge', 'accounts', 'list', { app: 'codex' }))
+      .rejects.toMatchObject({ code: 'cli_not_found', message: 'missing' });
   });
 });

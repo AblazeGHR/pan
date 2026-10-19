@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { RefreshCw, Check, Play, Plug, Search, UserRound, Layers3 } from 'lucide-react';
+import { RefreshCw, Check, Play, Plug, Search, UserRound, Layers3, ExternalLink } from 'lucide-react';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 import { invokePluginPanel } from '@/services/api';
 import type { AccountQuota, AccountSnapshot, PluginPanel } from '@/types/pluginPanels';
@@ -48,6 +48,20 @@ export default function PluginPanelView() {
 }
 
 type SnapshotMap = Record<string, AccountSnapshot | null>;
+type PanelFailure = { message: string; code?: string };
+
+const CLI_REPO_URL = 'https://github.com/AblazeGHR/cc-switch-pan';
+/** Only these host-provided codes mean the CLI itself is missing, unusable,
+ *  or incompatible. Ordinary execution and quota failures keep their own
+ *  message and must not be presented as an installation problem. */
+const CLI_GUIDANCE_CODES = new Set(['cli_not_found', 'cli_unavailable', 'cli_incompatible']);
+
+function failureOf(reason: unknown, fallback: string): PanelFailure {
+  const message = reason instanceof Error && reason.message ? reason.message : fallback;
+  const code = reason && typeof reason === 'object' && typeof (reason as { code?: unknown }).code === 'string'
+    ? (reason as { code: string }).code : undefined;
+  return code ? { message, code } : { message };
+}
 
 export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   const scope: PanelScope = useMemo(() => ({ pluginId: panel.pluginId, panelId: panel.id }),
@@ -61,7 +75,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     gemini: readCachedSnapshot(scope, 'gemini'),
   }));
   const [listLoading, setListLoading] = useState<Record<string, boolean>>({});
-  const [listErrors, setListErrors] = useState<Record<string, string | null>>({});
+  const [listErrors, setListErrors] = useState<Record<string, PanelFailure | null>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
@@ -177,7 +191,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     } catch (reason) {
       if (!mounted.current || viewTokens.current[targetApp] !== token) return;
       setListErrors((current) => ({ ...current,
-        [targetApp]: reason instanceof Error ? reason.message : '读取失败' }));
+        [targetApp]: failureOf(reason, '读取失败') }));
     } finally {
       if (mounted.current && viewTokens.current[targetApp] === token) {
         setListLoading((current) => ({ ...current, [targetApp]: false }));
@@ -234,6 +248,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   };
 
   const listError = listErrors[app] ?? null;
+  const cliIssue = listError?.code && CLI_GUIDANCE_CODES.has(listError.code) ? listError : null;
   const refreshingHere = refreshing.filter((key) => key.startsWith(app + ':'));
 
   return <section className="h-full overflow-auto p-4 sm:p-6 text-text-primary" aria-label={panel.title}>
@@ -253,11 +268,12 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
           className="min-w-0 w-full bg-transparent py-3 text-sm outline-none" />
       </label>
       {error && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">{error}</div>}
-      {listError && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">读取列表失败：{listError}（已保留上次数据，可重试）</div>}
+      {cliIssue ? <CliGuidance failure={cliIssue} retained={snapshot !== null} /> : listError &&
+        <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">读取列表失败：{listError.message}（已保留上次数据，可重试）</div>}
       {uncertain && <p role="status" className="text-sm text-amber-500">切换结果尚未确认。请先刷新列表并核对实际状态，再发起新的切换。</p>}
       {refreshingHere.length > 0 && <p role="status" className="text-sm text-text-tertiary">正在刷新 {refreshingHere.length} 个过期额度…</p>}
       {listLoading[app] === true && snapshot && <p role="status" className="text-sm text-text-tertiary">正在后台更新列表…</p>}
-      {!snapshot && <p role="status" className="text-text-tertiary">{listLoading[app] === true ? '正在读取账号信息…' : '尚未读取到数据'}</p>}
+      {!snapshot && !cliIssue && <p role="status" className="text-text-tertiary">{listLoading[app] === true ? '正在读取账号信息…' : '尚未读取到数据'}</p>}
       {snapshot && <>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
           <span className="inline-flex items-center gap-2"><Layers3 size={16} />{snapshot.providers.length} 个配置</span>
@@ -297,6 +313,21 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
         <p className="text-xs text-text-tertiary">列表读取于 {new Date(snapshot.observedAt).toLocaleString()}。切换不会自动重启 Pan Worker。</p>
       </>}
     </div>
+  </section>;
+}
+
+function CliGuidance({ failure, retained }: { failure: PanelFailure; retained: boolean }) {
+  const heading = failure.code === 'cli_incompatible' ? '当前 cc-switch CLI 不兼容'
+    : failure.code === 'cli_unavailable' ? '无法启动 cc-switch CLI' : '未找到 cc-switch CLI';
+  return <section role="alert" aria-label="cc-switch CLI 安装指引"
+    className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+    <h2 className="font-semibold text-amber-500">{heading}</h2>
+    <p className="text-text-secondary">此面板依赖带兼容 CLI 的 cc-switch 分支；Pan 不捆绑 CLI，也不会自动下载或安装。请按仓库说明安装或构建控制台入口，再把插件 <code>settings.json</code> 的 <code>executable</code> 指向它，或让 <code>cc-switch</code> 出现在 Pan 进程的 PATH 中。</p>
+    <p className="break-words text-text-secondary">{retained ? '上次读取的数据已保留；' : ''}修复后点击“刷新列表”重试。{failure.message}</p>
+    <a href={CLI_REPO_URL} target="_blank" rel="noopener noreferrer"
+      className="inline-flex min-w-0 items-center gap-1 break-all text-accent underline">
+      打开 AblazeGHR/cc-switch-pan<ExternalLink size={14} className="shrink-0" />
+    </a>
   </section>;
 }
 
