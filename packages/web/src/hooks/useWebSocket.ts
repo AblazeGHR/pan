@@ -1533,7 +1533,20 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   // live buffer is gone (result/restart or a fresh client state), an alias
   // from an earlier turn must not attach a new event to that old turn.
   if (before.length === 0) clearNativeTurnAliases(sessionId);
-  const messages = appendEventToMessages(sessionId, event, before, meta);
+  let messages = appendEventToMessages(sessionId, event, before, meta);
+  if (event.type === 'codex.plan' || event.type === 'codex.diff') {
+    // These are replaceable turn summaries, not canonical tool/thinking
+    // items. Preserve that provenance so DONE can seal them even if older
+    // history needed for ordinary runtime convergence has not loaded yet.
+    const kind = event.type === 'codex.plan' ? 'plan' : 'diff';
+    const unchanged = new Set(before);
+    messages = messages.map(row => {
+      if (unchanged.has(row) || row.nativeAggregate === kind) return row;
+      const next: Message = { ...row, nativeAggregate: kind };
+      inheritMessageIdentity(next, row);
+      return next;
+    });
+  }
   if (event.final) {
     const blocks = extractBlocks(event);
     markCompletedLiveRows(messages.filter(row => blocks.some(block => block.role === row.role && block.content === row.content)));

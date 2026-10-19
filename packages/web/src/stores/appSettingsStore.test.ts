@@ -45,7 +45,18 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(false);
     expect(s.showMessageNavigationRail).toBe(true);
     expect(s.showHistorySearch).toBe(true);
+    expect(s.showSidebarCollapseHandle).toBe(true);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
+  });
+
+  it('persists the sidebar collapse handle visibility', () => {
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(false);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(false);
+    expect(mockedUpdate).toHaveBeenCalledWith({ showSidebarCollapseHandle: false });
+
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(true);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showSidebarCollapseHandle: true });
   });
 
   it('applies backend ui settings on load', async () => {
@@ -337,6 +348,10 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showChatViewSwitcher: true }).showChatViewSwitcher).toBe(true);
     expect(sanitizeSettings({ showGroupBy: 'yes' }).showGroupBy).toBe(false);
     expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: 'no' }).showSidebarCollapseHandle)
+      .toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: false }).showSidebarCollapseHandle)
+      .toBe(false);
     expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');
     expect(sanitizeSettings({ defaultGroupBy: 'off' }).defaultGroupBy).toBe('none');
   });

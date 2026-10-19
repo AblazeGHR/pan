@@ -3518,6 +3518,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           appendedResult = true;
         }
       }
+      // Codex plan/diff are live turn summaries and never durable history
+      // rows. Their own terminal is sufficient proof to retire them; waiting
+      // for complete older history can strand them behind the DONE marker.
+      // Keep every ordinary native item under the existing coverage rules.
+      finalized = finalized.filter(row => !row.nativeAggregate);
       const revision = Math.max(
         previousBuffer?.revision ?? 0,
         terminal?.revision ?? 0,
@@ -3611,7 +3616,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // previous version of a row (a superseded live buffer object), not an
           // untracked row that needs adopting.
           const key = runtimeKeyOf(row);
-          return key === null || !trackedKeys.has(key);
+          return key === null || (!trackedKeys.has(key) && !previousLiveKeys.has(key));
         });
         if (adopted.length > 0) {
           nextTranscript = { ...nextTranscript, runtime: [...adopted, ...nextTranscript.runtime] };
@@ -3620,7 +3625,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (previousBuffer?.taskKey && hasResult && coverage.historyEpoch
           && Number.isSafeInteger(coverage.historyRevision)
           && previousBuffer.historyStartOffset !== undefined) {
-        const finalRow = finalized[finalSlot >= 0 ? finalSlot : finalized.length - 1];
+        const finalRow = finalized.findLast(row => row.role === 'assistant');
         if (finalRow?.role === 'assistant') {
           nextTranscript = {
             ...nextTranscript,

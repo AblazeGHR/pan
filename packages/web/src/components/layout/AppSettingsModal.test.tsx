@@ -297,7 +297,8 @@ describe('AppSettingsModal', () => {
     expect(card.textContent).toContain('Reset to defaults');
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     expect(card.textContent).toContain('Default group by');
-    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(9);
+    expect(card.textContent).toContain('Show sidebar collapse handle');
+    expect(card.querySelectorAll('[role="switch"]')).toHaveLength(10);
     expect(card.textContent).toContain('Notification');
     expect(card.textContent).toContain('Enable Session and global history search');
   });
@@ -1150,7 +1151,7 @@ describe('AppSettingsModal', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
     const switches = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'));
-    expect(switches).toHaveLength(9);
+    expect(switches).toHaveLength(10);
     // meta-agent is on by default; toggle it off.
     const metaSwitch = switches.find((element) => element.textContent?.includes('Show meta-agent info'))!;
     expect(metaSwitch.getAttribute('aria-checked')).toBe('true');
@@ -1220,6 +1221,24 @@ describe('AppSettingsModal', () => {
     expect(useAppSettingsStore.getState().showGroupBy).toBe(false);
     expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showGroupBy: false });
     expect(groupSwitch.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('toggles the desktop sidebar collapse handle on the Appearance tab and persists it', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
+    const handleSwitch = Array.from(document.body.querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Show sidebar collapse handle'))!;
+    expect(handleSwitch.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(handleSwitch);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(false);
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showSidebarCollapseHandle: false });
+    expect(handleSwitch.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(handleSwitch);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(true);
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({ showSidebarCollapseHandle: true });
+    expect(handleSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
   it('changes Default group by on the Appearance tab and persists the selection', () => {

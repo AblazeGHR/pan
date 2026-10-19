@@ -435,6 +435,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     defaultGroupBy,
     showGroupBy,
     showChatViewSwitcher,
+    showSidebarCollapseHandle,
     defaultNewSessionToCurrentWorkspace,
     showMetaAgent,
     showTaskAgent,
@@ -450,6 +451,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setDefaultGroupBy,
     setShowGroupBy,
     setShowChatViewSwitcher,
+    setShowSidebarCollapseHandle,
     setDefaultNewSessionToCurrentWorkspace,
     setShowMetaAgent,
     setShowTaskAgent,
@@ -1517,6 +1519,19 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   On by default. Hiding the switcher only removes that control; viewing the chat,
                   Terminal TUI / Upgrades, and every navigation route stay available.
                 </p>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Sidebar
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show sidebar collapse handle"
+                    hint="Floating handle on the desktop sidebar edge; the header and collapsed-rail buttons stay available."
+                    checked={showSidebarCollapseHandle}
+                    onChange={setShowSidebarCollapseHandle}
+                  />
+                </div>
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">

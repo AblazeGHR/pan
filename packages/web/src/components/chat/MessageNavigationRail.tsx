@@ -114,13 +114,12 @@ function nextPaint(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
-/** Apply the freshest known bookmark marks to one loaded row.  The store
- *  overlay wins over the row's projected flag while a mutation is newer. */
-function withBookmark(message: Message, marks: Record<string, boolean> | undefined): Message {
-  if (!marks || !message.messageId) return message;
-  const marked = marks[message.messageId];
-  if (marked === undefined || marked === Boolean(message.bookmarked)) return message;
-  return { ...message, bookmarked: marked };
+/** Apply the freshest PROVEN bookmark state to one row.  `undefined` means
+ *  the store has no evidence yet and the row keeps its projection; a proven
+ *  absent mark (false) must override a stale projected `true`. */
+function withBookmark(message: Message, mark: boolean | undefined): Message {
+  if (!message.messageId || mark === undefined || mark === Boolean(message.bookmarked)) return message;
+  return { ...message, bookmarked: mark };
 }
 
 export function MessageNavigationRail({
@@ -181,15 +180,29 @@ export function MessageNavigationRail({
   // navigation fetch.
   const bookmarkedMarks = useBookmarkStore((state) =>
     (currentSessionId ? state.sessions[currentSessionId]?.marks : undefined));
+  const bookmarksLoaded = useBookmarkStore((state) =>
+    Boolean(currentSessionId && state.sessions[currentSessionId]?.loaded));
+  const bookmarkTouched = useBookmarkStore((state) =>
+    (currentSessionId ? state.sessions[currentSessionId]?.authoritativeTouched : undefined));
+  // Tri-state lookup: a value means proven (transaction intent or
+  // authoritative evidence), `undefined` means this client does not know yet.
+  // Once an envelope is loaded (or a delta touched the id), ABSENCE is
+  // evidence and must beat a stale projected `bookmarked: true`.
+  const bookmarkMark = useCallback((messageId: string | undefined): boolean | undefined => {
+    if (!messageId) return undefined;
+    if (bookmarkedMarks && messageId in bookmarkedMarks) return Boolean(bookmarkedMarks[messageId]);
+    if (bookmarksLoaded || (bookmarkTouched && messageId in bookmarkTouched)) return false;
+    return undefined;
+  }, [bookmarkedMarks, bookmarksLoaded, bookmarkTouched]);
   // Navigation pages carry NO bookmark projection, so every index ingestion
   // must classify from the freshest overlay: a page that predates a local
   // mutation would otherwise delete the overlay's entry (and a page that
   // predates a removal would resurrect it).  The ref keeps the long-lived
   // indexing loop on the latest marks without resubscribing or refetching.
-  const bookmarkedMarksRef = useRef(bookmarkedMarks);
-  bookmarkedMarksRef.current = bookmarkedMarks;
+  const bookmarkMarkRef = useRef(bookmarkMark);
+  bookmarkMarkRef.current = bookmarkMark;
   const withBookmarkOverlay = useCallback((rows: readonly CanonicalRow[]): CanonicalRow[] =>
-    rows.map((row) => ({ ...row, message: withBookmark(row.message, bookmarkedMarksRef.current) })), []);
+    rows.map((row) => ({ ...row, message: withBookmark(row.message, bookmarkMarkRef.current(row.message.messageId)) })), []);
   // Rail tag-type filter: checked kinds are shown; multi-select is OR; an
   // empty selection means no filter.  View preference only — never persisted,
   // never sent anywhere, and the referenced offsets stay canonical.
@@ -246,24 +259,27 @@ export function MessageNavigationRail({
     clearScrub(false); setJumpError(null);setActiveOffset(null);setJumpingOffset(null);
   },[context,clearScrub]);
   useLayoutEffect(() => {
-    // Bookmark overlay: re-merge the loaded rows with the freshest marks so a
-    // bookmarked plain block gains its own rail tag (and a removed one loses
-    // it) without waiting for the next navigation fetch.  Rows pagination has
-    // not loaded keep their projection flags.
-    if (!context.sessionId || !bookmarkedMarks) return;
+    // Bookmark overlay: re-merge the loaded rows with the freshest proven
+    // marks so a bookmarked plain block gains its own rail tag (and a removed
+    // one loses it) without waiting for the next navigation fetch.  The same
+    // evidence is then applied to EVERY indexed target, not just the loaded
+    // window: a removal for a row pagination has not loaded must still drop
+    // its marker now.  With no evidence at all the projections stay untouched.
+    if (!context.sessionId) return;
+    if (bookmarkedMarks === undefined && !bookmarksLoaded && bookmarkTouched === undefined) return;
     const state = useSessionStore.getState();
     const transcript = state.sessionTranscripts[context.sessionId];
     const rows: CanonicalRow[] = transcript
       ? [...transcript.window.rows.entries()].map(([offset, message]) => ({ offset, message }))
       : canonicalRowsWithOffsets(state.currentMessages).map((row) => ({ ...row }));
-    if (!rows.length) return;
-    context.index.addRows(withBookmarkOverlay(rows));
+    if (rows.length) context.index.addRows(withBookmarkOverlay(rows));
+    context.index.applyBookmarkMarks(bookmarkMarkRef.current);
     // Publish when nothing has been published yet as well: an overlay change
     // that lands before the first navigation page must initialise the view,
     // not be dropped (only another context's view outranks this one).
     setIndexView((value) => (value === null || value.context === context)
       ? { context, targets: context.index.targets() } : value);
-  }, [context, bookmarkedMarks, withBookmarkOverlay]);
+  }, [context, bookmarkedMarks, bookmarksLoaded, bookmarkTouched, withBookmarkOverlay]);
 
   useLayoutEffect(() => {
     const wanted=pendingWantedRef.current;
