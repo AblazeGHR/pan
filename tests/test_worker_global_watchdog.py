@@ -91,7 +91,7 @@ def test_restart_or_start_restarts_live_worker_without_creating(monkeypatch):
     restart = AsyncMock(return_value=None)
     monkeypatch.setattr(worker, "_create_worker", create)
     monkeypatch.setattr(worker, "_restart_worker_unlocked", restart)
-    monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: live)
+    monkeypatch.setattr(worker, "_find_control_worker", lambda _: live)
 
     result = asyncio.run(worker.restart_or_start_worker("ses_control"))
 

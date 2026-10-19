@@ -283,7 +283,10 @@ def test_kill_worker_cleans_pending_permission_request(monkeypatch):
             if worker._claude_permission_requests:
                 break
             await asyncio.sleep(0)
-        monkeypatch.setattr(worker, "_kill_process_tree", lambda _worker: asyncio.sleep(0))
+        async def stop_fake_process(value):
+            value.process.returncode = -9
+
+        monkeypatch.setattr(worker, "_kill_process_tree", stop_fake_process)
         await worker.kill_worker(w.worker_id)
         result = await asyncio.wait_for(pending, timeout=1)
         assert result["behavior"] == "deny"

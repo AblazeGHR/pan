@@ -708,6 +708,7 @@ def test_input_gate_clears_only_after_confirmed_retirement(monkeypatch, operatio
     from packages.core import worker, session
     from packages.core.adapters.cbc.native_adapter import CbcNativeAdapter
     s = session.Session(id="ses-cbc-retirement", name="retirement", adapter="cbc")
+    monkeypatch.setitem(session._cache, s.id, s)
     s.adapter_config["native_control"] = True
     old = SimpleNamespace(returncode=None)
     w = worker.Worker("cbc-retirement", s.id, CbcNativeAdapter(), process=old,
@@ -740,6 +741,8 @@ def test_input_gate_clears_only_after_confirmed_retirement(monkeypatch, operatio
     else:
         assert "not confirmed" in result
         assert w.native_input_uncertain and w.process is old and w.status == "error"
+        assert worker.workers[w.worker_id] is w
+        assert old.returncode is None
         create.assert_not_awaited()
 
 

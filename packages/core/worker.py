@@ -8335,7 +8335,7 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     await _kill_takeover_terminal(w)
     await _kill_process_tree(w)
     if not _runtime_stopped(w):
-        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; takeover refused"))
+        return await _control_stop_failed(w, RuntimeError("Runtime stop was not confirmed (timed out); takeover refused"))
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
     if _runtime_stopped(w):
@@ -8420,7 +8420,7 @@ async def _kill_worker_unlocked(
     await _kill_takeover_terminal(w)
 
     if not _runtime_stopped(w):
-        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; process is still alive"))
+        return await _control_stop_failed(w, RuntimeError("Runtime stop was not confirmed (timed out); process is still alive"))
 
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/kill")
@@ -8877,7 +8877,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     # kill existing cbc process tree（psutil 递归杀，避免 node.exe 孤儿）
     await _kill_process_tree(w)
     if not _runtime_stopped(w):
-        return await _control_stop_failed(w, RuntimeError("Runtime stop timed out; process is still alive"))
+        return await _control_stop_failed(w, RuntimeError("Runtime stop was not confirmed (timed out); process is still alive"))
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
     if w._hist_dirty:
