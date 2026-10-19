@@ -4,6 +4,7 @@ import {
   useAppSettingsStore,
   DEFAULT_SETTINGS,
   sanitizeSettings,
+  sanitizeShortcuts,
   sanitizeUnreadRecording,
   toggleUnreadRecordingScope,
 } from '@/stores/appSettingsStore';
@@ -430,5 +431,76 @@ describe('appSettingsStore', () => {
       .notifications.unreadRecording).toEqual(['none']);
     expect(sanitizeSettings({ notifications: { unreadRecording: ['pinned'] } })
       .notifications.unreadRecording).toEqual(['pinned']);
+  });
+});
+
+describe('appSettingsStore shortcuts', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    mockedFetch.mockReset();
+    mockedUpdate.mockReset();
+    mockedFetch.mockResolvedValue({ ...DEFAULT_SETTINGS });
+    mockedUpdate.mockResolvedValue({});
+  });
+
+  it('sanitizes persisted bindings while preserving explicit clears', () => {
+    expect(sanitizeShortcuts({
+      'app.toggleSidebar': 'shift+mod+b',
+      'queue.enqueueLocked': null,
+      'app.commandPalette': 'Mod+S',
+      'bad': 'not-a-binding',
+    })).toEqual({
+      'app.toggleSidebar': 'Mod+Shift+B',
+      'queue.enqueueLocked': null,
+    });
+  });
+
+  it('persists, clears and restores shortcut overrides through the existing ui endpoint', () => {
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+Shift+B');
+    expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar'])
+      .toBe('Mod+Shift+B');
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      shortcuts: { 'app.toggleSidebar': 'Mod+Shift+B' },
+    });
+
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', null);
+    expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar']).toBeNull();
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      shortcuts: { 'app.toggleSidebar': null },
+    });
+
+    useAppSettingsStore.getState().resetShortcutBinding('app.toggleSidebar');
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
+
+    useAppSettingsStore.getState().setShortcutBinding('queue.lockAll', 'Mod+Shift+L');
+    useAppSettingsStore.getState().resetAllShortcuts();
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
+  });
+
+  it('rejects reserved combinations instead of silently hijacking the browser', () => {
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+S');
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it('loads persisted shortcuts with missing and malformed entries falling back safely', async () => {
+    mockedFetch.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      shortcuts: {
+        'app.toggleSidebar': 'mod+shift+b',
+        'panel:plugin:alpha/one': 'Mod+3',
+        'queue.lockAll': null,
+        'bad': 7,
+      },
+    } as never);
+    await useAppSettingsStore.getState().loadSettings();
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({
+      'app.toggleSidebar': 'Mod+Shift+B',
+      'panel:plugin:alpha/one': 'Mod+3',
+      'queue.lockAll': null,
+    });
   });
 });

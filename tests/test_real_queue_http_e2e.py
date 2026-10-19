@@ -651,3 +651,117 @@ def test_real_self_queue_original_item_restart_and_receipt(isolated_runtime, mon
     print("REAL_SELF_QUEUE_E2E " + json.dumps({"port": PORT, "sessionId": sid,
           "oldPid": original_pid, "newPid": records[1]["pid"], "originalId": chosen,
           "receipt": receipt, "readIds": [it["id"] for it in visible["items"]]}, ensure_ascii=False))
+
+
+@pytest.mark.timeout(120)
+def test_real_http_locked_enqueue_is_not_handed_off_before_unlock(isolated_runtime):
+    """The composer shortcut's `locked: true` enqueue is atomic.
+
+    A live, idle worker must not receive the row while the lock is set.  This
+    reproduces the exact race the shortcut must avoid: enqueue first and lock
+    later would allow a reserved/writing handoff in between.
+    """
+    runtime, _recorder = isolated_runtime
+    session = _create(runtime, "locked-composer-shortcut")
+    sid = session["id"]
+    _spawn(runtime, sid)
+    marker = f"locked-before-handoff-{time.time_ns()}"
+    response = runtime.request(
+        "POST", f"/api/sessions/{sid}/queue",
+        json={
+            "text": marker,
+            "clientMessageId": f"cm-{marker}",
+            "locked": True,
+        },
+    )
+    item = response["item"]
+    queue_item_id = item.get("queueItemId") or item.get("id")
+    assert item["meta"]["locked"] is True
+    assert item["meta"]["dispatchState"] == "queued"
+
+    # Give the live worker more than enough time to consume an unlocked row.
+    time.sleep(0.8)
+    assert _received(runtime, text=marker) == []
+    queue = runtime.request("GET", f"/api/sessions/{sid}/queue")
+    row = next(
+        candidate for candidate in queue["items"]
+        if (candidate.get("queueItemId") or candidate.get("id")) == queue_item_id
+    )
+    assert row["meta"]["dispatchState"] == "queued"
+    assert row["meta"]["locked"] is True
+    assert row["meta"]["lockManual"] is True
+
+    runtime.request(
+        "PATCH", f"/api/sessions/{sid}/queue/{queue_item_id}/lock",
+        json={"locked": False},
+    )
+    _wait_for(
+        lambda: _received(runtime, text=marker),
+        timeout=15,
+        label="locked item delivered only after unlock",
+    )
+    print("REAL_LOCKED_ENQUEUE_E2E " + json.dumps({
+        "port": PORT,
+        "sessionId": sid,
+        "queueItemId": queue_item_id,
+        "handoffBeforeUnlock": False,
+        "deliveredAfterUnlock": True,
+    }))
+
+
+@pytest.mark.timeout(120)
+def test_real_http_report_and_bell_toggles_persist_across_restart(tmp_path):
+    """Selected-Session shortcut toggles reuse the card APIs and survive a restart."""
+    runtime = _PanRuntime(tmp_path / "shortcut-toggle-data")
+    runtime.start()
+    try:
+        manager = _create(runtime, "shortcut-manager")
+        child = _create(runtime, "shortcut-child")
+        manager_id = manager["id"]
+        child_id = child["id"]
+        runtime.request("POST", "/api/report-subscribe", json={
+            "managerId": manager_id,
+            "sessionId": child_id,
+        })
+        detail = runtime.request(
+            "GET", f"/api/sessions/{child_id}?view=metadata")
+        assert detail["managedBy"] == manager_id
+        assert detail["reportsToManager"] is True
+        assert isinstance(detail["msgBridgeEnabled"], bool)
+
+        stopped = runtime.request(
+            "PUT", f"/api/sessions/{child_id}/report-to-manager",
+            json={
+                "managerId": manager_id,
+                "enabled": False,
+                "expectedEnabled": True,
+            },
+        )
+        assert stopped["ok"] is True
+        assert stopped["reportsToManager"] is False
+
+        initial_bell = detail["msgBridgeEnabled"]
+        wanted_bell = not initial_bell
+        bell = runtime.request(
+            "PUT", f"/api/sessions/{child_id}/msg-bridge",
+            json={"enabled": wanted_bell, "expectedEnabled": initial_bell},
+        )
+        assert bell["ok"] is True
+        assert bell["msgBridgeEnabled"] is wanted_bell
+
+        runtime.stop()
+        runtime.start()
+        after = runtime.request(
+            "GET", f"/api/sessions/{child_id}?view=metadata")
+        assert after["managedBy"] == manager_id
+        assert after["reportsToManager"] is False
+        assert after["msgBridgeEnabled"] is wanted_bell
+        print("REAL_SESSION_TOGGLES_E2E " + json.dumps({
+            "port": PORT,
+            "managerId": manager_id,
+            "sessionId": child_id,
+            "reportsToManagerAfterRestart": after["reportsToManager"],
+            "msgBridgeEnabledAfterRestart": after["msgBridgeEnabled"],
+        }))
+    finally:
+        runtime.stop()

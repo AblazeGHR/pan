@@ -16,6 +16,7 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDetailStore } from './stores/detailStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePluginPanelStore } from './stores/pluginPanelStore';
+import { useGlobalShortcuts } from './shortcuts/useGlobalShortcuts';
 import { Outlet, useNavigate } from 'react-router-dom';
 
 // The normally closed detail pane imports Markdown; keep it outside the
@@ -26,6 +27,14 @@ const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
 
 export function Layout() {
   useEffect(() => { void usePluginPanelStore.getState().load(); }, []);
+  // Event-driven catalog refresh: a plugin may be installed/removed while Pan
+  // is in the background. Returning focus re-reads the real registry so new
+  // panel actions appear and removed ones stop matching, without polling.
+  useEffect(() => {
+    const refresh = () => { void usePluginPanelStore.getState().load(true); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
   const detailOpen = useDetailStore((s) => s.detailTarget !== null);
   // The dashboard connection is route-independent. Keeping this singleton
   // consumer above <Outlet> lets editor/manage continue receiving Session,
@@ -146,25 +155,10 @@ export function Layout() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'b') {
-          e.preventDefault();
-          useUIStore.getState().toggleSidebar();
-        } else if (e.key === '1') {
-          e.preventDefault();
-          navigate('/');
-        } else if (e.key === '2') {
-          e.preventDefault();
-          navigate('/editor');
-        }
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [navigate]);
+  // One centralized listener for every configurable app shortcut.  The old
+  // per-component document listeners (Ctrl+B/1/2 here, Ctrl+K in the palette,
+  // Ctrl+F in history search) were removed to avoid double-firing.
+  useGlobalShortcuts(navigate);
 
   return (
     <div

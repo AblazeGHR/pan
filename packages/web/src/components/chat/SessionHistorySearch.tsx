@@ -72,21 +72,24 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
   }, [isOpen, onOpenChange]);
   const close = useCallback(() => { cancel(); setOpen(false); setResponse(null); setStatus('idle'); }, [cancel, setOpen]);
 
+  // The shell dispatcher owns the configurable open action.  This component
+  // only listens for the dispatched action, never for the raw keydown.
   useEffect(() => {
     if (navigationOnly) return;
+    const openSearch = () => setOpen(true);
+    window.addEventListener('pan:shortcut:history-search', openSearch);
+    return () => window.removeEventListener('pan:shortcut:history-search', openSearch);
+  }, [setOpen, navigationOnly]);
+  // Escape remains contextual to the search popup.
+  useEffect(() => {
+    if (navigationOnly || !open) return;
     const shortcut = (event: globalThis.KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
-      if (event.key === 'Escape' && open) { event.preventDefault(); close(); return; }
-      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'f') return;
-      const target = event.target;
-      if (target instanceof HTMLElement && !popup.current?.contains(target) &&
-          (target.isContentEditable || target.closest('input,textarea,select,[contenteditable="true"]'))) return;
-      event.preventDefault();
-      setOpen(true);
+      if (event.key === 'Escape' && open) { event.preventDefault(); close(); }
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, [open, close, setOpen, navigationOnly]);
+  }, [open, close, navigationOnly]);
   useEffect(() => { if (open) { input.current?.focus(); input.current?.select(); } }, [open]);
   useEffect(() => () => {
     generation.current += 1;

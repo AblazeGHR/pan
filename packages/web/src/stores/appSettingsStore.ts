@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isReservedBinding, normalizeBinding } from '@/shortcuts/bindings';
 import type { GroupMode } from '@/stores/uiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
@@ -149,6 +150,13 @@ export interface AppSettings {
   showMessageNavigationRail: boolean;
   /** Mount Session-scoped history search UI and keyboard shortcuts. */
   showHistorySearch: boolean;
+  /**
+   * Configurable app shortcuts keyed by stable action id. A missing key uses
+   * the action default; an explicit null is an intentionally unbound action.
+   * Dynamic plugin-panel ids are stored under `panel:plugin:<pluginId>/<panelId>`
+   * so array order changes never move a binding to another panel.
+   */
+  shortcuts: Record<string, string | null>;
   /** Notification preferences for CLI adapter warnings. */
   notifications: {
     /** Show structured Codex warning events through a Toast. */
@@ -182,6 +190,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keepScrollOnSessionSwitch: false,
   showMessageNavigationRail: true,
   showHistorySearch: true,
+  shortcuts: {},
   notifications: {
     codexWarningToast: true,
     completionBridge: DEFAULT_COMPLETION_BRIDGE,
@@ -196,6 +205,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
  * to defaults for missing or wrong-typed fields. Used both when the backend
  * load lands and defensively against any garbage in config.json.
  */
+export function sanitizeShortcuts(raw: unknown): Record<string, string | null> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const result: Record<string, string | null> = {};
+  for (const [actionId, value] of Object.entries(raw)) {
+    if (!actionId || actionId.length > 200) continue;
+    if (value === null) {
+      result[actionId] = null;
+      continue;
+    }
+    const normalized = normalizeBinding(value);
+    if (normalized && !isReservedBinding(normalized)) result[actionId] = normalized;
+  }
+  return result;
+}
+
 export function sanitizeSettings(
   raw: Record<string, unknown> | null | undefined,
 ): AppSettings {
@@ -268,6 +292,7 @@ export function sanitizeSettings(
       typeof parsed.showHistorySearch === 'boolean'
         ? parsed.showHistorySearch
         : DEFAULT_SETTINGS.showHistorySearch,
+    shortcuts: sanitizeShortcuts(parsed.shortcuts),
     notifications: {
       completionBridge: sanitizeCompletionBridge(notifications.completionBridge),
       unreadRecording: sanitizeUnreadRecording(notifications.unreadRecording),
@@ -301,6 +326,12 @@ interface AppSettingsStore extends AppSettings {
   setKeepScrollOnSessionSwitch: (v: boolean) => void;
   setShowMessageNavigationRail: (v: boolean) => void;
   setShowHistorySearch: (v: boolean) => void;
+  /** Persist one action binding; `null` explicitly unbinds it. */
+  setShortcutBinding: (actionId: string, binding: string | null) => void;
+  /** Remove the override so the action returns to its built-in default. */
+  resetShortcutBinding: (actionId: string) => void;
+  /** Restore every action to its built-in default (new actions stay unbound). */
+  resetAllShortcuts: () => void;
   setCodexWarningToast: (v: boolean) => void;
   saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
   /**
@@ -457,6 +488,26 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setShowHistorySearch: (v) => {
       set({ showHistorySearch: v });
       persist({ showHistorySearch: v });
+    },
+
+    setShortcutBinding: (actionId, binding) => {
+      const normalized = binding === null ? null : normalizeBinding(binding);
+      if (binding !== null && (!normalized || isReservedBinding(normalized))) return;
+      const shortcuts = { ...get().shortcuts, [actionId]: normalized };
+      set({ shortcuts });
+      persist({ shortcuts });
+    },
+
+    resetShortcutBinding: (actionId) => {
+      const shortcuts = { ...get().shortcuts };
+      delete shortcuts[actionId];
+      set({ shortcuts });
+      persist({ shortcuts });
+    },
+
+    resetAllShortcuts: () => {
+      set({ shortcuts: {} });
+      persist({ shortcuts: {} });
     },
 
     saveCompletionBridge: async (value) => {

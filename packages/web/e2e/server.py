@@ -129,8 +129,16 @@ def main() -> None:
         probe.bind(("127.0.0.1", PORT))
 
     import packages.web.server as server_module
+    from packages.core import session_drafts
 
     _install_test_isolation(server_module)
+    session_drafts.DRAFT_DIR = RUNTIME / "session-drafts"
+    fake_cli = os.environ.get("PAN_E2E_FAKE_CLI")
+    if fake_cli:
+        # Deterministic local provider only; no real model or network calls.
+        from packages.core.adapters.cbc.adapter import CbcAdapter
+
+        CbcAdapter._resolve_cbc_argv = lambda _self: [sys.executable, fake_cli]
     _seed_sessions()
 
     @server_module.app.post("/__e2e/stream")

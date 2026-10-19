@@ -1,0 +1,81 @@
+{
+  "baseURL": "http://127.0.0.1:30064",
+  "port": 30064,
+  "evidence": {
+    "imeAvoidance": {
+      "realImeComposition": true,
+      "syntheticComposingGuard": true
+    },
+    "terminalAvoidance": {
+      "terminalAvailable": false
+    }
+  },
+  "results": [
+    {
+      "name": "record persist and execute general shortcut",
+      "status": "passed",
+      "started": "2026-10-19T14:39:52.166Z",
+      "screenshot": "record-persist-and-execute-general-shortcut.png"
+    },
+    {
+      "name": "reject reserved and conflicting bindings",
+      "status": "passed",
+      "started": "2026-10-19T14:39:55.574Z",
+      "screenshot": "reject-reserved-and-conflicting-bindings.png"
+    },
+    {
+      "name": "dynamic plugin panels add remove and binding isolation",
+      "status": "passed",
+      "started": "2026-10-19T14:39:56.758Z",
+      "screenshot": "dynamic-plugin-panels-add-remove-and-binding-isolation.png"
+    },
+    {
+      "name": "avoid IME composer editor and terminal",
+      "status": "passed",
+      "started": "2026-10-19T14:40:00.775Z",
+      "screenshot": "avoid-ime-composer-editor-and-terminal.png"
+    },
+    {
+      "name": "no session disables session and queue actions",
+      "status": "passed",
+      "started": "2026-10-19T14:40:04.069Z",
+      "screenshot": "no-session-disables-session-and-queue-actions.png"
+    },
+    {
+      "name": "locked enqueue failure preserves draft",
+      "status": "passed",
+      "started": "2026-10-19T14:40:05.704Z",
+      "screenshot": "locked-enqueue-failure-preserves-draft.png"
+    },
+    {
+      "name": "locked enqueue preserves attachment and URL order",
+      "status": "passed",
+      "started": "2026-10-19T14:40:07.821Z",
+      "screenshot": "locked-enqueue-preserves-attachment-and-url-order.png"
+    },
+    {
+      "name": "long press toggles once",
+      "status": "passed",
+      "started": "2026-10-19T14:40:09.805Z",
+      "screenshot": "long-press-toggles-once.png"
+    },
+    {
+      "name": "switch session race keeps target",
+      "status": "passed",
+      "started": "2026-10-19T14:40:11.032Z",
+      "screenshot": "switch-session-race-keeps-target.png"
+    },
+    {
+      "name": "queue expand lock all and pause semantics",
+      "status": "passed",
+      "started": "2026-10-19T14:40:13.853Z",
+      "screenshot": "queue-expand-lock-all-and-pause-semantics.png"
+    },
+    {
+      "name": "stop report and bell persist across reload",
+      "status": "passed",
+      "started": "2026-10-19T14:40:15.375Z",
+      "screenshot": "stop-report-and-bell-persist-across-reload.png"
+    }
+  ]
+}

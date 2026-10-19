@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
 import { LanSettings } from './LanSettings';
-import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, ToggleLeft, X } from 'lucide-react';
+import { Bell, Database, Eye, Keyboard, Puzzle, Settings, SlidersHorizontal, ToggleLeft, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
@@ -43,6 +43,7 @@ import { DataSettingsPanel } from './DataSettingsPanel';
 import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { UnreadRecordingPanel } from './UnreadRecordingPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
+import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
 import { useCurrentSession } from '@/stores/sessionStore';
 
@@ -135,13 +136,14 @@ function MainLifecycleRunningChoice({
   );
 }
 
-type SettingsTab = 'general' | 'preferences' | 'behavior' | 'appearance' | 'notifications' | 'adapter' | 'plugin' | 'data';
+type SettingsTab = 'general' | 'preferences' | 'behavior' | 'appearance' | 'shortcuts' | 'notifications' | 'adapter' | 'plugin' | 'data';
 const SETTINGS_TABS: SettingsTab[] = [
   'general',
   'preferences',
   'behavior',
   'appearance',
   'notifications',
+  'shortcuts',
   'adapter',
   'plugin',
   'data',
@@ -1316,6 +1318,23 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           <button
             type="button"
             role="tab"
+            id="app-settings-tab-shortcuts"
+            aria-controls="app-settings-tabpanel"
+            aria-selected={activeTab === 'shortcuts'}
+            tabIndex={activeTab === 'shortcuts' ? 0 : -1}
+            onClick={() => setActiveTab('shortcuts')}
+            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors ${
+              activeTab === 'shortcuts'
+                ? 'border-accent text-text-primary'
+                : 'border-transparent text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <Keyboard size={14} />
+            Shortcuts
+          </button>
+          <button
+            type="button"
+            role="tab"
             id="app-settings-tab-adapter"
             aria-controls="app-settings-tabpanel"
             aria-selected={activeTab === 'adapter'}
@@ -1661,6 +1680,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </p>
               </section>
             </>
+          ) : activeTab === 'shortcuts' ? (
+            <ShortcutsSettings />
           ) : activeTab === 'preferences' ? (
             <>
               <section>
