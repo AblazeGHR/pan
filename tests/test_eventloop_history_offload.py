@@ -24,9 +24,45 @@ import packages.web.server as server
 from packages.core import session as _sess
 
 
+def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch):
+    """Header/log policies must not create per-request task/stream graphs."""
+    monkeypatch.setattr(server, '_log', lambda line: None)
+    monkeypatch.setattr(server, '_LOG_SKIP', [])
+
+    async def run():
+        owner = asyncio.current_task()
+        seen = []
+        messages = []
+        never = asyncio.Event()
+
+        async def endpoint(scope, receive, send):
+            seen.append(asyncio.current_task())
+            await send({'type': 'http.response.start', 'status': 200, 'headers': []})
+            await send({'type': 'http.response.body', 'body': b'first', 'more_body': True})
+            await send({'type': 'http.response.body', 'body': b'last', 'more_body': False})
+
+        async def receive():
+            await never.wait()
+
+        async def send(message):
+            messages.append(message)
+
+        stack = endpoint
+        for middleware in reversed(server.app.user_middleware):
+            stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)
+        await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',
+                     'query_string': b'', 'headers': [], 'http_version': '1.1',
+                     'scheme': 'http', 'server': ('test', 80)}, receive, send)
+        assert seen == [owner], 'HTTP policies created task/stream relay objects'
+        assert [(m.get('body'), m.get('more_body')) for m in messages[1:]] == [
+            (b'first', True), (b'last', False)]
+        assert dict(messages[0]['headers'])[b'cache-control'] == b'no-cache, no-store, must-revalidate'
+
+    asyncio.run(run())
+
+
 def test_request_log_write_stays_off_the_event_loop(monkeypatch):
     """A redirected stdout flush is blocking I/O even after response shaping."""
-    from types import SimpleNamespace
     loop_thread = threading.get_ident()
     writes = []
 
@@ -38,14 +74,15 @@ def test_request_log_write_stays_off_the_event_loop(monkeypatch):
     monkeypatch.setattr(server, '_LOG_SKIP', [])
 
     async def run():
-        response = SimpleNamespace(status_code=200, headers={})
+        async def endpoint(scope, receive, send):
+            await send({'type': 'http.response.start', 'status': 200, 'headers': []})
+            await send({'type': 'http.response.body', 'body': b''})
 
-        async def call_next(request):
-            return response
+        async def send(message):
+            pass
 
-        assert await server.log_requests(
-            SimpleNamespace(method='GET', url=SimpleNamespace(path='/api/sessions')),
-            call_next) is response
+        await server.HTTPPolicyMiddleware(endpoint)(
+            {'type': 'http', 'method': 'GET', 'path': '/api/sessions'}, None, send)
 
     asyncio.run(run())
     assert len(writes) == 1 and '/api/sessions' in writes[0]

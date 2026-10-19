@@ -39,6 +39,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 
 from packages.web.static_assets import ReactStaticFiles
 from packages.web.network_json import NetworkJSONResponse
@@ -2022,39 +2023,47 @@ async def _replay_agent_results(
                 return
 
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log every API request with method, path, and status code."""
-    path = request.url.path
-    response = await call_next(request)
+class HTTPPolicyMiddleware:
+    """Apply header/log policies without per-request task or body relays.
 
-    # Prevent browsers/CDNs from serving stale static assets
-    if path.startswith("/static/"):
-        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    Two BaseHTTPMiddleware layers built AnyIO task/stream graphs for every
+    cold read. Their allocation churn triggers whole-interpreter GC pauses,
+    including when the allocating store read runs off the event loop. Only
+    response-start needs inspection; body chunks can pass straight through.
+    """
 
-    if not any(path.startswith(p) for p in _LOG_SKIP):
-        status = response.status_code
-        # stdout can be a file/pipe. A buffered flush still blocks even when
-        # response shaping and JSON encoding have already been offloaded.
-        await asyncio.to_thread(_log, f"{request.method}  {path}  → {status}")
-    return response
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+
+        async def send_with_policy(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                status = message["status"]
+                if path.startswith("/static/"):
+                    headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+                if path.startswith("/api/"):
+                    conditional_list = (
+                        path == "/api/sessions" and method == "GET"
+                        and status in (200, 304) and "etag" in headers
+                        and headers.get("cache-control") == "private, no-cache")
+                    if not conditional_list:
+                        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                if not any(path.startswith(p) for p in _LOG_SKIP):
+                    # Preserve a record per response and keep blocking stdout
+                    # writes off the loop without spawning detached log tasks.
+                    await asyncio.to_thread(_log, f"{method}  {path}  → {status}")
+            await send(message)
+
+        await self.app(scope, receive, send_with_policy)
 
 
-@app.middleware("http")
-async def no_cache_api(request: Request, call_next):
-    """Keep APIs uncached except the explicitly revalidated private list."""
-    response = await call_next(request)
-    if request.url.path.startswith("/api/"):
-        conditional_list = (
-            request.url.path == "/api/sessions"
-            and request.method == "GET"
-            and response.status_code in (200, 304)
-            and "etag" in response.headers
-            and response.headers.get("cache-control") == "private, no-cache"
-        )
-        if not conditional_list:
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+app.add_middleware(HTTPPolicyMiddleware)
 
 
 # ── helpers ──
