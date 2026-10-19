@@ -63,6 +63,10 @@ function failureOf(reason: unknown, fallback: string): PanelFailure {
   return code ? { message, code } : { message };
 }
 
+function hasCliCode(failure: PanelFailure | null | undefined): failure is PanelFailure {
+  return !!failure?.code && CLI_GUIDANCE_CODES.has(failure.code);
+}
+
 export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   const scope: PanelScope = useMemo(() => ({ pluginId: panel.pluginId, panelId: panel.id }),
     [panel.pluginId, panel.id]);
@@ -76,11 +80,13 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   }));
   const [listLoading, setListLoading] = useState<Record<string, boolean>>({});
   const [listErrors, setListErrors] = useState<Record<string, PanelFailure | null>>({});
-  const [error, setError] = useState<string | null>(null);
+  /** Read/write failures are kept per app so a CLI issue on one app cannot
+   *  follow the user to another; `uncertain` remains the shared write fence. */
+  const [actionErrors, setActionErrors] = useState<Record<string, PanelFailure | null>>({});
   const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [refreshing, setRefreshing] = useState<string[]>([]);
-  const [quotaErrors, setQuotaErrors] = useState<Record<string, string>>({});
+  const [quotaErrors, setQuotaErrors] = useState<Record<string, PanelFailure>>({});
   const [query, setQuery] = useState('');
 
   const admitted = useRef(false);
@@ -114,6 +120,40 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     return merged;
   }, [scope]);
 
+  /** A successful CLI call from any source proves the availability problem is
+   *  gone. Strip only the CLI code and keep the ordinary message/retry state;
+   *  `uncertain` and request de-duplication are untouched. */
+  const clearCliGuidance = useCallback((targetApp: string, source: 'list' | 'action' | 'quota') => {
+    const withoutCode = (failure: PanelFailure | null | undefined) => hasCliCode(failure)
+      ? { message: failure.message } : failure;
+    if (source !== 'list') {
+      setListErrors((current) => {
+        const next = withoutCode(current[targetApp]);
+        return next === current[targetApp] ? current : { ...current, [targetApp]: next ?? null };
+      });
+    }
+    if (source !== 'action') {
+      setActionErrors((current) => {
+        const next = withoutCode(current[targetApp]);
+        return next === current[targetApp] ? current : { ...current, [targetApp]: next ?? null };
+      });
+    }
+    if (source !== 'quota') {
+      setQuotaErrors((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const key of Object.keys(next)) {
+          const failure = next[key];
+          if (key.startsWith(targetApp + ':') && failure && hasCliCode(failure)) {
+            next[key] = { message: failure.message };
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
+    }
+  }, []);
+
   const refreshQuota = useCallback(async (targetApp: string, providerId: string) => {
     const key = `${targetApp}:${providerId}`;
     const { promise, reused } = dedupeQuotaRequest(scope, targetApp, providerId,
@@ -145,18 +185,19 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
           delete next[key];
           return next;
         });
+        clearCliGuidance(targetApp, 'quota');
       }
     } catch (reason) {
       if (mounted.current) {
         setQuotaErrors((current) => ({ ...current,
-          [key]: reason instanceof Error ? reason.message : '额度刷新失败' }));
+          [key]: failureOf(reason, '额度刷新失败') }));
       }
     } finally {
       if (!reused && mounted.current) {
         setRefreshing((current) => current.filter((entry) => entry !== key));
       }
     }
-  }, [scope, panel.pluginId, panel.id]);
+  }, [scope, panel.pluginId, panel.id, clearCliGuidance]);
 
   /** Query only providers whose last real query is unknown or older than five
    *  minutes. Called on entry and after the entry list, never on a timer. */
@@ -187,6 +228,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
         > (ticket.quotaVersions[providerId] ?? 0);
       const merged = mergeInto(value, keepQuota);
       if (appRef.current === targetApp) setUncertain(false);
+      clearCliGuidance(targetApp, 'list');
       if (refreshQuotaAfter) autoRefresh(merged);
     } catch (reason) {
       if (!mounted.current || viewTokens.current[targetApp] !== token) return;
@@ -197,7 +239,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
         setListLoading((current) => ({ ...current, [targetApp]: false }));
       }
     }
-  }, [scope, panel.pluginId, panel.id, mergeInto, autoRefresh]);
+  }, [scope, panel.pluginId, panel.id, mergeInto, autoRefresh, clearCliGuidance]);
 
   // Entry and app switch are the only automatic trigger. The cached snapshot is
   // already on screen; stale quotas start immediately while the list refreshes.
@@ -218,8 +260,9 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
       return;
     }
     if (admitted.current || busy) return;
-    admitted.current = true; setBusy(true); setError(null);
     const targetApp = app;
+    admitted.current = true; setBusy(true);
+    setActionErrors((current) => ({ ...current, [targetApp]: null }));
     const writing = panel.actions[action]?.effect === 'write_external';
     viewTokens.current[targetApp] = (viewTokens.current[targetApp] ?? 0) + 1;
     const token = viewTokens.current[targetApp];
@@ -239,16 +282,23 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
       const keepQuota = (providerId: string) => currentQuotaVersion(scope, targetApp, providerId)
         > (versions[providerId] ?? 0);
       mergeInto(value, keepQuota);
+      clearCliGuidance(targetApp, 'action');
       if (mounted.current && viewTokens.current[targetApp] === token) setUncertain(false);
     } catch (reason) {
       if (!mounted.current) return;
-      setError(reason instanceof Error ? reason.message : '操作失败');
+      setActionErrors((current) => ({ ...current,
+        [targetApp]: failureOf(reason, '操作失败') }));
       if (writing) setUncertain(true);
     } finally { admitted.current = false; setBusy(false); }
   };
 
   const listError = listErrors[app] ?? null;
-  const cliIssue = listError?.code && CLI_GUIDANCE_CODES.has(listError.code) ? listError : null;
+  const actionError = actionErrors[app] ?? null;
+  const listCliIssue = listError && hasCliCode(listError) ? listError : null;
+  const actionCliIssue = actionError && hasCliCode(actionError) ? actionError : null;
+  const quotaCliIssue = Object.entries(quotaErrors)
+    .find(([key, failure]) => key.startsWith(app + ':') && hasCliCode(failure))?.[1] ?? null;
+  const cliIssue = listCliIssue ?? actionCliIssue ?? quotaCliIssue;
   const refreshingHere = refreshing.filter((key) => key.startsWith(app + ':'));
 
   return <section className="h-full overflow-auto p-4 sm:p-6 text-text-primary" aria-label={panel.title}>
@@ -267,7 +317,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
         <input aria-label="搜索配置或账号" placeholder="搜索配置名称、备注、账号或地址…" value={query} onChange={(event) => setQuery(event.target.value)}
           className="min-w-0 w-full bg-transparent py-3 text-sm outline-none" />
       </label>
-      {error && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">{error}</div>}
+      {actionError && !actionCliIssue && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">{actionError.message}</div>}
       {cliIssue ? <CliGuidance failure={cliIssue} retained={snapshot !== null} /> : listError &&
         <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">读取列表失败：{listError.message}（已保留上次数据，可重试）</div>}
       {uncertain && <p role="status" className="text-sm text-amber-500">切换结果尚未确认。请先刷新列表并核对实际状态，再发起新的切换。</p>}
@@ -293,7 +343,7 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
                 <button className={button + ' text-accent'} disabled={busy || uncertain} onClick={() => void act('switch', provider.id)}><Play size={14} />启用配置</button>}
               <button className={button} aria-label={`刷新 ${provider.name} 额度`} disabled={busy || refreshing.includes(`${app}:${provider.id}`)} onClick={() => void act('quota', provider.id)}><RefreshCw size={14} />额度</button>
             </div>
-            {quotaErrors[`${app}:${provider.id}`] && <p role="status" className="mt-2 text-sm text-amber-500">额度刷新失败：{quotaErrors[`${app}:${provider.id}`]}（可重试）</p>}
+            <QuotaError failure={quotaErrors[`${app}:${provider.id}`]} />
             <Quota quota={provider.quota} now={now} />
           </article>)}
         </div>
@@ -329,6 +379,12 @@ function CliGuidance({ failure, retained }: { failure: PanelFailure; retained: b
       打开 AblazeGHR/cc-switch-pan<ExternalLink size={14} className="shrink-0" />
     </a>
   </section>;
+}
+
+function QuotaError({ failure }: { failure?: PanelFailure }) {
+  return failure
+    ? <p role="status" className="mt-2 text-sm text-amber-500">额度刷新失败：{failure.message}（可重试）</p>
+    : null;
 }
 
 function Quota({ quota, now }: { quota: AccountQuota | null; now: number }) {

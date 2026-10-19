@@ -1,19 +1,14 @@
 {
   "passed": true,
-  "actions": [
-    {
-      "action": "list",
-      "app": "codex",
-      "id": null
-    }
-  ],
   "externalRequests": [
     "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-    "https://github.com/AblazeGHR/cc-switch-pan"
+    "https://github.com/AblazeGHR/cc-switch-pan",
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
   ],
   "errors": [],
   "realCliExecuted": false,
-  "backend": "intercepted isError fixture with cli_not_found",
+  "backend": "intercepted isError fixtures for cli_not_found / cli_unavailable",
   "linkAttributes": {
     "href": "https://github.com/AblazeGHR/cc-switch-pan",
     "target": "_blank",
@@ -21,5 +16,62 @@
   },
   "linkClickedAndIntercepted": true,
   "mobile": true,
+  "scenarios": {
+    "listMissing": [
+      {
+        "action": "list",
+        "app": "codex",
+        "id": null,
+        "expectedCurrentId": null,
+        "requestId": null
+      }
+    ],
+    "quotaUnavailable": [
+      {
+        "action": "list",
+        "app": "codex",
+        "id": null,
+        "expectedCurrentId": null,
+        "requestId": null
+      },
+      {
+        "action": "quota",
+        "app": "codex",
+        "id": "p-a",
+        "expectedCurrentId": null,
+        "requestId": null
+      },
+      {
+        "action": "list",
+        "app": "codex",
+        "id": null,
+        "expectedCurrentId": null,
+        "requestId": null
+      }
+    ],
+    "writeUnavailable": [
+      {
+        "action": "list",
+        "app": "codex",
+        "id": null,
+        "expectedCurrentId": null,
+        "requestId": null
+      },
+      {
+        "action": "switch",
+        "app": "codex",
+        "id": "p-b",
+        "expectedCurrentId": "p-a",
+        "requestId": "0df8405e-07f8-4524-9217-b74367fe0c86"
+      },
+      {
+        "action": "list",
+        "app": "codex",
+        "id": null,
+        "expectedCurrentId": null,
+        "requestId": null
+      }
+    ]
+  },
   "port": 5173
 }

@@ -209,11 +209,88 @@ describe('CLI availability guidance', () => {
     render(<AccountSwitcher panel={panel} />);
     await screen.findByText('Secondary');
     expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
-    vi.mocked(invokePluginPanel).mockRejectedValueOnce(new Error('网络请求失败'));
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('cc-switch 执行失败（退出码 1）', 'cli_failed'));
     fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
     await flushAll();
-    expect(screen.getByText(/额度刷新失败：网络请求失败/)).toBeTruthy();
+    expect(screen.getByText(/额度刷新失败：cc-switch 执行失败（退出码 1）/)).toBeTruthy();
     expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+  });
+
+  it('shows guidance when quota cannot start the CLI after a successful list and clears it after recovery', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('无法启动已配置的 cc-switch CLI', 'cli_unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    expect(screen.getByRole('heading', { name: '无法启动 cc-switch CLI' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /AblazeGHR\/cc-switch-pan/ }).getAttribute('href'))
+      .toBe('https://github.com/AblazeGHR/cc-switch-pan');
+
+    vi.mocked(invokePluginPanel).mockResolvedValueOnce({
+      id: 'p-a', app: 'codex', quota: quotaAt(Date.now(), 80) });
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    expect(screen.queryByText(/额度刷新失败/)).toBe(null);
+    expect(screen.getByText('80%')).toBeTruthy();
+  });
+
+  it('does not leak a quota CLI issue to another app and clears guidance after recovery', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('无法启动已配置的 cc-switch CLI', 'cli_unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    expect(screen.getByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Claude' }));
+    await flushAll();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Codex' }));
+    await flushAll();
+    // A successful list proves the CLI is available again: the stale install
+    // guidance is gone, while the ordinary quota message remains retryable.
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    expect(screen.getByText(/额度刷新失败：无法启动已配置的 cc-switch CLI/)).toBeTruthy();
+  });
+
+  it('shows guidance when a write cannot start the CLI and preserves the unknown-outcome fence', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('无法启动已配置的 cc-switch CLI', 'cli_unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
+    await flushAll();
+    expect(screen.getByRole('heading', { name: '无法启动 cc-switch CLI' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBeTruthy();
+    expect(screen.getByText(/切换结果尚未确认/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: '启用配置' }).hasAttribute('disabled')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }));
+    await flushAll();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    expect(screen.getByText('无法启动已配置的 cc-switch CLI')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '启用配置' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('shows the same guidance when default-account selection cannot start the CLI', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('bob@example.test');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('无法启动已配置的 cc-switch CLI', 'cli_unavailable'));
+    fireEvent.click(screen.getByRole('button', { name: '设为默认账号' }));
+    await flushAll();
+    expect(screen.getByRole('heading', { name: '无法启动 cc-switch CLI' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBeTruthy();
+    expect(screen.getByText(/切换结果尚未确认/)).toBeTruthy();
+  });
+
+  it('keeps an ordinary write failure as a normal error without repository guidance', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(withCode('cc-switch 执行失败（退出码 1）', 'cli_failed'));
+    fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
+    await flushAll();
+    expect(screen.getByText('cc-switch 执行失败（退出码 1）')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /AblazeGHR\/cc-switch-pan/ })).toBe(null);
+    expect(screen.getByText(/切换结果尚未确认/)).toBeTruthy();
   });
 });
 
