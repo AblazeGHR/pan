@@ -2017,6 +2017,42 @@ def test_n1_heartbeat_first_voids_stale_expiry_and_grant_is_atomic(tmp_path):
     )
 
 
+def test_heartbeat_ack_does_not_wait_for_runtime_diagnostics(tmp_path, monkeypatch):
+    """A renewed lease cannot wait behind slow emulator/process diagnostics."""
+    runner = _make_runner(tmp_path, 'term_heartbeat_diag', lease_grace_seconds=0.2)
+    _wire_gate(runner, _GatedRuntime())
+    diagnostic_entered = threading.Event()
+    diagnostic_release = threading.Event()
+    acked = threading.Event()
+    replies = []
+
+    def blocked_describe():
+        diagnostic_entered.set()
+        assert diagnostic_release.wait(2)
+        return {}
+
+    monkeypatch.setattr(runner, 'describe', blocked_describe)
+
+    def renew():
+        replies.append(runner.owner_heartbeat('owned-heartbeat', generation=7))
+        acked.set()
+
+    thread = threading.Thread(target=renew)
+    thread.start()
+    try:
+        assert acked.wait(0.1), 'lease ACK blocked on unrelated diagnostics'
+        assert not diagnostic_entered.is_set()
+        assert replies[0]['status'] == 'ok' and replies[0]['ok'] is True
+        assert runner._lease_established and runner._owner_generation == 7
+        runner._expiry_in_progress = True
+        assert runner.owner_heartbeat('late-owner')['status'] == 'closing'
+        assert runner._owner_client_id == 'owned-heartbeat'
+    finally:
+        diagnostic_release.set()
+        thread.join(2)
+        assert not thread.is_alive()
+
+
 def test_n2_illegal_terminal_id_never_writes_status_files(tmp_path):
     """N2：非法 terminal_id 在 `_write_status`/bootstrap 失败路径下**零派生文件**，
     只记脱敏诊断（不回显 id）；合法 id 写入自有 runner-status 目录内。"""

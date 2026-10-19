@@ -2245,13 +2245,24 @@ async def _store_read(func, /, *args, **kwargs):
         _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
 
 
+class _HistoryJSONResponse(NetworkJSONResponse):
+    def render(self, content) -> bytes:
+        # Projections already own their JSON-shaped dicts/lists. Let the C
+        # encoder walk those directly; recursively cloning them with FastAPI's
+        # encoder doubles container churn under concurrent cold list reads and
+        # can trigger a stop-the-world collection even on the store thread.
+        # Preserve FastAPI conversion for non-JSON leaves (datetime, Path, etc.).
+        return json.dumps(content, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":"), default=jsonable_encoder).encode("utf-8")
+
+
 async def _history_network_response(payload: dict, request: Request | None):
     # Direct internal callers retain the dict contract. Returning a Response
     # for HTTP skips FastAPI's synchronous recursive encoder and JSON render.
     # Reuse the single worker so a burst cannot fan out GIL-bound encoders.
     if request is None:
         return payload
-    return await _store_read(lambda: NetworkJSONResponse(jsonable_encoder(payload)))
+    return await _store_read(lambda: _HistoryJSONResponse(payload))
 
 
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:

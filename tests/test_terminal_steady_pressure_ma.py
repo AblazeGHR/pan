@@ -141,7 +141,8 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                             # not a process-name scan and never a kill target.
                             rss = psutil.Process(original['pid']).memory_info().rss
                             samples.append({'seconds': round(time.monotonic()-started, 3), 'queues': occupancy,
-                                            'heartbeat': heartbeat['beats'], 'launcher_rss': rss})
+                                            'heartbeat': heartbeat['beats'],
+                                            'heartbeat_detail': heartbeat, 'launcher_rss': rss})
                             try:
                                 await asyncio.wait_for(sampling_done.wait(), 1)
                             except asyncio.TimeoutError:
@@ -173,6 +174,10 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                                 await command('snapshot', timeout_ms=2000)
                         elif event['type'] == 'error':
                             assert event['code'] == 'busy', event
+                        elif event['type'] == 'terminal-state':
+                            pytest.fail(f'owned producer ended before its final marker: '
+                                        f'event={event}; service={service.describe()}; '
+                                        f'terminal={service.get(tid)}; bytes={seen}; gaps={gaps}')
                     assert marker, (seen, gaps)
                     sampling_done.set()
                     await sampler
