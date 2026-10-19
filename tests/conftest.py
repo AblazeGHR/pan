@@ -54,3 +54,12 @@ def isolate_session_storage(tmp_path, monkeypatch):
     _sess._cache.clear()
     yield
     _sess._cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolate_terminal_heartbeat_threads(monkeypatch):
+    """Do not carry test-created owner threads into later load/latency tests."""
+    from tests.support.owned_heartbeats import owned_heartbeats
+
+    with owned_heartbeats(monkeypatch):
+        yield

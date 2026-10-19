@@ -2306,6 +2306,33 @@ def _history_page_lookup(session_id: str, before: int, limit: int,
     return _NOT_FOUND if page is None else page
 
 
+def _history_page_wire_payload(session_id: str, before: int, limit: int,
+                               search_jump: bool = False):
+    """Read and project one private history page entirely off the event loop.
+
+    Link compatibility projection can resolve local paths and perform file
+    I/O. Offloading only the store read and final JSON encoding leaves that
+    middle stage blocking dashboard heartbeats.
+    """
+    page = _history_page_lookup(session_id, before, limit, search_jump)
+    if page is _NOT_FOUND:
+        return {"error": "Session not found"}
+    return {
+        "history": _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+            bookmarked_ids=page.get('_bookmarkedMessageIds'),
+        ),
+        "total": page["total"],
+        "hasMore": page["hasMore"],
+        "start": page["start"],
+        "historyEpoch": page.get("historyEpoch"),
+        "historyRevision": page.get("historyRevision", 0),
+    }
+
+
 def _session_list_api(
     s: sess.Session,
     *,
@@ -7119,24 +7146,9 @@ async def api_session_managers(session_id: str):
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
                               searchJump: bool = False, request: Request = None):
     """Paginated session history for lazy-loading older messages."""
-    page = await _store_read(
-        _history_page_lookup, session_id, before, limit, searchJump)
-    if page is _NOT_FOUND:
-        return await _history_network_response({"error": "Session not found"}, request)
-    return await _history_network_response({
-        "history": _api_history(
-            session_id,
-            page["history"],
-            start=page.get("start", 0),
-            history_epoch=page.get("historyEpoch"),
-            bookmarked_ids=page.get('_bookmarkedMessageIds'),
-        ),
-        "total": page["total"],
-        "hasMore": page["hasMore"],
-        "start": page["start"],
-        "historyEpoch": page.get("historyEpoch"),
-        "historyRevision": page.get("historyRevision", 0),
-    }, request)
+    payload = await _store_read(
+        _history_page_wire_payload, session_id, before, limit, searchJump)
+    return await _history_network_response(payload, request)
 
 
 def _navigation_preview(content: str) -> str:

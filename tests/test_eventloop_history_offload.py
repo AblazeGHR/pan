@@ -841,3 +841,23 @@ def test_cold_read_projection_keeps_config_and_bookmark_io_off_loop(monkeypatch)
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_history_wire_projection_stays_off_event_loop(monkeypatch):
+    """Attachment compatibility projection includes regex/path/file work."""
+    _seed("ses-projection-thread", [{"role": "user", "content": "hello"}])
+    loop_thread = threading.get_ident()
+    original = server._api_history
+    projections = []
+
+    def project(*args, **kwargs):
+        projections.append(threading.get_ident())
+        assert threading.get_ident() != loop_thread, "history wire projection blocks heartbeats"
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(server, "_api_history", project)
+    result = asyncio.run(server.api_session_history("ses-projection-thread", limit=1))
+    assert len(projections) == 1
+    assert result["history"][0]["content"] == "hello"
+    assert result["history"][0]["messageId"]
+    assert result["total"] == 1 and result["start"] == 0 and not result["hasMore"]

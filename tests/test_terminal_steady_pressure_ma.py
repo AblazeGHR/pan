@@ -45,7 +45,7 @@ def pressure_timing(monkeypatch):
             return original(heartbeat)
         finally:
             ended = time.monotonic()
-            if ended - started >= .2 or started - previous >= 1.5:
+            if ended - started >= .2 or started - previous >= max(1.5, heartbeat.interval * 1.5):
                 events.append({"kind": "heartbeat", "start": started, "end": ended,
                                "duration": ended - started, "start_gap": started - previous,
                                "terminal_id": heartbeat.terminal_id,
