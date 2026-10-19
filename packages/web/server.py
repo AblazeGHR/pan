@@ -14137,3 +14137,26 @@ else:
 STATIC_DIR = _WEB_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# Native login entries are the sole source of truth; no config.json mirror.
+@app.get("/api/settings/login-startup")
+def api_get_login_startup():
+    from packages.core.login_startup import LoginStartup
+    try:
+        return LoginStartup().status()
+    except (OSError, RuntimeError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/login-startup")
+def api_put_login_startup(data: dict = Body(...)):
+    from packages.core.login_startup import LoginStartup, RegistrationError
+    if set(data) != {"enabled", "revision"} or type(data.get("enabled")) is not bool or not isinstance(data.get("revision"), str):
+        raise HTTPException(status_code=422, detail="enabled (boolean) and revision are required")
+    try:
+        return LoginStartup().update(data["enabled"], data["revision"])
+    except RegistrationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OSError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

@@ -1,0 +1,2 @@
+[BABEL] Note: The code generator has deoptimised the styling of D:\project\pan-worktrees\os-autostart-20261019\packages\web\test-results\login-startup\vite-cache\deps\react-dom_client.js?v=f4617f3a as it exceeds the max of 500KB.
+PASS real Chromium/API/native store: 7 checks; owned ports 51623 5173

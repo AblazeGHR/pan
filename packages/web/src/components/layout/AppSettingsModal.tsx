@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
 import { LanSettings } from './LanSettings';
+import { LoginStartupSettings } from './LoginStartupSettings';
 import { Bell, Database, Eye, Puzzle, Settings, SlidersHorizontal, ToggleLeft, X } from 'lucide-react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -1722,6 +1723,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             />
           ) : (
             <>
+              <LoginStartupSettings />
               {/* Worker settings are edited and hot-applied here. Adapter
               reload feedback is shown with adapter controls on the Adapter tab. */}
               <section>

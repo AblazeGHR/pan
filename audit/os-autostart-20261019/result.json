@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "apiPort": 51623,
+  "browserPort": 5173,
+  "nativeNamespace": "Software\\PanAutostartTests\\Pan.Test.cc1f1a24092b4fd0973e06943af9eadd",
+  "checks": [
+    "default-off",
+    "enable-readback",
+    "reload-truth",
+    "disable-readback",
+    "permission-rollback",
+    "foreign-protection",
+    "cleanup"
+  ],
+  "browserErrors": []
+}

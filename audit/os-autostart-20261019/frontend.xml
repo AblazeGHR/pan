@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="54" failures="0" errors="0" time="8.714">
+    <testsuite name="components/layout/AppSettingsModal.test.tsx" timestamp="2026-10-19T09:40:30.068Z" hostname="ablaze" tests="50" failures="0" errors="0" skipped="0" time="5.0647469">
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders nothing when closed" time="0.022793">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders the settings sections, including Session history search, plus Reset" time="0.0978951">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads lifecycle preferences from config with ask defaults and saves updates" time="0.1251229">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows lifecycle preference save errors and keeps the last saved value" time="0.1608131">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a preference load error and retries the server read" time="0.1824189">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved offline policy without asking again" time="0.1021739">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved preserve-running policy without asking again" time="0.1133234">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved offline policy without asking again" time="0.117998">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved preserve-running policy without asking again" time="0.0990334">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; refreshes both lifecycle statuses on every modal open and clears stale Exit state" time="0.1270167">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle actions disabled after a status fetch error until Retry succeeds" time="0.1715293">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; ignores status responses from an earlier modal-open cycle" time="0.0714996">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not let a lifecycle action response from an earlier open overwrite the new status" time="0.2253193">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps all settings tabs reachable in a horizontal-only scroller" time="0.0722401">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads the Data catalog on demand and keeps long paths usable in a narrow panel" time="0.083035">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Data catalog loading and failure states without blocking other tabs" time="0.1582166">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads disabled retention policies, edits days, saves, and shows recent scan counts" time="0.2116037">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; projects the shared Jobs retention editor in Data and saves via its canonical API" time="0.0950798">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows retention settings loading and failure while keeping the Data path panel usable" time="0.0534369">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows message visibility on the Appearance tab and keeps its settings and persistence" time="0.0990139">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style" time="0.0717589">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the default new Session Workspace preference and persists it" time="0.035776">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Behavior worker-kill report switch off by default and persists it" time="0.0492041">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Behavior save errors and keeps the last saved value" time="0.0539254">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles merged tool/thinking groups on the Appearance tab and persists the setting" time="0.0494541">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the per-session scroll memory on the Appearance tab and persists it" time="0.0507583">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the message navigation rail on the Appearance tab and persists it" time="0.0624258">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles only the Chat view switcher on the Appearance tab and persists it" time="0.0472681">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Codex warning Toast option on the Notification tab" time="0.0379048">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads and replaces the Codex whitelist on the Adapter tab" time="0.0298408">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a readable Codex refresh error in the Adapter tab" time="0.0317402">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Codex terminal input popup option and persists it" time="0.0186393">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; is full-screen on mobile and ~75% of the viewport on desktop" time="0.0109056">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes when the backdrop is clicked" time="0.0124879">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not close when clicking inside the card" time="0.0127198">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes on Escape" time="0.0127142">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles a setting through a switch and writes the store" time="0.0225532">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists the Session history search setting when its switch changes" time="0.0250965">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; exposes the group-by settings only on the Appearance tab without duplicates" time="0.0341399">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles Show Group by on the Appearance tab and persists it" time="0.0630405">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the desktop sidebar collapse handle on the Appearance tab and persists it" time="0.0758225">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; changes Default group by on the Appearance tab and persists the selection" time="0.0508314">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; resets all settings to defaults" time="0.0351375">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and reports successful main-service recovery" time="1.1788018">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and schedules a stop-only Pan exit without health polling" time="0.0990196">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows an unavailable exit control and API error state" time="0.040913">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; allows stopping the bounded health check and does not call health forever" time="0.1460622">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the main-service control when restart scripts are unavailable" time="0.0527632">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a finite timeout when the restarted service never becomes healthy" time="0.0981167">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires an explicit lifecycle status refresh when the final restart status read fails" time="0.1630952">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/LoginStartupSettings.test.tsx" timestamp="2026-10-19T09:40:30.088Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.1808267">
+        <testcase classname="components/layout/LoginStartupSettings.test.tsx" name="native login startup settings &gt; only reads on mount; serializes clicks and displays confirmed state" time="0.1026199">
+        </testcase>
+        <testcase classname="components/layout/LoginStartupSettings.test.tsx" name="native login startup settings &gt; re-reads actual state on failure and allows explicit retry" time="0.0199433">
+        </testcase>
+        <testcase classname="components/layout/LoginStartupSettings.test.tsx" name="native login startup settings &gt; shows unknown when failure cannot be reconciled" time="0.0375888">
+        </testcase>
+        <testcase classname="components/layout/LoginStartupSettings.test.tsx" name="native login startup settings &gt; displays a foreign entry and prevents mutation" time="0.0196428">
+        </testcase>
+    </testsuite>
+</testsuites>

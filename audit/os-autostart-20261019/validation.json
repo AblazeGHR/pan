@@ -1,0 +1,26 @@
+[
+  {
+    "stage": "backend",
+    "exitCode": 0,
+    "seconds": 28.77,
+    "log": "D:\\project\\pan-worktrees\\os-autostart-20261019\\audit\\os-autostart-20261019\\backend.txt"
+  },
+  {
+    "stage": "frontend",
+    "exitCode": 0,
+    "seconds": 9.71,
+    "log": "D:\\project\\pan-worktrees\\os-autostart-20261019\\audit\\os-autostart-20261019\\frontend.txt"
+  },
+  {
+    "stage": "build",
+    "exitCode": 0,
+    "seconds": 27.34,
+    "log": "D:\\project\\pan-worktrees\\os-autostart-20261019\\audit\\os-autostart-20261019\\build.txt"
+  },
+  {
+    "stage": "chromium",
+    "exitCode": 0,
+    "seconds": 4.36,
+    "log": "D:\\project\\pan-worktrees\\os-autostart-20261019\\audit\\os-autostart-20261019\\chromium.txt"
+  }
+]
