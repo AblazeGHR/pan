@@ -2034,7 +2034,9 @@ async def log_requests(request: Request, call_next):
 
     if not any(path.startswith(p) for p in _LOG_SKIP):
         status = response.status_code
-        _log(f"{request.method}  {path}  → {status}")
+        # stdout can be a file/pipe. A buffered flush still blocks even when
+        # response shaping and JSON encoding have already been offloaded.
+        await asyncio.to_thread(_log, f"{request.method}  {path}  → {status}")
     return response
 
 

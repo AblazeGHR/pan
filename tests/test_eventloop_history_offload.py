@@ -24,6 +24,33 @@ import packages.web.server as server
 from packages.core import session as _sess
 
 
+def test_request_log_write_stays_off_the_event_loop(monkeypatch):
+    """A redirected stdout flush is blocking I/O even after response shaping."""
+    from types import SimpleNamespace
+    loop_thread = threading.get_ident()
+    writes = []
+
+    def log(line):
+        assert threading.get_ident() != loop_thread, 'stdout flush blocks dashboard heartbeats'
+        writes.append(line)
+
+    monkeypatch.setattr(server, '_log', log)
+    monkeypatch.setattr(server, '_LOG_SKIP', [])
+
+    async def run():
+        response = SimpleNamespace(status_code=200, headers={})
+
+        async def call_next(request):
+            return response
+
+        assert await server.log_requests(
+            SimpleNamespace(method='GET', url=SimpleNamespace(path='/api/sessions')),
+            call_next) is response
+
+    asyncio.run(run())
+    assert len(writes) == 1 and '/api/sessions' in writes[0]
+
+
 ROW_SUFFIX = "x" * 80
 
 

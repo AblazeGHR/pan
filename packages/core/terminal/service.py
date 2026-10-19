@@ -403,10 +403,18 @@ class _Heartbeat:
 
     # -- 内部 ----------------------------------------------------------
     def _loop(self) -> None:
+        next_beat = time.monotonic()
         try:
             while not self._stop.is_set():
                 self._beat_once()
-                self._stop.wait(self.interval)
+                # The lease is renewed when the runner receives the request,
+                # not when its reply arrives here. Sleeping a full interval
+                # after a slow ACK adds round-trip time to the 1s cadence and
+                # can exceed the unchanged 2s lease despite a successful beat.
+                # Keep a monotonic cadence; an overdue beat runs immediately,
+                # without replaying a backlog of missed heartbeat slots.
+                next_beat = max(next_beat + self.interval, time.monotonic())
+                self._stop.wait(max(0.0, next_beat - time.monotonic()))
         finally:
             self._release()
 
