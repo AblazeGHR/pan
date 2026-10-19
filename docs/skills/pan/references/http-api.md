@@ -3,6 +3,14 @@ name: pan-http-api
 description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills/pan/SKILL.md 使用）。覆盖冷启动常用端点请求体、字段命名映射、Windows curl 中文编码坑、轮询兜底策略。MCP 能覆盖的编排操作一律走 MCP 工具，本文件仅用于直调（rename/branch 等无 MCP 工具）与排查。
 ---
 
+## 来源分类与自动回答汇报
+
+`/api/assign`、`/api/send`（含 force）及 `/api/task` 根据验证后的 `sourceSessionId` 和管理祖先链将上行 agent 消息标为 `source=report`，保留原 task 投递事务。设置不影响手动上行投递。
+
+全局 `GET/PUT /api/settings/ui` 的 `autoReport` 值为 `{system:false, ma:true, user:false, plugins:{}}`。PUT 提供完整该值，`plugins` 是按插件 ID 的显式覆盖；重置传默认值及空覆盖。`GET /api/plugins/message-sources` 返回消息能力插件及声明默认/有效开关。插件以可选 `message_source` 对象声明消息能力，`auto_report_default` 可省略，省略为 false；没有消息能力对象的普通注册插件不出现在此列表。
+
+`POST /api/plugins/{plugin_id}/messages` 接受 `{sessionId, text, clientMessageId?}`；要求该插件声明消息能力，持久化 `source=plugin`/`sourcePluginId`，使用原有队列 gate。它与 `/api/send` 同属本地信任边界，不授予额外访问能力。详细快照、旧 QQ 兼容、Stop reports 和防循环规则见 [设计契约](../../../source-aware-auto-report.md)。
+
 # Pan HTTP API 速查（引用文档）
 
 > 供 `docs/skills/pan/SKILL.md` 引用。**MA 编排一律走 MCP 工具**（见 SKILL.md §5）；本文件是 HTTP 直调与排查用的技术细节，含 MCP 覆盖不到的端点（rename / branch）、以及直调/排查所需的请求体与字段约定。

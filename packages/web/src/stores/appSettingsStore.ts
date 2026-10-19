@@ -96,7 +96,25 @@ export function toggleUnreadRecordingScope(
   return ordered.length > 0 ? [...ordered] : ['none'];
 }
 
+export interface AutoReportSettings {
+  system: boolean;
+  ma: boolean;
+  user: boolean;
+  plugins: Record<string, boolean>;
+}
+
+export const DEFAULT_AUTO_REPORT: AutoReportSettings = { system: false, ma: true, user: false, plugins: {} };
+
+export function sanitizeAutoReport(value: unknown): AutoReportSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const plugins = raw.plugins && typeof raw.plugins === 'object' && !Array.isArray(raw.plugins)
+    ? Object.fromEntries(Object.entries(raw.plugins).filter(([key, v]) => /^[a-z][a-z0-9_-]{0,47}$/.test(key) && typeof v === 'boolean')) as Record<string, boolean> : {};
+  return { system: raw.system === true, ma: typeof raw.ma === 'boolean' ? raw.ma : true,
+    user: raw.user === true, plugins };
+}
+
 export interface AppSettings {
+  autoReport: AutoReportSettings;
   /**
    * Chat message presentation. TUI is the default; `bubble` is the opt-in
    * shrink-to-fit view, and `raw` keeps the TUI rows while showing each body's
@@ -167,6 +185,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  autoReport: DEFAULT_AUTO_REPORT,
   chatViewStyle: 'tui',
   defaultGroupBy: 'none',
   showGroupBy: false,
@@ -206,6 +225,7 @@ export function sanitizeSettings(
       ? rawNotifications as Record<string, unknown>
       : {};
   return {
+    autoReport: sanitizeAutoReport(parsed.autoReport),
     chatViewStyle:
       parsed.chatViewStyle === 'bubble' ||
       parsed.chatViewStyle === 'tui' ||
@@ -313,6 +333,7 @@ interface AppSettingsStore extends AppSettings {
    * server wrote the settings; a failure rejects and leaves the store
    * unchanged.
    */
+  saveAutoReport: (value: AutoReportSettings) => Promise<void>;
   saveReportWorkerKillErrors: (v: boolean) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
@@ -488,6 +509,12 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
           `Settings saved, but ${failed} Session(s) could not be aligned yet — use Reapply settings to retry.`,
         );
       }
+    },
+
+    saveAutoReport: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ autoReport: value });
+      set({ autoReport: sanitizeAutoReport(response.autoReport) });
     },
 
     saveReportWorkerKillErrors: async (value) => {

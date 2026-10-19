@@ -35,8 +35,8 @@ export function filterVisibleMessages(
   const { showMetaAgent, showTaskAgent, showQQ } = settings;
   return messages.filter((m) => {
     const content = m.content.trimStart();
-    if (!showMetaAgent && content.startsWith(META_AGENT_PREFIX)) return false;
-    if (!showTaskAgent && content.startsWith(TASK_AGENT_PREFIX)) return false;
+    if (!showMetaAgent && m.source !== 'report' && content.startsWith(META_AGENT_PREFIX)) return false;
+    if (!showTaskAgent && (m.source === 'report' || content.startsWith(TASK_AGENT_PREFIX))) return false;
     if (!showQQ && content.startsWith(QQ_PREFIX)) return false;
     return true;
   });
@@ -144,7 +144,7 @@ export function getQuickJumpKind(message: Message): QuickJumpKind | null {
   const content = message.content.trimStart();
   // A task-agent report wins over the role because reports can be serialized
   // as user messages by some adapters.
-  if (content.startsWith(TASK_AGENT_PREFIX)) return 'worker';
+  if (message.source === 'report' || content.startsWith(TASK_AGENT_PREFIX)) return 'worker';
   if (hasSystemHeader(message)) return 'system';
   if (message.role !== 'user') return null;
   if (message.source === 'agent') {
@@ -186,7 +186,7 @@ export type MessageSourceTag = 'ta-report' | 'system' | 'ma-assign';
  */
 export function getMessageSourceTag(message: Message): MessageSourceTag | null {
   const content = message.content.trimStart();
-  if (content.startsWith(TASK_AGENT_PREFIX)) return 'ta-report';
+  if (message.source === 'report' || content.startsWith(TASK_AGENT_PREFIX)) return 'ta-report';
   if (hasSystemHeader(message)) return 'system';
   if (
     message.role === 'user'

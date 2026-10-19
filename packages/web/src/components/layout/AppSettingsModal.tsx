@@ -4,6 +4,7 @@ import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
 import { LanSettings } from './LanSettings';
 import { LoginStartupSettings } from './LoginStartupSettings';
+import { AutoReportSettingsGroup } from './AutoReportSettingsGroup';
 import {
   Bell,
   Database,
@@ -1609,6 +1610,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </>
           ) : activeTab === 'behavior' ? (
             <>
+              <AutoReportSettingsGroup />
               <section
                 ref={behaviorSessionRef}
                 data-testid="behavior-session-section"

@@ -32,6 +32,7 @@ from pathlib import Path
 import psutil
 
 from . import session as _sess
+from . import auto_report as _auto_report
 from . import notifications as _notifications
 from . import codex_quota_store as _codex_quota_store
 from . import legal_offline as _offline
@@ -281,6 +282,7 @@ class Worker:
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     _current_task_idempotent: bool = False  # formal assign vs inherited send context
     _current_task_assistant_ids: set[str] = field(default_factory=set)
+    _auto_report_admission: dict | None = None
     _current_source_session_id: str | None = None  # 当前 item 的来源 Session（审计元数据）
     # 当前正在执行的持久 queue item。直到 provider hand-off 成功前，item
     # 仍保留在 Session.queue_pending；这里仅保留运行期引用用于结果配对。
@@ -769,6 +771,7 @@ async def _begin_offline_run(w: Worker, *, locked: bool = False) -> dict:
                     or w.generation != identity["generation"] or w.status == "restarting"):
                 raise RuntimeError("Stale execution owner")
             _offline.begin(candidate, identity)
+            candidate.offline_run["autoReportAdmission"] = copy.deepcopy(w._auto_report_admission)
         await _commit_offline(s, begin)
     if locked:
         await commit()
@@ -1962,6 +1965,7 @@ async def _persist_terminal_state_locked(
         "terminalKey": terminal_key,
         "status": status,
         "result": result_text,
+        "autoReportAdmission": copy.deepcopy(w._auto_report_admission),
         "taskSeq": task_seq,
         "executionSeq": w._execution_seq or None,
         "taskId": task_id,
@@ -2109,6 +2113,7 @@ async def _persist_terminal_state_locked(
     w.status = status
     w._terminal_handled = True
     return {
+        "autoReportAdmission": copy.deepcopy(w._auto_report_admission or {"version": 1, "inputs": [], "enabled": False}),
         "taskSeq": task_seq,
         "executionSeq": w._execution_seq or None,
         "taskId": task_id,
@@ -2180,6 +2185,7 @@ def _finish_terminal_bookkeeping(w: Worker, terminal: dict) -> None:
     w._current_task_id = None
     w._current_task_idempotent = False
     w._current_source_session_id = None
+    w._auto_report_admission = None
     w.last_activity = time.monotonic()
     _signal_task_done(w)
     _maybe_restart_pending(w)
@@ -2594,6 +2600,7 @@ async def _finish_task_error(w: Worker, s, result: str, *,
     await _enqueue_report(
         w.session_id, terminal["status"], terminal["result"],
         terminal["taskId"], w.worker_id,
+        admission=terminal.get("autoReportAdmission"),
         diagnostic=_error_report_diagnostic(
             w, terminal["status"], terminal.get("taskSeq")),
     )
@@ -2850,12 +2857,14 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
             raise RuntimeError("Native execution conflicts with current owner")
         next_execution = w._execution_seq + 1
         admitted = {**identity, "executionSeq": next_execution}
+        native_admission = _auto_report.admission([{"source": "native-tui"}],
+            (load_config().get("ui") or {}).get("autoReport"), _auto_report.plugin_sources())
         def commit(candidate):
             if not valid() or w.offline_token != identity["token"]:
                 raise RuntimeError("Native owner changed before durable admission")
             candidate.task_seq += 1
             _offline.begin(candidate, admitted)
-            candidate.offline_run.update(nativeAdmissionId=request_id,
+            candidate.offline_run.update(autoReportAdmission=copy.deepcopy(native_admission), nativeAdmissionId=request_id,
                 nativeThreadId=thread_id, nativeControlGeneration=control_generation, nativeOperation=operation,
                 nativeAdmissionTiming="after-start" if operation == "observed-turn" else "before-forward")
         await _commit_offline(s, commit)
@@ -2864,6 +2873,7 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
         # Only publish execution identity after the ordered writer committed it.
         w._current_seq = s.task_seq
         w._execution_seq = next_execution
+        w._auto_report_admission = native_admission
         w._current_task_id = None
         w._current_task_idempotent = False
         w._current_source_session_id = None
@@ -3244,6 +3254,7 @@ async def _read_stdout(w: Worker):
             # 保住 429 原因/重置时间，result 已有错误时保留上下文）。
             await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                                   terminal["taskId"], w.worker_id,
+                                  admission=terminal.get("autoReportAdmission"),
                                   diagnostic=_error_report_diagnostic(
                                       w, terminal["status"], terminal.get("taskSeq")))
             was_native = w._native_external_turn_active
@@ -3639,6 +3650,7 @@ async def _reserve_queue_unit(w: Worker, s, items: list[dict], text: str,
                     or queue_item_edit_locked(s, _queue_item_id(item))):
                 return False
 
+        _capture_auto_report(w, items)
         # Reservation proves only ownership. History starts at successful hand-off.
         history_added = False
 
@@ -3812,6 +3824,8 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     }
     if delivered_is_task:
         delivered_message["source"] = _task_source(items[0]) or "user"
+        if items[0].get("sourcePluginId"):
+            delivered_message["sourcePluginId"] = items[0]["sourcePluginId"]
         if items[0].get("sourceSessionId") is not None:
             delivered_message["sourceSessionId"] = items[0].get("sourceSessionId")
         if items[0].get("taskId") is not None:
@@ -4397,6 +4411,8 @@ def _is_pauseable_agent_report(item) -> bool:
     item_type = item.get("type")
     if item_type in {"notice", "qq", "wechat"}:
         return False
+    if item_type == "task" and item.get("explicitReport") is True:
+        return item.get("source") == "report"
     if item_type in {"report", "zombie"}:
         return item.get("source") in {None, "report"}
     return item_type is None and item.get("source") == "report" and "result" in item
@@ -5097,7 +5113,7 @@ def _has_dispatchable_items(s) -> bool:
 # 已规划的未来外部来源（open 集合，新增来源先在此登记再使用）：
 #   meta-agent    外部 meta-agent 编排（未来 external orchestration）
 #   automation    定时 / 脚本 / CI 自动化
-SOURCE_TYPES = {"user", "agent", "system_prompt", "report",
+SOURCE_TYPES = {"plugin", "system", "user", "agent", "system_prompt", "report",
                 "meta-agent", "automation"}
 
 
@@ -5137,7 +5153,34 @@ def _validate_source_metadata(target, source, source_session_id,
     if (target is not None and source_sid and source_sid != target.id
             and target.readonly_session and target.managed_by == source_sid):
         return None, None, READONLY_SESSION_ERROR
+    if source_type in {"agent", "meta-agent"} and source_sid and target is not None:
+        source_type = _agent_message_source(source_sid, target.id)
     return source_type, source_sid, None
+
+
+def _agent_message_source(sender_id: str, target_id: str) -> str:
+    # Classify from persisted identity only. A corrupt cyclic chain fails closed
+    # to MA for every target, even if a target was encountered before the loop.
+    ancestors = set()
+    visited = {sender_id}
+    current = _get_session_shallow(sender_id)
+    while current and current.managed_by:
+        parent = _get_session_shallow(current.managed_by)
+        if parent is None:
+            break
+        if parent.id in visited:
+            return "agent"
+        visited.add(parent.id)
+        ancestors.add(parent.id)
+        current = parent
+    return "report" if target_id in ancestors else "agent"
+
+
+def _capture_auto_report(w, items):
+    snapshot = _auto_report.admission(items, (load_config().get("ui") or {}).get("autoReport"),
+                                      _auto_report.plugin_sources())
+    w._auto_report_admission = snapshot
+    return snapshot
 
 
 def _task_source(item: dict) -> str | None:
@@ -5377,7 +5420,7 @@ def _delivery_key(item: dict) -> str:
         "reservedBy", "reservedGeneration", "reservedAt",
         "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
         "queueItemId", "receiptAt", "deliveredAt", "deletedAt",
-        "position", "revision",
+        "position", "revision", "autoReportAdmission", "autoReportExecutionSeq",
         # Last-message context is a derived annotation of the same report, not
         # report identity: adding/upgrading it must not change the receipt key
         # of a report that a previous version already delivered.
@@ -5406,6 +5449,7 @@ def _delivery_key_matches(key: str, item: dict) -> bool:
     # The legacy report/QQ hash included delivery phase fields. Its initial
     # pre-handoff shape was queued, with no recovery/terminal timestamps.
     legacy_bookkeeping = {
+        "autoReportAdmission", "autoReportExecutionSeq",
         "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
         "deliveryAttempts", "nextAttemptAt", "lastDeliveryError", "queueItemId",
         # Rows written before the last-message context existed never hashed
@@ -5836,7 +5880,8 @@ def _error_report_diagnostic(
 async def _enqueue_report(session_id: str, status: str, result: str,
                           task_id: str | None, worker_id: str,
                           report_type: str | None = None,
-                          diagnostic: dict | None = None):
+                          diagnostic: dict | None = None,
+                          admission: dict | None = None):
     """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
     manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
 
@@ -5853,6 +5898,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
     if _shutdown_started:
+        return
+    if admission is not None and admission.get("enabled") is not True:
         return
     s = _get_session_shallow(session_id)
     if not s or not s.managed_by:
@@ -6437,6 +6484,8 @@ async def enqueue_channel_reminder(
     target_key = f"{target_type}:{target_id}"
     bot_key = f"{target_key}@{bot_uin}" if bot_uin else None
     item = {
+        "source": channel,
+        "sourcePluginId": channel,
         "type": channel,
         "kind": channel,
         "id": "q_" + uuid.uuid4().hex,
@@ -6484,6 +6533,23 @@ async def enqueue_channel_reminder(
         await _wake_worker(s.id, auto_spawn=True)
         delivered += 1
     return delivered
+
+
+async def enqueue_plugin_message(plugin_id: str, session_id: str, text: str,
+                                 *, client_message_id: str | None = None) -> dict:
+    if not isinstance(text, str) or not text:
+        return {"error": "text is required"}
+    target = _get_session_shallow(session_id) if isinstance(session_id, str) else None
+    if target is None:
+        return {"error": "Session not found"}
+    async with queue_lock(target.id):
+        item, error = await _persist_task_item(target, text, "plugin", None, None,
+            client_message_id, idempotent_task_id=False, source_plugin_id=plugin_id)
+    if error:
+        return {"error": error}
+    await _wake_worker(target.id, auto_spawn=True)
+    return {"status": "queued", "sessionId": target.id,
+            "queueItemId": _queue_item_id(item) if item else None}
 
 
 async def enqueue_qq_reminder(target_type: str, target_id: str,
@@ -7670,6 +7736,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     # 订阅制报告：完成 → 若被订阅则 append 到 manager 的落盘队列（立项 4.3）
     await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                           terminal["taskId"], w.worker_id,
+                          admission=terminal.get("autoReportAdmission"),
                           diagnostic=_error_report_diagnostic(
                               w, terminal["status"], terminal.get("taskSeq")))
     _finish_terminal_bookkeeping(w, terminal)
@@ -9602,7 +9669,7 @@ def _queue_origin_metadata(items: list[dict]) -> dict:
     metadata = {"kind": kind, "queueEnvelopes": envelopes,
                 "source": (_task_source(first) if kind == "task" else
                            first.get("source") or kind)}
-    for key in ("sourceSessionId", "taskId", "taskIdSource", "clientMessageId",
+    for key in ("sourcePluginId", "autoReportAdmission", "sourceSessionId", "taskId", "taskIdSource", "clientMessageId",
                 "eventId", "channel", "envelope", "noticeKind", "jobId"):
         if key in first:
             metadata[key] = copy.deepcopy(first[key])
@@ -9781,12 +9848,18 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     _prepare_steer_control(w, native_text, request_id, origin)) + b"\n"
             except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
                 return f"Steer encoding failed before handoff: {exc}"
+            admission_candidate = copy.deepcopy(item)
+            _auto_report.admission([admission_candidate],
+                (load_config().get("ui") or {}).get("autoReport"), _auto_report.plugin_sources())
+            admission_execution_seq = w._execution_seq
             # Apply, write and failed rollback inside the same writer ticket.
             durable = _sess.DurableOutcome()
             def apply_reservation():
                 original = dict(item)
                 old_revision = s.queue_revision
                 try:
+                    item["autoReportAdmission"] = admission_candidate["autoReportAdmission"]
+                    item["autoReportExecutionSeq"] = admission_execution_seq
                     item["queueSteerPending"] = True
                     item["queueSteerRequestId"] = request_id
                     item["queueSteerWorkerId"] = w.worker_id
@@ -9925,6 +9998,15 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
             item.pop("queueSteerWorkerId", None)
             item.pop("queueSteerGeneration", None)
             item.pop("queueSteerOrigin", None)
+            if (item.get("autoReportExecutionSeq") == w._execution_seq and not w._terminal_handled):
+                addition = item.get("autoReportAdmission")
+                if addition:
+                    previous = w._auto_report_admission or {"version": 1, "inputs": [], "enabled": False}
+                    w._auto_report_admission = {"version": 1,
+                        "inputs": [*previous["inputs"], copy.deepcopy(addition)],
+                        "enabled": previous["enabled"] or (addition["enabled"] and addition["origin"]["kind"] != "report")}
+                    if s.offline_run:
+                        s.offline_run["autoReportAdmission"] = copy.deepcopy(w._auto_report_admission)
             row = _queue_history_row([item], history_text)
             if origin is not None:
                 row["steer"] = dict(origin)
@@ -10040,7 +10122,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              parts: list[dict] | None = None,
                              *, idempotent_task_id: bool = True,
                              activate_task: bool = False,
-                             locked: bool = False) -> tuple[dict | None, str | None]:
+                             locked: bool = False,
+                             source_plugin_id: str | None = None) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
     if _shutdown_started:
         return None, "Pan main service is shutting down"
@@ -10048,6 +10131,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         s, source, source_session_id)
     if source_error:
         return None, source_error
+    if source_plugin_id is not None and not any(p["id"] == source_plugin_id for p in _auto_report.plugin_sources()):
+        return None, "Plugin has no registered message source capability"
     _ensure_idempotency_index(s)
     if client_message_id:
         existing = _find_queue_item_by_idempotency(
@@ -10089,6 +10174,12 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         "revision": 1,
         "createdAt": time.time(),
     }
+    if source_plugin_id is not None:
+        item["sourcePluginId"] = source_plugin_id
+    if source_type == "report" and source_sid:
+        item["explicitReport"] = True
+        if getattr(s, "agent_reports_paused", False):
+            _message_locks.manual_change(item, None, True)
     if locked:
         _message_locks.set_lock(item, "manual")
     if task_id is not None:
@@ -10531,7 +10622,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     # from a later/previous result.
     inherited_task_id = (
         getattr(target, "active_task_id", None)
-        if source_type == "agent" else None
+        if source_type in {"agent", "report"} and (source_type == "agent" or source_sid) else None
     )
     def force_body_conflict(item):
         if item.get('text') != text:

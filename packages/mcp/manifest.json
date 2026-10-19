@@ -105,6 +105,12 @@
         "qq_read_inbox": "read_inbox",
         "qq_bind": "bind",
         "qq_unbind": "unbind"
+      },
+      "message_source": {
+        "auto_report_default": true,
+        "legacy_sources": [
+          "qq"
+        ]
       }
     },
     {

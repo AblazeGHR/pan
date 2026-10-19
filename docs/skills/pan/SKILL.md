@@ -119,6 +119,8 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 | `agent_send(session_id, text)` | 向**已有 Session** 发消息（多轮协作） | 消息排队，目标空闲（当前任务完成后）才处理，**不打断**进行中任务；**无活 worker 不报错**——入持久队列，watchdog 自动 spawn 后分发 | 多轮追问 / 补充线索 / 不着急的后续指令（排队等待） |
 | `agent_send_force(session_id, text, client_message_id?)` | 向**已有 Session** 即时尝试送达 | **按能力 Steer 优先**：running stream 原生 admission；idle 普通 handoff；无 Steer 能力才 restart+send；无 Worker 持久入队 | 需即时响应 / 运行中补充或纠正 / 操作约束 / 方向变更 |
 
+发送来源由可信发送 Session 与 managedBy 祖先链分类：发往自己的 MA 或更高祖先标为 Report，其余保持 MA；不按正文前缀猜身份，不改变访问/claim/订阅。显式上行仍保留原 task 信封、附件和幂等/force 回执，并遵守 Stop reports。Behavior → Auto report 只控制回答的自动汇报：MA 默认开，System/真用户默认关；插件按注册声明默认（未声明 false），各插件独立覆盖。执行入场持久快照决定本轮行为；Report 输入回答不会再次自动汇报，避免回流循环。契约与恢复/混合批次规则见 [source-aware-auto-report](../../source-aware-auto-report.md)。
+
 force 返回 queued/accepted/rejected/unknown；accepted 仅为 CLI admission，
 不是模型已消费。unknown 保留原事务，禁止自动重发或降级 restart；明确拒绝后
 可显式重试原 item。delayed restart 优先，锁、Pause everything、Stop reports

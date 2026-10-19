@@ -2192,6 +2192,17 @@ export async function deleteFs(sessionId: string, path: string): Promise<ApiFsGe
 
 // ── App settings (config.json ui) ──
 
+export interface PluginMessageSource {
+  id: string;
+  label: string;
+  defaultEnabled: boolean;
+  effectiveEnabled: boolean;
+}
+
+export async function fetchPluginMessageSources(): Promise<{ sources: PluginMessageSource[] }> {
+  return request(`${BASE}/plugins/message-sources`);
+}
+
 export async function fetchUiSettings(): Promise<Record<string, unknown>> {
   const data = await request<Record<string, unknown>>(`${BASE}/settings/ui`);
   return data || {};
