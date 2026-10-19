@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { WorkspaceRail } from './WorkspaceRail';
+import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 beforeEach(() => {
   localStorage.clear();
+  useAppSettingsStore.setState({ ...DEFAULT_SETTINGS });
   useSessionStore.setState({
     sessions: [],
     currentSessionId: null,
@@ -89,7 +91,7 @@ describe('desktop Sidebar collapse handle', () => {
     expect(document.activeElement).toBe(collapse);
   });
 
-  it('collapses the Sidebar without changing the workspace rail state', () => {
+  it('collapses and expands the Sidebar from the same floating handle', () => {
     renderRail();
 
     fireEvent.click(screen.getByTestId('sidebar-collapse-handle'));
@@ -97,8 +99,28 @@ describe('desktop Sidebar collapse handle', () => {
     expect(useUIStore.getState().sidebarCollapsed).toBe(true);
     expect(localStorage.getItem('pan:sidebarCollapsed')).toBe('1');
     expect(useUIStore.getState().railExpanded).toBe(false);
-    // Nothing is left to collapse, so the handle hides; the workspace handle
-    // and the existing nav recovery entry remain available.
+    expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
+
+    // The same slot now offers expansion (the nav recovery entry stays too).
+    const expand = screen.getByTestId('sidebar-collapse-handle');
+    expect(expand.getAttribute('aria-label')).toBe('展开侧边栏');
+    expect(expand.textContent).toBe('');
+    fireEvent.click(expand);
+
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    expect(localStorage.getItem('pan:sidebarCollapsed')).toBe('0');
+    expect(screen.getByTestId('sidebar-collapse-handle').getAttribute('aria-label')).toBe('收起侧边栏');
+  });
+
+  it('hides both floating handle states when the Appearance setting is off', () => {
+    useAppSettingsStore.setState({ showSidebarCollapseHandle: false });
+    renderRail();
+
+    expect(screen.queryByTestId('sidebar-collapse-handle')).toBeNull();
+    expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
+
+    act(() => useUIStore.getState().toggleSidebar());
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
     expect(screen.queryByTestId('sidebar-collapse-handle')).toBeNull();
     expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
   });
