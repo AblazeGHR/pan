@@ -9,7 +9,8 @@ diagnostic sample store, **not** a task ledger, retry journal or audit log.
 - Schema version: `1`.
 - Encoding: UTF-8, one JSON object per line.
 - Pan never rotates, truncates or evicts this file. `data_retention` only
-  deletes `pan.log.*` and leaves this file (and its `.lock` sibling) alone.
+  deletes `pan.log.*` and leaves this file (and, on POSIX, its `.lock` sibling)
+  alone.
   Retention is an operator decision.
 - Writes are best-effort: a failure is logged as a warning and counted in
   `sessionErrorLog` under `GET /api/diagnostics/persistence`. It never raises
@@ -101,6 +102,21 @@ last user message. It includes:
 If the Session history is empty or not loaded, `previousMessage` is `null` and
 `previousMessageMissing` is `true`; no older user row is substituted.
 
+## Encoding contract
+
+Pan's Worker decodes provider stdout as UTF-8 (`line.decode("utf-8",
+errors="replace")`), and the Codex wrappers write UTF-8 bytes explicitly via
+`sys.stdout.buffer` (CBC is a Node CLI and emits UTF-8). The deterministic E2E
+fixture follows the same contract: `_emit` writes UTF-8 bytes through
+`sys.stdout.buffer`, and stream input is read from `sys.stdin.buffer` as UTF-8.
+It never relies on the Windows console/pipe default (cp936/gbk) or on an
+external `PYTHONUTF8=1`.
+
+The regression `test_fixture_uses_explicit_utf8_under_non_utf8_windows_pipe`
+runs the fixture with `PYTHONUTF8=0` and `PYTHONIOENCODING=cp936`, feeds UTF-8
+stream input, and strictly decodes stdout as UTF-8. This distinguishes a real
+fixture protocol bug from an environment workaround.
+
 ## Stream fidelity
 
 `_iter_stdout_lines` keeps the existing 256 KiB parse threshold. When a line
@@ -124,10 +140,13 @@ per-run scratch file. It is attached to terminal/crash samples as
   `processSequence`, previous-message snapshot) on the caller's event loop,
   then submits file locking and writing to one dedicated executor thread.
   Heartbeats and other tasks continue while a write waits.
-- A single writer thread plus a bounded advisory cross-process lock
-  (`session-errors.jsonl.lock`). Each record is written by one `os.write` loop
-  under `O_APPEND` while the lock is held, so concurrent threads/processes
-  cannot interleave bytes.
+- A single writer thread plus a bounded cross-process lock. Windows uses a
+  named kernel mutex (`Local\PanSessionErrorLog_<path hash>`), avoiding the
+  intermittent file-sharing `ERROR_ACCESS_DENIED` seen when several fresh
+  processes open a lock file; POSIX uses a sibling
+  `session-errors.jsonl.lock` with `flock`. Each record is written by one
+  `os.write` loop under `O_APPEND` while the lock is held, so concurrent
+  threads/processes cannot interleave bytes.
 - The lock is mandatory. If acquisition fails (bounded ~1s in the writer
   thread), no unlocked write is attempted; the sample is dropped and
   `lockFailures`/`failures` increment.
@@ -169,9 +188,10 @@ If opening/locking/writing fails (permissions, disk full, antivirus lock):
 4. the task, queue, retry and legality paths continue unchanged. No hand-off
    is repeated and no lock is held across the failure.
 
-A lock failure never falls back to an unlocked append. The lock wait is bounded
-(~1s) and runs on the writer thread, so it cannot block the event loop or
-heartbeat.
+A lock failure never falls back to an unlocked append. The Windows mutex wait
+is bounded (~1s); POSIX retries the lock-file open (~2s) and then the flock
+(~1s). All waiting happens on the writer thread, so it cannot block the event
+loop or heartbeat.
 
 ## Adapter/path availability
 
@@ -264,7 +284,8 @@ re-derive `retryable` from wording.
   deterministic CLI on an ephemeral port (never 8767/8768), stream/one-shot,
   crash, huge text, >256 KiB structured error (type first, error first,
   is_error first), non-JSON diagnostics, concurrent Sessions and process
-  restart read-back.
+  restart read-back; plus an explicit UTF-8 fixture regression under
+  `PYTHONUTF8=0`/`PYTHONIOENCODING=cp936`.
 - `tests/test_codex_adapter.py` – wrapper keeps `turn.error` beside assistant
   text and emits a recovered transient notice.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -48,6 +49,8 @@ def main() -> int:
 
     for index in range(count):
         record(index, "W")
+    print(json.dumps(session_error_log.stats(), ensure_ascii=True,
+                     separators=(",", ":")), file=sys.stderr, flush=True)
     return 0
 
 

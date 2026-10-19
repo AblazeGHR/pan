@@ -21,9 +21,20 @@ def _append(record: dict) -> None:
         handle.flush()
 
 
+def _write_stdout_line(text: str) -> None:
+    """Emit UTF-8 bytes regardless of the Windows pipe/console code page.
+
+    Pan's Worker decodes provider stdout as UTF-8 (and the real Codex wrappers
+    write UTF-8 bytes explicitly); a text-mode ``print`` would use cp936/gbk
+    under a non-UTF8 Windows environment and turn Chinese into replacement
+    characters.
+    """
+    sys.stdout.buffer.write(text.encode("utf-8") + b"\n")
+    sys.stdout.buffer.flush()
+
+
 def _emit(event: dict) -> None:
-    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    _write_stdout_line(json.dumps(event, ensure_ascii=False))
 
 
 def _assistant(text: str) -> None:
@@ -93,8 +104,8 @@ def _handle(text: str, mode: str) -> None:
         _result_error(oversize, partial="partial answer before oversize error")
         return
     if "err-rawdiag" in text:
-        print("第一行 stderr 诊断：磁盘警告", flush=True)
-        print("[second raw line] 重连日志", flush=True)
+        _write_stdout_line("第一行 stderr 诊断：磁盘警告")
+        _write_stdout_line("[second raw line] 重连日志")
         _assistant("partial answer before raw diagnostic error")
         _result_error("raw diagnostic scenario failed",
                       partial="partial answer before raw diagnostic error")
@@ -178,7 +189,13 @@ def main() -> None:
         text = sys.argv[-1] if len(sys.argv) > 1 else ""
         _handle(text, mode)
         return
-    for line in sys.stdin:
+    # stdin is Pan's UTF-8 stream-json.  Use the binary stream so a cp936
+    # default text encoding cannot corrupt or reject Chinese prompts.
+    for raw in sys.stdin.buffer:
+        try:
+            line = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            line = raw.decode("utf-8", errors="replace")
         try:
             payload = json.loads(line)
             text = payload["message"]["content"][0]["text"]

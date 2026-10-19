@@ -51,14 +51,22 @@ def test_concurrent_processes_write_valid_large_records(tmp_path):
             cwd=str(ROOT), env=_env(), stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, **command_window_options(),
         ))
+    stderrs = []
     for process in processes:
         stdout, stderr = process.communicate(timeout=120)
+        stderrs.append(stderr)
         assert process.returncode == 0, f"writer failed: {stdout}\n{stderr}"
 
     raw = log_path.read_text(encoding="utf-8")
     assert raw.endswith("\n")
     rows = [json.loads(line) for line in raw.splitlines()]
-    assert len(rows) == 32
+    assert len(rows) == 32, f"writer stats: {stderrs}"
+    for stderr in stderrs:
+        stats = json.loads([line for line in stderr.splitlines() if line.strip()][-1])
+        assert stats["written"] == 8, stats
+        assert stats["failures"] == 0, stats
+        assert stats["lockFailures"] == 0, stats
+        assert stats["pending"] == 0, stats
     assert len({row["eventId"] for row in rows}) == 32
     assert {row["sessionName"] for row in rows} == {"p0", "p1", "p2", "p3"}
     for row in rows:
