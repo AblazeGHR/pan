@@ -434,6 +434,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const {
     defaultGroupBy,
     showGroupBy,
+    showSidebarCollapseHandle,
     defaultNewSessionToCurrentWorkspace,
     showMetaAgent,
     showTaskAgent,
@@ -448,6 +449,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     notifications,
     setDefaultGroupBy,
     setShowGroupBy,
+    setShowSidebarCollapseHandle,
     setDefaultNewSessionToCurrentWorkspace,
     setShowMetaAgent,
     setShowTaskAgent,
@@ -1504,6 +1506,19 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ChatViewSelect value={chatViewStyle} onChange={setChatViewStyle} />
+                </div>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Sidebar
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Show sidebar collapse handle"
+                    hint="Floating handle on the desktop sidebar edge; the header and collapsed-rail buttons stay available."
+                    checked={showSidebarCollapseHandle}
+                    onChange={setShowSidebarCollapseHandle}
+                  />
                 </div>
               </section>
               <section>
