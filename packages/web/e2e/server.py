@@ -37,6 +37,7 @@ if PORT in (8767, 8768):
 RUNTIME.mkdir(parents=True, exist_ok=True)
 os.environ["PAN_BACKGROUND_JOBS_DIR"] = str(RUNTIME / "background-jobs")
 os.environ["PAN_SCHEDULER_DIR"] = str(RUNTIME / "scheduler")
+os.environ["PAN_TERMINALS_DIR"] = str(RUNTIME / "terminals")
 from packages.core import config as fixture_config
 fixture_config.CONFIG_FILE = RUNTIME / "config.json"
 if not fixture_config.CONFIG_FILE.exists():

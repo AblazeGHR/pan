@@ -1,80 +1,82 @@
 {
-  "baseURL": "http://127.0.0.1:30064",
-  "port": 30064,
+  "baseURL": "http://127.0.0.1:37560",
+  "port": 37560,
   "evidence": {
     "imeAvoidance": {
       "realImeComposition": true,
       "syntheticComposingGuard": true
     },
     "terminalAvoidance": {
-      "terminalAvailable": false
+      "terminalAvailable": true,
+      "terminalId": "term_bf9c1060c3184eb4",
+      "terminalEngineStarted": false
     }
   },
   "results": [
     {
       "name": "record persist and execute general shortcut",
       "status": "passed",
-      "started": "2026-10-19T14:39:52.166Z",
+      "started": "2026-10-19T15:02:14.603Z",
       "screenshot": "record-persist-and-execute-general-shortcut.png"
     },
     {
       "name": "reject reserved and conflicting bindings",
       "status": "passed",
-      "started": "2026-10-19T14:39:55.574Z",
+      "started": "2026-10-19T15:02:17.990Z",
       "screenshot": "reject-reserved-and-conflicting-bindings.png"
     },
     {
       "name": "dynamic plugin panels add remove and binding isolation",
       "status": "passed",
-      "started": "2026-10-19T14:39:56.758Z",
+      "started": "2026-10-19T15:02:19.142Z",
       "screenshot": "dynamic-plugin-panels-add-remove-and-binding-isolation.png"
     },
     {
       "name": "avoid IME composer editor and terminal",
       "status": "passed",
-      "started": "2026-10-19T14:40:00.775Z",
+      "started": "2026-10-19T15:02:23.089Z",
       "screenshot": "avoid-ime-composer-editor-and-terminal.png"
     },
     {
       "name": "no session disables session and queue actions",
       "status": "passed",
-      "started": "2026-10-19T14:40:04.069Z",
+      "started": "2026-10-19T15:02:57.205Z",
       "screenshot": "no-session-disables-session-and-queue-actions.png"
     },
     {
       "name": "locked enqueue failure preserves draft",
       "status": "passed",
-      "started": "2026-10-19T14:40:05.704Z",
+      "started": "2026-10-19T15:02:58.819Z",
       "screenshot": "locked-enqueue-failure-preserves-draft.png"
     },
     {
       "name": "locked enqueue preserves attachment and URL order",
       "status": "passed",
-      "started": "2026-10-19T14:40:07.821Z",
+      "started": "2026-10-19T15:03:00.969Z",
       "screenshot": "locked-enqueue-preserves-attachment-and-url-order.png"
     },
     {
       "name": "long press toggles once",
       "status": "passed",
-      "started": "2026-10-19T14:40:09.805Z",
+      "started": "2026-10-19T15:03:02.887Z",
       "screenshot": "long-press-toggles-once.png"
     },
     {
       "name": "switch session race keeps target",
       "status": "passed",
-      "started": "2026-10-19T14:40:11.032Z",
+      "started": "2026-10-19T15:03:04.119Z",
       "screenshot": "switch-session-race-keeps-target.png"
     },
     {
       "name": "queue expand lock all and pause semantics",
       "status": "passed",
-      "started": "2026-10-19T14:40:13.853Z",
+      "started": "2026-10-19T15:03:06.986Z",
       "screenshot": "queue-expand-lock-all-and-pause-semantics.png"
     },
     {
       "name": "stop report and bell persist across reload",
       "status": "passed",
-      "started": "2026-10-19T14:40:15.375Z",
+      "started": "2026-10-19T15:03:08.407Z",
       "screenshot": "stop-report-and-bell-persist-across-reload.png"
     }
   ]

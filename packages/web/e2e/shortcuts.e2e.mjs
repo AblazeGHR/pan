@@ -26,7 +26,12 @@ const evidence = {};
 async function api(method, apiPath, body) {
   const response = await fetch(baseURL + apiPath, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    // Terminal POSTs require the exact same-origin allowlist check; Node fetch
+    // does not add Origin automatically, so send the browser-equivalent origin.
+    headers: {
+      Origin: baseURL,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
@@ -61,6 +66,20 @@ async function setShortcuts(shortcuts) {
 
 async function resetShortcuts() {
   await setShortcuts({});
+}
+
+async function cleanupTerminals() {
+  try {
+    const response = await api('GET', '/api/terminals');
+    for (const terminal of response.result || []) {
+      const id = terminal.terminal_id;
+      if (!id) continue;
+      await api('POST', `/api/terminals/${encodeURIComponent(id)}/close`, {}).catch(() => {});
+      await api('POST', `/api/terminals/${encodeURIComponent(id)}/remove`, {}).catch(() => {});
+    }
+  } catch {
+    // No terminal route state to clean in this run.
+  }
 }
 
 async function waitFor(read, check, timeout = 10000, label = 'condition') {
@@ -405,17 +424,40 @@ try {
     assert.equal(await sidebarCollapsed(page), null);
 
     // Terminal lives on the second nav page; navigate directly instead of
-    // depending on the visual carousel page.
+    // depending on the visual carousel page. Create an isolated terminal in
+    // the E2E runtime (PAN_TERMINALS_DIR) and focus its real xterm textarea.
+    let terminalId = null;
+    let terminalEngineStarted = false;
+    try {
+      const createdTerminal = await api('POST', '/api/terminals', {
+        rows: 24, cols: 80, cwd: target.workdir,
+      });
+      terminalId = createdTerminal.result?.terminal_id ?? null;
+      terminalEngineStarted = Boolean(terminalId);
+    } catch {
+      // The isolated checkout has no terminal emulator sidecar, so engine
+      // start fails. The failed create still leaves a real registry record;
+      // select it to mount the real xterm DOM (WebSocket may be disconnected).
+      const listed = await api('GET', '/api/terminals');
+      terminalId = (listed.result || [])
+        .find((record) => record.terminal_id)?.terminal_id ?? null;
+    }
+    assert.ok(terminalId, 'no terminal record available for xterm focus');
     await page.goto(`${baseURL}/react/terminals`);
     await page.waitForURL(/\/react\/terminals/);
-    const terminalInput = page.locator('.xterm-helper-textarea');
-    const terminalAvailable = await terminalInput.count() > 0;
-    if (terminalAvailable) {
-      await terminalInput.first().focus();
-      await page.keyboard.press('Control+k');
-      assert.equal(await page.getByPlaceholder('Search commands, sessions...').count(), 0);
+    await page.getByLabel('选择终端').selectOption(terminalId);
+    const terminalInput = page.locator('.xterm-helper-textarea').first();
+    await terminalInput.waitFor({ state: 'attached' });
+    await terminalInput.focus();
+    await page.keyboard.press('Control+k');
+    assert.equal(await page.getByPlaceholder('Search commands, sessions...').count(), 0);
+    await page.keyboard.press('Control+b');
+    assert.equal(await sidebarCollapsed(page), null);
+    evidence.terminalAvoidance = { terminalAvailable: true, terminalId, terminalEngineStarted };
+    if (terminalEngineStarted) {
+      await api('POST', `/api/terminals/${encodeURIComponent(terminalId)}/close`, {});
+      await api('POST', `/api/terminals/${encodeURIComponent(terminalId)}/remove`, {});
     }
-    evidence.terminalAvoidance = { terminalAvailable };
   });
 
   await runCase(browser, 'no session disables session and queue actions', async ({ page }) => {
@@ -666,6 +708,7 @@ try {
     assert.equal(detail.msgBridgeEnabled, true);
   });
 } finally {
+  await cleanupTerminals();
   await browser.close();
   await writeResults();
 }

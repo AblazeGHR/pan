@@ -94,7 +94,7 @@ Jobs、Terminal 与 plugin panel 现在都由实际导航注册目录生成 `pan
 - composer 作用域最终调整后定向：**86 tests passed**（useGlobalShortcuts、registry*、InputRow）。
 - `tsc -b`：通过。
 - `pnpm build`：通过（r8 e2e runner 内执行，72 compressed assets）。
-- 变更文件 ESLint：exit 0（`frontend-eslint-changed.log`）。全量 lint 仍有既有 e2e `no-undef` 错误（未触碰文件），非本分支引入。
+- 变更文件 ESLint：exit 0（`frontend-eslint-changed.txt`）。全量 lint 仍有既有 e2e `no-undef` 错误（未触碰文件），非本分支引入。
 
 ### 后端
 
@@ -103,23 +103,32 @@ Jobs、Terminal 与 plugin panel 现在都由实际导航注册目录生成 `pan
   - `test_real_http_locked_enqueue_is_not_handed_off_before_unlock`
   - `test_real_http_report_and_bell_toggles_persist_across_restart`
   - 既有 settings UI 回归
-- 全量 pytest：**未完成**。此前 Job 在 27% 被取消；日志中约 3% 与 15% 各有 1 个 `F`，未生成 JUnit，未识别具体用例。按最新指示未机械重跑本地全量 CI。
+- 全量 pytest：**未完成**。此前 Job 在 27% 被取消；已从原始日志的进度流解析出 `F` 位于收集顺序第 **104**、**603** 个，并用 `--collect-only` 顺序定位为：
+  - `tests/test_backend_perf_opt.py::test_result_flushes_debounced_blocks_through_read_stdout`（`fake_save()` 缺少 `offline_override` 参数）
+  - `tests/test_codex_resumed_init.py::test_resumed_init_marks_worker_ready_without_replaying_queue_or_history`（`native_kernel_ready` 仍为 False）
+  - 两个节点在当前分支定向复现均失败；用 `git archive e4078c18` 的临时基线树只跑这两个节点，**同样 2 failed，错误签名一致** → 属基线既有失败，不是本分支引入。
+  - 详见 `pytest-suspects-identity.md`、`pytest-suspects-rerun.xml`、`pytest-suspects-baseline.xml`、`full-pytest-cancelled.txt`。
+- 未重跑全量本地 pytest，未改断言/skip。
 
 ### Chromium 真实键盘 e2e
 
 - 结果：**11/11 passed**，exit 0。
-- 隔离：动态端口 `30064`，临时 `PAN_E2E_RUNTIME`，`tests/support/fake_stream_cli.py`，未访问 8767/8768 或实用 data。
-- 清理：`remainingListeners: []`，stoppedPid `36504`。
-- 覆盖：录制→执行→刷新持久化、保留/冲突、动态双 plugin 注册增删与绑定隔离、IME/composer/编辑器避让、无 Session 门禁、拒绝入队保留草稿、附件+URL 顺序、长按只触发一次、切 Session 竞态、队列展开/Lock all/Pause 语义、Stop report/bell 刷新往返。
+- 隔离：动态端口 `37560`，临时 `PAN_E2E_RUNTIME`，`PAN_TERMINALS_DIR` 指向临时根，`tests/support/fake_stream_cli.py`，未访问 8767/8768 或实用 data。
+- 清理：`remainingListeners: []`，stoppedPid `37636`；无残留 terminal launcher 进程。
+- 覆盖：录制→执行→刷新持久化、保留/冲突、动态双 plugin 注册增删与绑定隔离、IME/composer/编辑器/真实 xterm 避让、无 Session 门禁、拒绝入队保留草稿、附件+URL 顺序、长按只触发一次、切 Session 竞态、队列展开/Lock all/Pause 语义、Stop report/bell 刷新往返。
 - IME：CDP `Input.imeSetComposition` 真实 composition 可用；同时验证 synthetic `isComposing` 守卫。
-- Terminal：fixture 中 `.xterm-helper-textarea` 不可用，`terminalAvailable=false`；终端避让仅有单测覆盖（见未验证）。
+- Terminal：隔离 fixture 缺少 terminal emulator sidecar，`POST /api/terminals` 返回 `startup-failed`；用例选中该次创建留下的真实 registry 记录，挂载真实 `.xterm-helper-textarea`，聚焦后按 Ctrl+K/Ctrl+B，断言命令面板不打开、侧栏不切换（`terminalAvailable=true`，`terminalEngineStarted=false`）。
 
 ## 7. 证据文件
 
 - `browser-results.json` — 11 个用例逐项结果
 - `e2e-lifecycle.json` / `e2e-cleanup.json` — 端口、fake CLI、清理
 - `pytest-targeted.xml` — 16 个后端定向用例
-- `frontend-eslint-changed.log` — 变更文件 lint（空即通过）
+- `full-pytest-cancelled.txt` — 被取消全量 pytest 原始日志（保全）
+- `pytest-collect-order.txt` — 4125 个测试的收集顺序
+- `pytest-suspects-identity.md` — 两处 F 的定位、复现与基线对照
+- `pytest-suspects-rerun.xml` / `pytest-suspects-baseline.xml` / `pytest-suspects-baseline.txt` — 当前分支与 e4078c18 的定向结果
+- `frontend-eslint-changed.txt` — 变更文件 lint（空即通过）
 
 关键文件 SHA-256：
 
@@ -132,7 +141,8 @@ aa3d65cbf5195ba9f1b714e4c247ea6b1c2a77eec6006d10165138653c84f07f  packages/web/s
 3805163f4601e0e7d4d6a53f114e028fd4fe15e2790ee52eb43cf2a1111c6399  packages/web/src/components/layout/viewEntries.ts
 34401db90422ece680fa1581e8d3c0c000aeaefacf25fe81f8091c947ef3c22c  packages/web/src/stores/appSettingsStore.ts
 11cc2a86047174fe37610a8e433ef15372c7637bfd527cb114b761ab520e71c8  packages/web/src/components/chat/InputRow.tsx
-a642a5d2c4f8dee9d568dca531d2d57f36678a83adbb459f81d898ba8ff06fe2  packages/web/e2e/shortcuts.e2e.mjs
+6d777a5f325753af496e42494f4db50c5ed250e6bdc6d378b787e4784effec96  packages/web/e2e/shortcuts.e2e.mjs
+76f1f55b4a873a69bd1a8d8af31d13aa44c274cf3607f9888f57c3db01956846  packages/web/e2e/server.py
 8690ee385cb9c3a218d86babb801e1029c66a12477f2bcae955c90ace27429e5  packages/web/e2e/run-shortcuts.ps1
 e4a414c4f94f21cb1ad5d57d18c59f68e97a5b1725136e410f7046f4c0b64b36  tests/test_settings_ui.py
 85ddf5831e461c748f580fa18fa98918c62725d90c9c5bd498e37e9fba400fa1  tests/test_real_queue_http_e2e.py
@@ -140,8 +150,8 @@ e4a414c4f94f21cb1ad5d57d18c59f68e97a5b1725136e410f7046f4c0b64b36  tests/test_set
 
 ## 8. 未验证 / 剩余阻塞
 
-1. **全量 pytest 未完成**：取消前观察到 2 个失败标记，但无失败用例名/JUnit；不能声称全量后端绿。定向相关 16 个用例绿。
-2. **真实 xterm 终端 e2e 避让**：fixture 未渲染 xterm helper textarea；仅有 jsdom 单测覆盖 `.xterm` 目标与 terminal paste 不回归。
+1. **全量 pytest 未完成**：取消前 2 个 `F` 已定位并在 e4078c18 基线复现，属既有失败；其余未跑部分仍未验证，不能声称全量后端绿。定向相关 16 个用例绿。
+2. **Terminal engine/PTY**：隔离 fixture 缺 emulator sidecar，终端进程未启动；真实 xterm DOM 的焦点避让已验证，但 PTY/输入/快照链路未验证。
 3. **真实 OS IME**：CDP composition 已验证，但未接入真实中文输入法进程；另有 synthetic isComposing 守卫。
 4. **macOS 实机**：仅单测验证 Mod→Meta/Cmd 展示与匹配；没有 macOS Chromium 实机运行。
 5. **main 组合**：未追合 `8c10b2fc`；Lifecycle/Behavior/Remote 分类、自启动与本次 Shortcuts 的合并冲突由 MA 处理。

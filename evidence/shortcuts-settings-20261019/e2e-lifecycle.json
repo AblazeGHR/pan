@@ -1,10 +1,10 @@
 ﻿{
-    "pid":  36504,
+    "pid":  37636,
     "log":  "D:\\project\\pan-worktrees\\keyboard-shortcuts-20261019\\packages\\web\\test-results\\pan-e2e-shortcuts\\server.stdout.log",
-    "launcherPid":  4172,
+    "launcherPid":  9656,
     "checkout":  "D:\\project\\pan-worktrees\\keyboard-shortcuts-20261019",
-    "startedAt":  "\/Date(1792420768822)\/",
+    "startedAt":  "\/Date(1792422112820)\/",
     "errorLog":  "D:\\project\\pan-worktrees\\keyboard-shortcuts-20261019\\packages\\web\\test-results\\pan-e2e-shortcuts\\server.stderr.log",
-    "port":  30064,
+    "port":  37560,
     "fakeCli":  "D:\\project\\pan-worktrees\\keyboard-shortcuts-20261019\\tests\\support\\fake_stream_cli.py"
 }
