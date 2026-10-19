@@ -7,13 +7,17 @@ deterministic local CLI.  No remote model or production data is involved.
 from __future__ import annotations
 
 import json
+import os
 import socket
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 import pytest
 
 import tests.test_real_queue_http_e2e as base
+from packages.jobs.window import command_window_options
 
 
 FAKE_CLI = Path(__file__).resolve().parent / "support" / "session_error_fake_cli.py"
@@ -26,6 +30,46 @@ def _free_port() -> int:
             port = int(sock.getsockname()[1])
         if port not in {8767, 8768}:
             return port
+
+
+def _run_fake_cli(text: str) -> bytes:
+    """Run the fixture with a deliberately non-UTF8 Windows text default."""
+    payload = json.dumps({
+        "type": "user",
+        "message": {"role": "user", "content": [{"type": "text", "text": text}]},
+    }, ensure_ascii=False) + "\n"
+    env = dict(os.environ)
+    env.update({"PYTHONUTF8": "0", "PYTHONIOENCODING": "cp936"})
+    completed = subprocess.run(
+        [sys.executable, str(FAKE_CLI), "-p", "--output-format", "stream-json",
+         "--input-format", "stream-json", "-y"],
+        input=payload.encode("utf-8"), capture_output=True, env=env,
+        timeout=60, **command_window_options(),
+    )
+    assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")
+    return completed.stdout
+
+
+def test_fixture_uses_explicit_utf8_under_non_utf8_windows_pipe():
+    """The fixture must be the UTF-8 contract, not rely on PYTHONUTF8.
+
+    The child runs with PYTHONUTF8=0 and PYTHONIOENCODING=cp936.  Pan always
+    decodes provider stdout as UTF-8, so the fixture's bytes must remain UTF-8.
+    """
+    done_stdout = _run_fake_cli("中文任务")
+    done_text = done_stdout.decode("utf-8")  # strict: no replacement chars
+    done_events = [json.loads(line) for line in done_text.splitlines() if line.strip()]
+    result = [event for event in done_events if event.get("type") == "result"][-1]
+    assert result["is_error"] is False
+    assert result["result"] == "中文任务"
+
+    error_stdout = _run_fake_cli("err-terminal")
+    error_text = error_stdout.decode("utf-8")
+    error_events = [json.loads(line) for line in error_text.splitlines() if line.strip()]
+    error = [event for event in error_events if event.get("type") == "result"][-1]
+    assert error["is_error"] is True
+    assert error["error"]["message"] == "上游 429：请稍后重试\n第二行：完整错误正文"
+    assert "上游".encode("utf-8") in error_stdout
 
 
 def _make_runtime(tmp_path, monkeypatch):

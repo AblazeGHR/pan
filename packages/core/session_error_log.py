@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import hashlib
 import json
 import logging
 import os
@@ -693,44 +694,123 @@ def _ensure_newline(destination: Path) -> None:
         handle.flush()
 
 
-class _cross_process_lock:
-    """Advisory lock shared by Pan's threads/processes for this one file.
+class _WindowsNamedMutex:
+    """Bounded Windows kernel mutex for one log file.
 
-    The lock is a sibling ``.lock`` file so the append handle can stay in
-    pure O_APPEND mode.  Acquisition is bounded and never raises; callers must
-    check ``acquired`` and refuse to write when it is false.
+    ``msvcrt`` byte-range locks on a separately opened lock file intermittently
+    return ERROR_ACCESS_DENIED when several fresh processes create/open it at
+    the same time.  A named mutex is process-wide, automatically released when
+    a process dies, and avoids that file-sharing race.
+    """
+
+    def __init__(self, lock_path: Path, timeout: float = 1.0):
+        self._name = "Local\\PanSessionErrorLog_" + hashlib.sha256(
+            os.path.normcase(str(lock_path.absolute())).encode("utf-8")
+        ).hexdigest()
+        self._timeout_ms = max(1, int(timeout * 1000))
+        self._handle = None
+        self.acquired = False
+
+    def acquire(self) -> bool:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.argtypes = (
+            wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+        kernel32.ReleaseMutex.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+
+        handle = kernel32.CreateMutexW(None, False, self._name)
+        if not handle:
+            _LOG.warning("session-error-log: CreateMutexW failed: %s",
+                         ctypes.WinError(ctypes.get_last_error()))
+            return False
+        wait = kernel32.WaitForSingleObject(handle, self._timeout_ms)
+        if wait not in (0, 0x80):  # WAIT_OBJECT_0 / WAIT_ABANDONED
+            kernel32.CloseHandle(handle)
+            return False
+        self._handle = handle
+        self.acquired = True
+        return True
+
+    def release(self) -> None:
+        if self._handle is None:
+            return
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.ReleaseMutex.argtypes = (wintypes.HANDLE,)
+        kernel32.ReleaseMutex.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        try:
+            if not kernel32.ReleaseMutex(self._handle):
+                _LOG.warning("session-error-log: ReleaseMutex failed: %s",
+                             ctypes.WinError(ctypes.get_last_error()))
+        finally:
+            kernel32.CloseHandle(self._handle)
+            self._handle = None
+            self.acquired = False
+
+
+class _cross_process_lock:
+    """Bounded cross-process lock for this one file.
+
+    Windows: named kernel mutex (no lock-file sharing race).  POSIX: advisory
+    flock on a sibling ``.lock`` file.  Acquisition is bounded and never
+    raises; callers must check ``acquired`` and refuse to write when false.
     """
 
     def __init__(self, lock_path: Path):
         self._path = lock_path
         self._handle = None
+        self._mutex = None
         self.acquired = False
 
     def __enter__(self):
+        if os.name == "nt":
+            self._mutex = _WindowsNamedMutex(self._path)
+            if not self._mutex.acquire():
+                _LOG.warning(
+                    "session-error-log: lock acquisition failed; sample will be dropped")
+            else:
+                self.acquired = True
+            return self
+
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        open_deadline = time.monotonic() + 2.0
+        while True:
+            try:
+                self._handle = self._path.open("a+b")
+                break
+            except OSError as exc:
+                if time.monotonic() >= open_deadline:
+                    _LOG.warning("session-error-log: lock open failed: %s", exc)
+                    return self
+                time.sleep(0.01)
         try:
-            self._handle = self._path.open("a+b")
             self._handle.seek(0, os.SEEK_END)
             if self._handle.tell() == 0:
                 self._handle.write(b"\0")
                 self._handle.flush()
             self._handle.seek(0)
-            # Bounded acquisition in the writer thread.  A failed lock must
-            # not become an unlocked append.
-            deadline = time.monotonic() + 1.0
+            lock_deadline = time.monotonic() + 1.0
             while True:
                 try:
-                    if os.name == "nt":
-                        import msvcrt
-                        msvcrt.locking(self._handle.fileno(), msvcrt.LK_NBLCK, 1)
-                    else:
-                        import fcntl
-                        fcntl.flock(self._handle.fileno(),
-                                    fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    import fcntl
+                    fcntl.flock(self._handle.fileno(),
+                                fcntl.LOCK_EX | fcntl.LOCK_NB)
                     self.acquired = True
                     break
                 except OSError:
-                    if time.monotonic() >= deadline:
+                    if time.monotonic() >= lock_deadline:
                         break
                     time.sleep(0.01)
         except OSError as exc:
@@ -741,23 +821,21 @@ class _cross_process_lock:
         return self
 
     def __exit__(self, exc_type, exc, tb):
+        if self._mutex is not None:
+            self._mutex.release()
+            self._mutex = None
+            self.acquired = False
+            return False
         if self._handle is None:
             return False
         try:
             if self.acquired:
                 self._handle.seek(0)
-                if os.name == "nt":
-                    import msvcrt
-                    try:
-                        msvcrt.locking(self._handle.fileno(), msvcrt.LK_UNLCK, 1)
-                    except OSError:
-                        pass
-                else:
+                try:
                     import fcntl
-                    try:
-                        fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
-                    except OSError:
-                        pass
+                    fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
         finally:
             self._handle.close()
             self._handle = None
