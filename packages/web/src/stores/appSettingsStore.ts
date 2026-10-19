@@ -107,6 +107,12 @@ export interface AppSettings {
   defaultGroupBy: GroupMode;
   /** Show the sidebar's interactive Group by cycle button. */
   showGroupBy: boolean;
+  /**
+   * Show the Chat TopBar's TUI/Bubble/Raw view switcher. On by default; when
+   * off only that switcher disappears — Terminal TUI / Upgrades, navigation
+   * and routing stay available.
+   */
+  showChatViewSwitcher: boolean;
   /** Put new Sessions in the active Workspace when the active scope is concrete. */
   defaultNewSessionToCurrentWorkspace: boolean;
   /** Show meta-agent info (e.g. messages with the `////by agent` prefix). */
@@ -162,6 +168,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chatViewStyle: 'tui',
   defaultGroupBy: 'none',
   showGroupBy: false,
+  showChatViewSwitcher: true,
   defaultNewSessionToCurrentWorkspace: true,
   showMetaAgent: true,
   showTaskAgent: true,
@@ -210,6 +217,10 @@ export function sanitizeSettings(
       typeof parsed.showGroupBy === 'boolean'
         ? parsed.showGroupBy
         : DEFAULT_SETTINGS.showGroupBy,
+    showChatViewSwitcher:
+      typeof parsed.showChatViewSwitcher === 'boolean'
+        ? parsed.showChatViewSwitcher
+        : DEFAULT_SETTINGS.showChatViewSwitcher,
     defaultNewSessionToCurrentWorkspace:
       typeof parsed.defaultNewSessionToCurrentWorkspace === 'boolean'
         ? parsed.defaultNewSessionToCurrentWorkspace
@@ -271,6 +282,7 @@ interface AppSettingsStore extends AppSettings {
   loaded: boolean;
   setDefaultGroupBy: (mode: GroupMode) => void;
   setShowGroupBy: (v: boolean) => void;
+  setShowChatViewSwitcher: (v: boolean) => void;
   setChatViewStyle: (style: AppSettings['chatViewStyle']) => void;
   setDefaultNewSessionToCurrentWorkspace: (v: boolean) => void;
   setShowMetaAgent: (v: boolean) => void;
@@ -377,6 +389,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
     setShowGroupBy: (v) => {
       set({ showGroupBy: v });
       persist({ showGroupBy: v });
+    },
+
+    setShowChatViewSwitcher: (v) => {
+      set({ showChatViewSwitcher: v });
+      persist({ showChatViewSwitcher: v });
     },
 
     setChatViewStyle: (style) => {

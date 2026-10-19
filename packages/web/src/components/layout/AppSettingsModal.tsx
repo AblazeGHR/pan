@@ -434,6 +434,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const {
     defaultGroupBy,
     showGroupBy,
+    showChatViewSwitcher,
     defaultNewSessionToCurrentWorkspace,
     showMetaAgent,
     showTaskAgent,
@@ -448,6 +449,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     notifications,
     setDefaultGroupBy,
     setShowGroupBy,
+    setShowChatViewSwitcher,
     setDefaultNewSessionToCurrentWorkspace,
     setShowMetaAgent,
     setShowTaskAgent,
@@ -1504,7 +1506,17 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 </h3>
                 <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
                   <ChatViewSelect value={chatViewStyle} onChange={setChatViewStyle} />
+                  <SwitchRow
+                    label="Show chat view switcher"
+                    hint="The TUI / Bubble / Raw selector in the Chat top bar. Terminal TUI / Upgrades stays available."
+                    checked={showChatViewSwitcher}
+                    onChange={setShowChatViewSwitcher}
+                  />
                 </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  On by default. Hiding the switcher only removes that control; viewing the chat,
+                  Terminal TUI / Upgrades, and every navigation route stay available.
+                </p>
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
