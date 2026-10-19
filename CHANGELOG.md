@@ -21,6 +21,9 @@
 
 ### Fixed
 
+- Takeover 后 Kill/Restart 正确停止外部进程树并持久化所有权退休证据；真实 CLI 会话尚未建立时禁止接管并说明原因。
+- 降低冷历史读取时的事件循环阻塞，稳定终端续约节拍；Windows Session 元数据原子替换兼容短暂读句柄冲突。
+
 - 切换 Chat、Editor 和 Jobs 等页面时保留草稿附件；删除书签后即时更新所有消费者。
 - Session 卡片激活后返回 Chat；Codex 任务完成时封存临时聚合内容；CC Switch 跨组件重新挂载时保留共享缓存中的最新状态。
 
