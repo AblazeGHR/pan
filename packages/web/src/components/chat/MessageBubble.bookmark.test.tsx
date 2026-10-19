@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Message } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useBookmarkStore } from '@/stores/bookmarkStore';
+import { useUIStore } from '@/stores/uiStore';
 import { MessageBubble } from './MessageBubble';
 
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: vi.fn(({ content }: { content: string }) => <span>{content}</span>) }));
+
+const api = vi.hoisted(() => ({
+  fetchSessionBookmarks: vi.fn(),
+  addSessionBookmark: vi.fn(),
+  removeSessionBookmark: vi.fn(),
+}));
+vi.mock('@/services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/api')>()),
+  ...api,
+}));
 
 const BOOKMARK_ID = `pan:${'b'.repeat(30)}c1`;
 const PLAIN_ID = `pan:${'b'.repeat(30)}c2`;
@@ -22,8 +33,11 @@ const originalAdd = useBookmarkStore.getState().addBookmark;
 const originalRemove = useBookmarkStore.getState().removeBookmark;
 
 beforeEach(() => {
+  api.fetchSessionBookmarks.mockReset();
+  api.addSessionBookmark.mockReset();
+  api.removeSessionBookmark.mockReset();
   useSessionStore.setState({ currentSessionId: 'ses_bm' });
-  useBookmarkStore.setState({ sessions: {} });
+  useBookmarkStore.setState({ sessions: {}, addBookmark: originalAdd, removeBookmark: originalRemove });
 });
 
 afterEach(() => {
@@ -107,5 +121,44 @@ describe('message block bookmark entry', () => {
   it('does not offer a bookmark for a binding-free runtime row but keeps the gutter for a report binding', () => {
     const view = render(<MessageBubble message={{ role: 'assistant', content: 'runtime', messageId: undefined }} />);
     expect(view.container.querySelector('[data-message-bookmark-gutter]')).toBeNull();
+  });
+
+  it('drops the tag after a confirmed remove even when the list projected the bookmark', async () => {
+    // Production regression: the history/list GET projected `bookmarked: true`
+    // onto the row.  A confirmed delete must override that stale projection
+    // in the SAME mount — no Session switch, no remount, no refetch.
+    markBookmarked(BOOKMARK_ID);
+    api.removeSessionBookmark.mockResolvedValue({
+      sessionId: 'ses_bm', messageId: BOOKMARK_ID, bookmarked: false, changed: true,
+      revision: 2, updatedAt: '2026-10-16T00:00:00', bookmarks: {},
+    });
+    const view = render(<MessageBubble message={{ ...bookmarkableRow, bookmarked: true }} />);
+    expect(view.container.querySelector('[data-message-bookmark-tag]')).not.toBeNull();
+
+    openMenu(view.container);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove bookmark' }));
+
+    await waitFor(() => expect(view.container.querySelector('[data-message-bookmark-tag]')).toBeNull());
+    expect(view.container.querySelector('.message-row')?.getAttribute('data-bookmarked')).toBe('false');
+    expect(api.removeSessionBookmark).toHaveBeenCalledWith('ses_bm', BOOKMARK_ID);
+  });
+
+  it('restores the projected tag and surfaces the error when a remove fails', async () => {
+    const showToast = vi.fn();
+    const originalToast = useUIStore.getState().showToast;
+    useUIStore.setState({ showToast });
+    try {
+      markBookmarked(BOOKMARK_ID);
+      api.removeSessionBookmark.mockRejectedValue(new Error('书签删除失败'));
+      const view = render(<MessageBubble message={{ ...bookmarkableRow, bookmarked: true }} />);
+      openMenu(view.container);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove bookmark' }));
+
+      await waitFor(() => expect(showToast).toHaveBeenCalledWith('书签删除失败', 'error'));
+      expect(view.container.querySelector('[data-message-bookmark-tag]')).not.toBeNull();
+      expect(view.container.querySelector('.message-row')?.getAttribute('data-bookmarked')).toBe('true');
+    } finally {
+      useUIStore.setState({ showToast: originalToast });
+    }
   });
 });

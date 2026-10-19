@@ -34,12 +34,23 @@ useSessionStore.setState({
   ensureMessageLoaded: async (fromEnd: number) =>
     FIXTURE_ROWS[FIXTURE_ROWS.length - 1 - fromEnd] ?? null,
 });
+const seededMarks = {
+  [FIXTURE_ROWS[0]!.messageId!]: true,
+  [FIXTURE_ROWS[2]!.messageId!]: true,
+};
 useBookmarkStore.setState({
   sessions: {
     [sessionId]: {
       appliedThrough: 1, snapshotRevision: 1,
-      authoritativeMarks: {}, authoritativeTouched: {},
-      pendingEvents: [], marks: {},
+      // A loaded envelope is a COMPLETE snapshot: its marks must include the
+      // ids the fixture rows project as bookmarked, otherwise the rail would
+      // (correctly) treat them as proven absent.
+      authoritativeMarks: seededMarks,
+      authoritativeTouched: {
+        [FIXTURE_ROWS[0]!.messageId!]: 1,
+        [FIXTURE_ROWS[2]!.messageId!]: 1,
+      },
+      pendingEvents: [], marks: seededMarks,
       loaded: true, transactions: {}, error: null,
     },
   },

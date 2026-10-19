@@ -34,6 +34,7 @@ describe('appSettingsStore', () => {
     expect(s.chatViewStyle).toBe('tui');
     expect(s.defaultGroupBy).toBe('none');
     expect(s.showGroupBy).toBe(false);
+    expect(s.showChatViewSwitcher).toBe(true);
     expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
@@ -44,7 +45,18 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(false);
     expect(s.showMessageNavigationRail).toBe(true);
     expect(s.showHistorySearch).toBe(true);
+    expect(s.showSidebarCollapseHandle).toBe(true);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
+  });
+
+  it('persists the sidebar collapse handle visibility', () => {
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(false);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(false);
+    expect(mockedUpdate).toHaveBeenCalledWith({ showSidebarCollapseHandle: false });
+
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(true);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showSidebarCollapseHandle: true });
   });
 
   it('applies backend ui settings on load', async () => {
@@ -191,6 +203,14 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowHistorySearch(false);
     expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ showHistorySearch: false });
+
+    // The Chat view switcher defaults on and persists an explicit false.
+    useAppSettingsStore.getState().setShowChatViewSwitcher(false);
+    expect(useAppSettingsStore.getState().showChatViewSwitcher).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showChatViewSwitcher: false });
+    useAppSettingsStore.getState().setShowChatViewSwitcher(true);
+    expect(useAppSettingsStore.getState().showChatViewSwitcher).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showChatViewSwitcher: true });
   });
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
@@ -231,6 +251,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
     useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
+    useAppSettingsStore.getState().setShowChatViewSwitcher(false);
 
     useAppSettingsStore.getState().resetSettings();
 
@@ -246,6 +267,7 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(DEFAULT_SETTINGS.keepScrollOnSessionSwitch);
     expect(s.showMessageNavigationRail).toBe(DEFAULT_SETTINGS.showMessageNavigationRail);
     expect(s.showGroupBy).toBe(DEFAULT_SETTINGS.showGroupBy);
+    expect(s.showChatViewSwitcher).toBe(true);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -319,8 +341,17 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showHistorySearch: false }).showHistorySearch)
       .toBe(false);
     expect(sanitizeSettings({}).showHistorySearch).toBe(true);
+    // Chat view switcher: default on, explicit false authoritative.
+    expect(sanitizeSettings({}).showChatViewSwitcher).toBe(true);
+    expect(sanitizeSettings({ showChatViewSwitcher: 'no' }).showChatViewSwitcher).toBe(true);
+    expect(sanitizeSettings({ showChatViewSwitcher: false }).showChatViewSwitcher).toBe(false);
+    expect(sanitizeSettings({ showChatViewSwitcher: true }).showChatViewSwitcher).toBe(true);
     expect(sanitizeSettings({ showGroupBy: 'yes' }).showGroupBy).toBe(false);
     expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: 'no' }).showSidebarCollapseHandle)
+      .toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: false }).showSidebarCollapseHandle)
+      .toBe(false);
     expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');
     expect(sanitizeSettings({ defaultGroupBy: 'off' }).defaultGroupBy).toBe('none');
   });

@@ -6,6 +6,7 @@ import {
   Folder,
   Layers,
   MoreHorizontal,
+  PanelLeft,
   PanelLeftClose,
   Pencil,
   Plus,
@@ -14,6 +15,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import {
@@ -91,6 +93,7 @@ export function WorkspaceRail({
   const setRailExpanded = useUIStore((s) => s.setRailExpanded);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const showSidebarCollapseHandle = useAppSettingsStore((s) => s.showSidebarCollapseHandle);
   const isExpanded = mobileDrawer ? mobileExpanded : expanded;
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
@@ -194,7 +197,7 @@ export function WorkspaceRail({
     SIDEBAR_HANDLE_GAP + 32,
   );
   useLayoutEffect(() => {
-    if (mobileDrawer || sidebarCollapsed) return;
+    if (mobileDrawer) return;
     const handle = workspaceHandleRef.current;
     if (!handle) return;
     const measure = () => {
@@ -695,10 +698,12 @@ export function WorkspaceRail({
         </div>
       </div>}
 
-      {/* Desktop-only Sidebar collapse handle, stacked above the workspace
-          handle. It has no visible text but keeps an accessible name and
-          native keyboard focus; the workspace handle below is unchanged. */}
-      {!mobileDrawer && !sidebarCollapsed && (
+      {/* Desktop-only Sidebar collapse/expand handle, stacked above the
+          workspace handle. It has no visible text but keeps an accessible
+          name and native keyboard focus; the workspace handle below is
+          unchanged, and the header/nav controls remain as secondary entries.
+          Shown in both sidebar states (App Settings → Appearance can hide it). */}
+      {!mobileDrawer && showSidebarCollapseHandle && (
         <button
           type="button"
           data-testid="sidebar-collapse-handle"
@@ -707,11 +712,13 @@ export function WorkspaceRail({
             width: SIDEBAR_HANDLE_WIDTH,
             bottom: `calc(50% + ${sidebarHandleClearance}px)`,
           }}
-          aria-label="收起侧边栏"
-          title="收起侧边栏"
+          aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
           onClick={toggleSidebar}
         >
-          <PanelLeftClose size={11} aria-hidden="true" />
+          {sidebarCollapsed
+            ? <PanelLeft size={11} aria-hidden="true" />
+            : <PanelLeftClose size={11} aria-hidden="true" />}
         </button>
       )}
 

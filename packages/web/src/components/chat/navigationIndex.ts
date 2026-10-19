@@ -38,7 +38,18 @@ export class NavigationIndex {
       const target = byOffset.get(offset);
       if (target) this.entries.set(offset,{ ...target,offset,messageId:message.messageId,
         preview: 'navigationPreview' in message && typeof message.navigationPreview === 'string' ? message.navigationPreview : target.preview });
-      else this.entries.delete(offset);
+      else {
+        const existing = this.entries.get(offset);
+        if (existing?.kind === 'bookmark' && existing.messageId !== undefined
+          && existing.messageId === message.messageId) {
+          // A bookmark-only row whose bookmark is gone keeps a dormant entry
+          // so a later re-add can restore the marker without a refetch.
+          // `targets()` hides it while `bookmarked` is false.
+          this.entries.set(offset, { ...existing, bookmarked: false });
+        } else {
+          this.entries.delete(offset);
+        }
+      }
       offsets.push(offset);
     }
     offsets.sort((a,b)=>a-b);
@@ -59,7 +70,35 @@ export class NavigationIndex {
     this.coverage=merged;
   }
   addPage(history: Message[], start: number) { this.addRows(history.map((message,index)=>({message,offset:start+index}))); }
-  targets() { return [...this.entries.values()].sort((a,b)=>a.offset-b.offset).map(target=>({...target,fromEnd:this.total-1-target.offset})); }
+  /** Re-derive every indexed target from the freshest proven bookmark marks.
+   *  Returns true when at least one entry changed.  A bookmark-only target
+   *  whose mark is false is retained but hidden, so a later re-add restores
+   *  it without a navigation refetch. */
+  applyBookmarkMarks(mark: (messageId: string | undefined) => boolean | undefined): boolean {
+    let changed = false;
+    for (const [offset, target] of this.entries) {
+      if (!target.messageId) continue;
+      const next = mark(target.messageId);
+      if (next === undefined || next === Boolean(target.bookmarked)) continue;
+      changed = true;
+      if (target.kind === 'bookmark') {
+        this.entries.set(offset, { ...target, bookmarked: next });
+      } else if (next) {
+        this.entries.set(offset, { ...target, bookmarked: true });
+      } else {
+        const rest = { ...target };
+        delete rest.bookmarked;
+        this.entries.set(offset, rest);
+      }
+    }
+    return changed;
+  }
+  targets() {
+    return [...this.entries.values()]
+      .filter(target => target.kind !== 'bookmark' || Boolean(target.bookmarked))
+      .sort((a,b)=>a.offset-b.offset)
+      .map(target=>({...target,fromEnd:this.total-1-target.offset}));
+  }
   has(offset: number) { return this.coverage.some(range=>offset>=range.start&&offset<=range.end); }
   complete() { return this.total===0 || this.coverage.some(range=>range.start===0&&range.end>=this.total-1); }
   proofRange(range: NavigationRange,best=nearestNavigationTarget(this.targets(),range)): NavigationRange {

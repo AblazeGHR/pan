@@ -142,22 +142,30 @@ describe('responsive WorkspaceRail placement', () => {
     await waitFor(() => expect(desktopRail?.style.width).toBe('172px'));
   });
 
-  it('collapses the desktop Sidebar from the new handle and reopens it from the existing nav entry', async () => {
+  it('keeps both floating and nav entries for collapsing and expanding the desktop Sidebar', async () => {
     stubViewport(false);
     renderLayout();
 
     const collapse = await screen.findByTestId('sidebar-collapse-handle');
-    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    expect(collapse.getAttribute('aria-label')).toBe('收起侧边栏');
     fireEvent.click(collapse);
 
     expect(useUIStore.getState().sidebarCollapsed).toBe(true);
-    expect(screen.queryByTestId('sidebar-collapse-handle')).toBeNull();
+    // Both the floating expand handle and the pre-existing nav entry exist.
+    const floatingExpand = screen.getByTestId('sidebar-collapse-handle');
+    expect(floatingExpand.getAttribute('aria-label')).toBe('展开侧边栏');
+    expect(screen.getByTitle('Expand sidebar')).toBeTruthy();
     // The workspace handle survives the collapse and keeps its own action.
     expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
-    // The original recovery entry is still the way back.
-    const recovery = screen.getByTitle('Expand sidebar');
-    fireEvent.click(recovery);
 
+    // Floating entry expands...
+    fireEvent.click(floatingExpand);
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+
+    // ...and the nav entry still works as the second entry.
+    fireEvent.click(screen.getByTestId('sidebar-collapse-handle'));
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+    fireEvent.click(screen.getByTitle('Expand sidebar'));
     expect(useUIStore.getState().sidebarCollapsed).toBe(false);
     expect(await screen.findByTestId('sidebar-collapse-handle')).toBeTruthy();
   });
