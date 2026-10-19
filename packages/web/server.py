@@ -13297,7 +13297,7 @@ async def api_takeover(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    admission = _takeover_readiness(s)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
     if not admission["ready"]:
         return {"error": admission["reason"]}
     if w.status == "held":
@@ -13363,7 +13363,7 @@ async def api_session_takeover(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    admission = _takeover_readiness(s)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
     if not admission["ready"]:
         return {"error": admission["reason"]}
     w = worker._find_control_worker(session_id)
@@ -13419,7 +13419,7 @@ async def api_takeover_command(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    admission = _takeover_readiness(s)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
     if not admission["ready"]:
         return {"error": admission["reason"]}
 
@@ -13443,7 +13443,7 @@ async def api_session_takeover_command(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    admission = _takeover_readiness(s)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
     if not admission["ready"]:
         return {"error": admission["reason"]}
     w = worker._find_control_worker(session_id)

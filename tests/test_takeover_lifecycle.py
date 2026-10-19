@@ -283,3 +283,20 @@ def test_kill_deadline_marks_illegal_and_reuses_single_stalled_verifier(monkeypa
         finally:
             release.set()
     asyncio.run(run())
+
+@pytest.mark.parametrize('route_name', ['api_takeover', 'api_session_takeover',
+                                      'api_takeover_command', 'api_session_takeover_command',
+                                      'api_takeover_readiness'])
+def test_takeover_native_storage_probe_runs_off_event_loop(monkeypatch, route_name):
+    from packages.web import server
+    async def run():
+        s, w = setup()
+        loop_thread = threading.get_ident()
+        def probe(value):
+            assert threading.get_ident() != loop_thread
+            return {'ready': False, 'reason': 'resume data unavailable'}
+        monkeypatch.setattr(server, '_takeover_readiness', probe)
+        result = await getattr(server, route_name)(
+            s.id if 'session_' in route_name or route_name == 'api_takeover_readiness' else w.worker_id)
+        assert result.get('ready') is False or 'error' in result
+    asyncio.run(run())
