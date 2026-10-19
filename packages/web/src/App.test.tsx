@@ -142,6 +142,26 @@ describe('responsive WorkspaceRail placement', () => {
     await waitFor(() => expect(desktopRail?.style.width).toBe('172px'));
   });
 
+  it('collapses the desktop Sidebar from the new handle and reopens it from the existing nav entry', async () => {
+    stubViewport(false);
+    renderLayout();
+
+    const collapse = await screen.findByTestId('sidebar-collapse-handle');
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    fireEvent.click(collapse);
+
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+    expect(screen.queryByTestId('sidebar-collapse-handle')).toBeNull();
+    // The workspace handle survives the collapse and keeps its own action.
+    expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
+    // The original recovery entry is still the way back.
+    const recovery = screen.getByTitle('Expand sidebar');
+    fireEvent.click(recovery);
+
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    expect(await screen.findByTestId('sidebar-collapse-handle')).toBeTruthy();
+  });
+
   it('opens a deferred detail panel, closes it, and reopens with fresh content', async () => {
     stubViewport(false);
     renderLayout();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCheck,
   ChevronsLeft,
@@ -6,6 +6,7 @@ import {
   Folder,
   Layers,
   MoreHorizontal,
+  PanelLeftClose,
   Pencil,
   Plus,
   Trash2,
@@ -45,6 +46,14 @@ const WORKSPACE_COUNT_STATUS_CLASSES: Record<string, string> = {
  * instead of adding another inset to the conversation.
  */
 const HANDLE_WIDTH = 20;
+/**
+ * Desktop-only Sidebar collapse handle, stacked above the workspace handle.
+ * It is deliberately narrower than the workspace handle (16px vs 20px) and
+ * carries no visible text, so it does not compete with the workspace name.
+ * `GAP` is the clear vertical space between the two handles' click targets.
+ */
+const SIDEBAR_HANDLE_WIDTH = 16;
+const SIDEBAR_HANDLE_GAP = 16;
 
 /**
  * Workspace rail: the vertical session-group switcher attached to the right of
@@ -80,6 +89,8 @@ export function WorkspaceRail({
   const sessions = useSessionStore((s) => s.sessions);
   const expanded = useUIStore((s) => s.railExpanded);
   const setRailExpanded = useUIStore((s) => s.setRailExpanded);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const isExpanded = mobileDrawer ? mobileExpanded : expanded;
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId);
   const setActiveWorkspace = useUIStore((s) => s.setActiveWorkspace);
@@ -170,6 +181,31 @@ export function WorkspaceRail({
     : activeWorkspaceId === UNGROUPED_WORKSPACES
     ? '无工作区'
     : workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? '全部';
+
+  /**
+   * Distance from the rail's vertical centre line to the bottom edge of the
+   * Sidebar collapse handle. The workspace handle is vertically centred and
+   * grows with the active workspace name, so its half-height is measured
+   * (and re-measured when that name/viewport changes) instead of hard-coded;
+   * this keeps a real `SIDEBAR_HANDLE_GAP` between the two click targets.
+   */
+  const workspaceHandleRef = useRef<HTMLButtonElement>(null);
+  const [sidebarHandleClearance, setSidebarHandleClearance] = useState(
+    SIDEBAR_HANDLE_GAP + 32,
+  );
+  useLayoutEffect(() => {
+    if (mobileDrawer || sidebarCollapsed) return;
+    const handle = workspaceHandleRef.current;
+    if (!handle) return;
+    const measure = () => {
+      setSidebarHandleClearance(handle.offsetHeight / 2 + SIDEBAR_HANDLE_GAP);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(handle);
+    return () => observer.disconnect();
+  }, [mobileDrawer, sidebarCollapsed]);
 
   const switchTo = useCallback((id: string) => {
     if (id === activeWorkspaceId) return;
@@ -659,9 +695,31 @@ export function WorkspaceRail({
         </div>
       </div>}
 
+      {/* Desktop-only Sidebar collapse handle, stacked above the workspace
+          handle. It has no visible text but keeps an accessible name and
+          native keyboard focus; the workspace handle below is unchanged. */}
+      {!mobileDrawer && !sidebarCollapsed && (
+        <button
+          type="button"
+          data-testid="sidebar-collapse-handle"
+          className="absolute right-0 z-40 flex translate-x-full items-center justify-center rounded-r-md border border-l-0 border-border-default bg-bg-tertiary py-2 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          style={{
+            width: SIDEBAR_HANDLE_WIDTH,
+            bottom: `calc(50% + ${sidebarHandleClearance}px)`,
+          }}
+          aria-label="收起侧边栏"
+          title="收起侧边栏"
+          onClick={toggleSidebar}
+        >
+          <PanelLeftClose size={11} aria-hidden="true" />
+        </button>
+      )}
+
       {/* Floating handle: pinned to the panel's right edge, vertically centered */}
       {(!mobileDrawer || !isExpanded) && <button
+        ref={workspaceHandleRef}
         type="button"
+        data-testid={mobileDrawer ? undefined : 'workspace-rail-handle'}
         className={mobileDrawer
           ? 'absolute left-0 top-1/2 flex min-h-11 min-w-11 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'
           : 'absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary'}
