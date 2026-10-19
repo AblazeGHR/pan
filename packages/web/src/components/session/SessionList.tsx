@@ -1112,7 +1112,7 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
       style={{ willChange: 'transform' }}
     >
       <div className="flex items-center gap-2">
-        <WorkerDot status={dragSession.workerStatus} legalState={dragSession.lastLegalWorkerState} />
+        <WorkerDot status={dragSession.workerStatus} illegalOffline={dragSession.illegalOffline} />
         <span className="text-sm text-text-primary font-medium truncate min-w-0 flex-1">
           {dragSession.name || 'Untitled'}
         </span>

@@ -48,6 +48,7 @@ import httpx
 import psutil
 
 from packages.core import worker
+from packages.core import legal_offline, queue_locks
 from packages.core import session as sess
 from packages.core import session_bookmarks
 from packages.core import session_drafts
@@ -215,6 +216,7 @@ async def lifespan(app: FastAPI):
         )
     if sessions:
         _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
+    await worker.initialize_legal_offline(sessions)
     try:
         await _initialize_startup_recovery(sessions)
     except Exception as exc:
@@ -437,7 +439,7 @@ _SESSION_LIFECYCLE_EXIT_STRATEGIES = frozenset({
     "ask", "offline", "preserve-running",
 })
 _SESSION_LIFECYCLE_STARTUP_PREFERENCES = frozenset({
-    "ask", "wake-running", "sync-actual", "preserve-running",
+    "ask", "wake-running", "clear-illegal", "preserve-running",
 })
 
 
@@ -519,7 +521,7 @@ _main_exit_error: str | None = None
 _lifecycle_operation_lock = asyncio.Lock()
 
 _MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
-_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline"})
+_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline", "preserveRunningIllegal"})
 
 
 def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
@@ -589,6 +591,8 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
             },
         )
 
+    if "preserveRunningIllegal" in options and type(options["preserveRunningIllegal"]) is not bool:
+        raise HTTPException(status_code=400, detail="preserveRunningIllegal must be boolean")
     # JSON request data is already detached from the caller.  Rebuild the
     # mapping so later phases receive a canonical snapshot, not a live input
     # object; the Job write is the cross-process source of truth.
@@ -597,6 +601,8 @@ def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
 
 def _resolve_main_lifecycle_policy(options: dict, operation: str) -> tuple[str, bool]:
     """Resolve one shared Restart/Exit choice from the saved Session policy."""
+    if options.get("preserveRunningIllegal") is True:
+        return "preserve-running", False
     strategy = _session_lifecycle_preferences()["exitStrategy"]
     if strategy == "offline":
         return strategy, True
@@ -624,7 +630,7 @@ async def _snapshot_main_lifecycle_options(options: dict, operation: str) -> dic
     sessions = await _store_read(sess.list_all, load_history=False)
     running_session_ids = sorted(
         session.id for session in sessions
-        if session.last_legal_worker_state == "running"
+        if legal_offline.is_illegal(session) or legal_offline.outstanding(session)
     )
     return {
         **options,
@@ -2134,7 +2140,11 @@ def _session_to_api(
         )} if include_history else {}),
         **({"lastResult": last_result} if include_last_result else {}),
         "activeTaskId": s.active_task_id,
-        "lastLegalWorkerState": s.last_legal_worker_state,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
         **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
         "totalUsage": s.total_usage,
         "usageEnrichmentPending": s.usage_enrichment_pending,
@@ -2161,7 +2171,11 @@ def _session_to_api(
         "msgBridgeEnabled": _msg_bridge_enabled(s),
         "workerStatus": w.status if w else None,
         "workerId": w.worker_id if w else None,
-        "lastLegalWorkerState": s.last_legal_worker_state,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
         "mcpEnabled": bool(ac.get("mcp_servers")),
         "mcpLocked": mcp_lock_reason is not None,
         "mcpLockReason": mcp_lock_reason,
@@ -2433,7 +2447,11 @@ def _session_summary(
         "workerTaskId": worker_task_id,
         "workerTaskSeq": worker_task_seq,
         "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
-        "lastLegalWorkerState": s.last_legal_worker_state,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
         "unreadDoneCount": unread_done_count,
         "unreadDoneGeneration": unread_done_generation,
         "unreadDoneReadGeneration": unread_done_read_generation,
@@ -3471,6 +3489,7 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
     async with lock:
         if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
             raise OSError("Takeover superseded by another lifecycle operation")
+        await worker.reserve_takeover_owner(w)
         if sys.platform == "win32" and w.adapter.name == "codex":
             from packages.core.takeover_job import TakeoverJob
             job = TakeoverJob()
@@ -5530,10 +5549,10 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
 
 
 def _startup_recovery_candidates(sessions) -> list[dict]:
-    """Snapshot persisted legal-running Sessions with no live Worker."""
+    """Illegal is the sole pending-recovery state; exclude live Workers."""
     candidates = []
     for s in sessions:
-        if s.last_legal_worker_state != "running":
+        if not legal_offline.is_illegal(s):
             continue
         if worker.find_alive_worker_by_session(s.id) is not None:
             continue
@@ -5543,7 +5562,8 @@ def _startup_recovery_candidates(sessions) -> list[dict]:
             "adapter": s.adapter,
             "workdir": s.workdir,
             "updatedAt": s.updated_at,
-            "lastLegalWorkerState": s.last_legal_worker_state,
+            "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
         })
     return candidates
 
@@ -5595,9 +5615,13 @@ def _ensure_startup_recovery_record(candidates: list[dict]) -> dict:
 
 async def _initialize_startup_recovery(sessions) -> dict:
     """Snapshot startup candidates and apply any configured server-side policy."""
-    record = _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
     preference = _session_lifecycle_preferences()["startupPreference"]
-    if preference in {"wake-running", "preserve-running"} and record.get("candidateSnapshot"):
+    candidates = _startup_recovery_candidates(sessions)
+    if preference == "clear-illegal":
+        candidates = [{"id": s.id, "name": s.name, "adapter": s.adapter}
+                      for s in sessions if legal_offline.is_illegal(s)]
+    record = _ensure_startup_recovery_record(candidates)
+    if preference in {"wake-running", "preserve-running", "clear-illegal"} and record.get("candidateSnapshot"):
         return await _run_automatic_startup_recovery(record, preference)
     return record
 
@@ -5695,9 +5719,17 @@ async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
         elif choice == "preserve-running":
             results = [
                 {"sessionId": candidate["id"], "status": "preserved",
-                 "legalWorkerState": "running"}
+                 "illegalOffline": True}
                 for candidate in candidates
             ]
+        elif choice == "clear-illegal":
+            for candidate in candidates:
+                try:
+                    results.append(await worker.clear_session_illegal_for_startup(candidate["id"]))
+                except Exception as exc:
+                    results.append({"sessionId": candidate["id"], "status": "error", "error": str(exc)})
+            if any(item.get("status") != "updated" for item in results):
+                error = "Some Illegal incidents could not be cleared; inspect owner or persistence errors and retry."
         else:
             for candidate in candidates:
                 try:
@@ -5745,6 +5777,7 @@ async def _run_automatic_startup_recovery(
     """Persist and apply the configured startup policy before serving requests."""
     choice = {
         "wake-running": "restart",
+        "clear-illegal": "clear-illegal",
         "preserve-running": "preserve-running",
     }.get(preference)
     if choice is None or not record.get("candidateSnapshot"):
@@ -5847,7 +5880,7 @@ async def api_main_startup_recovery_decision(data: dict):
     generation = data.get("generation")
     tab_id = data.get("tabId")
     choice = data.get("choice")
-    choices = {"restart", "preserve-running", "sync-actual"}
+    choices = {"restart", "preserve-running", "sync-actual", "clear-illegal"}
     if generation != _STARTUP_RECOVERY_GENERATION:
         raise HTTPException(status_code=409, detail="startup generation changed")
     if not isinstance(tab_id, str) or not tab_id or len(tab_id) > 128:
@@ -6929,9 +6962,11 @@ async def api_get_session(session_id: str, view: str = "full",
     return _session_to_api(s)
 
 
-@app.post("/api/sessions/{session_id}/legal-state/sync")
+@app.post("/api/sessions/{session_id}/legality/mark-safe-offline")
+@app.post("/api/sessions/{session_id}/legality/reconcile", deprecated=True)
+@app.post("/api/sessions/{session_id}/legal-state/sync", deprecated=True)
 async def api_sync_session_legal_worker_state(session_id: str):
-    """Synchronize legal state through the shared runtime-observation helper."""
+    """Explicitly mark prior Illegal executions safely offline."""
     session = await _store_read(_summary_session_get, session_id)
     if not session:
         return {
@@ -6941,7 +6976,7 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
     try:
         return await worker.sync_legal_worker_state_to_runtime(
-            session_id, source="session-details/sync-actual",
+            session_id, source="manual/mark-safe-offline",
         )
     except Exception as exc:
         return {
@@ -6951,12 +6986,14 @@ async def api_sync_session_legal_worker_state(session_id: str):
         }
 
 
-@app.post("/api/sessions/{session_id}/legal-state/running")
+@app.post("/api/sessions/{session_id}/legality/mark-illegal")
+@app.post("/api/sessions/{session_id}/legality/request-recovery", deprecated=True)
+@app.post("/api/sessions/{session_id}/legal-state/running", deprecated=True)
 async def api_set_session_legal_worker_state_running(session_id: str):
-    """Explicitly persist running without changing or inspecting Worker runtime."""
+    """Explicitly mark an offline Session Illegal / pending recovery."""
     try:
         result = await worker.set_session_legal_worker_state_running(
-            session_id, source="session-details/set-running",
+            session_id, source="manual/mark-illegal",
         )
     except Exception as exc:
         return {
@@ -8043,6 +8080,8 @@ def _queue_lock_meta(item: dict) -> dict:
     return {
         "locked": worker._queue_item_locked(item),
         "lockManual": bool(item.get("queueLockManual")),
+        "lockSource": queue_locks.source(item),
+        "illegalBatchId": item.get("queueLockIllegalBatch"),
         "lockAutoReport": bool(item.get("queueLockAutoReport")),
         "steerPending": bool(item.get("queueSteerPending")),
         "steerError": item.get("lastSteerError"),
@@ -8250,11 +8289,7 @@ async def _mutate_queue_locks_locked(s, changes: list[tuple[dict, bool | None, b
             ledger_record = s.queue_delivery_ledger.get(item_id)
             old_ledger = dict(ledger_record) if isinstance(ledger_record, dict) else ledger_record
             originals.append((item, old_item, item_id, had_ledger, old_ledger))
-            for key, value in (("queueLockManual", manual), ("queueLockAutoReport", automatic)):
-                if value is True:
-                    item[key] = True
-                elif value is False:
-                    item.pop(key, None)
+            queue_locks.manual_change(item, manual, automatic)
             if item != old_item:
                 worker._remember_queue_item(s, item, worker._DELIVERY_QUEUED)
                 changed = True

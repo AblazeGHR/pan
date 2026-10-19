@@ -34,6 +34,8 @@ import psutil
 from . import session as _sess
 from . import notifications as _notifications
 from . import codex_quota_store as _codex_quota_store
+from . import legal_offline as _offline
+from . import queue_locks as _message_locks
 
 READONLY_SESSION_ERROR = (
     "该 session 当前为只读，必须先取消对该 session 的 readonly 设置后才能发送信息、任务或回报"
@@ -228,6 +230,11 @@ class Worker:
     native_output: bytearray = field(default_factory=bytearray)
     native_output_total: int = 0
     native_control_error: str | None = None
+    _offline_ready_token: str | None = None
+    _offline_predecessors: set[str] | None = None
+    _native_reservation_busy: bool = False
+    _native_admission_id: str | None = None
+    _native_admission_ids: set[str] = field(default_factory=set)
     native_kernel_ready: bool = False
     _native_external_turn_active: bool = False
     native_input_uncertain: bool = False
@@ -286,6 +293,7 @@ class Worker:
     # being reported, so a stale capture from a previous turn can never leak into
     # a queued item or a later run.
     _current_task_last_assistant_seq: int | None = None
+    _host_exit_illegal: bool = False
     _terminal_handled: bool = False
     # 已完成的协议序列化快照（仅兼容旧测试/嵌入方，队列真源仍在 Session）。
     _current_serialized: bytes | None = None
@@ -309,6 +317,7 @@ class Worker:
     # fully stopped before a new generation starts.  This counter makes that
     # ownership boundary explicit for delayed interrupt fallbacks.
     generation: int = 0
+    offline_token: str = field(default_factory=lambda: uuid.uuid4().hex)
     _interrupt_guard_task: asyncio.Task | None = None
     _steer_receipts: dict[str, asyncio.Future] = field(default_factory=dict)
     _steer_contexts: dict[str, dict] = field(default_factory=dict)
@@ -344,6 +353,7 @@ def _next_worker_generation(session_id: str) -> int:
 def _bump_worker_generation(w: Worker) -> None:
     _cancel_pending_restart(w)
     w.generation += 1
+    w.offline_token = uuid.uuid4().hex
     _worker_generations[w.session_id] = max(
         _worker_generations.get(w.session_id, -1), w.generation,
     )
@@ -592,114 +602,288 @@ _LEGAL_WORKER_STATES = frozenset({
 _legal_state_locks: dict[str, asyncio.Lock] = {}
 
 
-async def _record_legal_worker_state(
-    w: Worker, state: str, source: str, *, persist: bool = True,
-) -> bool:
-    """Persist a state reached by an explicit, successful Pan transition.
+async def _commit_offline(s, mutate, *, force: bool = False) -> bool:
+    """Caller owns queue_lock. Stage/rollback inside the ordered writer ticket.
 
-    ``worker.status`` remains the live runtime truth and is broadcast at its
-    existing call sites.  This separate ledger is intentionally never called
-    from EOF/zombie handling: an observed process death is not evidence that
-    Pan legally stopped that worker.
+    Earlier/later metadata writers must never save an uncommitted candidate.
+    Cancellation waits for that ticket's observable outcome before propagating.
     """
-    if state not in _LEGAL_WORKER_STATES:
-        raise ValueError(f"unsupported legal worker state: {state}")
+    changed = False
+    def commit():
+        nonlocal changed
+        if _sess.get(s.id, load_history=False) is not s:
+            raise RuntimeError("Session owner changed before legality commit")
+        old = _offline.snapshot(s)
+        candidate = copy.copy(s)
+        for key, value in copy.deepcopy(old).items():
+            setattr(candidate, key, value)
+        _offline.attach_foreground(candidate)
+        result = mutate(candidate)
+        if candidate.offline_run and candidate.offline_run.get("id") in candidate.execution_operations:
+            candidate.execution_operations[candidate.offline_run["id"]] = candidate.offline_run
+        _offline.aggregate(candidate)
+        values = _offline.snapshot(candidate)
+        changed = old != values
+        if changed or force:
+            _sess._save_body(s, offline_override=values)
+        return result
+    await _sess._persist_async_outcome(s.id, commit)
+    return changed
+
+
+def _remember_offline_lock(s, item):
+    _remember_queue_item(s, item, _delivery_state(item))
+
+
+async def _offline_snapshot_event(s) -> None:
+    # Offline legality changes are committed together with queue state.  The
+    # queue snapshot is also the immediate event emitted by EOF/illegal
+    # detection, so carry the authoritative Session legality projection here;
+    # otherwise the web store refreshes queue rows but keeps the old dot colour
+    # until a later full Session refresh.
+    await _bcast({"type": "queue.snapshot", "sessionId": s.id,
+                  "queueRevision": s.queue_revision,
+                  "session": {
+                      "legalOffline": s.legal_offline,
+                      "illegalOffline": _offline.is_illegal(s),
+                      "legalityDiagnostics": _offline.diagnostics(s),
+                  }})
+
+
+async def _prepare_offline_recovery(s) -> None:
+    """Before any new provider can start, classify the previous unfinished run."""
+    async with queue_lock(s.id):
+        if getattr(s, "_obsolete_legality_fields_pending", False):
+            await _commit_offline(s, lambda candidate: None, force=True)
+            s._obsolete_legality_fields_pending = False
+        owner = s.offline_owner
+        tracked_owner = find_worker_by_session(s.id)
+        if owner and not (tracked_owner and _offline.same_owner(owner, _offline.owner(tracked_owner))
+                          and not _runtime_stopped(tracked_owner)):
+            status = await asyncio.to_thread(_offline.previous_owner_status, owner)
+            if status != "dead":
+                raise RuntimeError(f"Previous runtime owner is {status}; refusing a second writer")
+        run = s.offline_run
+        if (s.legal_offline and run and run.get("serviceId") != _offline.SERVICE_ID
+                and run.get("processes")):
+            status = await asyncio.to_thread(_offline.previous_owner_status, run)
+            if status != "dead":
+                raise RuntimeError(f"Previous idle owner is {status}; refusing a second writer")
+        unresolved = _offline.outstanding(s)
+        identities = {(op["token"], op["generation"]): op for op in unresolved}
+        dead = []
+        for identity in identities.values():
+            if (tracked_owner and _offline.same_owner(identity, _offline.owner(tracked_owner))
+                    and not _runtime_stopped(tracked_owner)):
+                continue
+            status = await asyncio.to_thread(_offline.previous_owner_status, identity)
+            if status != "dead":
+                raise RuntimeError(f"Previous execution owner is {status}; refusing a second writer")
+            dead.append(identity)
+        def classify(candidate):
+            _migrate_queue_delivery_state(candidate, restore_ledger=True)
+            for identity in dead:
+                _offline.detect(candidate, "unfinished-run", identity=identity, eligible=lambda item: (
+                    _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item)),
+                    remember=lambda item: _remember_offline_lock(candidate, item))
+        changed = await _commit_offline(s, classify) if dead else False
+    if changed:
+        await _offline_snapshot_event(s)
+
+
+async def initialize_legal_offline(sessions) -> None:
+    # Each Session is independently retryable at create_worker, including a
+    # failed startup write. No consumer exists before that same preparation.
+    for s in sessions:
+        try:
+            await _prepare_offline_recovery(s)
+        except Exception:
+            _log.exception("Legality initialization deferred for Session %s", s.id)
+
+
+async def _claim_offline_owner(w: Worker) -> None:
+    """Register the process without claiming readiness or recovering any lock."""
     s = _session(w)
     if s is None:
-        return False
-    if persist:
-        if not await _persist_session_legal_worker_state(w.session_id, state, source):
-            _log.warning(
-                "[Worker %s] failed to persist legal state=%s source=%s",
-                w.worker_id, state, source,
-            )
-            return False
+        return  # Cleanup of a deleted Session must not recreate its metadata.
+    identity = _offline.owner(w)
+    async with queue_lock(w.session_id):
+        def claim(candidate):
+            if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                    or w.generation != identity["generation"]):
+                raise RuntimeError("Runtime changed before owner registration")
+            candidate.offline_owner = dict(identity)
+        await _commit_offline(s, claim)
+
+
+async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
+                                   expected_owner: dict | None = None) -> None:
+    if w._host_exit_illegal:
+        return
+    if expected_owner is not None and (w.offline_token != expected_owner["token"]
+            or w.generation != expected_owner["generation"]):
+        return
+    if not ready_proof or w._offline_ready_token == w.offline_token:
+        return
+    s = _session(w)
+    if s is None:
+        raise RuntimeError("Session disappeared before Worker activation")
+    identity = _offline.owner(w)
+    async with queue_lock(s.id):
+        if workers.get(w.worker_id) is not w or w.offline_token != identity["token"]:
+            raise RuntimeError("Worker changed before activation")
+        def activate(candidate):
+            if (w._host_exit_illegal or workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                    or w.generation != identity["generation"]):
+                raise RuntimeError("Worker changed while activation waited for persistence")
+            return _offline.activate(candidate, identity, predecessors=w._offline_predecessors,
+                                     remember=lambda item: _remember_offline_lock(candidate, item))
+        changed = await _commit_offline(s, activate)
+    if w.offline_token != identity["token"] or w.generation != identity["generation"]:
+        return
+    w._offline_ready_token = identity["token"]
+    if changed:
+        await _offline_snapshot_event(s)
+        if w.pending_signal is not None:
+            w.pending_signal.put_nowait({"type": "queue_signal"})
+
+
+async def _begin_offline_run(w: Worker, *, locked: bool = False) -> dict:
+    identity = _offline.owner(w)
+    s = _session(w)
+    if _shutdown_started or w._host_exit_illegal:
+        raise RuntimeError("Host is shutting down")
+    if s is None:
+        raise RuntimeError("Session disappeared before execution")
+    async def commit():
+        def begin(candidate):
+            if (_shutdown_started or w._host_exit_illegal or workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                    or w.generation != identity["generation"] or w.status == "restarting"):
+                raise RuntimeError("Stale execution owner")
+            _offline.begin(candidate, identity)
+        await _commit_offline(s, begin)
+    if locked:
+        await commit()
     else:
-        # Terminal result preparation batches this metadata change with the
-        # surrounding Session save. Serialize the in-memory transition with
-        # durable legal-state helpers so concurrent transitions have a clear
-        # per-Session order.
-        lock = _legal_state_locks.setdefault(w.session_id, asyncio.Lock())
-        async with lock:
-            s = _session(w)
-            if s is None:
-                return False
-            s.last_legal_worker_state = state
-    _log.info(
-        "[Worker %s] legal state=%s source=%s session=%s",
-        w.worker_id, state, source, w.session_id,
-    )
-    return True
+        async with queue_lock(s.id):
+            await commit()
+    return identity
 
 
-async def _persist_session_legal_worker_state(
-    session_id: str, state: str, source: str, *, _locked: bool = False,
-) -> bool:
-    """Persist one legal state on Session metadata and roll back on I/O failure."""
+async def _finish_offline_stop(w: Worker, identity: dict, reason: str) -> None:
+    s = _session(w)
+    if w._host_exit_illegal:
+        await _detect_offline_exit(w, identity, "host/signal")
+        return
+    if s is not None and _offline.outstanding(s, identity):
+        if not _runtime_stopped(w):
+            raise RuntimeError("Runtime stop is unconfirmed; legality retained")
+        async with queue_lock(s.id):
+            await _commit_offline(s, lambda candidate: _offline.retire_owner(candidate, identity, reason=reason,
+                proof={"kind": "runtime-stopped", "owner": identity}))
+
+
+async def _detect_offline_exit(w: Worker, identity: dict, reason: str) -> None:
+    s = _session(w)
+    if s is None:
+        return
+    async with queue_lock(s.id):
+        if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                or w.generation != identity["generation"]
+                or not _offline.outstanding(s, identity)):
+            return
+        def classify(candidate):
+            if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                    or w.generation != identity["generation"]
+                    or not _offline.outstanding(s, identity)):
+                return
+            _migrate_queue_delivery_state(candidate, restore_ledger=True)
+            _offline.detect(candidate, reason, identity=identity, eligible=lambda item: (
+                _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item)),
+                remember=lambda item: _remember_offline_lock(candidate, item))
+        changed = await _commit_offline(s, classify)
+    if changed:
+        await _offline_snapshot_event(s)
+
+
+async def _record_legal_worker_state(w: Worker, state: str, source: str, *, persist: bool = True) -> bool:
+    """Deprecated internal hook: operation admission/terminal owns legality now.
+
+    Retained for embedders until removal; never writes legacy metadata.
+    """
     if state not in _LEGAL_WORKER_STATES:
         raise ValueError(f"unsupported legal worker state: {state}")
-    if not _locked:
-        lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with lock:
-            return await _persist_session_legal_worker_state(
-                session_id, state, source, _locked=True,
-            )
-    s = _sess.get(session_id)
-    if s is None:
-        return False
-    previous = s.last_legal_worker_state
-    s.last_legal_worker_state = state
-    try:
-        await _sess.save_async(s)
-    except Exception as exc:
-        # The in-memory Session is also a source for API projections. Keep it
-        # aligned with durable metadata when the atomic save did not succeed.
-        s.last_legal_worker_state = previous
-        _log.warning(
-            "[Session %s] failed to persist legal state=%s source=%s: %s",
-            session_id, state, source, exc,
-        )
-        return False
-    return True
+    return _session(w) is not None
 
 
-async def set_session_legal_worker_state_running(
-    session_id: str, *, source: str = "session-details/set-running",
-) -> dict:
-    """Explicitly record running without observing or changing Worker runtime.
-
-    This shares the per-Session legal-state lock with runtime synchronization
-    and every other legal-state writer.  The value is intentionally fixed so
-    callers cannot turn this Details action into an arbitrary state update.
-    """
-    lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
+async def clear_session_illegal_for_startup(session_id: str, *, reconcile: bool = False) -> dict:
+    """Retire only diagnosed incidents; never release a live/unknown owner."""
+    lock = await _session_spawn_lock(session_id)
     async with lock:
-        if _sess.get(session_id) is None:
-            return {
-                "sessionId": session_id,
-                "status": "error",
-                "error": f"Session {session_id} not found",
-            }
-        if not await _persist_session_legal_worker_state(
-                session_id, "running", source, _locked=True):
-            # The Session may have been removed between the first lookup and
-            # the persistence helper's own lookup.
-            if _sess.get(session_id) is None:
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": f"Session {session_id} not found",
-                }
-            return {
-                "sessionId": session_id,
-                "status": "error",
-                "error": "failed to persist Session legal state",
-            }
-    return {
-        "sessionId": session_id,
-        "status": "updated",
-        "legalWorkerState": "running",
-    }
+        s = _sess.get(session_id)
+        if s is None:
+            return {"sessionId": session_id, "status": "error", "error": f"Session {session_id} not found"}
+        async with queue_lock(session_id):
+            # Do not let this policy classify or retire a new running operation.
+            tracked = find_worker_by_session(session_id)
+            if tracked is not None and not _runtime_stopped(tracked):
+                raise RuntimeError("Worker runtime is not stopped")
+            incidents = [op for op in _offline.outstanding(s) if reconcile or op.get("state") == "illegal"]
+            for identity in [s.offline_owner, *incidents]:
+                if identity and await asyncio.to_thread(_offline.previous_owner_status, identity) != "dead":
+                    raise RuntimeError("Execution owner alive or unknown; refusing Illegal retirement")
+            def clear(candidate):
+                if reconcile:
+                    _migrate_queue_delivery_state(candidate, restore_ledger=True)
+                    for identity in incidents:
+                        _offline.detect(candidate, "manual/mark-safe-offline", identity=identity,
+                            eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item),
+                            remember=lambda item: _remember_offline_lock(candidate, item))
+                return _offline.clear_illegal(candidate, remember=lambda item: _remember_offline_lock(candidate, item))
+            changed = await _commit_offline(s, clear)
+        result = {"sessionId": session_id, "status": "updated", "legalityDiagnostics": _offline.diagnostics(s),
+                  "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s)}
+    # create_worker takes the same spawn lock: release it before requesting
+    # immediate recovery. Persistence must succeed before any consumer wakes.
+    try:
+        await _offline_snapshot_event(s)
+    finally:
+        if changed and _has_dispatchable_items(s):
+            await _wake_worker(session_id, auto_spawn=False)
+    return result
+
+
+async def set_session_legal_worker_state_running(session_id: str, *, source: str = "manual/mark-illegal") -> dict:
+    """Explicitly mark an offline Session Illegal, using the existing incident ledger."""
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        s = _sess.get(session_id)
+        if s is None:
+            return {"sessionId": session_id, "status": "error", "error": f"Session {session_id} not found"}
+        async with queue_lock(session_id):
+            tracked = find_worker_by_session(session_id)
+            if tracked is not None and not _runtime_stopped(tracked):
+                raise RuntimeError("Worker runtime is not stopped")
+            for identity in [s.offline_owner, *_offline.outstanding(s)]:
+                if identity and await asyncio.to_thread(_offline.previous_owner_status, identity) != "dead":
+                    raise RuntimeError("Execution owner alive or unknown; refusing manual state change")
+            def mark(candidate):
+                if _offline.is_illegal(candidate):
+                    return
+                _migrate_queue_delivery_state(candidate, restore_ledger=True)
+                if not _offline.outstanding(candidate):
+                    # Administrative state change, not an invented provider execution.
+                    identity = {"token": uuid.uuid4().hex, "generation": 0, "executionSeq": 0,
+                                "serviceId": _offline.SERVICE_ID, "processes": []}
+                    _offline.admit(candidate, identity, kind="manual-recovery")
+                for identity in list(_offline.outstanding(candidate)):
+                    _offline.detect(candidate, source, identity=identity,
+                        eligible=lambda item: _delivery_state(item) == _DELIVERY_QUEUED and not _queue_item_locked(item),
+                        remember=lambda item: _remember_offline_lock(candidate, item))
+            await _commit_offline(s, mark)
+        await _offline_snapshot_event(s)
+        return {"sessionId": session_id, "status": "updated", "legalOffline": s.legal_offline,
+                "illegalOffline": _offline.is_illegal(s), "legalityDiagnostics": _offline.diagnostics(s)}
 
 
 def _terminal_enrichment_key(
@@ -1127,13 +1311,21 @@ def recover_pending_usage_enrichment() -> int:
 
 
 async def _persist_terminal_state(
-    w: Worker, s, status: str, result_text: str | None,
+    w: Worker, s, status: str, result_text: str | None, *, expected_owner: dict | None = None,
 ) -> dict | None:
     """Persist the minimum terminal fact set before any completion broadcast."""
+    if expected_owner is not None and (w.offline_token != expected_owner["token"]
+            or w.generation != expected_owner["generation"]):
+        return None
     if not w._terminal_handled:
         w._terminal_finishing = True
     try:
         async with queue_lock(w.session_id):
+            if expected_owner is not None and (
+                    workers.get(w.worker_id) is not w
+                    or w.offline_token != expected_owner["token"]
+                    or w.generation != expected_owner["generation"]):
+                return None
             async with unread_done_lock(w.session_id):
                 return await _persist_terminal_state_locked(w, s, status, result_text)
     except BaseException as exc:
@@ -1147,6 +1339,8 @@ async def _persist_terminal_state(
 async def _persist_terminal_state_locked(
     w: Worker, s, status: str, result_text: str | None,
 ) -> dict | None:
+    if w._host_exit_illegal:
+        return None
     if w._terminal_handled:
         _log.warning(
             "[Worker %s] duplicate terminal event ignored generation=%s",
@@ -1171,6 +1365,14 @@ async def _persist_terminal_state_locked(
             f"Session {w.session_id} disappeared before terminal persistence"
         )
     prior_result = s.last_result if isinstance(s.last_result, dict) else None
+    async def finish_replayed_run():
+        # The existing terminal key proves this accepted idempotent execution
+        # is already safe. Settle its current legality without rebroadcasting
+        # results or treating an arbitrary replay as a new Worker activation.
+        identity = _offline.owner(w)
+        if s.legal_offline is False and _offline.same_owner(s.offline_run, identity):
+            await _commit_offline(s, lambda candidate: _offline.finish(
+                candidate, identity, reason="task/durable-terminal-replay"))
     if (prior_result and prior_result.get("terminalKey") == terminal_key
             and prior_result.get("status") == status):
         # A replacement Worker can observe the provider's already-completed
@@ -1180,6 +1382,7 @@ async def _persist_terminal_state_locked(
             "[Worker %s] durable duplicate terminal ignored key=%s",
             w.worker_id, terminal_key,
         )
+        await finish_replayed_run()
         w.status = "idle"
         w._terminal_handled = True
         # A duplicate terminal is still a terminal for the current consumer
@@ -1207,6 +1410,7 @@ async def _persist_terminal_state_locked(
             "[Worker %s] durable terminal replay duplicate ignored key=%s",
             w.worker_id, terminal_key,
         )
+        await finish_replayed_run()
         w.status = "idle"
         w._terminal_handled = True
         _signal_task_done(w)
@@ -1227,7 +1431,6 @@ async def _persist_terminal_state_locked(
         "unread_done_read_generation": s.unread_done_read_generation,
         "unread_done_count": s.unread_done_count,
         "active_task_id": s.active_task_id,
-        "last_legal_worker_state": s.last_legal_worker_state,
         "usage_enrichment_pending": list(s.usage_enrichment_pending),
     }
     old_runtime_state = {
@@ -1356,12 +1559,15 @@ async def _persist_terminal_state_locked(
     # This is the base commit.  If it fails, the exception prevents both
     # worker.result and idle broadcasts, as required by the terminal contract.
     outcome = _sess.DurableOutcome()
+    terminal_owner = _offline.owner(w)
+    offline_before = (s.legal_offline, s.offline_run)
     rolled_back = False
     def rollback_terminal():
         nonlocal rolled_back
         if rolled_back:
             return
         rolled_back = True
+        s.legal_offline, s.offline_run = offline_before
         s.last_result = prior_result
         s.terminal_results = prior_terminals
         for key, value in old_terminal_state.items():
@@ -1371,7 +1577,8 @@ async def _persist_terminal_state_locked(
         s.qq_report_outbox = old_qq_outbox
         w.status = status
     try:
-        await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal)
+        await _flush_history_now(w, outcome=outcome, rollback=rollback_terminal,
+                                 offline_identity=terminal_owner)
     except BaseException:
         if outcome.succeeded:
             # Cancellation still propagates, but the authoritative ticket
@@ -1468,6 +1675,13 @@ def _runtime_stopped(w: Worker) -> bool:
         if process is not None and getattr(process, "returncode", None) is None:
             return False
     return True
+
+
+def begin_host_exit() -> None:
+    """Synchronous signal fence: host signals never constitute safe completion."""
+    begin_shutdown()
+    for w in workers.values():
+        w._host_exit_illegal = True
 
 
 def begin_shutdown() -> None:
@@ -1675,6 +1889,7 @@ def clear_native_runtime_state(w: Worker) -> None:
     w.native_kernel_ready = False
     w.native_passthrough_enabled = None
     w._native_external_turn_active = False
+    w._native_reservation_busy = False
     if _runtime_stopped(w):
         w.native_input_uncertain = False
     w.native_output.clear()
@@ -1866,6 +2081,7 @@ async def _flush_history_loop(w: Worker) -> None:
 
 async def _flush_history_now(
     w: Worker, *, outcome: _sess.DurableOutcome | None = None, rollback=None,
+    offline_identity: dict | None = None,
 ) -> None:
     """立即落盘（result 处理 / worker 退出 / kill / 重启前调用），保证缓冲块不丢。
 
@@ -1885,7 +2101,19 @@ async def _flush_history_now(
         w._hist_force_flush = False
         def commit():
             try:
-                _sess._save_body(s)
+                offline_values = None
+                if offline_identity is not None:
+                    if (w.offline_token != offline_identity["token"]
+                            or w.generation != offline_identity["generation"]):
+                        raise RuntimeError("Stale terminal owner at durable commit")
+                    candidate = copy.copy(s)
+                    for key, value in _offline.snapshot(s).items():
+                        setattr(candidate, key, value)
+                    _offline.attach_foreground(candidate)
+                    if not w._host_exit_illegal:
+                        _offline.finish(candidate, offline_identity, reason="task/safe-terminal")
+                    offline_values = _offline.snapshot(candidate)
+                _sess._save_body(s, offline_override=offline_values)
             except BaseException:
                 if rollback is not None:
                     rollback()
@@ -1912,14 +2140,202 @@ async def _flush_history_now(
     await _sess.save_async(s)
 
 
+async def _admit_native_operation(w, runtime, *, request_id, thread_id, control_generation, operation, context=None):
+    identity = _offline.owner(w)
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        def valid():
+            return (not _shutdown_started and not w._host_exit_illegal and s is not None and _control_runtime_matches(w.worker_id, runtime)
+                    and w.offline_token == identity["token"] and w.native_control_mode == "native"
+                    and w.native_control_generation == control_generation
+                    and thread_id == s.cli_session_id and w.status not in {"held", "restarting"})
+        if not valid():
+            raise RuntimeError("Auxiliary native owner retired before admission")
+        def commit(candidate):
+            if not valid():
+                raise RuntimeError("Auxiliary native owner changed before persistence")
+            existing = candidate.execution_operations.get(request_id)
+            if existing and (existing.get("safeTerminal") or existing.get("retirement")
+                    or existing.get("state") == "illegal"):
+                raise RuntimeError("Auxiliary admission already retired")
+            record = _offline.admit(candidate, identity, kind=operation, operation_id=request_id,
+                           nativeAdmissionId=request_id, nativeThreadId=thread_id,
+                           nativeControlGeneration=control_generation, connection=copy.deepcopy(context or {}))
+            if existing is None and operation in {"opaque", "compact/active"}:
+                record.update(state="uncertain", uncertainty="execution-resource-proof-unavailable")
+        await _commit_offline(s, commit)
+        record = s.execution_operations[request_id]
+        if record.get("safeTerminal") or record.get("retirement") or record.get("state") == "illegal":
+            raise RuntimeError("Auxiliary admission already retired")
+        if not valid():
+            raise RuntimeError("Auxiliary runtime retired during persistence")
+        return {"requestId": request_id, "runId": request_id}
+
+
+async def _native_operation_event(w, runtime, event) -> bool:
+    if w._host_exit_illegal:
+        return False
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        if s is None or not _control_runtime_matches(w.worker_id, runtime):
+            return False
+        key = event.get("runId") or event.get("requestId")
+        record = s.execution_operations.get(key)
+        identity = _offline.owner(w)
+        if (not record or record.get("kind") == "foreground"
+                or record.get("nativeAdmissionId") != event.get("requestId")
+                or not _offline.same_owner(record, identity)
+                or record.get("state") == "illegal" or record.get("safeTerminal")
+                or record.get("retirement")):
+            return False
+        def commit(candidate):
+            if w._host_exit_illegal or not _control_runtime_matches(w.worker_id, runtime):
+                raise RuntimeError("Auxiliary runtime changed before persistence")
+            op = candidate.execution_operations[key]
+            action = event.get("type")
+            if action == "pan.native_operation_bind":
+                binding = event.get("binding") or {}
+                if op.get("binding") and op["binding"] != binding:
+                    op.update(state="uncertain", uncertainty="conflicting-resource-binding")
+                else:
+                    op["binding"] = copy.deepcopy(binding)
+            elif action == "pan.native_operation_terminal":
+                proof = event.get("proof")
+                binding = event.get("binding") or {}
+                allowed = ((op["kind"] == "command/exec" and proof == "command-deferred-final")
+                    or (op["kind"] == "review/detached" and proof == "review-turn-completed"
+                        and bool(op.get("binding")) and op["binding"] == binding))
+                if allowed and not op.get("uncertainty"):
+                    _offline.finish_operation(candidate, key, identity, reason=proof, proof=proof)
+            elif action == "pan.native_turn_not_forwarded":
+                if not op.get("binding"):
+                    _offline.finish_operation(candidate, key, identity, reason="native/not-forwarded",
+                                              proof="provider-rejected" if event.get("providerRejected") else "not-forwarded")
+            elif action == "pan.native_operation_uncertain":
+                op.update(state="uncertain", uncertainty=event.get("reason") or "unconfirmed-native-operation")
+            candidate.operation_revision += 1
+        changed = await _commit_offline(s, commit)
+    if changed:
+        await _offline_snapshot_event(s)
+    return changed
+
+
+async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None,
+                             thread_id: str | None = None,
+                             control_generation: int | None = None,
+                             operation: str = "turn/start", context: dict | None = None) -> dict:
+    if not isinstance(request_id, str) or not request_id:
+        raise RuntimeError("Invalid native admission identity")
+    codex = w.adapter.name == "codex"
+    if codex and operation in {"command/exec", "review/detached", "compact/active", "opaque"}:
+        return await _admit_native_operation(w, runtime, request_id=request_id, thread_id=thread_id,
+            control_generation=control_generation, operation=operation, context=context)
+    if codex and operation not in {"turn/start", "thread/compact/start", "observed-turn"}:
+        raise RuntimeError("Unsupported admission operation")
+    identity = _offline.owner(w)
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        def valid():
+            if _shutdown_started or w._host_exit_illegal or not _control_runtime_matches(w.worker_id, runtime):
+                return False
+            if codex:
+                return (s is not None and thread_id == s.cli_session_id
+                        and (w.native_control_mode == "native" or (operation == "observed-turn"
+                             and w.native_control_mode == "pan"))
+                        and type(control_generation) is int
+                        and control_generation == w.native_control_generation)
+            return True
+        if s is None or not valid():
+            raise RuntimeError("Native runtime retired before admission")
+        current = s.offline_run or {}
+        if request_id in w._native_admission_ids:
+            if (current.get("nativeAdmissionId") == request_id and current.get("state") == "running"
+                    and _offline.same_owner(current, identity)):
+                return {"requestId": request_id, "runId": current["id"]}
+            raise RuntimeError("Native admission has already retired")
+        if (w._queue_unit_active or w._native_external_turn_active
+                or w.status in {"held", "restarting"}):
+            raise RuntimeError("Native execution conflicts with current owner")
+        next_execution = w._execution_seq + 1
+        admitted = {**identity, "executionSeq": next_execution}
+        def commit(candidate):
+            if not valid() or w.offline_token != identity["token"]:
+                raise RuntimeError("Native owner changed before durable admission")
+            candidate.task_seq += 1
+            _offline.begin(candidate, admitted)
+            candidate.offline_run.update(nativeAdmissionId=request_id,
+                nativeThreadId=thread_id, nativeControlGeneration=control_generation, nativeOperation=operation,
+                nativeAdmissionTiming="after-start" if operation == "observed-turn" else "before-forward")
+        await _commit_offline(s, commit)
+        if not valid():
+            raise RuntimeError("Native runtime retired during admission")
+        # Only publish execution identity after the ordered writer committed it.
+        w._current_seq = s.task_seq
+        w._execution_seq = next_execution
+        w._current_task_id = None
+        w._current_task_idempotent = False
+        w._current_source_session_id = None
+        w._terminal_handled = False
+        w._task_started_at = time.monotonic()
+        w._current_queue_item = None
+        w._current_report_items.clear()
+        w._current_serialized = None
+        w._claimed_queue_index = None
+        w._current_task_assistant_ids.clear()
+        w._current_task_last_assistant_text = ""
+        w._current_task_last_assistant_seq = None
+        w._native_external_turn_active = True
+        w._native_reservation_busy = False
+        w._native_admission_id = request_id
+        w._native_admission_ids.add(request_id)
+        w.status = "running"
+        await _record_legal_worker_state(w, "running", "native/turn-admitted")
+        return {"requestId": request_id, "runId": s.offline_run["id"]}
+
+
+async def _retire_native_admission(w, runtime, event) -> bool:
+    s = _session(w)
+    op = s.execution_operations.get(event.get("runId") or event.get("requestId")) if s else None
+    if op and op.get("kind") != "foreground":
+        return await _native_operation_event(w, runtime, event)
+    async with queue_lock(w.session_id):
+        s = _session(w)
+        run = (s.offline_run or {}) if s else {}
+        if (s is None or not _control_runtime_matches(w.worker_id, runtime)
+                or not event.get("requestId") or run.get("nativeAdmissionId") != event["requestId"]
+                or run.get("state") != "running" or s.legal_offline is not False
+                or not _offline.same_owner(run, _offline.owner(w))
+                or (event.get("runId") is not None and event["runId"] != run.get("id"))
+                or run.get("nativeTurnId")):
+            return False
+        identity = _offline.owner(w)
+        def finish(candidate):
+            if (not _control_runtime_matches(w.worker_id, runtime)
+                    or candidate.offline_run.get("nativeAdmissionId") != event["requestId"]):
+                raise RuntimeError("Native owner changed before cancellation")
+            if not _offline.finish(candidate, identity, reason="native/not-forwarded"):
+                raise RuntimeError("Native execution changed before cancellation")
+        await _commit_offline(s, finish)
+        w._native_external_turn_active = False
+        w._native_reservation_busy = False
+        w._native_admission_id = None
+        w._terminal_handled = True
+        w.status = "idle"
+        await _record_legal_worker_state(w, "idle", "native/not-forwarded")
+        return True
+
+
 async def _read_stdout(w: Worker):
     adapter = w.adapter
     receipt_runtime = (w, w.generation, w.process, getattr(w.process, "stdin", None))
+    execution_owner = _offline.owner(w)
     s = None  # bound even if stdout yields no parseable event (EOF check below)
     # 分块读取 stdout（read 65536 + 按换行切分），避免大 tool result 单行在
     # Windows asyncio 管道上挂起（Pan 卡死根因）；大行截断占位（_iter_stdout_lines）。
     line_count = 0
     async for line in _iter_stdout_lines(w):
+        if not _control_runtime_matches(w.worker_id, receipt_runtime):
+            return
         line_count += 1
         line_str = line.decode("utf-8", errors="replace").rstrip("\n")
         if not line_str:
@@ -1972,45 +2388,68 @@ async def _read_stdout(w: Worker):
                 and adapter.name == "cbc" and w.native_control_enabled):
             w.native_kernel_ready = True
             continue
+        if (event.get("type") in {"pan.native_operation_bind", "pan.native_operation_terminal",
+                                  "pan.native_operation_uncertain"} and adapter.name == "codex"):
+            await _native_operation_event(w, receipt_runtime, event)
+            continue
         if event.get("type") == "pan.native_error":
             w.native_control_error = "Native terminal operation failed"
             continue
         if event.get("type") == "pan.native_settings_uncertain":
             await _record_native_settings_state(w, uncertain=True)
             continue
+        if event.get("type") == "pan.native_turn_admission" and adapter.name in {"cbc", "codex"}:
+            request_id = event.get("requestId")
+            receipt = {}
+            ok = False
+            try:
+                receipt = await _admit_native_turn(w, receipt_runtime, request_id=request_id,
+                    thread_id=event.get("threadId"), control_generation=event.get("controlGeneration"),
+                    operation=event.get("operation", "turn/start"), context=event.get("connection"))
+                ok = True
+            except Exception:
+                _log.exception("Native admission rejected for Session %s", w.session_id)
+            # A response belongs to this captured pipe only; never the successor.
+            if _control_runtime_matches(w.worker_id, receipt_runtime):
+                receipt_runtime[3].write((json.dumps({"type": "native_admission",
+                    "requestId": request_id, "ok": ok, **receipt}) + "\n").encode())
+                await receipt_runtime[3].drain()
+            continue
+        if event.get("type") == "pan.native_turn_not_forwarded" and adapter.name == "codex":
+            await _retire_native_admission(w, receipt_runtime, event)
+            continue
         if event.get("type") == "pan.native_turn_started":
-            # This is not the preceding Pan queue item. Allocate a fresh durable
-            # sequence without inventing an agent_assign identity or consuming
-            # any queued task/report.
-            async with queue_lock(w.session_id):
-                s = _session(w)
-                if s is not None and not w._queue_unit_active:
-                    s.task_seq += 1
-                    w._current_seq = s.task_seq
-                    w._current_task_id = None
-                    w._current_task_idempotent = False
-                    w._current_source_session_id = None
-                    w._execution_seq += 1
-                    w._terminal_handled = False
-                    w._native_external_turn_active = True
-                    w._task_started_at = time.monotonic()
-                    w._current_queue_item = None
-                    w._current_report_items.clear()
-                    w._current_serialized = None
-                    w._claimed_queue_index = None
-                    w._current_task_assistant_ids.clear()
-                    w._current_task_last_assistant_text = ""
-                    w._current_task_last_assistant_seq = None
-                    w.status = "running"
-                    await _sess.save_async(s)
-                    await _record_legal_worker_state(w, "running", "native/turn-started")
+            if adapter.name == "codex":
+                if event.get("observedAfterStart") is True:
+                    await _admit_native_turn(w, receipt_runtime, request_id=event.get("requestId"),
+                        thread_id=event.get("threadId"), control_generation=event.get("controlGeneration"),
+                        operation="observed-turn")
+                async with queue_lock(w.session_id):
+                    s = _session(w)
+                    def bind(candidate):
+                        run = candidate.offline_run or {}
+                        if (not _control_runtime_matches(w.worker_id, receipt_runtime)
+                                or not _offline.same_owner(run, _offline.owner(w))
+                                or run.get("nativeAdmissionId") != event.get("requestId")
+                                or (run.get("id") != event.get("runId") and not (
+                                    event.get("observedAfterStart") is True
+                                    and run.get("nativeAdmissionTiming") == "after-start"))
+                                or run.get("state") != "running"
+                                or not event.get("turn_id")):
+                            raise RuntimeError("Native started without matching durable admission")
+                        previous = run.get("nativeTurnId")
+                        if previous is not None and previous != event["turn_id"]:
+                            raise RuntimeError("Conflicting native turn identity")
+                        run["nativeTurnId"] = event["turn_id"]
+                    if s is not None:
+                        await _commit_offline(s, bind)
             continue
         if event.get("type") == "pan.native_busy":
-            w._native_external_turn_active = event.get("busy") is True
-            if not w._native_external_turn_active:
+            w._native_reservation_busy = event.get("busy") is True
+            if not w._native_reservation_busy and not w._native_external_turn_active:
                 _maybe_restart_pending(w)
-            if not w._native_external_turn_active and w.native_control_mode == "pan" and w.pending_signal is not None:
-                w.pending_signal.put_nowait({"type": "queue_signal"})
+                if w.native_control_mode == "pan" and w.pending_signal is not None:
+                    w.pending_signal.put_nowait({"type": "queue_signal"})
             continue
         if event.get("type") == "pan.native_user":
             s = _session(w)
@@ -2025,6 +2464,16 @@ async def _read_stdout(w: Worker):
             if receipt is not None and not receipt.done():
                 receipt.set_result(event)
             continue
+        if adapter.name == "codex" and event.get("external_turn") is True:
+            s = _session(w)
+            run = (s.offline_run or {}) if s else {}
+            if (not event.get("requestId") or run.get("nativeAdmissionId") != event.get("requestId")
+                    or (run.get("id") != event.get("runId") and not (
+                        event.get("runId") is None and run.get("nativeAdmissionTiming") == "after-start"))
+                    or not _offline.same_owner(run, _offline.owner(w))
+                    or (event.get("turn_id") is not None and run.get("nativeTurnId") != event["turn_id"])):
+                _log.warning("Discarded unowned native external result for %s", w.session_id)
+                continue
         if w._terminal_handled and not adapter.is_result_event(event):
             # `worker.result` closes this serialized provider turn. A provider
             # frame buffered behind its terminal result must not be appended
@@ -2053,9 +2502,9 @@ async def _read_stdout(w: Worker):
                 _log.exception("failed to persist Codex quota snapshot")
 
         # 提取 session_id + model 并写入 Session
-        # 注意：stream 模式（--input-format stream-json）启动时无 init 事件，
-        # spawn 即就绪，所以这里只提取元数据，不做状态转换（worker 初始即 idle）。
+        # An init is adapter readiness proof. Constructed Idle/spawn alone is not.
         if adapter.is_init_event(event):
+            await _activate_offline_worker(w, ready_proof=True, expected_owner=execution_owner)
             first_ready = not w.native_kernel_ready
             w.native_kernel_ready = True
             if first_ready and adapter.name == "codex":
@@ -2087,6 +2536,7 @@ async def _read_stdout(w: Worker):
 
         # 任务完成 → 保存 Session + last_result
         if adapter.is_result_event(event):
+            await _activate_offline_worker(w, ready_proof=True, expected_owner=execution_owner)
             if w._terminal_handled:
                 _log.warning(
                     "[Worker %s] duplicate result event ignored generation=%s",
@@ -2114,7 +2564,7 @@ async def _read_stdout(w: Worker):
             # 上，跨 worker respawn 保持单调递增。
             task_seq = w._current_seq
             result_text = adapter.extract_result_text(event)
-            terminal = await _persist_terminal_state(w, s, w.status, result_text)
+            terminal = await _persist_terminal_state(w, s, w.status, result_text, expected_owner=execution_owner)
             if terminal is None:
                 continue
             # Base state is durable before this point.  Usage enrichment is only
@@ -2132,6 +2582,7 @@ async def _read_stdout(w: Worker):
                                       w, terminal["status"], terminal.get("taskSeq")))
             was_native = w._native_external_turn_active
             w._native_external_turn_active = False
+            w._native_reservation_busy = False
             _finish_terminal_bookkeeping(w, terminal)
             if was_native and w.native_control_mode == "pan" and w.pending_signal is not None:
                 w.pending_signal.put_nowait({"type": "queue_signal"})
@@ -2154,7 +2605,7 @@ async def _read_stdout(w: Worker):
     # A serialized restart marks the object before its first await.  Its old
     # stdout task may still observe EOF in that tiny window; the restart owns
     # the transition and will clean up the process itself.
-    if w.status == "restarting" or workers.get(w.worker_id) is not w:
+    if (w.status == "restarting" or not _control_runtime_matches(w.worker_id, receipt_runtime)):
         _cleanup_system_prompt_file(w.system_prompt_file)
         w.system_prompt_file = None
         return
@@ -2168,6 +2619,14 @@ async def _read_stdout(w: Worker):
     # manager 推送 zombie 报告。正常完成后的退出（status 已回 idle）由
     # _enqueue_zombie_report 内部判定跳过——done/error 报告完成时已推送。
     abnormal = w.status in {"running", "queued"}
+    await _detect_offline_exit(w, execution_owner, "process/EOF")
+    # EOF is loss of control, not proof every native descendant has exited.
+    # Retire the tracked runtime before permitting a successor writer.
+    if not _runtime_stopped(w):
+        await _kill_process_tree(w)
+        if not _runtime_stopped(w):
+            w.status = "error"
+            return
     await _enqueue_zombie_report(w, f"process exited (returncode={code})")
 
     # 如果已经通过 result event 收到正常输出（last_result 有内容且非 error），
@@ -3258,7 +3717,7 @@ def _is_pauseable_agent_report(item) -> bool:
 
 def _queue_item_locked(item) -> bool:
     return isinstance(item, dict) and bool(
-        item.get("queueLockManual") or item.get("queueLockAutoReport")
+        _message_locks.source(item) is not None or item.get("queueLockAutoReport")
         or item.get("forceSendHeld")
         or item.get("queueSteerPending") or item.get("selfConsumeUncertain")
     )
@@ -3298,7 +3757,8 @@ def _queue_recovery_blocked(s) -> bool:
         # After Pan restarts there is no old owner to retire. Let normal durable
         # queue recovery spawn once; _create_worker promotes the saved intent.
         native_blocked = False
-    return bool(getattr(s, "queue_paused", False)) or native_blocked or _only_locked_queue_items(s)
+    return bool(getattr(s, "queue_paused", False)) or native_blocked or (
+        _only_locked_queue_items(s))
 
 
 native_starting_sessions: set[str] = set()
@@ -3312,7 +3772,7 @@ def _native_handoff_blocked(s) -> bool:
     if type(s.adapter_config.get("native_control_next")) is bool:
         return True
     w = find_worker_by_session(s.id)
-    return w is not None and (w.native_control_mode != "pan" or w._native_external_turn_active
+    return w is not None and (w.native_control_mode != "pan" or w._native_reservation_busy or w._native_external_turn_active
                              or getattr(w, "native_input_uncertain", False))
 
 
@@ -4741,7 +5201,7 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     async with queue_lock(manager.id):
         if (getattr(manager, "agent_reports_paused", False)
                 and _is_pauseable_agent_report(item)):
-            item["queueLockAutoReport"] = True
+            _message_locks.manual_change(item, None, True)
         item["position"] = len(manager.queue_pending)
         manager.queue_pending.append(item)
         _remember_queue_item(manager, item, _DELIVERY_QUEUED)
@@ -5579,7 +6039,7 @@ async def _watchdog(w: Worker):
             continue
 
         # stream 模式：running 用任务运行时长判定，queued 用静默时长判定，idle 空闲回收
-        if (w.native_control_mode != "pan" or w._native_external_turn_active
+        if (w.native_control_mode != "pan" or w._native_reservation_busy or w._native_external_turn_active
                 or w.native_input_uncertain):
             # User-owned native turns and their resident kernel are not abandoned
             # Pan tasks. Browser detach/control handoff never reclaims them.
@@ -5649,6 +6109,7 @@ async def _recover_session(session_id: str, *, force: bool = False) -> None:
     if not s:
         _recovery_required.discard(session_id)
         return
+    await _prepare_offline_recovery(s)
     if _queue_recovery_blocked(s):
         # A forced recovery requested by an abnormal exit still must not
         # launch a provider solely to wait on a locked queue backlog.
@@ -5874,6 +6335,11 @@ async def _global_watchdog_tick():
         # job, and this scan must not spawn a provider merely for enrichment.
         if _has_pending_usage_enrichment(s):
             _schedule_usage_enrichment(s.id)
+        try:
+            await _prepare_offline_recovery(s)
+        except Exception:
+            _log.exception("Legality recovery blocked for Session %s", s.id)
+            continue
         if not _has_dispatchable_items(s) and s.id not in _recovery_required:
             continue
         current = find_worker_by_session(s.id)
@@ -5916,18 +6382,24 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
     have not entered it remain retractable and are requeued by the caller.
     """
     async with queue_lock(s.id):
+        async def reject(reason):
+            if getattr(s, "offline_run", None) and not w._current_handoff_acked:
+                identity = _offline.owner(w)
+                await _commit_offline(s, lambda candidate: _offline.finish(
+                    candidate, identity, reason="before-handoff/rejected"))
+            raise _QueuePausedBeforeHandoff(reason)
         if w.status == "restarting" or (w.pending_restart and not w._current_handoff_acked):
-            raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
+            await reject("Worker retiring before CLI hand-off")
         if getattr(s, "queue_paused", False):
-            raise _QueuePausedBeforeHandoff("Session queue paused before CLI hand-off")
+            await reject("Session queue paused before CLI hand-off")
         if w.native_control_mode != "pan":
-            raise _QueuePausedBeforeHandoff("Native control owns CLI hand-off")
+            await reject("Native control owns CLI hand-off")
         if w.native_input_uncertain:
-            raise _QueuePausedBeforeHandoff("Native input acceptance is unknown")
+            await reject("Native input acceptance is unknown")
         items = ([w._current_queue_item] if w._current_queue_item is not None
                  else w._current_report_items)
         if any(not queue_item_eligible(s, item, queued=False) for item in items):
-            raise _QueuePausedBeforeHandoff("Queue item blocked before CLI hand-off")
+            await reject("Queue item blocked before CLI hand-off")
         selected = [item for item in items if item.get("selfConsumeRequested")]
         if selected:
             outcome = _sess.DurableOutcome()
@@ -5954,7 +6426,7 @@ async def _queue_handoff(w: Worker, s, operation, on_handoff):
         # self-consume attempt persistence can yield after running preparation.
         # A newly accepted retirement intent still wins before actual handoff.
         if w.status == "restarting" or (w.pending_restart and not w._current_handoff_acked):
-            raise _QueuePausedBeforeHandoff("Worker retiring before CLI hand-off")
+            await reject("Worker retiring before CLI hand-off")
         result = await operation()
         if on_handoff is not None:
             await on_handoff()
@@ -5995,6 +6467,7 @@ async def _consumer_stream(w: Worker, text: str, source: str, s, *, on_handoff=N
     # 区别于 last_activity（无输出时长）：长思考/大文件读取会长时间无 stdout，
     # 用「任务运行时长」作为 running 超时判据，避免误杀静默思考中的任务。
     w._task_started_at = time.monotonic()
+    await _begin_offline_run(w)
     w.status = "running"
     await _record_legal_worker_state(w, "running", "task/start")
 
@@ -6157,6 +6630,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         if standalone_items:
             on_handoff = lambda: _commit_queue_handoff(w, s, standalone_items)
 
+    await _begin_offline_run(w)
     w.status = "running"
     await _record_legal_worker_state(w, "running", "task/start")
     await _bcast({
@@ -6194,6 +6668,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
         w.worker_id, args[0], len(args),
     )
 
+    execution_owner = _offline.owner(w)
     proc = None
     try:
         try:
@@ -6210,6 +6685,13 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
                 except Exception as exc:
                     raise _OneShotSpawnFailed(str(exc)) from exc
                 w._mcp_proc = proc
+                identity = _offline.owner(w)
+                def attach_process(candidate):
+                    if not _offline.same_owner(candidate.offline_run, identity):
+                        raise RuntimeError("One-shot execution owner changed")
+                    candidate.offline_run = {**candidate.offline_run, "processes": identity["processes"]}
+                    candidate.offline_owner = dict(identity)
+                await _commit_offline(s, attach_process)
                 return proc
             proc = await _queue_handoff(w, s, spawn_input, on_handoff)
         except asyncio.CancelledError:
@@ -6352,6 +6834,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
             extracted = adapter.extract_result_text(event)
             result_text = str(extracted) if extracted is not None else ""
         elif adapter.is_init_event(event):
+            await _activate_offline_worker(w, ready_proof=True, expected_owner=execution_owner)
             cli_session_id = adapter.extract_session_id(event)
             captured_model = adapter.extract_model(event)
             if adapter.name == "claude":
@@ -6441,7 +6924,9 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
 
     # Persist last_result/history/task association first.  In particular, do
     # not let usage lookup (which may wait on provider files) sit on this path.
-    terminal = await _persist_terminal_state(w, s, status, result)
+    if result_event is not None:
+        await _activate_offline_worker(w, ready_proof=True, expected_owner=execution_owner)
+    terminal = await _persist_terminal_state(w, s, status, result, expected_owner=execution_owner)
     if terminal is None:
         return
 
@@ -6681,6 +7166,7 @@ async def _create_worker(session_id: str) -> Worker | str:
         )
         return alive
 
+    await _prepare_offline_recovery(s)
     old = find_worker_by_session(session_id)
     if old:
         # 有注册但进程已死的 worker（_read_stdout 尚未 pop）→ 清理后重建。
@@ -6751,6 +7237,14 @@ async def _create_worker(session_id: str) -> Worker | str:
     workers[worker_id] = w
     _register_worker(w)
 
+    w._offline_predecessors = set(s.illegal_batches)
+    try:
+        await _claim_offline_owner(w)
+    except BaseException:
+        await _kill_process_tree(w)
+        workers.pop(worker_id, None)
+        _unregister_worker(w)
+        raise
     if mode != "oneshot":
         w._stdout_task = asyncio.create_task(_read_stdout(w))
     # watchdog 两种模式都启用：stream 做超时+空闲回收，MCP 只做空闲回收
@@ -6825,24 +7319,89 @@ async def _create_worker(session_id: str) -> Worker | str:
     return w
 
 
+async def reserve_takeover_owner(w: Worker) -> None:
+    """External TUI has no turn/admission channel. Reserve before opening it.
+
+    A lost service cannot prove all detached descendants died merely because
+    the terminal PID vanished. Only confirmed retirement clears this marker.
+    """
+    s = _session(w)
+    if s is None:
+        raise RuntimeError("Session disappeared before takeover")
+    identity = {**_offline.owner(w), "externalTakeover": True, "ownerId": uuid.uuid4().hex,
+                "runtimeExpected": True, "ownershipUnknown": True, "processes": []}
+    async with queue_lock(w.session_id):
+        def reserve(candidate):
+            if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
+                    or w.generation != identity["generation"]):
+                raise RuntimeError("Takeover runtime changed before admission")
+            candidate.offline_owner = identity
+        await _commit_offline(s, reserve)
+
+
 async def _kill_takeover_terminal(w: Worker) -> bool:
     """杀掉 takeover 模式打开的终端及子进程树。异步版，不阻塞事件循环。"""
     if w.takeover_job is not None:
-        # Keep ownership on failure so Restart/Kill can retry safely.
-        await asyncio.to_thread(w.takeover_job.stop)
+        job = w.takeover_job
+        if not hasattr(job, "terminate_and_verify"):
+            await asyncio.to_thread(job.stop)
+            raise RuntimeError("Takeover Job has no verifiable retirement proof")
+        proof = await asyncio.to_thread(job.terminate_and_verify)
+        s = _session(w)
+        if s is not None:
+            captured = copy.deepcopy(s.offline_owner)
+            prior_key = (captured or {}).get("previousOwnerRetirement")
+            prior = s.owner_retirements.get(prior_key, {})
+            if prior.get("proof", {}).get("jobId") == proof["jobId"]:
+                pass  # Persistence succeeded earlier; retry only handle release.
+            elif not captured or not captured.get("externalTakeover"):
+                raise RuntimeError("Takeover owner scope is unconfirmed; retaining Job handle")
+            else:
+                async with queue_lock(s.id):
+                    def retire(candidate):
+                        if candidate.offline_owner != captured or w.takeover_job is not job:
+                            raise RuntimeError("Takeover owner changed during retirement")
+                        key = captured.get("ownerId") or f"{captured['token']}:{captured['generation']}"
+                        candidate.owner_retirements[key] = {"owner": captured, "proof": proof}
+                        _offline.retire_owner(candidate, captured, reason="takeover/stopped", proof=proof)
+                        candidate.offline_owner = {**_offline.owner(w), "previousOwnerRetirement": key}
+                    await _commit_offline(s, retire)
+        # Preserve both the Job and its verifiable empty state until the
+        # ordered metadata replace succeeds. A failed write is retryable.
+        await asyncio.to_thread(job.close_retired)
         w.takeover_job = None
         w.takeover_pid = None
         return True
     if not w.takeover_pid:
+        s = _session(w)
+        if s is not None and (s.offline_owner or {}).get("externalTakeover"):
+            raise RuntimeError("Takeover owner is unknown; refusing a second writer")
         return False
     pid = w.takeover_pid
+    # The generic kill helper logs errors for legacy callers. Its return alone
+    # is not proof of retirement; retain the owner unless every observed PID
+    # identity is confirmed dead. A vanished root cannot prove orphan death.
+    try:
+        root = psutil.Process(pid)
+        identities = [{"pid": p.pid, "createdAt": p.create_time()}
+                      for p in [root, *root.children(recursive=True)]]
+    except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+        raise RuntimeError("Takeover owner is unknown; refusing a second writer") from exc
     _log.info("[Worker %s] 杀 takeover 终端 PID=%s", w.worker_id, pid)
     try:
         await asyncio.to_thread(_kill_pid_tree, pid)
         _log.info("[Worker %s] takeover 终端已结束 PID=%s", w.worker_id, pid)
     except Exception as e:
         _log.warning("[Worker %s] 杀 takeover 终端异常: %s", w.worker_id, e)
+        raise RuntimeError("Takeover retirement could not be confirmed") from e
+    status = await asyncio.to_thread(_offline.previous_owner_status, {"processes": identities})
+    if status != "dead":
+        raise RuntimeError(f"Takeover owner is {status}; refusing a second writer")
+    s = _session(w)
+    if s is not None and (s.offline_owner or {}).get("externalTakeover"):
+        raise RuntimeError("Takeover descendant coverage is unknown without a Job retirement proof")
     w.takeover_pid = None
+    await _claim_offline_owner(w)
     return True
 
 
@@ -6945,6 +7504,7 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
         return "Pan main service is shutting down"
     if w.status == "held":
         return "Worker already in takeover mode"
+    retiring_owner = _offline.owner(w)
 
     _cancel_pending_restart(w)
     _cancel_claude_permission_requests(worker_id, "Claude worker entered takeover mode")
@@ -6968,6 +7528,7 @@ async def _takeover_worker_unlocked(worker_id: str) -> str | None:
     w._mcp_proc = None
     if w._hist_dirty:
         await _flush_history_now(w)
+    await _finish_offline_stop(w, retiring_owner, "pan/takeover")
     w.status = "held"
     return None
 
@@ -7012,6 +7573,9 @@ async def _kill_worker_unlocked(
             return f"Takeover stop failed: {exc}"
 
     abnormal = w.status in {"running", "queued"}
+    retiring_owner = _offline.owner(w)
+    if recover and abnormal:
+        await _detect_offline_exit(w, retiring_owner, "watchdog/aborted")
 
     if report_abnormal and abnormal and _user_kill_report_enabled():
         await _enqueue_zombie_report(w, "worker killed")
@@ -7053,10 +7617,13 @@ async def _kill_worker_unlocked(
         except Exception as exc:
             _log.warning("[Worker %s] failed to persist kill task context clear: %s",
                          worker_id, exc)
+            raise
     # A1 崩溃安全：kill 前 flush 防抖缓冲的流式块
     if w._hist_dirty:
         await _flush_history_now(w)
 
+    if not recover:
+        await _finish_offline_stop(w, retiring_owner, "pan/stop")
     workers.pop(w.worker_id, None)
     _unregister_worker(w)
     await _bcast({
@@ -7201,7 +7768,7 @@ def _maybe_restart_pending(w: Worker) -> None:
     No lock or await is needed for this event-loop-local decision.
     """
     if (not w.pending_restart or w.status not in {"idle", "queued"}
-            or w._native_external_turn_active
+            or w._native_reservation_busy or w._native_external_turn_active
             or (w._queue_unit_active and w._current_handoff_acked)
             or w._terminal_finishing or workers.get(w.worker_id) is not w):
         return
@@ -7404,6 +7971,11 @@ async def _restart_tasks(w: Worker):
     w._terminal_finishing = False
     w._task_started_at = 0.0
     w.last_activity = time.monotonic()
+    w._offline_ready_token = None
+    w._native_admission_id = None
+    s = _session(w)
+    w._offline_predecessors = set(s.illegal_batches) if s else set()
+    await _claim_offline_owner(w)
     if w.process is not None:
         w._stdout_task = asyncio.create_task(_read_stdout(w))
     if not _DEFAULTS_INITIALIZED:
@@ -7427,6 +7999,7 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     if not w:
         return "Worker not found"
     _cancel_pending_restart(w)
+    retiring_owner = _offline.owner(w)
 
     # Stop the takeover owner before changing generation/state or spawning.
     # A failed stop leaves a held worker retryable and cannot create a writer.
@@ -7467,6 +8040,9 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     await _kill_process_tree(w)
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
+    if w._hist_dirty:
+        await _flush_history_now(w)
+    await _finish_offline_stop(w, retiring_owner, "pan/restart-stop")
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/restart-stop")
     w.process = None
@@ -7538,6 +8114,7 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     if not w:
         return "Worker not found"
     _cancel_pending_restart(w)
+    retiring_owner = _offline.owner(w)
 
     _cancel_claude_permission_requests(worker_id, "Claude worker was respawned")
 
@@ -7562,6 +8139,9 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     await _kill_process_tree(w)
     if not _confirm_native_input_retirement(w):
         return "Old runtime stop was not confirmed; input uncertainty retained"
+    if w._hist_dirty:
+        await _flush_history_now(w)
+    await _finish_offline_stop(w, retiring_owner, "pan/respawn-stop")
     if _runtime_stopped(w):
         await _record_legal_worker_state(w, "offline", "pan/respawn-stop")
     w.process = None
@@ -7731,6 +8311,8 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     # 回合（父历史不回填 → 展示层缺父回合，属既有局限，非模型上下文缺陷）。
     workers[new_id] = new_w
     _register_worker(new_w)
+    new_w._offline_predecessors = set(s.illegal_batches)
+    await _claim_offline_owner(new_w)
     new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
     new_w._consume_task = asyncio.create_task(_consumer(new_w))
@@ -7762,7 +8344,7 @@ def _apply_native_mode_receipt(w: Worker, receipt: dict) -> bool:
     w._native_mode_request_id = None
     w.native_control_error = None if receipt.get("ok") is True else "Native control request rejected"
     if receipt.get("native_busy") is True:
-        w._native_external_turn_active = True
+        w._native_reservation_busy = True
     if w.native_control_mode == "pan" and w.pending_signal is not None:
         w.pending_signal.put_nowait({"type": "queue_signal"})
     return True
@@ -8780,7 +9362,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         "createdAt": time.time(),
     }
     if locked:
-        item["queueLockManual"] = True
+        _message_locks.set_lock(item, "manual")
     if task_id is not None:
         # An inherited id is reporting context only; an assign id is also the
         # durable idempotency key.
@@ -9293,7 +9875,7 @@ async def send_session(session_id: str, text: str, source: str = "agent",
             item["forceSend"] = True
             item["forceSendHeld"] = True
             if prior is None:
-                item.pop("queueLockManual", None)  # Replace only the just-created transaction hold.
+                _message_locks.set_lock(item, None)  # Replace only the just-created transaction hold.
             await _save_receipt(target)
         disposition = {}
         error = await steer_queue_item(session_id, _queue_item_id(item), item.get("revision", 1), outcome=disposition)
@@ -9417,66 +9999,12 @@ def find_alive_workers_by_session() -> dict[str, Worker]:
     }
 
 
-async def sync_legal_worker_state_to_runtime(
-    session_id: str, *, source: str = "session-recovery/sync-actual",
-) -> dict:
-    """Copy a Session's observed runtime state into its legal-state ledger.
-
-    The per-Session spawn lock makes this snapshot mutually exclusive with
-    create/restart. The UI and HTTP layer never choose or write a state value.
-    When no Worker or provider process remains, the runtime state is offline.
-    """
-    lock = await _session_spawn_lock(session_id)
-    async with lock:
-        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with legal_lock:
-            w = find_alive_worker_by_session(session_id)
-            if w is None:
-                tracked = find_worker_by_session(session_id)
-                if tracked is not None and not _runtime_stopped(tracked):
-                    return {
-                        "sessionId": session_id,
-                        "status": "error",
-                        "error": f"Worker runtime is not stopped (status: {tracked.status})",
-                    }
-                state = "offline"
-                runtime_status = "offline"
-            elif w.status in _LEGAL_WORKER_STATES:
-                state = w.status
-                runtime_status = w.status
-            else:
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": f"unsupported runtime Worker state: {w.status}",
-                }
-            if not await _persist_session_legal_worker_state(
-                    session_id, state, source, _locked=True):
-                return {
-                    "sessionId": session_id,
-                    "status": "error",
-                    "error": "failed to persist Session legal state",
-                }
-            return {
-                "sessionId": session_id,
-                "status": "updated",
-                "legalWorkerState": state,
-                "runtimeWorkerStatus": runtime_status,
-            }
-
-
-async def _sync_legal_state_if_stopped(session_id: str, state: str, source: str) -> bool:
-    """Persist a requested exit state only while the Session has no live Worker."""
-    lock = await _session_spawn_lock(session_id)
-    async with lock:
-        legal_lock = _legal_state_locks.setdefault(session_id, asyncio.Lock())
-        async with legal_lock:
-            tracked = find_worker_by_session(session_id)
-            if tracked is not None and not _runtime_stopped(tracked):
-                return False
-            return await _persist_session_legal_worker_state(
-                session_id, state, source, _locked=True,
-            )
+async def sync_legal_worker_state_to_runtime(session_id: str, *, source: str = "manual/mark-safe-offline") -> dict:
+    """Compatibility entry point: explicitly cancel pending recovery/Illegal."""
+    try:
+        return await clear_session_illegal_for_startup(session_id, reconcile=True)
+    except RuntimeError as exc:
+        return {"sessionId": session_id, "status": "error", "error": str(exc)}
 
 
 async def shutdown_all(
@@ -9515,6 +10043,12 @@ async def shutdown_all(
         w = workers.get(wid)
         if not w:
             continue
+        worker_errors_before = len(errors)
+        if not mark_legal_offline or w.session_id in preserve_ids:
+            try:
+                await _detect_offline_exit(w, _offline.owner(w), legal_state_source + "/unauthorized-or-preserved")
+            except Exception as exc:
+                errors.append(f"Worker {wid} Illegal commit failed: {exc}")
         stop_steps = (
             (w._watchdog_task, "watchdog cancellation"),
             (w._consume_task, "consumer cancellation"),
@@ -9546,25 +10080,15 @@ async def shutdown_all(
         except Exception as exc:
             errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
         if (mark_legal_offline and w.session_id not in preserve_ids
+                and _runtime_stopped(w) and len(errors) == worker_errors_before):
+            try:
+                await _finish_offline_stop(w, _offline.owner(w), legal_state_source)
+            except Exception as exc:
+                errors.append(f"Worker {wid} legality commit failed: {exc}")
+        if (mark_legal_offline and w.session_id not in preserve_ids
                 and _runtime_stopped(w)):
             if not await _record_legal_worker_state(w, "offline", legal_state_source):
                 errors.append(f"Worker {wid} legal offline state was not persisted")
-
-    for session_id in sorted(offline_ids):
-        # Includes persisted running Sessions that had no Worker at shutdown.
-        # The check under the Session spawn lock prevents marking a concurrent
-        # live Worker offline.
-        if not await _sync_legal_state_if_stopped(
-                session_id, "offline", legal_state_source):
-            errors.append(f"Session {session_id} legal offline state was not persisted")
-
-    for session_id in sorted(preserve_ids):
-        # Worker cancellation/finalization may have recorded a terminal state
-        # while Exit was draining. Restore the pre-exit legal running snapshot
-        # after every Worker has stopped.
-        if not await _persist_session_legal_worker_state(
-                session_id, "running", f"{legal_state_source}-preserve-running"):
-            errors.append(f"Session {session_id} legal running state was not persisted")
 
     workers.clear()
     _workers_by_session.clear()

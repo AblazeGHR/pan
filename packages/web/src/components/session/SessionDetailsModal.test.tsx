@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { SessionDetailsModal } from './SessionDetailsModal';
 import { clearSessionUsageCache } from './sessionUsageCache';
 import { useUIStore } from '@/stores/uiStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import * as api from '@/services/api';
 import type { Session, SessionUsageView } from '@/types';
 
@@ -27,10 +28,11 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  useSessionStore.setState({ sessions: [] });
   vi.spyOn(api, 'fetchSession').mockRejectedValue(new Error('session details unavailable'));
   vi.spyOn(api, 'fetchSessionUsage').mockRejectedValue(new Error('usage unavailable'));
-  vi.spyOn(api, 'syncSessionLegalWorkerState').mockRejectedValue(new Error('legal state sync unavailable'));
-  vi.spyOn(api, 'setSessionLegalWorkerStateRunning').mockRejectedValue(new Error('legal state update unavailable'));
+  vi.spyOn(api, 'markSessionSafelyOffline').mockRejectedValue(new Error('legal state sync unavailable'));
+  vi.spyOn(api, 'markSessionIllegal').mockRejectedValue(new Error('legal state update unavailable'));
 });
 
 function dialogCard(): HTMLElement {
@@ -44,6 +46,20 @@ function legalStateValue(section: HTMLElement): string {
 }
 
 describe('SessionDetailsModal', () => {
+  it('updates open legality diagnostics from authoritative live metadata', async () => {
+    const initial: Session = { ...baseSession, legalOffline: true, illegalOffline: false,
+      legalityDiagnostics: { coverage: 'pan-managed', revision: 1, outstanding: [] } };
+    vi.mocked(api.fetchSession).mockResolvedValue(initial);
+    render(<SessionDetailsModal session={initial} onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Safe')).toBeTruthy());
+    act(() => useSessionStore.setState({ sessions: [{ ...initial, legalOffline: false, illegalOffline: true,
+      legalityDiagnostics: { coverage: 'pan-managed', revision: 2,
+        outstanding: [{ operationId: 'failed-op', kind: 'foreground', state: 'illegal', reason: 'host/signal' }] } }] }));
+    expect(screen.getByText('Illegal')).toBeTruthy();
+    expect(screen.getByText(/host\/signal/)).toBeTruthy();
+    expect(api.fetchSession).toHaveBeenCalledTimes(1);
+  });
+
   it('opts into the mobile fullscreen shell while keeping the desktop dialog unchanged', () => {
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
@@ -489,45 +505,45 @@ describe('SessionDetailsModal', () => {
   it('shows persisted legal state and refreshes it from a successful runtime sync', async () => {
     vi.mocked(api.fetchSession).mockResolvedValue({
       ...baseSession,
-      lastLegalWorkerState: 'running',
+      lastLegalWorkerState: 'running', legalOffline: false, illegalOffline: true,
     });
-    vi.mocked(api.syncSessionLegalWorkerState).mockResolvedValue({
+    vi.mocked(api.markSessionSafelyOffline).mockResolvedValue({
       sessionId: baseSession.id,
       status: 'updated',
-      legalWorkerState: 'idle',
+      legalWorkerState: 'idle', illegalOffline: false, legalOffline: true,
       runtimeWorkerStatus: 'idle',
     });
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
-    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
-    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Illegal'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as safely offline' }));
 
     expect(await screen.findByRole('status')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toContain('Legal state updated to idle');
-    expect(legalStateValue(stateSection)).toContain('idle');
-    expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(baseSession.id);
+    expect(screen.getByRole('status').textContent).toContain('Session marked: Safely offline');
+    expect(legalStateValue(stateSection)).toContain('Safe');
+    expect(api.markSessionSafelyOffline).toHaveBeenCalledWith(baseSession.id);
   });
 
   it('shows helper failure without replacing the persisted legal state', async () => {
     vi.mocked(api.fetchSession).mockResolvedValue({
       ...baseSession,
-      lastLegalWorkerState: 'running',
+      lastLegalWorkerState: 'running', legalOffline: false, illegalOffline: true,
     });
-    vi.mocked(api.syncSessionLegalWorkerState).mockResolvedValue({
+    vi.mocked(api.markSessionSafelyOffline).mockResolvedValue({
       sessionId: baseSession.id,
       status: 'error',
       error: 'Worker runtime is not stopped',
     });
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
-    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
-    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Illegal'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as safely offline' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('Worker runtime is not stopped');
-    expect(legalStateValue(stateSection)).toContain('running');
+    expect(legalStateValue(stateSection)).toContain('Illegal');
   });
 
   it('does not let a slow sync for the previous Session replace the current Details', async () => {
@@ -537,98 +553,102 @@ describe('SessionDetailsModal', () => {
       ...baseSession,
       id,
       name: id,
-      lastLegalWorkerState: id === sessionA.id ? 'running' : 'offline',
+      lastLegalWorkerState: 'running', legalOffline: id !== sessionA.id, illegalOffline: id === sessionA.id,
     }));
     let resolveSync: ((value: {
       sessionId: string;
       status: 'updated';
       legalWorkerState: string;
+      illegalOffline?: boolean;
+      legalOffline?: boolean;
       runtimeWorkerStatus: string;
     }) => void) | undefined;
-    vi.mocked(api.syncSessionLegalWorkerState).mockImplementation(() => new Promise((resolve) => {
+    vi.mocked(api.markSessionSafelyOffline).mockImplementation(() => new Promise((resolve) => {
       resolveSync = resolve;
     }));
     const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
 
-    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('running'));
-    fireEvent.click(screen.getByRole('button', { name: 'Update to actual state' }));
-    expect(api.syncSessionLegalWorkerState).toHaveBeenCalledWith(sessionA.id);
+    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Illegal'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as safely offline' }));
+    expect(api.markSessionSafelyOffline).toHaveBeenCalledWith(sessionA.id);
 
     rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
-    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
     await act(async () => {
       resolveSync?.({
         sessionId: sessionA.id,
         status: 'updated',
-        legalWorkerState: 'idle',
+        legalWorkerState: 'idle', illegalOffline: false, legalOffline: true,
         runtimeWorkerStatus: 'idle',
       });
     });
 
-    expect(legalStateValue(stateSection)).toContain('offline');
-    expect(stateSection.textContent).not.toContain('Legal state updated to idle');
+    expect(legalStateValue(stateSection)).toContain('Safe');
+    expect(stateSection.textContent).not.toContain('Session marked: Safely offline');
   });
 
   it('shows running only after the explicit legal-state write succeeds', async () => {
     vi.mocked(api.fetchSession).mockResolvedValue({
       ...baseSession,
-      lastLegalWorkerState: 'offline',
+      lastLegalWorkerState: 'offline', legalOffline: true, illegalOffline: false,
     });
     let resolveSetRunning: ((value: {
       sessionId: string;
       status: 'updated';
       legalWorkerState: string;
+      illegalOffline?: boolean;
+      legalOffline?: boolean;
     }) => void) | undefined;
-    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+    vi.mocked(api.markSessionIllegal).mockImplementation(() => new Promise((resolve) => {
       resolveSetRunning = resolve;
     }));
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
-    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
-    const setRunning = screen.getByRole('button', { name: 'Set legal state to running' });
-    expect(screen.getByText("Records this Session's legal state only; it does not start a Worker.")).toBeTruthy();
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
+    const setRunning = screen.getByRole('button', { name: 'Mark as Illegal / Pending recovery' });
+    expect(screen.getByText("Illegal means pending recovery. Marking safely offline clears prior Illegal incidents and their automatic locks; Manual locks remain. Neither action starts a Worker.")).toBeTruthy();
     fireEvent.click(setRunning);
 
-    expect(api.setSessionLegalWorkerStateRunning).toHaveBeenCalledWith(baseSession.id);
+    expect(api.markSessionIllegal).toHaveBeenCalledWith(baseSession.id);
     expect(setRunning.hasAttribute('disabled')).toBe(true);
-    expect(legalStateValue(stateSection)).toContain('offline');
-    expect(legalStateValue(stateSection)).not.toContain('running');
+    expect(legalStateValue(stateSection)).toContain('Safe');
+    expect(legalStateValue(stateSection)).not.toContain('Illegal');
 
     await act(async () => {
       resolveSetRunning?.({
         sessionId: baseSession.id,
         status: 'updated',
-        legalWorkerState: 'running',
+        legalWorkerState: 'running', illegalOffline: true, legalOffline: false,
       });
     });
 
-    expect(legalStateValue(stateSection)).toContain('running');
-    expect(screen.getByRole('status').textContent).toContain('Legal state set to running');
+    expect(legalStateValue(stateSection)).toContain('Illegal');
+    expect(screen.getByRole('status').textContent).toContain('Session marked: Illegal / Pending recovery');
   });
 
   it('keeps the persisted legal state on explicit running write failure', async () => {
     vi.mocked(api.fetchSession).mockResolvedValue({
       ...baseSession,
-      lastLegalWorkerState: 'offline',
+      lastLegalWorkerState: 'offline', legalOffline: true, illegalOffline: false,
     });
-    vi.mocked(api.setSessionLegalWorkerStateRunning).mockResolvedValue({
+    vi.mocked(api.markSessionIllegal).mockResolvedValue({
       sessionId: baseSession.id,
       status: 'error',
       error: 'failed to persist Session legal state',
     });
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
 
-    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
-    fireEvent.click(screen.getByRole('button', { name: 'Set legal state to running' }));
+    const stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as Illegal / Pending recovery' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('failed to persist Session legal state');
-    expect(legalStateValue(stateSection)).toContain('offline');
-    expect(legalStateValue(stateSection)).not.toContain('running');
+    expect(legalStateValue(stateSection)).toContain('Safe');
+    expect(legalStateValue(stateSection)).not.toContain('Illegal');
   });
 
   it('ignores stale metadata and set-running responses after switching Sessions', async () => {
@@ -644,78 +664,84 @@ describe('SessionDetailsModal', () => {
         ...baseSession,
         id,
         name: id,
-        lastLegalWorkerState: id === sessionA.id ? 'idle' : 'offline',
+        lastLegalWorkerState: 'running', legalOffline: true,
       };
     });
     let resolveSetRunning: ((value: {
       sessionId: string;
       status: 'updated';
       legalWorkerState: string;
+      illegalOffline?: boolean;
+      legalOffline?: boolean;
     }) => void) | undefined;
-    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+    vi.mocked(api.markSessionIllegal).mockImplementation(() => new Promise((resolve) => {
       resolveSetRunning = resolve;
     }));
     const { rerender } = render(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
-    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('idle'));
+    let stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
 
     rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
-    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
     rerender(<SessionDetailsModal session={sessionA} onClose={() => {}} />);
-    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    fireEvent.click(screen.getByRole('button', { name: 'Set legal state to running' }));
-    expect(api.setSessionLegalWorkerStateRunning).toHaveBeenCalledWith(sessionA.id);
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as Illegal / Pending recovery' }));
+    expect(api.markSessionIllegal).toHaveBeenCalledWith(sessionA.id);
 
     rerender(<SessionDetailsModal session={sessionB} onClose={() => {}} />);
-    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!;
-    await waitFor(() => expect(legalStateValue(stateSection)).toContain('offline'));
+    stateSection = document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!;
+    await waitFor(() => expect(legalStateValue(stateSection)).toContain('Safe'));
     await act(async () => {
       resolveStaleA?.({
         ...baseSession,
         id: sessionA.id,
-        lastLegalWorkerState: 'held',
+        lastLegalWorkerState: 'held', legalOffline: true, illegalOffline: false,
       });
       resolveSetRunning?.({
         sessionId: sessionA.id,
         status: 'updated',
-        legalWorkerState: 'running',
+        legalWorkerState: 'running', illegalOffline: true, legalOffline: false,
       });
     });
 
-    expect(legalStateValue(stateSection)).toContain('offline');
+    expect(legalStateValue(stateSection)).toContain('Safe');
     expect(legalStateValue(stateSection)).not.toContain('held');
-    expect(legalStateValue(stateSection)).not.toContain('running');
+    expect(legalStateValue(stateSection)).not.toContain('Illegal');
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('serializes the explicit action with Update to actual state', async () => {
+  it('serializes the explicit action with Mark as safely offline', async () => {
     vi.mocked(api.fetchSession).mockResolvedValue({
       ...baseSession,
-      lastLegalWorkerState: 'idle',
+      lastLegalWorkerState: 'idle', legalOffline: true, illegalOffline: false,
     });
     let resolveSync: ((value: {
       sessionId: string;
       status: 'updated';
       legalWorkerState: string;
+      illegalOffline?: boolean;
+      legalOffline?: boolean;
       runtimeWorkerStatus: string;
     }) => void) | undefined;
-    vi.mocked(api.syncSessionLegalWorkerState).mockImplementation(() => new Promise((resolve) => {
+    vi.mocked(api.markSessionSafelyOffline).mockImplementation(() => new Promise((resolve) => {
       resolveSync = resolve;
     }));
     let resolveSetRunning: ((value: {
       sessionId: string;
       status: 'updated';
       legalWorkerState: string;
+      illegalOffline?: boolean;
+      legalOffline?: boolean;
     }) => void) | undefined;
-    vi.mocked(api.setSessionLegalWorkerStateRunning).mockImplementation(() => new Promise((resolve) => {
+    vi.mocked(api.markSessionIllegal).mockImplementation(() => new Promise((resolve) => {
       resolveSetRunning = resolve;
     }));
     render(<SessionDetailsModal session={baseSession} onClose={() => {}} />);
-    await waitFor(() => expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!)).toContain('idle'));
+    await waitFor(() => expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!)).toContain('Safe'));
 
-    const sync = screen.getByRole('button', { name: 'Update to actual state' });
-    const setRunning = screen.getByRole('button', { name: 'Set legal state to running' });
+    const sync = screen.getByRole('button', { name: 'Mark as safely offline' });
+    const setRunning = screen.getByRole('button', { name: 'Mark as Illegal / Pending recovery' });
     fireEvent.click(sync);
     expect(setRunning.hasAttribute('disabled')).toBe(true);
     await act(async () => {
@@ -734,11 +760,11 @@ describe('SessionDetailsModal', () => {
       resolveSetRunning?.({
         sessionId: baseSession.id,
         status: 'updated',
-        legalWorkerState: 'running',
+        legalWorkerState: 'running', illegalOffline: true, legalOffline: false,
       });
     });
     expect(sync.hasAttribute('disabled')).toBe(false);
-    expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Legal Worker state"]')!)).toContain('running');
+    expect(legalStateValue(document.body.querySelector<HTMLElement>('[aria-label="Execution legality"]')!)).toContain('Illegal');
   });
 
   it('degrades safely when clipboard is unavailable and displays missing values', async () => {

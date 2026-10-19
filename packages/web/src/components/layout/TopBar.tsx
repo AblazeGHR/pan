@@ -280,7 +280,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
     >
       <div ref={leftRef} className="flex items-center gap-1 md:gap-3 min-w-0 max-md:flex-1">
         <div className="flex items-center gap-0.5 md:gap-2 min-w-0 max-md:flex-1">
-          <WorkerDot status={status} className="shrink-0" />
+          <WorkerDot status={status} illegalOffline={currentSession.illegalOffline} className="shrink-0" />
           {/* Mobile: the name region is the top bar's only flexible item, so
               it takes every px left of the fixed-size controls — ≥ half of
               the bar's usable width even at 320px. Truncation keeps overflow

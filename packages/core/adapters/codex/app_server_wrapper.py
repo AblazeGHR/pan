@@ -248,8 +248,42 @@ class AppServer:
         # Set before forwarding a native turn/start, not after its notification.
         # This closes the handoff window in which Pan could admit a queued turn.
         self._native_turn_pending = threading.Event()
+        self._native_admission_lock = threading.RLock()
+        self._native_admission = None
+        self._aux_admissions = {}
+        self.native_admission_timeout = 5.0
         self._steer_requests: dict[int, str] = {}
         self._steer_requests_lock = threading.Lock()
+
+    def native_admission_receipt(self, message):
+        with self._native_admission_lock:
+            admission = self._aux_admissions.get(message.get("requestId")) or self._native_admission
+            if admission is not None and admission.id == message.get("requestId"):
+                admission.acknowledge(message)
+
+    def reserve_auxiliary_admission(self, thread_id, generation, emit, operation):
+        from packages.core.adapters.codex.native_admission import NativeAdmission
+        with self._native_admission_lock:
+            admission = NativeAdmission(thread_id, generation, emit, operation)
+            self._aux_admissions[admission.id] = admission
+            return admission
+
+    def reserve_native_admission(self, thread_id, generation, emit, operation="turn/start"):
+        from packages.core.adapters.codex.native_admission import NativeAdmission
+        with self._native_admission_lock:
+            if self._turn_active.is_set() or self._native_turn_pending.is_set():
+                raise RuntimeError("Turn already executing")
+            admission = NativeAdmission(thread_id, generation, emit, operation)
+            self._native_admission = admission
+            self._native_turn_pending.set()
+            return admission
+
+    def retire_native_reservation(self, admission):
+        with self._native_admission_lock:
+            self._aux_admissions.pop(admission.id, None)
+            if self._native_admission is admission:
+                self._native_turn_pending.clear()
+                self._native_admission = None
 
     def _send(self, message: dict[str, Any]) -> None:
         if self._native_transport is not None:
@@ -406,8 +440,18 @@ class AppServer:
             for message in self._native_transport.messages():
                 if message.get("method") == "turn/started":
                     self._thread_has_turns = True
+                    params = message.get("params") or {}
+                    turn_id = (params.get("turn") or {}).get("id")
+                    with self._native_admission_lock:
+                        admission = self._native_admission
+                        if admission is not None and params.get("threadId", self.thread_id) == admission.thread_id:
+                            admission.started(turn_id)
                 if self._resident_tui is not None and "method" in message and "id" not in message:
                     self._resident_tui.observe(message)
+                # Detached resources belong to auxiliary collectors, never the
+                # foreground accumulator or observational turn admission.
+                if ((message.get("params") or {}).get("threadId", self.thread_id) != self.thread_id):
+                    continue
                 if not self._emit_steer_receipt(message):
                     self.incoming.put(message)
         except Exception as exc:
@@ -489,6 +533,13 @@ class AppServer:
 
     def _handle_server_message(self, message: dict[str, Any], state: dict[str, Any] | None) -> None:
         method = message.get("method")
+        if state is not None and state.get("external_turn") and state.get("admission") is not None:
+            admission = state["admission"]
+            params = message.get("params") or {}
+            turn_id = params.get("turnId") or (params.get("turn") or {}).get("id")
+            if (params.get("threadId", admission.thread_id) != admission.thread_id
+                    or (turn_id is not None and turn_id != admission.turn_id)):
+                return  # Buffered notifications cannot terminate a newer admission.
         if ((method and method.endswith("/requestApproval")) or method in (
             "applyPatchApproval", "execCommandApproval",
             "currentTime/read",
@@ -817,7 +868,8 @@ class AppServer:
                 text = "\n".join(part["text"] for part in content
                                  if isinstance(part, dict) and isinstance(part.get("text"), str))
                 if text:
-                    _write_stdout({"type": "pan.native_user", "text": text, "item_id": item.get("id")})
+                    _write_stdout({"type": "pan.native_user", "text": text, "item_id": item.get("id"),
+                                   **(state["admission"].identity() if state.get("admission") else {})})
             event = _item_event(item)
             if event is not None:
                 if state is not None and str(item.get("type") or "").replace("_", "").lower() == "agentmessage":
@@ -1282,12 +1334,24 @@ class AppServer:
 def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
                     control_queue: Queue[dict[str, Any] | None],
                     turn_active: threading.Event | None = None,
-                    mode_handler=None, native_handler=None) -> None:
+                    mode_handler=None, native_handler=None, admission_handler=None) -> None:
+    # The reader must never wait on owner/policy locks: an ACK may be behind
+    # a blocked mode/input operation. Preserve their order on one executor.
+    callbacks = Queue()
+    def controls():
+        while True:
+            operation = callbacks.get()
+            if operation is None:
+                return
+            handler, value = operation
+            handler(value)
+    threading.Thread(target=controls, daemon=True).start()
     stream = getattr(sys.stdin, "buffer", sys.stdin)
     while True:
         line = stream.readline()
         if not line:
-            task_queue.put(None)
+            callbacks.put((task_queue.put, None))
+            callbacks.put(None)
             return
         try:
             message = json.loads(line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line)
@@ -1295,13 +1359,17 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
             continue
         if not isinstance(message, dict):
             continue
+        if message.get("type") == "native_admission":
+            if admission_handler is not None:
+                admission_handler(message)
+            continue
         if message.get("type") == "control_mode":
             if mode_handler is not None:
-                mode_handler(message)
+                callbacks.put((mode_handler, message))
             continue
         if message.get("type") in {"native_input", "native_resize", "native_passthrough"}:
             if native_handler is not None:
-                native_handler(message)
+                callbacks.put((native_handler, message))
             continue
         if message.get("type") in (
                 "interrupt", "steer", "approval_response", "user_input_response",
@@ -1312,9 +1380,9 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
                 _write_stdout({"type": "pan.steer_receipt", "requestId": message["requestId"],
                                "ok": False, "outcome": "rejected", "error": "No active Codex turn"})
             else:
-                control_queue.put(message)
+                callbacks.put((control_queue.put, message))
         elif message.get("text"):
-            task_queue.put(message)
+            callbacks.put((task_queue.put, message))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1413,7 +1481,8 @@ def main(argv: list[str] | None = None) -> int:
             receipt["error"] = "native-operation-rejected"
         _write_stdout(receipt)
     reader = threading.Thread(target=_read_pan_stdin,
-                              args=(pan_queue, control_queue, app._turn_active, mode_handler, native_handler), daemon=True)
+                              args=(pan_queue, control_queue, app._turn_active, mode_handler, native_handler,
+                                    app.native_admission_receipt), daemon=True)
     try:
         app.start()
         # A failed startup must not leave a daemon holding buffered stdin
@@ -1431,10 +1500,27 @@ def main(argv: list[str] | None = None) -> int:
                         continue
                     if event.get("method") == "turn/started":
                         turn = (event.get("params") or {}).get("turn") or {}
-                        external = {"last_text": "", "error": "", "done": False, "is_error": False,
+                        admission = app._native_admission
+                        if admission is None:
+                            # Preserve existing passthrough execution/reporting.
+                            # It is explicitly observational, never pre-admission.
+                            from packages.core.adapters.codex.native_admission import NativeAdmission
+                            snapshot = app.control_owner.snapshot()
+                            admission = NativeAdmission(app.thread_id, snapshot["generation"], _write_stdout,
+                                                        operation="observed-turn")
+                            admission.state = "sending"
+                            app._native_admission = admission
+                        if not admission.started(turn.get("id")):
+                            _write_stdout({"type": "pan.native_error", "error": "native-turn-identity-conflict"})
+                            continue
+                        if external is not None:
+                            continue  # Duplicate started cannot reset the active result accumulator.
+                        external = {"admission": admission, "last_text": "", "error": "", "done": False, "is_error": False,
                                     "item_cumulative": {}, "turn_id": turn.get("id"), "external_turn": True}
                         app._turn_active.set()
-                        _write_stdout({"type": "pan.native_turn_started", "turn_id": turn.get("id")})
+                        _write_stdout({"type": "pan.native_turn_started", "turn_id": turn.get("id"),
+                                       **admission.identity(), "observedAfterStart": admission.operation == "observed-turn",
+                                       "threadId": admission.thread_id, "controlGeneration": admission.generation})
                     app._handle_server_message(event, external)
                     if external is not None:
                         app._drain_controls(external, control_queue)
@@ -1442,7 +1528,9 @@ def main(argv: list[str] | None = None) -> int:
                             _write_stdout({"type": "result", "external_turn": True,
                                 "is_error": bool(external.get("is_error")), "cancelled": bool(external.get("is_cancelled")),
                                 "turn_status": external.get("turn_status"), "result": external.get("last_text") or external.get("error") or "",
-                                "usage": app.last_usage})
+                                "usage": app.last_usage, "turn_id": external["admission"].turn_id,
+                                **external["admission"].identity()})
+                            app.retire_native_reservation(external["admission"])
                             app._turn_active.clear()
                             app._native_turn_pending.clear()
                             external = None
@@ -1459,7 +1547,14 @@ def main(argv: list[str] | None = None) -> int:
                          str(effort) if effort else None, control_queue)
     except Exception as exc:  # wrapper errors must be visible to Pan, not silent hangs
         _write_stderr(f"[codex app-server bridge] {exc}\n")
-        _write_stdout({"type": "result", "is_error": True, "result": str(exc)})
+        admission = app._native_admission
+        if admission is not None:
+            # A wrapper exception after send is not a safely caught provider
+            # result. Keep False/owner through EOF; only proven no-send cancels.
+            admission.cancel()
+            _write_stdout({"type": "pan.native_error", "error": "native-wrapper-failed"})
+        else:
+            _write_stdout({"type": "result", "is_error": True, "result": str(exc)})
         return 1
     finally:
         app.close()

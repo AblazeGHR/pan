@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/packages/web/src
+
+ ✓ stores/sessionStore.execution.test.ts (5 tests) 7ms
+ ✓ stores/sessionStore.snapshot.test.ts (3 tests) 4ms
+ ✓ stores/sessionStore.interleaving.test.ts (23 tests) 18ms
+ ✓ stores/stateProjection.regression.test.ts (13 tests) 13ms
+ ✓ stores/sessionStore.refresh.test.ts (17 tests) 14ms
+
+ Test Files  5 passed (5)
+      Tests  61 passed (61)
+   Start at  17:03:42
+   Duration  2.03s (transform 399ms, setup 28ms, collect 1.06s, tests 55ms, environment 2.52s, prepare 652ms)
+

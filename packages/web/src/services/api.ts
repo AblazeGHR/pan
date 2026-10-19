@@ -416,20 +416,20 @@ export async function fetchSession(
   return data;
 }
 
-export async function syncSessionLegalWorkerState(
+export async function markSessionSafelyOffline(
   id: string,
 ): Promise<ApiSessionLegalStateSyncResult> {
   return request<ApiSessionLegalStateSyncResult>(
-    `${BASE}/sessions/${encodeURIComponent(id)}/legal-state/sync`,
+    `${BASE}/sessions/${encodeURIComponent(id)}/legality/mark-safe-offline`,
     { method: 'POST' },
   );
 }
 
-export async function setSessionLegalWorkerStateRunning(
+export async function markSessionIllegal(
   id: string,
 ): Promise<ApiSessionLegalStateSyncResult> {
   return request<ApiSessionLegalStateSyncResult>(
-    `${BASE}/sessions/${encodeURIComponent(id)}/legal-state/running`,
+    `${BASE}/sessions/${encodeURIComponent(id)}/legality/mark-illegal`,
     { method: 'POST' },
   );
 }

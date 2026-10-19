@@ -339,7 +339,7 @@ export function JobDetailDrawer({
                 <KV label="Target">
                   <span className="font-mono">
                     {job.action?.api === 'resume_legal_running'
-                      ? 'dynamic: legal running Sessions without a live Worker'
+                      ? 'dynamic: Illegal Sessions pending recovery without a live Worker'
                       : job.action?.api === 'send_qq'
                       ? `QQ ${job.action.args.targetType} ${job.action.args.targetId} · ${job.action.args.botUin
                         ? `bot ${job.action.args.botUin}` : 'default bot'}`
@@ -364,7 +364,7 @@ export function JobDetailDrawer({
                 <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary p-2.5 text-xs">
                   {job.action?.api === 'resume_legal_running' ? (
                     <>
-                      <KV label="Mode">Wake legal running Sessions without a live Worker</KV>
+                      <KV label="Mode">Recover Illegal Sessions without a live Worker</KV>
                       <div className="text-[11px] text-text-tertiary">
                         The server rescans current Sessions on every fire and uses normal message delivery.
                       </div>

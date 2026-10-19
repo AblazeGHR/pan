@@ -325,8 +325,11 @@ def test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_cand
         "unknown": isolated_session_repository.create(
             "resume-unknown", workdir=str(tmp_path)),
     }
-    sessions["eligible"].last_legal_worker_state = "running"
-    sessions["live"].last_legal_worker_state = "running"
+    from packages.core import legal_offline as legality
+    for key in ("eligible", "live"):
+        identity = {"token": key, "generation": 1, "executionSeq": 1}
+        legality.begin(sessions[key], identity)
+        legality.detect(sessions[key], "crash", eligible=lambda _: True, remember=lambda _: None)
     sessions["idle"].last_legal_worker_state = "idle"
     for session in sessions.values():
         isolated_session_repository.save(session)
@@ -436,7 +439,7 @@ def test_resume_legal_running_keeps_per_fire_client_message_id_stable(
     from packages.core import session as sess
 
     monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [
-        SimpleNamespace(id="ses_resume_retry", last_legal_worker_state="running"),
+        SimpleNamespace(id="ses_resume_retry", execution_operations={"failure": {"state": "illegal", "safeTerminal": False}}),
     ])
     monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
     job = {

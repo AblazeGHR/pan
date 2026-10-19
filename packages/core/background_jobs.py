@@ -2174,12 +2174,13 @@ async def _run_job_action(job: dict, target: str | None,
     if api == "send_session":
         return await _worker.send_session(target, text, source="automation")
     if api == RESUME_LEGAL_RUNNING_ACTION:
+        from . import legal_offline as _legality
         # Resolve candidates at fire time. Session identity is persistent, while
         # Worker liveness is a separate, transient runtime fact.
         candidates = sorted(
             (
                 session for session in _sessions.list_all(load_history=False)
-                if (getattr(session, "last_legal_worker_state", None) == "running"
+                if (_legality.is_illegal(session)
                     and isinstance(getattr(session, "id", None), str)
                     and _worker.find_alive_worker_by_session(session.id) is None)
             ),

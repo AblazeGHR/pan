@@ -17,7 +17,7 @@ describe('NewJobForm resume legal running template', () => {
     render(<NewJobForm onCreate={onCreate} />);
 
     fireEvent.click(screen.getByRole('button', {
-      name: '唤醒所有合法 running 的 Session',
+      name: '恢复所有 Illegal / 待恢复 Session',
     }));
     fireEvent.click(screen.getByRole('button', { name: 'Create job' }));
 
@@ -37,7 +37,7 @@ describe('NewJobForm resume legal running template', () => {
       jobId: 'job_resume',
       kind: 'scheduled-task',
       status: 'scheduled',
-      name: 'Resume legal running Sessions',
+      name: 'Recover Illegal Sessions',
       description: '',
       source: { type: 'system' },
       target: { sessionId: null },

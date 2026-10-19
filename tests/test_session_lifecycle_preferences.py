@@ -33,20 +33,20 @@ def test_lifecycle_settings_put_preserves_other_config_keys(config_file):
 
     result = asyncio.run(server.api_put_settings_session_lifecycle({
         "exitStrategy": "offline",
-        "startupPreference": "sync-actual",
+        "startupPreference": "clear-illegal",
     }))
 
     saved = json.loads(config_file.read_text(encoding="utf-8"))
     assert result == {
         "exitStrategy": "offline",
-        "startupPreference": "sync-actual",
+        "startupPreference": "clear-illegal",
     }
     assert saved["port"] == 8765
     assert saved["custom"] == {"keep": True}
     assert saved["session_lifecycle"] == {
         "extension": "kept",
         "exitStrategy": "offline",
-        "startupPreference": "sync-actual",
+        "startupPreference": "clear-illegal",
     }
 
 
@@ -72,3 +72,8 @@ def test_lifecycle_settings_reject_invalid_or_unknown_values_without_writing(
 
     assert caught.value.status_code == 422
     assert json.loads(config_file.read_text(encoding="utf-8")) == original
+
+
+def test_legacy_sync_actual_preference_defaults_to_ask_without_enabling_clear(config_file):
+    config_file.write_text(json.dumps({"session_lifecycle": {"startupPreference": "sync-actual"}}))
+    assert asyncio.run(server.api_get_settings_session_lifecycle())["startupPreference"] == "ask"

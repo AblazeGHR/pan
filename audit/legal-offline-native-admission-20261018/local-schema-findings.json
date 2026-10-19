@@ -1,0 +1,44 @@
+{
+  "installedCodexVersion": "0.162.1",
+  "command": [
+    "node",
+    "D:/node_npm/node_global/node_modules/@openai/codex/bin/codex.js",
+    "app-server",
+    "generate-json-schema",
+    "--out",
+    "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-admission-schema-xhmrp_fs"
+  ],
+  "exitCode": 0,
+  "commandExec": "Run a standalone command (argv vector) in the server sandbox without creating a thread or turn.\n\nThe final `command/exec` response is deferred until the process exits and is sent only after all `command/exec/outputDelta` notifications for that connection have been emitted.",
+  "reviewDelivery": {
+    "enum": [
+      "inline",
+      "detached"
+    ],
+    "type": "string"
+  },
+  "compactParams": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "threadId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "threadId"
+    ],
+    "title": "ThreadCompactStartParams",
+    "type": "object"
+  },
+  "compactResponse": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ThreadCompactStartResponse",
+    "type": "object"
+  },
+  "notes": [
+    "command/exec has no thread/turn completion",
+    "review supports inline and detached",
+    "idle manual compaction tested through real TUI/local provider",
+    "unknown passthrough and independent takeover remain compatible but not pre-admission complete"
+  ]
+}

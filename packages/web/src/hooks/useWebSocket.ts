@@ -979,6 +979,9 @@ function handleWorkerUpdate(
     {
       serverEpoch: e.serverEpoch || e.eventEpoch,
       lastLegalWorkerState: e.session?.lastLegalWorkerState,
+      legalOffline: e.session?.legalOffline,
+      illegalOffline: e.session?.illegalOffline,
+      legalityDiagnostics: e.session?.legalityDiagnostics,
       workerId: e.workerId,
       generation: e.generation,
       taskSeq: typeof e.taskSeq === 'number' ? e.taskSeq : undefined,

@@ -1356,6 +1356,17 @@ class Session:
     # lifecycle transition.  This is deliberately separate from the live
     # worker status, which is derived from the in-memory Worker runtime.
     last_legal_worker_state: str | None = None
+    # Independent execution safety ledger; missing legacy data is unverified,
+    # never evidence of an unfinished run. Explicit run tokens start the policy.
+    legal_offline: bool = True
+    offline_migration_uncertainty: str | None = None
+    offline_owner: dict | None = None
+    offline_run: dict | None = None
+    illegal_batches: dict = field(default_factory=dict)
+    legality_schema_version: int = 2
+    operation_revision: int = 0
+    execution_operations: dict = field(default_factory=dict)
+    owner_retirements: dict = field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
     order: int | None = None  # 用户自定义展示顺序（None = 未排序，按 created_at 排在末尾）
@@ -1455,6 +1466,15 @@ class Session:
                  result_cursor: int = 0,
                  terminal_results: list[dict] | None = None,
                  last_legal_worker_state: str | None = None,
+                 legal_offline: bool = True,
+                 offline_migration_uncertainty: str | None = None,
+                 offline_owner: dict | None = None,
+                 offline_run: dict | None = None,
+                 illegal_batches: dict | None = None,
+                 legality_schema_version: int = 1,
+                 operation_revision: int = 0,
+                 execution_operations: dict | None = None,
+                 owner_retirements: dict | None = None,
                  created_at: str = "",
                  updated_at: str = "",
                  order: int | None = None,
@@ -1545,6 +1565,30 @@ class Session:
             last_legal_worker_state if isinstance(last_legal_worker_state, str)
             else None
         )
+        self.offline_migration_uncertainty = offline_migration_uncertainty
+        self.legal_offline = legal_offline if type(legal_offline) is bool else True
+        self.offline_owner = copy.deepcopy(offline_owner) if isinstance(offline_owner, dict) else None
+        self.offline_run = copy.deepcopy(offline_run) if isinstance(offline_run, dict) else None
+        self.illegal_batches = copy.deepcopy(illegal_batches) if isinstance(illegal_batches, dict) else {}
+        self.legality_schema_version = legality_schema_version
+        self.operation_revision = operation_revision
+        self.execution_operations = copy.deepcopy(execution_operations or {})
+        self.owner_retirements = copy.deepcopy(owner_retirements or {})
+        # False without a durable execution identity is legacy/unverified data,
+        # not permission to invent an Illegal event or change consumability.
+        if not self.execution_operations and (not self.offline_run or not isinstance(self.offline_run.get("id"), str)
+                or not self.offline_run.get("id")
+                or not isinstance(self.offline_run.get("token"), str)
+                or not self.offline_run.get("token")
+                or type(self.offline_run.get("generation")) is not int
+                or self.offline_run["generation"] < 0):
+            if offline_run is not None or legal_offline is not True:
+                self.offline_migration_uncertainty = (self.offline_migration_uncertainty
+                    or "invalid-or-missing-execution-identity")
+            self.legal_offline = True
+            self.offline_run = None
+        from .legal_offline import migrate
+        migrate(self)
         self.created_at = created_at
         self.updated_at = updated_at
         try:
@@ -1610,6 +1654,10 @@ class Session:
                     migrated = True
             if migrated:
                 self.queue_revision += 1
+        from .queue_locks import migrate as migrate_lock
+        for row in [*self.queue_pending, *self.queue_delivery_ledger.values()]:
+            if isinstance(row, dict):
+                migrate_lock(row)
         self.task_seq = task_seq
         # 未读 done 游标收敛：count 只是 generation - read 的物化显示值。
         # 旧 JSON（本功能前一版只落盘 count，或更早完全缺字段）把 count 折算为
@@ -1810,6 +1858,11 @@ class Session:
         Old top-level capability fields are migrated into nested pan_access
         (and the old keys removed) so pre-refactor JSON keeps loading.
         """
+        has_obsolete_legality_fields = "recovery_requested" in data or "recoveryRequested" in data
+        data.pop("recovery_requested", None)
+        data.pop("recoveryRequested", None)
+        if "legal_offline" not in data and not data.get("offline_migration_uncertainty"):
+            data["offline_migration_uncertainty"] = "legacy-missing-legality"
         _canonicalize_summary_projection_data(data)
         # Accept the API spelling as a defensive compatibility bridge for
         # hand-authored/older metadata, while the canonical session JSON keeps
@@ -1851,7 +1904,9 @@ class Session:
                 pa[key] = data.pop(key)
         data["pan_access"] = pa
         data["adapter_config"] = ac
-        return cls(**data)
+        instance = cls(**data)
+        instance._obsolete_legality_fields_pending = has_obsolete_legality_fields
+        return instance
 
     def to_dict(self) -> dict:
         return {
@@ -1879,6 +1934,15 @@ class Session:
             "result_cursor": self.result_cursor,
             "terminal_results": self.terminal_results,
             "last_legal_worker_state": self.last_legal_worker_state,
+            "legal_offline": self.legal_offline,
+            "offline_migration_uncertainty": self.offline_migration_uncertainty,
+            "offline_owner": self.offline_owner,
+            "offline_run": self.offline_run,
+            "illegal_batches": self.illegal_batches,
+            "legality_schema_version": self.legality_schema_version,
+            "operation_revision": self.operation_revision,
+            "execution_operations": self.execution_operations,
+            "owner_retirements": self.owner_retirements,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "order": self.order,
@@ -2048,7 +2112,10 @@ def _summary_metadata_signature(s: Session) -> str:
         "adapter_config": s.adapter_config,
         "session_template": s.session_template,
         "workdir": s.workdir,
-        "last_legal_worker_state": s.last_legal_worker_state,
+        "legal_offline": s.legal_offline,
+        "operation_revision": s.operation_revision,
+        "offline_owner": s.offline_owner,
+        "offline_run": s.offline_run,
         "total_usage": s.total_usage,
         "order": s.order,
         "workspace_ids": list(s.workspace_ids),
@@ -2394,7 +2461,8 @@ def _save_body(s: Session, force_full: bool = False, *,
                unread_done_generation: int | None = None,
                unread_recording_override: object = _UNREAD_OVERRIDE_UNSET,
                adapter_config_override: dict | None = None,
-               adapter_config_publish_keys: frozenset[str] | None = None):
+               adapter_config_publish_keys: frozenset[str] | None = None,
+               offline_override: dict | None = None):
     """Write one Session while its per-Session ticket is active.
 
     The history ``[start, end)`` cursor is deliberately kept from T-062.2:
@@ -2418,11 +2486,15 @@ def _save_body(s: Session, force_full: bool = False, *,
     if (unread_done_read_generation is not None
             or unread_done_generation is not None
             or unread_recording_override is not _UNREAD_OVERRIDE_UNSET
-            or adapter_config_override is not None):
+            or adapter_config_override is not None
+            or offline_override is not None):
         # Stage unread-policy state in the metadata projection, not the shared
         # Session.  Readers and unrelated writes cannot observe or persist a
         # cursor/override that has not committed successfully.
         metadata = copy.copy(s)
+        if offline_override is not None:
+            for key, value in offline_override.items():
+                setattr(metadata, key, value)
         if adapter_config_override is not None:
             metadata.adapter_config = copy.deepcopy(adapter_config_override)
         generation = max(0, int(s.unread_done_generation or 0))
@@ -2481,6 +2553,9 @@ def _save_body(s: Session, force_full: bool = False, *,
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot
         # overwrite the just-committed cursor with its previous value.
+        if offline_override is not None:
+            from .legal_offline import restore as publish_offline
+            publish_offline(s, offline_override)
         if (unread_done_read_generation is not None or unread_done_generation is not None
                 or unread_recording_override is not _UNREAD_OVERRIDE_UNSET):
             s.unread_done_generation = metadata.unread_done_generation

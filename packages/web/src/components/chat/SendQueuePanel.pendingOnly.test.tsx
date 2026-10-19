@@ -69,6 +69,33 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+it('shows the Illegal composite icon and explanation while preserving manual unlock behavior', () => {
+  const illegal = { ...item('q-illegal', 'Illegal locked', 'queued'),
+    meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockSource: 'illegal' as const } };
+  const manual = { ...item('q-manual', 'Manual locked', 'queued'),
+    meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockSource: 'manual' as const } };
+  const unlock = vi.fn();
+  const original = useQueueStore.getState().setQueueItemLocked;
+  useQueueStore.setState({ queues: { s1: [illegal, manual] }, setQueueItemLocked: unlock });
+  try {
+    render(<SendQueuePanel />);
+    const button = screen.getByRole('button', { name: 'Unlock queued message 1' });
+    expect(button.title).toContain('Worker entered Illegal status');
+    expect(button.title).toContain('unlock it manually');
+    expect(button.title).toContain('safely offline');
+    expect(within(button).getByText('i')).toBeTruthy();
+    expect(button.className).toContain('rounded');
+    expect(button.querySelector('svg')?.getAttribute('width')).toBe('8');
+    const manualButton = screen.getByRole('button', { name: 'Unlock queued message 2' });
+    expect(manualButton.title).toBe('Unlock');
+    expect(within(manualButton).queryByText('i')).toBeNull();
+    fireEvent.click(button);
+    expect(unlock).toHaveBeenCalledWith('s1', 'q-illegal', false);
+  } finally {
+    useQueueStore.setState({ setQueueItemLocked: original });
+  }
+});
+
 describe('SendQueuePanel pending-only view', () => {
   it('keeps the native queue open without changing the saved Pan preference', async () => {
     useQueueStore.setState({ panelOpen: false });

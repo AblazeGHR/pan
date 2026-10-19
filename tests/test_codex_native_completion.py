@@ -2,7 +2,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from packages.core import worker, session
 from packages.core.adapters.codex import CodexAdapter
@@ -13,16 +13,16 @@ from packages.core.adapters.codex.resident_tui import ResidentTui
 def test_external_turn_keeps_queue_and_allocates_new_report_identity(monkeypatch):
     async def run():
         s = session.Session(id="ses-native-lifecycle", name="native", adapter="codex", task_seq=12)
-        queued = {"type": "task", "text": "later", "seq": 12, "taskId": "queued-id"}
+        queued = {"id": "later", "type": "task", "text": "later", "seq": 12, "taskId": "queued-id"}
         s.queue_pending = [queued]
         monkeypatch.setattr(session, "save_async", AsyncMock())
         monkeypatch.setitem(session._cache, s.id, s)
-        monkeypatch.setattr(worker, "_flush_history_now", AsyncMock())
         reports = AsyncMock()
         monkeypatch.setattr(worker, "_enqueue_report", reports)
         events = [
             {"type": "pan.native_busy", "busy": True},
-            {"type": "pan.native_turn_started", "turn_id": "native-turn"},
+            {"type": "pan.native_turn_admission", "requestId": "native-request", "threadId": "native-thread", "controlGeneration": 0},
+            {"type": "pan.native_turn_started", "turn_id": "native-turn", "requestId": "native-request"},
             {"type": "pan.native_user", "text": "原生输入"},
             {"type": "assistant", "message": {"content": [{"type": "text", "text": "native answer"}]}},
             {"type": "result", "external_turn": True, "result": "native answer", "is_error": False},
@@ -34,6 +34,13 @@ def test_external_turn_keeps_queue_and_allocates_new_report_identity(monkeypatch
                 return (json.dumps(events.pop(0)) + "\n").encode() if events else b""
         process = Process()
         process.stdout = process
+        def ack(data):
+            receipt = json.loads(data)
+            for event in events:
+                if event.get("type") in {"pan.native_turn_started", "result"}:
+                    event.update(runId=receipt["runId"], requestId=receipt["requestId"])
+        process.stdin = Mock(write=ack, drain=AsyncMock())
+        s.cli_session_id = "native-thread"
         w = worker.Worker("native-lifecycle", s.id, CodexAdapter(), process=process,
                           native_control_mode="native", pending_signal=asyncio.Queue())
         w._current_task_id = "previous-pan-id"

@@ -29,7 +29,11 @@ def proxy(monkeypatch, messages, *, enabled=False, native=True, failing=False):
     app._native_transport = SimpleNamespace(peer=lambda poll: peer)
     if native:
         app.control_owner.switch('native', 0)
-    tui = ResidentTui(app, events.append)
+    def acknowledge(event):
+        events.append(event)
+        if event["type"] == "pan.native_turn_admission":
+            app.native_admission_receipt({"requestId": event["requestId"], "ok": True, "runId": "fixture-run"})
+    tui = ResidentTui(app, acknowledge)
     monkeypatch.setattr(tui, '_from_server', lambda: None)
     monkeypatch.setattr(tui, '_down_send', replies.append)
     tui._handle([json.dumps(m) for m in messages])
@@ -43,7 +47,13 @@ def test_passthrough_explicitly_forwards_without_rewriting_and_marks_unknown(mon
     assert sent == [] and replies[0]['error']['code'] == -32000 and not events
     _, sent, replies, events = proxy(monkeypatch, [message], enabled=True)
     assert sent == [message] and not replies
-    assert events == [{'type': 'pan.native_settings_uncertain'}]
+    if method == 'config/batchWrite':
+        assert events == [{'type': 'pan.native_settings_uncertain'}]
+    else:
+        assert [event['type'] for event in events] == ['pan.native_turn_admission', 'pan.native_settings_uncertain']
+        assert events[0]['operation'] == 'opaque'
+        assert events[0]['connection']['rpcId'] == 1
+        assert 'SECRET' not in json.dumps(events)
 
 
 @pytest.mark.parametrize('native,thread', [(False, 'current'), (True, 'other')])
@@ -57,7 +67,8 @@ def test_known_reads_and_plain_turn_do_not_mark_settings_but_override_does(monke
     read = {'id': 1, 'method': 'config/read', 'params': {}}
     turn = {'id': 2, 'method': 'turn/start', 'params': {'threadId': 'current', 'input': []}}
     _, sent, _, events = proxy(monkeypatch, [read, turn])
-    assert sent == [read, turn] and events == [{'type': 'pan.native_busy', 'busy': True}]
+    assert sent == [read, turn]
+    assert [e["type"] for e in events] == ["pan.native_busy", "pan.native_turn_admission"]
     _, sent, _, events = proxy(monkeypatch, [{**turn, 'params': {**turn['params'], 'model': 'changed'}}])
     assert len(sent) == 1 and {'type': 'pan.native_settings_uncertain'} in events
 
@@ -73,8 +84,12 @@ def test_policy_toggle_is_a_control_message_not_a_new_turn(monkeypatch):
     task, controls, received = Queue(), Queue(), []
     monkeypatch.setattr('sys.stdin', io.StringIO('{"type":"native_passthrough","enabled":true}\n'))
     _read_pan_stdin(task, controls, native_handler=received.append)
+    import time
+    deadline = time.monotonic() + 2
+    while not received and time.monotonic() < deadline:
+        time.sleep(.001)
     assert received == [{'type': 'native_passthrough', 'enabled': True}]
-    assert task.get_nowait() is None and task.empty() and controls.empty()
+    assert task.get(timeout=2) is None and task.empty() and controls.empty()
 
 
 def test_spawn_policy_default_off_and_only_true_on_native_transport(monkeypatch):
@@ -128,6 +143,8 @@ def test_worker_stream_only_new_init_clears_warning_not_duplicate_init(monkeypat
         process.stdout = process
         w = worker.Worker('stream-policy', s.id, CodexAdapter(), process=process)
         monkeypatch.setattr(worker, '_session', lambda _: s)
+        monkeypatch.setitem(worker.workers, w.worker_id, w)
+        monkeypatch.setitem(session._cache, s.id, s)
         monkeypatch.setattr(session, 'save_async', AsyncMock())
         monkeypatch.setattr(worker, '_bcast', AsyncMock())
         await worker._read_stdout(w)

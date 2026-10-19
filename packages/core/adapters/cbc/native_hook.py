@@ -18,6 +18,7 @@ HOOK_REJECTIONS = {
     "Another CBC turn is active": "active_turn",
     "CBC prompt receipt does not match its input": "prompt_mismatch",
     "Native submit has no input owner": "missing_owner",
+    "Native execution admission rejected": "admission_rejected",
 }
 
 

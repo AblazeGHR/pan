@@ -41,7 +41,7 @@ const candidate = {
 
 function record(
   state: 'pending' | 'failed' | 'completed' = 'pending',
-  decision: 'restart' | 'preserve-running' | 'sync-actual' | null = null,
+  decision: 'restart' | 'preserve-running' | 'sync-actual' | 'clear-illegal' | null = null,
 ) {
   return {
     generation: 'generation-1',
@@ -79,6 +79,20 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('StartupRecoveryPrompt', () => {
+  it('shows and retries the saved clear-illegal policy after an owner or disk failure', async () => {
+    fetchMock.mockResolvedValue(record('failed', 'clear-illegal'));
+    claimMock.mockResolvedValue({ ok: true, claimed: true, state: 'failed', decision: 'clear-illegal',
+      candidates: [candidate] });
+    decideMock.mockResolvedValue(record('completed', 'clear-illegal'));
+    render(<StartupRecoveryPrompt />);
+    const choice = await screen.findByRole('radio', { name: /Clear Illegal status for all Sessions/ });
+    expect((choice as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole('radio', { name: /Restart these Sessions/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+    await waitFor(() => expect(decideMock).toHaveBeenCalledWith('generation-1', expect.any(String), 'clear-illegal'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
   it('does not show a prompt when the process startup snapshot is empty', async () => {
     fetchMock.mockResolvedValue({ ...record(), state: 'no_candidates', candidateSnapshot: [] });
     render(<StartupRecoveryPrompt />);
@@ -93,8 +107,8 @@ describe('StartupRecoveryPrompt', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog.className).toContain('max-w-[36rem]');
     expect(screen.getByText(/Restart these Sessions/)).toBeTruthy();
-    expect(screen.getByText(/Keep their legal state as running/)).toBeTruthy();
-    expect(screen.getByText(/Update legal state to current Worker state/)).toBeTruthy();
+    expect(screen.getByText(/Keep Illegal \/ pending recovery/)).toBeTruthy();
+    expect(screen.getByText(/Mark these Sessions as safely offline/)).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', { name: /Restart these Sessions/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -127,7 +141,7 @@ describe('StartupRecoveryPrompt', () => {
 
     expect(await screen.findByRole('dialog')).toBeTruthy();
     const restart = screen.getByRole('radio', { name: /Restart these Sessions/ });
-    const sync = screen.getByRole('radio', { name: /Update legal state to current Worker state/ });
+    const sync = screen.getByRole('radio', { name: /Mark these Sessions as safely offline/ });
     expect((restart as HTMLInputElement).disabled).toBe(true);
     expect((sync as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
@@ -158,7 +172,7 @@ describe('StartupRecoveryPrompt', () => {
     expect(screen.getByText('session-1: queue store unavailable')).toBeTruthy();
     expect((screen.getByRole('radio', { name: /Restart these Sessions/ }) as HTMLInputElement).checked)
       .toBe(true);
-    expect((screen.getByRole('radio', { name: /Keep their legal state as running/ }) as HTMLInputElement).disabled)
+    expect((screen.getByRole('radio', { name: /Keep Illegal \/ pending recovery/ }) as HTMLInputElement).disabled)
       .toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Retry choice' }));
     await waitFor(() => expect(decideMock).toHaveBeenCalledWith(
@@ -178,7 +192,7 @@ describe('StartupRecoveryPrompt', () => {
     render(<StartupRecoveryPrompt />);
 
     await screen.findByRole('dialog');
-    fireEvent.click(screen.getByRole('radio', { name: /Update legal state to current Worker state/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Mark these Sessions as safely offline/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await waitFor(() => expect(decideMock).toHaveBeenCalled());

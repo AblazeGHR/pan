@@ -51,6 +51,9 @@ class NativeBridge:
         self.last_text = {}
         self.finished = deque(maxlen=256)
         self.ready = threading.Event()
+        self.admissions = {}
+        self.admission_lock = threading.Lock()
+        self.admission_timeout = 5.0
 
     def _write(self, data):
         # Called inside owner.write's admitted operation. Validation/epoch
@@ -94,6 +97,15 @@ class NativeBridge:
 
     def control(self, control):
         kind = control.get("type")
+        if kind == "native_admission":
+            # The submit hook holds self.lock while waiting; this response must
+            # use a separate lock so stdin can acknowledge the durable commit.
+            with self.admission_lock:
+                pending = self.admissions.get(control.get("requestId"))
+                if pending is not None:
+                    pending["ok"] = control.get("ok") is True
+                    pending["event"].set()
+            return
         receipt = "pan.control_mode" if kind == "control_mode" else "pan.native_write"
         with self.lock:
             try:
@@ -171,6 +183,8 @@ class NativeBridge:
                         raise ControlRejected("Continuation has no active CBC turn")
                     self.turn_aliases.add(run)
                     return {}
+                if self.turn == run:
+                    return {}  # A repeated hook never starts another execution.
                 if self.turn is not None and self.turn != run:
                     raise ControlRejected("Another CBC turn is active")
                 if self.pending_origin == "pan":
@@ -180,6 +194,17 @@ class NativeBridge:
                 else:
                     if self.owner.snapshot()["mode"] != "native" and not self.awaiting_native_submit:
                         raise ControlRejected("Native submit has no input owner")
+                    request_id = secrets.token_hex(16)
+                    pending = {"event": threading.Event(), "ok": False}
+                    with self.admission_lock:
+                        self.admissions[request_id] = pending
+                    try:
+                        self.emit({"type": "pan.native_turn_admission", "requestId": request_id})
+                        if not pending["event"].wait(self.admission_timeout) or not pending["ok"]:
+                            raise ControlRejected("Native execution admission rejected")
+                    finally:
+                        with self.admission_lock:
+                            self.admissions.pop(request_id, None)
                     self.emit({"type": "pan.native_turn_started"})
                     self.emit({"type": "pan.native_user", "text": event.get("prompt", "")})
                 self.turn = run

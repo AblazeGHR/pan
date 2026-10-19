@@ -24,13 +24,13 @@ const CHOICES: Array<{
   },
   {
     value: 'preserve-running',
-    title: 'Keep their legal state as running',
-    detail: 'Do not restart them and leave their persisted legal state unchanged.',
+    title: 'Keep Illegal / pending recovery',
+    detail: 'Do not restart them; retain Illegal status and its automatic locks.',
   },
   {
     value: 'sync-actual',
-    title: 'Update legal state to current Worker state',
-    detail: 'Do not restart them; Pan will read each current runtime state and persist it.',
+    title: 'Mark these Sessions as safely offline',
+    detail: 'Clear Illegal status and its automatic locks; preserve Manual locks. Do not send a recovery message.',
   },
 ];
 
@@ -188,7 +188,7 @@ export function StartupRecoveryPrompt() {
           Continue previous Sessions?
         </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          Pan found {record.candidateSnapshot.length} Session(s) whose persisted legal state is running
+          Pan found {record.candidateSnapshot.length} Illegal Session(s) pending recovery
           and which currently have no live Worker.
         </p>
         <ul className="mt-3 max-h-32 space-y-1 overflow-y-auto rounded border border-border-muted bg-bg-primary px-3 py-2 text-xs text-text-secondary">
@@ -200,7 +200,9 @@ export function StartupRecoveryPrompt() {
         </ul>
         <fieldset className="mt-4 space-y-2">
           <legend className="sr-only">Choose startup recovery action</legend>
-          {CHOICES.map((choice, index) => {
+          {(lockedChoice === 'clear-illegal' ? [{ value: 'clear-illegal' as const,
+            title: 'Clear Illegal status for all Sessions and treat them as safely offline',
+            detail: 'Retry the saved startup policy. Release incident locks, preserve Manual locks, and retain live or unknown owner protections.' }] : CHOICES).map((choice, index) => {
             const disabledByRecordedChoice = Boolean(lockedChoice && lockedChoice !== choice.value);
             return (
               <label

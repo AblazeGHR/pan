@@ -3,10 +3,13 @@ import ctypes
 from ctypes import wintypes
 import subprocess
 import time
+import uuid
 
 
 class TakeoverJob:
     def __init__(self):
+        self.identity = uuid.uuid4().hex
+        self.retirement_proof = None
         self.api = ctypes.WinDLL("kernel32", use_last_error=True)
         self.api.CreateJobObjectW.restype = wintypes.HANDLE
         self.api.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
@@ -41,6 +44,8 @@ class TakeoverJob:
             raise error
 
     def launch(self, args, **kwargs):
+        if self.retirement_proof is not None:
+            raise RuntimeError("Retiring takeover Job cannot launch another writer")
         # No child can escape between launch and assignment: the shell starts
         # suspended, and descendants inherit membership even after it exits.
         proc = subprocess.Popen(args, creationflags=subprocess.CREATE_NEW_CONSOLE | 4, **kwargs)
@@ -58,7 +63,7 @@ class TakeoverJob:
             proc.wait(timeout=5)
             raise
 
-    def stop(self):
+    def terminate_and_verify(self):
         if not self.api.TerminateJobObject(self.handle, 1):
             raise ctypes.WinError(ctypes.get_last_error())
         deadline = time.monotonic() + 5
@@ -69,9 +74,22 @@ class TakeoverJob:
             if not self.api.QueryInformationJobObject(self.handle, 1, info, 48, None):
                 raise ctypes.WinError(ctypes.get_last_error())
             if int.from_bytes(info.raw[40:44], "little") == 0:
-                self.api.CloseHandle(self.handle)
-                self.handle = None
-                return
+                self.retirement_proof = {"kind": "windows-job-empty", "jobId": self.identity,
+                                         "activeProcesses": 0, "verifiedAt": time.time()}
+                return dict(self.retirement_proof)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Takeover writer processes have not exited")
             time.sleep(0.05)
+
+    def close_retired(self):
+        if not self.retirement_proof:
+            raise RuntimeError("Takeover Job has no verified retirement proof")
+        if self.handle is not None:
+            if not self.api.CloseHandle(self.handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+            self.handle = None
+
+    def stop(self):
+        # Legacy cleanup callers have no durable Session owner to release.
+        self.terminate_and_verify()
+        self.close_retired()

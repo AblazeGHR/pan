@@ -206,9 +206,10 @@ describe('Workspace rail owns its query and shares status filters', () => {
     expect(row(container, 'ws-alpha')).toBeNull();
   });
 
-  it('applies the illegal filter (legal running, actual not running)', () => {
+  it('applies the authoritative illegal filter', () => {
     const sessions = baseSessions();
     sessions[1]!.lastLegalWorkerState = 'running';
+    sessions[1]!.illegalOffline = true;
     sessions[1]!.workerStatus = 'idle';
     setupStore(sessions);
     const { container } = renderRail();

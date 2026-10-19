@@ -1,0 +1,41 @@
+{
+  "baseline": "e681cb5a4c574ac552afc106576186408d1d2289",
+  "files": [
+    {
+      "path": "packages/core/adapters/codex/app_server_wrapper.py",
+      "sha256": "981964894ef3a9609f5aba14ffc9a78e254c7c8e648e38689f73395a6221b0ad"
+    },
+    {
+      "path": "packages/core/adapters/codex/resident_tui.py",
+      "sha256": "661fe42c06ceeadb71d5a9ead8128969bc53db61794373c83c52f549a482ccba"
+    },
+    {
+      "path": "packages/core/legal_offline.py",
+      "sha256": "f7c5be3b2cb36802ad216b87831a7d5f5f3338e9524869001fd65f100790f562"
+    },
+    {
+      "path": "packages/core/worker.py",
+      "sha256": "47bea40214b03ebf39634519bf5a27a28ac633f68f69535a71f709336c28a791"
+    },
+    {
+      "path": "tests/test_codex_native_completion.py",
+      "sha256": "aabd360b0752f95f90ae83689d5f63c8494c2787f5d53f14d620f56a606150a0"
+    },
+    {
+      "path": "tests/test_codex_native_kernel_real.py",
+      "sha256": "f32f7e4d829c7324482db0e0a5571aea1ccb3ae62068bfc3c736f169e70e3152"
+    },
+    {
+      "path": "tests/test_codex_native_passthrough.py",
+      "sha256": "b766e3971de7eb5c4375869c52f8774bc2413ef6581a1fc71e850b946af609a9"
+    },
+    {
+      "path": "packages/core/adapters/codex/native_admission.py",
+      "sha256": "d0c030d6ef8cf23121c2fc4811e027804cddd4640b1941e1957e7f9dca6ddf83"
+    },
+    {
+      "path": "tests/test_codex_native_admission.py",
+      "sha256": "928002eb763c44ef41b95033757af94abcf03628350989abfc5c4bcf5e7822f4"
+    }
+  ]
+}

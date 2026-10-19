@@ -29,6 +29,11 @@ READ_METHODS = frozenset({
 
 THREAD_WRITES = frozenset({"turn/start", "turn/steer", "turn/interrupt", "thread/compact/start",
                            "command/exec/write", "command/exec/terminate"})
+# Contracted local configuration writes do not launch execution. MCP reload
+# deliberately stays opaque: its ordinary reply cannot prove tool retirement.
+PURE_SETTING_METHODS = frozenset({"config/batchWrite", "config/value/write"})
+CONTINUATION_METHODS = frozenset({"turn/steer", "turn/interrupt", "command/exec/write",
+                                  "command/exec/terminate", "command/exec/resize"})
 SETTING_OVERRIDES = frozenset({"model", "effort", "reasoningEffort", "serviceTier", "approvalPolicy",
                                "sandboxPolicy", "sandbox", "cwd", "config"})
 
@@ -49,9 +54,16 @@ class ResidentTui:
         self._resume_request = None
         self._resume_fallback = False
         self._delivery_generation = None
-        self._native_starts = set()
+        self._native_starts = {}
+        self.connection_epoch = secrets.token_hex(16)
+        self._aux_starts = {}
+        self._reviews = {}
+        self._commands = {}
+        self._early_review_events = []
+        self._review_overflow = False
 
     def observe(self, message):
+        self._aux_notification(message)
         # The primary client owns the loaded thread subscription. Native TUI
         # bootstrap reads that object; it never resumes/replaces the Agent.
         if self.down is not None and self.ready.is_set() and not self.stopped.is_set():
@@ -131,9 +143,80 @@ class ResidentTui:
                     self._answers.pop(routed, None)
                     self._down_send({"method": "serverRequest/resolved", "params": {"requestId": routed}})
 
+    def _aux_emit(self, admission, event_type, **values):
+        self.emit({"type": event_type, **admission.identity(), **values})
+
+    def _aux_notification(self, message):
+        if message.get("method") != "turn/completed":
+            return
+        params = message.get("params") or {}
+        turn = params.get("turn") or {}
+        binding = {"connectionEpoch": self.connection_epoch,
+                   "threadId": params.get("threadId"), "turnId": turn.get("id")}
+        if not binding["threadId"] or not binding["turnId"]:
+            return
+        with self._lock:
+            for key, (admission, expected, done) in list(self._reviews.items()):
+                if binding == expected:
+                    if not done:
+                        self._reviews[key] = (admission, expected, True)
+                        self._aux_emit(admission, "pan.native_operation_terminal", binding=expected,
+                                       proof="review-turn-completed")
+                        self.app.retire_native_reservation(admission)
+                    return
+            if any(a.operation == "review/detached" for a in self._aux_starts.values()):
+                if len(self._early_review_events) < 128:
+                    self._early_review_events.append(message)
+                else:
+                    self._review_overflow = True
+
+    def _aux_response(self, message):
+        if "method" in message:
+            return
+        with self._lock:
+            admission = self._aux_starts.pop(message.get("id"), None)
+            if admission is None:
+                return
+            if "error" in message:
+                admission.rejected()
+                self.app.retire_native_reservation(admission)
+                self._commands = {key: value for key, value in self._commands.items() if value is not admission}
+                return
+            if admission.operation == "command/exec":
+                result = message.get("result") or {}
+                if type(result.get("exitCode")) is int:
+                    self._aux_emit(admission, "pan.native_operation_terminal", proof="command-deferred-final")
+                    self.app.retire_native_reservation(admission)
+                    self._commands = {key: value for key, value in self._commands.items() if value is not admission}
+                else:
+                    self._aux_emit(admission, "pan.native_operation_uncertain", reason="command-final-missing-exit-code")
+            elif admission.operation in {"compact/active", "opaque"}:
+                self._aux_emit(admission, "pan.native_operation_uncertain", reason=(
+                    "compact-request-has-no-unique-resource-proof" if admission.operation == "compact/active"
+                    else "rpc-replied-execution-retirement-unconfirmed"))
+            elif admission.operation == "review/detached":
+                result = message.get("result") or {}
+                turn = result.get("turn") or {}
+                binding = {"connectionEpoch": self.connection_epoch,
+                           "threadId": result.get("reviewThreadId"), "turnId": turn.get("id")}
+                if not binding["threadId"] or not binding["turnId"] or self._review_overflow:
+                    self._aux_emit(admission, "pan.native_operation_uncertain", reason="review-resource-unconfirmed")
+                    return
+                self._reviews[admission.id] = (admission, binding, False)
+                self._aux_emit(admission, "pan.native_operation_bind", binding=binding)
+                for event in self._early_review_events:
+                    self._aux_notification(event)
+                if turn.get("status") in {"completed", "failed", "interrupted"}:
+                    self._aux_notification({"method": "turn/completed", "params": {
+                        "threadId": binding["threadId"], "turn": turn}})
+                if not any(a.operation == "review/detached" for a in self._aux_starts.values()):
+                    self._early_review_events.clear()
+
     def _from_server(self):
         try:
             for message in self.peer.messages():
+                self._aux_response(message)
+                self._aux_notification(message)
                 if message.get("id") == self._resume_request and "error" in message and not self._resume_fallback:
                     # A new loaded thread has no rollout yet; includeTurns can
                     # fail until its first item. Read the live metadata instead.
@@ -142,10 +225,13 @@ class ResidentTui:
                         "threadId": self.app.thread_id, "includeTurns": False}})
                     continue
                 if message.get("id") in self._native_starts and "method" not in message:
-                    self._native_starts.discard(message["id"])
+                    admission = self._native_starts.pop(message["id"])
                     if "error" in message:
-                        self.app._native_turn_pending.clear()
-                        self.emit({"type": "pan.native_busy", "busy": False})
+                        if admission.rejected():
+                            self.app.retire_native_reservation(admission)
+                            self.emit({"type": "pan.native_busy", "busy": False})
+                        else:
+                            self.emit({"type": "pan.native_error", "error": "native-start-rejection-conflict"})
                 if message.get("id") == self._resume_request and "result" in message:
                     message = {**message, "result": {**self.app._thread_resume_info, **message["result"]}}
                     self.ready.set()
@@ -203,7 +289,9 @@ class ResidentTui:
                 try:
                     if method in READ_METHODS:
                         params = message.get("params") or {}
-                        if params.get("threadId", self.app.thread_id) != self.app.thread_id:
+                        if (params.get("threadId", self.app.thread_id) != self.app.thread_id
+                                and not any(binding["threadId"] == params.get("threadId")
+                                            for _, binding, _ in self._reviews.values())):
                             raise ControlRejected("Foreign thread")
                         if (method in {"thread/turns/list", "thread/items/list"} and not self.app._thread_has_turns
                                 and params.get("threadId") == self.app.thread_id):
@@ -235,30 +323,100 @@ class ResidentTui:
                             self._pending.pop(str(original), None)
                     else:
                         params = message.get("params") or {}
-                        if params.get("threadId", self.app.thread_id) != self.app.thread_id:
+                        if (method not in THREAD_WRITES and method not in CONTINUATION_METHODS
+                                and not self.app.native_passthrough):
+                            raise ControlRejected("Unsupported native mutation")
+                        foreign = params.get("threadId", self.app.thread_id) != self.app.thread_id
+                        if foreign and not (method in {"turn/interrupt", "turn/steer"} and any(
+                                not done and binding["threadId"] == params.get("threadId")
+                                and binding["turnId"] == params.get("turnId")
+                                for _, binding, done in self._reviews.values())):
                             raise ControlRejected("Foreign thread")
-                        def mutate():
-                            # Disable acknowledgement fences all later sends.
-                            with self.app._native_policy_lock:
-                                if method not in THREAD_WRITES and not self.app.native_passthrough:
-                                    raise ControlRejected("Unsupported native mutation")
-                                if method == "turn/start":
-                                    if self.app._turn_active.is_set() or self.app._native_turn_pending.is_set():
-                                        raise ControlRejected("Turn already executing")
-                                    self.app._native_turn_pending.set()
-                                    self._native_starts.add(message.get("id"))
-                                    self.emit({"type": "pan.native_busy", "busy": True})
-                                if method not in THREAD_WRITES or SETTING_OVERRIDES.intersection(params):
-                                    # Before send, even if delivery becomes ambiguous.
-                                    # Never persist method names/params/secrets here.
-                                    self.emit({"type": "pan.native_settings_uncertain"})
+                        generation = self.app.control_owner.snapshot()["generation"]
+                        admission = None
+                        active_compact = method == "thread/compact/start" and (
+                            self.app._turn_active.is_set() or self.app._native_turn_pending.is_set())
+                        opaque = (method not in READ_METHODS and method not in PURE_SETTING_METHODS
+                                  and method not in CONTINUATION_METHODS
+                                  and method not in {"turn/start", "thread/compact/start", "review/start"})
+                        if method.startswith("command/exec/") and params.get("processId") not in self._commands:
+                            opaque = True
+                        auxiliary = (method == "command/exec" or active_compact or opaque
+                                     or (method == "review/start" and params.get("delivery") == "detached"))
+                        if auxiliary:
+                            if method not in THREAD_WRITES and not self.app.native_passthrough:
+                                raise ControlRejected("Unsupported native mutation")
+                            kind = ("command/exec" if method == "command/exec" else
+                                    "compact/active" if active_compact else "opaque" if opaque
+                                    else "review/detached")
+                            admission = self.app.control_owner.write("native", lambda:
+                                self.app.reserve_auxiliary_admission(self.app.thread_id, generation, self.emit, kind),
+                                generation=generation)
+                            admission.context = {"connection": {"epoch": self.connection_epoch,
+                                "rpcId": message.get("id"), "processId": params.get("processId"), "method": method}}
+                            admission.request()
+                            if not admission.wait(self.app.native_admission_timeout):
+                                self.app.retire_native_reservation(admission)
+                                raise ControlRejected("Auxiliary admission was not confirmed")
+                        # Idle manual compaction creates a new protected turn.
+                        # Active compaction has independent liability; no FIFO
+                        # guess connects its empty RPC reply to a later turn.
+                        if (method == "turn/start" or (method == "review/start" and params.get("delivery") != "detached")
+                                or (method == "thread/compact/start" and not active_compact)):
+                            def reserve():
+                                if params.get("threadId") != self.app.thread_id:
+                                    raise ControlRejected("Foreign thread")
                                 try:
+                                    value = self.app.reserve_native_admission(self.app.thread_id, generation, self.emit,
+                                        "turn/start" if method == "review/start" else method)
+                                except RuntimeError:
+                                    raise ControlRejected("Turn already executing") from None
+                                self.emit({"type": "pan.native_busy", "busy": True})
+                                return value
+                            admission = self.app.control_owner.write("native", reserve, generation=generation)
+                            admission.request()
+                            if not admission.wait(self.app.native_admission_timeout):
+                                self.app.retire_native_reservation(admission)
+                                self.emit({"type": "pan.native_busy", "busy": False})
+                                raise ControlRejected("Native admission was not confirmed")
+                        def mutate():
+                            with self.app._native_policy_lock:
+                                if method not in THREAD_WRITES and method not in CONTINUATION_METHODS and not self.app.native_passthrough:
+                                    raise ControlRejected("Unsupported native mutation")
+                                if foreign and not (method in {"turn/interrupt", "turn/steer"} and any(
+                                        not done and binding["threadId"] == params.get("threadId")
+                                        and binding["turnId"] == params.get("turnId")
+                                        for _, binding, done in self._reviews.values())):
+                                    raise ControlRejected("Foreign thread")
+                                if admission is not None and (
+                                        (self.app._aux_admissions.get(admission.id) is not admission if auxiliary
+                                         else self.app._native_admission is not admission)
+                                        or self.app.thread_id != admission.thread_id):
+                                    raise ControlRejected("Native admission owner changed")
+                                if method not in THREAD_WRITES or SETTING_OVERRIDES.intersection(params):
+                                    self.emit({"type": "pan.native_settings_uncertain"})
+                                if admission is None:
                                     self.peer.send(message)
-                                except Exception:
-                                    if method == "turn/start":
+                                else:
+                                    with self._lock:
+                                        starts = self._aux_starts if auxiliary else self._native_starts
+                                        if message.get("id") in self._aux_starts or message.get("id") in self._native_starts:
+                                            raise ControlRejected("RPC identity still executing")
+                                        starts[message.get("id")] = admission
+                                        if method == "command/exec" and params.get("processId") is not None:
+                                            self._commands.setdefault(params["processId"], admission)
+                                    try:
+                                        admission.send(lambda: self.peer.send(message))
+                                    except Exception:
                                         self.emit({"type": "pan.native_error", "error": "native-turn-unconfirmed"})
-                                    raise
-                        self.app.control_owner.write("native", mutate)
+                                        raise
+                        try:
+                            self.app.control_owner.write("native", mutate, generation=generation)
+                        except ControlRejected:
+                            if admission is not None and admission.cancel():
+                                self.app.retire_native_reservation(admission)
+                                self.emit({"type": "pan.native_busy", "busy": False})
+                            raise
                 except ControlRejected:
                     if "id" in message and method is not None:
                         self._down_send({"id": message["id"], "error": {"code": -32000, "message": "Native control is not available"}})

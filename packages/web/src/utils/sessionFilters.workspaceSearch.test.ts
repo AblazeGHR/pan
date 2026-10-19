@@ -58,6 +58,7 @@ describe('workspaceMatchesSpecialFilters', () => {
       workspaceIds: ['ws_2'],
       lastLegalWorkerState: 'running',
       workerStatus: 'idle',
+      illegalOffline: true,
     }),
   ];
 
@@ -103,7 +104,7 @@ describe('workspaceMatchesSpecialFilters', () => {
     const running = makeSession('m-running', { workerStatus: 'running' });
     const unread = makeSession('m-unread', { unreadDoneCount: 2 });
     const queued = makeSession('m-queued', { queuePendingCount: 1 });
-    const illegal = makeSession('m-illegal', { lastLegalWorkerState: 'running', workerStatus: 'idle' });
+    const illegal = makeSession('m-illegal', { lastLegalWorkerState: 'running', workerStatus: 'idle', illegalOffline: true });
     const members = [running, unread, queued, illegal];
 
     // Every selected filter is met by some member, though no single member
@@ -128,7 +129,7 @@ describe('workspaceMatchesSpecialFilters', () => {
       makeSession('root', { workspaceIds: ['ws'], workerStatus: 'running' }),
       makeSession('child-unread', { managedBy: 'root', unreadDoneCount: 1 }),
       makeSession('child-queue', { managedBy: 'root', queuePendingCount: 1 }),
-      makeSession('child-illegal', { managedBy: 'root', workerStatus: 'idle', lastLegalWorkerState: 'running' }),
+      makeSession('child-illegal', { managedBy: 'root', workerStatus: 'idle', lastLegalWorkerState: 'running', illegalOffline: true }),
     ];
     const filters = ['running', 'unread', 'queue', 'illegal'] as const;
     for (let mask = 1; mask < 16; mask += 1) {

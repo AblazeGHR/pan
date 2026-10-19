@@ -41,9 +41,9 @@ def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch
     monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
     monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
     monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
-        SimpleNamespace(id="running-b", last_legal_worker_state="running"),
+        SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
         SimpleNamespace(id="idle", last_legal_worker_state="idle"),
-        SimpleNamespace(id="running-a", last_legal_worker_state="running"),
+        SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
     ])
     created_tasks = []
 
@@ -148,7 +148,7 @@ def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
     monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
     monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
     monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
-        SimpleNamespace(id="running-session", last_legal_worker_state="running"),
+        SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
     ])
     monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
 

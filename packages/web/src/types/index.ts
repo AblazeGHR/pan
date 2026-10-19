@@ -164,6 +164,15 @@ export interface Session {
   queuePaused?: boolean;
   /** Last Worker state confirmed through an explicit Pan lifecycle action. */
   lastLegalWorkerState?: string | null;
+  /** Durable execution safety; False alone is not an Illegal condition. */
+  legalOffline?: boolean;
+  illegalOffline?: boolean;
+  legalityDiagnostics?: {
+    coverage: string;
+    revision: number;
+    migrationUncertainty?: string | null;
+    outstanding: Array<{ operationId: string; kind?: string; state?: string; reason?: string | null }>;
+  };
   /** Id of the managing (parent) session; absent/null means unmanaged. */
   managedBy?: string | null;
   /** True when the managing session has blocked outbound operations to this session. */
@@ -1129,7 +1138,7 @@ export interface ApiMainExitResponse {
 }
 
 export type ApiSessionExitStrategy = 'ask' | 'offline' | 'preserve-running';
-export type ApiStartupPreference = 'ask' | 'wake-running' | 'sync-actual' | 'preserve-running';
+export type ApiStartupPreference = 'ask' | 'wake-running' | 'clear-illegal' | 'preserve-running';
 
 export interface ApiSessionLifecyclePreferences {
   exitStrategy: ApiSessionExitStrategy;
@@ -1139,12 +1148,15 @@ export interface ApiSessionLifecyclePreferences {
 export interface ApiSessionLegalStateSyncResult {
   sessionId: string;
   status: 'updated' | 'error';
-  legalWorkerState?: string;
+  legalWorkerState?: string; // deprecated compatibility
+  legalOffline?: boolean;
+  illegalOffline?: boolean;
+  legalityDiagnostics?: Session["legalityDiagnostics"];
   runtimeWorkerStatus?: string;
   error?: string;
 }
 
-export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual';
+export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual' | 'clear-illegal';
 
 export interface ApiStartupRecoveryCandidate {
   id: string;
@@ -1152,7 +1164,7 @@ export interface ApiStartupRecoveryCandidate {
   adapter: string;
   workdir?: string;
   updatedAt?: string;
-  lastLegalWorkerState: 'running';
+  lastLegalWorkerState?: 'running';
 }
 
 export interface ApiStartupRecoveryRecord {
@@ -1408,6 +1420,8 @@ export interface AgentQueueItem {
     steerError?: string;
     lockManual?: boolean;
     lockAutoReport?: boolean;
+    lockSource?: 'manual' | 'illegal' | null;
+    illegalBatchId?: string | null;
   };
 }
 

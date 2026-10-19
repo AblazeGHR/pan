@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from packages.core import legal_offline
+from packages.core.adapters import CbcAdapter
 from packages.core import worker
 from packages.core import session as sess
 from packages.web import server
@@ -49,7 +51,7 @@ def test_details_sync_returns_shared_helper_actual_state(session_lookup, monkeyp
     result = asyncio.run(server.api_sync_session_legal_worker_state("ses-details"))
 
     assert result is expected
-    assert calls == [("ses-details", "session-details/sync-actual")]
+    assert calls == [("ses-details", "manual/mark-safe-offline")]
 
 
 def test_details_sync_returns_helper_error_result(session_lookup, monkeypatch):
@@ -89,20 +91,17 @@ def test_details_set_running_persists_and_broadcasts_after_success(
     metadata_path = isolated_sessions / f"{session.id}.json"
     events = []
 
-    runtime = SimpleNamespace(session_id=session.id, status="held")
+    runtime = worker.Worker(worker_id="details-explicit-runtime", session_id=session.id, adapter=CbcAdapter(), status="held")
     worker.workers["details-explicit-runtime"] = runtime
 
-    def unexpected_runtime_observation(_session_id):
-        raise AssertionError("explicit state set must not inspect Worker runtime")
-
     async def record(event):
-        assert json.loads(metadata_path.read_text())[
-            "last_legal_worker_state"
-        ] == "running"
+        data = json.loads(metadata_path.read_text())
+        assert data["last_legal_worker_state"] == "idle"
+        assert data["legal_offline"] is False
+        assert any(op["state"] == "illegal" for op in data["execution_operations"].values())
         events.append(event)
 
     monkeypatch.setattr(server, "broadcast", record)
-    monkeypatch.setattr(worker, "find_alive_worker_by_session", unexpected_runtime_observation)
     try:
         result = asyncio.run(
             server.api_set_session_legal_worker_state_running(session.id)
@@ -110,12 +109,10 @@ def test_details_set_running_persists_and_broadcasts_after_success(
     finally:
         worker.workers.pop("details-explicit-runtime", None)
 
-    assert result == {
-        "sessionId": session.id,
-        "status": "updated",
-        "legalWorkerState": "running",
-    }
-    assert session.last_legal_worker_state == "running"
+    assert result["sessionId"] == session.id and result["status"] == "updated"
+    assert result["illegalOffline"] and not result["legalOffline"]
+    assert legal_offline.is_illegal(session)
+    assert session.last_legal_worker_state == "idle"
     assert runtime.status == "held"
     assert events == [{"type": "session.updated", "sessionId": session.id}]
 
@@ -162,13 +159,13 @@ def test_details_set_running_rolls_back_and_does_not_broadcast_on_save_failure(
     persisted_before = metadata_path.read_bytes()
     events = []
 
-    async def fail_save(_session):
+    def fail_replace(*args, **kwargs):
         raise OSError("disk full")
 
     async def record(event):
         events.append(event)
 
-    monkeypatch.setattr(sess, "save_async", fail_save)
+    monkeypatch.setattr(sess.os, "replace", fail_replace)
     monkeypatch.setattr(server, "broadcast", record)
 
     result = asyncio.run(
@@ -178,7 +175,7 @@ def test_details_set_running_rolls_back_and_does_not_broadcast_on_save_failure(
     assert result == {
         "sessionId": session.id,
         "status": "error",
-        "error": "failed to persist Session legal state",
+        "error": "disk full",
     }
     assert session.last_legal_worker_state == "offline"
     assert metadata_path.read_bytes() == persisted_before

@@ -1,0 +1,113 @@
+{
+  "baseline": "5d20e72bf44f8cdb46bf8629f4772fb3b393863a",
+  "sourceFiles": [
+    {
+      "path": "docs/design/PAN_LEGAL_OFFLINE_ILLEGAL_LOCK_AGENT_TASK_REVISED_20261018.md",
+      "sha256": "7e5e62cfcf9aa3b578202649cf808c41bf6115e76e1e2e5dbeb25182fa6129c4"
+    },
+    {
+      "path": "packages/core/adapters/cbc/native_bridge.py",
+      "sha256": "f615abe05555a0a51f30a1199b7202f4587031f4674301359c4e12812ab65c6a"
+    },
+    {
+      "path": "packages/core/adapters/cbc/native_hook.py",
+      "sha256": "3d74a69e086858ffc783abc49cd8050453abbfab64a1171b8af10137ef2e196f"
+    },
+    {
+      "path": "packages/core/legal_offline.py",
+      "sha256": "3102605731096c6df8e6299bdc211db5c559d5431b4518269ca9d94479a8656c"
+    },
+    {
+      "path": "packages/core/queue_locks.py",
+      "sha256": "4c4f45836f7b480c6bb8624a86850718f0ec10d4307ffdc5b1334e1444180d31"
+    },
+    {
+      "path": "packages/core/session.py",
+      "sha256": "34abbb55c33a57d348791fe9b3456766daa7682eb62d60fb06609835cbc75efc"
+    },
+    {
+      "path": "packages/core/worker.py",
+      "sha256": "17b713f98f2a262273b48351b09c3a9a77d22ad398ca71bc59ddf430fa0349cd"
+    },
+    {
+      "path": "packages/web/server.py",
+      "sha256": "413df563a87ed1c2eab677fa8462828bbc4905b54882f3a981fcf858fa8b2846"
+    },
+    {
+      "path": "packages/web/src/components/layout/WorkspaceRail.searchFilter.test.tsx",
+      "sha256": "45bce55c98df81c5fe4330d234d7185ba576b5bde4928f8107b9eaf5635084d8"
+    },
+    {
+      "path": "packages/web/src/components/session/SessionItem.tsx",
+      "sha256": "b38aeaaaff41cb7fc1cb38f5f1a29651b52314b2594ea590a93345c09275489f"
+    },
+    {
+      "path": "packages/web/src/components/session/SessionList.tsx",
+      "sha256": "a1a68a228f50b65bb7c55e65bfba3a2651c41c3d9f2825f5d8e04132afdc2723"
+    },
+    {
+      "path": "packages/web/src/components/worker/WorkerDot.test.tsx",
+      "sha256": "ff189432e8cf538a7b90714534e850ee55e556143fff9a0eec34c094a2a32fcd"
+    },
+    {
+      "path": "packages/web/src/components/worker/WorkerDot.tsx",
+      "sha256": "ac1f23604870c68ad402dc1115c7f7739156ea2ae628d705f4b2a10ca56b43d6"
+    },
+    {
+      "path": "packages/web/src/hooks/useWebSocket.ts",
+      "sha256": "484b79dcc6b03b3e0cf03b249c130772a85bb3592e94158622e36c0a8d241a14"
+    },
+    {
+      "path": "packages/web/src/stores/sessionStore.restartIndicator.test.tsx",
+      "sha256": "5918d81af45aca8a49f59300e8ee49a47dbc317c65ebf7dde860c7f6cb3a3a01"
+    },
+    {
+      "path": "packages/web/src/stores/sessionStore.ts",
+      "sha256": "9e868a10fb3363a4c1604dc62485fbb979cbe47cd25668f6581367d3dd266586"
+    },
+    {
+      "path": "packages/web/src/types/index.ts",
+      "sha256": "98d634b2ecaed0d3d86cbcb9b42ce992c21f894f3d6a19b5ac7dd4b9a832201a"
+    },
+    {
+      "path": "packages/web/src/utils/sessionFilters.ts",
+      "sha256": "8dd4c437e2de3e8cd5e4348831bcc71c890232858c605b7deeb51f0b2a61a8a3"
+    },
+    {
+      "path": "packages/web/src/utils/sessionFilters.workspaceSearch.test.ts",
+      "sha256": "cadb48f9c7c1e354ced3dcb5f7b1cb5168cc7436604af288e8c692230a1ae404"
+    },
+    {
+      "path": "tests/support/fake_stream_cli.py",
+      "sha256": "3e53479c5c3f093731cb4c023ef51954490e697f2dd7e8eadd5815a732e7df1f"
+    },
+    {
+      "path": "tests/support/isolated_http_server.py",
+      "sha256": "f90c5c3578e91159d90c5d2e5f6c29df06b844c143bbdf8917218885c6a181aa"
+    },
+    {
+      "path": "tests/test_cbc_native_bridge.py",
+      "sha256": "9480c07c90091a75ff69524dc0c9700ac9c011a2d9cd62ef15948f77ad671d2f"
+    },
+    {
+      "path": "tests/test_legal_offline.py",
+      "sha256": "f927955bcec0a52772844ed946b3f24431adf265457c3f9c93c07d297c7a9f26"
+    },
+    {
+      "path": "tests/test_legal_offline_browser.py",
+      "sha256": "bf58c45c45e7982967f58d0fbe450faddf46f784c6f578e962855497c1a1d5a3"
+    },
+    {
+      "path": "tests/test_legal_offline_http.py",
+      "sha256": "2253089c09cf23677981755916fd8186c777d04fcb8cf208e071797bf3ac5db7"
+    },
+    {
+      "path": "tests/test_native_control_api.py",
+      "sha256": "d28c78e0d3ace24147b887e48e83398037051673eed453162ba1d1ceb84ca9ba"
+    },
+    {
+      "path": "tests/test_session_queue_api.py",
+      "sha256": "d650e1636c3243708dbaaf93adbdf13340562ba82e13b3ab2137d20ec71c0f73"
+    }
+  ]
+}

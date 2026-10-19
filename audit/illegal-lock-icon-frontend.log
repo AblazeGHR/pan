@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/packages/web/src
+
+ ✓ components/chat/SendQueuePanel.pendingOnly.test.tsx (5 tests) 236ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  14:50:57
+   Duration  2.37s (transform 205ms, setup 11ms, collect 471ms, tests 236ms, environment 539ms, prepare 111ms)
+

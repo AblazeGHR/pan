@@ -56,6 +56,16 @@ afterEach(() => {
 });
 
 describe('TopBar compact worker presentation', () => {
+  it('renders durable Illegal in the selected Session dot and clears it on recovery', () => {
+    render(<TopBar />);
+    const patch = (illegalOffline: boolean) => act(() => useSessionStore.setState(state => ({
+      sessions: state.sessions.map(session => ({ ...session, illegalOffline })),
+    })));
+    patch(true);
+    expect(screen.getByLabelText('Illegal offline: previous execution did not finalize safely').className).toContain('bg-danger');
+    patch(false);
+    expect(screen.queryByLabelText('Illegal offline: previous execution did not finalize safely')).toBeNull();
+  });
   it('recovers a missed restart completion when returning to a running Session', async () => {
     const sid = 'session-123456789';
     const pending = { sessionId: sid, workerId: 'worker-123', generation: 1,

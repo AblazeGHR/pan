@@ -121,7 +121,7 @@ def test_restart_freezes_configured_policy_and_running_snapshot(
     monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
     monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
     monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
-        type("Session", (), {"id": "running", "last_legal_worker_state": "running"})(),
+        type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
         type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
     ])
     scheduled = []

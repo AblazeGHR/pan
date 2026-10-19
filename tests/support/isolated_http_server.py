@@ -83,6 +83,9 @@ def main() -> None:
 
     import packages.web.server as server
     from packages.core import background_jobs
+    if os.environ.get("PAN_TEST_DISABLE_QUEUE_WATCHDOG") == "1":
+        from packages.core import worker
+        worker._GLOBAL_WATCHDOG_TICK_SEC = 3600
     from packages.scheduler import store as scheduler
     from packages.core.terminal import registry as terminals
     background_jobs.DEFAULT_ROOT = data_root / "background_jobs"
@@ -93,6 +96,8 @@ def main() -> None:
     server.DATA_DIR = data_root
     server.WORKDIRS_DIR = data_root / "workdirs"
     server.ATTACHMENTS_DIR = data_root / "attachments"
+    server._startup_recovery_record_path = lambda: (
+        data_root / "startup_recovery" / f"{server._STARTUP_RECOVERY_GENERATION}.json")
     server.app.add_middleware(_capture_delay_middleware)
 
     fake_cli = os.environ.get("PAN_E2E_FAKE_CLI")
@@ -151,13 +156,25 @@ def main() -> None:
 
     import uvicorn
 
-    uvicorn.run(
-        server.app,
-        host="127.0.0.1",
-        port=args.port,
-        log_level="warning",
-        access_log=False,
-    )
+    from packages.core.host_server import PanServer
+    host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,
+                                    log_level="warning", access_log=False))
+    server.app.state.pan_uvicorn_server = host
+    if os.environ.get("PAN_TEST_HOST_EXIT_PROBE") == "1":
+        import signal
+        @server.app.post("/__test/host-signal/{kind}")
+        async def host_signal(kind: str):
+            selected = {"SIGINT": signal.SIGINT, "SIGTERM": signal.SIGTERM}[kind]
+            asyncio.get_running_loop().call_later(.05, signal.raise_signal, selected)
+            return {"ok": True}
+        # Real API/Job/worker shutdown, with only the detached production
+        # supervisor replaced by stopping this owned temporary test server.
+        server._main_exit_status = lambda: {"available": True, "pending": server._main_exit_pending, "port": args.port}
+        server._main_restart_status = lambda: {"pending": False}
+        server._main_restart_registry_root = lambda: data_root / "background_jobs"
+        server._launch_main_exit_supervisor = lambda request_id: setattr(host, "should_exit", True)
+    host.run()
+
 
 
 if __name__ == "__main__":
