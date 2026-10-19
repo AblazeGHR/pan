@@ -13,6 +13,8 @@ Pan 的 HTTP API 在 `packages/web/server.py`，基址 `http://127.0.0.1:<port>`
 
 Session 摘要/详情返回 `legalOffline`、`illegalOffline`、`recoveryRequested` 和 `legalityDiagnostics`。`legalOffline=false` 表示尚有未安全退休的执行责任，不能单独推断 Illegal；`illegalOffline=true` 表示已有确定事故。恢复意图不代表 Running 或 Illegal。旧 `lastLegalWorkerState` 仅为只读兼容元数据，新数据不使用它作决策。
 
+2026-10-19：`PUT /api/settings/session-lifecycle` 支持 `startupPreference: "clear-illegal"`。下次启动自动将已有 Illegal operation 安全退休为 offline，解除精确归属仍匹配的事故自动锁，保留 Manual 和独立安全 gate；活/未知 owner 拒绝清除并允许从启动弹窗重试。处理范围包括已清恢复意图的 Illegal Session。旧设置值 `sync-actual` 按 ask 兼容读取，设置选项已移除；启动询问弹窗的 `sync-actual` 操作仍是核对事实，不会清事故。策略不生成继续消息，解锁后的正常队列调度仍遵守 Pause。
+
 - `POST /api/sessions/{id}/legality/reconcile` 核对执行事实并清除恢复意图，不清除确定 Illegal 或消息锁。
 - `POST /api/sessions/{id}/legality/request-recovery` 只持久化恢复意图，不启动 Worker，不制造执行。
 - 旧 `/legal-state/sync`、`/legal-state/running` 为 deprecated 别名，执行上述新语义。

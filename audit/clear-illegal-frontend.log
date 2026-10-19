@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/packages/web/src
+
+ ✓ components/layout/StartupRecoveryPrompt.test.tsx (11 tests) 473ms
+ ✓ components/layout/AppSettingsModal.test.tsx (48 tests) 2936ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1177ms
+
+ Test Files  2 passed (2)
+      Tests  59 passed (59)
+   Start at  14:09:01
+   Duration  5.27s (transform 403ms, setup 21ms, collect 977ms, tests 3.41s, environment 1.18s, prepare 255ms)
+

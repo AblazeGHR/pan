@@ -439,7 +439,7 @@ _SESSION_LIFECYCLE_EXIT_STRATEGIES = frozenset({
     "ask", "offline", "preserve-running",
 })
 _SESSION_LIFECYCLE_STARTUP_PREFERENCES = frozenset({
-    "ask", "wake-running", "sync-actual", "preserve-running",
+    "ask", "wake-running", "clear-illegal", "preserve-running",
 })
 
 
@@ -5569,9 +5569,13 @@ def _ensure_startup_recovery_record(candidates: list[dict]) -> dict:
 
 async def _initialize_startup_recovery(sessions) -> dict:
     """Snapshot startup candidates and apply any configured server-side policy."""
-    record = _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
     preference = _session_lifecycle_preferences()["startupPreference"]
-    if preference in {"wake-running", "preserve-running"} and record.get("candidateSnapshot"):
+    candidates = _startup_recovery_candidates(sessions)
+    if preference == "clear-illegal":
+        candidates = [{"id": s.id, "name": s.name, "adapter": s.adapter}
+                      for s in sessions if legal_offline.is_illegal(s)]
+    record = _ensure_startup_recovery_record(candidates)
+    if preference in {"wake-running", "preserve-running", "clear-illegal"} and record.get("candidateSnapshot"):
         return await _run_automatic_startup_recovery(record, preference)
     return record
 
@@ -5672,6 +5676,14 @@ async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
                  "recoveryRequested": True}
                 for candidate in candidates
             ]
+        elif choice == "clear-illegal":
+            for candidate in candidates:
+                try:
+                    results.append(await worker.clear_session_illegal_for_startup(candidate["id"]))
+                except Exception as exc:
+                    results.append({"sessionId": candidate["id"], "status": "error", "error": str(exc)})
+            if any(item.get("status") != "updated" for item in results):
+                error = "Some Illegal incidents could not be cleared; inspect owner or persistence errors and retry."
         else:
             for candidate in candidates:
                 try:
@@ -5719,6 +5731,7 @@ async def _run_automatic_startup_recovery(
     """Persist and apply the configured startup policy before serving requests."""
     choice = {
         "wake-running": "restart",
+        "clear-illegal": "clear-illegal",
         "preserve-running": "preserve-running",
     }.get(preference)
     if choice is None or not record.get("candidateSnapshot"):
@@ -5821,7 +5834,7 @@ async def api_main_startup_recovery_decision(data: dict):
     generation = data.get("generation")
     tab_id = data.get("tabId")
     choice = data.get("choice")
-    choices = {"restart", "preserve-running", "sync-actual"}
+    choices = {"restart", "preserve-running", "sync-actual", "clear-illegal"}
     if generation != _STARTUP_RECOVERY_GENERATION:
         raise HTTPException(status_code=409, detail="startup generation changed")
     if not isinstance(tab_id, str) or not tab_id or len(tab_id) > 128:

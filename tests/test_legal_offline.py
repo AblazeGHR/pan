@@ -820,3 +820,102 @@ def test_ready_clears_recovery_intent_with_diagnostics_revision():
         assert not s.recovery_requested and s.operation_revision > revision
         assert reload(s).recovery_requested is False
     asyncio.run(run())
+
+
+def test_explicit_clear_illegal_retires_incident_and_only_its_locks(monkeypatch):
+    async def run():
+        s, w = setup(["A", "B", "C"])
+        identity = await begin(s, w)
+        key = await die(s, w, identity)
+        queue_locks.set_lock(s.queue_pending[0], "manual")
+        s.queue_pending[1]["queueLockAutoReport"] = True
+        s.queue_pending[2]["queueLockIllegalBatch"] = "other-incident"
+        s.queue_paused = True
+        sess.save(s)
+        # A dead provider owner with no native ownership uncertainty.
+        result = await worker.clear_session_illegal_for_startup(s.id)
+        assert result["legalOffline"] and not result["illegalOffline"]
+        assert not result["recoveryRequested"]
+        assert queue_locks.source(s.queue_pending[0]) == "manual"
+        assert queue_locks.source(s.queue_pending[1]) is None
+        assert s.queue_pending[1]["queueLockAutoReport"]
+        assert queue_locks.source(s.queue_pending[2]) == "illegal"
+        assert s.queue_paused
+        assert s.execution_operations[key]["state"] == "offline"
+        assert s.execution_operations[key]["safeTerminal"]
+        assert s.illegal_batches[key]["recovered"]
+        before = sess._path(s.id).read_bytes()
+        await worker.clear_session_illegal_for_startup(s.id)
+        await worker._detect_offline_exit(w, identity, "late-EOF")
+        assert sess._path(s.id).read_bytes() == before
+        assert reload(s).legal_offline
+        worker._wake_worker.assert_not_awaited()
+    asyncio.run(run())
+
+
+def test_clear_illegal_replace_failure_rolls_back_all_facts_and_locks(monkeypatch):
+    async def run():
+        s, w = setup(["B"])
+        await die(s, w, await begin(s, w))
+        before = sess._path(s.id).read_bytes()
+        events = []
+        worker.set_broadcaster(events.append)
+        monkeypatch.setattr(sess.os, "replace", Mock(side_effect=OSError("clear replace failed")))
+        with pytest.raises(OSError, match="clear replace failed"):
+            await worker.clear_session_illegal_for_startup(s.id)
+        assert offline.is_illegal(s) and s.recovery_requested
+        assert queue_locks.source(s.queue_pending[0]) == "illegal"
+        assert sess._path(s.id).read_bytes() == before
+        assert not events
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("owner_status", ["alive", "unknown"])
+def test_clear_illegal_refuses_live_or_unknown_owner(monkeypatch, owner_status):
+    async def run():
+        s, w = setup(["B"])
+        await die(s, w, await begin(s, w))
+        before = sess._path(s.id).read_bytes()
+        monkeypatch.setattr(offline, "previous_owner_status", lambda _: owner_status)
+        with pytest.raises(RuntimeError, match="alive or unknown"):
+            await worker.clear_session_illegal_for_startup(s.id)
+        assert sess._path(s.id).read_bytes() == before
+        assert offline.is_illegal(s)
+    asyncio.run(run())
+
+
+def test_clear_illegal_preserves_independent_running_responsibility():
+    async def run():
+        s, w = setup()
+        await die(s, w, await begin(s, w))
+        # Independent admitted operation is not an incident and must not be retired.
+        extra = offline.admit(s, {"token": "new", "generation": 2, "executionSeq": 1}, kind="command/exec")
+        await worker.clear_session_illegal_for_startup(s.id)
+        assert not offline.is_illegal(s) and not s.legal_offline
+        assert s.recovery_requested and extra["id"] in s.execution_operations
+        assert not s.execution_operations[extra["id"]]["safeTerminal"]
+    asyncio.run(run())
+
+
+def test_clear_illegal_serializes_with_manual_edits_and_clears_multiple_incidents():
+    async def run():
+        s, w = setup(["A", "B"])
+        await die(s, w, await begin(s, w))
+        identity = {"token": "another-failed-owner", "generation": 2, "executionSeq": 1}
+        offline.admit(s, identity, kind="command/exec")
+        offline.detect(s, "second-crash", identity=identity, eligible=lambda _: True,
+                       remember=lambda item: worker._remember_offline_lock(s, item))
+        # A manual edit completes before the queued clear obtains exclusion.
+        async with worker.queue_lock(s.id):
+            clearing = asyncio.create_task(worker.clear_session_illegal_for_startup(s.id))
+            await asyncio.sleep(0)
+            assert not clearing.done()
+            queue_locks.set_lock(s.queue_pending[0], "manual")
+            sess.save(s)
+        await clearing
+        assert s.legal_offline and not offline.is_illegal(s)
+        assert len(s.illegal_batches) == 2
+        assert all(batch["recovered"] for batch in s.illegal_batches.values())
+        assert queue_locks.source(s.queue_pending[0]) == "manual"
+        assert queue_locks.source(s.queue_pending[1]) is None
+    asyncio.run(run())

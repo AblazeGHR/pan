@@ -71,7 +71,7 @@ function normalizeSessionLifecyclePreferences(
     exitStrategy: ['ask', 'offline', 'preserve-running'].includes(value?.exitStrategy)
       ? value.exitStrategy
       : 'ask',
-    startupPreference: ['ask', 'wake-running', 'sync-actual', 'preserve-running'].includes(value?.startupPreference)
+    startupPreference: ['ask', 'wake-running', 'clear-illegal', 'preserve-running'].includes(value?.startupPreference)
       ? value.startupPreference
       : 'ask',
   };
@@ -1980,11 +1980,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       >
                         <option value="ask">Ask every time</option>
                         <option value="wake-running">Automatically wake Sessions with recovery intent</option>
-                        <option value="sync-actual">Ask before reconciling facts and dismissing recovery intent</option>
+                        <option value="clear-illegal">Clear Illegal status for all Sessions and treat them as safely offline</option>
                         <option value="preserve-running">Preserve recovery intent without waking Sessions</option>
                       </select>
                       <p className="mt-1 text-[10px] text-text-tertiary">
-                        Reconciliation waits for an explicit choice and does not clear Illegal incidents.
+                        Clear Illegal retires previous incidents and releases their automatic locks; Manual locks and live or unknown owner protections remain.
                       </p>
                     </div>
                   </div>

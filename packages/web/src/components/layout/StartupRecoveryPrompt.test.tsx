@@ -41,7 +41,7 @@ const candidate = {
 
 function record(
   state: 'pending' | 'failed' | 'completed' = 'pending',
-  decision: 'restart' | 'preserve-running' | 'sync-actual' | null = null,
+  decision: 'restart' | 'preserve-running' | 'sync-actual' | 'clear-illegal' | null = null,
 ) {
   return {
     generation: 'generation-1',
@@ -79,6 +79,20 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('StartupRecoveryPrompt', () => {
+  it('shows and retries the saved clear-illegal policy after an owner or disk failure', async () => {
+    fetchMock.mockResolvedValue(record('failed', 'clear-illegal'));
+    claimMock.mockResolvedValue({ ok: true, claimed: true, state: 'failed', decision: 'clear-illegal',
+      candidates: [candidate] });
+    decideMock.mockResolvedValue(record('completed', 'clear-illegal'));
+    render(<StartupRecoveryPrompt />);
+    const choice = await screen.findByRole('radio', { name: /Clear Illegal status for all Sessions/ });
+    expect((choice as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole('radio', { name: /Restart these Sessions/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+    await waitFor(() => expect(decideMock).toHaveBeenCalledWith('generation-1', expect.any(String), 'clear-illegal'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
   it('does not show a prompt when the process startup snapshot is empty', async () => {
     fetchMock.mockResolvedValue({ ...record(), state: 'no_candidates', candidateSnapshot: [] });
     render(<StartupRecoveryPrompt />);

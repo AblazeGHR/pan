@@ -833,6 +833,27 @@ async def set_session_recovery_intent(session_id: str, requested: bool, *, sourc
             "legalityDiagnostics": _offline.diagnostics(s)}
 
 
+async def clear_session_illegal_for_startup(session_id: str) -> dict:
+    """Retire only diagnosed incidents; never release a live/unknown owner."""
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        s = _sess.get(session_id)
+        if s is None:
+            return {"sessionId": session_id, "status": "error", "error": "Session not found"}
+        async with queue_lock(session_id):
+            # Do not let this policy classify or retire a new running operation.
+            incidents = [op for op in _offline.outstanding(s) if op.get("state") == "illegal"]
+            for identity in [s.offline_owner, *incidents]:
+                if identity and await asyncio.to_thread(_offline.previous_owner_status, identity) != "dead":
+                    raise RuntimeError("Execution owner alive or unknown; refusing Illegal retirement")
+            def clear(candidate):
+                return _offline.clear_illegal(candidate, remember=lambda item: _remember_offline_lock(candidate, item))
+            await _commit_offline(s, clear)
+        await _offline_snapshot_event(s)
+        return {"sessionId": session_id, "status": "updated", "recoveryRequested": s.recovery_requested,
+                "legalOffline": s.legal_offline, "illegalOffline": _offline.is_illegal(s)}
+
+
 async def set_session_legal_worker_state_running(session_id: str, *, source: str = "legacy/set-running") -> dict:
     """Compatibility endpoint: request recovery, never fabricate an execution."""
     lock = await _session_spawn_lock(session_id)

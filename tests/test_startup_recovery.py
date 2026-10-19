@@ -390,3 +390,45 @@ def test_automatic_broadcast_exception_has_session_rows_for_prompt_diagnostics(
         "status": "error",
         "error": "Startup recovery failed: queue store unavailable",
     }]
+
+
+def test_clear_illegal_policy_selects_incidents_even_without_recovery_intent(recovery_env, monkeypatch):
+    _, candidate = recovery_env
+    from packages.core import legal_offline as legality
+    identity = {"token": "failed", "generation": 1, "executionSeq": 1}
+    legality.begin(candidate, identity)
+    legality.detect(candidate, "crash", eligible=lambda _: True, remember=lambda _: None)
+    candidate.recovery_requested = False
+    sess.save(candidate)
+    unaffected = sess.create("intent-only")
+    unaffected.recovery_requested = True
+    sess.save(unaffected)
+    set_startup_preference(monkeypatch, "clear-illegal")
+    async def unexpected(*_args, **_kwargs):
+        raise AssertionError("Clear Illegal must not request Worker startup")
+    monkeypatch.setattr(server, "api_sessions_broadcast", unexpected)
+    result = asyncio.run(server._initialize_startup_recovery([candidate, unaffected]))
+    assert result["decision"] == "clear-illegal" and result["state"] == "completed"
+    assert [row["id"] for row in result["candidateSnapshot"]] == [candidate.id]
+    assert candidate.legal_offline and not legality.is_illegal(candidate)
+    assert unaffected.recovery_requested
+    assert asyncio.run(server._initialize_startup_recovery([candidate, unaffected]))["attempts"] == 1
+
+
+def test_failed_clear_policy_retries_saved_choice_without_new_incident(recovery_env, monkeypatch):
+    _, candidate = recovery_env
+    from packages.core import legal_offline as legality
+    legality.begin(candidate, {"token": "failed", "generation": 1, "executionSeq": 1})
+    legality.detect(candidate, "crash", eligible=lambda _: True, remember=lambda _: None)
+    sess.save(candidate)
+    set_startup_preference(monkeypatch, "clear-illegal")
+    status = ["unknown"]
+    monkeypatch.setattr(legality, "previous_owner_status", lambda _: status[0])
+    result = asyncio.run(server._initialize_startup_recovery([candidate]))
+    assert result["state"] == "failed" and legality.is_illegal(candidate)
+    status[0] = "dead"
+    claim_owner()
+    result = asyncio.run(server.api_main_startup_recovery_decision({
+        "generation": "test-generation", "tabId": "tab-a", "choice": "clear-illegal"}))
+    assert result["state"] == "completed" and result["attempts"] == 2
+    assert candidate.legal_offline and not legality.is_illegal(candidate)

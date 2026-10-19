@@ -89,6 +89,8 @@ Start-Process "http://127.0.0.1:$port/react/"
 
 ### 本次新增：旧字段迁移和主服务退出
 
+2026-10-19 新启动策略验收：在设置页选择 **Clear Illegal status for all Sessions and treat them as safely offline**，确认当前运行的服务不立即修改事故；通过受控退出重启本验收实例后，旧 Illegal 记录应变为安全 offline，Illegal 自动锁解除，Manual/报告锁/Pause 保留，恢复意图清除。已手动清恢复意图的 Illegal Session 也须处理。活/未知 owner 应显示失败原因而不是直接清；处理失败后启动弹窗只允许重试已保存的 clear 策略。重复启动不重建事故。该策略不发继续消息；已有未锁队列依原调度消费，需要暂缓时先 Pause。旧 `sync-actual` 设置应显示为 Ask every time，不能未经选择启用新清除行为。
+
 1. 在 Session Details 的 Execution legality 区观察 Safe / Unresolved execution / Illegal，以及 recovery requested、operation reason。运行中 False 不应直接显示 Illegal；卡片与顶部灯必须一致，事故与恢复无需刷新页面。
 2. 测试 Session 正在 Running 时，在 **Pan 主服务窗口** Ctrl+C；重启同一数据根，预期 Illegal 和一次精确队列锁快照。Worker/Job/原生终端中的 Ctrl+C 不属于该测试。
 3. 同样测试 SIGTERM/自己的服务管理停止；若 OS 强杀不能运行收尾，重启时才形成事故快照。不要停止其它 Pan 实例。

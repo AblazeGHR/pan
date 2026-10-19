@@ -200,7 +200,9 @@ export function StartupRecoveryPrompt() {
         </ul>
         <fieldset className="mt-4 space-y-2">
           <legend className="sr-only">Choose startup recovery action</legend>
-          {CHOICES.map((choice, index) => {
+          {(lockedChoice === 'clear-illegal' ? [{ value: 'clear-illegal' as const,
+            title: 'Clear Illegal status for all Sessions and treat them as safely offline',
+            detail: 'Retry the saved startup policy. Release incident locks, preserve Manual locks, and retain live or unknown owner protections.' }] : CHOICES).map((choice, index) => {
             const disabledByRecordedChoice = Boolean(lockedChoice && lockedChoice !== choice.value);
             return (
               <label

@@ -236,3 +236,36 @@ def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
         print("HOST_EXIT_PROOF", method, port, instance.data_root)
     finally:
         _stop_owned(instance, SimpleNamespace(stop=lambda: None), None)
+
+
+def test_clear_illegal_startup_policy_retires_persisted_incident_without_successor(runtime):
+    session = _create(runtime, "real-fifo-clear-illegal")
+    sid = session["id"]
+    _enqueue(runtime, sid, "hold-A", "active")
+    active = _wait_for(lambda: _received(runtime, cwd=session["workdir"], text="hold-A"))[0]
+    paused(runtime, sid, True)
+    b = _enqueue(runtime, sid, "B", "B")["item"]["queueItemId"]
+    c = _enqueue(runtime, sid, "C", "C")["item"]["queueItemId"]
+    kill_owned_provider(runtime, active["pid"], session["workdir"])
+    _wait_for(lambda: durable(runtime, sid)["illegal_batches"])
+    runtime.request("PATCH", f"/api/sessions/{sid}/queue/{c}/lock", json={"locked": True})
+    # Select via production settings API; do not apply it to an already running host.
+    settings = runtime.request("PUT", "/api/settings/session-lifecycle",
+                               json={"startupPreference": "clear-illegal"})
+    assert settings["startupPreference"] == "clear-illegal"
+    assert runtime.request("GET", f"/api/sessions/{sid}")["illegalOffline"]
+    runtime.stop()
+    runtime.start()
+    value = durable(runtime, sid)
+    assert value["legal_offline"] and not value["recovery_requested"]
+    assert all(op["state"] == "offline" for op in value["execution_operations"].values())
+    rows = {row["id"]: row for row in value["queue_pending"]}
+    assert not rows[b].get("queueLockSource")
+    assert rows[c]["queueLockSource"] == "manual"
+    detail = runtime.request("GET", f"/api/sessions/{sid}")
+    assert detail["legalOffline"] and not detail["illegalOffline"] and not detail["workerId"]
+    assert not _received(runtime, cwd=session["workdir"], text="B")
+    batches = value["illegal_batches"]
+    runtime.stop()
+    runtime.start()
+    assert durable(runtime, sid)["illegal_batches"] == batches

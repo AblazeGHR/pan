@@ -1138,7 +1138,7 @@ export interface ApiMainExitResponse {
 }
 
 export type ApiSessionExitStrategy = 'ask' | 'offline' | 'preserve-running';
-export type ApiStartupPreference = 'ask' | 'wake-running' | 'sync-actual' | 'preserve-running';
+export type ApiStartupPreference = 'ask' | 'wake-running' | 'clear-illegal' | 'preserve-running';
 
 export interface ApiSessionLifecyclePreferences {
   exitStrategy: ApiSessionExitStrategy;
@@ -1157,7 +1157,7 @@ export interface ApiSessionLegalStateSyncResult {
   error?: string;
 }
 
-export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual';
+export type ApiStartupRecoveryChoice = 'restart' | 'preserve-running' | 'sync-actual' | 'clear-illegal';
 
 export interface ApiStartupRecoveryCandidate {
   id: string;

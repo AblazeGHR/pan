@@ -6,6 +6,16 @@
 
 ## 0. 审阅后确定的最小技术契约
 
+### 2026-10-19 补充：显式清除 Illegal 的启动策略
+
+用户批准用新的 `startupPreference=clear-illegal` 替换重复的设置项 `sync-actual`，英文显示 **Clear Illegal status for all Sessions and treat them as safely offline**。这是启动时自动执行的独立管理员策略，不是“每次询问”的别名。旧持久配置 `sync-actual` 兼容读取为 ask，后续保存设置时写入规范值；不因升级而启用事故清除。
+
+启动已完成失主对账之后，新策略扫描所有仍标为 Illegal 的 Session，包括恢复意图已被用户清除的 Session。先取得原 Session spawn lock 和 queue lock，核验对应事故 owner 及持久 runtime owner 已死亡；活/未知 owner 拒绝该 Session 的清除并返回可诊断失败，继续其它 Session。仅把已确认 Illegal 的 operation 改为安全 offline（保留显式策略退休 proof），不会提前退休独立执行中的 operation。聚合安全时清除恢复意图；否则保留其它责任和其恢复意图。
+
+在原有有序 Session JSON writer 内同次提交 operation、安全退休、批次 tombstone、精确归属匹配的 Illegal 解锁、pending/ledger/revision。保留 Manual（包括已从 Illegal 手动转换的消息）、reports 策略锁、Pause、lease 和 native ownership gate。失败不发布成功事实；重复执行、迟到 EOF 和再次启动不重锁、不重复清除。自动启动决策先落盘，失败可以从现有启动弹窗重试同一策略。普通启动询问弹窗原有“核对并清恢复意图”操作仍保留，不等于本策略。
+
+该策略本身不发送继续消息或调用 Worker create；解除锁后队列仍遵守原调度与 Pause 规则，不能把“解除锁”当作暂停队列的替代。用户若希望解除锁后仍暂不消费，应保留 Pause。
+
 ### 2026-10-18 补充：旧字段迁移与 Pan 主服务退出（最新用户决定优先）
 
 - 合法性权威为 `execution_operations` 聚合的 `legal_offline`；`illegalOffline` 仅代表仍未退休的 operation 已被确认 Illegal。执行中或等待可靠终态时可以是 `legalOffline=false, illegalOffline=false`。事故锁及继任恢复继续依赖精确 run/owner/generation，不依赖 UI 状态或旧字段。

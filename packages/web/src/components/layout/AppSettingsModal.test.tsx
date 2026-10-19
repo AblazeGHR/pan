@@ -319,6 +319,9 @@ describe('AppSettingsModal', () => {
     )!;
     expect(exitStrategy.value).toBe('ask');
     expect(startupPreference.value).toBe('ask');
+    expect(startupPreference.querySelector('option[value="sync-actual"]')).toBeNull();
+    expect(startupPreference.querySelector('option[value="clear-illegal"]')?.textContent)
+      .toBe('Clear Illegal status for all Sessions and treat them as safely offline');
 
     fireEvent.change(exitStrategy, { target: { value: 'offline' } });
     await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenCalledWith({
@@ -327,10 +330,10 @@ describe('AppSettingsModal', () => {
     }));
     expect(exitStrategy.value).toBe('offline');
 
-    fireEvent.change(startupPreference, { target: { value: 'sync-actual' } });
+    fireEvent.change(startupPreference, { target: { value: 'clear-illegal' } });
     await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenLastCalledWith({
       exitStrategy: 'offline',
-      startupPreference: 'sync-actual',
+      startupPreference: 'clear-illegal',
     }));
   });
 

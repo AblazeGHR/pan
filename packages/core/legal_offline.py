@@ -295,6 +295,46 @@ def activate(s, identity: dict, *, remember, predecessors: set[str] | None = Non
     return changed
 
 
+def clear_illegal(s, *, remember) -> bool:
+    """Explicit user startup policy, after dead-owner verification by caller.
+
+    Preserve incident tombstones and precise membership for idempotence. This
+    administrative retirement is not evidence about other active operations.
+    """
+    records = [op for op in outstanding(s) if op.get("state") == "illegal"]
+    if not records:
+        return False
+    now = time.time()
+    changed_queue = False
+    for record in records:
+        batch = s.illegal_batches.get(record["id"])
+        if batch:
+            members = set(batch.get("messages", []))
+            for item in s.queue_pending:
+                if (isinstance(item, dict)
+                        and (item.get("queueItemId") or item.get("id")) in members
+                        and queue_locks.source(item) == "illegal"
+                        and item.get("queueLockIllegalBatch") == batch["id"]):
+                    queue_locks.set_lock(item, None)
+                    remember(item)
+                    changed_queue = True
+            batch.update(recovered=True, recoveredAt=now,
+                         recoveredBy={"policy": "clear-illegal"})
+        record.update(state="offline", safeTerminal=True, endedAt=now,
+                      reason="startup-policy/clear-illegal",
+                      terminalProof="explicit-user-policy",
+                      retirement={"safe": True, "reason": "startup-policy/clear-illegal",
+                                  "proof": "explicit-user-policy", "committedAt": now})
+    aggregate(s)
+    if s.legal_offline:
+        s.recovery_requested = False
+    s.operation_revision += 1
+    if changed_queue:
+        s.queue_revision += 1
+    attach_foreground(s)
+    return True
+
+
 def diagnostics(s) -> dict:
     """False is unresolved responsibility; it does not imply a diagnosed incident."""
     return {"recoveryRequested": recovery_intent(s), "migrationUncertainty": s.offline_migration_uncertainty, "coverage": "external-owner-only" if (s.offline_owner or {}).get("externalTakeover") else "pan-managed",
