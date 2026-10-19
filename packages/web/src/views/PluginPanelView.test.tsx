@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AccountSwitcher, formatClockDuration } from './PluginPanelView';
 import { invokePluginPanel } from '@/services/api';
+import { resetPluginPanelRuntime } from './pluginPanelRuntime';
 import { ViewEntryRail } from '@/components/layout/ViewEntryRail';
 import { ViewEntryGroups } from '@/components/layout/ViewEntryGroups';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
@@ -17,46 +19,102 @@ const panel: PluginPanel = { id: 'accounts', pluginId: 'cc-switch-bridge', title
     switch: { capability: 'cc-switch-bridge.switch', effect: 'write_external' },
     default_account: { capability: 'cc-switch-bridge.default_account', effect: 'write_external' },
   } };
-const state: AccountSnapshot = { app: 'codex', currentProviderId: 'p-a', observedAt: 1792254007000,
-  providers: [{ id: 'p-a', name: 'Main', origin: 'https://api.example.test', isCurrent: true, quota: null },
-    { id: 'p-b', name: 'Secondary', origin: null, isCurrent: false, quota: null }],
-  accounts: [{ id: 'acc-a', login: 'alice@example.test', isDefault: true },
-    { id: 'acc-b', login: 'bob@example.test', isDefault: false }], accountError: null };
 
-beforeEach(() => { vi.mocked(invokePluginPanel).mockReset().mockResolvedValue(structuredClone(state)); });
-afterEach(() => { cleanup(); vi.useRealTimers(); usePluginPanelStore.setState({ panels: [], loaded: false, loading: false, error: null }); });
+const NOW = new Date('2026-10-19T12:00:00Z').getTime();
+const NAMES: Record<string, string> = { 'p-a': 'Main', 'p-b': 'Secondary', 'p-c': 'Third',
+  'p-d': 'Fourth', 'p-e': 'Fifth', 'c-a': 'Claude Main', 'g-a': 'Gemini Main' };
+
+const quotaAt = (queriedAt: number | null, usedPercent = 50, resetIn = 90 * 60_000): AccountQuota => ({
+  status: 'ok', available: true, queriedAt, message: null, balances: [],
+  tiers: [{ name: 'five_hour', usedPercent, resetsAt: new Date(NOW + resetIn).toISOString() }] });
+
+function snapshot(app: string, providers: string[], quotas: Record<string, AccountQuota | null>,
+  current: string | null = providers[0] ?? null): AccountSnapshot {
+  return { app, currentProviderId: current, observedAt: NOW,
+    providers: providers.map((id) => ({ id, name: NAMES[id] ?? id, origin: 'https://api.example.test',
+      isCurrent: id === current, quota: quotas[id] ?? null })),
+    accounts: app === 'codex'
+      ? [{ id: 'acc-a', login: 'alice@example.test', isDefault: true },
+        { id: 'acc-b', login: 'bob@example.test', isDefault: false }]
+      : [], accountError: null };
+}
+
+const freshCodex = (now: number) => snapshot('codex', ['p-a', 'p-b'],
+  { 'p-a': quotaAt(now - 60_000), 'p-b': quotaAt(now - 60_000, 50, 120 * 60_000) });
+
+let states: Record<'codex' | 'claude' | 'gemini', AccountSnapshot>;
+
+/** Default fixture behaves like a tiny stateful bridge: list returns the
+ *  current snapshot, a quota read simulates a real query (fresh queriedAt and
+ *  updated cache), writes mutate current state. Tests override single calls. */
+beforeEach(() => {
+  resetPluginPanelRuntime();
+  const now = Date.now();
+  states = { codex: freshCodex(now),
+    claude: snapshot('claude', ['c-a'], { 'c-a': quotaAt(now - 60_000) }, 'c-a'),
+    gemini: snapshot('gemini', ['g-a'], { 'g-a': quotaAt(now - 60_000) }, 'g-a') };
+  vi.mocked(invokePluginPanel).mockReset();
+  vi.mocked(invokePluginPanel).mockImplementation(async (_plugin, _panel, action, args) => {
+    const targetApp = String(args.app) as keyof typeof states;
+    const target = states[targetApp];
+    if (action === 'list') return structuredClone(target ?? snapshot(targetApp, [], {}));
+    if (action === 'quota') {
+      const id = String(args.id);
+      const provider = target?.providers.find((item) => item.id === id);
+      const value = quotaAt(Date.now(), provider?.quota?.tiers[0]?.usedPercent ?? 0);
+      if (provider) provider.quota = value;
+      return { id, app: targetApp, quota: value };
+    }
+    if (!target) throw new Error('missing app state');
+    if (action === 'switch') {
+      const id = String(args.id);
+      states[targetApp] = { ...target, currentProviderId: id,
+        providers: target.providers.map((provider) => ({ ...provider, isCurrent: provider.id === id })) };
+    } else if (action === 'default_account') {
+      const id = String(args.id);
+      states[targetApp] = { ...target,
+        accounts: target.accounts.map((account) => ({ ...account, isDefault: account.id === id })) };
+    }
+    return structuredClone(states[targetApp]);
+  });
+});
+afterEach(() => {
+  cleanup(); vi.useRealTimers(); resetPluginPanelRuntime();
+  usePluginPanelStore.setState({ panels: [], loaded: false, loading: false, error: null });
+});
 
 /** Flush the mocked invoke promise chains without waitFor (which needs real timers). */
 const flush = async () => { await act(async () => { await Promise.resolve(); }); };
-/** Advance the controlled clock far enough for the 30s local tick to fire. */
+/** Several await hops happen between list -> scheduler -> quota -> state. */
+const flushAll = async () => {
+  for (let index = 0; index < 10; index += 1) await act(async () => { await Promise.resolve(); });
+};
 const tick = (ms: number) => { act(() => { vi.advanceTimersByTime(ms); }); };
+const callsOf = (action: string) => vi.mocked(invokePluginPanel).mock.calls
+  .filter((call) => call[2] === action);
+const quotaIds = () => callsOf('quota').map((call) => String(call[3].id)).sort();
 
 describe('plugin account panel', () => {
   it('shows reauthentication requirements and prevents selecting an incomplete account', async () => {
-    const incomplete = structuredClone(state);
-    incomplete.accounts = incomplete.accounts.map((account) => ({ ...account, reauthRequired: !account.isDefault }));
-    vi.mocked(invokePluginPanel).mockResolvedValueOnce(incomplete);
+    states.codex.accounts = states.codex.accounts.map((account) => ({ ...account, reauthRequired: !account.isDefault }));
     render(<AccountSwitcher panel={panel} />);
     await screen.findByText('需要重新登录');
     expect(screen.getByRole('button', { name: '设为默认账号' }).hasAttribute('disabled')).toBe(true);
     expect(invokePluginPanel).toHaveBeenCalledTimes(1);
   });
 
-  it('shows accounts and defers quota queries until the explicit refresh button', async () => {
+  it('shows accounts and refreshes one quota only through the explicit button', async () => {
     render(<AccountSwitcher panel={panel} />);
     await screen.findByText('alice@example.test');
     expect(invokePluginPanel).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByText('额度未查询')).toHaveLength(2);
-    const queriedAt = Date.now() - (2 * 3600_000 + 15 * 60_000 + 30_000);
+    expect(screen.getAllByText('50%')).toHaveLength(2);
     vi.mocked(invokePluginPanel).mockResolvedValueOnce({ id: 'p-a', app: 'codex', quota: {
-      status: 'ok', available: true, queriedAt, message: null,
-      tiers: [{ name: '5小时', usedPercent: 70, resetsAt: new Date(Date.now() + 90 * 60_000 + 30_000).toISOString() }], balances: [],
+      status: 'ok', available: true, queriedAt: NOW - (2 * 3600_000 + 15 * 60_000 + 30_000), message: null,
+      tiers: [{ name: '5小时', usedPercent: 70, resetsAt: new Date(NOW + 90 * 60_000 + 30_000).toISOString() }], balances: [],
     } });
     fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
     await screen.findByText('70%');
-    expect(invokePluginPanel).toHaveBeenLastCalledWith('cc-switch-bridge', 'accounts', 'quota', { app: 'codex', id: 'p-a' }, undefined);
-    expect(screen.getByText(/距现在已过去 2h 15min/)).toBeTruthy();
-    expect(screen.getByText(/重置于 .+ · 距现在剩余 1h 30min/)).toBeTruthy();
+    expect(invokePluginPanel).toHaveBeenLastCalledWith('cc-switch-bridge', 'accounts', 'quota', { app: 'codex', id: 'p-a' });
   });
 
   it('switches a provider directly from one click, sends the observed current ID and admits only once', async () => {
@@ -66,14 +124,16 @@ describe('plugin account panel', () => {
     expect(invokePluginPanel).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alertdialog')).toBe(null);
     await flush();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
     let finish: (value: AccountSnapshot) => void = () => {};
     vi.mocked(invokePluginPanel).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
     fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
     expect(invokePluginPanel).toHaveBeenCalledTimes(3);
     expect(invokePluginPanel).toHaveBeenLastCalledWith('cc-switch-bridge', 'accounts', 'switch',
-      { app: 'codex', id: 'p-b', expectedCurrentId: 'p-a' }, expect.any(String));
-    finish({ ...state, currentProviderId: 'p-b', providers: state.providers.map((p) => ({ ...p, isCurrent: p.id === 'p-b' })) });
+      { app: 'codex', id: 'p-a', expectedCurrentId: 'p-b' }, expect.any(String));
+    finish({ ...states.codex, currentProviderId: 'p-a',
+      providers: states.codex.providers.map((provider) => ({ ...provider, isCurrent: provider.id === 'p-a' })) });
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新列表' }).hasAttribute('disabled')).toBe(false));
   });
 
@@ -116,11 +176,15 @@ describe('plugin account panel', () => {
 });
 
 describe('quota relative times on a controlled clock', () => {
-  const NOW = new Date('2026-10-18T12:00:00Z').getTime();
   const quota = (overrides: Partial<AccountQuota>): AccountQuota => ({
     status: 'ok', available: true, queriedAt: NOW, message: null, tiers: [], balances: [], ...overrides });
 
-  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(NOW); });
+  beforeEach(() => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW);
+    states = { codex: freshCodex(NOW),
+      claude: snapshot('claude', ['c-a'], { 'c-a': quotaAt(NOW - 60_000) }, 'c-a'),
+      gemini: snapshot('gemini', ['g-a'], { 'g-a': quotaAt(NOW - 60_000) }, 'g-a') };
+  });
 
   /** Load the panel, then refresh one provider's quota with the given value. */
   const showQuota = async (value: AccountQuota, id = 'p-a') => {
@@ -150,7 +214,9 @@ describe('quota relative times on a controlled clock', () => {
     expect(screen.getByText(/距现在剩余 96h 0min/)).toBeTruthy();
     expect(screen.getByText(/距现在剩余 59min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 15min/)).toBeTruthy();
-    const raw = screen.getAllByText(/重置于 /);
+    const article = screen.getByRole('heading', { name: 'Main' }).closest('article');
+    expect(article).toBeTruthy();
+    const raw = within(article as HTMLElement).getAllByText(/重置于 /);
     expect(raw).toHaveLength(3);
     for (const line of raw) expect(line.textContent).toMatch(/重置于 \d/);
   });
@@ -180,14 +246,19 @@ describe('quota relative times on a controlled clock', () => {
   });
 
   it('measures the query age from the quota queriedAt, not from mount or cache-read time', async () => {
-    const cached: AccountSnapshot = structuredClone(state);
+    const cached: AccountSnapshot = structuredClone(states.codex);
     cached.providers = cached.providers.map((provider) => ({ ...provider, quota: provider.id === 'p-a'
       ? quota({ queriedAt: NOW - 3 * 3600_000, tiers: [{ name: 'five_hour', usedPercent: 42, resetsAt: new Date(NOW + 5 * 3600_000).toISOString() }] })
       : quota({ queriedAt: NOW - 25 * 60_000, tiers: [{ name: 'weekly', usedPercent: 8, resetsAt: new Date(NOW + 100 * 3600_000).toISOString() }] }) }));
+    // Display-only test: hold the automatic stale reads so the cached
+    // timestamps stay on screen while their age is asserted.
+    const base = vi.mocked(invokePluginPanel).getMockImplementation();
+    vi.mocked(invokePluginPanel).mockImplementation((plugin, panelId, action, args, requestId) =>
+      action === 'quota' ? new Promise(() => {}) : base!(plugin, panelId, action, args, requestId));
     vi.mocked(invokePluginPanel).mockResolvedValueOnce(cached);
     render(<AccountSwitcher panel={panel} />);
     await flush();
-    expect(invokePluginPanel).toHaveBeenCalledTimes(1);
+    expect(callsOf('list')).toHaveLength(1);
     expect(screen.getByText(/距现在已过去 3h 0min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 25min/)).toBeTruthy();
     expect(screen.getByText(/距现在剩余 5h 0min/)).toBeTruthy();
@@ -200,7 +271,7 @@ describe('quota relative times on a controlled clock', () => {
     vi.mocked(invokePluginPanel).mockRejectedValueOnce(new Error('额度查询失败'));
     fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
     await flush();
-    expect(screen.getByText('额度查询失败')).toBeTruthy();
+    expect(screen.getByText(/额度查询失败/)).toBeTruthy();
     expect(screen.getByText(/距现在剩余 1h 30min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 45min/)).toBeTruthy();
     expect(screen.queryByText(/切换结果尚未确认/)).toBe(null);
@@ -211,5 +282,196 @@ describe('quota relative times on a controlled clock', () => {
     await showQuota(quota({ queriedAt: null, tiers: [{ name: 'five_hour', usedPercent: 70, resetsAt: null }] }));
     expect(screen.getByText(/查询时间：未知 · ok/)).toBeTruthy();
     expect(screen.getByText('重置时间未知')).toBeTruthy();
+  });
+});
+
+describe('automatic quota refresh on a controlled clock', () => {
+  beforeEach(() => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW);
+    states = { codex: freshCodex(NOW),
+      claude: snapshot('claude', ['c-a'], { 'c-a': quotaAt(NOW - 60_000) }, 'c-a'),
+      gemini: snapshot('gemini', ['g-a'], { 'g-a': quotaAt(NOW - 60_000) }, 'g-a') };
+  });
+
+  it('queries exactly when the previous query is strictly older than five minutes', async () => {
+    const cases: [number, number][] = [[299_999, 0], [300_000, 0], [300_001, 1], [-60_000, 0]];
+    for (const [age, expected] of cases) {
+      cleanup(); resetPluginPanelRuntime();
+      vi.mocked(invokePluginPanel).mockClear();
+      states.codex = snapshot('codex', ['p-a'], { 'p-a': quotaAt(NOW - age) });
+      render(<AccountSwitcher panel={panel} />);
+      await flushAll();
+      expect(callsOf('quota')).toHaveLength(expected);
+    }
+  });
+
+  it('treats unknown and future query times as needing a query but never queries fresh siblings', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b', 'p-c'], {
+      'p-a': null, 'p-b': quotaAt(NOW + 60_000), 'p-c': quotaAt(NOW - 300_001) });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(quotaIds()).toEqual(['p-a', 'p-c']);
+    expect(callsOf('switch')).toHaveLength(0);
+  });
+
+  it('shows the cached snapshot immediately on re-entry and does not re-query fresh quotas', async () => {
+    states.codex = snapshot('codex', ['p-a'], { 'p-a': quotaAt(NOW - 10 * 60_000, 40) });
+    const view = render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByText('40%')).toBeTruthy();
+    expect(callsOf('quota')).toHaveLength(1);
+    view.unmount(); cleanup();
+    vi.mocked(invokePluginPanel).mockClear();
+    render(<AccountSwitcher panel={panel} />);
+    // The cached value is rendered by the first pass, before the list responds.
+    expect(screen.getByText('40%')).toBeTruthy();
+    expect(screen.queryByText('正在读取账号信息…')).toBe(null);
+    expect(callsOf('list')).toHaveLength(1);
+    await flushAll();
+    expect(screen.getByText('40%')).toBeTruthy();
+    expect(callsOf('quota')).toHaveLength(0);
+  });
+
+  it('deduplicates mount, StrictMode replay and the same quota request', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b'], { 'p-a': null, 'p-b': null });
+    render(<StrictMode><AccountSwitcher panel={panel} /></StrictMode>);
+    await flushAll();
+    expect(callsOf('list')).toHaveLength(1);
+    expect(quotaIds()).toEqual(['p-a', 'p-b']);
+    expect(callsOf('switch')).toHaveLength(0);
+  });
+
+  it('isolates cached data per app and ignores a late response from the previous app', async () => {
+    states.codex = snapshot('codex', ['p-a'], { 'p-a': null });
+    states.claude = snapshot('claude', ['c-a'], { 'c-a': null }, 'c-a');
+    let releaseCodex: (value: unknown) => void = () => {};
+    const base = vi.mocked(invokePluginPanel).getMockImplementation();
+    vi.mocked(invokePluginPanel).mockImplementation((plugin, panelId, action, args, requestId) => {
+      if (action === 'quota' && args.app === 'codex' && args.id === 'p-a') {
+        return new Promise((resolve) => { releaseCodex = resolve; });
+      }
+      return base!(plugin, panelId, action, args, requestId);
+    });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    fireEvent.click(screen.getByRole('button', { name: 'Claude' }));
+    await flushAll();
+    expect(screen.getByRole('heading', { name: 'Claude Main' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Main' })).toBe(null);
+    const provider = states.codex.providers.find((item) => item.id === 'p-a');
+    if (provider) provider.quota = quotaAt(NOW, 66);
+    releaseCodex({ id: 'p-a', app: 'codex', quota: quotaAt(NOW, 66) });
+    await flushAll();
+    expect(screen.getByRole('heading', { name: 'Claude Main' })).toBeTruthy();
+    expect(screen.queryByText('66%')).toBe(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Codex' }));
+    await flushAll();
+    expect(screen.getByText('66%')).toBeTruthy();
+  });
+
+  it('does not let a late list response roll back a newer provider switch', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b'], { 'p-a': quotaAt(NOW - 60_000), 'p-b': quotaAt(NOW - 60_000) });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    const stale = structuredClone(states.codex);
+    let releaseList: (value: AccountSnapshot) => void = () => {};
+    vi.mocked(invokePluginPanel).mockImplementationOnce(() => new Promise<AccountSnapshot>((resolve) => { releaseList = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }));
+    fireEvent.click(screen.getByRole('button', { name: '启用配置' }));
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    releaseList(stale);
+    await flushAll();
+    expect(screen.getByText('当前：Secondary')).toBeTruthy();
+    expect(callsOf('switch')).toHaveLength(1);
+  });
+
+  it('keeps the old quota, reports a failure once and retries only on demand', async () => {
+    states.codex = snapshot('codex', ['p-a'], { 'p-a': quotaAt(NOW - 20 * 60_000, 70) });
+    let attempts = 0;
+    const base = vi.mocked(invokePluginPanel).getMockImplementation();
+    vi.mocked(invokePluginPanel).mockImplementation((plugin, panelId, action, args, requestId) => {
+      if (action === 'quota') {
+        attempts += 1;
+        if (attempts === 1) return Promise.reject(new Error('额度查询失败'));
+        const provider = states.codex.providers.find((item) => item.id === 'p-a');
+        if (provider) provider.quota = quotaAt(NOW, 80);
+        return Promise.resolve({ id: 'p-a', app: 'codex', quota: quotaAt(NOW, 80) });
+      }
+      return base!(plugin, panelId, action, args, requestId);
+    });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(screen.getByText('70%')).toBeTruthy();
+    expect(screen.getByText(/额度刷新失败：额度查询失败（可重试）/)).toBeTruthy();
+    expect(callsOf('quota')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: '刷新 Main 额度' }));
+    await flushAll();
+    expect(screen.getByText('80%')).toBeTruthy();
+    expect(screen.queryByText(/额度刷新失败/)).toBe(null);
+    expect(callsOf('quota')).toHaveLength(2);
+  });
+
+  it('limits concurrent automatic quota reads and lets one failure finish the rest', async () => {
+    states.codex = snapshot('codex', ['p-a', 'p-b', 'p-c', 'p-d', 'p-e'],
+      Object.fromEntries(['p-a', 'p-b', 'p-c', 'p-d', 'p-e'].map((id) => [id, null])));
+    let active = 0;
+    let peak = 0;
+    const started: string[] = [];
+    const pending = new Map<string, () => void>();
+    const base = vi.mocked(invokePluginPanel).getMockImplementation();
+    vi.mocked(invokePluginPanel).mockImplementation((plugin, panelId, action, args, requestId) => {
+      if (action === 'quota') {
+        const id = String(args.id);
+        started.push(id);
+        active += 1; peak = Math.max(peak, active);
+        return new Promise((resolve, reject) => {
+          pending.set(id, () => {
+            active -= 1;
+            if (id === 'p-b') reject(new Error('单配置失败'));
+            else resolve({ id, app: 'codex', quota: quotaAt(NOW, 10) });
+          });
+        });
+      }
+      return base!(plugin, panelId, action, args, requestId);
+    });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    expect(started).toHaveLength(2);
+    expect(peak).toBe(2);
+    pending.get('p-a')?.();
+    await flushAll();
+    expect(started).toHaveLength(3);
+    expect(peak).toBe(2);
+    pending.get('p-b')?.();
+    pending.get('p-c')?.();
+    await flushAll();
+    expect(started).toHaveLength(5);
+    pending.get('p-d')?.();
+    pending.get('p-e')?.();
+    await flushAll();
+    expect(peak).toBe(2);
+    expect(callsOf('switch')).toHaveLength(0);
+    expect(screen.getByText(/额度刷新失败：单配置失败/)).toBeTruthy();
+  });
+
+  it('does not run an automatic quota pass after a manual list refresh', async () => {
+    states.codex = snapshot('codex', ['p-a'], { 'p-a': quotaAt(NOW - 60_000) });
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    states.codex = snapshot('codex', ['p-a'], { 'p-a': quotaAt(NOW - 30 * 60_000) });
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }));
+    await flushAll();
+    expect(callsOf('quota')).toHaveLength(0);
+  });
+
+  it('keeps cached data and surfaces the error when a background list refresh fails', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await flushAll();
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(new Error('列表读取失败'));
+    fireEvent.click(screen.getByRole('button', { name: '刷新列表' }));
+    await flushAll();
+    expect(screen.getByText('Main')).toBeTruthy();
+    expect(screen.getByText(/读取列表失败：列表读取失败（已保留上次数据，可重试）/)).toBeTruthy();
   });
 });

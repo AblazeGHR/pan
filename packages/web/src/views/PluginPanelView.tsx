@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { RefreshCw, Check, Play, Plug, Search, UserRound, Layers3 } from 'lucide-react';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 import { invokePluginPanel } from '@/services/api';
 import type { AccountQuota, AccountSnapshot, PluginPanel } from '@/types/pluginPanels';
+import {
+  QUOTA_REFRESH_CONCURRENCY, dedupeListRequest, dedupeQuotaRequest, mergeSnapshots,
+  needsQuotaRefresh, readCachedSnapshot, runLimited, writeCachedSnapshot,
+  type PanelScope, type QuotaResult,
+} from './pluginPanelRuntime';
 
 const button = 'inline-flex items-center justify-center gap-2 rounded-lg border border-border-default px-3 py-2 text-sm disabled:opacity-40 hover:bg-bg-hover';
 
@@ -41,51 +46,196 @@ export default function PluginPanelView() {
   return <AccountSwitcher key={panel.pluginId + '/' + panel.id} panel={panel} />;
 }
 
+type SnapshotMap = Record<string, AccountSnapshot | null>;
+
 export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
+  const scope: PanelScope = useMemo(() => ({ pluginId: panel.pluginId, panelId: panel.id }),
+    [panel.pluginId, panel.id]);
   const [app, setApp] = useState('codex');
-  const [snapshot, setSnapshot] = useState<AccountSnapshot | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Reading the module cache during the first render is what makes a re-entry
+  // instant: the last snapshot of each app is shown before the list returns.
+  const [snapshots, setSnapshots] = useState<SnapshotMap>(() => ({
+    codex: readCachedSnapshot(scope, 'codex'),
+    claude: readCachedSnapshot(scope, 'claude'),
+    gemini: readCachedSnapshot(scope, 'gemini'),
+  }));
+  const [listLoading, setListLoading] = useState<Record<string, boolean>>({});
+  const [listErrors, setListErrors] = useState<Record<string, string | null>>({});
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  const [refreshing, setRefreshing] = useState<string[]>([]);
+  const [quotaErrors, setQuotaErrors] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
+
   const admitted = useRef(false);
+  const mounted = useRef(true);
+  const appRef = useRef(app);
+  appRef.current = app;
+  const snapshotsRef = useRef(snapshots);
+  /** One token per app and snapshot-producing request; a late list response
+   *  cannot roll back a switch that was requested after it. */
+  const viewTokens = useRef<Record<string, number>>({});
+  /** Monotonic marker per app/provider for quota reads that landed after a
+   *  list or switch request started. */
+  const quotaVersions = useRef<Record<string, number>>({});
+  const versionSeq = useRef(0);
+  /** Providers already auto-queried during this app visit, so a failed read is
+   *  reported once and retried explicitly instead of looping. */
+  const autoAttempted = useRef<Set<string>>(new Set());
+
+  const snapshot = snapshots[app] ?? null;
   const now = useNow();
 
   useEffect(() => {
-    let active = true;
-    setSnapshot(null); setError(null); setBusy(true);
-    void invokePluginPanel<AccountSnapshot>(panel.pluginId, panel.id, 'list', { app })
-      .then((value) => { if (active) { setSnapshot(value); setUncertain(false); } })
-      .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : '读取失败'); })
-      .finally(() => { if (active) setBusy(false); });
-    return () => { active = false; };
-  }, [app, panel.pluginId, panel.id]);
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const markQuota = useCallback((targetApp: string, providerId: string) => {
+    versionSeq.current += 1;
+    quotaVersions.current[`${targetApp}:${providerId}`] = versionSeq.current;
+  }, []);
+
+  const keepQuotaSince = useCallback((targetApp: string, versions: Record<string, number>) =>
+    (providerId: string) => (quotaVersions.current[`${targetApp}:${providerId}`] ?? 0)
+      > (versions[`${targetApp}:${providerId}`] ?? 0), []);
+
+  const mergeInto = useCallback((next: AccountSnapshot, keepQuota?: (providerId: string) => boolean) => {
+    const previous = snapshotsRef.current[next.app] ?? readCachedSnapshot(scope, next.app);
+    const merged = mergeSnapshots(previous ?? null, next, keepQuota);
+    snapshotsRef.current = { ...snapshotsRef.current, [next.app]: merged };
+    writeCachedSnapshot(scope, merged);
+    setSnapshots((current) => ({ ...current, [next.app]: merged }));
+    return merged;
+  }, [scope]);
+
+  const refreshQuota = useCallback(async (targetApp: string, providerId: string) => {
+    const key = `${targetApp}:${providerId}`;
+    const { promise, reused } = dedupeQuotaRequest(scope, targetApp, providerId,
+      () => invokePluginPanel<QuotaResult>(panel.pluginId, panel.id, 'quota', { app: targetApp, id: providerId }));
+    if (!reused) setRefreshing((current) => current.includes(key) ? current : [...current, key]);
+    try {
+      const value = await promise;
+      const previous = snapshotsRef.current[targetApp] ?? readCachedSnapshot(scope, targetApp);
+      if (previous) {
+        const merged = {
+          ...previous,
+          providers: previous.providers.map((provider) =>
+            provider.id === value.id ? { ...provider, quota: value.quota } : provider),
+        };
+        snapshotsRef.current = { ...snapshotsRef.current, [targetApp]: merged };
+        writeCachedSnapshot(scope, merged);
+        if (mounted.current) setSnapshots((current) => ({ ...current, [targetApp]: merged }));
+      }
+      markQuota(targetApp, value.id);
+      if (mounted.current) {
+        setQuotaErrors((current) => {
+          if (!(key in current)) return current;
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+      }
+    } catch (reason) {
+      if (mounted.current) {
+        setQuotaErrors((current) => ({ ...current,
+          [key]: reason instanceof Error ? reason.message : '额度刷新失败' }));
+      }
+    } finally {
+      if (!reused) setRefreshing((current) => current.filter((entry) => entry !== key));
+    }
+  }, [scope, panel.pluginId, panel.id, markQuota]);
+
+  /** Query only providers whose last real query is unknown or older than five
+   *  minutes. Called on entry and after the entry list, never on a timer. */
+  const autoRefresh = useCallback((target: AccountSnapshot) => {
+    const clock = Date.now();
+    const stale = target.providers.filter((provider) =>
+      needsQuotaRefresh(provider.quota, clock) && !autoAttempted.current.has(`${target.app}:${provider.id}`));
+    if (stale.length === 0) return;
+    for (const provider of stale) autoAttempted.current.add(`${target.app}:${provider.id}`);
+    void runLimited(stale.map((provider) => () => refreshQuota(target.app, provider.id)),
+      QUOTA_REFRESH_CONCURRENCY);
+  }, [refreshQuota]);
+
+  const loadSnapshot = useCallback(async (targetApp: string, refreshQuotaAfter: boolean) => {
+    viewTokens.current[targetApp] = (viewTokens.current[targetApp] ?? 0) + 1;
+    const token = viewTokens.current[targetApp];
+    const versions = { ...quotaVersions.current };
+    setListLoading((current) => ({ ...current, [targetApp]: true }));
+    setListErrors((current) => ({ ...current, [targetApp]: null }));
+    try {
+      const { promise } = dedupeListRequest(scope, targetApp, () =>
+        invokePluginPanel<AccountSnapshot>(panel.pluginId, panel.id, 'list', { app: targetApp }));
+      const value = await promise;
+      if (!mounted.current || viewTokens.current[targetApp] !== token) return;
+      const merged = mergeInto(value, keepQuotaSince(targetApp, versions));
+      if (appRef.current === targetApp) setUncertain(false);
+      if (refreshQuotaAfter) autoRefresh(merged);
+    } catch (reason) {
+      if (!mounted.current || viewTokens.current[targetApp] !== token) return;
+      setListErrors((current) => ({ ...current,
+        [targetApp]: reason instanceof Error ? reason.message : '读取失败' }));
+    } finally {
+      if (mounted.current && viewTokens.current[targetApp] === token) {
+        setListLoading((current) => ({ ...current, [targetApp]: false }));
+      }
+    }
+  }, [scope, panel.pluginId, panel.id, mergeInto, keepQuotaSince, autoRefresh]);
+
+  // Entry and app switch are the only automatic trigger. The cached snapshot is
+  // already on screen; stale quotas start immediately while the list refreshes.
+  useEffect(() => {
+    autoAttempted.current = new Set();
+    const cached = readCachedSnapshot(scope, app);
+    if (cached) autoRefresh(cached);
+    void loadSnapshot(app, true);
+  }, [app, scope, autoRefresh, loadSnapshot]);
 
   const act = async (action: string, id?: string) => {
+    if (action === 'quota') {
+      if (id) await refreshQuota(app, id);
+      return;
+    }
+    if (action === 'list') {
+      await loadSnapshot(app, false);
+      return;
+    }
     if (admitted.current || busy) return;
     admitted.current = true; setBusy(true); setError(null);
+    const targetApp = app;
     const writing = panel.actions[action]?.effect === 'write_external';
+    viewTokens.current[targetApp] = (viewTokens.current[targetApp] ?? 0) + 1;
+    const token = viewTokens.current[targetApp];
+    const versions = { ...quotaVersions.current };
     try {
-      const args: Record<string, unknown> = { app, ...(id ? { id } : {}) };
+      const current = snapshotsRef.current[targetApp] ?? null;
+      const args: Record<string, unknown> = { app: targetApp, ...(id ? { id } : {}) };
       if (writing) args.expectedCurrentId = action === 'default_account'
-        ? snapshot?.accounts.find((a) => a.isDefault)?.id ?? null : snapshot?.currentProviderId ?? null;
-      const value = await invokePluginPanel<AccountSnapshot | { id: string; app: string; quota: AccountQuota }>(
+        ? current?.accounts.find((account) => account.isDefault)?.id ?? null
+        : current?.currentProviderId ?? null;
+      const value = await invokePluginPanel<AccountSnapshot>(
         panel.pluginId, panel.id, action, args, writing ? crypto.randomUUID() : undefined);
-      if ('providers' in value) { setSnapshot(value); setUncertain(false); }
-      else setSnapshot((previous) => previous ? { ...previous, providers: previous.providers.map((p) =>
-        p.id === value.id ? { ...p, quota: value.quota } : p) } : previous);
+      if (!mounted.current || viewTokens.current[targetApp] !== token) return;
+      mergeInto(value, keepQuotaSince(targetApp, versions));
+      setUncertain(false);
     } catch (reason) {
+      if (!mounted.current) return;
       setError(reason instanceof Error ? reason.message : '操作失败');
       if (writing) setUncertain(true);
     } finally { admitted.current = false; setBusy(false); }
   };
+
+  const listError = listErrors[app] ?? null;
+  const refreshingHere = refreshing.filter((key) => key.startsWith(app + ':'));
 
   return <section className="h-full overflow-auto p-4 sm:p-6 text-text-primary" aria-label={panel.title}>
     <div className="mx-auto max-w-6xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-semibold flex items-center gap-2"><Plug size={22} />{panel.title}</h1>
           <p className="mt-1 text-sm text-text-tertiary">管理应用配置与 ChatGPT 账号，和 CC Switch 共享账号数据。</p></div>
-        <button className={button} disabled={busy} onClick={() => void act('list')}><RefreshCw size={15} />刷新列表</button>
+        <button className={button} disabled={busy || listLoading[app] === true} onClick={() => void act('list')}><RefreshCw size={15} />刷新列表</button>
       </header>
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-default bg-bg-secondary p-2" role="group" aria-label="应用">
         {['codex', 'claude', 'gemini'].map((value) => <button key={value} className={button + (app === value ? ' bg-accent/15 text-accent' : '')}
@@ -97,8 +247,11 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
           className="min-w-0 w-full bg-transparent py-3 text-sm outline-none" />
       </label>
       {error && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">{error}</div>}
+      {listError && <div role="alert" className="rounded-lg border border-red-500/40 p-3 text-sm break-words">读取列表失败：{listError}（已保留上次数据，可重试）</div>}
       {uncertain && <p role="status" className="text-sm text-amber-500">切换结果尚未确认。请先刷新列表并核对实际状态，再发起新的切换。</p>}
-      {!snapshot && <p role="status" className="text-text-tertiary">{busy ? '正在读取账号信息…' : '尚未读取到数据'}</p>}
+      {refreshingHere.length > 0 && <p role="status" className="text-sm text-text-tertiary">正在刷新 {refreshingHere.length} 个过期额度…</p>}
+      {listLoading[app] === true && snapshot && <p role="status" className="text-sm text-text-tertiary">正在后台更新列表…</p>}
+      {!snapshot && <p role="status" className="text-text-tertiary">{listLoading[app] === true ? '正在读取账号信息…' : '尚未读取到数据'}</p>}
       {snapshot && <>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
           <span className="inline-flex items-center gap-2"><Layers3 size={16} />{snapshot.providers.length} 个配置</span>
@@ -116,8 +269,9 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
                 {provider.category && <span className="mt-2 inline-block rounded bg-bg-primary px-2 py-0.5 text-xs text-text-tertiary">{provider.category}</span>}</div>
               {provider.isCurrent ? <span className="flex items-center gap-1 text-accent text-sm"><Check size={16} />当前配置</span> :
                 <button className={button + ' text-accent'} disabled={busy || uncertain} onClick={() => void act('switch', provider.id)}><Play size={14} />启用配置</button>}
-              <button className={button} aria-label={`刷新 ${provider.name} 额度`} disabled={busy} onClick={() => void act('quota', provider.id)}><RefreshCw size={14} />额度</button>
+              <button className={button} aria-label={`刷新 ${provider.name} 额度`} disabled={busy || refreshing.includes(`${app}:${provider.id}`)} onClick={() => void act('quota', provider.id)}><RefreshCw size={14} />额度</button>
             </div>
+            {quotaErrors[`${app}:${provider.id}`] && <p role="status" className="mt-2 text-sm text-amber-500">额度刷新失败：{quotaErrors[`${app}:${provider.id}`]}（可重试）</p>}
             <Quota quota={provider.quota} now={now} />
           </article>)}
         </div>

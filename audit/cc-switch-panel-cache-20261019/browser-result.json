@@ -1,0 +1,101 @@
+{
+  "passed": true,
+  "actions": [
+    {
+      "action": "list",
+      "app": "codex",
+      "id": null,
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374227020
+    },
+    {
+      "action": "quota",
+      "app": "codex",
+      "id": "p-b",
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374227026
+    },
+    {
+      "action": "quota",
+      "app": "codex",
+      "id": "p-c",
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374227027
+    },
+    {
+      "action": "list",
+      "app": "codex",
+      "id": null,
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374228418
+    },
+    {
+      "action": "list",
+      "app": "claude",
+      "id": null,
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374228915
+    },
+    {
+      "action": "quota",
+      "app": "claude",
+      "id": "c-a",
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374229385
+    },
+    {
+      "action": "list",
+      "app": "codex",
+      "id": null,
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374229818
+    },
+    {
+      "action": "quota",
+      "app": "codex",
+      "id": "p-a",
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374229969
+    },
+    {
+      "action": "list",
+      "app": "codex",
+      "id": null,
+      "expectedCurrentId": null,
+      "requestId": null,
+      "at": 1792374230318
+    },
+    {
+      "action": "switch",
+      "app": "codex",
+      "id": "p-b",
+      "expectedCurrentId": "p-a",
+      "requestId": "aa075e83-78da-4b65-a483-2469ff95581b",
+      "at": 1792374231166
+    }
+  ],
+  "errors": [],
+  "realCliExecuted": false,
+  "backend": "stateful intercepted API fixture",
+  "strictModeDedupe": true,
+  "firstEntryOnlyStaleQueried": true,
+  "reentryCachedBeforeList": true,
+  "reentryNoQuotaRequests": true,
+  "appIsolation": true,
+  "appSwitchOnlyNewAppQueried": true,
+  "manualQuotaAlwaysQueries": true,
+  "manualListNoAutoQuota": true,
+  "noAutoSwitch": true,
+  "noPolling": true,
+  "manualSwitchExpectedCurrentId": true,
+  "mobile": true,
+  "port": 5173
+}
