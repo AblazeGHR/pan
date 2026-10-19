@@ -60,6 +60,37 @@ function stream() {
     );
 }
 
+it.each(['diff', 'plan'] as const)(
+  'seals Codex aggregate %s at DONE even when old task history is outside the loaded page', kind => {
+    const store = useSessionStore.getState;
+    // A cold entry can observe running before knowing the history boundary.
+    useSessionStore.setState({
+      sessions: store().sessions.map(session => ({ ...session, history: [], historyTotal: 0 })),
+      sessionTranscripts: {}, currentMessages: [],
+    });
+    store().applyWorkerStatus('A', 'running', meta);
+    store().applyHistoryPage('A', {
+      ...page(initial, 5001), total: 5001, start: 5000, hasMore: true,
+    });
+    const aggregate = row(kind === 'diff' ? 'tool' : 'thinking',
+      kind === 'diff' ? 'CodexDiff({"diff":"+change"})' : '[x] Inspect', `${kind}:turn-1`);
+    aggregate.nativeAggregate = kind;
+    store().applyLiveStream('A', [
+      row('tool', 'older unloaded tool', 'unloaded-tool'),
+      row('assistant', 'final answer', 'body'), aggregate,
+    ], meta);
+    expect(store().currentMessages).toContainEqual(aggregate);
+    finish(5003);
+    store().applyHistoryPage('A', {
+      ...page(final, 5003), total: 5003, start: 5000, hasMore: true,
+    });
+    expect(store().currentMessages.some(message => message.nativeItemId === `${kind}:turn-1`)).toBe(false);
+    expect(store().currentMessages.some(message => message.nativeItemId === 'unloaded-tool')).toBe(true);
+    expect(store().currentMessages.filter(message => message.content === 'final answer')).toHaveLength(1);
+    expect(store().currentMessages.filter(message => message.content === 'DONE')).toHaveLength(1);
+  },
+);
+
 it('removes interrupted live fragments on restart while preserving canonical rows and local input', () => {
   const store = useSessionStore.getState;
   store().applyLiveStream('A', [row('assistant', 'old prefix', 'interrupted-body')], meta);
