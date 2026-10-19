@@ -22,6 +22,7 @@ import {
 } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
+import { resetDraftStateForTests } from '@/stores/composerDraftStore';
 import type { AdapterConfig } from '@/types';
 import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 
@@ -144,6 +145,9 @@ function deferred<T>() {
 
 beforeEach(() => {
   localStorage.clear();
+  // The draft store is module-scoped and now also feeds remount restoration,
+  // so a previous case's recorded draft must not leak into this one.
+  resetDraftStateForTests();
   useSessionStore.setState({
     currentSessionId: null,
     currentMessages: [],
