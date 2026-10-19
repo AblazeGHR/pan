@@ -11,6 +11,7 @@
 
 ### Added
 
+- Shortcuts 设置页支持已有快捷键、自注册插件 Panel、队列展开与锁定入队、Lock all、Pause everything、Stop report 和通知铃；设置分类与登录自启动保持兼容。
 - Chat TopBar 用量标签自适应收纳，支持复制 Session 名称；Appearance 增加桌面侧边栏折叠把手和视图切换按钮的显示设置。
 - README 中英文文档索引带 CLI 的 `cc-switch-pan` 仓库；Panel 在列表、配额或写入操作缺少 CLI 时显示安装仓库入口，并保留结构化错误信息。
 
