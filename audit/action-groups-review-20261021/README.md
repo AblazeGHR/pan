@@ -140,5 +140,9 @@ POSIX process-group verification, service deployment or human acceptance is made
 All measured commands finished under three minutes; no long-command Job was needed.
 Only owned ephemeral HTTP/IPC/provider/browser processes were used and retired.
 8768 remained owned by original PID 6032; 8767 was unused. No deployed service was
-called or changed. main/practical stayed at `6178efe0b7104473ba5968b1fbd7b7b7c0028d75`.
-No push, merge, service restart or delegation was performed.
+called or changed. main/practical were observed at `6178efe0b7104473ba5968b1fbd7b7b7c0028d75`
+during validation, but the final read-only check found both at
+`d5fd2cca4d0dba336ca47142530411d5b1b6c180`. This review issued no command moving
+either ref and did not merge that concurrently advanced baseline into this tree.
+The acceptance candidate remains based on the reviewed `1aa2541c` lineage.
+No push, merge, service restart or delegation was performed by this review.
