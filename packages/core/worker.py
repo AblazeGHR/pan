@@ -3086,9 +3086,31 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.native_user":
             s = _session(w)
             text = event.get("text")
-            if s is not None and w._native_external_turn_active and isinstance(text, str) and text:
-                _sess.append_history(s, {"role": "user", "content": text, "source": "native-tui"})
-                _mark_history_dirty(w)
+            if s is not None and w._native_external_turn_active and isinstance(text, str) and (text or event.get("nativeContent")):
+                run = s.offline_run or {}
+                if adapter.name == "codex" and (
+                        not event.get("requestId") or run.get("nativeAdmissionId") != event["requestId"]
+                        or (run.get("id") != event.get("runId") and not (
+                            event.get("runId") is None and run.get("nativeAdmissionTiming") == "after-start"))
+                        or not _offline.same_owner(run, _offline.owner(w))
+                        or event.get("thread_id") != s.cli_session_id
+                        or event.get("turn_id") != run.get("nativeTurnId")):
+                    continue
+                row = {"role": "user", "content": text, "source": "native-tui"}
+                if not text:
+                    row["messageId"] = _sess._new_pan_message_id()
+                for incoming, durable in (("item_id", "nativeItemId"), ("turn_id", "turnId"),
+                                           ("nativeContent", "nativeContent")):
+                    if event.get(incoming) is not None:
+                        row[durable] = event[incoming]
+                # Replay identity is scoped to this native turn, never body.
+                if row.get("nativeItemId") and row.get("turnId") and any(
+                        old.get("role") == "user" and old.get("source") == "native-tui"
+                        and old.get("nativeItemId") == row["nativeItemId"]
+                        and old.get("turnId") == row["turnId"] for old in s.history):
+                    continue
+                _sess.append_history(s, row)
+                await _sess.save_async(s)
                 await _bcast({"type": "session.updated", "sessionId": w.session_id})
             continue
         if event.get("type") == "pan.steer_receipt":
@@ -3176,6 +3198,12 @@ async def _read_stdout(w: Worker):
             s = _session(w)
             if s:
                 for b in adapter.extract_assistant_blocks(event):
+                    if event.get("turn_id") is not None:
+                        b.setdefault("turnId", event["turn_id"])
+                    if event.get("block_id") is not None:
+                        b.setdefault("blockId", event["block_id"])
+                    if w._native_external_turn_active:
+                        b.setdefault("source", "native-tui")
                     _sess.append_history(s, b)
                     if (b.get("role") == "assistant"
                             and _sess.is_pan_message_id(b.get("messageId"))):

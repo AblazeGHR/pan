@@ -1,0 +1,82 @@
+{
+  "cliVersion": "0.163.0",
+  "command": "codex app-server generate-json-schema --out <owned temporary directory>",
+  "exitCode": 0,
+  "schemaFile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-sync-schema-pugjbm1o\\v2\\TurnCompletedNotification.json",
+  "sha256": "69413578ec3ecd02691424bdeb9d640c7244b4ca4c5c3ef26f69a2efe7c37db8",
+  "Turn": {
+    "properties": {
+      "completedAt": {
+        "description": "Unix timestamp (in seconds) when the turn completed.",
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "description": "Duration between turn start and completion in milliseconds, if known.",
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/TurnError"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Error associated with a failed or interrupted turn."
+      },
+      "id": {
+        "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.",
+        "type": "string"
+      },
+      "items": {
+        "description": "Thread items currently included in this turn payload.",
+        "items": {
+          "$ref": "#/definitions/ThreadItem"
+        },
+        "type": "array"
+      },
+      "itemsView": {
+        "allOf": [
+          {
+            "$ref": "#/definitions/TurnItemsView"
+          }
+        ],
+        "default": "full",
+        "description": "Describes how much of `items` has been loaded for this turn."
+      },
+      "rootTurnId": {
+        "description": "ID of the first turn in the chain of work that led to this turn. Pass this as `rootTurnId` when starting work on behalf of this turn. May be null in older history or a `review/start` response.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "description": "Unix timestamp (in seconds) when the turn started.",
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "status": {
+        "$ref": "#/definitions/TurnStatus"
+      }
+    },
+    "required": [
+      "id",
+      "items",
+      "status"
+    ],
+    "type": "object"
+  }
+}

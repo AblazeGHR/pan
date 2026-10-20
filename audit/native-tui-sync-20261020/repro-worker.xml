@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="24.889" timestamp="2026-10-20T16:58:46.299054+08:00" hostname="ablaze"><testcase classname="tests.test_codex_native_kernel_real" name="test_real_worker_persists_independent_native_and_pan_turns" time="24.497"><failure message="TimeoutError">predicate = &lt;function test_real_worker_persists_independent_native_and_pan_turns.&lt;locals&gt;.run.&lt;locals&gt;.&lt;lambda&gt; at 0x000001FC517E7B60&gt;
+
+    async def until(predicate):
+        async with asyncio.timeout(20):
+            while not predicate():
+&gt;               await asyncio.sleep(.02)
+
+tests\test_codex_native_kernel_real.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+delay = 0.02, result = None
+
+    async def sleep(delay, result=None):
+        """Coroutine that completes after a given time (in seconds)."""
+        if delay &lt;= 0:
+            await __sleep0()
+            return result
+
+        if math.isnan(delay):
+            raise ValueError("Invalid delay: NaN (not a number)")
+
+        loop = events.get_running_loop()
+        future = loop.create_future()
+        h = loop.call_later(delay,
+                            futures._set_result_unless_cancelled,
+                            future, result)
+        try:
+&gt;           return await future
+                   ^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:702: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3198/test_real_worker_persists_inde0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FC515D0510&gt;
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows resident CLI")
+    def test_real_worker_persists_independent_native_and_pan_turns(tmp_path, monkeypatch):
+        from packages.core import worker, session
+        from packages.core.adapters.codex import CodexAdapter
+        from unittest.mock import AsyncMock
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location("probe_helper", root / "audit/terminal/codex/probe_codex_remote_tui.py")
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        home = tmp_path / "home"
+        home.mkdir()
+        helper.seed_placeholder_credentials(str(home), [])
+        monkeypatch.setenv("CODEX_HOME", str(home))
+        provider = SyntheticResponses()
+        provider.release.set()
+        options = ["-c", 'model_provider="probe_bh"', "-c",
+            f'model_providers.probe_bh={{name="probe_bh",base_url="{provider.base_url}",wire_api="responses"}}']
+        monkeypatch.setattr(CodexAdapter, "mcp_args", lambda *args: options)
+        monkeypatch.setattr(CodexAdapter, "enrich_after_result", lambda *args: None)
+        monkeypatch.setattr(worker, "_enqueue_report", AsyncMock())
+        monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
+        monkeypatch.setattr(worker, "_bcast", AsyncMock())
+
+        async def run():
+            s = session.create("isolated native sync", adapter="codex", workdir=str(tmp_path))
+            s.model = "probe-model"
+            s.adapter_config.update(native_control=True, output_mode="stream")
+            session.save(s)
+            w = await worker.create_worker(s.id)
+            assert isinstance(w, worker.Worker), w
+            async def until(predicate):
+                async with asyncio.timeout(20):
+                    while not predicate():
+                        await asyncio.sleep(.02)
+            try:
+                await until(lambda: bool(s.cli_session_id))
+                thread = s.cli_session_id
+                for index in range(2):
+                    state = await worker.switch_native_control(w.worker_id, "native")
+                    assert state["mode"] == "native"
+                    await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": "\x1b[1;1R"})
+                    await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": f"INDEPENDENT NATIVE {index}"})
+                    await asyncio.sleep(1)  # Native paste coalescing, before Enter.
+                    await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": "\r"})
+                    await until(lambda: s.result_cursor == index * 2 + 1)
+                    assert any(row.get("content") == f"INDEPENDENT NATIVE {index}" for row in s.history)
+                    assert any(row.get("content") == "synthetic native answer" for row in s.history)
+                    state = await worker.switch_native_control(w.worker_id, "pan")
+                    assert state["mode"] == "pan"
+                    await worker.send(w.worker_id, f"PAN AFTER NATIVE {index}", source="user")
+                    await until(lambda: s.result_cursor == index * 2 + 2)
+                    assert s.cli_session_id == thread
+                disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                assert [r["content"] for r in disk["history"] if r["role"] == "user"] == [
+                    "INDEPENDENT NATIVE 0", "PAN AFTER NATIVE 0", "INDEPENDENT NATIVE 1", "PAN AFTER NATIVE 1"]
+                assert len([r for r in disk["history"] if r["role"] == "assistant"]) == 4
+            finally:
+                print("WORKER_SYNC_DIAGNOSTICS", json.dumps({"status": w.status, "cursor": s.result_cursor,
+                    "history": s.history, "providerReceived": provider.received.is_set(),
+                    "nativeError": w.native_control_error, "screen": helper.strip_ansi(bytes(w.native_output).decode(errors="replace"))[-4000:]}))
+                await worker.kill_worker(w.worker_id)
+        try:
+&gt;           asyncio.run(run())
+
+tests\test_codex_native_kernel_real.py:127:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_codex_native_kernel_real.py:109: in run
+    await until(lambda: s.result_cursor == index * 2 + 1)
+tests\test_codex_native_kernel_real.py:96: in until
+    async with asyncio.timeout(20):
+               ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x000001FC51689580&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase></testsuite></testsuites>

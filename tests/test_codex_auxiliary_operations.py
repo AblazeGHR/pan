@@ -398,7 +398,13 @@ def test_real_local_codex_command_and_detached_review(tmp_path, monkeypatch, his
             assert marker.read_text() == "local" and s.legal_offline
             assert w._execution_seq == s.task_seq == 0
             def durable_before_model():
-                disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                # Binding can be atomically replacing this file on Windows.
+                # Observe actual disk bytes through the same ordered channel;
+                # this is still a durable-before-provider assertion, not an
+                # in-memory snapshot or a retry of the provider request.
+                state, ticket, enqueued_at = session._reserve_save_ticket(s.id)
+                disk = session._run_persistence_ticket(state, ticket, enqueued_at,
+                    lambda: json.loads(session._path(s.id).read_text(encoding="utf-8")))
                 assert not disk["legal_offline"]
                 assert any(op["kind"] == "review/detached" and not op["safeTerminal"]
                            for op in disk["execution_operations"].values())

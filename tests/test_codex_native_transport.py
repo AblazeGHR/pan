@@ -117,3 +117,22 @@ def test_native_reader_errors_do_not_leak(monkeypatch):
     app._read_native()
     assert app.incoming.get_nowait() is None
     assert errors and "SECRET-CAPABILITY" not in json.dumps(errors)
+
+
+def test_failed_terminal_display_does_not_disconnect_authoritative_history(monkeypatch):
+    from packages.core.adapters.codex.resident_tui import ResidentTui
+    app = AppServer("node", "codex.js", ".", [], native_control=True)
+    events = []
+    tui = ResidentTui(app, events.append)
+    tui.ready.set()
+    tui.down = type("ClosedDisplay", (), {"send": lambda *_: (_ for _ in ()).throw(OSError("closed"))})()
+    app._resident_tui = tui
+    notifications = [{"method": "item/completed", "params": {"threadId": "t", "turnId": "turn",
+        "item": {"type": "agentMessage", "id": "answer", "text": "persist this"}}},
+        {"method": "turn/completed", "params": {"threadId": "t", "turn": {"id": "turn", "status": "completed"}}}]
+    app.thread_id = "t"
+    app._native_transport = type("Transport", (), {"messages": lambda _: iter(notifications)})()
+    app._read_native()
+    assert [app.incoming.get_nowait(), app.incoming.get_nowait()] == notifications
+    assert app.incoming.get_nowait() is None
+    assert any(event.get("type") == "pan.native_error" for event in events)

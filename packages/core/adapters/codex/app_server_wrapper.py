@@ -862,13 +862,22 @@ class AppServer:
         if method == "item/completed":
             params = message.get("params") or {}
             item = params.get("item") or {}
+            if state is not None and item.get("id") is not None:
+                key = (params.get("turnId") or state.get("turn_id"), str(item["id"]))
+                completed = state.setdefault("completed_items", set())
+                if key in completed:
+                    return
+                completed.add(key)
             if (state is not None and state.get("external_turn")
                     and str(item.get("type") or "").replace("_", "").lower() == "usermessage"):
                 content = item.get("content") or []
                 text = "\n".join(part["text"] for part in content
                                  if isinstance(part, dict) and isinstance(part.get("text"), str))
-                if text:
+                if text or content:
                     _write_stdout({"type": "pan.native_user", "text": text, "item_id": item.get("id"),
+                                   "turn_id": params.get("turnId") or state.get("turn_id"),
+                                   "thread_id": params.get("threadId") or self.thread_id,
+                                   "nativeContent": content,
                                    **(state["admission"].identity() if state.get("admission") else {})})
             item_type = str(item.get("type") or "").replace("_", "").lower()
             item_status = str(item.get("status") or "").lower()
@@ -910,6 +919,13 @@ class AppServer:
                 params = message.get("params") or {}
                 turn = params.get("turn") or {}
                 items = turn.get("items") or []
+                # A terminal snapshot can contain items whose individual
+                # completion was missed at an attach boundary. Reconcile by
+                # turn/item identity; equal bodies are distinct messages.
+                for item in items:
+                    self._handle_server_message({"method": "item/completed", "params": {
+                        "threadId": params.get("threadId", self.thread_id),
+                        "turnId": turn.get("id") or state.get("turn_id"), "item": item}}, state)
                 for item in reversed(items):
                     if str(item.get("type") or "").replace("_", "").lower() == "agentmessage":
                         state["last_text"] = _text_from_item(item)

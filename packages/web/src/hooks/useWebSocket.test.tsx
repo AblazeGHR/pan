@@ -560,6 +560,36 @@ describe('useWebSocket worker.result wiring', () => {
     expect(useSessionStore.getState().currentMessages.at(-1)?.content).toBe('persisted answer');
   });
 
+  it.each(['codex', 'cbc'])('hydrates %s history even when an earlier summary already has the same native revision', async (adapter) => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ sessions: [mk('A', 'A', { adapter, history: [], historyTotal: 2,
+      historyEpoch: 'native', historyRevision: 2 })] });
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValue({ history: [msg('user', 'native input'), msg('assistant', 'native answer')],
+      total: 2, start: 0, hasMore: false, historyEpoch: 'native', historyRevision: 2 });
+    act(() => wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'A', session: {
+      historyTotal: 2, historyEpoch: 'native', historyRevision: 2 } }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('A', 0, 50);
+    expect(useSessionStore.getState().currentMessages.map(row => row.content)).toEqual(['native input', 'native answer']);
+  });
+
+  it('hydrates an empty canonical window despite an equal summary revision', async () => {
+    vi.useFakeTimers();
+    useSessionStore.setState({ sessions: [mk('A', 'A', { history: [], historyTotal: 2,
+      historyEpoch: 'native-empty', historyRevision: 2 })] });
+    useSessionStore.getState().applyHistoryPage('A', { history: [], total: 2, start: 2,
+      hasMore: true, historyEpoch: 'native-empty', historyRevision: 2 });
+    useSessionStore.setState({ initialLoading: false });
+    renderHook(() => useWebSocket());
+    apiMock.fetchSessionHistory.mockResolvedValue({ history: [msg('user', 'native input'), msg('assistant', 'native answer')],
+      total: 2, start: 0, hasMore: false, historyEpoch: 'native-empty', historyRevision: 2 });
+    act(() => wsMock.trigger('session.updated', { type: 'session.updated', sessionId: 'A', session: {
+      historyTotal: 2, historyEpoch: 'native-empty', historyRevision: 2 } }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(useSessionStore.getState().currentMessages.map(row => row.content)).toEqual(['native input', 'native answer']);
+  });
+
   it('finalizes a seq-less report buffer from reconnect execution identity', () => {
     apiMock.fetchSessions.mockImplementation(() => new Promise(() => {}));
     apiMock.fetchSessionHistory.mockImplementation(() => new Promise(() => {}));
@@ -2991,7 +3021,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
       .toEqual([{
-        role: 'assistant', content: 'completed tail', nativeItemId: 'completed-item',
+        role: 'assistant', content: 'completed tail', nativeItemId: 'completed-item', turnId: 'turn-late-delta',
     }]);
   });
 
@@ -3072,8 +3102,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
       .toEqual([
-        { role: 'assistant', content: 'old reply', nativeItemId: 'old-item' },
-        { role: 'assistant', content: 'new reply', nativeItemId: 'new-item' },
+        { role: 'assistant', content: 'old reply', nativeItemId: 'old-item', turnId: 'turn-restarted' },
+        { role: 'assistant', content: 'new reply', nativeItemId: 'new-item', turnId: 'turn-restarted' },
       ]);
   });
 
@@ -3150,8 +3180,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     expect(useSessionStore.getState().currentMessages.filter((m) => m.role === 'assistant'))
       .toEqual([
-        { role: 'assistant', content: 'first reply', nativeItemId: 'first-completed' },
-        { role: 'assistant', content: 'second reply', nativeItemId: 'second-completed' },
+        { role: 'assistant', content: 'first reply', nativeItemId: 'first-completed', turnId: 'turn-multiple-completed' },
+        { role: 'assistant', content: 'second reply', nativeItemId: 'second-completed', turnId: 'turn-multiple-completed' },
       ]);
   });
 
@@ -3170,7 +3200,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
         stream_text: 'completed', part: { type: 'text', text: 'completed' } });
     });
     expect(useSessionStore.getState().currentMessages.filter(m => m.role === 'assistant'))
-      .toEqual([{ role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item' }]);
+      .toEqual([{ role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item', turnId: 'turn-echo' }]);
     act(() => {
       stream({ type: 'content.part', role: 'assistant', delta: true,
         turn_id: 'turn-echo', item_id: 'late-item',
@@ -3178,8 +3208,8 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
     expect(useSessionStore.getState().currentMessages.filter(m => m.role === 'assistant'))
       .toEqual([
-        { role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item' },
-        { role: 'assistant', content: 'a new answer', nativeItemId: 'late-item' },
+        { role: 'assistant', content: 'completed answer', nativeItemId: 'completed-item', turnId: 'turn-echo' },
+        { role: 'assistant', content: 'a new answer', nativeItemId: 'late-item', turnId: 'turn-echo' },
       ]);
   });
 
@@ -3269,7 +3299,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
 
     const messages = useSessionStore.getState().currentMessages;
     expect(messages.filter((message) => message.role === 'assistant')).toEqual([
-      { role: 'assistant', content: '## Answer\n\nbody', nativeItemId: 'delta-item' },
+      { role: 'assistant', content: '## Answer\n\nbody', nativeItemId: 'delta-item', turnId: 'turn-1' },
     ]);
     expect(messages.filter((message) => message.role === 'tool')).toHaveLength(1);
     expect(messages.at(-1)?.role).toBe('system');
@@ -3478,11 +3508,11 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
 
     expect(useSessionStore.getState().currentMessages).toEqual([
-      { role: 'thinking', content: 'plan done', nativeItemId: 'thinking-1' },
-      { role: 'tool', content: 'Command({"command":"one","output":"done"})', nativeItemId: 'tool-1' },
-      { role: 'thinking', content: 'subplan done', nativeItemId: 'thinking-2' },
-      { role: 'tool', content: 'Command({"command":"two","output":"done"})', nativeItemId: 'tool-2' },
-      { role: 'assistant', content: 'Answer body', nativeItemId: 'answer-1' },
+      { role: 'thinking', content: 'plan done', nativeItemId: 'thinking-1', turnId: 'turn-interleaved' },
+      { role: 'tool', content: 'Command({"command":"one","output":"done"})', nativeItemId: 'tool-1', turnId: 'turn-interleaved' },
+      { role: 'thinking', content: 'subplan done', nativeItemId: 'thinking-2', turnId: 'turn-interleaved' },
+      { role: 'tool', content: 'Command({"command":"two","output":"done"})', nativeItemId: 'tool-2', turnId: 'turn-interleaved' },
+      { role: 'assistant', content: 'Answer body', nativeItemId: 'answer-1', turnId: 'turn-interleaved' },
     ]);
   });
 

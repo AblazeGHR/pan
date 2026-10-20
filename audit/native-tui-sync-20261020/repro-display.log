@@ -1,0 +1,67 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\native-tui-sync-20261020
+F                                                                        [100%]
+================================== FAILURES ===================================
+___ test_failed_terminal_display_does_not_disconnect_authoritative_history ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002C7CA5FFCE0>
+
+    def test_failed_terminal_display_does_not_disconnect_authoritative_history(monkeypatch):
+        from packages.core.adapters.codex.resident_tui import ResidentTui
+        app = AppServer("node", "codex.js", ".", [], native_control=True)
+        events = []
+        tui = ResidentTui(app, events.append)
+        tui.ready.set()
+        tui.down = type("ClosedDisplay", (), {"send": lambda *_: (_ for _ in ()).throw(OSError("closed"))})()
+        app._resident_tui = tui
+        notifications = [{"method": "item/completed", "params": {"threadId": "t", "turnId": "turn",
+            "item": {"type": "agentMessage", "id": "answer", "text": "persist this"}}},
+            {"method": "turn/completed", "params": {"threadId": "t", "turn": {"id": "turn", "status": "completed"}}}]
+        app.thread_id = "t"
+        app._native_transport = type("Transport", (), {"messages": lambda _: iter(notifications)})()
+        app._read_native()
+>       assert [app.incoming.get_nowait(), app.incoming.get_nowait()] == notifications
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_codex_native_transport.py:136:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\queue.py:231: in get_nowait
+    return self.get(block=False)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <queue.Queue object at 0x000002C7CA884590>, block = False, timeout = None
+
+    def get(self, block=True, timeout=None):
+        '''Remove and return an item from the queue.
+
+        If optional args 'block' is true and 'timeout' is None (the default),
+        block if necessary until an item is available. If 'timeout' is
+        a non-negative number, it blocks at most 'timeout' seconds and raises
+        the Empty exception if no item was available within that time.
+        Otherwise ('block' is false), return an item if one is immediately
+        available, else raise the Empty exception ('timeout' is ignored
+        in that case).
+
+        Raises ShutDown if the queue has been shut down and is empty,
+        or if the queue has been shut down immediately.
+        '''
+        with self.not_empty:
+            if self.is_shutdown and not self._qsize():
+                raise ShutDown
+            if not block:
+                if not self._qsize():
+>                   raise Empty
+E                   _queue.Empty
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\queue.py:196: Empty
+---------------------------- Captured stderr call -----------------------------
+[codex app-server] native transport disconnected
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_codex_native_transport.py::test_failed_terminal_display_does_not_disconnect_authoritative_history

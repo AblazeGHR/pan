@@ -206,7 +206,8 @@ class NativeBridge:
                         with self.admission_lock:
                             self.admissions.pop(request_id, None)
                     self.emit({"type": "pan.native_turn_started"})
-                    self.emit({"type": "pan.native_user", "text": event.get("prompt", "")})
+                    self.emit({"type": "pan.native_user", "text": event.get("prompt", ""),
+                               "item_id": run + ":user", "turn_id": run})
                 self.turn = run
                 self.turn_aliases = {run}
                 self.awaiting_native_submit = self.draft_unknown = False
@@ -228,6 +229,7 @@ class NativeBridge:
                     args = {"status": args["status"], "truncated": True,
                             "preview": json.dumps(args, ensure_ascii=False)[:16000]}
                 self.emit({"type": "assistant", "item_id": call, "delta": name == "PreToolUse",
+                           "turn_id": self.turn,
                            "replace": True, "message": {"content": [{"type": "tool_use",
                            "id": call, "name": event.get("tool_name"), "input": args}]}})
             elif name == "Stop" and run in self.turn_aliases:
@@ -240,6 +242,7 @@ class NativeBridge:
                     text = text[:16000] + "\n[Structured response truncated; see CBC Terminal TUI]"
                 if text:
                     self.emit({"type": "assistant", "item_id": run,
+                               "turn_id": self.turn,
                                "message": {"content": [{"type": "text", "text": text}]}})
                 self.finished.extend(self.turn_aliases)
                 self.turn = None

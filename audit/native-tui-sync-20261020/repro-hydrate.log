@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/native-tui-sync-20261020/packages/web/src
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates history even when an earlier summary already has the same native revision
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+ ❯ hooks/useWebSocket.test.tsx (109 tests | 1 failed | 108 skipped) 42ms
+   × useWebSocket worker.result wiring > hydrates history even when an earlier summary already has the same native revision 41ms
+     → expected "spy" to be called with arguments: [ 'A', +0, 50 ]
+
+Received:
+
+
+
+Number of calls: 0
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates history even when an earlier summary already has the same native revision
+AssertionError: expected "spy" to be called with arguments: [ 'A', +0, 50 ]
+
+Received:
+
+
+
+Number of calls: 0
+
+ ❯ hooks/useWebSocket.test.tsx:573:41
+    571|       historyTotal: 2, historyEpoch: 'native', historyRevision: 2 } })…
+    572|     await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    573|     expect(apiMock.fetchSessionHistory).toHaveBeenCalledWith('A', 0, 5…
+       |                                         ^
+    574|     expect(useSessionStore.getState().currentMessages.map(row => row.c…
+    575|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 108 skipped (109)
+   Start at  16:56:35
+   Duration  3.26s (transform 516ms, setup 12ms, collect 1.56s, tests 42ms, environment 515ms, prepare 125ms)

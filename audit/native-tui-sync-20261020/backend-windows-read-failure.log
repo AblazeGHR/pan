@@ -1,0 +1,289 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\native-tui-sync-20261020
+........................................................................ [ 33%]
+........................................................................ [ 66%]
+.........................F.............................................. [ 99%]
+.                                                                        [100%]
+================================== FAILURES ===================================
+__________ test_real_local_codex_command_and_detached_review[legacy] __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3217/test_real_local_codex_command_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002153FDC2970>
+history_mode = 'legacy'
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows owned local Codex kernel")
+    @pytest.mark.parametrize("history_mode", ["legacy", "paginated"])
+    def test_real_local_codex_command_and_detached_review(tmp_path, monkeypatch, history_mode):
+        """Real app-server peer path and synthetic HTTP provider, no remote models."""
+        from packages.core.adapters.codex.adapter import _resolve_codex_node, _resolve_codex_js
+        from test_codex_native_kernel_real import SyntheticResponses
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location("aux_probe", root / "audit/terminal/codex/probe_codex_remote_tui.py")
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        home, cwd = tmp_path / "home", tmp_path / "workspace"
+        home.mkdir(); cwd.mkdir()
+        helper.seed_placeholder_credentials(str(home), [])
+        monkeypatch.setenv("CODEX_HOME", str(home))
+        provider = SyntheticResponses()
+        options = ["-c", 'model="probe-model"', "-c", 'model_provider="probe_local"', "-c",
+            f'model_providers.probe_local={{name="probe",base_url="{provider.base_url}",wire_api="responses"}}']
+        app = AppServer(_resolve_codex_node(), _resolve_codex_js(), str(cwd), options,
+                        native_control=True, native_passthrough=True)
+        original_request = app._request
+        def request(method, params):
+            if method == "initialize":
+                params = {**params, "capabilities": {"experimentalApi": True}}
+            return original_request(method, params)
+        monkeypatch.setattr(app, "_request", request)
+        original_params = app._thread_params
+        monkeypatch.setattr(app, "_thread_params", lambda: {**original_params(), "historyMode": history_mode})
+        async def run():
+            await asyncio.to_thread(app.start)
+            s, w = setup()
+            s.cli_session_id = app.thread_id
+            w.adapter = SimpleNamespace(name="codex")
+            w.process = app.process
+            w.native_control_mode, w.native_control_generation = "native", 1
+            runtime = (w, w.generation, w.process, None)
+            app.control_owner.switch("native", 0)
+            incoming, replies, pending, events = Queue(), Queue(), [], []
+            loop = asyncio.get_running_loop()
+            async def handle(event):
+                if event["type"] == "pan.native_turn_admission":
+                    receipt = await worker._admit_native_turn(w, runtime, request_id=event["requestId"],
+                        thread_id=event["threadId"], control_generation=event["controlGeneration"],
+                        operation=event["operation"], context=event.get("connection"))
+                    disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                    assert not disk["legal_offline"]
+                    app.native_admission_receipt({**receipt, "ok": True})
+                else:
+                    await worker._native_operation_event(w, runtime, event)
+            def emit(event):
+                events.append(event)
+                if event["type"] in {"pan.native_turn_admission", "pan.native_turn_not_forwarded",
+                                    "pan.native_operation_bind", "pan.native_operation_terminal",
+                                    "pan.native_operation_uncertain"}:
+                    pending.append(asyncio.run_coroutine_threadsafe(handle(event), loop))
+            class Down:
+                def __iter__(self):
+                    while (message := incoming.get()) is not None:
+                        yield json.dumps(message)
+                def send(self, raw):
+                    replies.put(json.loads(raw))
+            tui = ResidentTui(app, emit)
+            app._resident_tui = tui
+            connection = threading.Thread(target=tui._handle, args=(Down(),), daemon=True)
+            connection.start()
+            async def reply(key):
+                while True:
+                    message = await asyncio.to_thread(replies.get, True, 15)
+                    if message.get("id") == key:
+                        return message
+            try:
+                incoming.put(dict(id=1, method="initialize", params=dict(clientInfo=dict(name="pan-local-proof", version="1"), capabilities={})))
+                assert "result" in await reply(1)
+                incoming.put(dict(method="initialized", params={}))
+                marker = cwd / "command.txt"
+                incoming.put(dict(id=2, method="command/exec", params=dict(command=[sys.executable, "-c",
+                    "from pathlib import Path; Path('command.txt').write_text('local')"], cwd=str(cwd))))
+                response = await reply(2)
+                assert response.get("result", {}).get("exitCode") == 0, response
+                for future in list(pending):
+                    await asyncio.wrap_future(future)
+                assert marker.read_text() == "local" and s.legal_offline
+                assert w._execution_seq == s.task_seq == 0
+                def durable_before_model():
+                    disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                    assert not disk["legal_offline"]
+                    assert any(op["kind"] == "review/detached" and not op["safeTerminal"]
+                               for op in disk["execution_operations"].values())
+                provider.on_request = durable_before_model
+                incoming.put(dict(id=3, method="review/start", params=dict(threadId=app.thread_id,
+                    delivery="detached", target=dict(type="custom", instructions="Reply with a short local synthetic review."))))
+                response = await reply(3)
+                if history_mode == "paginated":
+                    assert response.get("error", {}).get("message") == "paginated threads do not support detached review"
+                    for future in list(pending):
+                        await asyncio.wrap_future(future)
+                    assert s.legal_offline and not provider.received.is_set()
+                    return
+                assert "result" in response, response
+                assert await asyncio.to_thread(provider.received.wait, 15)
+                assert not s.legal_offline
+                provider.release.set()
+                # The receiving peer or primary observer must deliver the exact child terminal.
+                for _ in range(200):
+                    if any(e.get("proof") == "review-turn-completed" for e in events):
+                        break
+                    await asyncio.sleep(.05)
+                for future in list(pending):
+                    await asyncio.wrap_future(future)
+                assert s.legal_offline, [(e.get("type"), e.get("reason")) for e in events]
+                review = next(op for op in s.execution_operations.values() if op["kind"] == "review/detached")
+                assert review["binding"]["threadId"] == response["result"]["reviewThreadId"]
+                assert review["binding"]["threadId"] != app.thread_id
+                assert not provider.failures
+                # A real active main turn and manual compaction share the kernel,
+                # but an empty compact reply cannot establish its unique terminal.
+                provider.received.clear()
+                provider.release.clear()
+                provider.on_request = lambda: (
+                    None if not json.loads(session._path(s.id).read_text(encoding="utf-8"))["legal_offline"]
+                    else (_ for _ in ()).throw(AssertionError("provider before durable False")))
+                incoming.put(dict(id=4, method="turn/start", params=dict(threadId=app.thread_id,
+                    input=[dict(type="text", text="Local synthetic active turn.", text_elements=[])])))
+                primary = await reply(4)
+                assert "result" in primary, primary
+                assert await asyncio.to_thread(provider.received.wait, 10)
+                app._turn_active.set()  # The production main loop sets this on turn/started.
+                incoming.put(dict(id=5, method="thread/compact/start", params=dict(threadId=app.thread_id)))
+                compact = await reply(5)
+                assert "result" in compact, compact
+                for future in list(pending):
+                    await asyncio.wrap_future(future)
+                provider.release.set()
+                target = primary["result"]["turn"]["id"]
+                async def main_completed():
+                    while True:
+                        event = await asyncio.to_thread(app.incoming.get, True, 15)
+                        if event and event.get("method") == "turn/completed":
+                            params = event.get("params") or {}
+                            if params.get("threadId") == app.thread_id and (params.get("turn") or {}).get("id") == target:
+                                return
+                await main_completed()
+                await worker._persist_terminal_state(w, s, "done", "synthetic")
+                assert not s.legal_offline and not offline.is_illegal(s)
+                uncertain = [op for op in offline.outstanding(s) if op["kind"] == "compact/active"]
+                assert len(uncertain) == 1 and uncertain[0]["state"] == "uncertain"
+                await asyncio.to_thread(app.process.terminate)
+                await asyncio.to_thread(app.process.wait, 2)
+                await worker._finish_offline_stop(w, offline.owner(w), "local-safe-stop")
+                assert s.legal_offline
+            finally:
+                tui.stopped.set()
+                incoming.put(None)
+                if tui.peer:
+                    await asyncio.to_thread(tui.peer.close)
+                await asyncio.to_thread(connection.join, 3)
+                assert not connection.is_alive()
+                app._resident_tui = None
+        try:
+>           asyncio.run(run())
+
+tests\test_codex_auxiliary_operations.py:476:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        await asyncio.to_thread(app.start)
+        s, w = setup()
+        s.cli_session_id = app.thread_id
+        w.adapter = SimpleNamespace(name="codex")
+        w.process = app.process
+        w.native_control_mode, w.native_control_generation = "native", 1
+        runtime = (w, w.generation, w.process, None)
+        app.control_owner.switch("native", 0)
+        incoming, replies, pending, events = Queue(), Queue(), [], []
+        loop = asyncio.get_running_loop()
+        async def handle(event):
+            if event["type"] == "pan.native_turn_admission":
+                receipt = await worker._admit_native_turn(w, runtime, request_id=event["requestId"],
+                    thread_id=event["threadId"], control_generation=event["controlGeneration"],
+                    operation=event["operation"], context=event.get("connection"))
+                disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                assert not disk["legal_offline"]
+                app.native_admission_receipt({**receipt, "ok": True})
+            else:
+                await worker._native_operation_event(w, runtime, event)
+        def emit(event):
+            events.append(event)
+            if event["type"] in {"pan.native_turn_admission", "pan.native_turn_not_forwarded",
+                                "pan.native_operation_bind", "pan.native_operation_terminal",
+                                "pan.native_operation_uncertain"}:
+                pending.append(asyncio.run_coroutine_threadsafe(handle(event), loop))
+        class Down:
+            def __iter__(self):
+                while (message := incoming.get()) is not None:
+                    yield json.dumps(message)
+            def send(self, raw):
+                replies.put(json.loads(raw))
+        tui = ResidentTui(app, emit)
+        app._resident_tui = tui
+        connection = threading.Thread(target=tui._handle, args=(Down(),), daemon=True)
+        connection.start()
+        async def reply(key):
+            while True:
+                message = await asyncio.to_thread(replies.get, True, 15)
+                if message.get("id") == key:
+                    return message
+        try:
+            incoming.put(dict(id=1, method="initialize", params=dict(clientInfo=dict(name="pan-local-proof", version="1"), capabilities={})))
+            assert "result" in await reply(1)
+            incoming.put(dict(method="initialized", params={}))
+            marker = cwd / "command.txt"
+            incoming.put(dict(id=2, method="command/exec", params=dict(command=[sys.executable, "-c",
+                "from pathlib import Path; Path('command.txt').write_text('local')"], cwd=str(cwd))))
+            response = await reply(2)
+            assert response.get("result", {}).get("exitCode") == 0, response
+            for future in list(pending):
+                await asyncio.wrap_future(future)
+            assert marker.read_text() == "local" and s.legal_offline
+            assert w._execution_seq == s.task_seq == 0
+            def durable_before_model():
+                disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+                assert not disk["legal_offline"]
+                assert any(op["kind"] == "review/detached" and not op["safeTerminal"]
+                           for op in disk["execution_operations"].values())
+            provider.on_request = durable_before_model
+            incoming.put(dict(id=3, method="review/start", params=dict(threadId=app.thread_id,
+                delivery="detached", target=dict(type="custom", instructions="Reply with a short local synthetic review."))))
+            response = await reply(3)
+            if history_mode == "paginated":
+                assert response.get("error", {}).get("message") == "paginated threads do not support detached review"
+                for future in list(pending):
+                    await asyncio.wrap_future(future)
+                assert s.legal_offline and not provider.received.is_set()
+                return
+            assert "result" in response, response
+            assert await asyncio.to_thread(provider.received.wait, 15)
+            assert not s.legal_offline
+            provider.release.set()
+            # The receiving peer or primary observer must deliver the exact child terminal.
+            for _ in range(200):
+                if any(e.get("proof") == "review-turn-completed" for e in events):
+                    break
+                await asyncio.sleep(.05)
+            for future in list(pending):
+                await asyncio.wrap_future(future)
+            assert s.legal_offline, [(e.get("type"), e.get("reason")) for e in events]
+            review = next(op for op in s.execution_operations.values() if op["kind"] == "review/detached")
+            assert review["binding"]["threadId"] == response["result"]["reviewThreadId"]
+            assert review["binding"]["threadId"] != app.thread_id
+>           assert not provider.failures
+E           assert not ["[Errno 13] Permission denied: 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3217\\\\test_real_local_codex_command_0\\\\sessions\\\\ses_57acd1afc305683a.json'"]
+E            +  where ["[Errno 13] Permission denied: 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3217\\\\test_real_local_codex_command_0\\\\sessions\\\\ses_57acd1afc305683a.json'"] = <test_codex_native_kernel_real.SyntheticResponses object at 0x0000021542417BB0>.failures
+
+tests\test_codex_auxiliary_operations.py:430: AssertionError
+---------------------------- Captured stdout call -----------------------------
+{"type":"codex.notification","method":"remoteControl/status/changed","params":{"status":"disabled","serverName":"ablaze","installationId":"3641d3fb-e90b-4005-81ed-a16e62b66b33","environmentId":null}}
+{"type":"thread.started","thread_id":"01a1589a-b93f-7413-b840-138d3f5b2e46"}
+---------------------------- Captured stderr call -----------------------------
+[codex app-server] native transport disconnected
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_codex_auxiliary_operations.py::test_real_local_codex_command_and_detached_review[legacy]

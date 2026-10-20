@@ -67,7 +67,14 @@ class ResidentTui:
         # The primary client owns the loaded thread subscription. Native TUI
         # bootstrap reads that object; it never resumes/replaces the Agent.
         if self.down is not None and self.ready.is_set() and not self.stopped.is_set():
-            self._down_send(message)
+            try:
+                self._down_send(message)
+            except Exception:
+                # Presentation failure must not end the primary subscription:
+                # it is also the only reader feeding Pan's durable history.
+                # Keep the kernel/owner intact and expose the failed display.
+                self.ready.clear()
+                self.emit({"type": "pan.native_error", "error": "native-client-disconnected"})
 
     def start(self):
         # wrapper is executable from an arbitrary project directory.

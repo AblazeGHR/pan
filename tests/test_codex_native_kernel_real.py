@@ -62,6 +62,74 @@ class SyntheticResponses:
         self.thread.join(2)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows resident CLI")
+def test_real_worker_persists_independent_native_and_pan_turns(tmp_path, monkeypatch):
+    from packages.core import worker, session
+    from packages.core.adapters.codex import CodexAdapter
+    from unittest.mock import AsyncMock
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("probe_helper", root / "audit/terminal/codex/probe_codex_remote_tui.py")
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    home = tmp_path / "home"
+    home.mkdir()
+    helper.seed_placeholder_credentials(str(home), [])
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    provider = SyntheticResponses()
+    provider.release.set()
+    options = ["-c", 'model_provider="probe_bh"', "-c",
+        f'model_providers.probe_bh={{name="probe_bh",base_url="{provider.base_url}",wire_api="responses"}}']
+    monkeypatch.setattr(CodexAdapter, "mcp_args", lambda *args: options)
+    monkeypatch.setattr(CodexAdapter, "enrich_after_result", lambda *args: None)
+    monkeypatch.setattr(worker, "_enqueue_report", AsyncMock())
+    monkeypatch.setattr(worker, "_DEFAULTS_INITIALIZED", True)
+    monkeypatch.setattr(worker, "_bcast", AsyncMock())
+
+    async def run():
+        s = session.create("isolated native sync", adapter="codex", workdir=str(tmp_path))
+        s.model = "probe-model"
+        s.adapter_config.update(native_control=True, output_mode="stream")
+        session.save(s)
+        w = await worker.create_worker(s.id)
+        assert isinstance(w, worker.Worker), w
+        async def until(predicate):
+            async with asyncio.timeout(20):
+                while not predicate():
+                    await asyncio.sleep(.02)
+        try:
+            await until(lambda: bool(s.cli_session_id))
+            thread = s.cli_session_id
+            for index in range(2):
+                state = await worker.switch_native_control(w.worker_id, "native")
+                assert state["mode"] == "native"
+                if index == 0:
+                    await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": "\x1b[1;1R"})
+                await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": f"INDEPENDENT NATIVE {index}"})
+                await asyncio.sleep(1)  # Native paste coalescing, before Enter.
+                await worker.write_native_control(w.worker_id, {"type": "native_input", "generation": state["generation"], "text": "\r"})
+                await until(lambda: s.result_cursor == index * 2 + 1 and w.status == "idle" and w._terminal_handled)
+                assert any(row.get("content") == f"INDEPENDENT NATIVE {index}" for row in s.history)
+                assert any(row.get("content") == "synthetic native answer" for row in s.history)
+                state = await worker.switch_native_control(w.worker_id, "pan")
+                assert state["mode"] == "pan"
+                await worker.send(w.worker_id, f"PAN AFTER NATIVE {index}", source="user")
+                await until(lambda: s.result_cursor == index * 2 + 2 and w.status == "idle" and w._terminal_handled)
+                assert s.cli_session_id == thread
+            disk = json.loads(session._path(s.id).read_text(encoding="utf-8"))
+            assert [r["content"] for r in disk["history"] if r["role"] == "user"] == [
+                "INDEPENDENT NATIVE 0", "PAN AFTER NATIVE 0", "INDEPENDENT NATIVE 1", "PAN AFTER NATIVE 1"]
+            assert len([r for r in disk["history"] if r["role"] == "assistant"]) == 4
+        finally:
+            print("WORKER_SYNC_DIAGNOSTICS", json.dumps({"status": w.status, "cursor": s.result_cursor,
+                "history": s.history, "providerReceived": provider.received.is_set(),
+                "nativeError": w.native_control_error, "screen": helper.strip_ansi(bytes(w.native_output).decode(errors="replace"))[-4000:]}))
+            await worker.kill_worker(w.worker_id)
+    try:
+        asyncio.run(run())
+    finally:
+        provider.close()
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows owned Codex kernel")
 def test_wrapper_startup_failure_exits_cleanly_with_stdin_open(tmp_path):
     """A failed kernel must report its cause before reading the still-open pipe."""
@@ -234,6 +302,19 @@ def test_real_wrapper_mode_round_trip_does_not_exit_kernel(tmp_path, native_star
         provider.release.set()
         result = wait_for(lambda e: e.get("type") == "result")
         assert result.get("is_error") is False and "synthetic native answer" in result["result"]
+        def terminal_contains(text):
+            screen = b"".join(base64.b64decode(e["data"]) for e in events if e.get("type") == "pan.native_output")
+            return "".join(text.split()) in "".join(helper.strip_ansi(screen.decode(errors="replace")).split())
+        wait_for(lambda e: e.get("type") == "pan.native_output" and terminal_contains("synthetic native answer"))
+        if not native_start:
+            assert terminal_contains("LOCAL SYNTHETIC PENDING TURN")
+            # The resident client is already attached now. Bootstrap history
+            # cannot hide a missing echo for a later Pan-originated turn.
+            previous_results = sum(e.get("type") == "result" for e in events)
+            write(b'{"text":"SECOND PAN MESSAGE AFTER ATTACH"}\n')
+            wait_for(lambda e: e.get("type") == "result" and sum(
+                item.get("type") == "result" for item in events) > previous_results)
+            wait_for(lambda e: e.get("type") == "pan.native_output" and terminal_contains("SECOND PAN MESSAGE AFTER ATTACH"))
         if native_start:
             assert result["external_turn"] is True
             assert result["runId"] == admission_receipt["runId"]

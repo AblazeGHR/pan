@@ -1,0 +1,51 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\native-tui-sync-20261020
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_______ test_native_user_item_retains_identity_and_attachment_metadata ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001920E4BC9D0>
+
+    def test_native_user_item_retains_identity_and_attachment_metadata(monkeypatch):
+        out = []
+        monkeypatch.setattr("packages.core.adapters.codex.app_server_wrapper._write_stdout", out.append)
+        app = AppServer("node", "codex.js", ".", [], native_control=True)
+        app._handle_server_message({"method": "item/completed", "params": {"item": {
+            "type": "userMessage", "id": "u1", "content": [{"type": "text", "text": "����"}, {"type": "image", "url": "private"}]
+        }}}, {"external_turn": True})
+>       assert out[0]["nativeContent"] == [{"type": "text", "text": "����"}, {"type": "image", "url": "private"}]
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'nativeContent'
+
+tests\test_codex_native_completion.py:69: KeyError
+____ test_terminal_snapshot_projects_missing_items_once_without_body_dedup ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001920E4BC2B0>
+
+    def test_terminal_snapshot_projects_missing_items_once_without_body_dedup(monkeypatch):
+        out = []
+        monkeypatch.setattr("packages.core.adapters.codex.app_server_wrapper._write_stdout", out.append)
+        app = AppServer("node", "codex.js", ".", [], native_control=True)
+        state = {"external_turn": True, "turn_id": "t"}
+        items = [{"type": "userMessage", "id": "u", "content": [{"type": "text", "text": "same"}]},
+                 {"type": "agentMessage", "id": "a", "text": "same"},
+                 {"type": "agentMessage", "id": "b", "text": "same"}]
+        app._handle_server_message({"method": "item/completed", "params": {"turnId": "t", "item": items[1]}}, state)
+        app._handle_server_message({"method": "turn/completed", "params": {
+            "turn": {"id": "t", "status": "completed", "items": items}}}, state)
+>       assert [event["item_id"] for event in out if event.get("type") in {"pan.native_user", "assistant"}] == ["a", "u", "b"]
+E       AssertionError: assert ['a'] == ['a', 'u', 'b']
+E
+E         Right contains 2 more items, first extra item: 'u'
+E         Use -v to get more diff
+
+tests\test_codex_native_completion.py:84: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_codex_native_completion.py::test_native_user_item_retains_identity_and_attachment_metadata
+FAILED tests/test_codex_native_completion.py::test_terminal_snapshot_projects_missing_items_once_without_body_dedup

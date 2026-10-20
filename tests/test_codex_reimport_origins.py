@@ -200,6 +200,23 @@ def test_report_system_channel_origins_keep_envelopes(tmp_path, monkeypatch, kin
         assert s.history[0][key] == row[key]
 
 
+def test_rollout_partial_line_completion_and_replacement_are_not_cached(tmp_path):
+    path = tmp_path / "rollout.jsonl"
+    header = json.dumps({"type": "session_meta", "payload": {"id": "private-thread"}}) + "\n"
+    item = json.dumps({"type": "event_msg", "payload": {"type": "item_completed", "turn_id": "t",
+        "item": {"type": "agentMessage", "id": "a", "text": "complete 中文"}}}, ensure_ascii=False).encode("utf-8")
+    path.write_bytes(header.encode() + item[:-3])
+    assert codex._rollout_history(path, "private-thread") == []
+    with path.open("ab") as stream:
+        stream.write(item[-3:] + b"\n")
+    assert codex._rollout_history(path, "private-thread")[0]["content"] == "complete 中文"
+    replacement = tmp_path / "replacement.jsonl"
+    replacement.write_bytes(header.encode() + item.replace(b"complete ", b"replaced ") + b"\n")
+    replacement.replace(path)
+    assert codex._rollout_history(path, "private-thread")[0]["content"] == "replaced 中文"
+    assert codex._rollout_history(path, "foreign-thread") == []
+
+
 def test_multiblock_structured_native_and_legacy_history(tmp_path):
     path = tmp_path / "structured.jsonl"
     events = [{"type": "session_meta", "payload": {"id": "private-thread"}},

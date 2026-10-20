@@ -832,6 +832,12 @@ export function useWebSocket() {
       applySessionEvent(e);
       if (e.sessionId === before.currentSessionId && !before.initialLoading && (
         !e.session ||
+        // Summary receipt is not proof that a canonical history window was
+        // loaded. A prior list/status frame can already carry this revision.
+        ((!window || window.rows.size === 0)
+          && (e.session.historyTotal ?? selected?.historyTotal ?? 0) > 0) ||
+        (typeof e.session.historyEpoch === 'string' && window
+          && e.session.historyEpoch !== window.epoch) ||
         (typeof e.session.historyRevision === 'number'
           && e.session.historyRevision > (window?.revision ?? selected?.historyRevision ?? 0)) ||
         (typeof e.session.historyTotal === 'number'
@@ -1537,6 +1543,15 @@ function appendEvent(sessionId: string, event: StreamEvent['event'], meta: Strea
   // from an earlier turn must not attach a new event to that old turn.
   if (before.length === 0) clearNativeTurnAliases(sessionId);
   let messages = appendEventToMessages(sessionId, event, before, meta);
+  if (event.turn_id) {
+    const unchanged = new Set(before);
+    messages = messages.map(row => {
+      if (unchanged.has(row) || row.turnId === event.turn_id) return row;
+      const next = { ...row, turnId: event.turn_id };
+      inheritMessageIdentity(next, row);
+      return next;
+    });
+  }
   if (event.type === 'codex.plan' || event.type === 'codex.diff') {
     // These are replaceable turn summaries, not canonical tool/thinking
     // items. Preserve that provenance so DONE can seal them even if older

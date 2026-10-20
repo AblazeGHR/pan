@@ -219,6 +219,8 @@ def test_native_prompt_queued_during_tool_cannot_be_lost_on_pan_switch(bridge):
     b.hook(event("FinalStop", final_stop_reason="completed"))
     b.hook(event("UserPromptSubmit", run="next", prompt="next native task"))
     assert b.turn == "next"
+    assert next(e for e in out if e.get("type") == "pan.native_user") == {
+        "type": "pan.native_user", "text": "next native task", "item_id": "next:user", "turn_id": "next"}
     b.control({"type": "control_mode", "mode": "pan", "generation": 1})
     assert out[-1]["ok"] is True
 
