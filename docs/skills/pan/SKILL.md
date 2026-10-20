@@ -170,6 +170,16 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
 3. 大历史分页: session_history(session_id=..., limit=50, before=...) 或 session_get(limit=...)
 ```
 
+### 定向读取历史正文
+
+推荐 `session_get(session_id, limit=50)`：默认 `roles=["user","assistant","tool"]`、`tool_output="command_only"`。`roles` 可任意组合 user、assistant、tool、thinking；空数组不返回正文。thinking 必须显式选择，工具存储输出必须指定 `tool_output="include_output"`。command_only 仅保留工具名及可确认的 command/cmd 字符串；未知/截断旧格式不猜测参数，其他参数、parts、rawContent、output 字段均不透传。include_output 只返回持久化 content，不能补出未保存的 provider 输出。
+
+`limit` 在筛选后应用，正数最多 200；原 `limit=0`/省略参数保留全量所选历史兼容语义，结果大小不受限，大历史务必指定正数。冷 JSONL 正数分页扫描的内存为 O(limit + 单条记录)，不 hydrate 全历史；精确总数仍需扫描历史，旧内嵌 JSON 记录有单文件解析成本。`historyTotal` 是原始总数，`historyFilteredTotal` 是筛选后总数。按 `nextBefore`（原始历史排他位置）向前翻页，保持相同筛选，null 表示结束；不得拿 messageId 代替 before。并发追加不移动旧位置；发现 epoch/revision 改变时重新开始，以免历史替换导致位置失效；扫描期间变动返回 history_changed。
+
+`session_message_get(session_id, message_id)` 使用同一投影。仅使用既有 `pan:...` 持久 ID；历史无规范 ID 的行返回 `identityKind=legacy_unaddressable` 且不伪造 messageId。旧 positional/native ID 返回 invalid_message_id；目标 Session 不存在返回 session_not_found；ID 不在目标 Session/重复歧义返回 message_not_found；被筛选隐藏的 thinking 返回 message_filtered，需显式 `roles=["thinking"]`。读取不回填 ID、不写历史。两项 MCP 读取均先执行 managed 权限检查，拒绝为 permission_denied；HTTP 为本机可信管理员接口，不能把它视作带 manager 认证的外部入口。
+
+history 投影不带 summary 正文预览。lastResult 保留状态/终态身份和（选择 assistant 时的）最终 result 正文，剔除其他 provider 字段；history 筛选不将 lastResult 当历史行计数。底层 Dashboard 默认 full/history API 兼容路径保持原行为，不应当作安全筛选工具的替代。
+
 ### 2.5 清理（收尾）
 
 ```
@@ -294,7 +304,8 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `session_list` | `summary?` | 列出所有会话；`summary=true` 只返回精简字段（id/name/adapter/workerStatus/updatedAt/managedBy），不含 history |
 | `session_managed` | (无) | 返回调用者管理的 session 摘要 `[{id, name, workerStatus, updatedAt}]`（需 `PAN_AGENT_SESSION_ID`） |
 | `manager_chain` | (无) | 返回调用方（`PAN_AGENT_SESSION_ID`）的**上级 manager 链**（从最近一级 manager 逐级向上，每级含 `level/id/name/workerStatus/lastResultStatus`）。需调用方身份；独立 MCP 进程（无身份）不可用 |
-| `session_get` | `session_id`, `limit?` | 会话详情（history + lastResult）；limit>0 截断 |
+| `session_get` | `session_id`, `limit?`, `roles?`, `tool_output?`, `before?` | 筛选后的 history + lastResult；默认 user/assistant/tool、command_only；建议 limit=50；nextBefore 续读 |
+| `session_message_get` | `session_id`, `message_id`, `roles?`, `tool_output?` | 按本 Session 已持久化 Pan messageId 读取；复用同一投影和 managed 权限；thinking/output 必须显式选择 |
 | `session_usage` | `session_id?` | 查询当前或显式 Pan Session 的持久化 input/output/cache 用量；显式目标复用 `_check_access` managed 隔离。返回 `input`、`output`、`cache.read/write`、`total.tokens/credit`、`source`、`updatedAt`；缺失字段为 `null`，持久化零为 `0`，cache 不重复计入 input/output；优先 `Session.rawUsage`，旧数据回退 `Session.totalUsage`，不返回历史 raw payload |
 | `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?`, `workspace_ids?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。**`workspace_ids?` 移动会话到 Workspace**（0 或 1 个 id，`[]` = 取消分组/ungrouped，省略 = 保持不变；复用 Dashboard 同一个 `PUT /api/sessions/{id}/workspaces`）：成员关系只存于 **management-tree 根**，被管理后代通过 managedBy 链**继承**，因此根移动会传播给整棵子树；**目标 session 若已被管理则拒绝**（错误码 `managed_session`），须先 `session_unclaim` 分离——与 Dashboard 拖拽「先分离再移动」一致，杜绝跨 Workspace 的管理树分裂。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
