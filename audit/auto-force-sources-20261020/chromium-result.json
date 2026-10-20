@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "baseURL": "http://127.0.0.1:56080",
+  "final": {
+    "system": "true",
+    "ma": "true",
+    "report": "false"
+  },
+  "screenshots": [
+    "auto-force-settings-saved.png",
+    "auto-force-settings-save-failure.png"
+  ]
+}
