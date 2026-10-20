@@ -10287,6 +10287,26 @@ async def api_models(adapter: str = "cbc"):
     }
 
 
+@app.get("/api/model-catalog")
+async def api_model_catalog(adapter: str | None = None):
+    """Read service caches/declarations only; HTTP is trusted local admin."""
+    from packages.core.model_catalog import adapter_catalog
+
+    adapters = list_adapters()
+    if adapter is not None:
+        adapters = [a for a in adapters if a.name == adapter]
+        if not adapters:
+            return {"ok": False, "error": {"code": "unknown_adapter", "message": "Adapter is not registered"}}
+    rows = []
+    for item in adapters:
+        try:
+            rows.append(await _store_read(adapter_catalog, item))
+        except Exception:
+            rows.append({"adapter": item.name, "models": [], "status": "unknown"})
+    return {"ok": True, "adapters": rows,
+            "availability": "metadata_only_not_provider_verified"}
+
+
 @app.post("/api/sessions/broadcast")
 async def api_sessions_broadcast(data: dict):
     """Send one message to selected Sessions through the normal send path.

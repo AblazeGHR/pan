@@ -2837,6 +2837,44 @@ def _model_list_error(code: str, message: str, available: list[dict]) -> dict:
 
 
 @mcp.tool()
+def model_catalog(adapter: str | None = None, session_id: str | None = None) -> dict:
+    """Read cached models and explicitly declared capabilities without discovery.
+
+    Recommended: model_catalog(adapter="codex"). Omit adapter for all registered
+    adapters. Optional session_id (otherwise PAN_AGENT_SESSION_ID) passes through
+    the existing managed access check before metadata is read. HTTP itself is a
+    trusted local admin interface, not a manager-authenticated API.
+
+    Model IDs come from existing service caches or literal adapter declarations;
+    cold dynamic sources remain unknown, with no CLI/provider request or refresh.
+    This is selectable model metadata, not proof of account/provider availability.
+    Per-model effort is reported only when declared for that model; generic
+    adapterEffortValues are not a per-model support guarantee. Missing booleans,
+    source dates, defaults, effort or multipliers are null/status=unknown, never
+    assumed supported or x1. Explicit false/empty declarations are preserved.
+
+    Fresh/stale model-list age refers only to the existing process cache TTL;
+    origin and provider sourceUpdatedAt stay unknown if not recorded. Dynamic
+    credit multiplier getters are not invoked, since they may read credentials;
+    an unsafe/unbound multiplier source remains unknown even if other APIs can
+    refresh it. No credential files, account aggregation, new polling, model
+    calls or cache invalidation. model_list retains its discovery compatibility.
+    Errors include permission_denied and unknown_adapter; individual adapter
+    failures degrade to explicit unknown without returning raw exception text.
+    完整编排流程见 /pan skill。
+    """
+    target = session_id or os.environ.get("PAN_AGENT_SESSION_ID")
+    if target:
+        denied = _check_access(target)
+        if denied:
+            return denied
+    if adapter is not None and not adapter.strip():
+        return {"ok": False, "error": {"code": "invalid_params", "message": "adapter must be nonempty when provided"}}
+    query = "?" + urlencode({"adapter": adapter.strip()}) if adapter is not None else ""
+    return _api("GET", "/api/model-catalog" + query)
+
+
+@mcp.tool()
 def model_list(adapter: str | None = None) -> dict:
     """List available AI models for one registered adapter.
 
