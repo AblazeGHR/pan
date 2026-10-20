@@ -172,7 +172,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           showToast(`Saved Session Template “${savedTemplate}” is unavailable. The prefilled value has been cleared.`, 'error');
         }
         setAdapter(defaults?.adapter ?? '');
-        setOutputMode(defaults?.outputMode ?? '');
+        setOutputMode(defaults?.outputMode === 'oneshot' ? '' : defaults?.outputMode ?? '');
         setWorkdir(defaults?.workdir ?? '');
         if (defaults?.pluginBindings) {
           setMcpServerOverride(defaults.pluginBindings.filter((b) => b.enabled).map((b) => b.plugin_id));
@@ -234,7 +234,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     if (!config) return;
     // Only pre-select an Output Mode when the adapter exposes multiple modes;
     // single-mode adapters (kimi/opencode) never offer the switch.
-    const execModes = config.executionModes || ['stream'];
+    const execModes = (config.executionModes || ['stream']).filter(mode => mode !== 'oneshot');
     setOutputMode((current) => execModes.length > 1
       ? (current && execModes.includes(current) ? current : (execModes[0] || 'stream'))
       : '');
@@ -491,7 +491,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   // stays unconditional.
   if (!open) return null;
 
-  const execModes = config?.executionModes || ['stream'];
+  const execModes = config?.executionModes?.filter(mode => mode !== 'oneshot') || ['stream'];
   const showOutputMode = execModes.length > 1;
   const supportedSettings = config?.supportedSettings ?? [];
   const showModel = supportedSettings.includes('model') && (config?.models.length ?? 0) > 0;

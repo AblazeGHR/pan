@@ -64,6 +64,18 @@ beforeEach(() => {
 });
 
 describe('server-backed queue store', () => {
+  it('projects new Illegal locks and inserts a wake delta first without refreshing', () => {
+    useQueueStore.setState({ queues: { s1: [item('old', 'old')] }, queueRevisions: { s1: 1 } });
+    useQueueStore.getState().applyQueueEvent({ type: 'queue.item_added', sessionId: 's1', queueRevision: 2,
+      item: { id: 'late', text: 'later notice', position: 1, queueLockSource: 'illegal', queueLockIllegalBatch: 'incident' } });
+    expect(useQueueStore.getState().queues.s1?.[1]?.meta).toMatchObject({ locked: true, lockSource: 'illegal', illegalBatchId: 'incident' });
+    useQueueStore.getState().applyQueueEvent({ type: 'queue.item_added', sessionId: 's1', queueRevision: 3,
+      item: { id: 'wake', text: 'wake', position: 0, wakeMessage: true } });
+    expect(useQueueStore.getState().queues.s1?.map(row => row.id)).toEqual(['wake', 'old', 'late']);
+    expect(useQueueStore.getState().queues.s1?.[0]?.meta?.locked).toBe(false);
+    expect(api.fetchSessionQueue).not.toHaveBeenCalled();
+  });
+
   it('does not resurrect a delivered item when a stale ACK or prefixed id arrives', () => {
     const queued = item('q-delivery', 'queued');
     useQueueStore.setState({

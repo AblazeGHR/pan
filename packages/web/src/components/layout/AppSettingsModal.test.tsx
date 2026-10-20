@@ -200,6 +200,7 @@ describe('AppSettingsModal', () => {
     fetchSessionLifecyclePreferencesMock.mockResolvedValue({
       exitStrategy: 'ask',
       startupPreference: 'ask',
+      wakeMessage: '继续',
     });
     updateSessionLifecyclePreferencesMock.mockReset();
     updateSessionLifecyclePreferencesMock.mockImplementation(async (preferences) => preferences);
@@ -336,6 +337,7 @@ describe('AppSettingsModal', () => {
     fetchSessionLifecyclePreferencesMock.mockResolvedValueOnce({
       exitStrategy: 'ask',
       startupPreference: 'ask',
+      wakeMessage: '继续',
     });
     render(<AppSettingsModal open onClose={() => {}} />);
     clickTab('behavior');
@@ -358,6 +360,7 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenCalledWith({
       exitStrategy: 'offline',
       startupPreference: 'ask',
+      wakeMessage: '继续',
     }));
     expect(exitStrategy.value).toBe('offline');
 
@@ -365,7 +368,19 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenLastCalledWith({
       exitStrategy: 'offline',
       startupPreference: 'clear-illegal',
+      wakeMessage: '继续',
     }));
+  });
+
+  it('persists a custom wake message from Behavior', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('behavior');
+    const field = await screen.findByRole('textbox', { name: 'Wake message' });
+    fireEvent.change(field, { target: { value: 'Resume my review' } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(updateSessionLifecyclePreferencesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ wakeMessage: 'Resume my review' }),
+    ));
   });
 
   it('shows lifecycle preference save errors and keeps the last saved value', async () => {
@@ -411,6 +426,7 @@ describe('AppSettingsModal', () => {
       fetchSessionLifecyclePreferencesMock.mockResolvedValueOnce({
         exitStrategy,
         startupPreference: 'ask',
+      wakeMessage: '继续',
       });
       render(<AppSettingsModal open onClose={() => {}} />);
       const exitButton = await waitFor(() => {

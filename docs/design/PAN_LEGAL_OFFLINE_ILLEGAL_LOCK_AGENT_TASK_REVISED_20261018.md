@@ -1,10 +1,30 @@
 # Agent 任务：重构 Pan 异常离线判定、单一队列锁来源标记与自动恢复
 
+## 最高优先级：2026-10-20 用户授权覆盖及 2026-10-21 整合澄清
+
+**本块优先于本文所有历史条款，发生冲突时必须执行本块。** 用户已明确更改产品机制：Illegal 持续期间，所有真正新入队消息（包含 plugin 来源、Job 失败、报告、频道、agent/assign、用户和定时消息）建立对应 Illegal 锁。原 §2 第4条“后续新入队消息不会自动锁定”、实施要求“不添加持续锁定未来消息的门禁”以及其他“只锁已有/不锁未来”的表述只保留为历史，已失效。新的持续入队锁不替代 Pause、Manual、报告策略、lease、Steer unknown 或 native owner 安全 gate；重复事故和原身份重试仍不得重新锁定已显式解锁消息。
+
+授权原话：“新机制下，illegal态会illegal锁后来的所有消息，直到取消illegal态”；后续确认：“5.对，包含所有消息，包括plugin来源的”。Oneshot 授权：“没有的话先移除所有入口，但是先不删代码，也skip所有相关测试”。原始持久记录为 `C:/Users/14709/.codex/sessions/2026/10/18/rollout-2026-10-18T03-19-37-01a14b4e-2d9b-7d41-9fe9-7fb7b80b0735.jsonl`，2026-10-20 08:48:12.940Z 的 user response，message `msg_01a1587f-308c-7aa3-97ec-f9abbd91e02e`、turn `01a1587d-87ea-78d2-b243-8b667ee489c3`；完整摘录和逐项 skip 审计见本次整合报告。只 skip 退役路径，混有现行 stream/native/prompt/usage 的测试须拆分保留现行断言。
+
+普通消息和默认 Force 仍属于发送当前任务补充的既有入口，不能清除 Illegal；专用 Wake 才原子执行发送配置消息、仅解自己 Illegal 锁、放到队首。手动解锁或 Start 后须以有效 adapter ready 才恢复其余对应锁，失败不恢复。合并必须同时保留 main 的当前任务补充默认 Force 规则、`originalPrompt` handoff 文档、native TUI、shortcut 与 retention 能力。
+
 > 2026-10-18 用户最终决定已纳入本文。本工作树保留原任务完整内容并补充下述技术边界；Pan-main 原始未跟踪文件未改动。
 >
 > 正常任务或正常处理 Error（包括 429）在安全收尾后进入 Idle 均合法；常驻 CLI 存活不影响此结论。Illegal 保护的是未完成安全收尾的执行单元。新一代有效 Worker 成功建立并进入 Running 或 Idle，即恢复仍归属前序 Illegal 批次的锁。交付到独立分支提交，MA 独立验收与集成；不移动 main/practical、不 push/release、不重启现有服务、不使用 8767/8768 测试。
 
 ## 0. 审阅后确定的最小技术契约
+
+### 2026-10-20 用户决定：Illegal 持续锁定新入队消息，独立唤醒
+
+本节覆盖历史“异常只锁当时已有消息”的范围决定。事故识别仍按失败 owner cohort 一次快照、重复异常不扩大或重锁；但此后 **所有真正新接受的消息**（用户、agent/assign、插件、频道、报告、Job 失败通知、定时消息）在 Illegal 未取消期间均附到尚未恢复的事故 carrier，建立 Illegal 锁。入队行、精确成员、来源、ledger/index、revision 与浏览器去重 ID 在同一有序 writer / JSON 原子替换中提交。显式指定 Manual 的新消息保留 Manual 单锁，报告策略、协议 hold、Pause、lease 和 native owner 独立。重复 eventId/clientMessageId/taskId、编辑、重试和重复 EOF 不给已手动解锁的原身份重新加锁。历史数据不回溯猜测曾否手动解锁。
+
+普通发送（包括正文恰为“继续”、群发、插件通知和 Force）不会据此清除 Illegal 或建立继任实例。全锁积压与空 Illegal Session 都不能因 watchdog/异常 force recovery 自动启动。明确手动解锁至少一个消息后允许继任启动；显式 Start/Restart 也允许，但仍需 adapter 权威就绪证明才能退休前序事故、解除其余 Illegal 锁。启动失败/拒绝 resume 不算恢复。手动解锁本身不立刻清除 Illegal。Mark safe 则保留原有立即退休、自动解锁并调度语义。
+
+唤醒是独立于群发的操作：**发送配置消息、解除这条新消息的 Illegal 锁、移到队首**，三步同次提交后再尝试调度。它不清除 Manual、报告策略、Pause、lease、unknown owner 等安全 gate，不打断已交接执行。Pause 时队首唤醒仍等待 Resume；构造 Idle 不算恢复。并发操作按 queue_lock / writer 顺序结算；不同唤醒可各建消息，后一次位于队首，相同去重 ID 不重复移动/解锁。多选 Wake、启动恢复和定时恢复统一调用此操作；普通群发保持普通发送。
+
+Behavior 增加 `session_lifecycle.wakeMessage`（非空、最长 32000 字符，缺省“继续”），各次唤醒在服务端读取当前配置；定时 Job 原有兼容 action 名与历史 text 可读，text 不再决定实际唤醒正文。
+
+Oneshot 调查：CBC/Claude 的模型、权限、MCP、会话恢复及任务结果均有 stream 对应能力，特有的是每轮短进程隔离，不是独有产品功能。按用户决定关闭所有公共选择入口及 runtime 解析入口，旧配置有效解析为 stream，保留原持久配置和实现代码。API 显式新选 oneshot 拒绝；前端不再展示该选项。旧 Oneshot 测试显式 skip，保留停用边界测试与 stream/native 回归。CLI wrapper 内部使用的单轮 subprocess 和 Job one-shot 调度不属于已停用的 Pan Worker 模式，保留原功能和测试。
 
 ### 2026-10-19 最终补充：Illegal 即待恢复，删除独立恢复意图
 
@@ -57,7 +77,7 @@
 1. `legal_offline` 独立于旧字段，禁止长期同步、双写或通过旧字段计算；逐步迁移、最终淘汰旧异常判定逻辑。
 2. 正常运行时 `legal_offline=False` **不等于** Illegal；只有运行实例已结束、异常失联或恢复时发现上轮未合法结束才判 Illegal。
 3. 正常 Stop、安全 Restart、正常完成进入 Idle 均合法；**当前所有正常捕获处理并进入 Idle 的 Error 也合法**。未来允许配置某些 Error 虽进入 Idle 仍非法，本次仅预留集中策略入口。
-4. Illegal 仅锁发生时**已经存在而且尚未锁定**的消息，后续新入队消息不会自动锁定；不新增持续性全局消费门禁。
+4. **历史条款（已被本文最高优先级授权覆盖，不再生效）**：Illegal 仅锁发生时已经存在而且尚未锁定的消息，后续新入队消息不会自动锁定。当前规则见文首：持续为真正新入队消息建立 Illegal 锁，独立安全 gate 不变。
 5. **消息只有一个可撤销消息锁**，其来源是 `manual` 或 `illegal`（既有 reports 策略和协议安全 gate 独立保留）。来源只区分自动解锁资格，**不是两层互相隔离、可叠加的锁**。
 6. 手动 Lock 可以把 Illegal 锁转成 Manual 锁；用户手动 Unlock / Unlock All 可以解除**任一来源**的锁；普通手动 Lock All 将范围内的锁视为 Manual。对用户而言两类锁操作无差异。
 7. Worker 在本次 Illegal 之后有效进入 `running` 或 `idle` 时，自动解锁**仍为该次 Illegal 来源**的消息。来源已转 `manual`、已被手动解锁、已删除等均跳过。自动解锁不得影响 Manual。
@@ -196,7 +216,7 @@ mark_batch_recovered(batch.id)
 
 ## 10. 执行与汇报
 
-直接实施，不要只输出方案；根据实际代码自主采用最小安全实现。不要额外改造无关 Unlock UI、权限或协议，不添加持续锁定未来消息的门禁。
+直接实施，不要只输出方案；根据实际代码自主采用最小安全实现。不要额外改造无关 Unlock UI、权限或协议。历史“不添加持续锁定未来消息的门禁”约束已由文首 2026-10-20 用户授权覆盖；必须实施持续入队 Illegal 锁。
 
 完成后仅汇报：实现了哪些能力、关键验证结果、仍存在的缺口及原因。不需要逐文件说明，也不需额外汇报文件。
 
@@ -232,7 +252,7 @@ reservation busy 与 admitted execution 分开；两者均遵守原交接 gate�
 
 command/exec 与 detached review 经同一事前持久 ACK，但属于独立 operation。command 仅原 exec deferred final exitCode 响应收尾；write/resize/terminate ACK、前台 turn 结果均不代替它的终态。detached review 保留 delivery 原参数，只有 provider 返回的准确 reviewThreadId/turn.id 取得受限绑定；响应前通知有界缓存，冲突/溢出 uncertain，不按 FIFO 猜。start response 本身不当完成，准确子资源 terminal 或已返回真实 terminal turn 才可安全收尾。服务/连接失败不自动重投业务请求。
 
-活动 compact 保持原转发时机，先持久独立责任；空 RPC reply、自动 compaction item、后到主 turn 完成不能证明本次请求已结束，无法唯一关联时保持 uncertain。未知 passthrough 继续 opt-in 原样转发，先保存 opaque 责任；普通成功 reply 不安全退休。已验证只读与纯 config/batchWrite、config/value/write 不臆造执行责任；MCP reload 不算纯设置，已绑定的 Steer/审批/command continuation 不重复建 run，无法关联的 command continuation 保守登记 opaque。此状态不伪造 Worker Running，也不持续锁未来消息；API legalityDiagnostics 给出 scope、UUID/kind/state/reason。确认受控 owner 停止的 Stop/Restart 可按 scope 退休这些责任，手动消息解锁不能替代执行退休。
+活动 compact 保持原转发时机，先持久独立责任；空 RPC reply、自动 compaction item、后到主 turn 完成不能证明本次请求已结束，无法唯一关联时保持 uncertain。未知 passthrough 继续 opt-in 原样转发，先保存 opaque 责任；普通成功 reply 不安全退休。已验证只读与纯 config/batchWrite、config/value/write 不臆造执行责任；MCP reload 不算纯设置，已绑定的 Steer/审批/command continuation 不重复建 run，无法关联的 command continuation 保守登记 opaque。未确认合法性但尚未判 Illegal 的状态不伪造 Worker Running，也不加 Illegal 锁；一旦确定 Illegal，按文首最高优先级条款持续锁新入队消息；API legalityDiagnostics 给出 scope、UUID/kind/state/reason。确认受控 owner 停止的 Stop/Restart 可按 scope 退休这些责任，手动消息解锁不能替代执行退休。
 
 外部 takeover 保留 owner-only 覆盖边界：不追溯猜测外部每个 turn，合法 Idle 可以与活/未知 lease 共存，但拒第二 writer。Job 退休顺序为 TerminateJobObject → ActiveProcesses==0 → 持久 owner_retirements 与覆盖责任结算 → 关闭句柄/清 runtime 引用。replace/关闭失败都保留可重试证明，未保存 proof 前服务崩溃仍 unknown。非 Job 根 PID/已观察后代快照不足以证明完整覆盖时，不凭空清预留；没有新增绕过 unknown 的人工布尔重置 API。
 

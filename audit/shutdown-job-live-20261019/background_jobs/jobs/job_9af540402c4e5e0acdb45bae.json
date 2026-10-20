@@ -1,0 +1,39 @@
+{
+  "jobId": "job_9af540402c4e5e0acdb45bae",
+  "targetSessionId": "ses_a080eccb792e214b",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-c",
+    "import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)"
+  ],
+  "hideWindow": true,
+  "kind": "background-process",
+  "operation": "run",
+  "creatorSessionId": "ses_a080eccb792e214b",
+  "sourceStruct": {
+    "type": "agent",
+    "sessionId": "ses_a080eccb792e214b"
+  },
+  "targetStruct": {
+    "sessionId": "ses_a080eccb792e214b"
+  },
+  "name": "job-1",
+  "description": "",
+  "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c import time,sys; print(\"JOB_LONG_STARTED\", flush=True); time.sleep(86400)",
+  "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019",
+  "label": "shutdown-long-job",
+  "status": "failed",
+  "createdAt": 1792399515.59278,
+  "updatedAt": 1792399517.6978831,
+  "pid": 25456,
+  "processCreatedAt": 1792399515.7913713,
+  "logPath": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\background_jobs\\logs\\job_9af540402c4e5e0acdb45bae.log",
+  "notificationState": "delivered",
+  "terminalEventId": "job_9af540402c4e5e0acdb45bae:terminal",
+  "runnerPid": 32200,
+  "runnerProcessCreatedAt": 1792399515.61771,
+  "runnerFiletime": "134368731156177105",
+  "runnerClaim": "3d61541d9c945ef908ccf38ddce79de8",
+  "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+  "terminalEventEmittedFor": "job_9af540402c4e5e0acdb45bae:terminal"
+}

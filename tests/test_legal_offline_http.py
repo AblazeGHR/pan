@@ -67,7 +67,7 @@ def test_external_running_kill_snapshot_manual_changes_restart_and_successor_idl
     runtime.start()
     second = durable(runtime, sid)
     assert list(second["illegal_batches"]) == [batch]
-    assert second["illegal_batches"][batch]["messages"] == first["illegal_batches"][batch]["messages"]
+    assert set(second["illegal_batches"][batch]["messages"]) == {b, c, d}
     _spawn(runtime, sid)
     recovered = _wait_for(lambda: (value if (value := durable(runtime, sid))
                                    ["illegal_batches"][batch]["recovered"] else None),

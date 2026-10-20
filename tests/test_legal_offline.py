@@ -86,14 +86,15 @@ def test_same_failed_run_never_expands_or_relocks_and_successor_restores_only_il
         await server.api_session_queue_item_lock(s.id, "B", {"locked": False})
         await server.api_session_queue_item_lock(s.id, "C", {"locked": True})
         d = dict(id="D", queueItemId="D", type="task", text="D", deliveryState="queued")
-        s.queue_pending.append(d)
+        async with worker.queue_lock(s.id):
+            d = await worker._append_new_queue_item(s, d)
         await worker._detect_offline_exit(w, identity, "duplicate-EOF")
-        assert queue_locks.source(b) is None and queue_locks.source(d) is None
+        assert queue_locks.source(b) is None and queue_locks.source(d) == "illegal"
         assert server._queue_pending_summary(s) == (4, False)
         worker.workers.clear(); worker._workers_by_session.clear()
         loaded = reload(s)
         await worker._prepare_offline_recovery(loaded)
-        assert loaded.illegal_batches[batch]["messages"] == ["B", "C"]
+        assert loaded.illegal_batches[batch]["messages"] == ["B", "C", "D"]
         w.offline_token = "successor"; w.generation += 1
         w.process.returncode = None
         worker.workers[w.worker_id] = w; worker._register_worker(w)
@@ -466,11 +467,12 @@ def test_concurrent_enqueue_unlock_and_manual_claim_serialize_after_exact_snapsh
         release.set()
         await asyncio.wait_for(asyncio.gather(detection, enqueue, unlock, claim), 5)
         batch = next(iter(s.illegal_batches.values()))
-        assert batch["messages"] == ["B", "C"]
+        assert batch["messages"][:2] == ["B", "C"]
+        assert len(batch["messages"]) == 3
         rows = {row["text"]: row for row in s.queue_pending}
         assert queue_locks.source(rows["B"]) is None
         assert queue_locks.source(rows["C"]) == "manual"
-        assert queue_locks.source(rows["D"]) is None
+        assert queue_locks.source(rows["D"]) == "illegal"
         loaded = reload(s)
         assert loaded.illegal_batches == s.illegal_batches
         assert queue_locks.source(loaded.queue_delivery_ledger["C"]) == "manual"

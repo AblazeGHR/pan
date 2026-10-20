@@ -1,0 +1,22 @@
+{
+  "generation": "00c29bf64e044656b62acaec8455dca6",
+  "state": "pending",
+  "candidateSnapshot": [
+    {
+      "id": "ses_a080eccb792e214b",
+      "name": "real-fifo-shutdown-job",
+      "adapter": "cbc",
+      "workdir": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+      "updatedAt": "2026-10-19T16:45:17.438410",
+      "lastLegalWorkerState": null
+    }
+  ],
+  "decision": null,
+  "decisionId": null,
+  "attempts": 0,
+  "results": [],
+  "error": null,
+  "claim": null,
+  "createdAt": 1792399517.4403176,
+  "updatedAt": 1792399517.4403176
+}

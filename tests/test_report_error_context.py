@@ -265,6 +265,7 @@ def test_error_report_visible_in_manager_message_after_delivery(
 
 # ── core incident shape: one-shot chain ──
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_error_empty_result_report_carries_last_assistant_message(
         monkeypatch, _no_real_recovery_spawn):
     _cleanup()
@@ -286,6 +287,7 @@ def test_oneshot_error_empty_result_report_carries_last_assistant_message(
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_error_report_keeps_existing_error_result_and_adds_context(
         monkeypatch, _no_real_recovery_spawn):
     """已有 error 正文时，原错误原因保留，最后消息作为上下文附加。"""

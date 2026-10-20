@@ -50,9 +50,9 @@ export function createQuickNewSession(): Promise<void> {
     }
 
     const config = await fetchAdapterConfig(defaults.adapter);
-    const executionModes = config.executionModes || ['stream'];
-    let outputMode = defaults.outputMode;
-    if (outputMode && (executionModes.length < 2 || !executionModes.includes(outputMode))) {
+    const executionModes = config.executionModes?.filter(mode => mode !== 'oneshot') || ['stream'];
+    let outputMode = defaults.outputMode === 'oneshot' ? '' : defaults.outputMode;
+    if (outputMode && !executionModes.includes(outputMode)) {
       throw new Error(`已保存的 Output Mode「${outputMode}」不适用于 adapter「${defaults.adapter}」，未创建 Session。请在 New Session 中更新默认配置。`);
     }
     // Match the form's behavior when the saved mode is blank but this adapter

@@ -183,6 +183,7 @@ export function SelectedSessionActions({
       },
     },
     { key: 'read', label: 'Read all', Icon: CheckCheck, onClick: () => void run('read') },
+    { key: 'wake', label: 'Wake', Icon: Send, onClick: () => void run('wake'), title: 'Queue the configured wake message first and release only its Illegal lock' },
     { key: 'broadcast', label: '群发', Icon: Send, onClick: () => setPanel('broadcast') },
     { key: 'bell-on', label: 'Bell on', Icon: Bell, onClick: () => void run('bell-on') },
     { key: 'bell-off', label: 'Bell off', Icon: BellOff, onClick: () => void run('bell-off') },

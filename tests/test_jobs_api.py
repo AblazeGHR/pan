@@ -58,6 +58,12 @@ def fake_worker(monkeypatch):
         return {"status": "queued", "sessionId": session_id}
 
     monkeypatch.setattr(core_worker, "assign", fake_assign)
+    async def fake_wake(session_id, **kw):
+        calls.append({"api": "wake_session", "session_id": session_id,
+                      "text": core_worker.configured_wake_message(),
+                      "source": kw.get("source"), "client_message_id": kw.get("client_message_id")})
+        return {"status": "queued", "sessionId": session_id}
+    monkeypatch.setattr(core_worker, "wake_session", fake_wake)
     monkeypatch.setattr(core_worker, "send_session", fake_send)
     return calls
 

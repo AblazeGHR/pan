@@ -20,6 +20,7 @@ def test_lifecycle_settings_default_to_ask_for_old_or_missing_config(config_file
     assert asyncio.run(server.api_get_settings_session_lifecycle()) == {
         "exitStrategy": "ask",
         "startupPreference": "ask",
+        "wakeMessage": "继续",
     }
 
 
@@ -34,12 +35,14 @@ def test_lifecycle_settings_put_preserves_other_config_keys(config_file):
     result = asyncio.run(server.api_put_settings_session_lifecycle({
         "exitStrategy": "offline",
         "startupPreference": "clear-illegal",
+        "wakeMessage": "继续",
     }))
 
     saved = json.loads(config_file.read_text(encoding="utf-8"))
     assert result == {
         "exitStrategy": "offline",
         "startupPreference": "clear-illegal",
+        "wakeMessage": "继续",
     }
     assert saved["port"] == 8765
     assert saved["custom"] == {"keep": True}
@@ -47,6 +50,7 @@ def test_lifecycle_settings_put_preserves_other_config_keys(config_file):
         "extension": "kept",
         "exitStrategy": "offline",
         "startupPreference": "clear-illegal",
+        "wakeMessage": "继续",
     }
 
 

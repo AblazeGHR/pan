@@ -1,0 +1,57 @@
+{
+  "backend": {
+    "tests": 737,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 46,
+    "passed": 691,
+    "skipReasons": {
+      "Oneshot mode retired by user; implementation retained": 46
+    }
+  },
+  "assignFollowup": {
+    "tests": 157,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 3,
+    "passed": 154,
+    "skipReasons": {
+      "Oneshot mode retired by user; implementation retained": 3
+    }
+  },
+  "httpBrowser": {
+    "tests": 12,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 12,
+    "skipReasons": {}
+  },
+  "frontend": {
+    "passed": 223,
+    "skipped": 3,
+    "failures": 0,
+    "files": 11
+  },
+  "job": {
+    "jobId": "job_07558916dfa6774477677482",
+    "queueItemId": "q_99e5ec9799344b7384b74f009be371b7"
+  },
+  "uniqueTotals": {
+    "passed": 940,
+    "skipped": 49,
+    "failures": 0,
+    "errors": 0,
+    "note": "Python/HTTP testcase identities deduplicated across regression and followup; plus frontend."
+  },
+  "sourceCommit": "2f1c2b3bd02e901ceadbc2b010960277bafcbb4c",
+  "build": {
+    "exitCode": 0,
+    "compressedAssets": 72
+  },
+  "eslint": {
+    "exitCode": 0,
+    "errors": 0,
+    "existingWarnings": 4
+  }
+}

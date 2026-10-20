@@ -329,6 +329,7 @@ def test_watchdog_exits_when_worker_removed():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_mcp_idle_worker_reclaimed():
     """MCP one-shot worker (process=None) idle past idle_sec → killed.
 
@@ -363,6 +364,7 @@ def test_mcp_idle_worker_reclaimed():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_mcp_running_worker_not_timeout_killed():
     """MCP one-shot worker running past timeout is NOT killed (read-timeout owns it)."""
     _cleanup()
@@ -795,6 +797,7 @@ def test_watchdog_self_cancel_regression():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_consumer_oneshot_refreshes_last_activity_on_idle(monkeypatch, tmp_path):
     """M3 回归: _consumer_oneshot 置 idle 时必须刷新 last_activity。
 

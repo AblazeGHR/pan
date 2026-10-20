@@ -340,7 +340,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // Output Mode selector is shown only when the adapter exposes more than one
   // execution mode (e.g. cbc: ["stream","oneshot"]). Single-mode adapters
   // (kimi/opencode: ["stream"]) never render it — they cannot switch.
-  const execModes = config.executionModes || ['stream'];
+  const execModes = (config.executionModes || ['stream']).filter(mode => mode !== 'oneshot');
   const showOutputMode = execModes.length > 1 && !(s.adapter === 'cbc' && s.nativeControl);
   const currentOutputMode =
     s.outputMode ?? (execModes.includes('stream') ? 'stream' : execModes[0]);

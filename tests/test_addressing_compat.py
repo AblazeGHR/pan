@@ -7,6 +7,8 @@
 - M18 隔离不倒退：session_id 路径同样过 _check_access
 """
 
+import pytest
+
 import asyncio
 import sys
 from pathlib import Path
@@ -120,6 +122,7 @@ def test_send_session_live_worker_delivers():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_send_session_oneshot_worker_delivers():
     """oneshot MCP worker（process=None）视作活 worker，正常投递。"""
     _cleanup()
@@ -220,6 +223,7 @@ def test_send_session_unknown_session_errors():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_send_session_force_live_oneshot_restarts_without_stream_spawn(monkeypatch):
     """force=True + one-shot worker resets its consumer, never stream-spawns."""
     _cleanup()

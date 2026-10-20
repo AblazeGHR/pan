@@ -9,6 +9,8 @@ refactor (step 3) cannot silently change behaviour.
 Covers combinations: with/without resume, system_prompt, mcp, effort/permission.
 """
 
+import pytest
+
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -63,24 +65,28 @@ def _assert_eq(s, text):
     assert new_args == old_args, f"\nNEW: {new_args}\nOLD: {old_args}"
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_basic_no_mcp_no_resume():
     s = _make_session()
     _assert_eq(s, "hello world")
     print("PASS basic (no mcp, no resume)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_mcp():
     s = _make_session(mcp_servers=[{"name": "pan", "command": "x"}])
     _assert_eq(s, "hello world")
     print("PASS with mcp")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_system_prompt_no_cli_id():
     s = _make_session(system_prompt="You are helpful.", mcp_servers=[{"name": "pan"}])
     _assert_eq(s, "hello world")
     print("PASS with system_prompt (no cli_session_id)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_system_prompt_skipped_when_resumed():
     # system_prompt must NOT be injected when cli_session_id already set
     s = _make_session(
@@ -92,6 +98,7 @@ def test_oneshot_args_system_prompt_skipped_when_resumed():
     print("PASS system_prompt skipped when resumed")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_resume_and_mcp():
     s = _make_session(
         cli_session_id="existing-cbc-id",
@@ -101,6 +108,7 @@ def test_oneshot_args_with_resume_and_mcp():
     print("PASS with resume (cli_session_id) + mcp")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_effort_and_permission():
     s = _make_session(
         mcp_servers=[{"name": "pan"}],
@@ -111,6 +119,7 @@ def test_oneshot_args_with_effort_and_permission():
     print("PASS with effort(enabled)+permission")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_prompt_is_last_arg():
     s = _make_session()
     a = CbcAdapter()
@@ -123,7 +132,8 @@ def test_oneshot_args_prompt_is_last_arg():
 
 
 def test_execution_modes_declared():
-    assert CbcAdapter().execution_modes == ["stream", "oneshot"]
+    from packages.core.adapters.resolution import available_execution_modes
+    assert available_execution_modes(CbcAdapter()) == ["stream"]
     from packages.core.adapters.kimi.adapter import KimiAdapter
     from packages.core.adapters.opencode.adapter import OpencodeAdapter
     assert KimiAdapter().execution_modes == ["stream"]

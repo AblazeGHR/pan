@@ -1,0 +1,1031 @@
+{
+  "sessionId": "ses_35bfedd3f7810282",
+  "jobId": "job_07558916dfa6774477677482",
+  "port": "http://127.0.0.1:49673",
+  "failedJob": {
+    "jobId": "job_07558916dfa6774477677482",
+    "targetSessionId": "ses_35bfedd3f7810282",
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-u",
+      "-c",
+      "import time; print('JOB_LONG_STARTED', flush=True); time.sleep(86400)"
+    ],
+    "hideWindow": true,
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": "ses_35bfedd3f7810282",
+    "sourceStruct": {
+      "type": "agent",
+      "sessionId": "ses_35bfedd3f7810282"
+    },
+    "targetStruct": {
+      "sessionId": "ses_35bfedd3f7810282"
+    },
+    "name": "job-1",
+    "description": "",
+    "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -u -c …",
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "label": "isolated shutdown sticky lock",
+    "status": "failed",
+    "createdAt": 1792487560.348194,
+    "updatedAt": 1792487561.7215307,
+    "pid": null,
+    "processCreatedAt": null,
+    "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\background_jobs\\logs\\job_07558916dfa6774477677482.log",
+    "notificationState": "delivered",
+    "terminalEventId": "job_07558916dfa6774477677482:terminal",
+    "runnerPid": 18212,
+    "runnerProcessCreatedAt": 1792487560.3529387,
+    "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+    "terminalEventEmittedFor": "job_07558916dfa6774477677482:terminal",
+    "paused": false
+  },
+  "beforeWake": {
+    "id": "ses_35bfedd3f7810282",
+    "name": "real-fifo-job-crash-sticky",
+    "adapter": "cbc",
+    "model": "deepseek-v4-flash",
+    "permission_mode": "bypassPermissions",
+    "pan_access": {
+      "restrict_to_managed": false,
+      "can_claim_unmanaged": false,
+      "auto_claim_created": false
+    },
+    "adapter_config": {
+      "always_thinking_enabled": false,
+      "effort": "",
+      "max_thinking_tokens": null,
+      "output_mode": "stream",
+      "plugin_config_version": 2,
+      "plugin_bindings": [
+        {
+          "plugin_id": "pan",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ],
+      "mcp_servers": [
+        {
+          "name": "pan",
+          "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "args": [
+            "-m",
+            "packages.mcp.server"
+          ],
+          "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018"
+        }
+      ],
+      "plugin_selection_revision": 1,
+      "cli_session_id": "fake-21640"
+    },
+    "character_id": null,
+    "session_template": null,
+    "original_prompt": "",
+    "handoff_prompt": null,
+    "game_id": null,
+    "raw_usage": null,
+    "total_usage": null,
+    "usage_enrichment_pending": [],
+    "workdir": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "history": [
+      {
+        "role": "user",
+        "content": "hold-A",
+        "queueItemIds": [
+          "q_3d7f1aae025f444298594193ba70f577"
+        ],
+        "delivered_keys": [
+          "task:q_3d7f1aae025f444298594193ba70f577"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_3d7f1aae025f444298594193ba70f577",
+            "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+            "text": "hold-A",
+            "source": "user",
+            "seq": 1,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792487560.2398677,
+            "clientMessageId": "active",
+            "position": 0
+          }
+        ],
+        "source": "user",
+        "taskId": null,
+        "clientMessageId": "active",
+        "messageId": "pan:4b7b0be31e434cb881a6b9f770f5ce35",
+        "ts": "2026-10-20T17:12:40.289902"
+      }
+    ],
+    "history_epoch": "08a81f5622be430b99c387c10544cb6b",
+    "history_revision": 1,
+    "last_result": null,
+    "result_cursor": 0,
+    "terminal_results": [],
+    "last_legal_worker_state": null,
+    "legal_offline": false,
+    "offline_migration_uncertainty": null,
+    "offline_owner": {
+      "runtimeExpected": true,
+      "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 716,
+          "createdAt": 1792487560.255751
+        },
+        {
+          "pid": 25880,
+          "createdAt": 1792487560.2602837
+        },
+        {
+          "pid": 21640,
+          "createdAt": 1792487560.2806156
+        }
+      ]
+    },
+    "offline_run": {
+      "runtimeExpected": true,
+      "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 716,
+          "createdAt": 1792487560.255751
+        },
+        {
+          "pid": 25880,
+          "createdAt": 1792487560.2602837
+        },
+        {
+          "pid": 21640,
+          "createdAt": 1792487560.2806156
+        }
+      ],
+      "id": "a7377e6702294afc9735b15c531d89d7",
+      "kind": "foreground",
+      "admittedRevision": 1,
+      "state": "illegal",
+      "startedAt": 1792487560.2876534,
+      "safeTerminal": false,
+      "incidentId": "a7377e6702294afc9735b15c531d89d7",
+      "reason": "unfinished-run"
+    },
+    "illegal_batches": {
+      "a7377e6702294afc9735b15c531d89d7": {
+        "id": "a7377e6702294afc9735b15c531d89d7",
+        "run": {
+          "runtimeExpected": true,
+          "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 716,
+              "createdAt": 1792487560.255751
+            },
+            {
+              "pid": 25880,
+              "createdAt": 1792487560.2602837
+            },
+            {
+              "pid": 21640,
+              "createdAt": 1792487560.2806156
+            }
+          ],
+          "id": "a7377e6702294afc9735b15c531d89d7",
+          "kind": "foreground",
+          "admittedRevision": 1,
+          "state": "running",
+          "startedAt": 1792487560.2876534,
+          "safeTerminal": false
+        },
+        "messages": [
+          "q_99e5ec9799344b7384b74f009be371b7"
+        ],
+        "incidentId": "a7377e6702294afc9735b15c531d89d7",
+        "reason": "unfinished-run",
+        "createdAt": 1792487561.472057,
+        "recovered": false
+      }
+    },
+    "legality_schema_version": 2,
+    "operation_revision": 2,
+    "execution_operations": {
+      "a7377e6702294afc9735b15c531d89d7": {
+        "runtimeExpected": true,
+        "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 716,
+            "createdAt": 1792487560.255751
+          },
+          {
+            "pid": 25880,
+            "createdAt": 1792487560.2602837
+          },
+          {
+            "pid": 21640,
+            "createdAt": 1792487560.2806156
+          }
+        ],
+        "id": "a7377e6702294afc9735b15c531d89d7",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "illegal",
+        "startedAt": 1792487560.2876534,
+        "safeTerminal": false,
+        "incidentId": "a7377e6702294afc9735b15c531d89d7",
+        "reason": "unfinished-run"
+      }
+    },
+    "owner_retirements": {},
+    "created_at": "2026-10-20T17:12:40.234413",
+    "updated_at": "2026-10-20T17:12:41.505484",
+    "order": null,
+    "workspace_ids": [],
+    "managed": [],
+    "managed_by": null,
+    "readonly_session": false,
+    "queue_pending": [
+      {
+        "kind": "report",
+        "id": "q_99e5ec9799344b7384b74f009be371b7",
+        "queueItemId": "q_99e5ec9799344b7384b74f009be371b7",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "sessionId": "ses_35bfedd3f7810282",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "queued",
+        "dispatchState": "queued",
+        "revision": 1,
+        "createdAt": 1792487561.5042102,
+        "eventId": "job_07558916dfa6774477677482:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_07558916dfa6774477677482",
+        "creatorSessionId": "ses_35bfedd3f7810282",
+        "targetSessionId": "ses_35bfedd3f7810282",
+        "targetSessionIds": [
+          "ses_35bfedd3f7810282"
+        ],
+        "queueLockSource": "illegal",
+        "queueLockIllegalBatch": "a7377e6702294afc9735b15c531d89d7",
+        "position": 0
+      }
+    ],
+    "queue_paused": false,
+    "agent_reports_paused": false,
+    "queue_item_locks_version": 1,
+    "queue_edit_locks": {},
+    "queue_delivery_ledger": {
+      "q_3d7f1aae025f444298594193ba70f577": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_3d7f1aae025f444298594193ba70f577",
+        "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+        "text": "hold-A",
+        "source": "user",
+        "seq": 1,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792487560.2398677,
+        "clientMessageId": "active",
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792487560.2798622,
+        "receiptAt": 1792487560.2899132,
+        "deliveredAt": 1792487560.2899132
+      },
+      "q_99e5ec9799344b7384b74f009be371b7": {
+        "kind": "report",
+        "id": "q_99e5ec9799344b7384b74f009be371b7",
+        "queueItemId": "q_99e5ec9799344b7384b74f009be371b7",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "sessionId": "ses_35bfedd3f7810282",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "queued",
+        "dispatchState": "queued",
+        "revision": 1,
+        "createdAt": 1792487561.5042102,
+        "eventId": "job_07558916dfa6774477677482:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_07558916dfa6774477677482",
+        "creatorSessionId": "ses_35bfedd3f7810282",
+        "targetSessionId": "ses_35bfedd3f7810282",
+        "targetSessionIds": [
+          "ses_35bfedd3f7810282"
+        ],
+        "queueLockSource": "illegal",
+        "queueLockIllegalBatch": "a7377e6702294afc9735b15c531d89d7",
+        "position": 0
+      }
+    },
+    "queue_idempotency_index": {
+      "version": 1,
+      "taskId": {},
+      "clientMessageId": {
+        "active": {
+          "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+          "seenAt": 1792487560.2398677
+        }
+      }
+    },
+    "queue_revision": 5,
+    "task_seq": 1,
+    "unread_done_count": 0,
+    "unread_done_generation": 0,
+    "unread_done_read_generation": 0,
+    "unread_recording_override": null,
+    "active_task_id": null,
+    "accepted_input_ids": [
+      "active"
+    ],
+    "manual_report_receipts": {},
+    "summary_projection": {
+      "revision": 7,
+      "last_user_preview": "hold-A",
+      "last_assistant_preview": "",
+      "last_display_preview": "hold-A",
+      "last_system_preview": "",
+      "last_thinking_preview": "",
+      "last_tool_preview": "",
+      "last_main_role": "user",
+      "history_total": 1,
+      "updated_at": "2026-10-20T17:12:41.474475"
+    },
+    "report_subscriptions": [],
+    "qq_report_targets": [],
+    "qq_report_outbox": {},
+    "qq_subscriptions": [],
+    "wechat_subscriptions": [],
+    "notification_settings": {
+      "browser": false,
+      "system": false
+    }
+  },
+  "afterWake": {
+    "id": "ses_35bfedd3f7810282",
+    "name": "real-fifo-job-crash-sticky",
+    "adapter": "cbc",
+    "model": "deepseek-v4-flash",
+    "permission_mode": "bypassPermissions",
+    "pan_access": {
+      "restrict_to_managed": false,
+      "can_claim_unmanaged": false,
+      "auto_claim_created": false
+    },
+    "adapter_config": {
+      "always_thinking_enabled": false,
+      "effort": "",
+      "max_thinking_tokens": null,
+      "output_mode": "stream",
+      "plugin_config_version": 2,
+      "plugin_bindings": [
+        {
+          "plugin_id": "pan",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ],
+      "mcp_servers": [
+        {
+          "name": "pan",
+          "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "args": [
+            "-m",
+            "packages.mcp.server"
+          ],
+          "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018"
+        }
+      ],
+      "plugin_selection_revision": 1,
+      "cli_session_id": "fake-21640"
+    },
+    "character_id": null,
+    "session_template": null,
+    "original_prompt": "",
+    "handoff_prompt": null,
+    "game_id": null,
+    "raw_usage": null,
+    "total_usage": null,
+    "usage_enrichment_pending": [
+      {
+        "key": "seq:2",
+        "adapter": "cbc",
+        "taskId": null,
+        "taskSeq": 2,
+        "workerId": "worker-1",
+        "generation": 0,
+        "state": "pending",
+        "attempts": 0,
+        "nextAttemptAt": 0.0,
+        "createdAt": 1792487562.680142
+      },
+      {
+        "key": "worker:worker-1:generation:0:36ac18668ab347bc98be9e08f80735a3",
+        "adapter": "cbc",
+        "taskId": null,
+        "taskSeq": null,
+        "workerId": "worker-1",
+        "generation": 0,
+        "state": "pending",
+        "attempts": 0,
+        "nextAttemptAt": 0.0,
+        "createdAt": 1792487562.7060163
+      }
+    ],
+    "workdir": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "history": [
+      {
+        "role": "user",
+        "content": "hold-A",
+        "queueItemIds": [
+          "q_3d7f1aae025f444298594193ba70f577"
+        ],
+        "delivered_keys": [
+          "task:q_3d7f1aae025f444298594193ba70f577"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_3d7f1aae025f444298594193ba70f577",
+            "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+            "text": "hold-A",
+            "source": "user",
+            "seq": 1,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792487560.2398677,
+            "clientMessageId": "active",
+            "position": 0
+          }
+        ],
+        "source": "user",
+        "taskId": null,
+        "clientMessageId": "active",
+        "messageId": "pan:4b7b0be31e434cb881a6b9f770f5ce35",
+        "ts": "2026-10-20T17:12:40.289902"
+      },
+      {
+        "role": "user",
+        "content": "继续",
+        "queueItemIds": [
+          "q_4791303befa74b1c95ef2413acaa9b35"
+        ],
+        "delivered_keys": [
+          "task:q_4791303befa74b1c95ef2413acaa9b35"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_4791303befa74b1c95ef2413acaa9b35",
+            "queueItemId": "q_4791303befa74b1c95ef2413acaa9b35",
+            "text": "继续",
+            "source": "agent",
+            "seq": 2,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792487562.5616815,
+            "clientMessageId": "wake-job-crash",
+            "wakeMessage": true,
+            "position": 0
+          }
+        ],
+        "source": "agent",
+        "taskId": null,
+        "clientMessageId": "wake-job-crash",
+        "messageId": "pan:6e17d3d006054dbebfa01605fe454a7c",
+        "ts": "2026-10-20T17:12:42.619957"
+      },
+      {
+        "role": "assistant",
+        "content": "ack:����",
+        "messageId": "pan:2e3c7a1e8df9425c90d5e7f3a15fd416",
+        "ts": "2026-10-20T17:12:42.679891"
+      },
+      {
+        "role": "assistant",
+        "content": "����",
+        "messageId": "pan:449f7d22e48d4dc28167e7f05ccfccc1",
+        "ts": "2026-10-20T17:12:42.680127"
+      },
+      {
+        "role": "user",
+        "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "queueItemIds": [
+          "q_99e5ec9799344b7384b74f009be371b7"
+        ],
+        "delivered_keys": [
+          "report:anon:cf1720615cf0"
+        ],
+        "kind": "report",
+        "queueEnvelopes": [
+          {
+            "kind": "report",
+            "id": "q_99e5ec9799344b7384b74f009be371b7",
+            "queueItemId": "q_99e5ec9799344b7384b74f009be371b7",
+            "source": "automation",
+            "status": "failed",
+            "type": "notice",
+            "result": "{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+            "sessionId": "ses_35bfedd3f7810282",
+            "taskId": null,
+            "workerId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792487561.5042102,
+            "eventId": "job_07558916dfa6774477677482:terminal",
+            "noticeKind": "background_job_terminal",
+            "jobId": "job_07558916dfa6774477677482",
+            "creatorSessionId": "ses_35bfedd3f7810282",
+            "targetSessionId": "ses_35bfedd3f7810282",
+            "targetSessionIds": [
+              "ses_35bfedd3f7810282"
+            ],
+            "position": 1
+          }
+        ],
+        "source": "automation",
+        "taskId": null,
+        "eventId": "job_07558916dfa6774477677482:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_07558916dfa6774477677482",
+        "messageId": "pan:aa21e210c9124bb1a32b61a982789258",
+        "ts": "2026-10-20T17:12:42.700822"
+      },
+      {
+        "role": "assistant",
+        "content": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "messageId": "pan:271ca8c294704a2081f2075adb57fc88",
+        "ts": "2026-10-20T17:12:42.701183"
+      },
+      {
+        "role": "assistant",
+        "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "messageId": "pan:4977ceebfda14203892bd0b78ca00e46",
+        "ts": "2026-10-20T17:12:42.706001"
+      }
+    ],
+    "history_epoch": "08a81f5622be430b99c387c10544cb6b",
+    "history_revision": 7,
+    "last_result": {
+      "status": "done",
+      "result": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+      "cli_session_id": "fake-21640",
+      "timestamp": "2026-10-20T17:12:42.705984",
+      "taskSeq": null,
+      "executionSeq": 2,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "resultCursor": 2,
+      "sourceSessionId": null,
+      "terminalKey": "worker:worker-1:generation:0:a01d0a78c173416c82187ed0abbcb684",
+      "historyEpoch": "08a81f5622be430b99c387c10544cb6b",
+      "historyRevision": 7,
+      "usageEnrichmentKey": "worker:worker-1:generation:0:36ac18668ab347bc98be9e08f80735a3"
+    },
+    "result_cursor": 2,
+    "terminal_results": [
+      {
+        "resultCursor": 1,
+        "terminalKey": "seq:2",
+        "status": "done",
+        "result": "����",
+        "taskSeq": 2,
+        "executionSeq": 1,
+        "taskId": null,
+        "taskIdempotent": false,
+        "workerId": "worker-1",
+        "generation": 0,
+        "sourceSessionId": null,
+        "timestamp": "2026-10-20T17:12:42.680107",
+        "historyEpoch": "08a81f5622be430b99c387c10544cb6b",
+        "historyRevision": 4
+      },
+      {
+        "resultCursor": 2,
+        "terminalKey": "worker:worker-1:generation:0:a01d0a78c173416c82187ed0abbcb684",
+        "status": "done",
+        "result": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "taskSeq": null,
+        "executionSeq": 2,
+        "taskId": null,
+        "taskIdempotent": false,
+        "workerId": "worker-1",
+        "generation": 0,
+        "sourceSessionId": null,
+        "timestamp": "2026-10-20T17:12:42.705979",
+        "historyEpoch": "08a81f5622be430b99c387c10544cb6b",
+        "historyRevision": 7
+      }
+    ],
+    "last_legal_worker_state": null,
+    "legal_offline": true,
+    "offline_migration_uncertainty": null,
+    "offline_owner": {
+      "runtimeExpected": true,
+      "token": "a7e063a4b731495f95de703555252a55",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "ee62be68c52d4551b3d32f7259122ae7",
+      "executionSeq": 2,
+      "processes": [
+        {
+          "pid": 35904,
+          "createdAt": 1792487562.5815363
+        },
+        {
+          "pid": 9772,
+          "createdAt": 1792487562.5912735
+        },
+        {
+          "pid": 14752,
+          "createdAt": 1792487562.6311984
+        }
+      ]
+    },
+    "offline_run": {
+      "runtimeExpected": true,
+      "token": "a7e063a4b731495f95de703555252a55",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "ee62be68c52d4551b3d32f7259122ae7",
+      "executionSeq": 2,
+      "processes": [
+        {
+          "pid": 35904,
+          "createdAt": 1792487562.5815363
+        },
+        {
+          "pid": 9772,
+          "createdAt": 1792487562.5912735
+        },
+        {
+          "pid": 14752,
+          "createdAt": 1792487562.6311984
+        }
+      ],
+      "id": "7e37c876f06c4b83b48c665762e3b848",
+      "kind": "foreground",
+      "admittedRevision": 6,
+      "state": "idle",
+      "startedAt": 1792487562.6981113,
+      "safeTerminal": true,
+      "endedAt": 1792487562.712616,
+      "reason": "task/safe-terminal",
+      "terminalProof": "safe-terminal"
+    },
+    "illegal_batches": {
+      "a7377e6702294afc9735b15c531d89d7": {
+        "id": "a7377e6702294afc9735b15c531d89d7",
+        "run": {
+          "runtimeExpected": true,
+          "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 716,
+              "createdAt": 1792487560.255751
+            },
+            {
+              "pid": 25880,
+              "createdAt": 1792487560.2602837
+            },
+            {
+              "pid": 21640,
+              "createdAt": 1792487560.2806156
+            }
+          ],
+          "id": "a7377e6702294afc9735b15c531d89d7",
+          "kind": "foreground",
+          "admittedRevision": 1,
+          "state": "running",
+          "startedAt": 1792487560.2876534,
+          "safeTerminal": false
+        },
+        "messages": [
+          "q_99e5ec9799344b7384b74f009be371b7",
+          "q_4791303befa74b1c95ef2413acaa9b35"
+        ],
+        "incidentId": "a7377e6702294afc9735b15c531d89d7",
+        "reason": "unfinished-run",
+        "createdAt": 1792487561.472057,
+        "recovered": true,
+        "recoveredAt": 1792487562.6751354,
+        "recoveredBy": {
+          "runtimeExpected": true,
+          "token": "a7e063a4b731495f95de703555252a55",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "ee62be68c52d4551b3d32f7259122ae7",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 35904,
+              "createdAt": 1792487562.5815363
+            },
+            {
+              "pid": 9772,
+              "createdAt": 1792487562.5912735
+            },
+            {
+              "pid": 14752,
+              "createdAt": 1792487562.6311984
+            }
+          ]
+        }
+      }
+    },
+    "legality_schema_version": 2,
+    "operation_revision": 7,
+    "execution_operations": {
+      "a7377e6702294afc9735b15c531d89d7": {
+        "runtimeExpected": true,
+        "token": "cae8a2e3dbf347bf992d0e289fbca7a6",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "a97ac02ca2c24a15ac1b0a1ca24ceab2",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 716,
+            "createdAt": 1792487560.255751
+          },
+          {
+            "pid": 25880,
+            "createdAt": 1792487560.2602837
+          },
+          {
+            "pid": 21640,
+            "createdAt": 1792487560.2806156
+          }
+        ],
+        "id": "a7377e6702294afc9735b15c531d89d7",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "illegal",
+        "startedAt": 1792487560.2876534,
+        "safeTerminal": false,
+        "incidentId": "a7377e6702294afc9735b15c531d89d7",
+        "reason": "unfinished-run",
+        "retirement": {
+          "safe": true,
+          "proof": "successor-ready-after-owner-reconciliation",
+          "committedAt": 1792487562.675137
+        }
+      },
+      "f2719b85443e42df8e5a18149431f63d": {
+        "runtimeExpected": true,
+        "token": "a7e063a4b731495f95de703555252a55",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "ee62be68c52d4551b3d32f7259122ae7",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 35904,
+            "createdAt": 1792487562.5815363
+          },
+          {
+            "pid": 9772,
+            "createdAt": 1792487562.5912735
+          }
+        ],
+        "id": "f2719b85443e42df8e5a18149431f63d",
+        "kind": "foreground",
+        "admittedRevision": 3,
+        "state": "idle",
+        "startedAt": 1792487562.6175337,
+        "safeTerminal": true,
+        "endedAt": 1792487562.6866524,
+        "reason": "task/safe-terminal",
+        "terminalProof": "safe-terminal"
+      },
+      "7e37c876f06c4b83b48c665762e3b848": {
+        "runtimeExpected": true,
+        "token": "a7e063a4b731495f95de703555252a55",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "ee62be68c52d4551b3d32f7259122ae7",
+        "executionSeq": 2,
+        "processes": [
+          {
+            "pid": 35904,
+            "createdAt": 1792487562.5815363
+          },
+          {
+            "pid": 9772,
+            "createdAt": 1792487562.5912735
+          },
+          {
+            "pid": 14752,
+            "createdAt": 1792487562.6311984
+          }
+        ],
+        "id": "7e37c876f06c4b83b48c665762e3b848",
+        "kind": "foreground",
+        "admittedRevision": 6,
+        "state": "idle",
+        "startedAt": 1792487562.6981113,
+        "safeTerminal": true,
+        "endedAt": 1792487562.712616,
+        "reason": "task/safe-terminal",
+        "terminalProof": "safe-terminal"
+      }
+    },
+    "owner_retirements": {},
+    "created_at": "2026-10-20T17:12:40.234413",
+    "updated_at": "2026-10-20T17:12:42.715583",
+    "order": null,
+    "workspace_ids": [],
+    "managed": [],
+    "managed_by": null,
+    "readonly_session": false,
+    "queue_pending": [],
+    "queue_paused": false,
+    "agent_reports_paused": false,
+    "queue_item_locks_version": 1,
+    "queue_edit_locks": {},
+    "queue_delivery_ledger": {
+      "q_3d7f1aae025f444298594193ba70f577": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_3d7f1aae025f444298594193ba70f577",
+        "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+        "text": "hold-A",
+        "source": "user",
+        "seq": 1,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792487560.2398677,
+        "clientMessageId": "active",
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792487560.2798622,
+        "receiptAt": 1792487560.2899132,
+        "deliveredAt": 1792487560.2899132
+      },
+      "q_99e5ec9799344b7384b74f009be371b7": {
+        "kind": "report",
+        "id": "q_99e5ec9799344b7384b74f009be371b7",
+        "queueItemId": "q_99e5ec9799344b7384b74f009be371b7",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+        "sessionId": "ses_35bfedd3f7810282",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792487561.5042102,
+        "eventId": "job_07558916dfa6774477677482:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_07558916dfa6774477677482",
+        "creatorSessionId": "ses_35bfedd3f7810282",
+        "targetSessionId": "ses_35bfedd3f7810282",
+        "targetSessionIds": [
+          "ses_35bfedd3f7810282"
+        ],
+        "position": 1,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792487562.6895788,
+        "receiptAt": 1792487562.7008326,
+        "deliveredAt": 1792487562.7008326
+      },
+      "q_4791303befa74b1c95ef2413acaa9b35": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_4791303befa74b1c95ef2413acaa9b35",
+        "queueItemId": "q_4791303befa74b1c95ef2413acaa9b35",
+        "text": "继续",
+        "source": "agent",
+        "seq": 2,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792487562.5616815,
+        "clientMessageId": "wake-job-crash",
+        "wakeMessage": true,
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792487562.6086717,
+        "receiptAt": 1792487562.6199694,
+        "deliveredAt": 1792487562.6199694
+      }
+    },
+    "queue_idempotency_index": {
+      "version": 1,
+      "taskId": {},
+      "clientMessageId": {
+        "active": {
+          "queueItemId": "q_3d7f1aae025f444298594193ba70f577",
+          "seenAt": 1792487560.2398677
+        },
+        "wake-job-crash": {
+          "queueItemId": "q_4791303befa74b1c95ef2413acaa9b35",
+          "seenAt": 1792487562.5616815
+        }
+      }
+    },
+    "queue_revision": 11,
+    "task_seq": 2,
+    "unread_done_count": 1,
+    "unread_done_generation": 1,
+    "unread_done_read_generation": 0,
+    "unread_recording_override": null,
+    "active_task_id": null,
+    "accepted_input_ids": [
+      "active",
+      "wake-job-crash"
+    ],
+    "manual_report_receipts": {},
+    "summary_projection": {
+      "revision": 25,
+      "last_user_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSession",
+      "last_assistant_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSession",
+      "last_display_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSession",
+      "last_system_preview": "",
+      "last_thinking_preview": "",
+      "last_tool_preview": "",
+      "last_main_role": "assistant",
+      "history_total": 7,
+      "updated_at": "2026-10-20T17:12:42.715089"
+    },
+    "report_subscriptions": [],
+    "qq_report_targets": [],
+    "qq_report_outbox": {},
+    "qq_subscriptions": [],
+    "wechat_subscriptions": [],
+    "notification_settings": {
+      "browser": false,
+      "system": false
+    }
+  },
+  "received": [
+    {
+      "kind": "received",
+      "pid": 14752,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+      "text": "继续",
+      "at": 1792487562.667424
+    },
+    {
+      "kind": "received",
+      "pid": 14752,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+      "text": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_07558916dfa6774477677482\ntargetSessionId: ses_35bfedd3f7810282\ntargetSessionIds: ['ses_35bfedd3f7810282']\ncreatorSessionId: ses_35bfedd3f7810282\neventId: job_07558916dfa6774477677482:terminal\nresult:\n{\"jobId\": \"job_07558916dfa6774477677482\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3213\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_07558916dfa6774477677482.log\"}",
+      "at": 1792487562.7005966
+    }
+  ]
+}
