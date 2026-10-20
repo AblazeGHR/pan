@@ -20,6 +20,7 @@ import type { LucideIcon } from 'lucide-react';
 import { SETTINGS_TABS } from './settingsCategories';
 import type { SettingsTab } from './settingsCategories';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import type { AutoForceSendSettings } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import {
@@ -176,19 +177,22 @@ function SwitchRow({
   hint,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors"
+      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
     >
       <span className="min-w-0">
         <span className="block text-xs text-text-primary">{label}</span>
@@ -461,6 +465,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     showQQ,
     showCodexTerminalInput,
     reportWorkerKillErrors,
+    autoForceSend,
     mergeConsecutiveNonBodyBlocks,
     keepScrollOnSessionSwitch,
     showMessageNavigationRail,
@@ -485,6 +490,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setConfirmCrossWorkspaceManagement,
     setConfirmAgentSystemQueueEdit,
     saveReportWorkerKillErrors,
+    saveAutoForceSend,
     resetSettings,
   } = useAppSettingsStore();
 
@@ -562,6 +568,28 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
       setKillReportSaving(false);
     }
   }, [killReportSaving, saveReportWorkerKillErrors]);
+
+  // Behavior → message auto force send. The store only changes after the
+  // server confirms the write, so a failed save keeps the previous switch
+  // position and shows an inline error instead of pretending success.
+  const [autoForceSaving, setAutoForceSaving] = useState<keyof AutoForceSendSettings | null>(null);
+  const [autoForceError, setAutoForceError] = useState<string | null>(null);
+
+  const toggleAutoForceSend = useCallback(async (
+    key: keyof AutoForceSendSettings,
+    value: boolean,
+  ) => {
+    if (autoForceSaving) return;
+    setAutoForceSaving(key);
+    setAutoForceError(null);
+    try {
+      await saveAutoForceSend({ ...autoForceSend, [key]: value });
+    } catch (error) {
+      setAutoForceError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAutoForceSaving(null);
+    }
+  }, [autoForceSend, autoForceSaving, saveAutoForceSend]);
 
   // Worker config edit dialog — opened from the "Edit worker config" row.
   // Prefills current values (reloadConfig('worker').before — idempotent),
@@ -1599,8 +1627,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 <p className="text-[11px] text-text-tertiary leading-relaxed">
                   Resets the UI preferences saved in config.json: the Appearance options, the
                   Notification options, and the related Behavior toggles (new-Session Workspace
-                  placement, worker stop reports, confirmation prompts) plus the Codex terminal
-                  input popup on Adapters. It does not reset Pan lifecycle policies, worker
+                  placement, automatic Force send, worker stop reports, confirmation prompts)
+                  plus the Codex terminal input popup on Adapters. It does not reset Pan lifecycle policies, worker
                   timeouts, Data retention, Remote settings, adapter model lists, or plugins.
                 </p>
                 <button
@@ -1778,6 +1806,49 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                 {killReportError && (
                   <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
                     {killReportError}
+                  </div>
+                )}
+              </section>
+
+              <section data-testid="auto-force-send-section">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Message auto force send
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Job terminal notifications"
+                    hint="background_job_terminal notices"
+                    checked={autoForceSend.system}
+                    disabled={autoForceSaving !== null}
+                    onChange={(v) => void toggleAutoForceSend('system', v)}
+                  />
+                  <SwitchRow
+                    label="Meta-agent (MA) messages"
+                    hint="sender is the target's manager/ancestor"
+                    checked={autoForceSend.ma}
+                    disabled={autoForceSaving !== null}
+                    onChange={(v) => void toggleAutoForceSend('ma', v)}
+                  />
+                  <SwitchRow
+                    label="Completion reports"
+                    hint="report / manual report items"
+                    checked={autoForceSend.report}
+                    disabled={autoForceSaving !== null}
+                    onChange={(v) => void toggleAutoForceSend('report', v)}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  All off by default. Applies only to newly enqueued messages and reuses Force
+                  send routing: native Steer while running, otherwise move the original item to
+                  the queue head and restart. Idle Sessions use a normal send. Pause, read-only,
+                  Illegal locks, edit leases, delayed restarts, and unknown Steer outcomes are
+                  never bypassed (accepted means the CLI accepted it, not that the model consumed
+                  it). Original queue IDs, sources, tasks, attachments, and bodies are preserved;
+                  nothing is enqueued twice.
+                </p>
+                {autoForceError && (
+                  <div role="alert" className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">
+                    {autoForceError}
                   </div>
                 )}
               </section>

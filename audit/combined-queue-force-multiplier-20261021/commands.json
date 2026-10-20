@@ -1,0 +1,84 @@
+{
+  "core-final": {
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_adapter_config_model_meta.py",
+      "tests/test_auto_force_sources.py",
+      "tests/test_cbc_models.py",
+      "tests/test_force_steer.py",
+      "tests/test_illegal_queue_wake.py",
+      "tests/test_sticky_wake_integration.py",
+      "--junitxml=audit/combined-queue-force-multiplier-20261021/core-final.xml"
+    ],
+    "exitCode": 0
+  },
+  "compat": {
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_addressing_compat.py",
+      "tests/test_cbc_native_bridge.py",
+      "tests/test_codex_native_admission.py",
+      "tests/test_codex_native_completion.py",
+      "tests/test_codex_native_passthrough.py",
+      "tests/test_codex_native_transport.py",
+      "tests/test_handoff_job_retarget.py",
+      "tests/test_handoff_original_prompt.py",
+      "tests/test_illegal_queue_wake_http.py",
+      "tests/test_jobs_completed_retention.py",
+      "tests/test_legal_offline.py",
+      "tests/test_legal_offline_http.py",
+      "tests/test_lifecycle_shortcuts.py",
+      "tests/test_queue_restart_hardening.py",
+      "tests/test_self_queue.py",
+      "tests/test_session_handoff.py",
+      "tests/test_session_queue_api.py",
+      "tests/test_settings_ui.py",
+      "tests/test_wake_ready_integration_http.py",
+      "tests/test_workdir_retention.py",
+      "--junitxml=audit/combined-queue-force-multiplier-20261021/compat.xml"
+    ],
+    "exitCode": 0
+  },
+  "http-browser-final": {
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_auto_force_http_e2e.py",
+      "tests/test_auto_force_ui_e2e.py",
+      "tests/test_real_queue_http_e2e.py",
+      "--junitxml=audit/combined-queue-force-multiplier-20261021/http-browser-final.xml"
+    ],
+    "exitCode": 0
+  },
+  "queue-native": {
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_cbc_steer.py",
+      "tests/test_manual_task_report.py",
+      "tests/test_queue_migration.py",
+      "tests/test_task_id_inheritance.py",
+      "tests/test_worker_primitives.py",
+      "--junitxml=audit/combined-queue-force-multiplier-20261021/queue-native.xml"
+    ],
+    "exitCode": 0
+  }
+}

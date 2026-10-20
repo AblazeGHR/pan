@@ -1,0 +1,98 @@
+[
+  {
+    "pid": 2076,
+    "createdAt": 1792517858.5942104,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_report_auto_force_st0\\steer\\workdirs\\manager-report",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 3812,
+    "createdAt": 1792517856.4591904,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_ma_auto_force_steers0\\steer\\workdirs\\target-steer",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 7104,
+    "createdAt": 1792517867.168352,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_auto_force_settings_ui_re0\\ui-data\\workdirs\\ui-target",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 9636,
+    "createdAt": 1792518008.4761035,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_job_terminal_auto_fo0\\steer\\workdirs\\manager-job",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 21352,
+    "createdAt": 1792518011.4615886,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_auto_force_settings_ui_re0\\ui-data\\workdirs\\ui-target",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 29404,
+    "createdAt": 1792517858.5643528,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_report_auto_force_st0\\steer\\workdirs\\manager-report",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 30868,
+    "createdAt": 1792518001.08448,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_ma_auto_force_steers0\\steer\\workdirs\\target-steer",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 36236,
+    "createdAt": 1792517867.1939175,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_auto_force_settings_ui_re0\\ui-data\\workdirs\\ui-target",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 37040,
+    "createdAt": 1792518003.209821,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_report_auto_force_st0\\steer\\workdirs\\manager-report",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 39660,
+    "createdAt": 1792517856.483181,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_ma_auto_force_steers0\\steer\\workdirs\\target-steer",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 39784,
+    "createdAt": 1792518001.050259,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_ma_auto_force_steers0\\steer\\workdirs\\target-steer",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 40716,
+    "createdAt": 1792517864.1782508,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_job_terminal_auto_fo0\\steer\\workdirs\\manager-job",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 44356,
+    "createdAt": 1792518003.1890802,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_report_auto_force_st0\\steer\\workdirs\\manager-report",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 44512,
+    "createdAt": 1792518011.4799674,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_auto_force_settings_ui_re0\\ui-data\\workdirs\\ui-target",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 46800,
+    "createdAt": 1792518008.4449685,
+    "cwd": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\audit\\combined-queue-force-multiplier-20261021\\.runtime\\test_real_job_terminal_auto_fo0\\steer\\workdirs\\manager-job",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  },
+  {
+    "pid": 46860,
+    "createdAt": 1792517864.1985364,
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3298\\test_real_job_terminal_auto_fo0\\steer\\workdirs\\manager-job",
+    "script": "D:\\project\\pan-worktrees\\combined-queue-force-multiplier-integration-20261021\\tests\\support\\fake_stream_cli.py"
+  }
+]

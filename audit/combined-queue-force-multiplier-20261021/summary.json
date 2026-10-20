@@ -1,0 +1,165 @@
+{
+  "core-final": {
+    "tests": 136,
+    "passed": 136,
+    "skipped": [],
+    "failed": 0
+  },
+  "compat": {
+    "tests": 488,
+    "passed": 485,
+    "skipped": [
+      {
+        "test": "tests.test_cbc_native_bridge::test_retired_oneshot_cbc_capability_declaration",
+        "reason": "Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "test": "tests.test_addressing_compat::test_send_session_oneshot_worker_delivers",
+        "reason": "Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "test": "tests.test_addressing_compat::test_send_session_force_live_oneshot_restarts_without_stream_spawn",
+        "reason": "Oneshot mode retired by user; implementation retained"
+      }
+    ],
+    "failed": 0
+  },
+  "http-browser": {
+    "tests": 10,
+    "passed": 10,
+    "skipped": [],
+    "failed": 0
+  },
+  "frontend": {
+    "numTotalTests": 307,
+    "numPassedTests": 304,
+    "numFailedTests": 0,
+    "numPendingTests": 3,
+    "skips": [
+      {
+        "test": "createQuickNewSession applies all saved fields, the current Workspace, and the next automatic name",
+        "status": "skipped"
+      },
+      {
+        "test": "InputRow send queue wiring uses the CBC stream capability for direct Steer and hides it for native TUI/oneshot",
+        "status": "skipped"
+      },
+      {
+        "test": "New Session directory input prefills the adapter, output mode, and template while retaining the template adapter lock",
+        "status": "skipped"
+      }
+    ]
+  },
+  "lint": {
+    "errors": 140,
+    "warnings": 19,
+    "error_files": [
+      {
+        "path": "packages/web/e2e/cbc-native-real.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/cc-switch-bridge.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/chat-relative-links.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/collapsed-sidebar-entries.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/composerUrlNode.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/editor-relative-links.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/job-pin.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/jobs-badge-real.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/jobs-running-badge.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/live-indicators.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/login-startup.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/mobile-topbar-compact.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/native-control.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/plugin-selection.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/session-filter-menu.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/session-job-badge.e2e.mjs",
+        "unchanged_from_base": true
+      },
+      {
+        "path": "packages/web/e2e/settings-terminal-entry.e2e.mjs",
+        "unchanged_from_base": true
+      }
+    ],
+    "all_error_files_unchanged": true
+  },
+  "scope": {
+    "main": "b8078d345712fdbd3460f9c52b03271ed8d75d6d",
+    "practical": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "frozen_action_group_unchanged": true
+  },
+  "http-browser-final": {
+    "tests": 10,
+    "passed": 10,
+    "skipped": [],
+    "failed": 0
+  },
+  "queue-native": {
+    "tests": 133,
+    "passed": 132,
+    "skipped": [
+      {
+        "test": "tests.test_task_id_inheritance::test_report_uses_the_task_id_carried_by_the_current_input",
+        "reason": "Oneshot mode retired by user; implementation retained"
+      }
+    ],
+    "failed": 0
+  },
+  "totals": {
+    "pythonPassed": 763,
+    "pythonSkipped": 4,
+    "pythonFailed": 0
+  },
+  "checks": {
+    "typecheckExitCode": 0,
+    "scopedLintExitCode": 0,
+    "scopedLintErrors": 0,
+    "scopedLintWarnings": 7,
+    "fullLintExitCode": 1,
+    "buildExitCode": 0,
+    "compressedAssets": 72,
+    "runtimeLeftovers": []
+  }
+}

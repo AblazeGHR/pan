@@ -1,0 +1,209 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\combined-queue-force-multiplier-integration-20261021
+..............F........F..................................F............. [ 54%]
+.............................................................            [100%]
+================================== FAILURES ===================================
+__________ test_pause_readonly_illegal_block_all_auto_force[illegal] __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FCEA8F5FF0>
+state = 'illegal'
+
+    @pytest.mark.parametrize("state", ["paused", "readonly", "illegal"])
+    def test_pause_readonly_illegal_block_all_auto_force(monkeypatch, state):
+        async def run():
+            s = make_session()
+            ma = make_manager()
+            s.managed_by = ma.id
+            w, stdin = live(s)
+            configure(monkeypatch, ma=True, system=True)
+            if state == "paused":
+                s.queue_paused = True
+            elif state == "readonly":
+                s.readonly_session = True
+            else:
+                s.execution_operations = {"op": {"id": "op", "state": "illegal"}}
+            restart = AsyncMock(side_effect=AssertionError("gate must block restart"))
+            monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+            if state == "readonly":
+                # System notices carry no managed source Session, so the read-only
+                # write gate is not what is under test here: the automatic router
+                # itself must refuse to Steer/restart a read-only Session.
+                await worker.enqueue_notice(
+                    s.id, "readonly job", source="automation",
+                    event_id="job-ro:terminal",
+                    notice_kind="background_job_terminal", job_id="job-ro",
+                    notice_status="done")
+            else:
+                await queue_ma_message(s, ma)
+            await worker.wait_auto_force(s.id)
+            assert stdin.write.call_count == 0
+            restart.assert_not_called()
+            assert len(s.queue_pending) == 1
+>       asyncio.run(run())
+
+tests\test_auto_force_sources.py:345:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s = make_session()
+        ma = make_manager()
+        s.managed_by = ma.id
+        w, stdin = live(s)
+        configure(monkeypatch, ma=True, system=True)
+        if state == "paused":
+            s.queue_paused = True
+        elif state == "readonly":
+            s.readonly_session = True
+        else:
+            s.execution_operations = {"op": {"id": "op", "state": "illegal"}}
+        restart = AsyncMock(side_effect=AssertionError("gate must block restart"))
+        monkeypatch.setattr(worker, "restart_or_start_worker", restart)
+        if state == "readonly":
+            # System notices carry no managed source Session, so the read-only
+            # write gate is not what is under test here: the automatic router
+            # itself must refuse to Steer/restart a read-only Session.
+            await worker.enqueue_notice(
+                s.id, "readonly job", source="automation",
+                event_id="job-ro:terminal",
+                notice_kind="background_job_terminal", job_id="job-ro",
+                notice_status="done")
+        else:
+            await queue_ma_message(s, ma)
+        await worker.wait_auto_force(s.id)
+        assert stdin.write.call_count == 0
+        restart.assert_not_called()
+>       assert len(s.queue_pending) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = Session(id='target', name='target', adapter='cbc', model=None, permission_mode=None, pan_access={'restrict_to_managed'...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False}).queue_pending
+
+tests\test_auto_force_sources.py:344: AssertionError
+__ test_force_restart_preserves_original_id_and_fifo_for_noncapable_running ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FCEA8D6190>
+
+    def test_force_restart_preserves_original_id_and_fifo_for_noncapable_running(monkeypatch):
+        async def run():
+            s = make_session()
+            w, stdin = live(s, capable=False)
+            async with worker.queue_lock(s.id):
+                older, _ = await worker._persist_task_item(
+                    s, "older", "user", None, None, None, None,
+                    idempotent_task_id=False)
+            restarted = AsyncMock(return_value=w)
+            monkeypatch.setattr(worker, "restart_or_start_worker", restarted)
+            result = await worker.send_session(s.id, "forced", force=True)
+            assert result["status"] == "queued"
+            assert s.queue_pending[0]["text"] == "forced"
+            assert s.queue_pending[0]["queueItemId"] == result["queueItemId"]
+            assert s.queue_pending[1]["queueItemId"] == older["queueItemId"]
+            assert len(s.queue_pending) == 2
+            restarted.assert_awaited_once_with(s.id)
+            stdin.write.assert_not_called()
+>       asyncio.run(run())
+
+tests\test_auto_force_sources.py:502:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_auto_force_sources.py:500: in run
+    restarted.assert_awaited_once_with(s.id)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:2405: in assert_awaited_once_with
+    return self.assert_awaited_with(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <AsyncMock id='2185778497584'>, args = ('target',), kwargs = {}
+
+    def assert_awaited_with(self, /, *args, **kwargs):
+        """
+        Assert that the last await was with the specified arguments.
+        """
+        if self.await_args is None:
+            expected = self._format_mock_call_signature(args, kwargs)
+            raise AssertionError(f'Expected await: {expected}\nNot awaited')
+
+        def _error_message():
+            msg = self._format_mock_failure_message(args, kwargs, action='await')
+            return msg
+
+        expected = self._call_matcher(_Call((args, kwargs), two=True))
+        actual = self._call_matcher(self.await_args)
+        if actual != expected:
+            cause = expected if isinstance(expected, Exception) else None
+>           raise AssertionError(_error_message()) from cause
+E           AssertionError: expected await not found.
+E           Expected: mock('target')
+E             Actual: mock('target', allow_illegal_recovery=False)
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py:2394: AssertionError
+_________ test_force_illegal_session_queues_without_steer_or_restart __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FCECAFA580>
+
+    def test_force_illegal_session_queues_without_steer_or_restart(monkeypatch):
+        """Illegal owns admission until Wake/recovery; Force must not clear it."""
+        async def run():
+            s, w, stdin = live()
+            s.execution_operations = {"op": {"id": "op", "state": "illegal"}}
+            restart = AsyncMock(side_effect=AssertionError('illegal blocks restart'))
+            monkeypatch.setattr(worker, 'restart_or_start_worker', restart)
+            result = await worker.send_session(s.id, 'urgent', force=True)
+            assert result['status'] == 'queued'
+            assert len(s.queue_pending) == 1
+            stdin.write.assert_not_called()
+            restart.assert_not_called()
+>       asyncio.run(run())
+
+tests\test_force_steer.py:111:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w, stdin = live()
+        s.execution_operations = {"op": {"id": "op", "state": "illegal"}}
+        restart = AsyncMock(side_effect=AssertionError('illegal blocks restart'))
+        monkeypatch.setattr(worker, 'restart_or_start_worker', restart)
+        result = await worker.send_session(s.id, 'urgent', force=True)
+>       assert result['status'] == 'queued'
+E       AssertionError: assert 'error' == 'queued'
+E
+E         - queued
+E         + error
+
+tests\test_force_steer.py:107: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_auto_force_sources.py::test_pause_readonly_illegal_block_all_auto_force[illegal]
+FAILED tests/test_auto_force_sources.py::test_force_restart_preserves_original_id_and_fifo_for_noncapable_running
+FAILED tests/test_force_steer.py::test_force_illegal_session_queues_without_steer_or_restart

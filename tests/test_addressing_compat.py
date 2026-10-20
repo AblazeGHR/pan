@@ -225,11 +225,16 @@ def test_send_session_unknown_session_errors():
 
 @pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_send_session_force_live_oneshot_restarts_without_stream_spawn(monkeypatch):
-    """force=True + one-shot worker resets its consumer, never stream-spawns."""
+    """force=True + running one-shot worker resets its consumer, never stream-spawns.
+
+    An idle Worker now takes the ordinary send path; restart remains the
+    no-Steer fallback only while a turn is actually running.
+    """
     _cleanup()
     s = _setup_session("ses_d")
     s.adapter_config["output_mode"] = "oneshot"
-    _setup_worker(s.id, worker_id="worker-d1")
+    w = _setup_worker(s.id, worker_id="worker-d1")
+    w.status = "running"
     delivered = []
     delivered_event = asyncio.Event()
 

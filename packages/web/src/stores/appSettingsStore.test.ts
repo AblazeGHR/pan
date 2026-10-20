@@ -41,6 +41,7 @@ describe('appSettingsStore', () => {
     expect(s.showTaskAgent).toBe(true);
     expect(s.showQQ).toBe(true);
     expect(s.reportWorkerKillErrors).toBe(false);
+    expect(s.autoForceSend).toEqual({ system: false, ma: false, report: false });
     expect(s.showCodexTerminalInput).toBe(false);
     expect(s.mergeConsecutiveNonBodyBlocks).toBe(false);
     expect(s.keepScrollOnSessionSwitch).toBe(false);
@@ -244,6 +245,47 @@ describe('appSettingsStore', () => {
       .rejects.toThrow('config is read-only');
 
     expect(useAppSettingsStore.getState().reportWorkerKillErrors).toBe(false);
+  });
+
+  it('sanitizes autoForceSend per key and defaults old settings to all off', () => {
+    expect(sanitizeSettings({}).autoForceSend).toEqual({
+      system: false, ma: false, report: false,
+    });
+    expect(sanitizeSettings({
+      autoForceSend: { system: 'yes', ma: true, report: 1 },
+    }).autoForceSend).toEqual({ system: false, ma: true, report: false });
+    expect(sanitizeSettings({
+      autoForceSend: { system: true, ma: true, report: true },
+    }).autoForceSend).toEqual({ system: true, ma: true, report: true });
+  });
+
+  it('saveAutoForceSend persists the strict object and applies the server echo', async () => {
+    mockedUpdate.mockResolvedValue({
+      autoForceSend: { system: true, ma: false, report: true },
+    });
+
+    await useAppSettingsStore.getState().saveAutoForceSend({
+      system: true, ma: false, report: true,
+    });
+
+    expect(mockedUpdate).toHaveBeenCalledWith({
+      autoForceSend: { system: true, ma: false, report: true },
+    });
+    expect(useAppSettingsStore.getState().autoForceSend).toEqual({
+      system: true, ma: false, report: true,
+    });
+  });
+
+  it('saveAutoForceSend rejects and leaves the store unchanged on failure', async () => {
+    mockedUpdate.mockRejectedValueOnce(new Error('config is read-only'));
+
+    await expect(useAppSettingsStore.getState().saveAutoForceSend({
+      system: true, ma: false, report: false,
+    })).rejects.toThrow('config is read-only');
+
+    expect(useAppSettingsStore.getState().autoForceSend).toEqual({
+      system: false, ma: false, report: false,
+    });
   });
 
   it('resets all settings to defaults and writes them back', () => {

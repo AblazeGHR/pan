@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import packages.core.config as config
@@ -50,6 +52,8 @@ _UI_DEFAULTS = {
     # App Settings → Behavior: user-kill error reports default off (old
     # configs without the key fall back to the same False).
     "reportWorkerKillErrors": False,
+    # App Settings → Behavior: automatic Force send is opt-in per source.
+    "autoForceSend": {"system": False, "ma": False, "report": False},
     "notifications": {
         "codexWarningToast": True,
         "completionBridge": {
@@ -158,6 +162,53 @@ def test_put_ui_report_worker_kill_errors_persists(tmp_path, monkeypatch):
     assert _read(p)["ui"]["reportWorkerKillErrors"] is True
     assert _read(p)["port"] == 1234  # untouched
     assert asyncio.run(srv.api_get_settings_ui())["reportWorkerKillErrors"] is True
+
+
+def test_put_ui_auto_force_send_defaults_off_and_persists(tmp_path, monkeypatch):
+    """Three independent Behavior switches default off and round-trip."""
+    p = _use_temp_config(tmp_path, monkeypatch)
+    _write(p, {"port": 1234})  # old config without the key
+
+    assert asyncio.run(srv.api_get_settings_ui())["autoForceSend"] == {
+        "system": False, "ma": False, "report": False,
+    }
+
+    r = asyncio.run(srv.api_put_settings_ui({
+        "autoForceSend": {"ma": True, "report": True},
+    }))
+    assert r["autoForceSend"] == {"system": False, "ma": True, "report": True}
+    assert _read(p)["ui"]["autoForceSend"] == {
+        "system": False, "ma": True, "report": True,
+    }
+    assert _read(p)["port"] == 1234  # untouched
+    # Refresh path: a fresh GET reflects the persisted values.
+    assert asyncio.run(srv.api_get_settings_ui())["autoForceSend"] == {
+        "system": False, "ma": True, "report": True,
+    }
+
+    r = asyncio.run(srv.api_put_settings_ui({
+        "autoForceSend": {"system": True, "ma": False},
+    }))
+    assert r["autoForceSend"] == {"system": True, "ma": False, "report": True}
+
+
+def test_put_ui_auto_force_send_rejects_invalid_shapes(tmp_path, monkeypatch):
+    p = _use_temp_config(tmp_path, monkeypatch)
+    _write(p, {"port": 1234})
+
+    for invalid in (
+        {"ma": "yes"},
+        {"ma": 1},
+        {"unknown": True},
+        {"system": None},
+        [],
+        "on",
+    ):
+        with pytest.raises(srv.HTTPException) as excinfo:
+            asyncio.run(srv.api_put_settings_ui({"autoForceSend": invalid}))
+        assert excinfo.value.status_code == 422
+    # Nothing was partially written.
+    assert _read(p) == {"port": 1234}
 
 
 def test_put_ui_full_replacement(tmp_path, monkeypatch):

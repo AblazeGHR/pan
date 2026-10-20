@@ -1,0 +1,36 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\combined-queue-force-multiplier-integration-20261021
+........................................................................ [ 14%]
+........................................................................ [ 29%]
+........................................................................ [ 44%]
+........................................................................ [ 59%]
+........................................................................ [ 73%]
+........................................................................ [ 88%]
+...............s.................s...s..................                 [100%]
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_handoff_job_retarget.py::test_retarget_covers_all_target_kinds_shapes_statuses_and_only_target_fields
+tests/test_handoff_job_retarget.py::test_retarget_is_noop_without_match_and_idempotent_after_update
+tests/test_handoff_job_retarget.py::test_single_record_write_failure_is_reported_and_safe_to_retry
+tests/test_handoff_job_retarget.py::test_retarget_waits_for_the_existing_job_lock
+tests/test_handoff_job_retarget.py::test_successful_handoff_retargets_jobs_and_broadcasts_summary
+tests/test_handoff_job_retarget.py::test_handoff_failure_does_not_touch_jobs
+tests/test_handoff_job_retarget.py::test_successful_handoff_keeps_successor_visible_when_one_job_write_fails
+tests/test_handoff_job_retarget.py::test_inflight_message_send_cannot_be_recalled_but_next_run_uses_retargeted_id
+  D:\project\pan-worktrees\combined-queue-force-multiplier-integration-20261021\packages\scheduler\api.py:259: RuntimeWarning: coroutine 'broadcast' was never awaited
+    _emit(event)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+485 passed, 3 skipped, 11 warnings in 123.49s (0:02:03)

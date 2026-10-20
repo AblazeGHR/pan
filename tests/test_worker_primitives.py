@@ -156,7 +156,8 @@ def test_assign_task_id_error_after_send_failure(monkeypatch):
     tid = "assign-task-4"
     orig_send = worker.send_task
 
-    async def fake_send(worker_id, text, source="agent", seq=None, task_id=None):
+    async def fake_send(worker_id, text, source="agent", seq=None, task_id=None,
+                        **kwargs):
         return "Worker process dead"
 
     worker.send_task = fake_send
