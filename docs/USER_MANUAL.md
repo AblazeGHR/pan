@@ -240,7 +240,7 @@ Windows 发送器会在当前用户的 `HKCU\Software\Classes\AppUserModelId\Pan
 
 API 默认无身份验证且绑定 loopback。不要仅通过设置 `PAN_HOST` 或打开远程隧道就把它暴露到不可信网络。
 
-手动删除 Session 会停止其 Worker、删除会话记录和历史，但会保留普通 workdir。另有默认关闭的数据保留策略；若启用 Session 自动清理，Pan 可能删除经验证只属于该 Session 且未被其他 Session 或 Workspace 引用的默认 workdir。重要文件应在清理前提交或备份。
+手动删除 Session 会停止其 Worker、删除会话记录和历史，但会保留普通 workdir。另有默认关闭的数据保留策略；Session 自动到期同样保留 workdir；Settings → Data 中独立的孤立目录清理遵循自己的 N 天规则，并保护所有 Session 与 Workspace 引用。重要文件应在清理前提交或备份。
 
 ### 移动入口与 Codex Terminal TUI
 
@@ -292,3 +292,14 @@ Dashboard 的 **终端** 页面提供独立常驻 shell，不需要创建或启�
 - [README](../README.md)：项目简介和快速开始。
 - [English user manual](./USER_MANUAL.en.md)。
 - [QQ 与 SnowLuma 使用说明](./QQ_PLUGIN_SNOWLUMA.md)。
+
+
+### Orphan workdir cleanup (Settings → Data)
+
+Workdir cleanup is independent of Session retention. Deleting or expiring a Session always preserves its workdir. Configure `data_retention.workdirs` with `enabled` (default `false`) and `days` (integer 1–36500; `null` disables cleanup). Existing configurations remain opt-in. Automatic cleanup uses the existing daily retention scheduler.
+
+Set a day count and choose **Browse cleanup candidates** to inspect directory names, paths, latest recursive modification times and entry counts. Refresh, select individual rows or Select all, then Delete selected. Deletion is permanent; per-directory failures remain visible and can be refreshed. This action deletes orphan directories, never Sessions. Manual cleanup uses the displayed day count without requiring automatic cleanup to be enabled or settings to be saved.
+
+**The “no changes for N days” check may be inaccurate. Enable automatic cleanup with caution; manual cleanup is recommended.** Filesystem mtimes can be preserved by copies or changed by background tools; they do not prove that data is disposable.
+
+Only direct plain directories under Pan's default `data/workdirs` root are scanned. The newest mtime across every file and subdirectory must be older than N days. Any Session (including archived or offline Sessions), or Workspace directory referencing the same path, an ancestor or descendant protects it. Links/reparse points, hardlinks, special files, malformed reference records and scan errors prevent deletion. No arbitrary client path is accepted. All checks run again before deletion; preview is not deletion authority. Scan limits (2,000 root entries, 100,000 tree entries, 2,048 directories per tree and a 20-second tree traversal budget per request) fail closed and are reported with skip/error counts. Partial deletion failures can leave a directory partially cleaned; inspect failures before retrying.

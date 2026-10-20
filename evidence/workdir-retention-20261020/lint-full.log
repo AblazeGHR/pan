@@ -1,0 +1,219 @@
+
+> lint
+> eslint .
+
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\cbc-native-real.e2e.mjs
+  12:33  error  'process' is not defined  no-undef
+  13:21  error  'URL' is not defined      no-undef
+  17:31  error  'URL' is not defined      no-undef
+  36:21  error  'URL' is not defined      no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\cc-switch-bridge.e2e.mjs
+   11:31  error  'URL' is not defined         no-undef
+   14:1   error  'process' is not defined     no-undef
+   14:20  error  'process' is not defined     no-undef
+   51:21  error  'URL' is not defined         no-undef
+   69:40  error  'setTimeout' is not defined  no-undef
+  133:39  error  'document' is not defined    no-undef
+  133:79  error  'innerWidth' is not defined  no-undef
+  144:3   error  'console' is not defined     no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\chat-relative-links.e2e.mjs
+  18:39  error  'URL' is not defined  no-undef
+  57:21  error  'URL' is not defined  no-undef
+  70:24  error  'URL' is not defined  no-undef
+  83:21  error  'URL' is not defined  no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\collapsed-sidebar-entries.e2e.mjs
+    1:11  error  'Element' is defined but never used   @typescript-eslint/no-unused-vars
+    1:47  error  'document' is defined but never used  @typescript-eslint/no-unused-vars
+    1:64  error  'process' is defined but never used   @typescript-eslint/no-unused-vars
+   60:58  error  'getComputedStyle' is not defined     no-undef
+  214:7   error  'localStorage' is not defined         no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\composerUrlNode.e2e.mjs
+    1:25  error  'process' is defined but never used          @typescript-eslint/no-unused-vars
+    1:34  error  'setTimeout' is defined but never used       @typescript-eslint/no-unused-vars
+  180:21  error  'document' is not defined                    no-undef
+  181:19  error  'document' is not defined                    no-undef
+  186:22  error  'document' is not defined                    no-undef
+  186:57  error  'NodeFilter' is not defined                  no-undef
+  200:23  error  'window' is not defined                      no-undef
+  209:21  error  'document' is not defined                    no-undef
+  210:30  error  'DataTransfer' is not defined                no-undef
+  213:23  error  'ClipboardEvent' is not defined              no-undef
+  221:21  error  'document' is not defined                    no-undef
+  291:23  error  'document' is not defined                    no-undef
+  292:32  error  'DataTransfer' is not defined                no-undef
+  300:25  error  'ClipboardEvent' is not defined              no-undef
+  322:28  error  'editor' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  358:20  error  'document' is not defined                    no-undef
+  359:21  error  'document' is not defined                    no-undef
+  362:25  error  'window' is not defined                      no-undef
+  365:7   error  'document' is not defined                    no-undef
+  368:53  error  'navigator' is not defined                   no-undef
+  431:31  error  'window' is not defined                      no-undef
+  441:31  error  'window' is not defined                      no-undef
+  447:31  error  'window' is not defined                      no-undef
+  452:31  error  'window' is not defined                      no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\editor-relative-links.e2e.mjs
+    6:17  error  'process' is not defined   no-undef
+   11:33  error  'console' is not defined   no-undef
+   14:57  error  'URL' is not defined       no-undef
+   18:20  error  'window' is not defined    no-undef
+   30:22  error  'window' is not defined    no-undef
+   42:3   error  'console' is not defined   no-undef
+   54:22  error  'process' is not defined   no-undef
+   59:5   error  'window' is not defined    no-undef
+   63:36  error  'document' is not defined  no-undef
+   79:17  error  'window' is not defined    no-undef
+   89:14  error  'document' is not defined  no-undef
+   99:15  error  'window' is not defined    no-undef
+  116:5   error  'document' is not defined  no-undef
+  119:3   error  'console' is not defined   no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\job-pin.e2e.mjs
+   12:31  error  'URL' is not defined       no-undef
+   27:48  error  'URL' is not defined       no-undef
+   28:39  error  'process' is not defined   no-undef
+   35:22  error  'fetch' is not defined     no-undef
+   35:86  error  Empty block statement      no-empty
+   77:38  error  'document' is not defined  no-undef
+   93:11  error  'fetch' is not defined     no-undef
+   97:11  error  'fetch' is not defined     no-undef
+  101:38  error  'document' is not defined  no-undef
+  103:11  error  'fetch' is not defined     no-undef
+  113:28  error  'fetch' is not defined     no-undef
+  117:32  error  'fetch' is not defined     no-undef
+  117:95  error  'Buffer' is not defined    no-undef
+  125:11  error  'fetch' is not defined     no-undef
+  135:3   error  'console' is not defined   no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\jobs-badge-real.e2e.mjs
+    1:18  error  'process' is defined but never used        @typescript-eslint/no-unused-vars
+  180:9   error  'jobC' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  211:20  error  'URL' is not defined                       no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\jobs-running-badge.e2e.mjs
+    1:11  error  'Element' is defined but never used      @typescript-eslint/no-unused-vars
+    1:20  error  'EventTarget' is defined but never used  @typescript-eslint/no-unused-vars
+    1:64  error  'process' is defined but never used      @typescript-eslint/no-unused-vars
+  101:42  error  'setTimeout' is not defined              no-undef
+  102:22  error  'Response' is not defined                no-undef
+  197:24  error  'getComputedStyle' is not defined        no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\live-indicators.e2e.mjs
+   27:21  error  'fetch' is not defined       no-undef
+   35:22  error  'fetch' is not defined       no-undef
+   36:28  error  'setTimeout' is not defined  no-undef
+  136:3   error  'console' is not defined     no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\login-startup.e2e.mjs
+   14:31  error  'URL' is not defined         no-undef
+   17:52  error  'process' is not defined     no-undef
+   18:19  error  'process' is not defined     no-undef
+   35:32  error  'setTimeout' is not defined  no-undef
+   52:34  error  'fetch' is not defined       no-undef
+   54:28  error  'fetch' is not defined       no-undef
+   60:37  error  'document' is not defined    no-undef
+   64:36  error  'document' is not defined    no-undef
+   67:36  error  'document' is not defined    no-undef
+   69:37  error  'document' is not defined    no-undef
+   85:37  error  'document' is not defined    no-undef
+   91:3   error  'console' is not defined     no-undef
+   97:11  error  'fetch' is not defined       no-undef
+   98:58  error  'setTimeout' is not defined  no-undef
+  101:7   error  'process' is not defined     no-undef
+  103:27  error  'process' is not defined     no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\mobile-topbar-compact.e2e.mjs
+  79:45  error  'window' is not defined  no-undef
+  85:36  error  'window' is not defined  no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\native-control.e2e.mjs
+  13:17  error  'process' is not defined  no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\plugin-selection.e2e.mjs
+   11:31  error  'URL' is not defined         no-undef
+   16:1   error  'process' is not defined     no-undef
+   17:1   error  'process' is not defined     no-undef
+   60:21  error  'URL' is not defined         no-undef
+  106:42  error  'document' is not defined    no-undef
+  106:82  error  'innerWidth' is not defined  no-undef
+  111:3   error  'console' is not defined     no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\session-filter-menu.e2e.mjs
+    1:53  error  'innerWidth' is defined but never used  @typescript-eslint/no-unused-vars
+  232:19  error  'window' is not defined                 no-undef
+  250:71  error  'window' is not defined                 no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\session-job-badge.e2e.mjs
+    1:43  error  'setTimeout' is defined but never used            @typescript-eslint/no-unused-vars
+  150:15  error  'getComputedStyle' is not defined                 no-undef
+  215:14  error  'document' is not defined                         no-undef
+  223:9   error  'adapterBoxA' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  232:16  error  'document' is not defined                         no-undef
+  234:5   error  'document' is not defined                         no-undef
+  235:19  error  'getComputedStyle' is not defined                 no-undef
+  260:35  error  'getComputedStyle' is not defined                 no-undef
+  277:15  error  'getComputedStyle' is not defined                 no-undef
+  345:14  error  'document' is not defined                         no-undef
+  370:32  error  'getComputedStyle' is not defined                 no-undef
+  428:14  error  'document' is not defined                         no-undef
+  437:14  error  'document' is not defined                         no-undef
+  461:14  error  'document' is not defined                         no-undef
+  468:16  error  'document' is not defined                         no-undef
+  470:5   error  'document' is not defined                         no-undef
+  471:19  error  'getComputedStyle' is not defined                 no-undef
+  500:9   error  'fetch' is not defined                            no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\e2e\settings-terminal-entry.e2e.mjs
+   12:31  error  'URL' is not defined     no-undef
+   68:26  error  'fetch' is not defined   no-undef
+   86:26  error  'URL' is not defined     no-undef
+  147:29  error  'window' is not defined  no-undef
+  157:29  error  'window' is not defined  no-undef
+  167:29  error  'window' is not defined  no-undef
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\chat\MessageBubble.tsx
+   19:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   44:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  376:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\chat\RewindConfirmModal.tsx
+  9:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\chat\SettingsPopover.tsx
+  124:6  warning  React Hook useLayoutEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  135:6  warning  React Hook useEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                                  react-hooks/exhaustive-deps
+  177:6  warning  React Hook useEffect has missing dependencies: 'session.modelAutoCompactTokenLimit' and 'session.modelContextWindow'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  223:5  warning  React Hook useCallback has an unnecessary dependency: 'effectiveWorkerId'. Either exclude it or remove the dependency array                                               react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\detail\DetailPanel.tsx
+  20:6  warning  React Hook useEffect has a missing dependency: 'detailTarget'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\editor\EditorFileTopBar.tsx
+  18:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\jobs\ScheduleListEditor.tsx
+  154:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  172:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  192:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  225:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\layout\StartupRecoveryPrompt.tsx
+  53:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\session\ImportModal.tsx
+  295:22  warning  The ref value 'codexRequest.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'codexRequest.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\components\ui\ModelSelect.tsx
+  67:6  warning  React Hook useLayoutEffect has a missing dependency: 'updateMenuPosition'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  78:6  warning  React Hook useEffect has a missing dependency: 'updateMenuPosition'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+
+D:\project\pan-worktrees\workdir-retention-20261020\packages\web\src\views\PluginPanelView.tsx
+  30:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 159 problems (140 errors, 19 warnings)

@@ -2547,3 +2547,19 @@ export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }
+
+export interface WorkdirRetentionResult {
+  candidates: Array<{ name: string; path: string; modifiedAt: string; entries: number }>;
+  results: Array<{ name: string; deleted: boolean; reason?: string }>;
+  scanned: number;
+  deleted: number;
+  skipped: number;
+  skipReasons: Record<string, number>;
+  error: string | null;
+}
+
+export function scanWorkdirs(days: number, names?: string[]): Promise<WorkdirRetentionResult> {
+  return request(`${BASE}/settings/workdir-retention/${names ? 'delete' : 'preview'}`, {
+    method: 'POST', body: JSON.stringify(names ? { days, names } : { days }),
+  });
+}

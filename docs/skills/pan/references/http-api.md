@@ -256,3 +256,11 @@ Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail"
 ## 插件面板（pan-plugin/v1 扩展）
 
 `GET /api/plugins/panels` 返回注册的全局 View Entry；`POST /api/plugins/{plugin}/panels/{panel}/actions/{action}` 调用该面板声明的 capability，body 为 `arguments` 与可选 `requestId`。`write_external` 必须使用稳定 requestId，结果未知时先核对状态，不能自动重放。面板与 Session 的 MCP 勾选互相独立，不为面板启动 Worker。数据目录、版本与 Agent 能力白名单见 [面板协议](../../../design/Pan-Plugin-Panels-v1.md)。
+
+
+### Orphan workdir retention
+
+- `GET/PUT /api/settings/data-retention`: includes `policies.workdirs` (`enabled: false`, `days: null` by default). Days must be null or an integer 1–36500. Enabled with null days does not clean. Jobs policies remain separate.
+- `POST /api/settings/workdir-retention/preview`: exactly `{"days": 30}`. Runs in a background thread and returns `candidates: [{name, path, modifiedAt, entries}]`, `scanned`, `deleted`, `skipped`, `skipReasons`, `error`, `completedAt`, `results`.
+- `POST /api/settings/workdir-retention/delete`: exactly `{"days": 30, "names": ["orphan-name"]}` (1–2000 names). Only single direct-child names are accepted, never paths. Returns individual `results: [{name, deleted, reason?}]` plus counters/errors. All safety checks repeat; preview is not an authorization token. Deletion never removes Sessions. Partial failures are reported per item.
+- Default-root-only, recursive newest mtime; all archived/offline Session and Workspace overlapping paths protect directories. Unsafe links/reparse points and unknown references fail closed. Traversal is bounded (2,000 root entries, 100,000 tree entries, 2,048 directories per tree, 20-second traversal budget); reference stores are capped at 10,000 entries and 8 MiB per metadata file and 32 MiB total per reference store. Errors/skip reasons are observable. Session retention preserves workdirs unconditionally.

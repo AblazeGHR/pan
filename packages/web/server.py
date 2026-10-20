@@ -57,6 +57,7 @@ from packages.core import session_drafts
 from packages.core import history_search_index
 from packages.core import history_search_scan
 from packages.core import workspace as workspaces
+from packages.core.workdir_retention import WorkdirRetention
 from packages.core.data_retention import (
     DataRetentionService,
     _history_activity as _retention_history_activity,
@@ -481,6 +482,7 @@ def _get_data_retention_service() -> DataRetentionService:
             policy_loader=lambda: load_config().get("data_retention", {}),
             session_delete=_retention_delete_session_from_thread,
             attachment_registry_lock=_ATTACHMENT_REGISTRY_LOCK,
+            workdir_scan=lambda days: _workdir_collector().run(days, delete=True),
         )
     return _DATA_RETENTION_SERVICE
 
@@ -9652,11 +9654,18 @@ def _retention_all_session_records() -> list[dict] | None:
         if resolved_root is None:
             return None
         records = []
-        for path in resolved_root.iterdir():
+        total_bytes = 0
+        for index, path in enumerate(resolved_root.iterdir()):
+            if index >= 10000:
+                return None
             if path.suffix != ".json" or path.name.endswith(".history.jsonl"):
                 continue
             safe_path = _retention_safe_session_file(resolved_root, path)
             if safe_path is None:
+                return None
+            size = safe_path.stat().st_size
+            total_bytes += size
+            if size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
                 return None
             raw = json.loads(safe_path.read_text(encoding="utf-8"))
             if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
@@ -9795,46 +9804,20 @@ def _retention_plain_tree(path: Path, root: Path) -> bool:
     return True
 
 
-def _retention_workdir_candidate(record: dict) -> tuple[Path | None, str | None]:
-    raw = record.get("workdir")
-    if not raw:
-        return None, None
-    if not isinstance(raw, str):
-        return None, "workdir_path_unclear"
-    root = Path(WORKDIRS_DIR)
-    safe_root = _retention_safe_root(root)
-    if safe_root is None:
-        return None, "workdir_root_missing_or_unsafe"
-    try:
-        candidate = Path(raw)
-        if not candidate.is_absolute():
-            return None, "workdir_not_absolute"
-        info = candidate.lstat()
-        resolved = candidate.resolve(strict=True)
-        resolved_parent = candidate.parent.resolve(strict=True)
-        resolved.relative_to(safe_root)
-    except (OSError, ValueError):
-        return None, "workdir_outside_pan_root"
-    if (resolved.parent != safe_root or resolved_parent != safe_root
-            or candidate.is_symlink() or not stat.S_ISDIR(info.st_mode)
-            or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-            or os.path.normcase(str(resolved)) != os.path.normcase(str(Path(os.path.abspath(candidate))))):
-        return None, "workdir_not_direct_plain_child"
-    if not _retention_plain_tree(resolved, root):
-        return None, "workdir_tree_unsafe"
-    return resolved, None
-
-
 def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tuple[bool | None, str | None]:
     records = _retention_all_session_records()
     if records is None:
         return None, "workdir_session_references_unclear"
 
     def overlaps(raw_path: str) -> bool:
+        if not raw_path or not Path(raw_path).is_absolute():
+            raise ValueError("invalid reference path")
         resolved = Path(raw_path).resolve(strict=False)
         return (resolved == candidate or resolved in candidate.parents
                 or candidate in resolved.parents)
 
+    records.extend({"id": obj.id, "workdir": obj.workdir}
+                   for obj in list(sess._cache.values()))
     for row in records:
         if row.get("id") == session_id:
             continue
@@ -9849,12 +9832,19 @@ def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tupl
                 return None, "workdir_session_references_unclear"
     workspace_root = Path(workspaces.WORKSPACE_DIR)
     if not workspace_root.exists():
+        if workspace_root.is_symlink():
+            return None, "workdir_workspace_references_unclear"
         return False, None
     safe_root = _retention_safe_root(workspace_root)
     if safe_root is None:
         return None, "workdir_workspace_references_unclear"
     try:
-        for path in safe_root.glob("*.json"):
+        total_bytes = 0
+        for index, path in enumerate(safe_root.glob("*.json")):
+            size = path.lstat().st_size
+            total_bytes += size
+            if index >= 10000 or size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
+                return None, "workdir_workspace_scan_limit"
             safe = _retention_safe_session_file(safe_root, path)
             if safe is None:
                 return None, "workdir_workspace_references_unclear"
@@ -9875,22 +9865,13 @@ def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tupl
 
 
 def _retention_remove_workdir(session_id: str, record: dict) -> tuple[bool, str | None]:
-    candidate, reason = _retention_workdir_candidate(record)
-    if candidate is None:
-        return (not bool(record.get("workdir")), reason)
-    referenced, reason = _retention_workdir_reference_state(session_id, candidate)
-    if referenced is None or referenced:
-        return False, reason or "workdir_ownership_unclear"
-    # Repeat the complete path/tree check directly before recursive deletion.
-    current, reason = _retention_workdir_candidate(record)
-    referenced, reference_reason = _retention_workdir_reference_state(session_id, candidate)
-    if current != candidate or reason or referenced is not False:
-        return False, reason or reference_reason or "workdir_changed_or_referenced"
-    try:
-        shutil.rmtree(candidate)
-        return True, None
-    except OSError:
-        return False, "workdir_delete_failed"
+    # Session lifetime is not a workdir age or deletion authority.
+    return False, "workdir_independent_retention"
+
+
+def _workdir_collector():
+    return WorkdirRetention(Path(WORKDIRS_DIR),
+                            lambda path: _retention_workdir_reference_state("", path))
 
 
 def _retention_cleanup_auxiliary(session_id: str) -> list[str]:
@@ -10607,6 +10588,28 @@ async def api_get_data_catalog():
     traverse directories, inspect file contents, or accept path filters.
     """
     return get_data_catalog()
+
+
+@app.post("/api/settings/workdir-retention/preview")
+async def api_preview_workdir_retention(data: dict = Body(...)):
+    if set(data) != {"days"}:
+        raise HTTPException(status_code=400, detail="Only days is accepted")
+    try:
+        return await asyncio.to_thread(_workdir_collector().run, data["days"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/workdir-retention/delete")
+async def api_delete_workdir_retention(data: dict = Body(...)):
+    if (set(data) != {"days", "names"} or not isinstance(data.get("names"), list)
+            or not data["names"] or len(data["names"]) > 2000
+            or any(not isinstance(name, str) for name in data["names"])):
+        raise HTTPException(status_code=400, detail="Expected days and 1–2000 directory names")
+    try:
+        return await asyncio.to_thread(_workdir_collector().run, data["days"], data["names"], delete=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/settings/data-retention")

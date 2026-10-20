@@ -950,7 +950,7 @@ export interface ApiDataCatalogResponse {
   };
 }
 
-export type DataRetentionPolicyId = 'sessions' | 'attachments' | 'qq_history' | 'qq_media' | 'pan_logs';
+export type DataRetentionPolicyId = 'sessions' | 'attachments' | 'qq_history' | 'qq_media' | 'pan_logs' | 'workdirs';
 
 export interface ApiDataRetentionPolicy {
   enabled: boolean;

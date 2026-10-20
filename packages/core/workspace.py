@@ -9,6 +9,8 @@ separate from Session display order.
 
 from __future__ import annotations
 
+from .workdir_retention import REFERENCE_LOCK, reference_commit, validate_reference_paths
+
 import json
 import secrets
 from datetime import datetime
@@ -49,6 +51,16 @@ def _clean_dirs(value) -> list[str]:
 
 
 class Workspace:
+    @property
+    def dirs(self):
+        return self._dirs
+
+    @dirs.setter
+    def dirs(self, value):
+        with REFERENCE_LOCK:
+            validate_reference_paths(value)
+            self._dirs = value
+
     def __init__(self, id: str, name: str, order: int | None = None,
                  created_at: str = "", updated_at: str = "", dirs=None):
         self.id = id
@@ -75,6 +87,7 @@ class Workspace:
                 "created_at": self.created_at, "updated_at": self.updated_at}
 
 
+@reference_commit
 def _save(workspace: Workspace) -> None:
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
     workspace.updated_at = datetime.now().isoformat()

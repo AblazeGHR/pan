@@ -473,7 +473,7 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 - 默认：`data/workdirs/<name>`（session 名 slug 化，非法字符替换为 `-`）。
 - **相对基准 = 实际运行的那个 Pan 服务实例的数据根**，不是你的当前项目目录、也不是 mcp-config 的 `cwd`（G3/G12）。实测：8768 服务（cwd `D:\project\Pan`）→ 落 `D:\project\Pan\data\workdirs\<name>`；8767（pan-test）→ 落 `D:\project\pan-test\data\workdirs\<name>`。**以 `session_create` 返回的 `workdir` 字段为准**。
 - 相对值一律按 slug 规则清理后放进 `data/workdirs/`。
-- `session_delete` **不删 workdir 目录**（只 kill worker + 删 session 元数据），磁盘留空目录，需要时自行清理（G11）。
+- `session_delete` **不删 workdir 目录**（只 kill worker + 删 session 元数据），磁盘目录保留；默认 workdir 的孤立目录统一通过 Settings → Data 的独立 workdirs 清理机制处理（G11），Session 到期也不能旁路删除。
 - **绝对路径可指定 Pan 外目录**（如 `D:/some/project`）——Worker 的 `cwd` 就是 workdir，cbc 把 workdir 当项目目录（JSONL + resume 都在这里）。
 - 同名 session 名必须唯一；workdir 默认取 session 名。
 - 文件系统 API（`/api/cbc/browse` 等）限在 workdir 内，`..` 逃逸会被拒绝。
@@ -619,7 +619,7 @@ A: 用 `report_unsubscribe`（只关完成报告推送，**保留 managed**）�
 | G8 | `session_list` **无过滤参数**，默认把全部 session 的**完整 history** 序列化返回（实测 310KB / 265906 chars，触发工具输出 token 上限溢出） | 冷启动第一步"先查后做"反而撑爆上下文；必须先 `Read` 落盘文件分段看 | §5/§6：改用 `session_get(limit=)` + `worker_list` 代替全量 `session_list` |
 | G9 | **MCP server 默认端口（8768）与 `PAN_AGENT_SESSION_ID` 所在服务（8767）跨端口**（见 G5 约束） | `report_subscribe` 内部报告路径不可用 | §0/§3：明确"MCP 目标端口 = PAN_AGENT_SESSION_ID 所在端口"三对齐 |
 | G10 | **`report_subscribe` 在本布局返回 `404 "Not Found"`**：实测 8768(main) 服务 `server.py` 无 `report-subscribe` 路由（0 次命中），而本工作树 `server.py` 有（1 次）——即**运行中的服务落后于 MCP 工具版本**（版本 skew） | §3 内部报告走不通；只能退回 references/http-api.md 的轮询兜底 | §3：标注"需运行含 `report-subscribe` 的服务端（本分支 server.py 已含）"；否则用轮询兜底 |
-| G11 | `session_delete` **只 kill worker + 删 session 元数据，不删 workdir 磁盘目录**（实测删除后 `data/workdirs/mcp-cold-probe` 空目录残留） | 磁盘累积空目录，需另清理 | §2.5/§7.1：说明残留，必要时 `rm -rf workdir` |
+| G11 | `session_delete` **只 kill worker + 删 session 元数据，不删 workdir 磁盘目录**（实测删除后 `data/workdirs/mcp-cold-probe` 空目录残留） | 磁盘累积空目录，需另清理 | §2.5/§7.1：说明残留，通过 Data 孤立 workdir 候选手动清理 |
 | G12 | workdir 默认基准 = **服务进程的数据根**，非固定 pan-test。本实测（8768 服务 cwd=`D:\project\Pan`）落点为 `D:\project\Pan\data/workdirs/<name>`，与 G3 记的 `D:\project\pan-test\...` 不同 | §7.1 的"Pan server 数据根"需指明是**实际运行实例的**数据根，可经 create 返回的 `workdir` 字段确证 | §7.1 |
 
 **MCP 路径推荐操作顺序（据实测固化）**：
@@ -776,3 +776,8 @@ agent_assign(session_id=..., text="...")  # 开始干活
 - `packages/web/server.py` — HTTP API 与 /ws/agent 实现（单一事实源）
 - `packages/mcp/server.py` — MCP 工具实现（`_api` 与各工具）
 - `packages/core/worker.py` — watchdog / assign / 报告队列实现
+
+
+### Independent orphan workdir retention
+
+`data_retention.workdirs = {"enabled": false, "days": null}` is opt-in, with integer days 1–36500. Session deletion/expiry never deletes its workdir. Settings → Data previews and manually deletes only default `data/workdirs` direct plain directories, using the newest recursive mtime and protecting every Session/Workspace overlapping reference. Links/reparse points, uncertain records and scan limits fail closed. Preview is not deletion authority; deletion rechecks identity, age and references under the metadata commit lock. Concurrent reference commits to a removed directory fail instead of publishing a dangling reference. Automatic cleanup reuses the existing retention scheduler. The N-day mtime heuristic can be inaccurate; prefer manual cleanup. See [HTTP API](references/http-api.md) for the preview/delete endpoints.

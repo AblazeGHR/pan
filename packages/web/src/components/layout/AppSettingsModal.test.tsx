@@ -990,6 +990,22 @@ describe('AppSettingsModal', () => {
     }));
   });
 
+  it('persists independent orphan workdir settings and warns in English', async () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    fireEvent.click(document.getElementById('app-settings-tab-data')!);
+    await waitFor(() => expect(document.querySelector('[aria-label="Orphan workdirs automatic cleanup"]')).not.toBeNull());
+    const toggle = document.querySelector<HTMLButtonElement>('[aria-label="Orphan workdirs automatic cleanup"]')!;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(cardEl().textContent).toContain('manual cleanup is recommended');
+    fireEvent.change(document.querySelector('[aria-label="Orphan workdirs days without changes"]')!, { target: { value: '21' } });
+    fireEvent.click(toggle);
+    const save = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('保存清理策略'))!;
+    fireEvent.click(save);
+    await waitFor(() => expect(updateDataRetentionMock).toHaveBeenCalledWith(expect.objectContaining({
+      policies: expect.objectContaining({ workdirs: { enabled: true, days: 21 } }),
+    })));
+  });
+
   it('projects the shared Jobs retention editor in Data and saves via its canonical API', async () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-data')!);

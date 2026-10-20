@@ -21,6 +21,8 @@ unknown Session fields cannot read it. No lossy downgrade is attempted.
 
 from __future__ import annotations
 
+from .workdir_retention import REFERENCE_LOCK, reference_commit, validate_reference_paths
+
 import asyncio
 import copy
 import contextvars
@@ -1359,6 +1361,14 @@ _UNREAD_OVERRIDE_UNSET = object()
 
 @dataclass(init=False)
 class Session:
+    def __setattr__(self, name, value):
+        if name == "workdir":
+            with REFERENCE_LOCK:
+                validate_reference_paths([value])
+                object.__setattr__(self, name, value)
+        else:
+            object.__setattr__(self, name, value)
+
     id: str
     name: str
     adapter: str = "cbc"   # CLI adapter name, default "cbc"
@@ -2504,6 +2514,7 @@ def _replace_session_metadata(source: Path, target: Path) -> None:
             time.sleep(.01 * (attempt + 1))
 
 
+@reference_commit
 def _save_body(s: Session, force_full: bool = False, *,
                unread_done_read_generation: int | None = None,
                unread_done_generation: int | None = None,

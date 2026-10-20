@@ -798,8 +798,12 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
       },
     };
   }
+  if (path === '/api/settings/workdir-retention/preview' || path === '/api/settings/workdir-retention/delete') {
+    return { candidates: [], results: [], scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, error: null };
+  }
   if (path === '/api/settings/data-retention' && method === 'GET') {
     const policies = {
+      workdirs: { enabled: false, days: null },
       sessions: { enabled: false, days: null },
       attachments: { enabled: false, days: null },
       qq_history: { enabled: false, days: null },

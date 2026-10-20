@@ -238,7 +238,7 @@ Manage this listener through the local loopback entry. The LAN entry blocks loca
 
 The API has no authentication by default and binds to loopback. Do not expose it to an untrusted network by changing `PAN_HOST` or opening a remote tunnel alone.
 
-Manual Session deletion stops its Worker and removes Session records and history, but preserves an ordinary workdir. A separate data-retention policy is disabled by default. If Session auto-retention is enabled, Pan may delete a default workdir only after verifying that it belongs to that Session and is not referenced by another Session or Workspace. Commit or back up important files before cleanup.
+Manual Session deletion stops its Worker and removes Session records and history, but preserves an ordinary workdir. A separate data-retention policy is disabled by default. Session auto-retention also preserves workdirs. Independent orphan workdir cleanup in Settings → Data uses its own N-day rule and protects all Session and Workspace references. Commit or back up important files before cleanup.
 
 ### Mobile navigation and Codex Terminal TUI
 
@@ -301,3 +301,14 @@ and [durable validation](design/PAN_TERMINAL_DURABLE_MA_20261004.md) for exact l
 - [README](../README.en.md): project overview and quick start.
 - [中文用户手册](./USER_MANUAL.md).
 - [QQ and SnowLuma guide](./QQ_PLUGIN_SNOWLUMA.en.md).
+
+
+### Orphan workdir cleanup (Settings → Data)
+
+Workdir cleanup is independent of Session retention. Deleting or expiring a Session always preserves its workdir. Configure `data_retention.workdirs` with `enabled` (default `false`) and `days` (integer 1–36500; `null` disables cleanup). Existing configurations remain opt-in. Automatic cleanup uses the existing daily retention scheduler.
+
+Set a day count and choose **Browse cleanup candidates** to inspect directory names, paths, latest recursive modification times and entry counts. Refresh, select individual rows or Select all, then Delete selected. Deletion is permanent; per-directory failures remain visible and can be refreshed. This action deletes orphan directories, never Sessions. Manual cleanup uses the displayed day count without requiring automatic cleanup to be enabled or settings to be saved.
+
+**The “no changes for N days” check may be inaccurate. Enable automatic cleanup with caution; manual cleanup is recommended.** Filesystem mtimes can be preserved by copies or changed by background tools; they do not prove that data is disposable.
+
+Only direct plain directories under Pan's default `data/workdirs` root are scanned. The newest mtime across every file and subdirectory must be older than N days. Any Session (including archived or offline Sessions), or Workspace directory referencing the same path, an ancestor or descendant protects it. Links/reparse points, hardlinks, special files, malformed reference records and scan errors prevent deletion. No arbitrary client path is accepted. All checks run again before deletion; preview is not deletion authority. Scan limits (2,000 root entries, 100,000 tree entries, 2,048 directories per tree and a 20-second tree traversal budget per request) fail closed and are reported with skip/error counts. Partial deletion failures can leave a directory partially cleaned; inspect failures before retrying.

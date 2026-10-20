@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { Modal } from '@/components/ui/Modal';
+import { scanWorkdirs, type WorkdirRetentionResult } from '@/services/api';
+import { useState, type ReactNode } from 'react';
 import type {
   ApiDataCatalogResponse,
   ApiDataRetentionResponse,
@@ -29,9 +31,14 @@ const POLICY_CARDS: Array<{
   description: string;
 }> = [
   {
+    id: 'workdirs',
+    label: 'Orphan workdirs',
+    description: 'Only direct directories under the default data/workdirs root, with no Session or Workspace references, are eligible. Session expiry always preserves workdirs.',
+  },
+  {
     id: 'sessions',
     label: 'Sessions 与 history',
-    description: '仅在 Session、history、队列和任务引用都安全时删除；专属且无引用的 Pan workdir 可随 Session 清理。',
+    description: 'Delete only when Session, history, queue and task references are safe. Workdirs are retained separately.',
   },
   {
     id: 'attachments',
@@ -172,7 +179,7 @@ function RetentionControls({
       </div>
       <div className="space-y-2">
         {POLICY_CARDS.map((item) => {
-          const policy = draft[item.id];
+          const policy = draft[item.id] ?? { enabled: false, days: null };
           const result = saved.lastScans[item.id];
           return (
             <section key={item.id} className="min-w-0 rounded border border-border-muted bg-bg-primary p-3">
@@ -184,7 +191,7 @@ function RetentionControls({
                 <button
                   type="button"
                   role="switch"
-                  aria-label={`${item.label} 自动清理`}
+                  aria-label={item.id === 'workdirs' ? 'Orphan workdirs automatic cleanup' : `${item.label} 自动清理`}
                   aria-checked={policy.enabled}
                   onClick={() => onChange(item.id, 'enabled', !policy.enabled)}
                   className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${policy.enabled ? 'bg-accent' : 'bg-bg-hover'}`}
@@ -192,16 +199,17 @@ function RetentionControls({
                   <span className={`absolute left-[2px] top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform ${policy.enabled ? 'translate-x-[14px]' : 'translate-x-0'}`} />
                 </button>
               </div>
+              {item.id === 'workdirs' && <WorkdirCleanup days={policy.days} />}
               <label className="mt-2 flex max-w-full flex-wrap items-center gap-2 text-[10px] text-text-secondary">
-                <span>保留天数</span>
+                <span>{item.id === 'workdirs' ? 'Days without changes' : '保留天数'}</span>
                 <input
                   type="number"
                   min={1}
                   max={36500}
                   step={1}
-                  aria-label={`${item.label} 保留天数`}
+                  aria-label={item.id === 'workdirs' ? 'Orphan workdirs days without changes' : `${item.label} 保留天数`}
                   value={policy.days ?? ''}
-                  placeholder="空＝不清理"
+                  placeholder={item.id === 'workdirs' ? 'Empty = keep' : '空＝不清理'}
                   onChange={(event) => {
                     const raw = event.target.value;
                     if (raw === '') {
@@ -217,11 +225,11 @@ function RetentionControls({
                 />
               </label>
               <p className="mt-2 break-words text-[10px] leading-relaxed text-text-tertiary">
-                最近扫描：{formatWhen(result?.lastScanAt)}；扫描 {result?.scanned ?? 0}，删除 {result?.deleted ?? 0}，跳过 {result?.skipped ?? 0}
+                {item.id === 'workdirs' ? `Last scan: ${result?.lastScanAt ?? 'Never'}; scanned ${result?.scanned ?? 0}, deleted ${result?.deleted ?? 0}, skipped ${result?.skipped ?? 0}` : <>最近扫描：{formatWhen(result?.lastScanAt)}；扫描 {result?.scanned ?? 0}，删除 {result?.deleted ?? 0}，跳过 {result?.skipped ?? 0}</>}
                 {result?.skipReasons && Object.keys(result.skipReasons).length > 0
                   ? `（${Object.entries(result.skipReasons).map(([reason, count]) => `${reason}: ${count}`).join('；')}）`
                   : ''}
-                {result?.error ? `；错误：${result.error}` : ''}
+                {result?.error ? `; Error: ${result.error}` : ''}
               </p>
             </section>
           );
@@ -267,7 +275,7 @@ export function DataSettingsPanel({
           Data locations
         </h3>
         <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">
-          这里只展示代码登记的 Pan 持久类别和实际路径，不浏览目录内容，不读取凭据或统计全盘。data/ 下未登记的用户自建目录不会进入清理目标。
+          Registered Pan storage categories and paths. Orphan workdir candidates are scanned only when requested or when their automatic policy is enabled; other unregistered data directories are excluded.
         </p>
       </section>
 
@@ -307,4 +315,65 @@ export function DataSettingsPanel({
       )}
     </div>
   );
+}
+
+export function WorkdirCleanup({ days }: { days: number | null }) {
+  const actionClass = "rounded border border-border-muted px-3 py-1.5 text-xs hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50";
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<WorkdirRetentionResult | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<WorkdirRetentionResult['results']>([]);
+  const valid = days !== null && Number.isInteger(days) && days >= 1 && days <= 36500;
+  const load = async (remove = false) => {
+    if (!valid || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await scanWorkdirs(days, remove ? selected : undefined);
+      if (remove) {
+        setOutcomes(response.results);
+        const deleted = new Set(response.results.filter(row => row.deleted).map(row => row.name));
+        setResult(current => current && ({ ...current, candidates: current.candidates.filter(row => !deleted.has(row.name)) }));
+        setSelected([]);
+      } else {
+        setResult(response);
+        setSelected([]);
+        setOutcomes([]);
+      }
+      if (response.error) setError(response.error);
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return <div className="mt-2 space-y-2 text-xs">
+    <p className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-amber-500">
+      The “no changes for N days” check may be inaccurate. Enable automatic cleanup with caution; manual cleanup is recommended.
+    </p>
+    <button type="button" className={actionClass} disabled={!valid} onClick={() => { setOpen(true); void load(); }}>Browse cleanup candidates</button>
+    {!valid && <p>Set a day count from 1 to 36500 to browse candidates.</p>}
+    <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title="Orphan workdir cleanup" size="lg">
+      <div className="space-y-3 text-xs">
+        <p>Directories with no changes for {days} days. Deleting a directory is permanent. Sessions are never deleted here. Every selected directory is checked again before deletion.</p>
+        <button type="button" className={actionClass} disabled={busy} onClick={() => void load()}>Refresh</button>
+        {busy && <p role="status">Scanning or deleting directories…</p>}
+        {error && <p role="alert">Cleanup failed: {error}</p>}
+        {result && <>
+          <p>Scanned: {result.scanned}. Skipped: {result.skipped}. {Object.entries(result.skipReasons).map(([key, count]) => `${key}: ${count}`).join('; ')}</p>
+          {result.candidates.length === 0 ? <p>No eligible workdirs found.</p> : <>
+            <label><input type="checkbox" disabled={busy} checked={selected.length === result.candidates.length} onChange={e => setSelected(e.target.checked ? result.candidates.map(row => row.name) : [])} /> Select all</label>
+            <div className="max-h-80 space-y-2 overflow-auto">
+              {result.candidates.map(row => <label key={row.name} className="block break-all rounded border border-border-muted p-2">
+                <input type="checkbox" disabled={busy} checked={selected.includes(row.name)} onChange={e => setSelected(current => e.target.checked ? [...current, row.name] : current.filter(name => name !== row.name))} /> {row.name}
+                <span className="block">{row.path}</span>
+                <span className="block">Last modified: {row.modifiedAt} · Entries: {row.entries}</span>
+              </label>)}
+            </div>
+            <button type="button" className={`${actionClass} text-danger`} disabled={busy || !selected.length} onClick={() => void load(true)}>Delete selected ({selected.length})</button>
+          </>}
+        </>}
+        {outcomes.map(row => <p key={row.name} role={row.deleted ? 'status' : 'alert'}>{row.name}: {row.deleted ? 'Deleted' : `Failed — ${row.reason}`}</p>)}
+      </div>
+    </Modal>
+  </div>;
 }

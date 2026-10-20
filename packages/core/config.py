@@ -25,6 +25,7 @@ DEFAULT_CONFIG: dict = {
     # Data retention is opt-in. A null day count means never clean; there is
     # deliberately no implicit duration. Jobs settings belong to config.jobs.
     "data_retention": {
+        "workdirs": {"enabled": False, "days": None},
         "sessions": {"enabled": False, "days": None},
         "attachments": {"enabled": False, "days": None},
         "qq_history": {"enabled": False, "days": None},

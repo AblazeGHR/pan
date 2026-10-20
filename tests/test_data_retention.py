@@ -239,12 +239,12 @@ def test_session_delete_uses_store_and_cleans_only_owned_lifecycle_data(tmp_path
     }))
 
     assert outcome == {
-        "deleted": True, "workdirSkipped": False, "workdirSkipReason": None,
+        "deleted": True, "workdirSkipped": True, "workdirSkipReason": "workdir_independent_retention",
         "lifecycleSkipReasons": [],
     }
     assert not (root / f"{sid}.json").exists()
     assert not history_path.exists()
-    assert not workdir.exists()
+    assert workdir.exists(), "Session expiry must preserve workdirs for independent age checks"
     assert not mcp.exists() and not kimi.exists()
     assert global_config.read_text(encoding="utf-8") == '{"provider":"keep"}'
     assert global_auth.read_text(encoding="utf-8") == '{"token":"keep"}'

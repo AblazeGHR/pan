@@ -22,8 +22,9 @@ from typing import Callable
 import uuid
 
 
-POLICY_IDS = ("sessions", "attachments", "qq_history", "qq_media", "pan_logs")
+POLICY_IDS = ("sessions", "attachments", "qq_history", "qq_media", "pan_logs", "workdirs")
 DEFAULT_POLICIES = {
+    "workdirs": {"enabled": False, "days": None},
     "sessions": {"enabled": False, "days": None},
     "attachments": {"enabled": False, "days": None},
     "qq_history": {"enabled": False, "days": None},
@@ -675,7 +676,9 @@ class DataRetentionService:
                  session_delete: Callable[[str, dict], dict],
                  attachment_registry_lock: threading.RLock | None = None,
                  pan_logs_root: Path | None = None,
-                 active_log_path: Callable[[], Path] | None = None):
+                 active_log_path: Callable[[], Path] | None = None,
+                 workdir_scan: Callable[[int], dict] | None = None):
+        self.workdir_scan = workdir_scan
         self.sessions_root = Path(sessions_root)
         self.attachments_root = Path(attachments_root)
         self.qq_history_root = Path(qq_history_root)
@@ -811,6 +814,7 @@ class DataRetentionService:
                     continue
                 try:
                     scanner = {
+                        "workdirs": lambda: self.workdir_scan(policy["days"]) if self.workdir_scan else _summary(error="workdir_scanner_unavailable"),
                         "sessions": lambda: scan_sessions(
                             self.sessions_root, policy["days"], current, self.session_delete),
                         "attachments": lambda: scan_attachments(
