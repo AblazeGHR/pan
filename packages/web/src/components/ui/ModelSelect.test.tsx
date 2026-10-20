@@ -110,3 +110,97 @@ describe('ModelSelect', () => {
     expect(document.querySelector('.menu-custom-upward')).toBeTruthy();
   });
 });
+
+// ── 额度倍率后缀（仅显示） ──
+
+const MULTIPLIERS: Record<string, number> = {
+  'opencode/big-pickle': 0.08,
+  'siliconflow-cn/Qwen/Qwen3-14B': 2,
+};
+
+describe('ModelSelect multiplier suffix', () => {
+  afterEach(() => {
+    cleanup();
+    document.body.innerHTML = '';
+  });
+
+  it('renders the suffix on the current value and on options (display-only)', () => {
+    render(
+      <ModelSelect
+        value="opencode/big-pickle"
+        options={OPTIONS}
+        multipliers={MULTIPLIERS}
+        onChange={() => {}}
+      />,
+    );
+    // 当前值按钮：模型名 + 居右倍率后缀
+    const btn = screen.getByRole('button', { name: 'opencode/big-pickle (x0.08)' });
+    expect(btn).toBeTruthy();
+    // 无倍率的模型只显示原名（不默认 x1）
+    expect(screen.queryByRole('button', { name: /x1/ })).toBeNull();
+
+    fireEvent.click(btn);
+    expect(screen.getByRole('option', { name: 'opencode/big-pickle (x0.08)' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B (x2)' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'opencode/mimo-v2.5-free' })).toBeTruthy();
+  });
+
+  it('shows (x0) for a zero multiplier and the raw name for unknown models', () => {
+    render(
+      <ModelSelect
+        value="step-5-preview"
+        options={['step-5-preview', 'custom/model-a']}
+        multipliers={{ 'step-5-preview': 0 }}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('option', { name: 'step-5-preview (x0)' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'custom/model-a' })).toBeTruthy();
+  });
+
+  it('keeps onChange emitting the raw model ID when multipliers are present', () => {
+    const onChange = vi.fn();
+    render(
+      <ModelSelect
+        value="opencode/big-pickle"
+        options={OPTIONS}
+        multipliers={MULTIPLIERS}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B (x2)' }));
+    expect(onChange).toHaveBeenCalledWith('siliconflow-cn/Qwen/Qwen3-14B');
+  });
+
+  it('keeps raw-ID search working and additionally matches multiplier text', () => {
+    render(
+      <ModelSelect
+        value="opencode/big-pickle"
+        options={OPTIONS}
+        multipliers={MULTIPLIERS}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    const input = screen.getByPlaceholderText('筛选模型…');
+
+    // 原有按模型 ID 的搜索不回归
+    fireEvent.change(input, { target: { value: 'qwen3' } });
+    expect(screen.getByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B (x2)' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'opencode/big-pickle (x0.08)' })).toBeNull();
+
+    // 倍率文本也可检索
+    fireEvent.change(input, { target: { value: 'x0.08' } });
+    expect(screen.getByRole('option', { name: 'opencode/big-pickle (x0.08)' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'siliconflow-cn/Qwen/Qwen3-14B (x2)' })).toBeNull();
+  });
+
+  it('renders without suffix when multipliers are absent (old behavior)', () => {
+    renderSelect({ value: 'opencode/big-pickle' });
+    expect(screen.getByRole('button', { name: 'opencode/big-pickle' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByRole('option', { name: 'opencode/big-pickle' })).toBeTruthy();
+  });
+});

@@ -1889,6 +1889,7 @@ export async function fetchAdapterConfig(adapter: string): Promise<AdapterConfig
     defaultModel: data.defaultModel || 'deepseek-v4-flash',
     effortValues: data.effortValues || [],
     modelEfforts: data.modelEfforts || {},
+    modelCreditMultipliers: data.modelCreditMultipliers || {},
     permissionModes: data.permissionModes || [],
     defaultPermissionMode: data.defaultPermissionMode || '',
     supportedSettings: data.supportedSettings || ['model', 'permissionMode', 'thinking', 'effort'],

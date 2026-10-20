@@ -5,6 +5,7 @@ import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore'
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
+import { formatModelLabel } from '@/utils/modelLabel';
 import type {
   CbcProject,
   CbcSessionItem,
@@ -709,6 +710,8 @@ function CbcSessionItemRow({
 }) {
   const ts = item.last_timestamp || item.first_timestamp || '';
   const isFork = !!item.forked_from;
+  // 仅显示用：cbc 模型名附加额度倍率后缀，导入 payload 仍用原始 ID。
+  const multipliers = useAdapterStore((s) => s.adapterConfigs.cbc?.modelCreditMultipliers);
 
   return (
     <div
@@ -733,7 +736,7 @@ function CbcSessionItemRow({
         )}
       </div>
       <div className="text-xs text-text-tertiary mt-0.5">
-        {item.message_count} msgs &middot; {item.model} &middot;{' '}
+        {item.message_count} msgs &middot; {formatModelLabel(item.model, multipliers)} &middot;{' '}
         {ts ? formatTime(ts) : '—'}
       </div>
     </div>
@@ -889,6 +892,8 @@ function KimiSessionItemRow({
   isImporting: boolean;
   onClick: () => void;
 }) {
+  // 仅显示用：模型名附加额度倍率后缀，导入 payload 仍用原始 ID。
+  const multipliers = useAdapterStore((s) => s.adapterConfigs.kimi?.modelCreditMultipliers);
   return (
     <div
       onClick={onClick}
@@ -898,7 +903,7 @@ function KimiSessionItemRow({
     >
       <div className="text-sm text-text-primary truncate">{item.title}</div>
       <div className="text-xs text-text-tertiary mt-0.5">
-        {item.message_count} msgs &middot; {item.model} &middot;{' '}
+        {item.message_count} msgs &middot; {formatModelLabel(item.model, multipliers)} &middot;{' '}
         {item.updatedAt ? formatTime(item.updatedAt) : '—'}
       </div>
     </div>
@@ -996,6 +1001,8 @@ function OpencodeSessionItemRow({
   isImporting: boolean;
   onClick: () => void;
 }) {
+  // 仅显示用：模型名附加额度倍率后缀，导入 payload 仍用原始 ID。
+  const multipliers = useAdapterStore((s) => s.adapterConfigs.opencode?.modelCreditMultipliers);
   return (
     <div
       onClick={onClick}
@@ -1007,7 +1014,7 @@ function OpencodeSessionItemRow({
         {item.title || 'Untitled'}
       </div>
       <div className="text-xs text-text-tertiary mt-0.5">
-        {item.message_count} msgs &middot; {item.model || '?'} &middot;{' '}
+        {item.message_count} msgs &middot; {item.model ? formatModelLabel(item.model, multipliers) : '?'} &middot;{' '}
         {item.updatedAt ? formatTime(item.updatedAt) : '—'}
       </div>
     </div>
@@ -1097,6 +1104,8 @@ function CodexSessionItemRow({
   isImporting: boolean;
   onClick: () => void;
 }) {
+  // 仅显示用：模型名附加额度倍率后缀，导入 payload 仍用原始 ID。
+  const multipliers = useAdapterStore((s) => s.adapterConfigs.codex?.modelCreditMultipliers);
   return (
     <div
       onClick={onClick}
@@ -1108,7 +1117,7 @@ function CodexSessionItemRow({
         {item.title || 'Untitled'}
       </div>
       <div className="text-xs text-text-tertiary mt-0.5">
-        {item.message_count} msgs &middot; {item.model || '?'} &middot;{' '}
+        {item.message_count} msgs &middot; {item.model ? formatModelLabel(item.model, multipliers) : '?'} &middot;{' '}
         {item.workDir || '—'} &middot;{' '}
         {item.updatedAt ? formatTime(item.updatedAt) : '—'}
       </div>

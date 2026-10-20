@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { formatModelLabel, modelMultiplierSuffix } from '@/utils/modelLabel';
 
 interface ModelSelectProps {
   /** 当前选中的模型 ID（可能不在 options 中——会话可能持有历史模型）。 */
@@ -15,6 +16,10 @@ interface ModelSelectProps {
   /** 覆盖下拉菜单定位/尺寸。默认向下展开（`top-full mt-1 w-full`）；
    *  ModelPill 传向上展开（`bottom-full mb-1`）以保持原交互。 */
   menuClassName?: string;
+  /** 模型额度倍率表（model id -> 倍率，如 0.08）。仅影响显示：选项与当前值
+   *  追加居右的 `(x0.08)` 后缀；value/onChange 仍是原始模型 ID，提交与
+   *  持久化不受影响。缺省或无有效倍率时只显示模型名。 */
+  multipliers?: Record<string, number>;
 }
 
 /**
@@ -36,6 +41,7 @@ export function ModelSelect({
   className = '',
   buttonClassName,
   menuClassName,
+  multipliers,
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -79,8 +85,13 @@ export function ModelSelect({
 
   // 当前值不在 options 中时插入顶部，保证历史模型始终可选中/可显示。
   const allOptions = options.includes(value) ? options : [value, ...options];
+  // 过滤按显示标签匹配：标签以模型 ID 为前缀，原有按 ID 的搜索全部保留，
+  // 额外支持按倍率文本（如 "x0.08"）搜索。
   const q = query.trim().toLowerCase();
-  const filtered = q ? allOptions.filter((m) => m.toLowerCase().includes(q)) : allOptions;
+  const filtered = q
+    ? allOptions.filter((m) => formatModelLabel(m, multipliers).toLowerCase().includes(q))
+    : allOptions;
+  const currentSuffix = modelMultiplierSuffix(value, multipliers);
 
   // 展开时自动聚焦过滤输入框。
   useEffect(() => {
@@ -122,6 +133,11 @@ export function ModelSelect({
         className={buttonClass}
       >
         <span className="truncate">{value || '…'}</span>
+        {currentSuffix && (
+          <span className="ml-auto shrink-0 text-text-tertiary">
+            {currentSuffix}
+          </span>
+        )}
         <span className="shrink-0 text-text-tertiary" aria-hidden>
           ▾
         </span>
@@ -153,22 +169,30 @@ export function ModelSelect({
                 无匹配模型
               </li>
             )}
-            {filtered.map((m) => (
-              <li key={m}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={m === value}
-                  onClick={() => select(m)}
-                  title={m}
-                  className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-bg-tertiary ${
-                    m === value ? 'bg-accent/10 text-accent' : 'text-text-primary'
-                  }`}
-                >
-                  {m}
-                </button>
-              </li>
-            ))}
+            {filtered.map((m) => {
+              const suffix = modelMultiplierSuffix(m, multipliers);
+              return (
+                <li key={m}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={m === value}
+                    onClick={() => select(m)}
+                    title={m}
+                    className={`flex w-full items-center gap-1 px-2 py-1 text-left text-xs hover:bg-bg-tertiary ${
+                      m === value ? 'bg-accent/10 text-accent' : 'text-text-primary'
+                    }`}
+                  >
+                    <span className="truncate">{m}</span>
+                    {suffix && (
+                      <span className="ml-auto shrink-0 text-text-tertiary">
+                        {suffix}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>,
         document.body,

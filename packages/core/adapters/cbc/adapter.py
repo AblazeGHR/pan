@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -25,6 +28,150 @@ MCP_CONFIG_DIR = SESSION_DIR.parent / "mcp-configs"
 # _TASK_STATUS_TTL_SEC 的先例，采用带过期时间的 TTL 缓存，超时后下次访问自动
 # 重新拉取。config.json 白名单同样走 TTL（用户改配置后无需重启服务即可生效）。
 _MODEL_CACHE_TTL: float = 300.0  # 5 分钟
+
+# ── 模型额度消耗倍率（credits） ──
+#
+# cbc CLI 的产品配置（AgentManager.getModels 的数据源，也是 `--help` 模型列表
+# 与计费的同一份配置）落盘在本地 FileLocalStorage 缓存
+# ~/.codebuddy/local_storage/entry_<md5("cloud_product_config_cache")>.info，
+# 内容为 [{userId, data, ts}, ...]，其中 data.models[].credits（如
+# "x0.08 credits"）即该模型的额度消耗倍率——CLI 自身的
+# ModelUtils.parseCreditsValue / isFreeModel 消费同一字段，不是价格、剩余
+# 额度、token usage 或推理 effort。
+#
+# 有效配置选择规则（CLI 源码证据，codebuddy 2.168.0 dist-server/codebuddy.js）：
+#   1. 当前账号 ID = UserinfoProvider.provide()?.userId，源自登录 JWT 的
+#      payload.sub（tryExtractUserIDFromJWTToken；JWT 位于 settings.json 的
+#      env.CODEBUDDY_AUTH_TOKEN，CLI 只 decode 不验签）；
+#   2. 有效配置 = 该缓存中 userId 精确匹配的条目（readDiskCache:
+#      `.find(i => i.userId === t)`）——CLI 从不跨账号合并、从不按 ts 挑选；
+#      writer（updateDiskCache）同 user 先 splice 再 push，正常文件里每个
+#      userId 至多一条；
+#   3. readDiskCache 不检查 ts 的新鲜度（陈旧判定只发生在更上层的 memCache
+#      过期与远程拉取失败降级），因此这里也不自作主张加陈旧阈值。
+#
+# 读取方式为纯本地只读：不发起网络请求、不调用任何模型、不需要凭据（只读
+# settings.json 的一个 JWT claim 与上述缓存文件；不记录、不外泄 token）。
+
+# CLI credits 字段的真实格式（ModelUtils.parseCreditsValue 注释与实测数据）：
+#   "x0.08 credits" / "x2.20 credits" / "x1.62" / "x0.00 credits" / "0.08x"
+# 这里锚定整串匹配（可选 x 前缀 + 带符号数字 + 可选 credits/x 后缀）。与 CLI
+# 的无符号 search 的差异是有意为之：CLI 会把 "-0.08" 读成 0.08，而 Pan 只做
+# 显示，宁缺勿错——不符合真实格式的一律按"无倍率"处理，不猜测。
+_CREDITS_VALUE_RE = re.compile(
+    r"^\s*[xX]?\s*([+-]?\d+(?:\.\d+)?)\s*(?:credits?)?\s*[xX]?\s*$",
+    re.IGNORECASE,
+)
+_CLOUD_PRODUCT_CONFIG_CACHE_KEY = "cloud_product_config_cache"
+_LOCAL_STORAGE_MAX_FILE_BYTES = 4 * 1024 * 1024  # 单文件字节上限（有界读取）
+
+
+def _codebuddy_home() -> Path:
+    """cbc CLI 的用户目录（与 CLI PathUtils.getHomeDir()/".codebuddy" 一致）。"""
+    return Path.home() / ".codebuddy"
+
+
+def _current_cbc_user_id() -> str | None:
+    """当前生效的 cbc 账号 ID：settings.json env.CODEBUDDY_AUTH_TOKEN 的 sub。
+
+    与 CLI 的 tryExtractUserIDFromJWTToken / UserinfoProvider 同源：CLI 从该
+    JWT 的 payload.sub 提取当前登录账号。只做 base64 解码、不验签、不记录
+    token 内容；任何缺失/损坏都返回 None（调用方按"无法确定当前配置"处理）。
+    """
+    try:
+        settings = json.loads(
+            (_codebuddy_home() / "settings.json").read_text(encoding="utf-8", errors="replace")
+        )
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    env = settings.get("env") if isinstance(settings, dict) else None
+    token = env.get("CODEBUDDY_AUTH_TOKEN") if isinstance(env, dict) else None
+    if not isinstance(token, str) or token.count(".") < 2:
+        return None
+    try:
+        segment = token.split(".")[1]
+        segment += "=" * (-len(segment) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(segment))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    sub = claims.get("sub") if isinstance(claims, dict) else None
+    return sub if isinstance(sub, str) and sub.strip() else None
+
+
+def _read_cloud_product_config_entries() -> list[dict]:
+    """读取 cloud_product_config_cache 中的账号条目列表（CLI 同源缓存文件）。
+
+    文件名 = entry_<md5("cloud_product_config_cache")>.info（与 CLI
+    FileLocalStorage.resolveEntryPath 一致，已实测匹配）。内容为
+    [{userId, data, ts}, ...]。只读这一个已知文件——不做目录 glob，从根上
+    避免无界遍历与其他账号数据混入。读取/解析/超限失败均返回 []。
+    """
+    path = _codebuddy_home() / "local_storage" / (
+        "entry_" + hashlib.md5(_CLOUD_PRODUCT_CONFIG_CACHE_KEY.encode("utf-8")).hexdigest() + ".info"
+    )
+    try:
+        if path.stat().st_size > _LOCAL_STORAGE_MAX_FILE_BYTES:
+            return []
+        data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return []
+    return [e for e in data if isinstance(e, dict)] if isinstance(data, list) else []
+
+
+def _parse_credit_multiplier(raw: object) -> float | None:
+    """把模型 credits 字段解析为倍率；未配置/不合格式/异常值返回 None。
+
+    只接受 CLI credits 字段的真实格式（见 _CREDITS_VALUE_RE 注释）：负数
+    （"-0.08" / "x-0.08 credits"）、指数（"1e-3"）、嵌数字文本（"free 500"）
+    一律拒绝；显式拒绝非有限值，防止 Infinity 泄漏到展示层。
+    """
+    if not isinstance(raw, str):
+        return None
+    m = _CREDITS_VALUE_RE.match(raw)
+    if not m:
+        return None
+    try:
+        value = float(m.group(1))
+    except ValueError:
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return value
+
+
+def _fetch_credit_multipliers() -> dict[str, float]:
+    """按 CLI 的有效配置选择规则读取模型额度倍率（model id -> 倍率）。
+
+    1. 当前账号 = settings.json JWT 的 sub；取不到 → 空 dict（无法确定当前
+       配置，宁可不显示，也不用其他账号的数据猜测）；
+    2. 有效配置 = cloud_product_config_cache 中 userId 精确匹配的条目
+       （CLI readDiskCache 同规则）；无匹配 → 空 dict；
+    3. 同一账号出现多条（CLI writer 不会产生，仅防御文件损坏）且某模型取值
+       冲突时，该模型不显示——冲突不按 ts 覆盖，只保留无歧义的值；
+    4. 过期语义：不额外判定陈旧——CLI 的 readDiskCache 本身不检查 ts；
+       Pan 侧只由 model_credit_multipliers 的 TTL 控制重扫间隔。
+    """
+    user_id = _current_cbc_user_id()
+    if not user_id:
+        return {}
+    entries = [e for e in _read_cloud_product_config_entries() if e.get("userId") == user_id]
+    if not entries:
+        return {}
+    per_model: dict[str, set[float]] = {}
+    for entry in entries:
+        payload = entry.get("data")
+        models = payload.get("models") if isinstance(payload, dict) else None
+        if not isinstance(models, list):
+            continue
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            ident = str(model.get("id") or "").strip()
+            value = _parse_credit_multiplier(model.get("credits"))
+            if ident and value is not None:
+                per_model.setdefault(ident, set()).add(value)
+    # 仅保留取值无歧义的模型（单条目时恒等价于该条目全量）。
+    return {ident: next(iter(values)) for ident, values in per_model.items() if len(values) == 1}
 
 
 def _parse_models_from_cbc_help(argv_prefix: list[str] | None = None) -> list[str]:
@@ -152,6 +299,8 @@ class CbcAdapter:
 
     _cached_models: list[str] | None = None  # class-level cache（TTL）
     _cached_models_ts: float = 0.0  # 最近一次填充/刷新的单调时钟时间戳
+    _cached_multipliers: dict[str, float] | None = None  # 倍率缓存（TTL）
+    _cached_multipliers_ts: float = 0.0
 
     @property
     def supported_models(self) -> list[str]:
@@ -173,10 +322,32 @@ class CbcAdapter:
         """清空模型列表 TTL 缓存（POST /api/config/reload 热重载用）。
 
         置空后下次访问 supported_models 立即重新拉取，config.json 白名单
-        改动无需等 TTL 过期或重启服务。
+        改动无需等 TTL 过期或重启服务。倍率缓存一并失效，保持两者同拍刷新。
         """
         cls._cached_models = None
         cls._cached_models_ts = 0.0
+        cls._cached_multipliers = None
+        cls._cached_multipliers_ts = 0.0
+
+    @property
+    def model_credit_multipliers(self) -> dict[str, float]:
+        """模型额度消耗倍率（model id -> 倍率，如 glm-5.3-flash -> 0.08）。
+
+        数据源与选择规则见 _fetch_credit_multipliers 注释（CLI 同源：当前
+        账号 JWT sub + cloud_product_config_cache 中 userId 精确匹配的条目）。
+        与 supported_models 共用 _MODEL_CACHE_TTL，不新增轮询；无可靠数据时
+        返回空 dict，调用方按"无倍率"处理，不得默认 x1。
+
+        同步读取（有界：单文件 ≤4MB）；HTTP 处理器应在线程中调用本属性，
+        避免阻塞 event loop（见 server._model_credit_multipliers）。
+        """
+        if CbcAdapter._cached_multipliers is not None and (
+            time.monotonic() - CbcAdapter._cached_multipliers_ts
+        ) < _MODEL_CACHE_TTL:
+            return CbcAdapter._cached_multipliers
+        CbcAdapter._cached_multipliers = _fetch_credit_multipliers()
+        CbcAdapter._cached_multipliers_ts = time.monotonic()
+        return CbcAdapter._cached_multipliers
 
     def _fetch_models(self) -> list[str]:
         """按优先级拉取模型列表：config.json 白名单 > `cbc --help` 解析 > 内置默认值。"""

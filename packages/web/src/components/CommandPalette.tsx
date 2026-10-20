@@ -2,7 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useAdapterStore } from '@/stores/adapterStore';
 import { createQuickNewSession } from '@/utils/quickNewSession';
+import { formatModelLabel } from '@/utils/modelLabel';
 import { Search } from 'lucide-react';
 
 interface PaletteAction {
@@ -53,10 +55,13 @@ export function CommandPalette() {
     // Jump to session
     for (const s of sessions.slice(0, 20)) {
       if (s.id.startsWith('__pending_')) continue;
+      // 模型名仅在无 workdir/adapter 时作为 detail 展示，同样附加倍率后缀。
+      const store = useAdapterStore.getState();
+      const multipliers = store.adapterConfigs[s.adapter ?? store.currentAdapter]?.modelCreditMultipliers;
       result.push({
         id: `sess-${s.id}`,
         label: s.name || 'Untitled',
-        detail: s.workdir || s.adapter || s.model || '',
+        detail: s.workdir || s.adapter || (s.model ? formatModelLabel(s.model, multipliers) : '') || '',
         group: 'Sessions',
         action: () => {
           selectSession(s.id);

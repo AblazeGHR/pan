@@ -9,6 +9,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
+import { formatModelLabel } from '@/utils/modelLabel';
 import { getCreationWorkspaceIds } from '@/utils/creationWorkspace';
 import {
   createDirectory,
@@ -697,7 +698,7 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
           {showModel && <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-secondary">Model</span>
             <select value={model} onChange={(event) => { setModel(event.target.value); setEffort(''); }} className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none focus:border-accent">
-              <option value="">Inherit template / default</option>{config!.models.map((item) => <option key={item} value={item}>{item}</option>)}
+              <option value="">Inherit template / default</option>{config!.models.map((item) => <option key={item} value={item}>{formatModelLabel(item, config!.modelCreditMultipliers)}</option>)}
             </select>
           </label>}
           {showPermission && <label className="flex flex-col gap-1">
