@@ -5,7 +5,7 @@
 - Branch: `feature/auto-force-sources-20261020`
 - Base: `6e479f205a81f85b9c76f1779e1141ee498517db`
 - Implementation commit: `038aae03`; follow-up `ad9c32d5` (clear the recovery marker after an automatic restart)
-- Evidence commits: `b0786600`, `957b7eaf`; final HEAD: `957b7eaf`
+- Evidence commits: `b0786600`, `957b7eaf`, and the commit containing this report
 - Strategy: fast-forward policy, MA acceptance pending. No main/practical move, push, release, or service restart was performed.
 
 ## Behavior
