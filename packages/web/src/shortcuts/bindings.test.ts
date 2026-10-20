@@ -80,4 +80,13 @@ describe('binding resolution and conflicts', () => {
     expect(findBindingConflicts(actions, { b: null, 'panel:plugin:alpha/one': null }).size)
       .toBe(0);
   });
+
+  it('detects explicit Ctrl versus portable Mod collisions and captures physical layout/case', () => {
+    expect(findBindingConflicts(actions, { a: 'Ctrl+B', b: 'Mod+B' }).get('Mod+B')).toEqual(['a', 'b']);
+    expect(bindingFromEvent(keydown({ key: 'ф', code: 'KeyA', ctrlKey: true }))).toBe('Mod+A');
+    expect(bindingFromEvent(keydown({ key: 'F8', code: 'F8' }))).toBe('F8');
+    expect(bindingFromEvent(keydown({ key: 'Enter', code: 'Enter' }))).toBe('Enter');
+    expect(isReservedBinding('Enter', 'composer.send')).toBe(false);
+    expect(isReservedBinding('Enter', 'queue.lockAll')).toBe(true);
+  });
 });

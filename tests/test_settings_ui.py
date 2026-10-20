@@ -209,6 +209,9 @@ def test_put_ui_shortcuts_round_trip_stable_ids_and_explicit_clear(tmp_path, mon
         "panel:builtin:chat": "Mod+1",
         "panel:plugin:alpha/one": None,
         "queue.lockAll": "Mod+Shift+L",
+        "composer.send": "Enter",
+        "composer.newline": "Shift+Enter",
+        "composer.steer": "Mod+4",
     }
     response = asyncio.run(srv.api_put_settings_ui({"shortcuts": shortcuts}))
     assert response["shortcuts"] == shortcuts

@@ -54,6 +54,10 @@ import {
 } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
 import { registerLockedEnqueueHandler } from '@/shortcuts/composerBridge';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { getShortcutActions } from '@/shortcuts/registry';
+import { bindingFromEvent, findBindingConflicts, formatBinding, platformBinding, resolveBinding } from '@/shortcuts/bindings';
+import { hasOpenModal, isShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
 import {
   ChevronDown,
   ChevronUp,
@@ -1868,11 +1872,57 @@ export function InputRow() {
 
   const handleSteer = (text: string) => handleSend(text, 'steer');
 
+  const shortcutBindings = useAppSettingsStore((state) => state.shortcuts);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
+  const steerButtonRef = useRef<HTMLButtonElement>(null);
+  const shortcutActions = getShortcutActions();
+  const shortcutConflicts = findBindingConflicts(shortcutActions, shortcutBindings);
+  const composerBindingLabel = (id: string) => {
+    const action = shortcutActions.find((candidate) => candidate.id === id)!;
+    const binding = resolveBinding(id, action.defaultBinding, shortcutBindings);
+    return binding && shortcutConflicts.has(platformBinding(binding)) ? 'Conflict — inactive' : formatBinding(binding);
+  };
+  const composerHint = shortcutActions.filter((action) => action.composerOnly).map((action) => {
+    return `${composerBindingLabel(action.id)}: ${action.label}`;
+  }).join('; ');
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
-    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (isShortcutRecording() || hasOpenModal() || e.defaultPrevented || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+    const binding = bindingFromEvent(e.nativeEvent);
+    if (!binding) return;
+    const owners = getShortcutActions().filter((action) => {
+      const value = resolveBinding(action.id, action.defaultBinding, shortcutBindings);
+      return value && platformBinding(value) === binding;
+    });
+    // Consume ambiguous composer bindings before the browser or global dispatcher can act.
+    if (owners.length > 1 && owners.some((action) => action.composerOnly)) {
       e.preventDefault();
-      handleSend(composerValueRef.current.text);
+      e.stopPropagation();
+      return;
+    }
+    const action = owners.length === 1 ? owners[0] : undefined;
+    if (!action?.composerOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    if (action.id === 'composer.send') sendButtonRef.current?.click();
+    if (action.id === 'composer.steer') steerButtonRef.current?.click();
+    if (action.id === 'composer.newline') {
+      // Browser editing commands preserve caret/selection, focus and native undo.
+      if (e.target instanceof HTMLTextAreaElement) {
+        const target = e.target;
+        if (!document.execCommand('insertText', false, '\n')) {
+          target.setRangeText('\n', target.selectionStart, target.selectionEnd, 'end');
+          const text = target.value;
+          composerValueRef.current = { parts: [{ type: 'text', value: text }], text, occurrenceIds: [], attachmentIds: [] };
+          setComposerText(text);
+          setComposerOccurrenceIds([]);
+          composerRef.current?.replaceText(text);
+          if (currentSessionId) setInputDraft(currentSessionId, text);
+        }
+      } else {
+        document.execCommand('insertLineBreak');
+      }
     }
   };
 
@@ -2632,7 +2682,7 @@ export function InputRow() {
             <textarea
               ref={inputRef}
               id="chatInput"
-              placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+              placeholder={`Type a message... (${composerHint})`}
               value={composerText}
               tabIndex={-1}
               aria-hidden="true"
@@ -2653,6 +2703,7 @@ export function InputRow() {
               onKeyDown={handleKeyDown}
             />
             <RichTextComposer
+              placeholder={`Type a message... (${composerHint})`}
               key={currentSessionId || 'no-session'}
               ref={composerRef}
               initialText={sessionComposerText}
@@ -2687,11 +2738,12 @@ export function InputRow() {
             <div className="flex flex-col gap-1 items-end">
               {canSteer && !lockedComposerMode && (
                 <button
+                  ref={steerButtonRef}
                   disabled={attachmentsBlocked || queueEditActive || !!pendingAction}
                   aria-busy={pendingAction === 'steer'}
                   onClick={() => handleSteer(composerValueRef.current.text)}
                   className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
-                  title="Ask the CLI to accept an instruction for the current task"
+                  title={`Ask the CLI to accept an instruction for the current task (${composerBindingLabel('composer.steer')})`}
                 >
                   {pendingAction === 'steer' ? <Loader2 size={13} className="animate-spin" /> : <CornerUpRight size={13} />}
                   Steer
@@ -2699,6 +2751,7 @@ export function InputRow() {
               )}
               <div className="flex items-center gap-1">
                 <button
+                  ref={sendButtonRef}
                   type="button"
                   onClick={() => handleSend(composerValueRef.current.text)}
                   disabled={attachmentsBlocked || queueEditActive || !!pendingAction}
@@ -2707,7 +2760,7 @@ export function InputRow() {
                     ? '请先保存或取消队列消息编辑'
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
-                      : lockedComposerMode ? 'put in queue' : 'Send'}
+                      : `${lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
                   className={`rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}

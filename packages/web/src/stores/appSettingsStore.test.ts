@@ -456,28 +456,38 @@ describe('appSettingsStore shortcuts', () => {
     });
   });
 
-  it('persists, clears and restores shortcut overrides through the existing ui endpoint', () => {
-    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+Shift+B');
+  it('persists, clears and restores shortcut overrides through the existing ui endpoint', async () => {
+    await useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+Shift+B');
     expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar'])
       .toBe('Mod+Shift+B');
     expect(mockedUpdate).toHaveBeenLastCalledWith({
       shortcuts: { 'app.toggleSidebar': 'Mod+Shift+B' },
     });
 
-    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', null);
+    await useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', null);
     expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar']).toBeNull();
     expect(mockedUpdate).toHaveBeenLastCalledWith({
       shortcuts: { 'app.toggleSidebar': null },
     });
 
-    useAppSettingsStore.getState().resetShortcutBinding('app.toggleSidebar');
+    await useAppSettingsStore.getState().resetShortcutBinding('app.toggleSidebar');
     expect(useAppSettingsStore.getState().shortcuts).toEqual({});
     expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
 
-    useAppSettingsStore.getState().setShortcutBinding('queue.lockAll', 'Mod+Shift+L');
-    useAppSettingsStore.getState().resetAllShortcuts();
+    await useAppSettingsStore.getState().setShortcutBinding('queue.lockAll', 'Mod+Shift+L');
+    await useAppSettingsStore.getState().resetAllShortcuts();
     expect(useAppSettingsStore.getState().shortcuts).toEqual({});
     expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
+  });
+
+  it('keeps composer defaults compatible and reports a failed write without a false saved value', async () => {
+    expect(sanitizeShortcuts({ 'composer.send': 'Enter', 'composer.newline': 'Shift+Enter', 'composer.steer': null }))
+      .toEqual({ 'composer.send': 'Enter', 'composer.newline': 'Shift+Enter', 'composer.steer': null });
+    mockedUpdate.mockRejectedValueOnce(new Error('offline'));
+    await expect(useAppSettingsStore.getState().setShortcutBinding('composer.steer', 'Mod+4')).rejects.toThrow('offline');
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    await useAppSettingsStore.getState().setShortcutBinding('composer.steer', 'Mod+4');
+    expect(useAppSettingsStore.getState().shortcuts['composer.steer']).toBe('Mod+4');
   });
 
   it('rejects reserved combinations instead of silently hijacking the browser', () => {

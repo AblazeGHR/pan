@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
 import {
@@ -8,13 +8,15 @@ import {
   formatBinding,
   isReservedBinding,
   resolveBinding,
+  platformBinding,
 } from '@/shortcuts/bindings';
 import { useShortcutActions, type ShortcutAction, type ShortcutGroup } from '@/shortcuts/registry';
 import { setShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
 
-const GROUP_ORDER: ShortcutGroup[] = ['General', 'Panels', 'Queue', 'Session'];
+const GROUP_ORDER: ShortcutGroup[] = ['General', 'Composer', 'Panels', 'Queue', 'Session'];
 const GROUP_LABELS: Record<ShortcutGroup, string> = {
   General: 'General',
+  Composer: 'Message composer',
   Panels: 'Panels — generated from the live view/plugin registry',
   Queue: 'Queue',
   Session: 'Selected Session',
@@ -36,11 +38,6 @@ const FIXED_SHORTCUTS = [
     binding: 'Escape',
     scope: 'Dialog/menu-local; it is not a configurable app action.',
   },
-  {
-    label: 'Send / newline',
-    binding: 'Enter',
-    scope: 'Composer-local; Shift+Enter inserts a newline.',
-  },
 ] as const;
 
 function actionBinding(
@@ -60,6 +57,22 @@ export function ShortcutsSettings() {
   const pluginError = usePluginPanelStore((state) => state.error);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackActionId, setFeedbackActionId] = useState<string | null>(null);
+  const feedbackRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) feedbackRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [error]);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = useCallback((write: Promise<void>, actionId: string | null = null) => {
+    setFeedbackActionId(actionId);
+    setSaving(true);
+    setSaveStatus('Saving…');
+    void write.then(() => setSaveStatus('Saved — active immediately.')).catch((cause: unknown) => {
+      setSaveStatus('');
+      setError(`Could not save shortcut: ${cause instanceof Error ? cause.message : String(cause)}. Please retry.`);
+    }).finally(() => setSaving(false));
+  }, []);
 
   // Re-read the live catalog whenever Settings opens. New panels appear and
   // removed panels stop producing actions; a failed refresh keeps the last
@@ -84,8 +97,17 @@ export function ShortcutsSettings() {
     }
     setShortcutRecording(true);
     const handler = (event: KeyboardEvent) => {
-      // Never intercept an IME composition keydown.
-      if (event.isComposing || event.keyCode === 229) return;
+      // Composition belongs to the IME; prevent it reaching business listeners.
+      if (event.isComposing || event.keyCode === 229) {
+        event.stopImmediatePropagation();
+        return;
+      }
+      // Cancel capture and let native Tab/Shift+Tab move focus.
+      if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        setRecordingId(null);
+        setError(null);
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.repeat) return;
@@ -95,8 +117,13 @@ export function ShortcutsSettings() {
         return;
       }
       const binding = bindingFromEvent(event, platform);
-      if (!binding) return; // modifier-only; keep recording
-      if (isReservedBinding(binding)) {
+      if (!binding) {
+        if (!['Control', 'Meta', 'Alt', 'Shift', 'AltGraph'].includes(event.key)) {
+          setError('Use a modifier combination or a function key (F1–F24). Escape cancels; Tab moves focus.');
+        }
+        return;
+      }
+      if (isReservedBinding(binding, recordingId)) {
         setError(`${formatBinding(binding, platform)} is reserved by the browser or the editor/terminal.`);
         setRecordingId(null);
         return;
@@ -105,7 +132,7 @@ export function ShortcutsSettings() {
       const conflict = actions.find(
         (candidate) =>
           candidate.id !== recordingId &&
-          actionBinding(candidate, bindings) === binding,
+          platformBinding(actionBinding(candidate, bindings) ?? '') === binding,
       );
       if (conflict) {
         setError(
@@ -118,7 +145,7 @@ export function ShortcutsSettings() {
         setRecordingId(null);
         return;
       }
-      setShortcutBinding(action.id, binding);
+      save(setShortcutBinding(action.id, binding), action.id);
       setError(null);
       setRecordingId(null);
     };
@@ -127,13 +154,13 @@ export function ShortcutsSettings() {
       window.removeEventListener('keydown', handler, true);
       setShortcutRecording(false);
     };
-  }, [actions, bindings, platform, recordingId, setShortcutBinding]);
+  }, [actions, bindings, platform, recordingId, setShortcutBinding, save]);
 
   const renderRow = (action: ShortcutAction) => {
     const binding = actionBinding(action, bindings);
     const display = formatBinding(binding, platform);
     const isRecording = recordingId === action.id;
-    const conflict = binding ? conflicts.get(binding) : undefined;
+    const conflict = binding ? conflicts.get(platformBinding(binding)) : undefined;
     const hasOverride = Object.prototype.hasOwnProperty.call(bindings, action.id);
     const isDefault = binding === action.defaultBinding && !hasOverride;
     return (
@@ -178,8 +205,12 @@ export function ShortcutsSettings() {
               data-shortcut-record={action.id}
               aria-label={`Record shortcut for ${action.label}`}
               aria-pressed={isRecording}
+              aria-describedby={feedbackActionId === action.id ? `shortcut-feedback-${action.id}` : undefined}
+              disabled={saving}
               onClick={() => {
                 setError(null);
+                setSaveStatus('');
+                setFeedbackActionId(action.id);
                 setRecordingId(isRecording ? null : action.id);
               }}
               className="rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
@@ -190,11 +221,11 @@ export function ShortcutsSettings() {
               type="button"
               data-shortcut-clear={action.id}
               aria-label={`Clear shortcut for ${action.label}`}
-              disabled={binding === null}
+              disabled={saving || binding === null}
               onClick={() => {
                 setError(null);
                 setRecordingId(null);
-                setShortcutBinding(action.id, null);
+                save(setShortcutBinding(action.id, null), action.id);
               }}
               className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -204,11 +235,11 @@ export function ShortcutsSettings() {
               type="button"
               data-shortcut-reset={action.id}
               aria-label={`Restore default shortcut for ${action.label}`}
-              disabled={isDefault}
+              disabled={saving || isDefault}
               onClick={() => {
                 setError(null);
                 setRecordingId(null);
-                resetShortcutBinding(action.id);
+                save(resetShortcutBinding(action.id), action.id);
               }}
               className="rounded border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -216,6 +247,17 @@ export function ShortcutsSettings() {
             </button>
           </div>
         </div>
+        {feedbackActionId === action.id && (
+          <p
+            ref={feedbackRef}
+            id={`shortcut-feedback-${action.id}`}
+            role={error ? 'alert' : 'status'}
+            data-testid={error ? 'shortcut-recorder-error' : 'shortcut-save-status'}
+            className={`mt-1.5 text-xs ${error ? 'text-danger' : 'text-text-secondary'}`}
+          >
+            {error ?? (isRecording ? 'Press a combination or function key. Escape cancels; Tab moves focus.' : saveStatus)}
+          </p>
+        )}
         {conflict ? (
           <p className="mt-1.5 text-[11px] text-danger">
             Also assigned to{' '}
@@ -239,26 +281,29 @@ export function ShortcutsSettings() {
               Keyboard shortcuts
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-text-tertiary">
-              Stored in config.json → ui.shortcuts. Display follows this platform:{' '}
+              Choose Record, then press a modifier combination, function key, or composer Enter.
+              Escape cancels; Tab cancels and moves focus. Saved in settings. Display follows this platform:{' '}
               <strong>{platform === 'mac' ? 'Cmd (Meta)' : 'Ctrl'}</strong>. Shortcuts are
-              ignored while typing in inputs, textareas, contenteditable, Monaco or the terminal,
-              during IME composition, on key repeat, and while a dialog is open.
+              Composer actions run only in the message input. Other app actions ignore editable
+              fields except explicitly scoped queue/Session actions. IME, repeat and dialogs suppress actions.
             </p>
           </div>
           <button
             type="button"
             data-testid="shortcuts-restore-all"
+            disabled={saving}
             onClick={() => {
               setError(null);
               setRecordingId(null);
-              resetAllShortcuts();
+              save(resetAllShortcuts());
             }}
             className="shrink-0 rounded border border-border-default bg-bg-tertiary px-2.5 py-1.5 text-[11px] text-text-secondary hover:bg-bg-hover hover:text-text-primary"
           >
             Restore all defaults
           </button>
         </div>
-        {error ? (
+        {!feedbackActionId && <p role="status" className="mt-2 text-xs text-text-secondary">{saveStatus}</p>}
+        {error && !feedbackActionId ? (
           <p
             role="alert"
             data-testid="shortcut-recorder-error"

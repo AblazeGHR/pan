@@ -10,7 +10,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { runSessionToggleShortcut } from '@/utils/sessionQuickActions';
 import { requestLockedComposerEnqueue } from './composerBridge';
 
-export type ShortcutGroup = 'General' | 'Panels' | 'Queue' | 'Session';
+export type ShortcutGroup = 'General' | 'Panels' | 'Queue' | 'Session' | 'Composer';
 
 export interface ShortcutContext {
   navigate: (to: string) => void;
@@ -30,6 +30,7 @@ export interface ShortcutAction {
    * the terminal still ignore every action.
    */
   allowInComposer?: boolean;
+  composerOnly?: boolean;
   run: (context: ShortcutContext) => void;
 }
 
@@ -79,6 +80,12 @@ const GENERAL_ACTIONS: ShortcutAction[] = [
     },
   },
 ];
+
+const COMPOSER_ACTIONS: ShortcutAction[] = [
+  { id: 'composer.send', label: 'Send message', description: 'Send using the current composer mode (including locked queue mode).', defaultBinding: 'Enter' },
+  { id: 'composer.steer', label: 'Steer current task', description: 'Use the existing Steer button when available. Starts unbound; all Steer gates still apply.', defaultBinding: null },
+  { id: 'composer.newline', label: 'Insert newline', description: 'Replace the current selection with a newline and keep focus in the composer.', defaultBinding: 'Shift+Enter' },
+].map((action) => ({ ...action, group: 'Composer', composerOnly: true, run: () => {} }));
 
 const QUEUE_ACTIONS: ShortcutAction[] = [
   {
@@ -198,6 +205,7 @@ export function buildPanelShortcutActions(entries: readonly ViewEntry[]): Shortc
 export function buildShortcutActions(entries: readonly ViewEntry[]): ShortcutAction[] {
   return [
     ...GENERAL_ACTIONS,
+    ...COMPOSER_ACTIONS,
     ...buildPanelShortcutActions(entries),
     ...QUEUE_ACTIONS,
     ...SESSION_ACTIONS,
@@ -218,6 +226,7 @@ export function useShortcutActions(): ShortcutAction[] {
 /** Static metadata for tests/documentation; panel actions are appended by callers. */
 export const STATIC_SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   ...GENERAL_ACTIONS,
+  ...COMPOSER_ACTIONS,
   ...QUEUE_ACTIONS,
   ...SESSION_ACTIONS,
 ];

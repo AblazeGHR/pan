@@ -4,6 +4,7 @@ import {
   bindingFromEvent,
   detectShortcutPlatform,
   resolveBinding,
+  platformBinding,
   type ShortcutPlatform,
 } from './bindings';
 import { getShortcutActions } from './registry';
@@ -52,10 +53,10 @@ export function shouldIgnoreShortcutEvent(
   if (recordingShortcut) return true;
   if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return true;
   if (event.repeat) return true;
+  if (hasOpenModal()) return true;
   if (isEditableShortcutTarget(event.target)) {
     return !(allowInComposer && isComposerShortcutTarget(event.target));
   }
-  if (hasOpenModal()) return true;
   return false;
 }
 
@@ -77,12 +78,13 @@ export function useGlobalShortcuts(navigate: (to: string) => void): void {
       const bindings = useAppSettingsStore.getState().shortcuts;
       const owners = actions.filter(
         (action) =>
-          resolveBinding(action.id, action.defaultBinding, bindings) === binding,
+          platformBinding(resolveBinding(action.id, action.defaultBinding, bindings) ?? '', platform) === binding,
       );
       // A persisted conflict is left visible in Settings and is not executed
       // ambiguously. Normal recording refuses to create this state.
       if (owners.length !== 1) return;
       const action = owners[0]!;
+      if (action.composerOnly) return;
       if (shouldIgnoreShortcutEvent(event, platform, action.allowInComposer === true)) return;
       event.preventDefault();
       event.stopPropagation();

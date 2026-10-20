@@ -51,6 +51,7 @@ export interface RichTextComposerHandle {
 }
 
 interface RichTextComposerProps {
+  placeholder?: string;
   initialValue?: ComposerValue;
   initialText?: string;
   sessionId?: string;
@@ -823,6 +824,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
       onOpenAttachment,
       onKeyDown,
       editorTestId = 'rich-text-composer',
+      placeholder = 'Type a message...',
       disabled = false,
     },
     ref,
@@ -1542,7 +1544,7 @@ export const RichTextComposer = forwardRef<RichTextComposerHandle, RichTextCompo
           aria-label="消息输入框"
           data-testid={editorTestId}
           data-disabled={disabled || undefined}
-          data-placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+          data-placeholder={placeholder}
           className={`composer-editor h-full min-h-0 w-full overflow-y-auto whitespace-pre-wrap break-words rounded border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary outline-none focus:border-accent ${disabled ? 'opacity-60' : ''}`}
           onInput={handleInput}
           onPaste={handlePaste}

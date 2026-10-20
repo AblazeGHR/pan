@@ -11,7 +11,9 @@ Refuses 8767 and 8768. The runtime lives under test-results/ and never uses the
 practical Pan data directories.
 #>
 param(
-    [string]$Python = 'D:\project\Pan-main\.venv\Scripts\python.exe'
+    [string]$Python = 'D:\project\Pan-main\.venv\Scripts\python.exe',
+    [ValidateSet('shortcuts.e2e.mjs', 'shortcut-capture.e2e.mjs')]
+    [string]$Scenario = 'shortcuts.e2e.mjs'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,7 +34,12 @@ function Invoke-Pnpm {
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $webRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$runtime = Join-Path $webRoot 'test-results\pan-e2e-shortcuts'
+$runtimeName = if ($Scenario -eq 'shortcut-capture.e2e.mjs') { 'pan-e2e-shortcut-capture' } else { 'pan-e2e-shortcuts' }
+$runtime = [IO.Path]::GetFullPath((Join-Path $webRoot "test-results\$runtimeName"))
+$expectedRuntime = [IO.Path]::GetFullPath((Join-Path $repoRoot "packages\web\test-results\$runtimeName"))
+if ($runtime -ne $expectedRuntime -or -not $runtime.StartsWith($webRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "refusing unexpected E2E runtime path: $runtime"
+}
 $log = Join-Path $runtime 'server.stdout.log'
 $err = Join-Path $runtime 'server.stderr.log'
 $identityPath = Join-Path $runtime 'server-identity.json'
@@ -112,7 +119,7 @@ try {
     @{ pid = $ownedServerPid; launcherPid = $launcherPid; port = $port; checkout = $repoRoot; startedAt = $startedAt; log = $log; errorLog = $err; fakeCli = $fakeCli } |
       ConvertTo-Json | Set-Content -LiteralPath $lifecyclePath -Encoding UTF8
 
-    $testExitCode = Invoke-Pnpm -PnpmArgs @('--dir', $webRoot, 'exec', 'node', 'e2e/shortcuts.e2e.mjs')
+    $testExitCode = Invoke-Pnpm -PnpmArgs @('--dir', $webRoot, 'exec', 'node', "e2e/$Scenario")
     if ($testExitCode -ne 0) { throw "shortcuts E2E failed with exit code $testExitCode" }
 }
 finally {

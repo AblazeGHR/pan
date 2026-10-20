@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
@@ -65,7 +65,7 @@ describe('ShortcutsSettings', () => {
     expect(screen.getByTestId('shortcuts-restore-all')).toBeTruthy();
   });
 
-  it('records, edits, clears and restores one action', () => {
+  it('records, edits, clears and restores one action', async () => {
     render(<ShortcutsSettings />);
     const target = row('app.toggleSidebar');
     fireEvent.click(within(target).getByLabelText('Record shortcut for Toggle sidebar'));
@@ -78,6 +78,7 @@ describe('ShortcutsSettings', () => {
     });
     expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar'])
       .toBe('Mod+Shift+B');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
     expect(mockedUpdate).toHaveBeenLastCalledWith({
       shortcuts: { 'app.toggleSidebar': 'Mod+Shift+B' },
     });
@@ -85,10 +86,47 @@ describe('ShortcutsSettings', () => {
 
     fireEvent.click(within(row('app.toggleSidebar')).getByLabelText('Clear shortcut for Toggle sidebar'));
     expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar']).toBeNull();
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
 
     fireEvent.click(within(row('app.toggleSidebar')).getByLabelText('Restore default shortcut for Toggle sidebar'));
     expect(useAppSettingsStore.getState().shortcuts).toEqual({});
     expect(within(row('app.toggleSidebar')).getByText('Ctrl+B')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+  });
+
+  it('records Ctrl+4 and function keys, cancels with Tab/Escape and reports unsupported typing', async () => {
+    render(<ShortcutsSettings />);
+    const record = () => fireEvent.click(within(row('composer.steer')).getByRole('button', { name: /Record shortcut/ }));
+    record();
+    fireEvent.keyDown(window, { key: '4', code: 'Digit4', ctrlKey: true });
+    expect(useAppSettingsStore.getState().shortcuts['composer.steer']).toBe('Mod+4');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+    record();
+    fireEvent.keyDown(window, { key: 'F8', code: 'F8' });
+    expect(useAppSettingsStore.getState().shortcuts['composer.steer']).toBe('F8');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+    record();
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
+    expect(screen.getByRole('alert').textContent).toContain('modifier');
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    act(() => window.dispatchEvent(tab));
+    expect(tab.defaultPrevented).toBe(false);
+    expect(within(row('composer.steer')).queryByText('Press keys…')).toBeNull();
+    record();
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(within(row('composer.steer')).queryByText('Press keys…')).toBeNull();
+  });
+
+  it('rejects composer/global collisions and makes persistence failure visible', async () => {
+    render(<ShortcutsSettings />);
+    fireEvent.click(within(row('composer.steer')).getByRole('button', { name: /Record shortcut/ }));
+    fireEvent.keyDown(window, { key: 'Enter', code: 'Enter', shiftKey: true });
+    expect(screen.getByRole('alert').textContent).toContain('Insert newline');
+    mockedUpdate.mockRejectedValueOnce(new Error('offline'));
+    fireEvent.click(within(row('composer.steer')).getByRole('button', { name: /Record shortcut/ }));
+    fireEvent.keyDown(window, { key: '4', code: 'Digit4', ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not save'));
+    expect(useAppSettingsStore.getState().shortcuts['composer.steer']).toBeUndefined();
   });
 
   it('does not run a business action while recording, including its own default', () => {

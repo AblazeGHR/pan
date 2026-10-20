@@ -215,7 +215,7 @@ export function sanitizeShortcuts(raw: unknown): Record<string, string | null> {
       continue;
     }
     const normalized = normalizeBinding(value);
-    if (normalized && !isReservedBinding(normalized)) result[actionId] = normalized;
+    if (normalized && !isReservedBinding(normalized, actionId)) result[actionId] = normalized;
   }
   return result;
 }
@@ -327,11 +327,11 @@ interface AppSettingsStore extends AppSettings {
   setShowMessageNavigationRail: (v: boolean) => void;
   setShowHistorySearch: (v: boolean) => void;
   /** Persist one action binding; `null` explicitly unbinds it. */
-  setShortcutBinding: (actionId: string, binding: string | null) => void;
+  setShortcutBinding: (actionId: string, binding: string | null) => Promise<void>;
   /** Remove the override so the action returns to its built-in default. */
-  resetShortcutBinding: (actionId: string) => void;
+  resetShortcutBinding: (actionId: string) => Promise<void>;
   /** Restore every action to its built-in default (new actions stay unbound). */
-  resetAllShortcuts: () => void;
+  resetAllShortcuts: () => Promise<void>;
   setCodexWarningToast: (v: boolean) => void;
   saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
   /**
@@ -365,6 +365,19 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
   // Re-armed at the start of every load, so a later load still applies.
   let dirty = false;
   let loadingPromise: Promise<void> | null = null;
+  let shortcutWrites: Promise<void> = Promise.resolve();
+  const saveShortcuts = (shortcuts: Record<string, string | null>) => {
+    const previous = get().shortcuts;
+    dirty = true;
+    set({ shortcuts });
+    // Serialize whole-map writes so a slow earlier response cannot overwrite a newer edit.
+    const write = shortcutWrites.catch(() => undefined).then(() => updateUiSettings({ shortcuts }));
+    shortcutWrites = write.then(() => undefined);
+    return shortcutWrites.catch((error: unknown) => {
+      if (get().shortcuts === shortcuts) set({ shortcuts: previous });
+      throw error;
+    });
+  };
 
   const persist = (patch: AppSettingsPatch) => {
     dirty = true;
@@ -490,24 +503,21 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       persist({ showHistorySearch: v });
     },
 
-    setShortcutBinding: (actionId, binding) => {
+    setShortcutBinding: async (actionId, binding) => {
       const normalized = binding === null ? null : normalizeBinding(binding);
-      if (binding !== null && (!normalized || isReservedBinding(normalized))) return;
+      if (binding !== null && (!normalized || isReservedBinding(normalized, actionId))) return;
       const shortcuts = { ...get().shortcuts, [actionId]: normalized };
-      set({ shortcuts });
-      persist({ shortcuts });
+      await saveShortcuts(shortcuts);
     },
 
     resetShortcutBinding: (actionId) => {
       const shortcuts = { ...get().shortcuts };
       delete shortcuts[actionId];
-      set({ shortcuts });
-      persist({ shortcuts });
+      return saveShortcuts(shortcuts);
     },
 
     resetAllShortcuts: () => {
-      set({ shortcuts: {} });
-      persist({ shortcuts: {} });
+      return saveShortcuts({});
     },
 
     saveCompletionBridge: async (value) => {

@@ -27,6 +27,8 @@ import { resetDraftStateForTests } from '@/stores/composerDraftStore';
 import type { AdapterConfig } from '@/types';
 import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 import { requestLockedComposerEnqueue } from '@/shortcuts/composerBridge';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { setShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
 
 // Attachment navigation now requires the same Router context as the Chat route.
 const render = (element: Parameters<typeof renderComponent>[0]) =>
@@ -147,6 +149,8 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  useAppSettingsStore.setState({ shortcuts: {} });
+  setShortcutRecording(false);
   localStorage.clear();
   // The draft store is module-scoped and now also feeds remount restoration,
   // so a previous case's recorded draft must not leak into this one.
@@ -197,6 +201,70 @@ beforeEach(() => {
   vi.mocked(steerSessionWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
   Object.defineProperty(wsClient, 'isOpen', { value: true, configurable: true });
+});
+
+describe('composer keyboard actions', () => {
+  function setup(shortcuts: Record<string, string | null> = {}) {
+    setBusySession();
+    useSessionStore.getState().updateSession('s1', { adapter: 'codex' });
+    useWorkerStore.setState({ workers: { s1: { id: 'w-live', sessionId: 's1', status: 'running' } } });
+    useAppSettingsStore.setState({ shortcuts });
+    render(<InputRow />);
+    const input = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(input, { target: { value: 'keyboard draft' } });
+    return input;
+  }
+
+  it('routes configured Steer through the existing button transaction exactly once', async () => {
+    const input = setup({ 'composer.steer': 'Mod+4' });
+    fireEvent.keyDown(input, { key: '4', code: 'Digit4', ctrlKey: true });
+    await waitFor(() => expect(steerSessionWorker).toHaveBeenCalledWith('s1', 'keyboard draft', expect.stringMatching(/^steer:/)));
+    expect(steerSessionWorker).toHaveBeenCalledTimes(1);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { isComposing: true }, { keyCode: 229 }, { repeat: true },
+  ])('does not send during IME or repeat: %j', async (flags) => {
+    const input = setup({ 'composer.steer': 'Mod+Enter' });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', ctrlKey: true, ...flags });
+    await Promise.resolve();
+    expect(steerSessionWorker).not.toHaveBeenCalled();
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+  });
+
+  it('disables ambiguous composer/global bindings, including Ctrl/Mod aliases', () => {
+    const input = setup({ 'composer.send': 'Mod+Enter', 'queue.enqueueLocked': 'Ctrl+Enter' });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', ctrlKey: true });
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+    expect(steerSessionWorker).not.toHaveBeenCalled();
+  });
+
+  it('uses the normal locked send mode and does not let hidden Steer bypass it', async () => {
+    const input = setup({ 'composer.steer': 'Mod+4' });
+    useQueueStore.getState().setLockedComposerMode('s1', true);
+    // Store changes must settle before checking the mounted button visibility.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Steer' })).toBeNull());
+    fireEvent.keyDown(input, { key: '4', code: 'Digit4', ctrlKey: true });
+    expect(steerSessionWorker).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => expect(enqueueSessionMessage).toHaveBeenCalledWith('s1', 'keyboard draft', expect.any(String), expect.any(Array), true));
+  });
+
+  it('does not repeat an unknown Steer admission and suppresses keys during recording', async () => {
+    const input = setup({ 'composer.steer': 'Mod+4' });
+    setShortcutRecording(true);
+    fireEvent.keyDown(input, { key: '4', code: 'Digit4', ctrlKey: true });
+    expect(steerSessionWorker).not.toHaveBeenCalled();
+    setShortcutRecording(false);
+    vi.mocked(steerSessionWorker).mockRejectedValueOnce(new Error('network disconnected'));
+    fireEvent.keyDown(input, { key: '4', code: 'Digit4', ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Steer' }).getAttribute('aria-busy')).toBe('true'));
+    fireEvent.change(input, { target: { value: 'newer draft' } });
+    fireEvent.keyDown(input, { key: '4', code: 'Digit4', ctrlKey: true });
+    expect(steerSessionWorker).toHaveBeenCalledTimes(1);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {

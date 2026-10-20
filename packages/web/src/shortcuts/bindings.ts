@@ -49,6 +49,7 @@ const CODE_KEYS: Record<string, string> = {
   ArrowUp: 'ArrowUp',
   Backspace: 'Backspace',
   Backslash: '\\',
+  Backquote: '`',
   BracketLeft: '[',
   BracketRight: ']',
   Comma: ',',
@@ -123,6 +124,7 @@ export const RESERVED_BINDINGS: ReadonlySet<string> = new Set([
   // Navigation keys are not useful as standalone global shortcuts.
   'Escape',
   'Tab',
+  'Shift+Tab',
   'Enter',
   'Backspace',
   'Delete',
@@ -224,7 +226,7 @@ export function bindingFromEvent(
   }
   if (event.altKey) tokens.push('Alt');
   if (event.shiftKey) tokens.push('Shift');
-  if (tokens.length === 0) return null;
+  if (tokens.length === 0 && !/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(key) && key !== 'Enter') return null;
   return canonicalize([...tokens, key]);
 }
 
@@ -254,8 +256,16 @@ export function formatBinding(
   return [...labels, keyLabel(key)].filter(Boolean).join('+');
 }
 
-export function isReservedBinding(binding: string | null): boolean {
-  return !!binding && RESERVED_BINDINGS.has(binding);
+export function isReservedBinding(binding: string | null, actionId?: string): boolean {
+  if (binding === 'Enter' && actionId?.startsWith('composer.')) return false;
+  return !!binding && RESERVED_BINDINGS.has(platformBinding(binding));
+}
+
+/** Explicit Ctrl/Meta and portable Mod must have the same owner on this platform. */
+export function platformBinding(binding: string, platform = detectShortcutPlatform()): string {
+  return normalizeBinding(binding.split('+').map((token) =>
+    token === (platform === 'mac' ? 'Meta' : 'Ctrl') ? 'Mod' : token,
+  ).join('+')) ?? binding;
 }
 
 /** Resolve the effective binding for one action. `null` means explicitly unbound. */
@@ -276,8 +286,9 @@ export function findBindingConflicts(
 ): Map<string, string[]> {
   const owners = new Map<string, string[]>();
   for (const action of actions) {
-    const binding = resolveBinding(action.id, action.defaultBinding, bindings);
-    if (!binding) continue;
+    const raw = resolveBinding(action.id, action.defaultBinding, bindings);
+    if (!raw) continue;
+    const binding = platformBinding(raw);
     const existing = owners.get(binding);
     if (existing) existing.push(action.id);
     else owners.set(binding, [action.id]);
