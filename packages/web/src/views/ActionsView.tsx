@@ -84,14 +84,14 @@ export default function ActionsView() {
             <label>Effect<select className={fieldClass} value={action.effect} onChange={(e) => setAction({ ...action, effect: e.target.value as Action['effect'] })}>
               <option value="read">Read</option><option value="write_local">Write local</option><option value="write_external">Write external</option><option value="high_risk">High risk (build blocked)</option></select></label>
             <h3>Input fields</h3>
-            {Object.entries(action.input_schema.properties).map(([name, schema]) => <div key={name} className="flex flex-wrap items-center gap-2">
+            {Object.entries(action.input_schema.properties ?? {}).map(([name, schema]) => <div key={name} className="flex flex-wrap items-center gap-2">
               <span>{name}</span><select aria-label={`${name} type`} value={schema.type} onChange={(e) => updateSchema({ ...action.input_schema.properties, [name]: { ...schema, type: e.target.value } })}>
                 {['string', 'integer', 'number', 'boolean'].map((type) => <option key={type}>{type}</option>)}</select>
               <label><input type="checkbox" checked={action.input_schema.required?.includes(name) ?? false} onChange={(e) => updateSchema(action.input_schema.properties,
                 e.target.checked ? [...(action.input_schema.required ?? []), name] : action.input_schema.required?.filter((n) => n !== name))} /> Required</label>
               <button type="button" aria-label={`Remove ${name}`} onClick={() => updateSchema(Object.fromEntries(Object.entries(action.input_schema.properties).filter(([key]) => key !== name)), action.input_schema.required?.filter((n) => n !== name))}>Remove</button>
             </div>)}
-            <AddField onAdd={(name) => { if (name in action.input_schema.properties) { setError('Input field already exists'); return; }
+            <AddField onAdd={(name) => { if (name in (action.input_schema.properties ?? {})) { setError('Input field already exists'); return; }
               updateSchema({ ...action.input_schema.properties, [name]: { type: 'string' } }, [...(action.input_schema.required ?? []), name]); }} />
             <label>Execution<select className={fieldClass} value={action.execution.kind} onChange={(e) => setAction({ ...action, execution: e.target.value === 'api'
               ? { kind: 'api', method: 'GET', path: '/api/sessions' } : { kind: 'command', executable: '', args: [], cwd: '', timeout_sec: 30 } })}><option value="api">Internal API</option><option value="command">Command</option></select></label>

@@ -85,9 +85,19 @@ class Runtime:
         if session is None:
             raise ValueError("Session not found")
         catalog = Catalog(self.get_manifest())
-        from .lifecycle import apply_pins
+        from .lifecycle import apply_pins, pinned
         apply_pins(catalog, sid)
-        return session, catalog, session_bindings(session, catalog)
+        bindings = session_bindings(session, catalog)
+        unpinned = [b for b in bindings if b['enabled'] and b['plugin_id'].startswith('action-group-')
+                    and b['plugin_id'] not in pinned(sid)[0]]
+        if unpinned:
+            from packages.core.worker import find_alive_worker_by_session
+            if find_alive_worker_by_session(sid):
+                # Adding a Group to an existing gateway does not change its
+                # descriptor. Still require a real Worker start to admit it.
+                for binding in unpinned:
+                    binding['enabled'] = False
+        return session, catalog, bindings
 
     async def snapshot(self, sid, pid):
         async with self.locks.setdefault((sid, pid), asyncio.Lock()):

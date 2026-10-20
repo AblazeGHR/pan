@@ -9176,6 +9176,13 @@ async def _update_session_settings(session_id: str, data: dict):
     require_restart = (old_mcp_servers != new_mcp_servers
                        or old_output_mode != new_output_mode)
     if previous_config is not None:
+        def enabled_action_groups(config):
+            return {b['plugin_id'] for b in config.get('plugin_bindings', [])
+                    if b.get('enabled') and b.get('plugin_id', '').startswith('action-group-')}
+        # Group releases load only at Worker startup, including when an
+        # already-present gateway keeps exactly the same physical descriptor.
+        require_restart |= enabled_action_groups(previous_config) != enabled_action_groups(s.adapter_config)
+    if previous_config is not None:
         staged_config = s.adapter_config
         s.adapter_config = previous_config
         outcome = sess.DurableOutcome()

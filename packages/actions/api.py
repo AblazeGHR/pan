@@ -109,10 +109,20 @@ def install(server):
                             session.adapter_config = staged
                             server.sess.save(session)
                     store.unbuild(group_id, data.get('expectedRevision'))
-                except BaseException:
+                except BaseException as failure:
+                    # Restore all live configurations before attempting any IO:
+                    # one failed rollback write must not strand later Sessions.
                     for session, previous in originals:
                         session.adapter_config = previous
-                        server.sess.save(session)
+                    rollback_errors = []
+                    for session, _ in originals:
+                        try:
+                            server.sess.save(session)
+                        except Exception as exc:
+                            rollback_errors.append(f'{session.id}: {exc}')
+                    if rollback_errors:
+                        raise HTTPException(500, 'Unbuild failed; registration retained, but Session rollback persistence failed: '
+                                            + '; '.join(rollback_errors)) from failure
                     raise
                 # Released versions have no effective references after unregister.
                 directory = store.root / 'builds' / group_id

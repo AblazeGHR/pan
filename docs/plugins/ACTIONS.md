@@ -28,7 +28,10 @@ Schema references are rejected. Draft edits do not modify built releases.
   exists here. Build is the user's approval of the other exact definitions; Group
   membership does not grant extra rights. JSON output must parse; text output preserves
   stdout. Nonzero exit, timeout, malformed output and unconfirmed execution are errors;
-  callers must not automatically retry side effects. Captured command output is bounded.
+  callers must not automatically retry side effects. Each command stream and decoded
+  API response is limited to 512 KiB; the complete JSON-encoded tool result is limited
+  to 1 MiB so escaping and duplicated structured content cannot overflow the generic
+  provider reader. API reads also have a 30-second overall deadline.
   On Windows a host-owned helper enters the existing kill-on-close Job Object before
   launching any command, so timeout/exit also retires descendants. Other platforms
   use an owned process group for timeout cleanup. No new service or Worker lifecycle
@@ -56,6 +59,9 @@ not become enabled merely by selecting native mode. Worker startup pins Group pl
 and provider definitions; source edits and rebuilds cannot change that loaded version.
 Rebuild requests the normal idle/deferred Worker restart for enabled live bindings,
 including gateway Groups. Other gateway plugins retain their existing dynamic policy.
+Enabling a new Group on a live Worker also requests that restart, even if an existing
+gateway leaves the physical descriptor unchanged. The runtime withholds that Group
+until Worker startup captures its release.
 Old release files remain available until unbuild. Version pinning freezes definitions,
 not executable bytes, external files or API data.
 
@@ -65,6 +71,9 @@ block. The operation removes logical bindings and generated connection descripto
 unregisters the Group atomically, removes its release files and requests the standard
 idle restart. Registry tombstones also invalidate stale saved descriptors at compile
 time. Session persistence failure before unregister restores previous configurations.
+Every affected Session is restored in memory before rollback writes begin; all restore
+writes are attempted. A failed rollback write is explicitly reported with its Session
+ID and requires storage recovery; the API does not claim durable rollback succeeded.
 The generic registration gate serializes build/unbuild, plugin settings commits and
 Worker startup; unbuild's check/commit contains no asynchronous scheduling gap.
 

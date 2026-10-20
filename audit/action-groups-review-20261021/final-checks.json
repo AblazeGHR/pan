@@ -1,0 +1,12 @@
+{
+  "remainingOwnedPluginProcesses": [],
+  "listeners": {
+    "8768": 6032
+  },
+  "finalHarnessPidExists": false,
+  "lintExit": 0,
+  "buildExit": 0,
+  "compressedAssetsVerified": 74,
+  "compileallExit": 0,
+  "diffCheckExit": 0
+}

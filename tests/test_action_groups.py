@@ -423,3 +423,126 @@ def test_command_timeout_retires_owned_descendants(tmp_path):
                     process.wait(timeout=3)
             except psutil.NoSuchProcess:
                 pass
+
+
+def test_boolean_property_schema_is_valid_for_api_arguments(monkeypatch):
+    action = api_action()
+    action['input_schema']['properties'] = {'filter': True}
+    monkeypatch.setenv('PAN_API_URL', 'http://127.0.0.1:1')
+    # A valid boolean subschema must reach the HTTP boundary, not fail default expansion.
+    with pytest.raises(httpx.ConnectError):
+        asyncio.run(execute(action, {}))
+
+
+def test_unbuild_rollback_attempts_every_session_even_when_a_restore_write_fails(setup, tmp_path, monkeypatch):
+    async def run():
+        store, manifest = setup
+        store.put('actions', command_action(tmp_path))
+        release = group(store)
+        owners = [sess.create(name=f'Idle {i}', adapter='codex') for i in range(3)]
+        for owner in owners:
+            srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+            sess.save(owner)
+        before = [copy.deepcopy(owner.adapter_config) for owner in owners]
+        monkeypatch.setattr(srv.sess, 'list_all', lambda **kwargs: owners)
+        original_save = sess.save
+        calls = []
+        def save(owner):
+            calls.append(owner.id)
+            if len(calls) in (3, 4):
+                raise OSError('simulated save and rollback failure')
+            return original_save(owner)
+        monkeypatch.setattr(sess, 'save', save)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app, raise_app_exceptions=False), base_url='http://isolated') as client:
+            response = await client.post('/api/actions/groups/tools/unbuild', json={})
+        assert response.status_code == 500
+        assert 'rollback persistence failed' in response.text
+        assert calls == [owner.id for owner in owners] * 2
+        assert [owner.adapter_config for owner in owners] == before
+        assert release['plugin_id'] in Catalog(manifest).plugins
+        # The failed first restore is explicitly reported; later restores really landed.
+        for owner, config in zip(owners[1:], before[1:]):
+            saved = json.loads((sess.SESSION_DIR / f'{owner.id}.json').read_text())
+            assert saved['adapter_config'] == config
+    asyncio.run(run())
+
+
+def test_api_response_has_streaming_output_bound(monkeypatch):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import threading
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps({'value': 'x' * 600000}).encode())
+        def log_message(self, *args):
+            pass
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv('PAN_API_URL', f'http://127.0.0.1:{server.server_port}')
+    try:
+        with pytest.raises(ValueError, match='output exceeds'):
+            asyncio.run(execute(api_action(), {}))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(2)
+
+
+def test_escaped_output_error_does_not_poison_real_provider(setup, tmp_path):
+    async def run():
+        store, manifest = setup
+        action = command_action(tmp_path)
+        action['output_format'] = 'text'
+        Path(action['execution']['args'][0]).write_text(
+            'import sys\nsys.stdout.write(chr(0)*400000 if sys.argv[1] == "large" else "ok")', encoding='utf-8')
+        store.put('actions', action)
+        release = group(store)
+        owner = sess.create(name='Escaped output', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        runtime = Runtime(lambda: manifest, sess.get)
+        try:
+            failed = await runtime.invoke(owner.id, 'gateway', release['plugin_id'] + '.echo', {'value': 'large'})
+            assert failed['isError'] and 'output exceeds' in failed['content'][0]['text']
+            succeeded = await runtime.invoke(owner.id, 'gateway', release['plugin_id'] + '.echo', {'value': 'small'})
+            assert succeeded['content'][0]['text'] == 'ok'
+        finally:
+            await runtime.close()
+    asyncio.run(run())
+
+
+def test_new_gateway_group_waits_for_worker_pin_even_when_descriptor_is_unchanged(setup, monkeypatch):
+    async def run():
+        store, manifest = setup
+        store.put('actions', api_action())
+        first = group(store, 'first', ['list_sessions'])
+        second = group(store, 'second', ['list_sessions'])
+        owner = sess.create(name='Existing gateway Worker', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(first['plugin_id'])])
+        sess.save(owner)
+        physical = copy.deepcopy(owner.adapter_config['mcp_servers'])
+        pin(owner, Catalog(manifest))
+        monkeypatch.setattr(srv.worker, 'find_alive_worker_by_session', lambda sid: SimpleNamespace(status='running') if sid == owner.id else None)
+        monkeypatch.setattr(srv, '_session_summary', lambda session: {'id': session.id})
+        monkeypatch.setattr(srv, '_session_to_api', lambda session: {'id': session.id})
+        srv.worker.request_delayed_restart.return_value = {'state': 'pending'}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            response = await client.patch('/api/sessions/' + owner.id,
+                json={'pluginBindings': [binding(first['plugin_id']), binding(second['plugin_id'])]})
+        assert response.status_code == 200
+        assert owner.adapter_config['mcp_servers'] == physical
+        runtime = Runtime(lambda: manifest, sess.get)
+        try:
+            exposed = await runtime.directory(owner.id, 'gateway')
+            assert {d['plugin'] for d in exposed} == {first['plugin_id']}
+            assert response.json()['requireRestart'] is True
+            assert srv.worker.request_delayed_restart.called
+            next_release = store.build('second')
+            assert await runtime.directory(owner.id, 'gateway', second['plugin_id']) == []
+            pin(owner, Catalog(manifest))
+            loaded = await runtime.directory(owner.id, 'gateway', second['plugin_id'])
+            assert loaded[0]['contract_version'] == next_release['version']
+        finally:
+            await runtime.close()
+    asyncio.run(run())

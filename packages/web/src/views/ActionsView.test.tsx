@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ActionsView from './ActionsView';
 import { actionRequest } from '@/services/api';
-import type { ActionRegistry } from '@/types/actions';
+import type { ActionRegistry, InputSchema } from '@/types/actions';
 
 vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 const invoke = vi.mocked(actionRequest);
@@ -30,6 +30,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('core Actions Panel', () => {
+  it('edits API drafts whose valid object schema omits properties', async () => {
+    delete (registry.actions[0]!.input_schema as Partial<InputSchema>).properties;
+    render(<ActionsView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'List sessions · Enabled' }));
+    expect(screen.getByLabelText('Description')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('New input field'), { target: { value: 'filter' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    expect(screen.getByLabelText('filter type')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('actions/actions/list_sessions', 'PUT', expect.objectContaining({
+      item: expect.objectContaining({ input_schema: expect.objectContaining({ properties: { filter: { type: 'string' } } }) }) })));
+  });
+
   it('creates an Action with typed input fields and fixed command argv', async () => {
     render(<ActionsView />);
     await screen.findByRole('button', { name: 'List sessions · Enabled' });

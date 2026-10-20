@@ -15,6 +15,9 @@ import jsonschema
 
 from .store import validate_action
 
+OUTPUT_LIMIT = 512 * 1024
+RESULT_LIMIT = 1024 * 1024  # Leave JSON-RPC framing headroom below the generic 2 MiB reader.
+
 
 async def execute(action, arguments):
     action = validate_action(action)
@@ -23,7 +26,7 @@ async def execute(action, arguments):
     jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
     values = dict(arguments)
     for key, schema in action['input_schema'].get('properties', {}).items():
-        if key not in values and 'default' in schema:
+        if key not in values and isinstance(schema, dict) and 'default' in schema:
             values[key] = schema['default']
     ex = action['execution']
     if ex['kind'] == 'api':
@@ -31,10 +34,15 @@ async def execute(action, arguments):
         url = urlsplit(base)
         if url.scheme != 'http' or url.hostname not in {'127.0.0.1', '::1'} or url.username or url.password or url.path not in {'', '/'} or url.query or url.fragment:
             raise ValueError('Internal API requires an explicit local Pan HTTP endpoint')
-        async with httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
-            response = await client.get(base.rstrip('/') + ex['path'], params=values)
-            response.raise_for_status()
-            result = response.json()
+        async with asyncio.timeout(30), httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
+            async with client.stream('GET', base.rstrip('/') + ex['path'], params=values) as response:
+                response.raise_for_status()
+                content = bytearray()
+                async for chunk in response.aiter_bytes(65536):
+                    if len(content) + len(chunk) > OUTPUT_LIMIT:
+                        raise ValueError('API output exceeds 512 KiB')
+                    content.extend(chunk)
+                result = json.loads(content)
     else:
         argv = [str(values[a[1:-1]]) if a.startswith('{') and a.endswith('}') else a for a in ex['args']]
         from packages.jobs.window import command_window_options
@@ -50,7 +58,7 @@ async def execute(action, arguments):
             chunks, size = [], 0
             while chunk := await stream.read(65536):
                 size += len(chunk)
-                if size > 512 * 1024:
+                if size > OUTPUT_LIMIT:
                     raise ValueError('Command output exceeds 512 KiB')
                 chunks.append(chunk)
             return b''.join(chunks).decode('utf-8', errors='replace')
@@ -75,8 +83,11 @@ async def execute(action, arguments):
         if process.returncode:
             raise RuntimeError(f'Command exited {process.returncode}: {err[:2000]}')
         result = out if action['output_format'] == 'text' else json.loads(out)
-    return {'content': [{'type': 'text', 'text': result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)}],
+    reply = {'content': [{'type': 'text', 'text': result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)}],
             **({'structuredContent': result} if isinstance(result, dict) else {}), 'isError': False}
+    if len(json.dumps(reply, ensure_ascii=False).encode('utf-8')) > RESULT_LIMIT:
+        raise ValueError('Action output exceeds 1 MiB encoded result limit')
+    return reply
 
 
 async def run(snapshot):
