@@ -1,0 +1,22 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018/packages/web/src
+
+ ✓ utils/quickNewSession.test.ts (8 tests | 1 skipped) 7ms
+ ✓ components/jobs/JobDetailDrawer.test.tsx (3 tests) 123ms
+ ✓ components/jobs/NewJobForm.resume-legal-running.test.tsx (2 tests) 166ms
+ ✓ components/session/SelectedSessionActions.test.tsx (11 tests) 250ms
+ ✓ components/chat/SettingsPopover.context.test.tsx (10 tests) 342ms
+ ✓ components/chat/SendQueuePanel.pendingOnly.test.tsx (5 tests) 496ms
+ ✓ stores/queueStore.test.ts (21 tests) 806ms
+ ✓ components/chat/SettingsPopover.optimistic.test.tsx (12 tests) 1638ms
+   ✓ SettingsPopover mobile Terminal TUI entry (More) > completes an upgrade scheduled from Settings via the shared TopBar poller at the idle boundary 1085ms
+ ✓ components/session/NewSessionModal.test.tsx (28 tests | 1 skipped) 2243ms
+ ✓ components/layout/AppSettingsModal.test.tsx (56 tests) 4129ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1114ms
+ ✓ components/chat/InputRow.test.tsx (70 tests | 1 skipped) 6019ms
+
+ Test Files  11 passed (11)
+      Tests  223 passed | 3 skipped (226)
+   Start at  17:11:45
+   Duration  9.94s (transform 3.17s, setup 132ms, collect 11.43s, tests 16.22s, environment 11.46s, prepare 2.31s)
+
