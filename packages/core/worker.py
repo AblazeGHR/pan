@@ -10376,6 +10376,7 @@ async def _auto_force_restart_item(session_id: str, item_id: str) -> dict:
         error = await _restart_worker_unlocked(w.worker_id)
         if error:
             return {"status": "error", "error": error, "route": "restart"}
+        _recovery_required.discard(session_id)
         return {"status": "restarted", "route": "restart",
                 "workerId": w.worker_id, "queueItemId": item_id}
 
