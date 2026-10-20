@@ -7001,7 +7001,12 @@ async def api_reorder_session_pins(data: dict):
 
 @app.get("/api/sessions/{session_id}")
 async def api_get_session(session_id: str, view: str = "full",
-                          historyLimit: int = 0):
+                          historyLimit: int = 0, historyRoles: str | None = None,
+                          toolOutput: str = "command_only", before: int = 0):
+    if historyRoles is not None:
+        return await _store_read(
+            _session_read_projection, session_id, historyLimit, before,
+            historyRoles, toolOutput)
     bounded_history = historyLimit > 0
     if view in {"metadata", "detail"} or bounded_history:
         s = await _store_read(_summary_session_get, session_id)
@@ -7170,6 +7175,90 @@ async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
     payload = await _store_read(
         _history_page_wire_payload, session_id, before, limit, searchJump)
     return await _history_network_response(payload, request)
+
+
+def _session_read_projection(session_id, limit, before, roles, tool_output,
+                             message_id=None):
+    from collections import deque
+    from packages.core import history_read
+
+    def error(code, message):
+        return {"ok": False, "error": {"code": code, "message": message}}
+
+    try:
+        selected, mode = history_read.options(roles, tool_output)
+        if limit < 0 or before < 0:
+            raise ValueError("limit and before must be nonnegative")
+    except ValueError as exc:
+        return error("invalid_params", str(exc))
+    if message_id is not None and not sess.is_pan_message_id(message_id):
+        return error("invalid_message_id", "A durable Pan messageId is required; legacy rows have no addressable id")
+    session = _summary_session_get(session_id)
+    if session is None:
+        return error("session_not_found", "Session not found")
+    # Keep only selected row locators, then reread the requested bodies. Cold
+    # JSONL scans retain O(limit) references, never all history or output bodies.
+    refs = deque(maxlen=min(limit, 200) if limit else None)
+    total = matched = eligible = 0
+    identity_count = 0
+    try:
+        with _history_search_scan_source(session) as source:
+            rows, read = source[:2]
+            for index, row, locator in rows:
+                total = index + 1
+                if message_id is not None:
+                    if not isinstance(row, dict) or row.get("messageId") != message_id:
+                        continue
+                    identity_count += 1
+                projected = history_read.project(row, index, selected, mode)
+                if projected is None:
+                    continue
+                matched += 1
+                if not before or index < before:
+                    eligible += 1
+                    refs.append((index, locator))
+            history = [history_read.project(read(locator), index, selected, mode)
+                       for index, locator in refs]
+    except _HistorySearchSnapshotChanged:
+        return error("history_changed", "History changed while reading; retry from the latest page")
+    except history_search_index.HistorySearchError:
+        return error("history_unavailable", "Session history could not be read")
+    if message_id is not None:
+        if identity_count != 1:
+            return error("message_not_found", "Message is missing or its identity is ambiguous in this Session")
+        if not history:
+            return error("message_filtered", "Message is excluded by roles; thinking requires explicit opt-in")
+        return {"ok": True, "sessionId": session_id, "message": history[0]}
+    # Absolute canonical positions are cursors, not persistent message ids.
+    start = refs[0][0] if refs else 0
+    has_more = eligible > len(refs)
+    result = _session_to_api(session, include_history=False, include_raw_usage=False,
+                             include_last_result=False)
+    last_result = session.last_result
+    result["lastResult"] = ({key: last_result[key] for key in (
+        "status", "taskId", "taskSeq", "sessionId", "workerId", "resultCursor",
+        "terminalKey", "historyEpoch", "historyRevision",
+        *(("result",) if "assistant" in selected and isinstance(last_result.get("result"), str) else ()),
+    ) if key in last_result} if isinstance(last_result, dict) else None)
+    # Summary previews are independent copies of body text; do not let them
+    # bypass a caller's selected roles or expose an unclassified tool preview.
+    for key in ("lastUserPreview", "lastAssistantPreview", "lastDisplayPreview"):
+        result.pop(key, None)
+    result.update(history=history, historyTotal=total, historyFilteredTotal=matched,
+                  historyTruncated=has_more, historyStart=start,
+                  nextBefore=start if has_more else None,
+                  historyEpoch=getattr(session, "history_epoch", None),
+                  historyRevision=getattr(session, "history_revision", 0))
+    return result
+
+
+@app.get("/api/sessions/{session_id}/messages/{message_id}")
+async def api_session_message_get(session_id: str, message_id: str,
+                                  roles: str = "user,assistant,tool",
+                                  toolOutput: str = "command_only"):
+    """Trusted local admin read; managed authorization is enforced by MCP."""
+    return await _store_read(_session_read_projection, session_id, 1, 0,
+                             roles, toolOutput, message_id)
 
 
 def _navigation_preview(content: str) -> str:

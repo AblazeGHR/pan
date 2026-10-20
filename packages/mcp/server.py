@@ -10,7 +10,8 @@ Tools exposed:
     - session_list: List all sessions (optional lean summary mode)
     - session_managed: List the caller's managed sessions (summary)
     - manager_chain: Return the caller's manager chain (upper-level managers)
-    - session_get: Get session details (optional history limit)
+    - session_get: Get filtered session history bodies and result metadata
+    - session_message_get: Read one existing durable message ID in its Session
     - session_usage: Get persisted session input/output/cache usage
     - session_update: Update session settings (model/effort/mcp/workspace etc.)
     - workspace_list: List durable Workspaces (name/id/order/dirs/member count)
@@ -787,14 +788,28 @@ def manager_chain() -> dict:
 
 
 @mcp.tool()
-def session_get(session_id: str, limit: int = 0) -> dict:
-    """Get full session details including history and last result.
+def session_get(session_id: str, limit: int = 0, roles: list[str] | None = None,
+                tool_output: str = "command_only", before: int | None = None) -> dict:
+    """Get session details with a safe filtered history body projection.
 
     Args:
         session_id: Session ID (e.g. "ses_abc123def4567890")
-        limit: Max history entries to return (0 = full history, default). When
-            set, history is truncated to the latest `limit` entries and
-            historyTruncated/historyTotal markers are added.
+        limit: Limit AFTER filtering. 0 retains full-history compatibility;
+            prefer 50 for bounded reads (positive values capped at 200).
+        roles: user, assistant, tool, thinking. Default/recommended:
+            [user, assistant, tool]. Empty list returns no history bodies.
+        tool_output: command_only (default/recommended) or include_output.
+            command_only retains the tool name and explicit command/cmd strings;
+            opaque or truncated legacy calls expose no arguments. No parts or
+            raw content is returned. include_output returns stored tool content.
+        before: Exclusive canonical index from nextBefore, for older pages.
+            Keep the same filters. Null nextBefore means complete. History
+            replacement invalidates positions; restart on epoch/revision change.
+
+    Rows keep only existing durable Pan messageId values; legacy rows carry
+    identityKind=legacy_unaddressable. historyTotal is canonical row count;
+    historyFilteredTotal counts selected bodies. lastResult retains terminal
+    metadata and final result text only when assistant is selected. For large histories always use limit=50.
 
     调用链（编排主链第 3 步·查结果）：读 lastResult.status——"done" 取 result，
     "error" 读错误排查；完成后 `session_delete` 收尾。巡检用 limit 截断
@@ -804,9 +819,43 @@ def session_get(session_id: str, limit: int = 0) -> dict:
     denied = _check_access(session_id)
     if denied:
         return denied
-    query = f"?historyLimit={int(limit)}" if limit else ""
-    result = _api("GET", f"/api/sessions/{session_id}{query}")
+    from packages.core.history_read import options
+    try:
+        selected, _ = options(roles, tool_output)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    query = urlencode({"historyLimit": limit, "historyRoles": ",".join(sorted(selected)),
+                       "toolOutput": tool_output, "before": before or 0})
+    result = _api("GET", f"/api/sessions/{quote(session_id, safe='')}?{query}")
     return _strip_usage(result)
+
+
+@mcp.tool()
+def session_message_get(session_id: str, message_id: str,
+                        roles: list[str] | None = None,
+                        tool_output: str = "command_only") -> dict:
+    """Read one persisted Pan messageId within one accessible Session.
+
+    Uses session_get's body projection: default roles user/assistant/tool,
+    tool_output=command_only. Opt into thinking via roles=[thinking], or stored
+    tool output via tool_output=include_output. Never returns raw parts.
+    Legacy positional/native ids are rejected (invalid_message_id); missing,
+    cross-Session or ambiguous ids return message_not_found. A hidden thinking
+    row returns message_filtered. No identity is generated or persisted by read.
+    Managed-session checks run before reading; denial returns permission_denied.
+    HTTP is trusted-local admin; MCP owns the caller's managed read boundary.
+    完整编排流程见 /pan skill。
+    """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    from packages.core.history_read import options
+    try:
+        selected, _ = options(roles, tool_output)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    query = urlencode({"roles": ",".join(sorted(selected)), "toolOutput": tool_output})
+    return _api("GET", f"/api/sessions/{quote(session_id, safe='')}/messages/{quote(message_id, safe='')}?{query}")
 
 
 @mcp.tool()
