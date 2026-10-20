@@ -1,0 +1,17 @@
+[2026-10-21 00:32:23][INFO] === prepare_validation_env.ps1 ===
+[2026-10-21 00:32:23][INFO] Mode: Check
+[2026-10-21 00:32:23][INFO] Worktree: D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021
+[2026-10-21 00:32:23][OK] Canonical Python: D:\project\Pan-main\.venv\Scripts\python.exe
+[2026-10-21 00:32:23][INFO]   Python 3.14.5
+[2026-10-21 00:32:23][OK]   [OK] import dotenv
+[2026-10-21 00:32:23][OK]   [OK] import mcp
+[2026-10-21 00:32:23][OK]   [OK] import pytest
+[2026-10-21 00:32:24][OK]   [OK] import fastapi
+[2026-10-21 00:32:24][OK]   [OK] import httpx
+[2026-10-21 00:32:24][OK]   [OK] import pydantic
+[2026-10-21 00:32:24][INFO] Python repair skipped (default/check mode is read-only).
+[2026-10-21 00:32:24][OK] Playwright package present in canonical venv.
+[2026-10-21 00:32:24][INFO] Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.
+[2026-10-21 00:32:24][OK] Canonical node_modules target verified (directory): D:/project/Pan/packages/web/node_modules
+[2026-10-21 00:32:24][OK] Junction already correct; reusing (idempotent): D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\packages\web\node_modules -> D:\project\Pan\packages\web\node_modules
+[2026-10-21 00:32:24][INFO] Exit code: 0

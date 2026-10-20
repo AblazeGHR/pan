@@ -60,8 +60,8 @@ def _make_session(adapter_config=None, **kw):
 def test_adapter_metadata():
     a = ClaudeAdapter()
     assert a.name == "claude"
-    # stream is the default long-lived driver; oneshot remains an explicit fallback
-    assert a.execution_modes == ["stream", "oneshot"]
+    from packages.core.adapters.resolution import available_execution_modes
+    assert available_execution_modes(a) == ["stream"]
     assert a.supports_spawn_system_prompt is True
     assert a.supports_resume is True
     # fork is implemented via JSONL copy (no native --fork)
@@ -156,6 +156,7 @@ def _patched_mcp_json(path, s):
     return {"pan": {"command": "x"}}
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_basic():
     a = ClaudeAdapter()
     s = _make_session()
@@ -184,6 +185,7 @@ def test_oneshot_args_basic():
     print("PASS: oneshot_args basic (default permission, no extras)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_model_resume_effort_system_prompt():
     a = ClaudeAdapter()
     s = _make_session(
@@ -210,6 +212,7 @@ def test_oneshot_args_with_model_resume_effort_system_prompt():
     print("PASS: oneshot_args with model + resume + effort (system_prompt skipped)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_system_prompt_only_when_fresh():
     a = ClaudeAdapter()
     s = _make_session(system_prompt="System instructions here.")
@@ -224,6 +227,7 @@ def test_oneshot_args_system_prompt_only_when_fresh():
     print("PASS: oneshot_args injects --system-prompt only for fresh session")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_mcp():
     a = ClaudeAdapter()
     s = _make_session(adapter_config={"mcp_servers": [{"name": "pan", "command": "x"}]})
@@ -304,9 +308,7 @@ def test_stream_and_control_protocol():
     a = ClaudeAdapter()
     s = _make_session()
     stream_args = a.build_spawn_args(s)
-    oneshot_args = a.oneshot_args(s, "hello")
     assert "--input-format" in stream_args
-    assert "--input-format" not in oneshot_args
 
     payload = json.loads(a.encode_user_message("你好").decode("utf-8"))
     assert payload == {
@@ -464,6 +466,7 @@ def test_result_event_and_error_flag():
     print("PASS: result event parsing + error flag")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_extract_oneshot_error():
     a = ClaudeAdapter()
     output = b'{"type":"system","subtype":"init"}\n{"type":"error","error":{"message":"resume failed"}}\n'
@@ -670,3 +673,13 @@ if __name__ == "__main__":
             print(f"FAIL {t.__name__}: {e}")
     print(f"\n=== {'ALL PASS' if failed == 0 else f'{failed} FAILED'} "
           f"({len(tests)} tests) ===")
+
+
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
+def test_retired_oneshot_claude_capability_declaration():
+    assert ClaudeAdapter().execution_modes == ["stream", "oneshot"]
+
+
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
+def test_retired_oneshot_excludes_stream_input_protocol():
+    assert "--input-format" not in ClaudeAdapter().oneshot_args(_make_session(), "hello")

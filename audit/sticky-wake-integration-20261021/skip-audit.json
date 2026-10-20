@@ -1,0 +1,952 @@
+{
+  "originalCommit": "e160782e636d828427e9262e952a1f25c09117b9",
+  "originalCount": 49,
+  "originalRows": [
+    {
+      "kind": "frontend",
+      "originalFile": "packages/web/src/components/chat/InputRow.test.tsx",
+      "originalLine": 208,
+      "test": "uses the CBC stream capability for direct Steer and hides it for native TUI/oneshot",
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy Oneshot selection/Steer visibility or restoring saved Oneshot UI/defaults. Current stream/native and historical-mode fallback counterparts stay active; InputRow skipped body narrowed to only Oneshot."
+    },
+    {
+      "kind": "frontend",
+      "originalFile": "packages/web/src/components/session/NewSessionModal.test.tsx",
+      "originalLine": 235,
+      "test": "prefills the adapter, output mode, and template while retaining the template adapter lock",
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy Oneshot selection/Steer visibility or restoring saved Oneshot UI/defaults. Current stream/native and historical-mode fallback counterparts stay active; InputRow skipped body narrowed to only Oneshot."
+    },
+    {
+      "kind": "frontend",
+      "originalFile": "packages/web/src/utils/quickNewSession.test.ts",
+      "originalLine": 45,
+      "test": "applies all saved fields, the current Workspace, and the next automatic name",
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy Oneshot selection/Steer visibility or restoring saved Oneshot UI/defaults. Current stream/native and historical-mode fallback counterparts stay active; InputRow skipped body narrowed to only Oneshot."
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_addressing_compat.py",
+      "originalLine": 126,
+      "test": "test_send_session_oneshot_worker_delivers",
+      "originalBodySha256": "ef97c8d6c0d8d58b9a4af038ee70def76d9df7a99db74dee032c46a752e3ffc2",
+      "evidence": [
+        "def test_send_session_oneshot_worker_delivers():",
+        "\"\"\"oneshot MCP worker（process=None）视作活 worker，正常投递。\"\"\"",
+        "status=\"idle\", process=None, pending_signal=asyncio.Queue())"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot worker registration or Force restart of this mode.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_addressing_compat.py",
+      "originalLine": 227,
+      "test": "test_send_session_force_live_oneshot_restarts_without_stream_spawn",
+      "originalBodySha256": "b477ac76ae0526ca3b10ac632822fd70c2ee64fdf96d3ecd54f519bd7d3ab9f5",
+      "evidence": [
+        "def test_send_session_force_live_oneshot_restarts_without_stream_spawn(monkeypatch):",
+        "\"\"\"force=True + one-shot worker resets its consumer, never stream-spawns.\"\"\"",
+        "s.adapter_config[\"output_mode\"] = \"oneshot\"",
+        "raise AssertionError(\"one-shot restart must not spawn a stream process\")",
+        "async def fake_oneshot(w, text, source, session, *, on_handoff=None):",
+        "monkeypatch.setattr(worker, \"_consumer_oneshot\", fake_oneshot)"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot worker registration or Force restart of this mode.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_native_bridge.py",
+      "originalLine": 288,
+      "test": "test_native_adapter_keeps_legacy_and_first_spawn_separate",
+      "originalBodySha256": "9bf59da9337bbbffeb49c0e0970f12e8304ca31c92cb98440347b74f92e9f71f",
+      "evidence": [
+        "assert CbcAdapter.execution_modes == [\"stream\", \"oneshot\"]"
+      ],
+      "verdict": "split",
+      "reason": "Mixed test: restore current stream/native/prompt assertions and isolate the old Oneshot fragment.",
+      "legacyReplacement": "test_retired_oneshot_cbc_capability_declaration"
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 69,
+      "test": "test_oneshot_args_basic_no_mcp_no_resume",
+      "originalBodySha256": "da4273c8d3491f8b6343067ca73b05b08bd979dd398c4afba7739fb566470463",
+      "evidence": [
+        "def test_oneshot_args_basic_no_mcp_no_resume():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 76,
+      "test": "test_oneshot_args_with_mcp",
+      "originalBodySha256": "45e66c798fba6f49962113cd11348e94e4dd1395f75113a41e895250a2ea88bf",
+      "evidence": [
+        "def test_oneshot_args_with_mcp():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 83,
+      "test": "test_oneshot_args_with_system_prompt_no_cli_id",
+      "originalBodySha256": "1140ac93505a0649b3e6612941f5f5a6ca9f8f56f21f232d322c0f65c4ca7245",
+      "evidence": [
+        "def test_oneshot_args_with_system_prompt_no_cli_id():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 90,
+      "test": "test_oneshot_args_system_prompt_skipped_when_resumed",
+      "originalBodySha256": "eb3f91404d370342d63561d5409603147e63e79970777b259d989258e6a813c8",
+      "evidence": [
+        "def test_oneshot_args_system_prompt_skipped_when_resumed():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 102,
+      "test": "test_oneshot_args_with_resume_and_mcp",
+      "originalBodySha256": "541218b6c7036c3be8f251ac77444af130e2e342e09b0e5d9817bf02ab2eff6c",
+      "evidence": [
+        "def test_oneshot_args_with_resume_and_mcp():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 112,
+      "test": "test_oneshot_args_with_effort_and_permission",
+      "originalBodySha256": "972d89e8c1fb6b4ce25a106b757644ffc9eadc269b5f9b78c05f72cf2378705b",
+      "evidence": [
+        "def test_oneshot_args_with_effort_and_permission():"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 123,
+      "test": "test_oneshot_args_prompt_is_last_arg",
+      "originalBodySha256": "92a2e44d54cfd63fbd8b4a50e1aa676799ee9a48b24a5b5d54b83f7bcd37bcf7",
+      "evidence": [
+        "def test_oneshot_args_prompt_is_last_arg():",
+        "args = a.oneshot_args(s, \"my prompt text\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "CBC per-task Oneshot argv construction, MCP, permissions, resume or prompt positioning.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_cbc_oneshot_args.py",
+      "originalLine": 135,
+      "test": "test_execution_modes_declared",
+      "originalBodySha256": "c96cddc701261ca4d171ea7932f11f83b4121623febd32454a557b39e038d986",
+      "evidence": [
+        "assert CbcAdapter().execution_modes == [\"stream\", \"oneshot\"]"
+      ],
+      "verdict": "split",
+      "reason": "Mixed test: restore current stream/native/prompt assertions and isolate the old Oneshot fragment.",
+      "legacyReplacement": "test_retired_oneshot_cbc_capability_declaration"
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 61,
+      "test": "test_adapter_metadata",
+      "originalBodySha256": "fffb31fe6bf82cd6210a284407e9681cc6ff7e9749b175f5290cd248a2c6aaa2",
+      "evidence": [
+        "# stream is the default long-lived driver; oneshot remains an explicit fallback",
+        "assert a.execution_modes == [\"stream\", \"oneshot\"]"
+      ],
+      "verdict": "split",
+      "reason": "Mixed test: restore current stream/native/prompt assertions and isolate the old Oneshot fragment.",
+      "legacyReplacement": "test_retired_oneshot_claude_capability_declaration"
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 161,
+      "test": "test_oneshot_args_basic",
+      "originalBodySha256": "5ea58508f24a1bf984e3cfdcc403777585e07f3ee27541f31d7cf8ba15d1e464",
+      "evidence": [
+        "def test_oneshot_args_basic():",
+        "args = a.oneshot_args(s, \"hello world\")",
+        "print(\"PASS: oneshot_args basic (default permission, no extras)\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Claude Oneshot argv or Oneshot stdout error extraction; current metadata/stream protocol restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 190,
+      "test": "test_oneshot_args_with_model_resume_effort_system_prompt",
+      "originalBodySha256": "3f8f5c00293627dd0e2507e6bf380420ad8b28c341549d8e25ff3ec90ea23578",
+      "evidence": [
+        "def test_oneshot_args_with_model_resume_effort_system_prompt():",
+        "args = a.oneshot_args(s, \"do the thing\")",
+        "print(\"PASS: oneshot_args with model + resume + effort (system_prompt skipped)\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Claude Oneshot argv or Oneshot stdout error extraction; current metadata/stream protocol restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 217,
+      "test": "test_oneshot_args_system_prompt_only_when_fresh",
+      "originalBodySha256": "a194e7bd2dc9a1dbdce3afc1f8176f6239c1936b80c64da83ed8ab321189c1c8",
+      "evidence": [
+        "def test_oneshot_args_system_prompt_only_when_fresh():",
+        "args = a.oneshot_args(s, \"first message\")",
+        "print(\"PASS: oneshot_args injects --system-prompt only for fresh session\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Claude Oneshot argv or Oneshot stdout error extraction; current metadata/stream protocol restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 232,
+      "test": "test_oneshot_args_with_mcp",
+      "originalBodySha256": "3257f0e4c8697f6f5ae6ab3ebd1ca0aff2cb5a6fd49c8766227b5671ef534462",
+      "evidence": [
+        "def test_oneshot_args_with_mcp():",
+        "args = a.oneshot_args(s, \"with mcp\")",
+        "print(\"PASS: oneshot_args places prompt before variadic --mcp-config\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Claude Oneshot argv or Oneshot stdout error extraction; current metadata/stream protocol restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 309,
+      "test": "test_stream_and_control_protocol",
+      "originalBodySha256": "1e57ac610fc8f81435271a44a4f6529ce731e332d3f40b9368cc91f6767a26e3",
+      "evidence": [
+        "oneshot_args = a.oneshot_args(s, \"hello\")",
+        "assert \"--input-format\" not in oneshot_args"
+      ],
+      "verdict": "split",
+      "reason": "Mixed test: restore current stream/native/prompt assertions and isolate the old Oneshot fragment.",
+      "legacyReplacement": "test_retired_oneshot_excludes_stream_input_protocol"
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_claude_adapter.py",
+      "originalLine": 474,
+      "test": "test_extract_oneshot_error",
+      "originalBodySha256": "889c9540dcb477faaf2ba7981220673641d55f6c979da1aee84d2b19ee9bd440",
+      "evidence": [
+        "def test_extract_oneshot_error():",
+        "assert a.extract_oneshot_error(output) == \"resume failed\"",
+        "assert a.extract_oneshot_error(output) == \"tool denied\"",
+        "print(\"PASS: structured one-shot error extraction\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Claude Oneshot argv or Oneshot stdout error extraction; current metadata/stream protocol restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_report_error_context.py",
+      "originalLine": 269,
+      "test": "test_oneshot_error_empty_result_report_carries_last_assistant_message",
+      "originalBodySha256": "dd724f100b27077c94162cf9e9d68ad5528bd69468db579fa522821c27e24bb7",
+      "evidence": [
+        "def test_oneshot_error_empty_result_report_carries_last_assistant_message(",
+        "_run_oneshot_worker(monkeypatch, child, output, seq=12)"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Runs _run_oneshot_worker, hence the retired consumer; active stream/report tests remain enabled.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_report_error_context.py",
+      "originalLine": 291,
+      "test": "test_error_report_keeps_existing_error_result_and_adds_context",
+      "originalBodySha256": "b09f6ef25fe39f096eee058c4fcb375040a6cc8d9b85fb0aee1a6eccca971ad0",
+      "evidence": [
+        "_run_oneshot_worker(monkeypatch, child, output, seq=13)"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Runs _run_oneshot_worker, hence the retired consumer; active stream/report tests remain enabled.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_session_error_log_e2e.py",
+      "originalLine": 394,
+      "test": "test_oneshot_structured_error",
+      "originalBodySha256": "ae979770cbfb5bac199403b3a068ea7b69f6ead28a4c098b77a3b126db52284d",
+      "evidence": [
+        "def test_oneshot_structured_error(runtime):",
+        "sid = _new_session(runtime, \"oneshot-error\", mode=\"oneshot\")",
+        "_enqueue(runtime, sid, \"oneshot-error\")",
+        "assert record[\"errorText\"] == \"oneshot structured failure\\n第二行\"",
+        "assert record[\"cli\"][\"origin\"] == \"worker.oneshot\"",
+        "assert \"oneshot-error\" in record[\"previousMessage\"][\"content\"]"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Creates an outputMode=oneshot Session and invokes the retired mode.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_session_prompts.py",
+      "originalLine": 136,
+      "test": "test_worker_and_oneshot_adapters_consume_effective_prompt",
+      "originalBodySha256": "3ac5ca2aebae28ca818276b4466ca5dd4c9871297b06848a9b2e4051c5414ba4",
+      "evidence": [
+        "def test_worker_and_oneshot_adapters_consume_effective_prompt(tmp_path):",
+        "args = get_adapter(name).oneshot_args(s, \"task\")"
+      ],
+      "verdict": "split",
+      "reason": "Mixed test: restore current stream/native/prompt assertions and isolate the old Oneshot fragment.",
+      "legacyReplacement": "test_retired_oneshot_adapters_consume_effective_prompt"
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_task_id_inheritance.py",
+      "originalLine": 145,
+      "test": "test_report_uses_the_task_id_carried_by_the_current_input",
+      "originalBodySha256": "02ccfd8671aebea20a3edd3c2ce715692ec83e1a9537afc5d1236cb8bc2983ad",
+      "evidence": [
+        "monkeypatch.setattr(worker, \"_consumer_oneshot\", fake_consumer)",
+        "monkeypatch.setattr(worker, \"resolve_execution_mode\", lambda *_: \"oneshot\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Forces resolve_execution_mode to oneshot and substitutes _consumer_oneshot; other task identity tests stay active.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_terminal_broadcast.py",
+      "originalLine": 148,
+      "test": "test_oneshot_uses_same_terminal_result_idle_pair",
+      "originalBodySha256": "a232505030d28ba7113e13947494e1b29da1a01e102399244a2bb4b140f50e83",
+      "evidence": [
+        "def test_oneshot_uses_same_terminal_result_idle_pair(monkeypatch, tmp_path):",
+        "s = _sess.Session(id=\"ses_t041_oneshot\", name=\"t041\", adapter=\"cbc\", model=\"m\")",
+        "worker_id=\"worker-t041-oneshot\", session_id=s.id, adapter=CbcAdapter(),",
+        "status=\"idle\", process=None, pending_signal=asyncio.Queue(),",
+        "return _oneshot_proc()",
+        "def _oneshot_proc():",
+        "asyncio.run(worker._consumer_oneshot(w, \"hello\", \"user\", s))"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct Oneshot consumer terminal/result/Idle pair; stream sibling remains active.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_unified_server_queue.py",
+      "originalLine": 536,
+      "test": "test_one_shot_spawn_success_dequeues_after_argv_handoff",
+      "originalBodySha256": "b3ce3f41a864f0ae3c7e028ff52e8d83390ea34453f3dabc70eeedc6a6fb26d5",
+      "evidence": [
+        "def test_one_shot_spawn_success_dequeues_after_argv_handoff(monkeypatch):",
+        "item = _queue_item(value, \"q-one-shot\")",
+        "worker_id=\"w-one-shot\", session_id=value.id, adapter=CbcAdapter(),",
+        "status=\"idle\", process=None, pending_signal=asyncio.Queue(),",
+        "return _OneShotProcess()",
+        "monkeypatch.setattr(current.adapter, \"oneshot_args\", lambda _s, _text: [\"fake-cli\", \"prompt\"])",
+        "asyncio.run(worker._consumer_oneshot(current, \"x\", \"user\", value))",
+        "assert value.queue_delivery_ledger[\"q-one-shot\"][\"deliveryState\"] == \"sent_to_cli\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct per-task Oneshot spawn and argv handoff, or its spawn-failure requeue.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_unified_server_queue.py",
+      "originalLine": 566,
+      "test": "test_one_shot_spawn_failure_requeues_same_item",
+      "originalBodySha256": "ae787331139ae47adebf76a182166da31091614d0829a5628c3ed477bfff1ee5",
+      "evidence": [
+        "def test_one_shot_spawn_failure_requeues_same_item(monkeypatch):",
+        "item = _queue_item(value, \"q-one-shot-fail\")",
+        "worker_id=\"w-one-shot-fail\", session_id=value.id, adapter=CbcAdapter(),",
+        "status=\"idle\", process=None, pending_signal=asyncio.Queue(),",
+        "monkeypatch.setattr(current.adapter, \"oneshot_args\", lambda _s, _text: [\"missing-cli\"])",
+        "asyncio.run(worker._consumer_oneshot(current, \"x\", \"user\", value))",
+        "assert [entry[\"queueItemId\"] for entry in value.queue_pending] == [\"q-one-shot-fail\"]",
+        "assert value.queue_delivery_ledger[\"q-one-shot-fail\"][\"deliveryState\"] == \"queued\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct per-task Oneshot spawn and argv handoff, or its spawn-failure requeue.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_cli_session_binding.py",
+      "originalLine": 111,
+      "test": "test_consumer_oneshot_keeps_existing_binding_on_mismatch",
+      "originalBodySha256": "b6e6ce736f06701df2aef14ed4627c5f76a90a3e96ef4d12bdce94c39f9df34c",
+      "evidence": [
+        "def test_consumer_oneshot_keeps_existing_binding_on_mismatch():",
+        "asyncio.run(worker._consumer_oneshot(w, \"hi\", \"test\", s))"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct _consumer_oneshot CLI session binding/error collection.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_cli_session_binding.py",
+      "originalLine": 135,
+      "test": "test_consumer_oneshot_captures_binding_when_empty",
+      "originalBodySha256": "40f84d854a353352b14ea079113a9b005d0d4c3afd76d90a5aa9cdbb18e4d6d5",
+      "evidence": [
+        "def test_consumer_oneshot_captures_binding_when_empty():",
+        "asyncio.run(worker._consumer_oneshot(w, \"hi\", \"test\", s))"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct _consumer_oneshot CLI session binding/error collection.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_cli_session_binding.py",
+      "originalLine": 156,
+      "test": "test_consumer_oneshot_keeps_binding_when_no_init_event",
+      "originalBodySha256": "2821665565f158a303b999f3094f1b7aecf3177d4825dab4871e4f68a2d5e133",
+      "evidence": [
+        "def test_consumer_oneshot_keeps_binding_when_no_init_event():",
+        "asyncio.run(worker._consumer_oneshot(w, \"hi\", \"test\", s))"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct _consumer_oneshot CLI session binding/error collection.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_cli_session_binding.py",
+      "originalLine": 179,
+      "test": "test_consumer_oneshot_surfaces_cbc_error_on_exit0",
+      "originalBodySha256": "ba94a62d15630d1477f4d763a852c8b03dad80247cde1be5da156ba68edcf255",
+      "evidence": [
+        "def test_consumer_oneshot_surfaces_cbc_error_on_exit0():",
+        "asyncio.run(worker._consumer_oneshot(w, \"hi\", \"test\", s))"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct _consumer_oneshot CLI session binding/error collection.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_global_watchdog.py",
+      "originalLine": 142,
+      "test": "test_global_watchdog_tick_skips_active_oneshot_worker",
+      "originalBodySha256": "ec285210819c96ed80e66c43702bf885e0e7ea107f2db7cddcbdea5149e00890",
+      "evidence": [
+        "def test_global_watchdog_tick_skips_active_oneshot_worker(monkeypatch):",
+        "\"\"\"CBC one-shot 执行期间 process=None，不能被 watchdog 重复 spawn。\"\"\"",
+        "s = _setup_session(\"ses_oneshot\", queue_pending=[{\"type\": \"task\", \"text\": \"in flight\"}])",
+        "worker_id=\"worker-oneshot\",",
+        "process=None,",
+        "assert spawned == [], \"active one-shot consumer must not be replaced\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot lifecycle/reclamation, not a stream or Job one-shot timer.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_oneshot_usage.py",
+      "originalLine": 116,
+      "test": "test_oneshot_calls_enrich_and_accumulates_usage",
+      "originalBodySha256": "35a8ee8db834ad91546aa425d7d2e6735cf7077955590e7b75351d92cdd376e4",
+      "evidence": [
+        "def test_oneshot_calls_enrich_and_accumulates_usage(monkeypatch, tmp_path):",
+        "\"\"\"oneshot 设置 last_result 后调用 enrich_after_result 并累加 usage/credit，",
+        "sid = \"ses_oneshot_acc\"",
+        "_patch_spawn(monkeypatch, FakeMcpProc(_oneshot_output()))",
+        "asyncio.run(worker._consumer_oneshot(w, \"hello\", \"agent\", s))",
+        "print(\"PASS: oneshot enrich accumulates usage/credit and persists\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct Oneshot consumer terminal/usage enrichment. Shared rollback test is restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_oneshot_usage.py",
+      "originalLine": 171,
+      "test": "test_oneshot_enrich_none_tolerated",
+      "originalBodySha256": "c57eb496ceebe303eb822890a3d30e99e6fc8dfa96fbf2d2fc87a3fa9768d8fa",
+      "evidence": [
+        "def test_oneshot_enrich_none_tolerated(monkeypatch, tmp_path):",
+        "s = _setup_session(sid=\"ses_oneshot_none\")",
+        "_patch_spawn(monkeypatch, FakeMcpProc(_oneshot_output()))",
+        "asyncio.run(worker._consumer_oneshot(w, \"hello\", \"agent\", s))",
+        "print(\"PASS: oneshot enrich None tolerated\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct Oneshot consumer terminal/usage enrichment. Shared rollback test is restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_oneshot_usage.py",
+      "originalLine": 196,
+      "test": "test_oneshot_enrich_exception_tolerated",
+      "originalBodySha256": "80c6f33561db546744b165597f8ca4192270e9c97ade1d7eb5cb3bc7c5f7537a",
+      "evidence": [
+        "def test_oneshot_enrich_exception_tolerated(monkeypatch, tmp_path):",
+        "s = _setup_session(sid=\"ses_oneshot_boom\")",
+        "_patch_spawn(monkeypatch, FakeMcpProc(_oneshot_output()))",
+        "asyncio.run(worker._consumer_oneshot(w, \"hello\", \"agent\", s))",
+        "print(\"PASS: oneshot enrich exception tolerated\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct Oneshot consumer terminal/usage enrichment. Shared rollback test is restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_oneshot_usage.py",
+      "originalLine": 223,
+      "test": "test_oneshot_claude_bridges_result_usage_cache",
+      "originalBodySha256": "69e433b7e8f756c1a7f3a711bf9efd5757cb755f68b51377c380f2b3e7aefc78",
+      "evidence": [
+        "def test_oneshot_claude_bridges_result_usage_cache(monkeypatch, tmp_path):",
+        "\"\"\"claude 的 one-shot fallback：result 事件的 usage+cost 经 _PENDING_RESULT_USAGE",
+        "await worker._consumer_oneshot(w, \"hello\", \"agent\", s)",
+        "print(\"PASS: claude oneshot result usage cache bridges into raw_usage\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Direct Oneshot consumer terminal/usage enrichment. Shared rollback test is restored separately.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_oneshot_usage.py",
+      "originalLine": 284,
+      "test": "test_usage_enrichment_rollback_does_not_double_count",
+      "originalBodySha256": "d4fabbc19a8e19673e3b5bcf1493be63d2a5fc3d5d103f7da04490b68e3488f4",
+      "evidence": [
+        "sid = \"ses_oneshot_rollback\""
+      ],
+      "verdict": "restore",
+      "reason": "False positive: only the fixture Session ID says oneshot; actual code tests shared usage enrichment rollback, not the retired consumer.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 86,
+      "test": "test_mcp_with_explicit_oneshot_goes_oneshot",
+      "originalBodySha256": "c77bbdea3399cdc691e30ea9523be51fb6845ca8b10c9deaf44e552bc5487729",
+      "evidence": [
+        "def test_mcp_with_explicit_oneshot_goes_oneshot():",
+        "s = _session(mcp_servers=[{\"name\": \"pan\"}], output_mode=\"oneshot\")",
+        "assert resolve_execution_mode(get_adapter(\"cbc\"), s) == \"oneshot\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 103,
+      "test": "test_oneshot_without_mcp_goes_oneshot",
+      "originalBodySha256": "1e9cf9959a2989946cfb8d4ddda38beb0aec6a1adf1541fa328fc13cca506d6b",
+      "evidence": [
+        "def test_oneshot_without_mcp_goes_oneshot():",
+        "\"\"\"NEW semantics: output_mode=\"oneshot\" no longer requires MCP configured.\"\"\"",
+        "s = _session(output_mode=\"oneshot\")",
+        "assert resolve_execution_mode(get_adapter(\"cbc\"), s) == \"oneshot\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 110,
+      "test": "test_long_system_prompt_never_selects_oneshot_for_cbc_or_claude",
+      "originalBodySha256": "2be0edc7e3847bcbd33d4fe894daf168c00694bb80dbcb5a66a1a33560d98552",
+      "evidence": [
+        "def test_long_system_prompt_never_selects_oneshot_for_cbc_or_claude():",
+        "s = _session(output_mode=\"oneshot\")"
+      ],
+      "verdict": "restore",
+      "reason": "Current historical-mode-to-stream fallback; long prompt protection remains supported.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 125,
+      "test": "test_oneshot_only_adapter_clamps_stream_to_oneshot",
+      "originalBodySha256": "16d457cf7f040b0cb080c0663d36ca4a3246364d8c625b3449975cafcdc6d45f",
+      "evidence": [
+        "def test_oneshot_only_adapter_clamps_stream_to_oneshot():",
+        "# one-shot-only adapter: stream unsupported -> clamp to its only mode",
+        "assert resolve_execution_mode(_FakeAdapter([\"oneshot\"]), s) == \"oneshot\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 132,
+      "test": "test_oneshot_only_adapter_explicit_oneshot",
+      "originalBodySha256": "491869c118f7198103d5668c7273ccbb6abb766f7579d80ec81288f5dc43fce2",
+      "evidence": [
+        "def test_oneshot_only_adapter_explicit_oneshot():",
+        "s = _session(output_mode=\"oneshot\")",
+        "assert resolve_execution_mode(_FakeAdapter([\"oneshot\"]), s) == \"oneshot\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 152,
+      "test": "test_apply_output_mode_oneshot",
+      "originalBodySha256": "e5aa34ce4753ec2513f423ee7803794140f3b691c535cb7cb6d4182e8b48f49d",
+      "evidence": [
+        "def test_apply_output_mode_oneshot():",
+        "assert _apply(\"oneshot\") == \"oneshot\""
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_output_mode.py",
+      "originalLine": 180,
+      "test": "test_apply_output_mode_oneshot_only_rejects_stream",
+      "originalBodySha256": "b0fac8fa1594037225b51d8c9d22dbadf2153b01438e78e2a7bfb076d330b75d",
+      "evidence": [
+        "def test_apply_output_mode_oneshot_only_rejects_stream():",
+        "\"\"\"one-shot-only adapter must reject a stream request (validation 400).\"\"\"",
+        "fake = _FakeAdapter([\"oneshot\"])",
+        "raise AssertionError(\"expected ValueError for stream on oneshot-only adapter\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Legacy explicit Oneshot selection or one-shot-only adapter selection/validation; current retirement boundary remains tested.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_watchdog.py",
+      "originalLine": 333,
+      "test": "test_mcp_idle_worker_reclaimed",
+      "originalBodySha256": "04bdd9fd7fa05c1ec83f643b2cfd4b17b482e25c15b9cf5c7fded702da773c78",
+      "evidence": [
+        "\"\"\"MCP one-shot worker (process=None) idle past idle_sec → killed.",
+        "to the read timeout in _consumer_oneshot).",
+        "# MCP mode: process=None",
+        "w.process = None"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot lifecycle/reclamation, not a stream or Job one-shot timer.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_watchdog.py",
+      "originalLine": 368,
+      "test": "test_mcp_running_worker_not_timeout_killed",
+      "originalBodySha256": "2341752ab35bfed619b3ef4b5a4c38971b0c7ff06f4521b7c3292a9233c8d376",
+      "evidence": [
+        "\"\"\"MCP one-shot worker running past timeout is NOT killed (read-timeout owns it).\"\"\"",
+        "w.process = None"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot lifecycle/reclamation, not a stream or Job one-shot timer.",
+      "legacyReplacement": null
+    },
+    {
+      "kind": "python",
+      "originalFile": "tests/test_worker_watchdog.py",
+      "originalLine": 801,
+      "test": "test_consumer_oneshot_refreshes_last_activity_on_idle",
+      "originalBodySha256": "eb1192b52054c1aaaf6809615fe3789dc1a29d2b3098500fa3f2f953934128c0",
+      "evidence": [
+        "def test_consumer_oneshot_refreshes_last_activity_on_idle(monkeypatch, tmp_path):",
+        "\"\"\"M3 回归: _consumer_oneshot 置 idle 时必须刷新 last_activity。",
+        "w.process = None  # MCP one-shot 模式",
+        "await worker._consumer_oneshot(w, \"hello\", \"agent\", s)",
+        "print(\"PASS: _consumer_oneshot refreshes last_activity on idle\")"
+      ],
+      "verdict": "retain-retired-skip",
+      "reason": "Retired process=None Oneshot lifecycle/reclamation, not a stream or Job one-shot timer.",
+      "legacyReplacement": null
+    }
+  ],
+  "currentPythonSkips": [
+    {
+      "file": "tests/test_addressing_compat.py",
+      "line": 126,
+      "test": "test_send_session_oneshot_worker_delivers"
+    },
+    {
+      "file": "tests/test_addressing_compat.py",
+      "line": 227,
+      "test": "test_send_session_force_live_oneshot_restarts_without_stream_spawn"
+    },
+    {
+      "file": "tests/test_cbc_native_bridge.py",
+      "line": 767,
+      "test": "test_retired_oneshot_cbc_capability_declaration"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 69,
+      "test": "test_oneshot_args_basic_no_mcp_no_resume"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 76,
+      "test": "test_oneshot_args_with_mcp"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 83,
+      "test": "test_oneshot_args_with_system_prompt_no_cli_id"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 90,
+      "test": "test_oneshot_args_system_prompt_skipped_when_resumed"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 102,
+      "test": "test_oneshot_args_with_resume_and_mcp"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 112,
+      "test": "test_oneshot_args_with_effort_and_permission"
+    },
+    {
+      "file": "tests/test_cbc_oneshot_args.py",
+      "line": 123,
+      "test": "test_oneshot_args_prompt_is_last_arg"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 160,
+      "test": "test_oneshot_args_basic"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 189,
+      "test": "test_oneshot_args_with_model_resume_effort_system_prompt"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 216,
+      "test": "test_oneshot_args_system_prompt_only_when_fresh"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 231,
+      "test": "test_oneshot_args_with_mcp"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 470,
+      "test": "test_extract_oneshot_error"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 679,
+      "test": "test_retired_oneshot_claude_capability_declaration"
+    },
+    {
+      "file": "tests/test_claude_adapter.py",
+      "line": 684,
+      "test": "test_retired_oneshot_excludes_stream_input_protocol"
+    },
+    {
+      "file": "tests/test_report_error_context.py",
+      "line": 269,
+      "test": "test_oneshot_error_empty_result_report_carries_last_assistant_message"
+    },
+    {
+      "file": "tests/test_report_error_context.py",
+      "line": 291,
+      "test": "test_error_report_keeps_existing_error_result_and_adds_context"
+    },
+    {
+      "file": "tests/test_session_error_log_e2e.py",
+      "line": 394,
+      "test": "test_oneshot_structured_error"
+    },
+    {
+      "file": "tests/test_session_prompts.py",
+      "line": 239,
+      "test": "test_retired_oneshot_adapters_consume_effective_prompt"
+    },
+    {
+      "file": "tests/test_task_id_inheritance.py",
+      "line": 145,
+      "test": "test_report_uses_the_task_id_carried_by_the_current_input"
+    },
+    {
+      "file": "tests/test_terminal_broadcast.py",
+      "line": 148,
+      "test": "test_oneshot_uses_same_terminal_result_idle_pair"
+    },
+    {
+      "file": "tests/test_unified_server_queue.py",
+      "line": 536,
+      "test": "test_one_shot_spawn_success_dequeues_after_argv_handoff"
+    },
+    {
+      "file": "tests/test_unified_server_queue.py",
+      "line": 566,
+      "test": "test_one_shot_spawn_failure_requeues_same_item"
+    },
+    {
+      "file": "tests/test_worker_cli_session_binding.py",
+      "line": 111,
+      "test": "test_consumer_oneshot_keeps_existing_binding_on_mismatch"
+    },
+    {
+      "file": "tests/test_worker_cli_session_binding.py",
+      "line": 135,
+      "test": "test_consumer_oneshot_captures_binding_when_empty"
+    },
+    {
+      "file": "tests/test_worker_cli_session_binding.py",
+      "line": 156,
+      "test": "test_consumer_oneshot_keeps_binding_when_no_init_event"
+    },
+    {
+      "file": "tests/test_worker_cli_session_binding.py",
+      "line": 179,
+      "test": "test_consumer_oneshot_surfaces_cbc_error_on_exit0"
+    },
+    {
+      "file": "tests/test_worker_global_watchdog.py",
+      "line": 142,
+      "test": "test_global_watchdog_tick_skips_active_oneshot_worker"
+    },
+    {
+      "file": "tests/test_worker_oneshot_usage.py",
+      "line": 116,
+      "test": "test_oneshot_calls_enrich_and_accumulates_usage"
+    },
+    {
+      "file": "tests/test_worker_oneshot_usage.py",
+      "line": 171,
+      "test": "test_oneshot_enrich_none_tolerated"
+    },
+    {
+      "file": "tests/test_worker_oneshot_usage.py",
+      "line": 196,
+      "test": "test_oneshot_enrich_exception_tolerated"
+    },
+    {
+      "file": "tests/test_worker_oneshot_usage.py",
+      "line": 223,
+      "test": "test_oneshot_claude_bridges_result_usage_cache"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 86,
+      "test": "test_mcp_with_explicit_oneshot_goes_oneshot"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 103,
+      "test": "test_oneshot_without_mcp_goes_oneshot"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 124,
+      "test": "test_oneshot_only_adapter_clamps_stream_to_oneshot"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 131,
+      "test": "test_oneshot_only_adapter_explicit_oneshot"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 151,
+      "test": "test_apply_output_mode_oneshot"
+    },
+    {
+      "file": "tests/test_worker_output_mode.py",
+      "line": 179,
+      "test": "test_apply_output_mode_oneshot_only_rejects_stream"
+    },
+    {
+      "file": "tests/test_worker_watchdog.py",
+      "line": 333,
+      "test": "test_mcp_idle_worker_reclaimed"
+    },
+    {
+      "file": "tests/test_worker_watchdog.py",
+      "line": 368,
+      "test": "test_mcp_running_worker_not_timeout_killed"
+    },
+    {
+      "file": "tests/test_worker_watchdog.py",
+      "line": 801,
+      "test": "test_consumer_oneshot_refreshes_last_activity_on_idle"
+    }
+  ],
+  "currentFrontendSkips": 3,
+  "currentTotal": 46,
+  "restoredCurrentCases": [
+    "test_adapter_metadata",
+    "test_execution_modes_declared",
+    "test_long_system_prompt_never_selects_oneshot_for_cbc_or_claude",
+    "test_native_adapter_keeps_legacy_and_first_spawn_separate",
+    "test_stream_and_control_protocol",
+    "test_usage_enrichment_rollback_does_not_double_count",
+    "test_worker_and_oneshot_adapters_consume_effective_prompt"
+  ]
+}

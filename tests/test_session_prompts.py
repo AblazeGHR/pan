@@ -137,9 +137,6 @@ def test_worker_and_oneshot_adapters_consume_effective_prompt(tmp_path):
     for name in ("cbc", "claude", "kimi", "codex"):
         args = worker._spawn_system_prompt_args(get_adapter(name), s, mcp_on=True)
         assert args == ["--system-prompt", s.system_prompt]
-    for name in ("cbc", "claude"):
-        args = get_adapter(name).oneshot_args(s, "task")
-        assert args[args.index("--system-prompt") + 1] == s.system_prompt
     paths = []
     args = worker._spawn_system_prompt_args(get_adapter("codex"), s, True, paths)
     try:
@@ -236,3 +233,11 @@ def test_mcp_create_transmits_explicit_empty_prompt(monkeypatch):
     monkeypatch.setattr(server, "_auto_claim", lambda *args, **kwargs: None)
     server.session_create(name="empty", system_prompt="")
     assert request.call_args.args[2]["systemPrompt"] == ""
+
+
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
+def test_retired_oneshot_adapters_consume_effective_prompt(tmp_path):
+    s = sess.create("legacy-prompt", original_prompt="rules", handoff_prompt="latest", workdir=str(tmp_path))
+    for name in ("cbc", "claude"):
+        args = get_adapter(name).oneshot_args(s, "task")
+        assert args[args.index("--system-prompt") + 1] == s.system_prompt

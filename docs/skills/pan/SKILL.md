@@ -19,6 +19,12 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 >
 > **技术细节引用子文档**：HTTP API 清单与字段映射 → [`references/http-api.md`](references/http-api.md)；/ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用）→ [`references/ws-protocol.md`](references/ws-protocol.md)。本文件保留编排流程主线，细节见子文档。
 
+### Illegal 与显式唤醒（2026-10-20）
+
+Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息，包括 agent、assign、插件、报告与 Job 通知。普通发送、群发及正文“继续”不自动恢复。手动解锁至少一条消息或手动 Start/Restart 才允许有效继任恢复；Manual、Pause、lease 与 native owner 等 gate 保持独立。
+
+显式 Wake 使用 `POST /api/sessions/wake`，同次持久化“发送 Behavior 配置的消息、解除其 Illegal 锁、置于队首”，再调度。UI 多选 Wake、启动恢复、定时恢复统一此操作，不能用普通 send/broadcast 模拟。相同去重 ID 不重发、重排或重新解锁。Oneshot Worker 模式已停用入口，历史配置解析为 stream；实现保留，Job 的 one-shot 调度不受影响。
+
 ## 0. 快速开始（30 秒冷启动）
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
@@ -120,6 +126,8 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 | `agent_send_force(session_id, text, client_message_id?)` | 向**已有 Session** 即时尝试送达 | **按能力 Steer 优先**：running stream 原生 admission；idle 普通 handoff；无 Steer 能力才 restart+send；无 Worker 持久入队 | 当前任务的补充 / 澄清 / 纠正 / 约束与验收条件更新 |
 
 **按消息用途选择工具**：向正在执行任务的 TA 更新当前任务，默认使用 `agent_send_force`，包括需求补充、用户澄清、实现纠正、约束或验收条件变化，以及影响当前工作的证据。无须额外判断是否紧急，不因消息较短、语气不急或称为“补充”而改用普通发送。只有明确希望在当前任务结束后处理的独立后续事项，才使用 `agent_send`。Force 是按能力选择发送路径，不等同于必然重启。
+
+上述默认 Force 规则不覆盖 Illegal 保护：Illegal Session 的当前任务补充同样持久入队并锁定，Force 不等同于取消 Illegal。只有显式 Wake（原子发消息、解自己的 Illegal 锁、置队首）、手动解锁或 Start/Restart 才可按有效 ready 条件恢复；保留 owner/unknown、Pause、Manual、报告策略和 lease 的原作用范围。
 
 force 返回 queued/accepted/rejected/unknown；accepted 仅为 CLI admission，
 不是模型已消费。unknown 保留原事务，禁止自动重发或降级 restart；明确拒绝后

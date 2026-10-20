@@ -80,7 +80,7 @@ describe('JobDetailDrawer width', () => {
     expect(screen.queryByRole('button', { name: 'Change target' })).toBeNull();
     expect(screen.getAllByText(/dynamic: Illegal Sessions pending recovery without a live Worker/).length)
       .toBeGreaterThan(0);
-    expect(screen.getByText('继续')).toBeTruthy();
+    expect(screen.getByText('Configured in Settings → Behavior → Wake message')).toBeTruthy();
   });
 
   it('shows the QQ contact and bot identity and permits run-now without a Session target', () => {

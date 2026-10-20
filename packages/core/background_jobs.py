@@ -2197,9 +2197,8 @@ async def _run_job_action(job: dict, target: str | None,
             ).hexdigest()
             client_message_id = f"job-resume:{digest}"
             try:
-                result = await _worker.send_session(
-                    session.id, RESUME_LEGAL_RUNNING_TEXT,
-                    source="automation", client_message_id=client_message_id)
+                result = await _worker.wake_session(
+                    session.id, source="automation", client_message_id=client_message_id)
                 if not isinstance(result, dict):
                     result = {"status": "error",
                               "result": "send_session returned an invalid result"}

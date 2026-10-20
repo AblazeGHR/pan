@@ -390,6 +390,7 @@ def test_crash_huge_and_concurrent_sessions(runtime):
     assert len(raw_lines) == len(_records(runtime))
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_structured_error(runtime):
     sid = _new_session(runtime, "oneshot-error", mode="oneshot")
     _spawn(runtime, sid)

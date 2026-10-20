@@ -1,0 +1,285 @@
+[
+  {
+    "id": "core",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_illegal_queue_wake.py",
+      "tests/test_legal_offline.py",
+      "tests/test_execution_operations.py",
+      "tests/test_codex_native_admission.py",
+      "tests/test_force_steer.py",
+      "tests/test_steer_restart_priority.py",
+      "tests/test_cbc_native_bridge.py",
+      "tests/test_claude_adapter.py",
+      "tests/test_cbc_oneshot_args.py",
+      "tests/test_worker_output_mode.py",
+      "tests/test_worker_oneshot_usage.py",
+      "tests/test_session_prompts.py",
+      "-q",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/core.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/core.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "compat",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_sticky_wake_integration.py",
+      "tests/test_workdir_retention.py",
+      "tests/test_handoff_original_prompt.py",
+      "tests/test_handoff_job_retarget.py",
+      "tests/test_session_handoff.py",
+      "tests/test_lifecycle_shortcuts.py",
+      "tests/test_codex_native_completion.py",
+      "tests/test_session_prompts.py",
+      "-q",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/compat.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/compat.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "atomic-final",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_sticky_wake_integration.py",
+      "-q",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/atomic-final.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/atomic-final.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "queue-api",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_session_queue_api.py",
+      "tests/test_manual_task_report.py",
+      "tests/test_queue_migration.py",
+      "tests/test_startup_recovery.py",
+      "tests/test_jobs_api.py",
+      "tests/test_attachment_parts_protocol.py",
+      "-q",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/queue-api.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/queue-api.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "http-browser",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_illegal_queue_wake_http.py",
+      "tests/test_legal_offline_http.py::test_all_locked_restart_stays_dormant_and_constructed_idle_does_not_recover",
+      "tests/test_legal_offline_browser.py",
+      "-q",
+      "-s",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/http-browser.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/http-browser.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "native-real",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_codex_native_kernel_real.py",
+      "-q",
+      "-s",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/native-real.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/native-real.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "wake-ready-proof",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_wake_ready_integration_http.py",
+      "tests/test_illegal_queue_wake_http.py::test_pan_and_long_job_crash_notification_stays_locked_until_wake",
+      "tests/test_illegal_queue_wake_http.py::test_browser_behavior_wake_setting_and_separate_action",
+      "--basetemp=audit/sticky-wake-integration-20261021/owned-runtime",
+      "-q",
+      "-s",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/wake-ready-proof.xml"
+    ],
+    "stdout": "audit/sticky-wake-integration-20261021/wake-ready-proof.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "frontend",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web",
+    "argv": [
+      "node",
+      "node_modules/vitest/vitest.mjs",
+      "run",
+      "src/components/layout/AppSettingsModal.test.tsx",
+      "src/components/layout/ShortcutsSettings.test.tsx",
+      "src/components/chat/InputRow.test.tsx",
+      "src/components/chat/InputRow.routeDraft.test.tsx",
+      "src/components/chat/ServerAttachmentPicker.test.tsx",
+      "src/components/session/HandoffSessionModal.test.tsx",
+      "src/components/session/SelectedSessionActions.test.tsx",
+      "src/utils/quickNewSession.test.ts",
+      "src/components/session/NewSessionModal.test.tsx",
+      "src/stores/queueStore.test.ts",
+      "src/stores/queueStore.serverSnapshot.test.ts",
+      "src/components/layout/WorkdirCleanup.test.tsx",
+      "src/shortcuts/registryActions.test.ts",
+      "src/shortcuts/useGlobalShortcuts.test.tsx",
+      "--reporter=dot",
+      "--outputFile=../../audit/sticky-wake-integration-20261021/frontend.json",
+      "--reporter=json"
+    ],
+    "note": "Vitest resolves outputFile relative to src; the resulting packages/audit JSON was moved to the root evidence folder.",
+    "stdout": "audit/sticky-wake-integration-20261021/frontend.txt",
+    "exitCode": 0
+  },
+  {
+    "id": "build",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web",
+    "argv": [
+      "pnpm",
+      "build"
+    ],
+    "exitCode": 0,
+    "stdout": "audit/sticky-wake-integration-20261021/build.txt"
+  },
+  {
+    "id": "environment",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "powershell",
+      "-NoProfile",
+      "-File",
+      "tools/prepare_validation_env.ps1",
+      "-Worktree",
+      "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+      "-CanonicalNodeModules",
+      "D:/project/Pan/packages/web/node_modules",
+      "-Check"
+    ],
+    "exitCode": 0,
+    "stdout": "audit/sticky-wake-integration-20261021/validation-env.txt"
+  },
+  {
+    "id": "skip-audit",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "audit/sticky-wake-integration-20261021/audit_skips.py"
+    ],
+    "exitCode": 0
+  },
+  {
+    "id": "lint",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web",
+    "powershell": "$files = @(git diff --name-only 20473b41 --relative -- src/ | Where-Object { $_ -match '\\.tsx?$' }); node node_modules/eslint/bin/eslint.js @files",
+    "exitCode": 0,
+    "stdout": "audit/sticky-wake-integration-20261021/eslint.txt"
+  },
+  {
+    "id": "environment-prepare-initial",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "powershell",
+      "-NoProfile",
+      "-File",
+      "tools/prepare_validation_env.ps1",
+      "-Worktree",
+      "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+      "-CanonicalNodeModules",
+      "D:/project/Pan/packages/web/node_modules"
+    ],
+    "exitCode": 0,
+    "note": "Initial preparation created the marked worktree-local junction; check log later confirms the same target."
+  },
+  {
+    "id": "readonly-frontend-final",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web",
+    "powershell": "$readonlyValidationSource = Get-Content -LiteralPath '../../audit/sticky-wake-integration-20261021/readonly-frontend.mjs' -Raw; $readonlyValidationSource | node --input-type=module; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node e2e/verify-precompressed-assets.mjs",
+    "stdout": "audit/sticky-wake-integration-20261021/readonly-frontend.txt",
+    "exitCode": 0,
+    "note": "Re-runs the same 14 frontend files with owned cache, builds production from the tracked Vite configuration, and checks no further shared cache changes. Repeated tests are not added to unique counts."
+  },
+  {
+    "id": "semantic-preservation",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "audit/sticky-wake-integration-20261021/verify_semantics.py"
+    ],
+    "exitCode": 0
+  },
+  {
+    "id": "preliminary-evidence-retrieval-collection",
+    "cwd": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_wake_ready_integration_http.py",
+      "-q",
+      "-s",
+      "--tb=short",
+      "--junitxml=audit/sticky-wake-integration-20261021/wake-ready.xml"
+    ],
+    "observedProcessExitCode": 1,
+    "testsExecuted": 0,
+    "stdout": "audit/sticky-wake-integration-20261021/wake-ready.txt",
+    "note": "The preceding temporary-proof copy failed after shared pytest retention removed that path, so the new test file was not created for this preliminary invocation. It was subsequently created and the dedicated four-case proof run passed."
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "before": {
+    "resultFile": "D:\\project\\Pan\\packages\\web\\node_modules\\.vite\\vitest\\results.json",
+    "sha256": "9bb0274e43f61219e8ff27936a2319696fa115999959257c231f1aa008b2a1f2",
+    "mtimeMs": 1792513109219.7239,
+    "configTempMtimeMs": 1792512982000.3516
+  },
+  "after": {
+    "resultFile": "D:\\project\\Pan\\packages\\web\\node_modules\\.vite\\vitest\\results.json",
+    "sha256": "9bb0274e43f61219e8ff27936a2319696fa115999959257c231f1aa008b2a1f2",
+    "mtimeMs": 1792513109219.7239,
+    "configTempMtimeMs": 1792512982000.3516
+  },
+  "identical": true,
+  "productionProof": {
+    "isProduction": true,
+    "mode": "production",
+    "cacheDir": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/audit/sticky-wake-integration-20261021/owned-cache/vite-build",
+    "sourceConfigSha256": "b819756b94bf5f71f8c824ce6cbdb0ff2c62c5e72a84f24a9a07e13426e8a31d"
+  },
+  "testCacheDir": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-cache\\vitest",
+  "buildCacheDir": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-cache\\vite-build",
+  "note": "Initial default CLI invocation wrote the shared Vitest result cache; this rerun uses owned cache directories and owned transpiled config loading, with no further shared cache writes."
+}

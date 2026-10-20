@@ -1,0 +1,20 @@
+[
+  {
+    "source": "C:/Users/14709/.codex/sessions/2026/10/18/rollout-2026-10-18T03-19-37-01a14b4e-2d9b-7d41-9fe9-7fb7b80b0735.jsonl",
+    "line": 4849,
+    "timestamp": "2026-10-20T08:35:31.375Z",
+    "messageId": "msg_01a15873-91af-7c41-a26d-4088ba68d281",
+    "turnId": "01a15873-885d-7d20-81df-4878b697cbd6",
+    "text": "机制改动，新机制下，illegal态会illegal锁后来的所有消息，直到取消illegal态。所以现在在illegal下直接发送消息不会取消illegal态，需要手动解锁至少一个消息，或进行手动start。为此需要联动修改“唤醒”行为，不可以只发送\"继续\"，发送后要调整到队列最前端，并进行解锁。我有一个问题，现阶段，start是否取消illegal态？",
+    "textSha256": "1350c39b216c04afc1ae9c44fedd0a80ee3d1f64044b4d3c9e3e402e60dc8704"
+  },
+  {
+    "source": "C:/Users/14709/.codex/sessions/2026/10/18/rollout-2026-10-18T03-19-37-01a14b4e-2d9b-7d41-9fe9-7fb7b80b0735.jsonl",
+    "line": 4891,
+    "timestamp": "2026-10-20T08:48:12.940Z",
+    "messageId": "msg_01a1587f-308c-7aa3-97ec-f9abbd91e02e",
+    "turnId": "01a1587d-87ea-78d2-b243-8b667ee489c3",
+    "text": "1.对 2. Oneshot现在似乎没有什么独特价值，我想移除这个模式，你帮我确认一下它是否有独有功能，没有的话先移除所有入口，但是先不删代码，也skip所有相关测试 3. 对，唤醒现在要被从群发消息中独立出来，包含发送消息，将此消息解锁并派到第一位，三个动作 。另外顺手多做一个自定义唤醒消息的功能，设置入口放在behavior（你可能需要先将最新的main合并到你的工作树才能看到）4. 保留，如你所说，只解除illegal锁 5.对，包含所有消息，包括plugin来源的 6.合理。",
+    "textSha256": "6aba44827551f4e4cf57d6f4f0be9fe56cf8875b68fc7f4293a12086dc3c68b2"
+  }
+]

@@ -1,0 +1,475 @@
+{
+  "id": "ses_a080eccb792e214b",
+  "name": "real-fifo-shutdown-job",
+  "adapter": "cbc",
+  "model": "deepseek-v4-flash",
+  "permission_mode": "bypassPermissions",
+  "pan_access": {
+    "restrict_to_managed": false,
+    "can_claim_unmanaged": false,
+    "auto_claim_created": false
+  },
+  "adapter_config": {
+    "always_thinking_enabled": false,
+    "effort": "",
+    "max_thinking_tokens": null,
+    "output_mode": "stream",
+    "plugin_config_version": 2,
+    "plugin_bindings": [
+      {
+        "plugin_id": "pan",
+        "enabled": true,
+        "mode": "standalone"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "pan",
+        "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-m",
+          "packages.mcp.server"
+        ],
+        "cwd": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018"
+      }
+    ],
+    "plugin_selection_revision": 1,
+    "cli_session_id": "fake-12372"
+  },
+  "character_id": null,
+  "session_template": null,
+  "original_prompt": "",
+  "handoff_prompt": null,
+  "game_id": null,
+  "raw_usage": null,
+  "total_usage": null,
+  "usage_enrichment_pending": [],
+  "workdir": "D:\\project\\pan-worktrees\\legal-offline-illegal-lock-review-20261018\\audit\\shutdown-job-live-20261019\\workdirs\\real-fifo-shutdown-job",
+  "history": [
+    {
+      "role": "user",
+      "content": "hold-A",
+      "queueItemIds": [
+        "q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+      ],
+      "delivered_keys": [
+        "task:q_252e8ce514334d6ba9e2e25cf2bc7ec5"
+      ],
+      "kind": "task",
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "kind": "task",
+          "id": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+          "queueItemId": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+          "text": "hold-A",
+          "source": "user",
+          "seq": 1,
+          "taskId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792399511.6172593,
+          "clientMessageId": "shutdown-hold",
+          "position": 0
+        }
+      ],
+      "source": "user",
+      "taskId": null,
+      "clientMessageId": "shutdown-hold",
+      "messageId": "pan:c7457ae1b18942c299b383246c0ff73e",
+      "ts": "2026-10-19T16:45:11.631764"
+    },
+    {
+      "role": "user",
+      "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "queueItemIds": [
+        "q_f5a6b7c678d74c7cae7f88e8a36a819a"
+      ],
+      "delivered_keys": [
+        "report:anon:3b13c139bf93"
+      ],
+      "kind": "report",
+      "queueEnvelopes": [
+        {
+          "kind": "report",
+          "id": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+          "queueItemId": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+          "source": "automation",
+          "status": "failed",
+          "type": "notice",
+          "result": "{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+          "sessionId": "ses_a080eccb792e214b",
+          "taskId": null,
+          "workerId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792399517.4627638,
+          "eventId": "job_9af540402c4e5e0acdb45bae:terminal",
+          "noticeKind": "background_job_terminal",
+          "jobId": "job_9af540402c4e5e0acdb45bae",
+          "creatorSessionId": "ses_a080eccb792e214b",
+          "targetSessionId": "ses_a080eccb792e214b",
+          "targetSessionIds": [
+            "ses_a080eccb792e214b"
+          ],
+          "position": 0
+        }
+      ],
+      "source": "automation",
+      "taskId": null,
+      "eventId": "job_9af540402c4e5e0acdb45bae:terminal",
+      "noticeKind": "background_job_terminal",
+      "jobId": "job_9af540402c4e5e0acdb45bae",
+      "messageId": "pan:72784256efb249c68a5c5f3e0ad317cc",
+      "ts": "2026-10-19T16:45:17.708593"
+    },
+    {
+      "role": "assistant",
+      "content": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "messageId": "pan:96b4819a40754bc5a7dc51afafe9889b",
+      "ts": "2026-10-19T16:45:17.742928"
+    },
+    {
+      "role": "assistant",
+      "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "messageId": "pan:0ba8b9171e6541db9071cd6bbf3d3413",
+      "ts": "2026-10-19T16:45:17.743017"
+    }
+  ],
+  "history_epoch": "95655202b01f474fa070eb2a6d43741d",
+  "history_revision": 4,
+  "last_result": {
+    "status": "done",
+    "result": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+    "cli_session_id": "fake-12372",
+    "timestamp": "2026-10-19T16:45:17.743003",
+    "taskSeq": null,
+    "executionSeq": 1,
+    "taskId": null,
+    "taskIdempotent": false,
+    "workerId": "worker-1",
+    "generation": 0,
+    "resultCursor": 1,
+    "sourceSessionId": null,
+    "terminalKey": "worker:worker-1:generation:0:0f55aaae944b47f4ac6defc9d75d5415",
+    "historyEpoch": "95655202b01f474fa070eb2a6d43741d",
+    "historyRevision": 4,
+    "usageEnrichmentKey": "worker:worker-1:generation:0:7c4a011f222545b6a86f95d9cdc51447"
+  },
+  "result_cursor": 1,
+  "terminal_results": [
+    {
+      "resultCursor": 1,
+      "terminalKey": "worker:worker-1:generation:0:0f55aaae944b47f4ac6defc9d75d5415",
+      "status": "done",
+      "result": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSessionId: ses_a080eccb792e214b\neventId: job_9af540402c4e5e0acdb45bae:terminal\nresult:\n{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "taskSeq": null,
+      "executionSeq": 1,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "sourceSessionId": null,
+      "timestamp": "2026-10-19T16:45:17.743001",
+      "historyEpoch": "95655202b01f474fa070eb2a6d43741d",
+      "historyRevision": 4
+    }
+  ],
+  "last_legal_worker_state": null,
+  "legal_offline": true,
+  "offline_migration_uncertainty": null,
+  "offline_owner": {
+    "runtimeExpected": true,
+    "token": "5ffb7acc23c742ea8b967a7512d270a5",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "672e3029859d492e8d52704c809e14c9",
+    "executionSeq": 1,
+    "processes": [
+      {
+        "pid": 10160,
+        "createdAt": 1792399517.673901
+      },
+      {
+        "pid": 2052,
+        "createdAt": 1792399517.68314
+      },
+      {
+        "pid": 29876,
+        "createdAt": 1792399517.697648
+      }
+    ]
+  },
+  "offline_run": {
+    "runtimeExpected": true,
+    "token": "5ffb7acc23c742ea8b967a7512d270a5",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "672e3029859d492e8d52704c809e14c9",
+    "executionSeq": 1,
+    "processes": [
+      {
+        "pid": 10160,
+        "createdAt": 1792399517.673901
+      },
+      {
+        "pid": 2052,
+        "createdAt": 1792399517.68314
+      },
+      {
+        "pid": 29876,
+        "createdAt": 1792399517.697648
+      }
+    ],
+    "id": "047e605eeb004c4e880739ac5f0940d8",
+    "kind": "foreground",
+    "admittedRevision": 3,
+    "state": "idle",
+    "startedAt": 1792399517.7066545,
+    "safeTerminal": true,
+    "endedAt": 1792399517.748304,
+    "reason": "task/safe-terminal",
+    "terminalProof": "safe-terminal"
+  },
+  "illegal_batches": {
+    "a21b7fa1e07941949eaac65347e4db58": {
+      "id": "a21b7fa1e07941949eaac65347e4db58",
+      "run": {
+        "runtimeExpected": true,
+        "token": "8a84098743c840fab19ed3dc5e9831be",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "16992b6a347d427f933405a1d5bfc7a0",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 28512,
+            "createdAt": 1792399510.5620625
+          },
+          {
+            "pid": 11224,
+            "createdAt": 1792399510.5676463
+          },
+          {
+            "pid": 12372,
+            "createdAt": 1792399510.5810876
+          }
+        ],
+        "id": "a21b7fa1e07941949eaac65347e4db58",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "running",
+        "startedAt": 1792399511.6281013,
+        "safeTerminal": false
+      },
+      "messages": [],
+      "incidentId": "a21b7fa1e07941949eaac65347e4db58",
+      "reason": "unfinished-run",
+      "createdAt": 1792399517.438178,
+      "recovered": true,
+      "recoveredAt": 1792399517.7393684,
+      "recoveredBy": {
+        "runtimeExpected": true,
+        "token": "5ffb7acc23c742ea8b967a7512d270a5",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "672e3029859d492e8d52704c809e14c9",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 10160,
+            "createdAt": 1792399517.673901
+          },
+          {
+            "pid": 2052,
+            "createdAt": 1792399517.68314
+          },
+          {
+            "pid": 29876,
+            "createdAt": 1792399517.697648
+          }
+        ]
+      }
+    }
+  },
+  "legality_schema_version": 2,
+  "operation_revision": 5,
+  "execution_operations": {
+    "a21b7fa1e07941949eaac65347e4db58": {
+      "runtimeExpected": true,
+      "token": "8a84098743c840fab19ed3dc5e9831be",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "16992b6a347d427f933405a1d5bfc7a0",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 28512,
+          "createdAt": 1792399510.5620625
+        },
+        {
+          "pid": 11224,
+          "createdAt": 1792399510.5676463
+        },
+        {
+          "pid": 12372,
+          "createdAt": 1792399510.5810876
+        }
+      ],
+      "id": "a21b7fa1e07941949eaac65347e4db58",
+      "kind": "foreground",
+      "admittedRevision": 1,
+      "state": "illegal",
+      "startedAt": 1792399511.6281013,
+      "safeTerminal": false,
+      "incidentId": "a21b7fa1e07941949eaac65347e4db58",
+      "reason": "unfinished-run",
+      "retirement": {
+        "safe": true,
+        "proof": "successor-ready-after-owner-reconciliation",
+        "committedAt": 1792399517.7393699
+      }
+    },
+    "047e605eeb004c4e880739ac5f0940d8": {
+      "runtimeExpected": true,
+      "token": "5ffb7acc23c742ea8b967a7512d270a5",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "672e3029859d492e8d52704c809e14c9",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 10160,
+          "createdAt": 1792399517.673901
+        },
+        {
+          "pid": 2052,
+          "createdAt": 1792399517.68314
+        },
+        {
+          "pid": 29876,
+          "createdAt": 1792399517.697648
+        }
+      ],
+      "id": "047e605eeb004c4e880739ac5f0940d8",
+      "kind": "foreground",
+      "admittedRevision": 3,
+      "state": "idle",
+      "startedAt": 1792399517.7066545,
+      "safeTerminal": true,
+      "endedAt": 1792399517.748304,
+      "reason": "task/safe-terminal",
+      "terminalProof": "safe-terminal"
+    }
+  },
+  "owner_retirements": {},
+  "created_at": "2026-10-19T16:45:09.873999",
+  "updated_at": "2026-10-19T16:45:17.763980",
+  "order": null,
+  "workspace_ids": [],
+  "managed": [],
+  "managed_by": null,
+  "readonly_session": false,
+  "queue_pending": [],
+  "queue_paused": false,
+  "agent_reports_paused": false,
+  "queue_item_locks_version": 1,
+  "queue_edit_locks": {},
+  "queue_delivery_ledger": {
+    "q_252e8ce514334d6ba9e2e25cf2bc7ec5": {
+      "type": "task",
+      "kind": "task",
+      "id": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+      "queueItemId": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+      "text": "hold-A",
+      "source": "user",
+      "seq": 1,
+      "taskId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792399511.6172593,
+      "clientMessageId": "shutdown-hold",
+      "position": 0,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792399511.620239,
+      "receiptAt": 1792399511.6317742,
+      "deliveredAt": 1792399511.6317742
+    },
+    "q_f5a6b7c678d74c7cae7f88e8a36a819a": {
+      "kind": "report",
+      "id": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+      "queueItemId": "q_f5a6b7c678d74c7cae7f88e8a36a819a",
+      "source": "automation",
+      "status": "failed",
+      "type": "notice",
+      "result": "{\"jobId\": \"job_9af540402c4e5e0acdb45bae\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-illegal-lock-review-20261018\\\\audit\\\\shutdown-job-live-20261019\\\\background_jobs\\\\logs\\\\job_9af540402c4e5e0acdb45bae.log\"}",
+      "sessionId": "ses_a080eccb792e214b",
+      "taskId": null,
+      "workerId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792399517.4627638,
+      "eventId": "job_9af540402c4e5e0acdb45bae:terminal",
+      "noticeKind": "background_job_terminal",
+      "jobId": "job_9af540402c4e5e0acdb45bae",
+      "creatorSessionId": "ses_a080eccb792e214b",
+      "targetSessionId": "ses_a080eccb792e214b",
+      "targetSessionIds": [
+        "ses_a080eccb792e214b"
+      ],
+      "position": 0,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792399517.6978395,
+      "receiptAt": 1792399517.7086043,
+      "deliveredAt": 1792399517.7086043
+    }
+  },
+  "queue_idempotency_index": {
+    "version": 1,
+    "taskId": {},
+    "clientMessageId": {
+      "shutdown-hold": {
+        "queueItemId": "q_252e8ce514334d6ba9e2e25cf2bc7ec5",
+        "seenAt": 1792399511.6172593
+      }
+    }
+  },
+  "queue_revision": 8,
+  "task_seq": 1,
+  "unread_done_count": 0,
+  "unread_done_generation": 0,
+  "unread_done_read_generation": 0,
+  "unread_recording_override": null,
+  "active_task_id": null,
+  "accepted_input_ids": [
+    "shutdown-hold"
+  ],
+  "manual_report_receipts": {},
+  "summary_projection": {
+    "revision": 19,
+    "last_user_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "last_assistant_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "last_display_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_9af540402c4e5e0acdb45bae\ntargetSessionId: ses_a080eccb792e214b\ntargetSessionIds: ['ses_a080eccb792e214b']\ncreatorSession",
+    "last_system_preview": "",
+    "last_thinking_preview": "",
+    "last_tool_preview": "",
+    "last_main_role": "assistant",
+    "history_total": 4,
+    "updated_at": "2026-10-19T16:45:17.750424"
+  },
+  "report_subscriptions": [],
+  "qq_report_targets": [],
+  "qq_report_outbox": {},
+  "qq_subscriptions": [],
+  "wechat_subscriptions": [],
+  "notification_settings": {
+    "browser": false,
+    "system": false
+  }
+}

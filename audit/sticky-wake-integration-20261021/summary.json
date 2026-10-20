@@ -1,0 +1,121 @@
+{
+  "base": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+  "productMerge": "c04447c63bd3c55844c73c98ab293d9010d2ee0e",
+  "incoming": "e160782e636d828427e9262e952a1f25c09117b9",
+  "groups": {
+    "core": {
+      "tests": 312,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 26,
+      "passed": 286,
+      "seconds": 11.419,
+      "exitCode": 0
+    },
+    "compat": {
+      "tests": 165,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 1,
+      "passed": 164,
+      "seconds": 12.081,
+      "exitCode": 0
+    },
+    "atomic-final": {
+      "tests": 10,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 10,
+      "seconds": 0.686,
+      "exitCode": 0
+    },
+    "queue-api": {
+      "tests": 192,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 192,
+      "seconds": 8.587,
+      "exitCode": 0
+    },
+    "http-browser": {
+      "tests": 10,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 10,
+      "seconds": 38.442,
+      "exitCode": 0
+    },
+    "native-real": {
+      "tests": 4,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 4,
+      "seconds": 14.873,
+      "exitCode": 0
+    },
+    "wake-ready-proof": {
+      "tests": 4,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 4,
+      "seconds": 17.258,
+      "exitCode": 0
+    }
+  },
+  "frontend": {
+    "files": 14,
+    "passed": 257,
+    "skipped": 3,
+    "failed": 0,
+    "exitCode": 0,
+    "finalEvidence": "frontend-readonly.json"
+  },
+  "unique": {
+    "pythonPassed": 620,
+    "pythonSkipped": 26,
+    "frontendPassed": 257,
+    "frontendSkipped": 3,
+    "allPassed": 877,
+    "allSkipped": 29
+  },
+  "skipInventory": {
+    "python": 43,
+    "frontend": 3,
+    "original": 49,
+    "restoredCurrentCases": 7
+  },
+  "build": {
+    "exitCode": 0,
+    "compressedAssets": 72
+  },
+  "lint": {
+    "exitCode": 0,
+    "errors": 0,
+    "existingWarnings": 4
+  },
+  "artifactRetry": {
+    "preliminaryExitCode": 1,
+    "testsExecuted": 0,
+    "reason": "Prior runtime evidence was removed by shared pytest temp retention before copying. Four selected cases were rerun using unique worktree-local basetemp and the proof archived."
+  },
+  "job": {
+    "jobId": "job_d7d3d819b06fdde2d4171ae7",
+    "queueItemId": "q_db87e9bdf65540d09262fdebfab42164"
+  },
+  "readonlyCorrection": {
+    "initialStrictReadonlyDeviation": true,
+    "detail": "Default Vitest wrote shared results.json and the default build used the shared config-temp directory; no dependency package installation/upgrade was performed. Shared cache was not reverted without ownership.",
+    "correctedPipelineExitCode": 0,
+    "proof": "readonly-cache-proof.json",
+    "helperRetries": [
+      "Closed Vitest context has no vite field; script check corrected.",
+      "Runner loader could not supply __dirname to tracked config; an owned transpiled equivalent with configFile=false and production-mode assertions was used."
+    ],
+    "allRetainedInLogs": true
+  }
+}

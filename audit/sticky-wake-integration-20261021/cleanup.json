@@ -1,0 +1,69 @@
+{
+  "ports": [
+    49393,
+    49817,
+    49842,
+    50776,
+    50810,
+    52435,
+    53511,
+    57565,
+    57688,
+    59117,
+    59879,
+    60467,
+    65168,
+    65219
+  ],
+  "cliIdentities": [
+    {
+      "pid": 36576,
+      "createdAt": 1792513669.4614527,
+      "phase": "beforeWake",
+      "sameRuntimeAlive": false
+    },
+    {
+      "pid": 37548,
+      "createdAt": 1792513669.4664176,
+      "phase": "beforeWake",
+      "sameRuntimeAlive": false
+    },
+    {
+      "pid": 20684,
+      "createdAt": 1792513669.482878,
+      "phase": "beforeWake",
+      "sameRuntimeAlive": false
+    },
+    {
+      "pid": 39700,
+      "createdAt": 1792513671.7825897,
+      "phase": "afterWake",
+      "sameRuntimeAlive": false
+    },
+    {
+      "pid": 46940,
+      "createdAt": 1792513671.791756,
+      "phase": "afterWake",
+      "sameRuntimeAlive": false
+    },
+    {
+      "pid": 20468,
+      "createdAt": 1792513671.806313,
+      "phase": "afterWake",
+      "sameRuntimeAlive": false
+    }
+  ],
+  "jobId": "job_d7d3d819b06fdde2d4171ae7",
+  "jobStatus": "failed",
+  "queueBefore": {
+    "id": "q_db87e9bdf65540d09262fdebfab42164",
+    "state": "queued",
+    "lockSource": "illegal"
+  },
+  "queueAfter": "sent_to_cli",
+  "temporaryData": {
+    "path": "D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/audit/sticky-wake-integration-20261021/owned-runtime",
+    "retainedIgnored": true,
+    "reason": "Automatic approval review rejected recursive deletion; tool returned blocked by policy. All owned runtime processes and listeners are stopped. No alternative deletion attempted."
+  }
+}

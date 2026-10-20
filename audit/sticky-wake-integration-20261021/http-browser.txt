@@ -1,0 +1,16 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021
+.CLEANUP http://127.0.0.1:50776 owned server stopped; port released
+.CLEANUP http://127.0.0.1:50810 owned server stopped; port released
+.CLEANUP http://127.0.0.1:49817 owned server stopped; port released
+.CLEANUP http://127.0.0.1:49842 owned server stopped; port released
+STICKY_JOB_CRASH job_05d7e5346c2341c0d010b84d q_0c9d265e249843bca3ce8a56342bf692 C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3257\test_pan_and_long_job_crash_no0
+.CLEANUP http://127.0.0.1:53511 owned server stopped; port released
+.CLEANUP http://127.0.0.1:59117 owned server stopped; port released
+LEGAL_DELAYED_READY {"port": 57688, "failedReady": false, "batch": "26a442cdfaa04dfbadc5c5596aaa6a7d", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3257\\test_all_locked_restart_stays_0\\runtime"}
+.CLEANUP http://127.0.0.1:57688 owned server stopped; port released
+LEGAL_DELAYED_READY {"port": 60467, "failedReady": true, "batch": "d728c93a9a09414c95f7e08f02e2ce09", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3257\\test_all_locked_restart_stays_1\\runtime"}
+.CLEANUP http://127.0.0.1:60467 owned server stopped; port released
+LEGAL_BROWSER http://127.0.0.1:57565 ses_4e396007693ee89b C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3257\test_browser_illegal_dot_recov0 Chromium 153.0.8010.12
+.CLEANUP http://127.0.0.1:57565 owned server stopped; port released
+.CLEANUP http://127.0.0.1:59879 owned server stopped; port released
+

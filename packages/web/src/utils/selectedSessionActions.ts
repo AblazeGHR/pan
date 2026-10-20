@@ -1,4 +1,4 @@
-import { ackSessionUnreadDone, setSessionMsgBridge } from '@/services/api';
+import { ackSessionUnreadDone, setSessionMsgBridge, wakeSessions } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkerStore } from '@/stores/workerStore';
 import type { Session } from '@/types';
@@ -16,6 +16,7 @@ export interface SelectedSessionTarget {
   hasWorker: boolean;
 }
 export type SelectedSessionAction =
+  | 'wake'
   | 'read'
   | 'bell-on'
   | 'bell-off'
@@ -62,7 +63,10 @@ export async function runSelectedSessionAction(
         const store = useSessionStore.getState();
         const current = store.sessions.find((session) => session.id === target.id);
         if (!current) throw new Error('Session no longer exists');
-        if (action === 'read') {
+        if (action === 'wake') {
+          await wakeSessions([target.id]);
+          return { id: target.id, name: target.name, detail: 'Wake message queued first' };
+        } else if (action === 'read') {
           if (target.generation <= 0 && (current.unreadDoneCount ?? 0) > 0)
             throw new Error('Unread generation unavailable; refresh and retry');
           if (target.generation > 0) {

@@ -1,0 +1,4 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021
+
+ERROR: file or directory not found: tests/test_wake_ready_integration_http.py
+

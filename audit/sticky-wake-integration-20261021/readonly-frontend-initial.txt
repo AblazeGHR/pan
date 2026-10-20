@@ -1,0 +1,36 @@
+ Vitest  "cache.dir" is deprecated, use Vite's "cacheDir" instead if you want to change the cache director. Note caches will be written to "cacheDir/vitest"
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/src
+
+ ✓ utils/quickNewSession.test.ts (9 tests | 1 skipped) 7ms
+ ✓ stores/queueStore.serverSnapshot.test.ts (4 tests) 7ms
+ ✓ shortcuts/registryActions.test.ts (5 tests) 6ms
+ ✓ shortcuts/useGlobalShortcuts.test.tsx (8 tests) 62ms
+ ✓ components/layout/WorkdirCleanup.test.tsx (4 tests) 196ms
+ ✓ components/chat/ServerAttachmentPicker.test.tsx (11 tests) 344ms
+ ✓ components/session/SelectedSessionActions.test.tsx (11 tests) 219ms
+ ✓ components/session/HandoffSessionModal.test.tsx (7 tests) 514ms
+ ✓ stores/queueStore.test.ts (21 tests) 828ms
+ ✓ components/layout/ShortcutsSettings.test.tsx (9 tests) 674ms
+ ✓ components/session/NewSessionModal.test.tsx (28 tests | 1 skipped) 2122ms
+ ✓ components/chat/InputRow.routeDraft.test.tsx (8 tests) 1983ms
+   ✓ composer draft across a real route unmount > restores text, URL node and a still-pending File with its real bytes 339ms
+   ✓ composer draft across a real route unmount > does not resurrect a sent draft and prunes browser bytes only after an acknowledged clear 813ms
+ ✓ components/layout/AppSettingsModal.test.tsx (57 tests) 4037ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1098ms
+ ✓ components/chat/InputRow.test.tsx (78 tests | 1 skipped) 6564ms
+JSON report written to D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/audit/sticky-wake-integration-20261021/frontend-readonly.json
+
+ Test Files  14 passed (14)
+      Tests  257 passed | 3 skipped (260)
+   Start at  00:38:16
+   Duration  10.56s (transform 3.36s, setup 266ms, collect 13.68s, tests 17.56s, environment 15.34s, prepare 3.10s)
+
+file:///D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/[eval1]:27
+assert(ctx.vite.config.cacheDir.startsWith(ownedCache), ctx.vite.config.cacheDir);
+                ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at file:///D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/[eval1]:27:17
+
+Node.js v24.15.0

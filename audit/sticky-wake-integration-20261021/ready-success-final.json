@@ -1,0 +1,609 @@
+{
+  "id": "ses_ed64ac8adb403732",
+  "name": "real-fifo-sticky",
+  "adapter": "cbc",
+  "model": "deepseek-v4-flash",
+  "permission_mode": "bypassPermissions",
+  "pan_access": {
+    "restrict_to_managed": false,
+    "can_claim_unmanaged": false,
+    "auto_claim_created": false
+  },
+  "adapter_config": {
+    "always_thinking_enabled": false,
+    "effort": "",
+    "max_thinking_tokens": null,
+    "output_mode": "stream",
+    "plugin_config_version": 2,
+    "plugin_bindings": [
+      {
+        "plugin_id": "pan",
+        "enabled": true,
+        "mode": "standalone"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "pan",
+        "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-m",
+          "packages.mcp.server"
+        ],
+        "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021"
+      }
+    ],
+    "plugin_selection_revision": 1,
+    "cli_session_id": "fake-45088"
+  },
+  "character_id": null,
+  "session_template": null,
+  "original_prompt": "",
+  "handoff_prompt": null,
+  "game_id": null,
+  "raw_usage": null,
+  "total_usage": null,
+  "usage_enrichment_pending": [
+    {
+      "key": "seq:3",
+      "adapter": "cbc",
+      "taskId": null,
+      "taskSeq": 3,
+      "workerId": "worker-1",
+      "generation": 0,
+      "state": "pending",
+      "attempts": 0,
+      "nextAttemptAt": 0.0,
+      "createdAt": 1792513664.2054725
+    },
+    {
+      "key": "seq:2",
+      "adapter": "cbc",
+      "taskId": null,
+      "taskSeq": 2,
+      "workerId": "worker-1",
+      "generation": 0,
+      "state": "pending",
+      "attempts": 0,
+      "nextAttemptAt": 0.0,
+      "createdAt": 1792513664.2382033
+    }
+  ],
+  "workdir": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_explicit_wake_retains_old0\\runtime\\workdirs\\real-fifo-sticky",
+  "history": [
+    {
+      "role": "user",
+      "content": "hold-A",
+      "queueItemIds": [
+        "q_c9ac1063caa04024bd3dcae24453b331"
+      ],
+      "delivered_keys": [
+        "task:q_c9ac1063caa04024bd3dcae24453b331"
+      ],
+      "kind": "task",
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "kind": "task",
+          "id": "q_c9ac1063caa04024bd3dcae24453b331",
+          "queueItemId": "q_c9ac1063caa04024bd3dcae24453b331",
+          "text": "hold-A",
+          "source": "user",
+          "seq": 1,
+          "taskId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792513662.2980657,
+          "clientMessageId": "active",
+          "position": 0
+        }
+      ],
+      "source": "user",
+      "taskId": null,
+      "clientMessageId": "active",
+      "messageId": "pan:7ad4f2f1887148328f8efa870577f70f",
+      "ts": "2026-10-21T00:27:42.354777"
+    },
+    {
+      "role": "user",
+      "content": "继续",
+      "queueItemIds": [
+        "q_9058372e75de4a61abe0cfca15299f24"
+      ],
+      "delivered_keys": [
+        "task:q_9058372e75de4a61abe0cfca15299f24"
+      ],
+      "kind": "task",
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "kind": "task",
+          "id": "q_9058372e75de4a61abe0cfca15299f24",
+          "queueItemId": "q_9058372e75de4a61abe0cfca15299f24",
+          "text": "继续",
+          "source": "agent",
+          "seq": 3,
+          "taskId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792513664.0356874,
+          "clientMessageId": "nonempty-wake",
+          "wakeMessage": true,
+          "position": 0
+        }
+      ],
+      "source": "agent",
+      "taskId": null,
+      "clientMessageId": "nonempty-wake",
+      "messageId": "pan:6c9715da1e7a43b69ba3883fe001f0f7",
+      "ts": "2026-10-21T00:27:44.132449"
+    },
+    {
+      "role": "assistant",
+      "content": "ack:����",
+      "messageId": "pan:bb3038af815a4731980005b801a5ea92",
+      "ts": "2026-10-21T00:27:44.205074"
+    },
+    {
+      "role": "assistant",
+      "content": "����",
+      "messageId": "pan:a4359267211a4ed48dcf3ccfa197f11f",
+      "ts": "2026-10-21T00:27:44.205454"
+    },
+    {
+      "role": "user",
+      "content": "old backlog",
+      "queueItemIds": [
+        "q_c95ba689da534d9290e152149bc5f5a2"
+      ],
+      "delivered_keys": [
+        "task:q_c95ba689da534d9290e152149bc5f5a2"
+      ],
+      "kind": "task",
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "kind": "task",
+          "id": "q_c95ba689da534d9290e152149bc5f5a2",
+          "queueItemId": "q_c95ba689da534d9290e152149bc5f5a2",
+          "text": "old backlog",
+          "source": "user",
+          "seq": 2,
+          "taskId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792513662.4377384,
+          "clientMessageId": "old",
+          "position": 1
+        }
+      ],
+      "source": "user",
+      "taskId": null,
+      "clientMessageId": "old",
+      "messageId": "pan:75f69b2120874affaf753bb3b22ad45c",
+      "ts": "2026-10-21T00:27:44.231695"
+    },
+    {
+      "role": "assistant",
+      "content": "ack:old backlog",
+      "messageId": "pan:98c56eb79d4842b89e19e8beebb0ce29",
+      "ts": "2026-10-21T00:27:44.232865"
+    },
+    {
+      "role": "assistant",
+      "content": "old backlog",
+      "messageId": "pan:b97923efd7414b05a6d1c3346e2f2ba4",
+      "ts": "2026-10-21T00:27:44.238184"
+    }
+  ],
+  "history_epoch": "ea9764add3a54f95a28ecadfddc6b3a9",
+  "history_revision": 7,
+  "last_result": {
+    "status": "done",
+    "result": "old backlog",
+    "cli_session_id": "fake-45088",
+    "timestamp": "2026-10-21T00:27:44.238159",
+    "taskSeq": 2,
+    "executionSeq": 2,
+    "taskId": null,
+    "taskIdempotent": false,
+    "workerId": "worker-1",
+    "generation": 0,
+    "resultCursor": 2,
+    "sourceSessionId": null,
+    "terminalKey": "seq:2",
+    "historyEpoch": "ea9764add3a54f95a28ecadfddc6b3a9",
+    "historyRevision": 7,
+    "usageEnrichmentKey": "seq:2"
+  },
+  "result_cursor": 2,
+  "terminal_results": [
+    {
+      "resultCursor": 1,
+      "terminalKey": "seq:3",
+      "status": "done",
+      "result": "����",
+      "taskSeq": 3,
+      "executionSeq": 1,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "sourceSessionId": null,
+      "timestamp": "2026-10-21T00:27:44.205423",
+      "historyEpoch": "ea9764add3a54f95a28ecadfddc6b3a9",
+      "historyRevision": 4
+    },
+    {
+      "resultCursor": 2,
+      "terminalKey": "seq:2",
+      "status": "done",
+      "result": "old backlog",
+      "taskSeq": 2,
+      "executionSeq": 2,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "sourceSessionId": null,
+      "timestamp": "2026-10-21T00:27:44.238154",
+      "historyEpoch": "ea9764add3a54f95a28ecadfddc6b3a9",
+      "historyRevision": 7
+    }
+  ],
+  "last_legal_worker_state": null,
+  "legal_offline": true,
+  "offline_migration_uncertainty": null,
+  "offline_owner": {
+    "runtimeExpected": true,
+    "token": "6a8f6caf8a0c41ba83f282c0030affae",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "111300189662489f9cd59cb2e04d35dc",
+    "executionSeq": 2,
+    "processes": [
+      {
+        "pid": 39880,
+        "createdAt": 1792513664.0864651
+      },
+      {
+        "pid": 15668,
+        "createdAt": 1792513664.0972607
+      },
+      {
+        "pid": 36128,
+        "createdAt": 1792513664.115962
+      }
+    ]
+  },
+  "offline_run": {
+    "runtimeExpected": true,
+    "token": "6a8f6caf8a0c41ba83f282c0030affae",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "111300189662489f9cd59cb2e04d35dc",
+    "executionSeq": 2,
+    "processes": [
+      {
+        "pid": 39880,
+        "createdAt": 1792513664.0864651
+      },
+      {
+        "pid": 15668,
+        "createdAt": 1792513664.0972607
+      },
+      {
+        "pid": 36128,
+        "createdAt": 1792513664.115962
+      }
+    ],
+    "id": "8741f72a2ed447c7ae0d50881ca63b1e",
+    "kind": "foreground",
+    "admittedRevision": 6,
+    "state": "idle",
+    "startedAt": 1792513664.2289433,
+    "safeTerminal": true,
+    "endedAt": 1792513664.249388,
+    "reason": "task/safe-terminal",
+    "terminalProof": "safe-terminal"
+  },
+  "illegal_batches": {
+    "18c433c2598741d5b0ccd1dc5fb28a6c": {
+      "id": "18c433c2598741d5b0ccd1dc5fb28a6c",
+      "run": {
+        "runtimeExpected": true,
+        "token": "53a38aae585f42efa4d240111e9a6b25",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "bc68c2a6a78b46c896abd43116826f4f",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 19312,
+            "createdAt": 1792513662.3144643
+          },
+          {
+            "pid": 36328,
+            "createdAt": 1792513662.3194342
+          },
+          {
+            "pid": 45088,
+            "createdAt": 1792513662.3360443
+          }
+        ],
+        "id": "18c433c2598741d5b0ccd1dc5fb28a6c",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "running",
+        "startedAt": 1792513662.3524516,
+        "safeTerminal": false
+      },
+      "messages": [
+        "q_c95ba689da534d9290e152149bc5f5a2",
+        "q_9058372e75de4a61abe0cfca15299f24"
+      ],
+      "incidentId": "18c433c2598741d5b0ccd1dc5fb28a6c",
+      "reason": "process/EOF",
+      "createdAt": 1792513662.444579,
+      "recovered": true,
+      "recoveredAt": 1792513664.200315,
+      "recoveredBy": {
+        "runtimeExpected": true,
+        "token": "6a8f6caf8a0c41ba83f282c0030affae",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "111300189662489f9cd59cb2e04d35dc",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 39880,
+            "createdAt": 1792513664.0864651
+          },
+          {
+            "pid": 15668,
+            "createdAt": 1792513664.0972607
+          },
+          {
+            "pid": 36128,
+            "createdAt": 1792513664.115962
+          }
+        ]
+      }
+    }
+  },
+  "legality_schema_version": 2,
+  "operation_revision": 7,
+  "execution_operations": {
+    "18c433c2598741d5b0ccd1dc5fb28a6c": {
+      "runtimeExpected": true,
+      "token": "53a38aae585f42efa4d240111e9a6b25",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "bc68c2a6a78b46c896abd43116826f4f",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 19312,
+          "createdAt": 1792513662.3144643
+        },
+        {
+          "pid": 36328,
+          "createdAt": 1792513662.3194342
+        },
+        {
+          "pid": 45088,
+          "createdAt": 1792513662.3360443
+        }
+      ],
+      "id": "18c433c2598741d5b0ccd1dc5fb28a6c",
+      "kind": "foreground",
+      "admittedRevision": 1,
+      "state": "illegal",
+      "startedAt": 1792513662.3524516,
+      "safeTerminal": false,
+      "incidentId": "18c433c2598741d5b0ccd1dc5fb28a6c",
+      "reason": "process/EOF",
+      "retirement": {
+        "safe": true,
+        "proof": "successor-ready-after-owner-reconciliation",
+        "committedAt": 1792513664.2003171
+      }
+    },
+    "47ea490438ce4b1e856968a6d2203d5d": {
+      "runtimeExpected": true,
+      "token": "6a8f6caf8a0c41ba83f282c0030affae",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "111300189662489f9cd59cb2e04d35dc",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 39880,
+          "createdAt": 1792513664.0864651
+        },
+        {
+          "pid": 15668,
+          "createdAt": 1792513664.0972607
+        },
+        {
+          "pid": 36128,
+          "createdAt": 1792513664.115962
+        }
+      ],
+      "id": "47ea490438ce4b1e856968a6d2203d5d",
+      "kind": "foreground",
+      "admittedRevision": 3,
+      "state": "idle",
+      "startedAt": 1792513664.1300213,
+      "safeTerminal": true,
+      "endedAt": 1792513664.2141743,
+      "reason": "task/safe-terminal",
+      "terminalProof": "safe-terminal"
+    },
+    "8741f72a2ed447c7ae0d50881ca63b1e": {
+      "runtimeExpected": true,
+      "token": "6a8f6caf8a0c41ba83f282c0030affae",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "111300189662489f9cd59cb2e04d35dc",
+      "executionSeq": 2,
+      "processes": [
+        {
+          "pid": 39880,
+          "createdAt": 1792513664.0864651
+        },
+        {
+          "pid": 15668,
+          "createdAt": 1792513664.0972607
+        },
+        {
+          "pid": 36128,
+          "createdAt": 1792513664.115962
+        }
+      ],
+      "id": "8741f72a2ed447c7ae0d50881ca63b1e",
+      "kind": "foreground",
+      "admittedRevision": 6,
+      "state": "idle",
+      "startedAt": 1792513664.2289433,
+      "safeTerminal": true,
+      "endedAt": 1792513664.249388,
+      "reason": "task/safe-terminal",
+      "terminalProof": "safe-terminal"
+    }
+  },
+  "owner_retirements": {},
+  "created_at": "2026-10-21T00:27:42.270263",
+  "updated_at": "2026-10-21T00:27:44.253199",
+  "order": null,
+  "workspace_ids": [],
+  "managed": [],
+  "managed_by": null,
+  "readonly_session": false,
+  "queue_pending": [],
+  "queue_paused": false,
+  "agent_reports_paused": false,
+  "queue_item_locks_version": 1,
+  "queue_edit_locks": {},
+  "queue_delivery_ledger": {
+    "q_c9ac1063caa04024bd3dcae24453b331": {
+      "type": "task",
+      "kind": "task",
+      "id": "q_c9ac1063caa04024bd3dcae24453b331",
+      "queueItemId": "q_c9ac1063caa04024bd3dcae24453b331",
+      "text": "hold-A",
+      "source": "user",
+      "seq": 1,
+      "taskId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792513662.2980657,
+      "clientMessageId": "active",
+      "position": 0,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792513662.341622,
+      "receiptAt": 1792513662.3547912,
+      "deliveredAt": 1792513662.3547912
+    },
+    "q_c95ba689da534d9290e152149bc5f5a2": {
+      "type": "task",
+      "kind": "task",
+      "id": "q_c95ba689da534d9290e152149bc5f5a2",
+      "queueItemId": "q_c95ba689da534d9290e152149bc5f5a2",
+      "text": "old backlog",
+      "source": "user",
+      "seq": 2,
+      "taskId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792513662.4377384,
+      "clientMessageId": "old",
+      "position": 1,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792513664.2174933,
+      "receiptAt": 1792513664.231707,
+      "deliveredAt": 1792513664.231707
+    },
+    "q_9058372e75de4a61abe0cfca15299f24": {
+      "type": "task",
+      "kind": "task",
+      "id": "q_9058372e75de4a61abe0cfca15299f24",
+      "queueItemId": "q_9058372e75de4a61abe0cfca15299f24",
+      "text": "继续",
+      "source": "agent",
+      "seq": 3,
+      "taskId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792513664.0356874,
+      "clientMessageId": "nonempty-wake",
+      "wakeMessage": true,
+      "position": 0,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792513664.1187618,
+      "receiptAt": 1792513664.1324644,
+      "deliveredAt": 1792513664.1324644
+    }
+  },
+  "queue_idempotency_index": {
+    "version": 1,
+    "taskId": {},
+    "clientMessageId": {
+      "active": {
+        "queueItemId": "q_c9ac1063caa04024bd3dcae24453b331",
+        "seenAt": 1792513662.2980657
+      },
+      "old": {
+        "queueItemId": "q_c95ba689da534d9290e152149bc5f5a2",
+        "seenAt": 1792513662.4377384
+      },
+      "nonempty-wake": {
+        "queueItemId": "q_9058372e75de4a61abe0cfca15299f24",
+        "seenAt": 1792513664.0356874
+      }
+    }
+  },
+  "queue_revision": 13,
+  "task_seq": 3,
+  "unread_done_count": 2,
+  "unread_done_generation": 2,
+  "unread_done_read_generation": 0,
+  "unread_recording_override": null,
+  "active_task_id": null,
+  "accepted_input_ids": [
+    "active",
+    "old",
+    "nonempty-wake"
+  ],
+  "manual_report_receipts": {},
+  "summary_projection": {
+    "revision": 26,
+    "last_user_preview": "old backlog",
+    "last_assistant_preview": "old backlog",
+    "last_display_preview": "old backlog",
+    "last_system_preview": "",
+    "last_thinking_preview": "",
+    "last_tool_preview": "",
+    "last_main_role": "assistant",
+    "history_total": 7,
+    "updated_at": "2026-10-21T00:27:44.252516"
+  },
+  "report_subscriptions": [],
+  "qq_report_targets": [],
+  "qq_report_outbox": {},
+  "qq_subscriptions": [],
+  "wechat_subscriptions": [],
+  "notification_settings": {
+    "browser": false,
+    "system": false
+  }
+}

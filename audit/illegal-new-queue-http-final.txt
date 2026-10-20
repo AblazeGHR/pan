@@ -1,0 +1,20 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-illegal-lock-review-20261018
+.CLEANUP http://127.0.0.1:61898 owned server stopped; port released
+.CLEANUP http://127.0.0.1:59889 owned server stopped; port released
+.CLEANUP http://127.0.0.1:50377 owned server stopped; port released
+.CLEANUP http://127.0.0.1:49649 owned server stopped; port released
+STICKY_JOB_CRASH job_07558916dfa6774477677482 q_99e5ec9799344b7384b74f009be371b7 C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3213\test_pan_and_long_job_crash_no0
+.CLEANUP http://127.0.0.1:49673 owned server stopped; port released
+.CLEANUP http://127.0.0.1:62364 owned server stopped; port released
+LEGAL_OFFLINE_HTTP {"port": 52911, "batch": "a8e7a6c30f794a1b908cc0d10a6ebf82", "oldPid": 24744, "members": ["q_419e00d9c69a4925b6c852f7ed81570b", "q_44efe463926549679b5a413eacd04237"], "newItem": "q_b7af947b338b4c4f952257100e9c58be", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_external_running_kill_sna0\\runtime"}
+.CLEANUP http://127.0.0.1:52911 owned server stopped; port released
+LEGAL_CRASH_HTTP {"port": 52605, "run": "a07b0185f69e4361b29baee3e57b6d41", "member": "q_c898f99aa871498a9f416aea7b618c2f", "oldPid": 30232, "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_hard_service_crash_identi0\\runtime"}
+.CLEANUP http://127.0.0.1:52605 owned server stopped; port released
+LEGAL_DELAYED_READY {"port": 60045, "failedReady": false, "batch": "2c670cde1e37476cb6db8a2f55c2a504", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_all_locked_restart_stays_0\\runtime"}
+.CLEANUP http://127.0.0.1:60045 owned server stopped; port released
+LEGAL_DELAYED_READY {"port": 60193, "failedReady": true, "batch": "80df060f9f2d45cbb7e199948a747f99", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3213\\test_all_locked_restart_stays_1\\runtime"}
+.CLEANUP http://127.0.0.1:60193 owned server stopped; port released
+LEGAL_BROWSER http://127.0.0.1:57973 ses_9d44926a223b81d7 C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3213\test_browser_illegal_dot_recov0 Chromium 153.0.8010.12
+.CLEANUP http://127.0.0.1:57973 owned server stopped; port released
+.CLEANUP http://127.0.0.1:64841 owned server stopped; port released
+

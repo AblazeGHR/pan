@@ -1,0 +1,46 @@
+ Vitest  "cache.dir" is deprecated, use Vite's "cacheDir" instead if you want to change the cache director. Note caches will be written to "cacheDir/vitest"
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/src
+
+ ✓ utils/quickNewSession.test.ts (9 tests | 1 skipped) 7ms
+ ✓ stores/queueStore.serverSnapshot.test.ts (4 tests) 7ms
+ ✓ shortcuts/registryActions.test.ts (5 tests) 6ms
+ ✓ shortcuts/useGlobalShortcuts.test.tsx (8 tests) 70ms
+ ✓ components/layout/WorkdirCleanup.test.tsx (4 tests) 283ms
+ ✓ stores/queueStore.test.ts (21 tests) 804ms
+ ✓ components/chat/ServerAttachmentPicker.test.tsx (11 tests) 397ms
+ ✓ components/session/SelectedSessionActions.test.tsx (11 tests) 270ms
+ ✓ components/session/HandoffSessionModal.test.tsx (7 tests) 559ms
+ ✓ components/layout/ShortcutsSettings.test.tsx (9 tests) 746ms
+ ✓ components/session/NewSessionModal.test.tsx (28 tests | 1 skipped) 2300ms
+   ✓ New Session directory input > shows the complete shared form on Basic and Advanced, with advanced controls only on Advanced 317ms
+ ✓ components/chat/InputRow.routeDraft.test.tsx (8 tests) 1970ms
+   ✓ composer draft across a real route unmount > restores text, URL node and a still-pending File with its real bytes 333ms
+   ✓ composer draft across a real route unmount > does not resurrect a sent draft and prunes browser bytes only after an acknowledged clear 783ms
+ ✓ components/layout/AppSettingsModal.test.tsx (57 tests) 4173ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1112ms
+ ✓ components/chat/InputRow.test.tsx (78 tests | 1 skipped) 6626ms
+   ✓ InputRow send queue wiring > allows cancelling an in-flight mock file without restoring its chip after completion 300ms
+JSON report written to D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/audit/sticky-wake-integration-20261021/frontend-readonly.json
+
+ Test Files  14 passed (14)
+      Tests  257 passed | 3 skipped (260)
+   Start at  00:40:03
+   Duration  11.01s (transform 3.70s, setup 736ms, collect 15.09s, tests 18.22s, environment 16.91s, prepare 3.15s)
+
+failed to load config from D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\packages\web\vite.config.ts
+D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/vite.config.ts:41
+        "@": __vite_ssr_import_3__.default.resolve(__dirname, "src")
+                                                   ^
+
+ReferenceError: Cannot determine intended module format because both '__dirname' and top-level await are present. If the code is intended to be CommonJS, wrap await in an async function. If the code is intended to be an ES module, use import.meta.dirname instead.
+    at eval (D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/vite.config.ts:41:52)
+    at loadConfigFromFile (file:///D:/project/Pan/packages/web/node_modules/.pnpm/vite@6.4.3_@types+node@26.1.1_jiti@2.7.0_lightningcss@1.32.0/node_modules/vite/dist/node/chunks/dep-Dm0c1Wj2.js:49398:64)
+    at async resolveConfig (file:///D:/project/Pan/packages/web/node_modules/.pnpm/vite@6.4.3_@types+node@26.1.1_jiti@2.7.0_lightningcss@1.32.0/node_modules/vite/dist/node/chunks/dep-Dm0c1Wj2.js:48891:24)
+    at async createBuilder (file:///D:/project/Pan/packages/web/node_modules/.pnpm/vite@6.4.3_@types+node@26.1.1_jiti@2.7.0_lightningcss@1.32.0/node_modules/vite/dist/node/chunks/dep-Dm0c1Wj2.js:46866:18)
+    at async build (file:///D:/project/Pan/packages/web/node_modules/.pnpm/vite@6.4.3_@types+node@26.1.1_jiti@2.7.0_lightningcss@1.32.0/node_modules/vite/dist/node/chunks/dep-Dm0c1Wj2.js:46140:19)
+    at async file:///D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/[eval1]:31:1 {
+  code: 'ERR_AMBIGUOUS_MODULE_SYNTAX'
+}
+
+Node.js v24.15.0

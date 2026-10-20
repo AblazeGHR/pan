@@ -8,6 +8,7 @@ import { useUIStore } from '@/stores/uiStore';
 import type { Session } from '@/types';
 import {
   fetchSessions,
+  wakeSessions,
   killSessionWorker,
   requestDelayedRestart,
   restartOrStartWorker,
@@ -16,6 +17,7 @@ import {
 vi.mock('@/services/api', async (original) => ({
   ...(await original<typeof import('@/services/api')>()),
   fetchSessions: vi.fn(),
+  wakeSessions: vi.fn(),
   restartOrStartWorker: vi.fn(),
   killSessionWorker: vi.fn(),
   requestDelayedRestart: vi.fn(),
@@ -63,6 +65,17 @@ function toastMessages(): string[] {
 }
 
 describe('SelectedSessionActions lifecycle menu', () => {
+  it('runs Wake separately from broadcast for the captured targets', async () => {
+    seedStores(['a', 'c']);
+    vi.mocked(wakeSessions).mockResolvedValue();
+    render(<SelectedSessionActions />);
+    openMenu();
+    await act(async () => fireEvent.click(menuItem('Wake')));
+    expect(wakeSessions).toHaveBeenCalledWith(['a']);
+    expect(wakeSessions).toHaveBeenCalledWith(['c']);
+    expect(restartOrStartWorker).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     // The refresh after an action re-reads the current durable sessions so

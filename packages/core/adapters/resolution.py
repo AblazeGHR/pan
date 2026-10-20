@@ -10,6 +10,12 @@ from __future__ import annotations
 from .base import CliAdapter, SYSTEM_PROMPT_ARG_MAX_CHARS
 
 
+def available_execution_modes(adapter: CliAdapter) -> list[str]:
+    """Oneshot is retired from public/runtime entry points; implementation retained."""
+    return [mode for mode in (getattr(adapter, "execution_modes", None) or ["stream"])
+            if mode != "oneshot"]
+
+
 def resolve_execution_mode(adapter: CliAdapter, s) -> str:
     """Worker 对某 session 实际使用的执行模式。
 
@@ -26,7 +32,9 @@ def resolve_execution_mode(adapter: CliAdapter, s) -> str:
 
     ``s`` 可为 None（无 session 时按 adapter 默认）。
     """
-    modes = list(getattr(adapter, "execution_modes", ["stream"]) or ["stream"])
+    modes = available_execution_modes(adapter)
+    if not modes:
+        raise ValueError("Adapter only supports retired Oneshot mode")
     requested = ""
     if s is not None:
         ac = getattr(s, "adapter_config", None) or {}

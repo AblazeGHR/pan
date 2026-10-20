@@ -305,7 +305,8 @@ def test_native_adapter_keeps_legacy_and_first_spawn_separate(monkeypatch, tmp_p
     cli = json.loads(adapter.build_spawn_args(s)[-1])
     assert cli[cli.index("--resume") + 1] == s.cli_session_id
     assert "--system-prompt" not in cli
-    assert CbcAdapter.execution_modes == ["stream", "oneshot"]
+    from packages.core.adapters.resolution import available_execution_modes
+    assert available_execution_modes(CbcAdapter()) == ["stream"]
     assert not getattr(CbcAdapter, "supports_native_interrupt", False)
 
 
@@ -760,3 +761,9 @@ def test_native_submit_without_durable_admission_times_out_closed():
     b.control({"type": "native_admission", "requestId": request["requestId"], "ok": True})
     assert b.turn is None and not b.admissions
     assert not any(e["type"] == "pan.native_turn_started" for e in events)
+
+
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
+def test_retired_oneshot_cbc_capability_declaration():
+    from packages.core.adapters.cbc.adapter import CbcAdapter
+    assert CbcAdapter.execution_modes == ["stream", "oneshot"]

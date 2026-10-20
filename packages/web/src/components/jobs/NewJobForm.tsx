@@ -53,7 +53,7 @@ interface QqJobTarget {
 const TEMPLATES: { id: TemplateId; label: string; hint: string }[] = [
   { id: 'scheduled', label: '创建定时任务', hint: '按计划执行 Session action 或 shell 命令' },
   { id: 'scheduled_qq', label: 'Scheduled QQ message', hint: 'Send text to a selected QQ contact on a schedule' },
-  { id: 'resume_legal_running', label: '恢复所有 Illegal / 待恢复 Session', hint: '每次触发时重新筛选 Illegal / 待恢复且没有活 Worker 的 Session，并发送“继续”' },
+  { id: 'resume_legal_running', label: '恢复所有 Illegal / 待恢复 Session', hint: '每次触发时重新筛选 Illegal / 待恢复且没有活 Worker 的 Session，将 Behavior 中的唤醒消息解锁并放到队首' },
   { id: 'custom', label: '自定义', hint: '选择可创建 Job 类型与适用字段' },
 ];
 
@@ -952,7 +952,7 @@ export function NewJobForm({
           ) : actionApi === 'resume_legal_running' ? (
             <div className="rounded border border-border-default bg-bg-tertiary px-2.5 py-2 text-[11px] text-text-secondary">
               每次 Job 触发时，服务端都会重新扫描Illegal / 待恢复且当前没有活 Worker 的 Session，
-              再通过正常消息投递发送正文“继续”。创建时不会固定 Session ID，也不会运行 shell 命令。
+              再执行专用唤醒操作：发送 Behavior 中的唤醒消息、解除其 Illegal 锁并移到队首。创建时不会固定 Session ID，也不会运行 shell 命令。
             </div>
           ) : actionApi === 'shell' ? (
             <>

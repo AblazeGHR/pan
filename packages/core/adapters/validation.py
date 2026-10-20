@@ -132,7 +132,8 @@ def validate_effort(a: CliAdapter, effort: str, model: str | None = None) -> Non
 
 def validate_output_mode(a: CliAdapter, mode: str) -> None:
     """显式 outputMode 硬校验：必须在 adapter 的 execution_modes 内。"""
-    allowed = list(a.execution_modes)
+    from .resolution import available_execution_modes
+    allowed = available_execution_modes(a)
     if mode not in allowed:
         raise AdapterCapabilityError(
             f"outputMode must be one of {allowed} for adapter '{a.name}', "

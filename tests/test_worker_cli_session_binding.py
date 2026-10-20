@@ -9,6 +9,8 @@ Covers the meta-root corruption fix (#bind-override):
    when resume fails (returncode 0, error event, no result event).
 """
 
+import pytest
+
 import asyncio
 import sys
 from pathlib import Path
@@ -105,6 +107,7 @@ def test_extract_cbc_error_ignores_non_json_lines():
 
 # ── binding protection ──
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_consumer_oneshot_keeps_existing_binding_on_mismatch():
     """A captured init session_id that differs from the existing binding must
     NOT overwrite it — the real cbc session id is the binding ground truth."""
@@ -128,6 +131,7 @@ def test_consumer_oneshot_keeps_existing_binding_on_mismatch():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_consumer_oneshot_captures_binding_when_empty():
     """A fresh session (no cli_session_id yet) must capture the init id."""
     _cleanup()
@@ -148,6 +152,7 @@ def test_consumer_oneshot_captures_binding_when_empty():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_consumer_oneshot_keeps_binding_when_no_init_event():
     """Resume failure (cbc exits 0 with an error event and NO init event) must
     leave the existing binding untouched."""
@@ -170,6 +175,7 @@ def test_consumer_oneshot_keeps_binding_when_no_init_event():
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_consumer_oneshot_surfaces_cbc_error_on_exit0():
     """Silent exit-0 failure must show cbc's error text, not '(no output)'."""
     _cleanup()

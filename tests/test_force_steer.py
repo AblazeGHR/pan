@@ -86,7 +86,7 @@ def test_noncapable_force_retains_restart_then_send(monkeypatch):
         monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
         result = await worker.send_session(s.id, 'urgent', force=True)
         assert result['status'] == 'queued'
-        restart.assert_awaited_once_with(s.id); stdin.write.assert_not_called()
+        restart.assert_awaited_once_with(s.id, allow_illegal_recovery=False); stdin.write.assert_not_called()
         assert s.queue_pending[0]['text'] == 'urgent'
     asyncio.run(run())
 
@@ -144,5 +144,27 @@ def test_force_body_conflict_is_rechecked_inside_queue_lock(monkeypatch):
             force=True, client_message_id='racing-key')
         assert response['status'] == 'rejected' and response['queueItemId'] == original['queueItemId']
         assert len(s.queue_pending) == 1 and s.queue_pending[0]['text'] == 'original text'
+        stdin.write.assert_not_called()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('route', ['steer', 'restart'])
+def test_force_cannot_clear_illegal_discovered_after_routing(monkeypatch, route):
+    from packages.core import legal_offline as offline, queue_locks
+    async def run():
+        s, w, stdin = live(capable=route == 'steer')
+        identity = offline.owner(w)
+        offline.admit(s, identity, kind='foreground')
+        def changed(*_):
+            offline.detect(s, 'concurrent-exit', identity=identity,
+                eligible=lambda _: True, remember=lambda _: None)
+            return route
+        monkeypatch.setattr(worker, 'steer_delivery_route', changed)
+        # For restart, use the real spawn-lock check without creating a CLI.
+        monkeypatch.setattr(worker, '_prepare_offline_recovery', AsyncMock())
+        result = await worker.send_session(s.id, 'ordinary force', force=True)
+        assert result['status'] == 'queued'
+        assert offline.is_illegal(s)
+        assert queue_locks.source(s.queue_pending[0]) == 'illegal'
         stdin.write.assert_not_called()
     asyncio.run(run())

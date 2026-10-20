@@ -1,0 +1,155 @@
+[
+  {
+    "path": "packages/core/worker.py",
+    "function": "_read_stdout",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_commit_offline",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_stage_new_queue_item",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_append_new_queue_item",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_persist_task_item",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "wake_session",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "send_session",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "assign",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_queue_recovery_blocked",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "_ensure_worker",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "restart_or_start_worker",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/worker.py",
+    "function": "clear_session_illegal_for_startup",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/web/server.py",
+    "function": "api_sessions_wake",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/web/server.py",
+    "function": "api_put_settings_session_lifecycle",
+    "from": "e160782e636d828427e9262e952a1f25c09117b9",
+    "identical": true
+  },
+  {
+    "path": "packages/core/session.py",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "1f2ddf2822ea4b175bae73d43c7c1fc5778d430abc07dd1276520016e027fe5a"
+  },
+  {
+    "path": "packages/core/workdir_retention.py",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "8fa17dec3516684c05063d030aa451040db176448864408eb782adad82b1c25b"
+  },
+  {
+    "path": "packages/core/workspace.py",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "4f3fd0501246445d03f7c22bf7249be291db4c5491a55f716bfb2f134f796981"
+  },
+  {
+    "path": "packages/core/data_retention.py",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "7e4ec9bb422ad38f2a02e36129244ff87c429b07791b03389857e45b8e976a0c"
+  },
+  {
+    "path": "packages/mcp/server.py",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "8570d28c95315fc98e62ac5c269987cb3a7ddd8d626184f0b54c87ae822f7869"
+  },
+  {
+    "path": "packages/web/src/components/chat/InputRow.tsx",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "9df7005f562215c37f6cbe6c3a678420cd04e6efe88009cab97d8ccc9c079370"
+  },
+  {
+    "path": "packages/web/src/components/chat/ServerAttachmentPicker.tsx",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "fa63a8691d96da6564927ebb90f0215a0235a61ad8023ca9c1bf1bb6afee5f85"
+  },
+  {
+    "path": "packages/web/src/components/session/HandoffSessionModal.tsx",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "8c8c58aeea3f8a2e1e83dda2e38468dfb76ec03bdea09b1d753d46fec4f8a856"
+  },
+  {
+    "path": "packages/web/src/components/layout/DataSettingsPanel.tsx",
+    "from": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "identical": true,
+    "sha256": "27aa012fc6eaab722fee32e9120c0828fe0b103c6d81885a91df3cbbb4ad7282"
+  },
+  {
+    "path": "docs/skills/pan/SKILL.md",
+    "preservedMainParagraph": "**按消息用途选择工具**：向正在执行任务的 TA 更新当前任务，默认使用 `agent_send_force`，包括需求补充、用户澄清、实现纠正、约束或验收条件变化，以及影响当前工作的证据。无须额外判断是否紧急，不因消息较短、语气不急或称为“补充”而改用普通发送。只有明确希望在当前任务结束后处理的独立后续事项，才使用 `agent_send`。Force 是按能力选择发送路径，不等同于必然重启。",
+    "identical": true
+  },
+  {
+    "path": "docs/skills/pan/SKILL.md",
+    "preservedMainParagraph": "4. **B.original_prompt 默认继承 A.original_prompt**。仅 `override_original_prompt=true` 时使用本次 `original_prompt`（必填字符串，`\"\"` 明确清空；null/非字符串拒绝）；开关须为布尔值。省略/false 时忽略残留文本，独立于 `copy_settings`。A 的两个 prompt 均不修改。B.handoff_prompt 只用本次必填简报，替换旧简报；B.system_prompt 计算为本次简报 + 选定 original_prompt，不继承旧简报。",
+    "identical": true
+  },
+  {
+    "path": "docs/skills/pan/references/http-api.md",
+    "preservedMainParagraph": "| `POST` | `/api/sessions/{id}/handoff` | `{\"handoffPrompt\": \"...\", \"copySettings\": true, \"overrideOriginalPrompt\"?: false, \"originalPrompt\"?: \"...\", \"adapter\"?: \"...\", \"model\"?: \"...\", \"permissionMode\"?: \"...\"}` | **替身交接**：创建孪生 session B 接替 A（见 SKILL.md §2.7）。等价 MCP 工具 `session_handoff`；`handoffPrompt` 必填，`copySettings=false` 时 `adapter` 必填。`overrideOriginalPrompt` 须为 bool，默认 false（忽略残留文本、继承 A.originalPrompt）；true 时 `originalPrompt` 须为字符串，空串明确清空，null/非字符串拒绝，先校验再创建/转移关系。与 copySettings 独立；源 Session prompt 不变，B.handoffPrompt 仅本次简报，B.systemPrompt = 本次简报 + 选定 originalPrompt |",
+    "identical": true
+  }
+]
