@@ -1655,12 +1655,12 @@ def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict
 
 @mcp.tool()
 def agent_send(session_id: str, text: str = "") -> dict:
-    """Send a message to an agent (multi-turn collaboration).
+    """Deferred follow-up: handle only after the agent's current task finishes.
 
-    **仅用于非即时发送**：消息入队排队，目标空闲（当前任务完成后）才处理，
-    不打断进行中的任务。
-    若消息需要立即响应或打断当前执行（如操作约束、方向变更、紧急指令）
-    → 必须用 `agent_send_force`（按能力 Steer 优先；无能力才 restart+send）。
+    仅用于明确允许当前任务结束后处理的独立后续事项，消息排队，不打断当前任务。
+    向正在执行任务的 TA 更新当前任务（需求补充、用户澄清、实现纠正、约束或
+    验收条件变化、影响当前工作的证据）必须使用 `agent_send_force`，不要使用
+    本工具；不以消息长短、语气或是否称为“补充”判断。
 
     无活 worker 时**不报错**——消息入该 agent 的持久队列（返回含
     pendingSpawn=true），由全局 watchdog 自动 spawn worker 后分发
@@ -1716,10 +1716,12 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
 @mcp.tool()
 def agent_send_force(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
-    """Urgent instruction/correction: capability-routed Steer first, otherwise restart+send.
+    """Default for current-task updates: capability-routed Steer first.
 
-    需要即时响应、运行中补充或纠正时用本工具；普通 agent_send 只用于允许
-    等当前任务结束的消息。支持 Steer 的 active stream 即时尝试原生 admission，
+    向正在执行任务的 TA 更新当前任务时默认用本工具：需求补充、用户澄清、
+    实现纠正、约束或验收条件变化、影响当前工作的证据，无须额外判断是否紧急。
+    只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send`。
+    Force 不等同于必然重启。支持 Steer 的 active stream 即时尝试原生 admission，
     idle 时普通 consumer handoff，无能力才 restart+send。无 Worker 时持久入队。
     delayed restart、Pause everything、锁和编辑租约优先；不能保证绕过这些门禁。
     accepted 仅为 CLI 接受，不代表模型已消费；queued/rejected/unknown 如实返回。
