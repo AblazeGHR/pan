@@ -1,0 +1,44 @@
+{
+  "identity": {
+    "pid": 37568,
+    "checkout": "D:\\project\\pan-worktrees\\server-native-picker-20261020",
+    "port": 49451,
+    "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-picker-jy4jdf8z"
+  },
+  "cases": [
+    {
+      "action": "select",
+      "helperPid": 25376,
+      "responsiveHTTP": 200,
+      "automationExit": 0,
+      "automation": "{\"processId\":25376,\"foregroundRequested\":false,\"windowRendered\":true,\"isOffscreen\":false,\"rect\":\"700,247,1120,840\",\"button\":\"Open\",\"title\":\"Select server attachments\"}\r\n",
+      "error": "",
+      "response": {
+        "status": "selected",
+        "paths": [
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-picker-jy4jdf8z\\native-附件.txt"
+        ]
+      },
+      "confirmation": {
+        "ok": true,
+        "attachmentId": "att_3f521e30948e432c9ddc448de9b5c380",
+        "displayName": "native-附件.txt",
+        "href": "/api/attachments/ref/att_3f521e30948e432c9ddc448de9b5c380?session_id=ses_native_probe",
+        "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-picker-jy4jdf8z\\native-附件.txt",
+        "size": 24
+      }
+    },
+    {
+      "action": "cancel",
+      "helperPid": 22080,
+      "responsiveHTTP": 200,
+      "automationExit": 0,
+      "automation": "{\"processId\":22080,\"title\":\"Select server attachments\",\"isOffscreen\":false,\"rect\":\"700,247,1120,840\"}\r\n",
+      "error": "",
+      "response": {
+        "status": "cancelled",
+        "paths": []
+      }
+    }
+  ]
+}

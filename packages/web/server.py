@@ -298,6 +298,8 @@ async def lifespan(app: FastAPI):
                     try:
                         yield
                     finally:
+                        from packages.web.native_file_picker import native_file_picker
+                        native_file_picker.close()
                         await lan.shutdown()
                 finally:
                     result = await tailscale.operation(tailscale.shutdown)
@@ -4866,6 +4868,18 @@ async def upload_session_attachment(session_id: str, request: Request, filename:
             temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@app.post("/api/sessions/{session_id}/attachments/native-picker")
+async def pick_native_server_files(session_id: str, data: dict):
+    """Return paths only; confirmation uses from-server-file validation."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    directory = data.get("directory", "")
+    if not isinstance(directory, str) or len(directory) > 32768 or '\x00' in directory:
+        raise HTTPException(status_code=400, detail="Invalid initial directory")
+    from packages.web.native_file_picker import native_file_picker
+    return await native_file_picker.pick(directory)
 
 
 @app.post("/api/sessions/{session_id}/attachments/from-server-file")

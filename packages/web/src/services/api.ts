@@ -406,6 +406,13 @@ export async function uploadSessionAttachment(
 
 /** Register an existing server-side file without sending a client path back in
  * the message protocol. Directories are rejected by the server in phase 1. */
+export async function pickNativeServerFiles(sessionId: string, directory: string) {
+  return request<{ status: 'selected' | 'cancelled' | 'failed' | 'timeout' | 'busy' | 'unavailable'; paths: string[] }>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/attachments/native-picker`,
+    { method: 'POST', body: JSON.stringify({ directory }), signal: AbortSignal.timeout(100_000) },
+  );
+}
+
 export async function registerServerFileAttachment(
   sessionId: string,
   path: string,

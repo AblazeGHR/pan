@@ -25,7 +25,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SendQueuePanel } from '@/components/chat/SendQueuePanel';
 import { SettingsPopover } from '@/components/chat/SettingsPopover';
 import { ModelSelect } from '@/components/ui/ModelSelect';
-import { DirectoryInput } from '@/components/session/DirectoryInput';
+import { ServerAttachmentPicker } from './ServerAttachmentPicker';
 import { Modal } from '@/components/ui/Modal';
 import {
   RichTextComposer,
@@ -2451,15 +2451,15 @@ export function InputRow() {
             mobileFullscreen={isMobile}
             className="md:max-h-[90vh]"
           >
-            <div aria-label="Server attachment browser">
-              <DirectoryInput
+            {attachmentBrowserOpen && <div aria-label="Server attachment browser">
+              <ServerAttachmentPicker
+                key={`${currentSessionId}:${attachmentEpochRef.current}`}
+                sessionId={currentSessionId || ''}
                 value={attachmentBrowserPath}
                 onChange={(path) => {
                   setAttachmentDirectoryError(null);
                   setAttachmentBrowserPath(path);
                 }}
-                fileMode
-                showRootsWhenEmpty
                 onSelect={(selectedPath) => {
                   const selectedSessionId = currentSessionId;
                   const selectedEpoch = attachmentEpochRef.current;
@@ -2617,7 +2617,7 @@ export function InputRow() {
                   {attachmentDirectoryError}
                 </p>
               )}
-            </div>
+            </div>}
           </Modal>
           <div className="flex min-h-0 flex-1 gap-2">
             <input

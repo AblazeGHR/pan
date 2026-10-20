@@ -19,6 +19,7 @@ import {
   updateSessionQueueItem,
   uploadSessionAttachment,
   registerServerFileAttachment,
+  pickNativeServerFiles,
 } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
@@ -51,6 +52,7 @@ vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
   return {
     ...actual,
+    pickNativeServerFiles: vi.fn(),
     ...queueApi,
     getSessionDraft: vi.fn(async () => ({ revision: 0, draft: null, updatedAt: null })),
     putSessionDraft: vi.fn(async (_id, draft) => ({ revision: 1, draft, updatedAt: null })),
@@ -190,6 +192,7 @@ beforeEach(() => {
   });
   vi.mocked(uploadSessionAttachment).mockClear();
   vi.mocked(registerServerFileAttachment).mockClear();
+  vi.mocked(pickNativeServerFiles).mockReset();
   vi.mocked(spawnWorker).mockClear();
   vi.mocked(steerSessionWorker).mockClear();
   vi.mocked(wsClient.send).mockReset().mockReturnValue(true);
@@ -385,6 +388,28 @@ describe('InputRow send queue wiring', () => {
       ),
     );
     await waitFor(() => expect(screen.queryByTestId('server-attachments')).toBeNull());
+  });
+
+  it('stages native multi-selection in the original modal and registers only on confirmation', async () => {
+    setBusySession();
+    vi.mocked(pickNativeServerFiles).mockResolvedValue({ status: 'selected', paths: [
+      'D:\\attachments\\one.txt', 'D:\\attachments\\two.txt',
+    ] });
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
+    fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
+    fireEvent.click(screen.getByRole('button', { name: '使用原生文件选择器' }));
+    await screen.findByText('D:\\attachments\\one.txt');
+    expect(registerServerFileAttachment).not.toHaveBeenCalled();
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '确认添加所选附件' }));
+    await waitFor(() => expect(registerServerFileAttachment).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      const chips = screen.getByTestId('server-attachments').textContent;
+      expect(chips).toContain('one.txt');
+      expect(chips).toContain('two.txt');
+    });
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
   });
 
   it('enqueues pasted URLs as standard Markdown links in order', async () => {
