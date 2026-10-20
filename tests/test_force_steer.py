@@ -79,6 +79,38 @@ def test_idle_capability_or_delayed_intent_uses_queue_without_restart(monkeypatc
     asyncio.run(run())
 
 
+def test_idle_noncapable_force_uses_normal_send_not_restart(monkeypatch):
+    """Changed behavior: an idle non-Steer worker is never restarted by Force."""
+    async def run():
+        s, w, stdin = live('idle', capable=False)
+        restart = AsyncMock(side_effect=AssertionError('idle must use normal send'))
+        monkeypatch.setattr(worker, 'restart_or_start_worker', restart)
+        result = await worker.send_session(s.id, 'urgent', force=True)
+        await worker.wait_auto_force(s.id)
+        assert result['status'] == 'queued'
+        assert len(s.queue_pending) == 1
+        assert s.queue_pending[0]['text'] == 'urgent'
+        assert w.pending_signal.qsize() == 1
+        restart.assert_not_called()
+        stdin.write.assert_not_called()
+    asyncio.run(run())
+
+
+def test_force_illegal_session_queues_without_steer_or_restart(monkeypatch):
+    """Illegal owns admission until Wake/recovery; Force must not clear it."""
+    async def run():
+        s, w, stdin = live()
+        s.execution_operations = {"op": {"id": "op", "state": "illegal"}}
+        restart = AsyncMock(side_effect=AssertionError('illegal blocks restart'))
+        monkeypatch.setattr(worker, 'restart_or_start_worker', restart)
+        result = await worker.send_session(s.id, 'urgent', force=True)
+        assert result['status'] == 'queued'
+        assert len(s.queue_pending) == 1
+        stdin.write.assert_not_called()
+        restart.assert_not_called()
+    asyncio.run(run())
+
+
 def test_noncapable_force_retains_restart_then_send(monkeypatch):
     async def run():
         s, w, stdin = live(capable=False)

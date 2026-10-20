@@ -222,6 +222,10 @@ DEFAULT_CONFIG: dict = {
         # 用户主动 Kill running/queued Worker 时是否向 manager 报告 error
         # （App Settings → Behavior；缺省/旧配置视为关闭）
         "reportWorkerKillErrors": False,
+        # Behavior → Message auto force send：三类新入队消息是否自动复用
+        # Force send 能力路由（system=Job 终态、ma=MA/管理器消息、
+        # report=完成报告）。缺省三项全部关闭，保持既有排队行为。
+        "autoForceSend": {"system": False, "ma": False, "report": False},
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,

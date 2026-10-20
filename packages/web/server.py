@@ -10716,6 +10716,36 @@ async def api_put_settings_ui(data: dict):
     changes nothing (the previous policy stays active).
     """
     ui = dict(load_config().get("ui") or {})
+    if "autoForceSend" in data:
+        # Strict shape: the three automatic Force sources are independent
+        # booleans. Reject unknown keys and non-boolean values instead of
+        # coercing them (a typo must not silently enable delivery).
+        raw_auto_force = data["autoForceSend"]
+        allowed = set(worker.AUTO_FORCE_SOURCE_CLASSES)
+        if not isinstance(raw_auto_force, dict):
+            raise HTTPException(status_code=422, detail="autoForceSend must be an object")
+        unknown = sorted(set(raw_auto_force) - allowed)
+        if unknown:
+            raise HTTPException(
+                status_code=422,
+                detail=f"autoForceSend accepts only {sorted(allowed)}; got {unknown}",
+            )
+        if any(type(value) is not bool for value in raw_auto_force.values()):
+            raise HTTPException(
+                status_code=422,
+                detail="autoForceSend values must be booleans",
+            )
+        current_auto_force = ui.get("autoForceSend")
+        merged_auto_force = (
+            dict(current_auto_force) if isinstance(current_auto_force, dict) else {}
+        )
+        merged_auto_force.update(raw_auto_force)
+        # Persist only strict booleans; a malformed legacy value becomes off
+        # instead of surviving as a coercible truthy object.
+        data = {**data, "autoForceSend": {
+            name: merged_auto_force.get(name) is True
+            for name in worker.AUTO_FORCE_SOURCE_CLASSES
+        }}
     # A save that carries the unread-recording key is a global "apply": it
     # clears per-Session overrides and re-aligns every Session, even when the
     # scope set itself did not change.

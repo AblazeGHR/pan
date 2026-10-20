@@ -5132,6 +5132,11 @@ def _has_dispatchable_items(s) -> bool:
 SOURCE_TYPES = {"user", "agent", "system_prompt", "report",
                 "meta-agent", "automation"}
 
+# App Settings → Behavior → Message auto force send.  The three switches are
+# independent and default off; each names a structured queue origin, never a
+# body prefix.
+AUTO_FORCE_SOURCE_CLASSES = ("system", "ma", "report")
+
 
 def _normalize_source_type(source, default: str = "agent") -> tuple[str | None, str | None]:
     """Normalize the source-type label without ever treating an ID as one.
@@ -5935,6 +5940,7 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     # 唤醒 manager 的 consumer（若 worker 存活）——报告正文在落盘队列，
     # 信号只负责唤醒，不承载正文
     await _wake_worker(s.managed_by)
+    _schedule_auto_force(manager.id, item)
 
 
 _TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
@@ -6385,6 +6391,7 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
                   "item": dict(item)})
     # 与自动汇报同一唤醒路径：正文在落盘队列，信号只负责唤醒。
     await _wake_worker(s.managed_by)
+    _schedule_auto_force(manager.id, item)
     if cancelled[0]:
         # The caller disconnected, but the report is durably delivered: end the
         # cancelled request without inventing a failure.
@@ -6650,6 +6657,7 @@ async def enqueue_notice(target_session_id: str, text: str,
     _log.info("[Session %s] queued notice source=%s sourceSessionId=%s",
               target_session_id, source_type, source_sid)
     await _wake_worker(target_session_id, auto_spawn=True)
+    _schedule_auto_force(target.id, item)
     return {"ok": True, "sessionId": target_session_id,
             "pending": len(target.queue_pending)}
 
@@ -9348,8 +9356,18 @@ async def _record_native_settings_state(w: Worker, *, uncertain: bool) -> None:
 
 
 def steer_delivery_route(w: Worker | None, s) -> str:
-    """Capability-driven urgent delivery; lifecycle intent always wins idle work."""
+    """Capability-driven urgent delivery; lifecycle intent always wins idle work.
+
+    Only a *running* Worker can be urgently re-routed.  Idle/queued/held or
+    missing runtimes (including an empty queue) use the ordinary durable send
+    path: no Steer attempt and no restart.  A running Worker prefers native
+    Steer when its adapter supports it; otherwise the caller moves the
+    original item to the queue head and restarts + sends.  Illegal sessions
+    stay locked for the explicit Wake route and are never force-routed here.
+    """
     if w is None:
+        return "queue"
+    if s is not None and _offline.is_illegal(s):
         return "queue"
     if w.status == "restarting" or (w.pending_restart and w.status != "running"):
         return "queue"
@@ -9359,6 +9377,11 @@ def steer_delivery_route(w: Worker | None, s) -> str:
         return "queue"
     if capable:
         return "steer" if w.status == "running" else "queue"
+    if w.status != "running":
+        # An idle non-Steer adapter needs a normal consumer handoff, not a
+        # restart: force semantics must not replace an empty queue with a
+        # fresh process.
+        return "queue"
     if any(queue_item_edit_locked(s, item_id)
            for item_id in list(getattr(s, "queue_edit_locks", {}))):
         return "queue"
@@ -10095,6 +10118,268 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
     await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
                   "queueRevision": s.queue_revision})
 
+# ── Automatic Force send for newly enqueued structured sources ──
+#
+# App Settings → Behavior exposes three independent switches.  A newly
+# enqueued item is classified from its durable source fields (never from the
+# body text), then routed through the same capability path as an explicit
+# Force send:
+#   running + native Steer → steer the original item by id;
+#   running + no Steer     → move the original item to the queue head and
+#                            restart + send;
+#   idle/no Worker/empty   → ordinary durable handoff (no restart).
+# The queue item is never copied, so its queueItemId, source, task, parts and
+# body identity stay authoritative.  Pause, read-only, Illegal, locks, edit
+# leases, delayed restarts and an unconfirmed/rejected Steer retain the item
+# and are never bypassed.
+
+_auto_force_tasks: dict[tuple[str, str], asyncio.Task] = {}
+
+
+def auto_force_settings() -> dict[str, bool]:
+    """Read the three persisted switches strictly (missing/invalid = off)."""
+    ui = load_config().get("ui") or {}
+    raw = ui.get("autoForceSend")
+    if not isinstance(raw, dict):
+        raw = {}
+    return {name: raw.get(name) is True for name in AUTO_FORCE_SOURCE_CLASSES}
+
+
+def _is_manager_ancestor(source_session_id, target) -> bool:
+    """Whether *source_session_id* is an ancestor in the target's manager chain.
+
+    MA messages are structurally identified by the managedBy relation, not by
+    the ``////by agent`` body prefix or by the current template/MCP mount.
+    """
+    if not isinstance(source_session_id, str) or not source_session_id:
+        return False
+    target_id = getattr(target, "id", None)
+    if target is None or source_session_id == target_id:
+        return False
+    seen = {target_id}
+    current = getattr(target, "managed_by", None)
+    while isinstance(current, str) and current and current not in seen:
+        if current == source_session_id:
+            return True
+        seen.add(current)
+        manager = _get_session_shallow(current)
+        current = getattr(manager, "managed_by", None) if manager is not None else None
+    return False
+
+
+def classify_auto_force_source(item: dict, target) -> str | None:
+    """Classify one durable queue row as system(job) / ma / report / None.
+
+    Only structured fields participate.  A report/notice row is a Job
+    terminal only with the explicit ``noticeKind`` (or the legacy terminal
+    envelope); other automation notices stay unclassified.  An agent task is
+    an MA message only when its sender Session is an ancestor of the target
+    and it is not a formal assign dispatch.
+    """
+    if not isinstance(item, dict) or target is None:
+        return None
+    kind = _queue_item_kind(item)
+    if kind is None:
+        return None
+    source = _task_source(item) if kind == "task" else item.get("source")
+    if kind == "report":
+        if item.get("noticeKind") == "background_job_terminal":
+            return "system"
+        envelope = item.get("envelope") if isinstance(item.get("envelope"), dict) else {}
+        event_id = item.get("eventId")
+        legacy_job_terminal = (
+            source == "automation"
+            and (item.get("jobId") is not None
+                 or envelope.get("jobId") is not None
+                 or (isinstance(event_id, str) and event_id.endswith(":terminal")))
+        )
+        if legacy_job_terminal:
+            return "system"
+        if source == "report":
+            return "report"
+        if source not in {"agent", "meta-agent"}:
+            return None
+    elif kind == "task":
+        if source not in {"agent", "meta-agent"}:
+            return None
+        # A formal assign owns taskId idempotency and is a task dispatch, not
+        # a message that may be injected into a running turn.
+        if item.get("taskIdSource") == "assign":
+            return None
+    else:
+        return None
+    if source == "meta-agent":
+        return "ma"
+    source_session_id = item.get("sourceSessionId")
+    if isinstance(source_session_id, str) and _is_manager_ancestor(source_session_id, target):
+        return "ma"
+    return None
+
+
+def _schedule_auto_force(session_id: str, item: dict) -> asyncio.Task | None:
+    """Start one event-driven automatic Force attempt for a just-enqueued row."""
+    target = _get_session_shallow(session_id)
+    if (target is None or target.readonly_session
+            or getattr(target, "queue_paused", False)
+            or _offline.is_illegal(target)):
+        return None
+    source_class = classify_auto_force_source(item, target)
+    if source_class is None or not auto_force_settings().get(source_class):
+        return None
+    item_id = _queue_item_id(item)
+    key = (session_id, item_id)
+    existing = _auto_force_tasks.get(key)
+    if existing is not None and not existing.done():
+        return existing
+    task = asyncio.create_task(_auto_force_item(session_id, item_id, source_class))
+    _auto_force_tasks[key] = task
+
+    def finished(done):
+        if _auto_force_tasks.get(key) is done:
+            _auto_force_tasks.pop(key, None)
+        if not done.cancelled():
+            exc = done.exception()
+            if exc is not None:
+                _log.warning(
+                    "[Session %s] automatic Force attempt failed: %s",
+                    session_id, exc)
+
+    task.add_done_callback(finished)
+    return task
+
+
+async def wait_auto_force(session_id: str | None = None, timeout: float = 15.0) -> None:
+    """Await in-flight automatic Force attempts (event-driven, no polling)."""
+    tasks = [
+        task for (queued_session_id, _), task in list(_auto_force_tasks.items())
+        if session_id is None or queued_session_id == session_id
+    ]
+    if tasks:
+        await asyncio.wait(tasks, timeout=timeout)
+
+
+def _move_queue_item_to_front(s, item: dict) -> bool:
+    """Move one existing row to the absolute head and renumber positions."""
+    pending = list(s.queue_pending or [])
+    index = next((position for position, queued in enumerate(pending)
+                  if queued is item), None)
+    if index is None or index == 0:
+        return False
+    pending.pop(index)
+    pending.insert(0, item)
+    s.queue_pending = pending
+    for position, queued in enumerate(pending):
+        if isinstance(queued, dict):
+            queued["position"] = position
+    return True
+
+
+async def _auto_force_item(session_id: str, item_id: str,
+                           source_class: str) -> dict:
+    """Route one existing durable item through automatic Force semantics."""
+    s = _get_session_shallow(session_id)
+    if s is None:
+        return {"status": "skipped", "reason": "session_missing"}
+    if s.readonly_session:
+        return {"status": "skipped", "reason": "readonly"}
+    if getattr(s, "queue_paused", False):
+        return {"status": "skipped", "reason": "paused"}
+    if _offline.is_illegal(s):
+        return {"status": "skipped", "reason": "illegal"}
+    item = next((queued for queued in (s.queue_pending or [])
+                 if isinstance(queued, dict)
+                 and _queue_item_id(queued) == item_id), None)
+    if item is None:
+        return {"status": "skipped", "reason": "not_queued"}
+    if not auto_force_settings().get(source_class):
+        return {"status": "skipped", "reason": "disabled"}
+    if classify_auto_force_source(item, s) != source_class:
+        return {"status": "skipped", "reason": "source_changed"}
+    # A prior attempt that reached the provider, or one awaiting a receipt,
+    # is never repeated automatically.  A rejected/unknown row stays durable
+    # for ordinary FIFO or an explicit caller retry.
+    if item.get("queueSteerPending") or item.get("lastSteerError"):
+        return {"status": "skipped", "reason": "previous_attempt"}
+    w = find_alive_worker_by_session(session_id)
+    if w is None:
+        return {"status": "skipped", "reason": "no_live_worker"}
+    route = steer_delivery_route(w, s)
+    if route == "steer":
+        disposition = {}
+        error = await steer_queue_item(
+            session_id, item_id, item.get("revision", 1), outcome=disposition)
+        return {
+            "status": disposition.get("status", "unknown" if error else "accepted"),
+            "error": error,
+            "route": "steer",
+        }
+    if route == "restart":
+        return await _auto_force_restart_item(session_id, item_id)
+    return {"status": "skipped", "reason": route}
+
+
+async def _auto_force_restart_item(session_id: str, item_id: str) -> dict:
+    """Move the original item to the head, then restart and send it once."""
+    lock = await _session_spawn_lock(session_id)
+    async with lock:
+        s = _get_session_shallow(session_id)
+        if s is None:
+            return {"status": "skipped", "reason": "session_missing"}
+        if s.readonly_session:
+            return {"status": "skipped", "reason": "readonly"}
+        if getattr(s, "queue_paused", False):
+            return {"status": "skipped", "reason": "paused"}
+        if _offline.is_illegal(s):
+            return {"status": "skipped", "reason": "illegal"}
+        w = find_alive_worker_by_session(session_id)
+        if w is None or w.status != "running":
+            return {"status": "skipped", "reason": "not_running"}
+        if steer_delivery_route(w, s) != "restart":
+            return {"status": "skipped", "reason": "route_changed"}
+        async with queue_lock(s.id):
+            if s.readonly_session or _offline.is_illegal(s):
+                return {"status": "skipped", "reason": "illegal"}
+            if getattr(s, "queue_paused", False):
+                return {"status": "skipped", "reason": "paused"}
+            item = next((queued for queued in (s.queue_pending or [])
+                         if isinstance(queued, dict)
+                         and _queue_item_id(queued) == item_id), None)
+            if item is None or _delivery_state(item) != _DELIVERY_QUEUED:
+                return {"status": "skipped", "reason": "not_queued"}
+            if (queue_item_edit_locked(s, item_id)
+                    or _queue_item_locked(item)
+                    or not queue_item_eligible(s, item)
+                    or any(queue_item_edit_locked(s, identity)
+                           for identity in list(getattr(s, "queue_edit_locks", {})))):
+                return {"status": "skipped", "reason": "locked"}
+            old_pending = list(s.queue_pending or [])
+            old_positions = {id(queued): queued.get("position")
+                             for queued in old_pending if isinstance(queued, dict)}
+            old_revision = s.queue_revision
+            _move_queue_item_to_front(s, item)
+            s.queue_revision = old_revision + 1
+            try:
+                await _save_receipt(s)
+            except Exception:
+                s.queue_pending = old_pending
+                for queued in old_pending:
+                    if isinstance(queued, dict):
+                        if old_positions.get(id(queued)) is None:
+                            queued.pop("position", None)
+                        else:
+                            queued["position"] = old_positions[id(queued)]
+                s.queue_revision = old_revision
+                raise
+            queue_revision = s.queue_revision
+        await _bcast({"type": "queue.snapshot", "sessionId": session_id,
+                      "queueRevision": queue_revision})
+        error = await _restart_worker_unlocked(w.worker_id)
+        if error:
+            return {"status": "error", "error": error, "route": "restart"}
+        return {"status": "restarted", "route": "restart",
+                "workerId": w.worker_id, "queueItemId": item_id}
+
+
 async def _interrupt_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
@@ -10191,8 +10476,14 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              parts: list[dict] | None = None,
                              *, idempotent_task_id: bool = True,
                              activate_task: bool = False,
-                             locked: bool = False) -> tuple[dict | None, str | None]:
-    """Durably append one task, atomically with the browser receipt ledger."""
+                             locked: bool = False,
+                             auto_force: bool = True) -> tuple[dict | None, str | None]:
+    """Durably append one task, atomically with the browser receipt ledger.
+
+    ``auto_force=False`` is used by the explicit Force branches, which already
+    choose their delivery route; every ordinary enqueue schedules the
+    automatic-source classifier after the durable write succeeds.
+    """
     if _shutdown_started:
         return None, "Pan main service is shutting down"
     source_type, source_sid, source_error = _validate_source_metadata(
@@ -10287,6 +10578,8 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                       **({"parts": public_message_parts(item.get("parts"))}
                          if isinstance(item.get("parts"), list) else {}),
                   }})
+    if auto_force:
+        _schedule_auto_force(s.id, item)
     return item, None
 
 
@@ -10324,11 +10617,11 @@ async def enqueue_user_message(session_id: str, text: str,
         if parts is None:
             item, error = await _persist_task_item(
                 s, text, "user", None, None, client_message_id, None,
-                locked=locked)
+                locked=locked, auto_force=False)
         else:
             item, error = await _persist_task_item(
                 s, text, "user", None, None, client_message_id, None, parts,
-                locked=locked)
+                locked=locked, auto_force=False)
         if error:
             return {"status": "error", "result": error}
         if item is None:
@@ -10438,7 +10731,8 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
                     seq: int | None = None, task_id: str | None = None,
                     client_message_id: str | None = None,
                     source_session_id: str | None = None,
-                    idempotent_task_id: bool = True) -> str | None:
+                    idempotent_task_id: bool = True,
+                    auto_force: bool = True) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
@@ -10468,7 +10762,8 @@ async def send_task(worker_id: str, text: str, source: str = "agent",
         item, persist_error = await _persist_task_item(
             s, text, source, seq, task_id, client_message_id, source_sid,
             idempotent_task_id=idempotent_task_id,
-            activate_task=idempotent_task_id and task_id is not None)
+            activate_task=idempotent_task_id and task_id is not None,
+            auto_force=auto_force)
     if persist_error:
         return persist_error
     if item is None:
@@ -10583,7 +10878,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
         async with queue_lock(session_id):
             item, error = await _persist_task_item(
                 target, text, source_type, None, task_id, None, source_sid,
-                activate_task=True)
+                activate_task=True, auto_force=False)
         if error:
             if task_id is not None:
                 _task_status.pop(task_id, None)
@@ -10609,7 +10904,9 @@ async def assign(session_id: str, text: str, source: str = "agent",
         task_reservation["workerId"] = w.worker_id
         task_reservation["ts"] = time.monotonic()
 
-    send_kwargs = {"source": source_type, "task_id": task_id}
+    # A formal assign is a task dispatch, not a follow-up message: it must
+    # queue behind the current turn instead of being injected as a Steer.
+    send_kwargs = {"source": source_type, "task_id": task_id, "auto_force": False}
     if source_sid is not None:
         send_kwargs["source_session_id"] = source_sid
     send_err = await send_task(w.worker_id, text, **send_kwargs)
@@ -10657,7 +10954,9 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     worker（CLI 进程）是顺带的。
 
     - 有活 worker（含 oneshot 注册，process 为 None）→ 常规投递；
-      force=True 按能力即时 Steer；idle 普通 handoff；无能力才 restart+send。
+      force=True 仅在 running 时按能力路由：支持原生 Steer 则按原队列项
+      Steer；不支持才把原项提到队首后 restart+send。idle/queued/held 或
+      空队列一律普通 handoff，不重启。
     - 无活 worker（从未 spawn / 进程已死）→ **不报错**：消息入该 session 的
       持久队列 queue_pending（type=task），由全局 watchdog（queue_pending
       非空 && 无活 worker → create_worker）spawn 后经 _recover_pending_signals
@@ -10729,6 +11028,17 @@ async def send_session(session_id: str, text: str, source: str = "agent",
     route = steer_delivery_route(w, target) if force else "queue"
     if force and route == "steer":
         async with queue_lock(session_id):
+            if _offline.is_illegal(target):
+                # Illegal was discovered after routing. It owns the item and
+                # forbids Force from clearing it; enqueue under the same lock.
+                item, error = await _persist_task_item(
+                    target, text, source_type, None, inherited_task_id,
+                    client_message_id, source_sid, idempotent_task_id=False,
+                    auto_force=False)
+                if error:
+                    return {"status": "error", "result": error}
+                return {"status": "queued", "sessionId": session_id,
+                        "queueItemId": _queue_item_id(item) if item else None}
             prior = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
             item = None
             if prior is not None:
@@ -10747,7 +11057,8 @@ async def send_session(session_id: str, text: str, source: str = "agent",
                             "workerId": w.worker_id, "duplicate": True}
             if item is None:
                 item, error = await _persist_task_item(target, text, source_type, None,
-                    inherited_task_id, client_message_id, source_sid, idempotent_task_id=False, locked=True)
+                    inherited_task_id, client_message_id, source_sid,
+                    idempotent_task_id=False, locked=True, auto_force=False)
                 if error:
                     return {"status": "rejected", "outcome": "rejected", "result": error}
             # The lock prevents ordinary FIFO from racing this immediate attempt.
@@ -10763,10 +11074,110 @@ async def send_session(session_id: str, text: str, source: str = "agent",
                 "workerId": w.worker_id, "sessionId": session_id, "queueItemId": _queue_item_id(item),
                 **({"result": error, "retryable": status == "rejected"} if error else {})}
     if force and route == "restart":
+        # Preserve the original durable item: persist once, move that row to
+        # the head so the replacement consumer delivers it first, then
+        # restart.  Never create a second queue identity for this message.
+        async with queue_lock(session_id):
+            if _offline.is_illegal(target):
+                item, error = await _persist_task_item(
+                    target, text, source_type, None, inherited_task_id,
+                    client_message_id, source_sid, idempotent_task_id=False,
+                    auto_force=False)
+                if error:
+                    return {"status": "error", "result": error}
+                return {"status": "queued", "sessionId": session_id,
+                        "queueItemId": _queue_item_id(item) if item else None}
+            prior = _find_queue_item_by_idempotency(
+                target, client_message_id=client_message_id)
+            item = None
+            if prior is not None:
+                conflict = force_body_conflict(prior)
+                if conflict:
+                    return conflict
+                state = _delivery_state(prior)
+                pending = next((row for row in target.queue_pending
+                                if _queue_item_id(row) == _queue_item_id(prior)), None)
+                if (pending and pending.get("forceSend")
+                        and pending.get("lastSteerError")
+                        and not pending.get("queueSteerPending")
+                        and pending.get("text") == text):
+                    item = pending
+                    # A proved rejection may be retried through restart; the
+                    # old Steer hold must not keep the row locked.  Clearing
+                    # the error makes a later duplicate resolve as unknown
+                    # instead of triggering another restart.
+                    item.pop("forceSendHeld", None)
+                    item.pop("queueSteerRequestId", None)
+                    item.pop("queueSteerWorkerId", None)
+                    item.pop("queueSteerGeneration", None)
+                    item.pop("queueSteerOrigin", None)
+                    item.pop("lastSteerError", None)
+                else:
+                    status = "accepted" if state == _DELIVERY_SENT else "unknown"
+                    return {"status": status, "outcome": status,
+                            "consumption": "unconfirmed",
+                            "queueItemId": _queue_item_id(prior),
+                            "sessionId": session_id, "workerId": w.worker_id,
+                            "duplicate": True}
+            if item is None:
+                item, error = await _persist_task_item(
+                    target, text, source_type, None, inherited_task_id,
+                    client_message_id, source_sid, idempotent_task_id=False,
+                    auto_force=False)
+                if error:
+                    return {"status": "rejected", "outcome": "rejected",
+                            "result": error}
+                item["forceSend"] = True
+            # Re-check the gates after the durable write.  An idle transition,
+            # Pause, read-only Session or an edit lease must not be bypassed
+            # by a restart that was decided before the enqueue.
+            live = find_alive_worker_by_session(session_id)
+            blocked = (
+                live is not None and live.status != "running"
+            ) or target.readonly_session or getattr(target, "queue_paused", False) \
+                or _offline.is_illegal(target) \
+                or any(queue_item_edit_locked(target, identity)
+                       for identity in list(getattr(target, "queue_edit_locks", {})))
+            if live is None or blocked:
+                await _save_receipt(target)
+                if not (target.readonly_session
+                        or getattr(target, "queue_paused", False)
+                        or _offline.is_illegal(target)):
+                    await _wake_worker(session_id, auto_spawn=False)
+                return {"status": "queued", "sessionId": session_id,
+                        "queueItemId": _queue_item_id(item),
+                        "workerId": live.worker_id if live else None,
+                        "queueRevision": target.queue_revision}
+            old_pending = list(target.queue_pending or [])
+            old_positions = {id(queued): queued.get("position")
+                             for queued in old_pending if isinstance(queued, dict)}
+            old_revision = target.queue_revision
+            _move_queue_item_to_front(target, item)
+            target.queue_revision = old_revision + 1
+            try:
+                await _save_receipt(target)
+            except Exception as exc:
+                target.queue_pending = old_pending
+                for queued in old_pending:
+                    if isinstance(queued, dict):
+                        if old_positions.get(id(queued)) is None:
+                            queued.pop("position", None)
+                        else:
+                            queued["position"] = old_positions[id(queued)]
+                target.queue_revision = old_revision
+                return {"status": "error",
+                        "result": f"Failed to persist force queue order: {exc}"}
+            queue_revision = target.queue_revision
+            item_id = _queue_item_id(item)
+        await _bcast({"type": "queue.snapshot", "sessionId": session_id,
+                      "queueRevision": queue_revision})
         restarted = await restart_or_start_worker(session_id)
         if isinstance(restarted, str):
-            return {"status": "error", "result": restarted}
-        w = restarted
+            return {"status": "error", "result": restarted,
+                    "queueItemId": item_id}
+        return {"status": "queued", "workerId": restarted.worker_id,
+                "sessionId": session_id, "queueItemId": item_id,
+                "queueRevision": queue_revision}
     send_err = await send_task(w.worker_id, text, source=source_type,
                                task_id=inherited_task_id,
                                client_message_id=client_message_id,

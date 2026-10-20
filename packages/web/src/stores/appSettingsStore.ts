@@ -27,6 +27,29 @@ export function sanitizeCompletionBridge(value: unknown): CompletionBridgeDefaul
   };
 }
 
+/** Behavior → Message auto force send, three independent persistent switches. */
+export interface AutoForceSendSettings {
+  system: boolean;
+  ma: boolean;
+  report: boolean;
+}
+
+/** Default: every automatic Force source stays off (legacy queue behavior). */
+export const DEFAULT_AUTO_FORCE_SEND: AutoForceSendSettings = {
+  system: false,
+  ma: false,
+  report: false,
+};
+
+export function sanitizeAutoForceSend(value: unknown): AutoForceSendSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    system: raw.system === true,
+    ma: raw.ma === true,
+    report: raw.report === true,
+  };
+}
+
 /** Scope ids accepted by the backend unread-recording policy. */
 export type UnreadRecordingScope = 'bell-on' | 'bell-off' | 'pinned' | 'all' | 'none';
 
@@ -131,6 +154,12 @@ export interface AppSettings {
    * either way.
    */
   reportWorkerKillErrors: boolean;
+  /**
+   * Automatically route newly enqueued structured messages through Force
+   * send. `system` = Job terminal notices, `ma` = manager/meta-agent
+   * messages, `report` = completion reports. All off by default.
+   */
+  autoForceSend: AutoForceSendSettings;
   /** Show the Codex terminal input popup when a process is waiting for stdin. */
   showCodexTerminalInput: boolean;
   /** Combine adjacent tool and thinking display blocks under one disclosure. */
@@ -185,6 +214,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showTaskAgent: true,
   showQQ: true,
   reportWorkerKillErrors: false,
+  autoForceSend: DEFAULT_AUTO_FORCE_SEND,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
   keepScrollOnSessionSwitch: false,
@@ -272,6 +302,7 @@ export function sanitizeSettings(
       typeof parsed.reportWorkerKillErrors === 'boolean'
         ? parsed.reportWorkerKillErrors
         : DEFAULT_SETTINGS.reportWorkerKillErrors,
+    autoForceSend: sanitizeAutoForceSend(parsed.autoForceSend),
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
         ? parsed.showCodexTerminalInput
@@ -345,6 +376,12 @@ interface AppSettingsStore extends AppSettings {
    * unchanged.
    */
   saveReportWorkerKillErrors: (v: boolean) => Promise<void>;
+  /**
+   * Persist the three automatic Force switches. Resolves only after the
+   * server wrote the settings; a failure rejects and leaves the store on the
+   * last saved value.
+   */
+  saveAutoForceSend: (v: AutoForceSendSettings) => Promise<void>;
   setConfirmCrossWorkspaceManagement: (v: boolean) => void;
   setConfirmAgentSystemQueueEdit: (v: boolean) => void;
   /** Reset every field to its default and persist. */
@@ -555,6 +592,14 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       dirty = true;
       const response = await updateUiSettings({ reportWorkerKillErrors: value });
       set({ reportWorkerKillErrors: sanitizeSettings(response).reportWorkerKillErrors });
+    },
+
+    saveAutoForceSend: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({
+        autoForceSend: sanitizeAutoForceSend(value),
+      });
+      set({ autoForceSend: sanitizeSettings(response).autoForceSend });
     },
 
     setCodexWarningToast: (v) => {

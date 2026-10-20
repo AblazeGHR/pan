@@ -1207,6 +1207,64 @@ describe('AppSettingsModal', () => {
     expect(killReportSwitch.getAttribute('aria-checked')).toBe('false');
   });
 
+  it('shows three independent auto Force switches, all off by default', () => {
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('behavior');
+
+    expect(cardEl().textContent).toContain('Message auto force send');
+    const switches = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[data-testid="auto-force-send-section"] [role="switch"]'),
+    );
+    expect(switches).toHaveLength(3);
+    expect(switches.map((element) => element.getAttribute('aria-checked'))).toEqual([
+      'false', 'false', 'false',
+    ]);
+    expect(switches.map((element) => element.textContent)).toEqual([
+      expect.stringContaining('Job terminal notifications'),
+      expect.stringContaining('Meta-agent (MA) messages'),
+      expect.stringContaining('Completion reports'),
+    ]);
+  });
+
+  it('persists one auto Force switch without changing the others', async () => {
+    updateUiSettingsMock.mockResolvedValue({
+      autoForceSend: { system: false, ma: true, report: false },
+    });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('behavior');
+
+    const maSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[data-testid="auto-force-send-section"] [role="switch"]'),
+    ).find((element) => element.textContent?.includes('Meta-agent (MA) messages'))!;
+    fireEvent.click(maSwitch);
+
+    await waitFor(() =>
+      expect(useAppSettingsStore.getState().autoForceSend).toEqual({
+        system: false, ma: true, report: false,
+      }),
+    );
+    expect(updateUiSettingsMock).toHaveBeenCalledWith({
+      autoForceSend: { system: false, ma: true, report: false },
+    });
+    expect(maSwitch.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('shows auto Force save failures and keeps the last saved switch position', async () => {
+    updateUiSettingsMock.mockRejectedValueOnce(new Error('auto force config is read-only'));
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('behavior');
+
+    const reportSwitch = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[data-testid="auto-force-send-section"] [role="switch"]'),
+    ).find((element) => element.textContent?.includes('Completion reports'))!;
+    fireEvent.click(reportSwitch);
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('auto force config is read-only');
+    expect(useAppSettingsStore.getState().autoForceSend.report).toBe(false);
+    expect(reportSwitch.getAttribute('aria-checked')).toBe('false');
+  });
+
   it('toggles merged tool/thinking groups on the Appearance tab and persists the setting', () => {
     render(<AppSettingsModal open onClose={() => {}} />);
     fireEvent.click(document.getElementById('app-settings-tab-appearance')!);
