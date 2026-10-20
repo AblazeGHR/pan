@@ -113,7 +113,7 @@ def test_restart_decision_persists_first_and_repeated_post_does_not_broadcast_tw
             "results": [{"sessionId": payload["sessionIds"][0], "status": "queued"}],
         }
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", broadcast)
+    monkeypatch.setattr(server, "api_sessions_wake", broadcast)
     body = {"generation": "test-generation", "tabId": "tab-a", "choice": "restart"}
     first = asyncio.run(server.api_main_startup_recovery_decision(body))
     second = asyncio.run(server.api_main_startup_recovery_decision(body))
@@ -121,7 +121,7 @@ def test_restart_decision_persists_first_and_repeated_post_does_not_broadcast_tw
     assert first["state"] == "completed"
     assert second["decisionId"] == first["decisionId"]
     assert len(calls) == 1
-    assert calls[0]["text"] == "继续"
+    assert "text" not in calls[0]  # The server resolves Behavior wakeMessage.
     assert calls[0]["source"] == "user"
     assert calls[0]["clientMessageId"] == "startup-recovery:test-generation"
 
@@ -143,7 +143,7 @@ def test_concurrent_identical_decisions_apply_broadcast_once(recovery_env, monke
             "results": [{"sessionId": candidate.id, "status": "queued"}],
         }
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", broadcast)
+    monkeypatch.setattr(server, "api_sessions_wake", broadcast)
     body = {"generation": "test-generation", "tabId": "tab-a", "choice": "restart"}
 
     async def run_pair():
@@ -236,7 +236,7 @@ def test_automatic_ask_keeps_prompt_pending_and_applies_no_side_effect(recovery_
     async def unexpected(*_args, **_kwargs):
         raise AssertionError("ask mode must wait for a dashboard choice")
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", unexpected)
+    monkeypatch.setattr(server, "api_sessions_wake", unexpected)
     monkeypatch.setattr(worker, "sync_legal_worker_state_to_runtime", unexpected)
     result = asyncio.run(server._initialize_startup_recovery([candidate]))
 
@@ -257,7 +257,7 @@ def test_automatic_wake_uses_the_durable_normal_broadcast_identity(recovery_env,
             "results": [{"sessionId": candidate.id, "status": "queued"}],
         }
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", broadcast)
+    monkeypatch.setattr(server, "api_sessions_wake", broadcast)
     result = asyncio.run(server._initialize_startup_recovery([candidate]))
 
     assert result["state"] == "completed"
@@ -266,7 +266,6 @@ def test_automatic_wake_uses_the_durable_normal_broadcast_identity(recovery_env,
     assert len(calls) == 1
     assert calls[0] == {
         "sessionIds": [candidate.id],
-        "text": "继续",
         "source": "user",
         "clientMessageId": "startup-recovery:test-generation",
     }
@@ -305,7 +304,7 @@ def test_automatic_preserve_leaves_candidate_legal_state_unchanged(recovery_env,
     async def unexpected(*_args, **_kwargs):
         raise AssertionError("preserve mode must not wake or synchronize")
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", unexpected)
+    monkeypatch.setattr(server, "api_sessions_wake", unexpected)
     monkeypatch.setattr(worker, "sync_legal_worker_state_to_runtime", unexpected)
     result = asyncio.run(server._initialize_startup_recovery([candidate]))
 
@@ -325,7 +324,7 @@ def test_automatic_startup_with_no_candidates_is_a_quiet_noop(recovery_env, monk
     async def unexpected(*_args, **_kwargs):
         raise AssertionError("empty candidate snapshots must have no effects")
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", unexpected)
+    monkeypatch.setattr(server, "api_sessions_wake", unexpected)
     monkeypatch.setattr(worker, "sync_legal_worker_state_to_runtime", unexpected)
     result = asyncio.run(server._initialize_startup_recovery([]))
 
@@ -353,7 +352,7 @@ def test_automatic_failure_can_be_diagnosed_and_retried_only_as_saved_choice(
             "results": [{"sessionId": candidate.id, "status": "queued"}],
         }
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", broadcast)
+    monkeypatch.setattr(server, "api_sessions_wake", broadcast)
     failed = asyncio.run(server._initialize_startup_recovery([candidate]))
     assert failed["state"] == "failed"
     assert failed["decision"] == "restart"
@@ -383,7 +382,7 @@ def test_automatic_broadcast_exception_has_session_rows_for_prompt_diagnostics(
     async def broadcast(_payload):
         raise RuntimeError("queue store unavailable")
 
-    monkeypatch.setattr(server, "api_sessions_broadcast", broadcast)
+    monkeypatch.setattr(server, "api_sessions_wake", broadcast)
     result = asyncio.run(server._initialize_startup_recovery([candidate]))
 
     assert result["state"] == "failed"
@@ -405,7 +404,7 @@ def test_clear_illegal_policy_selects_incidents_even_without_recovery_intent(rec
     set_startup_preference(monkeypatch, "clear-illegal")
     async def unexpected(*_args, **_kwargs):
         raise AssertionError("Clear Illegal must not request Worker startup")
-    monkeypatch.setattr(server, "api_sessions_broadcast", unexpected)
+    monkeypatch.setattr(server, "api_sessions_wake", unexpected)
     result = asyncio.run(server._initialize_startup_recovery([candidate, unaffected]))
     assert result["decision"] == "clear-illegal" and result["state"] == "completed"
     assert [row["id"] for row in result["candidateSnapshot"]] == [candidate.id]

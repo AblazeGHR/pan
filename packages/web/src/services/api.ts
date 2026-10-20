@@ -2547,3 +2547,12 @@ export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }
+
+/** Explicit wake is separate from broadcast and uses the server's Behavior setting. */
+export async function wakeSessions(sessionIds: string[], clientMessageId: string = crypto.randomUUID()): Promise<void> {
+  const data = await request<{ok: boolean; results: {sessionId: string; status: string; result?: string; error?: {message?: string}}[]}>(
+    `${BASE}/sessions/wake`, { method: 'POST', body: JSON.stringify({ sessionIds, clientMessageId }) },
+  );
+  if (!data.ok) throw new Error(data.results.filter(row => row.status !== 'queued')
+    .map(row => `${row.sessionId}: ${row.result || row.error?.message || 'Wake failed'}`).join('; '));
+}

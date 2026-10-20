@@ -256,3 +256,10 @@ Windows 下 `curl -d '{"text":"中文…"}'` 内联中文 body 会报 `{"detail"
 ## 插件面板（pan-plugin/v1 扩展）
 
 `GET /api/plugins/panels` 返回注册的全局 View Entry；`POST /api/plugins/{plugin}/panels/{panel}/actions/{action}` 调用该面板声明的 capability，body 为 `arguments` 与可选 `requestId`。`write_external` 必须使用稳定 requestId，结果未知时先核对状态，不能自动重放。面板与 Session 的 MCP 勾选互相独立，不为面板启动 Worker。数据目录、版本与 Agent 能力白名单见 [面板协议](../../../design/Pan-Plugin-Panels-v1.md)。
+
+
+### Explicit Wake and persistent Illegal message admission (2026-10-20)
+
+`POST /api/sessions/wake` accepts `{ "sessionIds": ["ses_..."], "clientMessageId": "stable-per-action-id" }`, with existing optional `source` and `sourceSessionId` access metadata. Per-Session results distinguish queued and error; queued means durable acceptance, not CLI delivery. It atomically enqueues the Behavior `wakeMessage`, releases only that new message's Illegal lock and places it first. It respects Pause, Manual/report locks, leases and native ownership, and does not interrupt handed-off execution. Reusing the same id never unlocks or reorders the original again.
+
+The shared `GET/PUT /api/settings/session-lifecycle` now includes `wakeMessage` (nonblank, maximum 32000 characters, default `继续`). Scheduled recovery resolves it at fire time. Ordinary broadcast/send/notify/assign remain ordinary messages: while Illegal they acquire Illegal locks, including plugin and Job notices, and cannot recover the Session by themselves. Manual Start or an explicitly unlocked message permits a ready successor to restore the incident; startup failure never clears it. An empty Illegal Session also remains dormant.

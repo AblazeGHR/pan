@@ -19,6 +19,12 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 >
 > **技术细节引用子文档**：HTTP API 清单与字段映射 → [`references/http-api.md`](references/http-api.md)；/ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用）→ [`references/ws-protocol.md`](references/ws-protocol.md)。本文件保留编排流程主线，细节见子文档。
 
+### Illegal 与显式唤醒（2026-10-20）
+
+Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息，包括 agent、assign、插件、报告与 Job 通知。普通发送、群发及正文“继续”不自动恢复。手动解锁至少一条消息或手动 Start/Restart 才允许有效继任恢复；Manual、Pause、lease 与 native owner 等 gate 保持独立。
+
+显式 Wake 使用 `POST /api/sessions/wake`，同次持久化“发送 Behavior 配置的消息、解除其 Illegal 锁、置于队首”，再调度。UI 多选 Wake、启动恢复、定时恢复统一此操作，不能用普通 send/broadcast 模拟。相同去重 ID 不重发、重排或重新解锁。Oneshot Worker 模式已停用入口，历史配置解析为 stream；实现保留，Job 的 one-shot 调度不受影响。
+
 ## 0. 快速开始（30 秒冷启动）
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：

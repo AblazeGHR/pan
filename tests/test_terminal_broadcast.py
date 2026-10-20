@@ -144,6 +144,7 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
         _reset()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_uses_same_terminal_result_idle_pair(monkeypatch, tmp_path):
     _reset()
     s = _sess.Session(id="ses_t041_oneshot", name="t041", adapter="cbc", model="m")

@@ -1,5 +1,7 @@
 """T-040 task context inheritance and report pairing tests."""
 
+import pytest
+
 import asyncio
 import sys
 from pathlib import Path
@@ -139,6 +141,7 @@ def test_inherited_send_does_not_consume_formal_assign_idempotency(monkeypatch):
     _reset()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_report_uses_the_task_id_carried_by_the_current_input(monkeypatch):
     """A report is paired from the current queue item, not old task state."""
     _reset()

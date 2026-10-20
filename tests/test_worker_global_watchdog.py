@@ -138,6 +138,7 @@ def test_global_watchdog_tick_skips_live_worker(monkeypatch):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_global_watchdog_tick_skips_active_oneshot_worker(monkeypatch):
     """CBC one-shot 执行期间 process=None，不能被 watchdog 重复 spawn。"""
     _cleanup()

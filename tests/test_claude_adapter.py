@@ -57,6 +57,7 @@ def _make_session(adapter_config=None, **kw):
 
 # ── metadata ──
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_adapter_metadata():
     a = ClaudeAdapter()
     assert a.name == "claude"
@@ -156,6 +157,7 @@ def _patched_mcp_json(path, s):
     return {"pan": {"command": "x"}}
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_basic():
     a = ClaudeAdapter()
     s = _make_session()
@@ -184,6 +186,7 @@ def test_oneshot_args_basic():
     print("PASS: oneshot_args basic (default permission, no extras)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_model_resume_effort_system_prompt():
     a = ClaudeAdapter()
     s = _make_session(
@@ -210,6 +213,7 @@ def test_oneshot_args_with_model_resume_effort_system_prompt():
     print("PASS: oneshot_args with model + resume + effort (system_prompt skipped)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_system_prompt_only_when_fresh():
     a = ClaudeAdapter()
     s = _make_session(system_prompt="System instructions here.")
@@ -224,6 +228,7 @@ def test_oneshot_args_system_prompt_only_when_fresh():
     print("PASS: oneshot_args injects --system-prompt only for fresh session")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_args_with_mcp():
     a = ClaudeAdapter()
     s = _make_session(adapter_config={"mcp_servers": [{"name": "pan", "command": "x"}]})
@@ -300,6 +305,7 @@ def test_build_spawn_args_stream_defense():
     print("PASS: build_spawn_args (stream-mode defense builder)")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_stream_and_control_protocol():
     a = ClaudeAdapter()
     s = _make_session()
@@ -464,6 +470,7 @@ def test_result_event_and_error_flag():
     print("PASS: result event parsing + error flag")
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_extract_oneshot_error():
     a = ClaudeAdapter()
     output = b'{"type":"system","subtype":"init"}\n{"type":"error","error":{"message":"resume failed"}}\n'

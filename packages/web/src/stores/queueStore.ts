@@ -315,8 +315,12 @@ function normalizeQueueEventItem(raw: Record<string, unknown>): AgentQueueItem |
       ...meta,
       dispatchState: state as QueueDispatchState,
       revision: typeof revision === 'number' ? revision : 1,
-      locked: Boolean(raw.queueLockManual || raw.queueLockAutoReport || meta.locked),
-      lockManual: Boolean(raw.queueLockManual || meta.lockManual),
+      locked: Boolean(raw.queueLockSource === 'illegal' || raw.queueLockSource === 'manual'
+        || raw.queueLockManual || raw.queueLockAutoReport || meta.locked),
+      lockSource: raw.queueLockSource === 'illegal' || raw.queueLockSource === 'manual'
+        ? raw.queueLockSource : meta.lockSource,
+      illegalBatchId: raw.queueLockIllegalBatch ?? meta.illegalBatchId,
+      lockManual: Boolean(raw.queueLockSource === 'manual' || raw.queueLockManual || meta.lockManual),
       lockAutoReport: Boolean(raw.queueLockAutoReport || meta.lockAutoReport),
     },
   } as AgentQueueItem;
@@ -549,12 +553,14 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       );
       if (item && !blocked && item.meta?.dispatchState === 'queued') {
         const index = current.findIndex((candidate) => queueIdMatches(candidate.id, item.id));
-        next =
-          index < 0
-            ? [...current, item]
-            : current.map((candidate, candidateIndex) =>
-                candidateIndex === index ? item : candidate,
-              );
+        if (index < 0) {
+          const rawPosition = event.item.position;
+          const position = typeof rawPosition === 'number' && Number.isInteger(rawPosition)
+            ? Math.max(0, Math.min(rawPosition, current.length)) : current.length;
+          next = [...current.slice(0, position), item, ...current.slice(position)];
+        } else {
+          next = current.map((candidate, candidateIndex) => candidateIndex === index ? item : candidate);
+        }
       }
     } else if (event.type === 'queue.item_updated' && event.item && typeof id === 'string') {
       const item = normalizeQueueEventItem(event.item);

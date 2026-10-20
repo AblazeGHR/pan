@@ -532,6 +532,7 @@ def _queue_item(value, qid, *, source="user", kind="task", text="x"):
     return item
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_one_shot_spawn_success_dequeues_after_argv_handoff(monkeypatch):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)
@@ -561,6 +562,7 @@ def test_one_shot_spawn_success_dequeues_after_argv_handoff(monkeypatch):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_one_shot_spawn_failure_requeues_same_item(monkeypatch):
     _cleanup()
     monkeypatch.setattr(sess, "save_async", _save)

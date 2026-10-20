@@ -16,7 +16,7 @@ import psutil
 from . import queue_locks
 
 SERVICE_ID = uuid.uuid4().hex
-FIELDS = ("task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
+FIELDS = ("accepted_input_ids", "active_task_id", "task_seq", "legal_offline", "offline_owner", "offline_run", "illegal_batches", "queue_pending",
           "queue_delivery_ledger", "queue_idempotency_index", "queue_revision",
           "legality_schema_version", "operation_revision", "execution_operations", "owner_retirements")
 
@@ -231,6 +231,32 @@ def detect(s, reason: str, *, eligible, remember, identity: dict | None = None) 
     attach_foreground(s)
     aggregate(s)
     s.queue_revision += 1
+    return True
+
+
+def lock_new_message(s, item: dict) -> bool:
+    """Admit a truly new queued identity to the current Illegal incident.
+
+    Called only while staging its first enqueue, never on edits, receipts,
+    recovery, duplicate event IDs or explicit manual unlock. Caller persists
+    membership, row and ledger together. Other lock sources stay independent.
+    """
+    if not is_illegal(s) or queue_locks.source(item) is not None:
+        return False
+    batches = [batch for batch in s.illegal_batches.values()
+               if not batch.get("recovered")
+               and s.execution_operations.get(batch["id"], {}).get("state") == "illegal"]
+    if not batches:
+        raise RuntimeError("Illegal responsibility has no durable incident")
+    batch = min(batches, key=lambda b: (b.get("createdAt", 0), b["id"]))
+    # Auxiliary operations may point at a shared carrier incident.
+    carrier = s.illegal_batches.get(batch.get("incidentId"), batch)
+    item_id = item.get("queueItemId") or item.get("id")
+    if not item_id:
+        raise RuntimeError("New Illegal message has no stable identity")
+    queue_locks.set_lock(item, "illegal", batch=carrier["id"])
+    if item_id not in carrier["messages"]:
+        carrier["messages"].append(item_id)
     return True
 
 

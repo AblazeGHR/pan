@@ -6,6 +6,18 @@
 
 ## 0. 审阅后确定的最小技术契约
 
+### 2026-10-20 用户决定：Illegal 持续锁定新入队消息，独立唤醒
+
+本节覆盖历史“异常只锁当时已有消息”的范围决定。事故识别仍按失败 owner cohort 一次快照、重复异常不扩大或重锁；但此后 **所有真正新接受的消息**（用户、agent/assign、插件、频道、报告、Job 失败通知、定时消息）在 Illegal 未取消期间均附到尚未恢复的事故 carrier，建立 Illegal 锁。入队行、精确成员、来源、ledger/index、revision 与浏览器去重 ID 在同一有序 writer / JSON 原子替换中提交。显式指定 Manual 的新消息保留 Manual 单锁，报告策略、协议 hold、Pause、lease 和 native owner 独立。重复 eventId/clientMessageId/taskId、编辑、重试和重复 EOF 不给已手动解锁的原身份重新加锁。历史数据不回溯猜测曾否手动解锁。
+
+普通发送（包括正文恰为“继续”、群发、插件通知和 Force）不会据此清除 Illegal 或建立继任实例。全锁积压与空 Illegal Session 都不能因 watchdog/异常 force recovery 自动启动。明确手动解锁至少一个消息后允许继任启动；显式 Start/Restart 也允许，但仍需 adapter 权威就绪证明才能退休前序事故、解除其余 Illegal 锁。启动失败/拒绝 resume 不算恢复。手动解锁本身不立刻清除 Illegal。Mark safe 则保留原有立即退休、自动解锁并调度语义。
+
+唤醒是独立于群发的操作：**发送配置消息、解除这条新消息的 Illegal 锁、移到队首**，三步同次提交后再尝试调度。它不清除 Manual、报告策略、Pause、lease、unknown owner 等安全 gate，不打断已交接执行。Pause 时队首唤醒仍等待 Resume；构造 Idle 不算恢复。并发操作按 queue_lock / writer 顺序结算；不同唤醒可各建消息，后一次位于队首，相同去重 ID 不重复移动/解锁。多选 Wake、启动恢复和定时恢复统一调用此操作；普通群发保持普通发送。
+
+Behavior 增加 `session_lifecycle.wakeMessage`（非空、最长 32000 字符，缺省“继续”），各次唤醒在服务端读取当前配置；定时 Job 原有兼容 action 名与历史 text 可读，text 不再决定实际唤醒正文。
+
+Oneshot 调查：CBC/Claude 的模型、权限、MCP、会话恢复及任务结果均有 stream 对应能力，特有的是每轮短进程隔离，不是独有产品功能。按用户决定关闭所有公共选择入口及 runtime 解析入口，旧配置有效解析为 stream，保留原持久配置和实现代码。API 显式新选 oneshot 拒绝；前端不再展示该选项。旧 Oneshot 测试显式 skip，保留停用边界测试与 stream/native 回归。CLI wrapper 内部使用的单轮 subprocess 和 Job one-shot 调度不属于已停用的 Pan Worker 模式，保留原功能和测试。
+
 ### 2026-10-19 最终补充：Illegal 即待恢复，删除独立恢复意图
 
 最新用户决定覆盖下文早期设计：Illegal 和待恢复是同一状态，不再存在恢复意图与 Illegal 的独立组合。删除 `recovery_requested` / `recoveryRequested` 的模型字段、持久输出、摘要/详情/WS/诊断和前端类型。加载旧数据时丢弃旧键，在原有启动交接准备、有序 writer 内持久清理；不从旧布尔值制造事故，因为此前正常 Running 也写过 True。已有 operation、事故和队列来源保持权威。

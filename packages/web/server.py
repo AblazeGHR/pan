@@ -436,6 +436,7 @@ REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
 _SESSION_LIFECYCLE_DEFAULTS = {
     "exitStrategy": "ask",
     "startupPreference": "ask",
+    "wakeMessage": "继续",
 }
 _SESSION_LIFECYCLE_EXIT_STRATEGIES = frozenset({
     "ask", "offline", "preserve-running",
@@ -452,6 +453,9 @@ def _session_lifecycle_preferences(config: dict | None = None) -> dict[str, str]
     raw = config.get("session_lifecycle", {}) if isinstance(config, dict) else {}
     raw = raw if isinstance(raw, dict) else {}
     return {
+        "wakeMessage": (raw.get("wakeMessage") if isinstance(raw.get("wakeMessage"), str)
+                        and raw["wakeMessage"].strip() and len(raw["wakeMessage"]) <= 32000
+                        else _SESSION_LIFECYCLE_DEFAULTS["wakeMessage"]),
         "exitStrategy": (
             raw.get("exitStrategy")
             if isinstance(raw.get("exitStrategy"), str)
@@ -2195,8 +2199,8 @@ def _session_to_api(
         # Currently-enabled MCP server names (extracted from the adapter_config
         # mcp_servers list of config dicts, each carrying a "name" key).
         **_session_plugin_fields(s),
-        "outputMode": ac.get("output_mode"),
-        "executionModes": list(a.execution_modes),
+        "outputMode": "stream" if ac.get("output_mode") == "oneshot" else ac.get("output_mode"),
+        "executionModes": [mode for mode in a.execution_modes if mode != "oneshot"],
         "gameId": s.game_id,
         # Bounded, raw summary projection.  The full view keeps its existing
         # history/attachment behavior; these fields let metadata/detail
@@ -3059,7 +3063,7 @@ def _build_session_params(
     # the adapter's execution_modes. Unset/"auto" = automatic (existing behaviour).
     raw_mode = data.get("outputMode")
     if raw_mode not in (None, "", "auto"):
-        allowed = list(a.execution_modes)
+        allowed = [mode for mode in a.execution_modes if mode != "oneshot"]
         if raw_mode not in allowed:
             raise ValueError(
                 f"outputMode must be one of {allowed} for adapter '{a.name}', got {raw_mode!r}"
@@ -3509,7 +3513,7 @@ def _apply_mcp_servers(s: sess.Session, server_names, force: bool = False) -> No
         s.set_adapter_field(key, ac[key])
 
 
-_VALID_OUTPUT_MODES = ("stream", "oneshot")
+_VALID_OUTPUT_MODES = ("stream",)
 
 
 def _apply_output_mode(s: sess.Session, mode):
@@ -3528,7 +3532,7 @@ def _apply_output_mode(s: sess.Session, mode):
         s.adapter_config.pop("output_mode", None)
         return
     a = get_adapter(s.adapter)
-    allowed = list(getattr(a, "execution_modes", _VALID_OUTPUT_MODES))
+    allowed = [value for value in getattr(a, "execution_modes", _VALID_OUTPUT_MODES) if value != "oneshot"]
     if mode not in allowed:
         raise ValueError(
             f"outputMode must be one of {allowed} for adapter '{a.name}', got {mode!r}"
@@ -5762,9 +5766,8 @@ async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
     try:
         candidates = record.get("candidateSnapshot", [])
         if choice == "restart":
-            response = await api_sessions_broadcast({
+            response = await api_sessions_wake({
                 "sessionIds": [candidate["id"] for candidate in candidates],
-                "text": "继续",
                 "source": "user",
                 "clientMessageId": f"startup-recovery:{record['generation']}",
             })
@@ -10185,6 +10188,32 @@ async def api_sessions_broadcast(data: dict):
             else ("error" if failed else "queued"), "results": results}
 
 
+@app.post("/api/sessions/wake")
+async def api_sessions_wake(data: dict):
+    """Explicit recovery operation, separate from ordinary broadcast."""
+    ids = data.get("sessionIds")
+    key = data.get("clientMessageId")
+    if (not isinstance(ids, list) or not ids or
+            any(not isinstance(sid, str) or not sid for sid in ids)):
+        raise HTTPException(status_code=422, detail="sessionIds must contain Session IDs")
+    if key is not None and (not isinstance(key, str) or not key or len(key) > 256):
+        raise HTTPException(status_code=422, detail="invalid clientMessageId")
+    source, source_sid, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    results = []
+    for sid in dict.fromkeys(ids):
+        target = sess.get(sid, load_history=False)
+        denied = _source_access_error(target, source_sid) if target else None
+        if denied:
+            results.append({"sessionId": sid, "status": "error", "error": denied["error"]})
+            continue
+        result = await worker.wake_session(sid, client_message_id=key,
+                                          source=source, source_session_id=source_sid)
+        results.append({"sessionId": sid, **result})
+    return {"ok": all(row.get("status") == "queued" for row in results), "results": results}
+
+
 # ── Durable background jobs ──
 
 @app.post("/api/background-jobs")
@@ -10345,7 +10374,7 @@ async def api_adapter_config(adapter: str = "cbc"):
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
         "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
-        "executionModes": list(a.execution_modes),
+        "executionModes": [mode for mode in a.execution_modes if mode != "oneshot"],
     }
 
 
@@ -10729,7 +10758,7 @@ async def api_get_settings_session_lifecycle():
 async def api_put_settings_session_lifecycle(data: dict = Body(...)):
     """Strictly merge lifecycle preferences into config.json.
 
-    Only the two enum fields are accepted. The raw config object is updated so
+    The lifecycle enums and wakeMessage are accepted. The raw config is updated so
     unrelated project configuration and future keys remain intact.
     """
     if not isinstance(data, dict) or not data:
@@ -10745,6 +10774,10 @@ async def api_put_settings_session_lifecycle(data: dict = Body(...)):
         "startupPreference": _SESSION_LIFECYCLE_STARTUP_PREFERENCES,
     }
     for field_name, value in data.items():
+        if field_name == "wakeMessage":
+            if not isinstance(value, str) or not value.strip() or len(value) > 32000:
+                raise HTTPException(status_code=422, detail="wakeMessage must be non-blank and at most 32000 characters")
+            continue
         if not isinstance(value, str) or value not in allowed[field_name]:
             raise HTTPException(
                 status_code=422,

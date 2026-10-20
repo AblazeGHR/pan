@@ -366,11 +366,11 @@ export function JobDetailDrawer({
                     <>
                       <KV label="Mode">Recover Illegal Sessions without a live Worker</KV>
                       <div className="text-[11px] text-text-tertiary">
-                        The server rescans current Sessions on every fire and uses normal message delivery.
+                        Each fire rescans Illegal Sessions and queues the configured wake message first, releasing only its Illegal lock.
                       </div>
                       <div className="text-[11px] text-text-tertiary">Message</div>
                       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 text-text-secondary">
-                        继续
+                        Configured in Settings → Behavior → Wake message
                       </pre>
                     </>
                   ) : job.action?.api === 'shell' || job.shellCommand ? (

@@ -19,6 +19,8 @@ This suite verifies:
 Uses mock subprocess + temp SESSION_DIR (no real CLI needed).
 """
 
+import pytest
+
 import asyncio
 import json
 import sys
@@ -110,6 +112,7 @@ def _oneshot_output(cli_sid: str = "cli-oneshot-1") -> bytes:
 
 # ── tests ──
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_calls_enrich_and_accumulates_usage(monkeypatch, tmp_path):
     """oneshot 设置 last_result 后调用 enrich_after_result 并累加 usage/credit，
     且用量随 session 落盘（重载后仍在）。"""
@@ -164,6 +167,7 @@ def test_oneshot_calls_enrich_and_accumulates_usage(monkeypatch, tmp_path):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_enrich_none_tolerated(monkeypatch, tmp_path):
     """enrich_after_result 返回 None（无新增）→ 不落账、主流程不受影响。"""
     _cleanup()
@@ -188,6 +192,7 @@ def test_oneshot_enrich_none_tolerated(monkeypatch, tmp_path):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_enrich_exception_tolerated(monkeypatch, tmp_path):
     """enrich_after_result 抛异常 → try/except 保护，不拖垮主流程。"""
     _cleanup()
@@ -214,6 +219,7 @@ def test_oneshot_enrich_exception_tolerated(monkeypatch, tmp_path):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_oneshot_claude_bridges_result_usage_cache(monkeypatch, tmp_path):
     """claude 的 one-shot fallback：result 事件的 usage+cost 经 _PENDING_RESULT_USAGE
     桥接进 raw_usage——验证 extract_result_text → enrich_after_result 全链路。"""
@@ -274,6 +280,7 @@ def test_oneshot_claude_bridges_result_usage_cache(monkeypatch, tmp_path):
     _cleanup()
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_usage_enrichment_rollback_does_not_double_count(monkeypatch, tmp_path):
     """回归：终态用量 job 的save 失败回滚必须同时回滚已累加的用量。
 

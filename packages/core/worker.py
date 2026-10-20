@@ -4449,7 +4449,7 @@ def _queue_recovery_blocked(s) -> bool:
         # queue recovery spawn once; _create_worker promotes the saved intent.
         native_blocked = False
     return bool(getattr(s, "queue_paused", False)) or native_blocked or (
-        _only_locked_queue_items(s))
+        _only_locked_queue_items(s) or (_offline.is_illegal(s) and not _has_sendable_queued_items(s)))
 
 
 native_starting_sessions: set[str] = set()
@@ -5837,6 +5837,37 @@ def _error_report_diagnostic(
     }
 
 
+def _stage_new_queue_item(s, item: dict, *, wake: bool = False) -> None:
+    """Inside an ordered writer candidate; never use for retry/requeue/edit."""
+    _offline.lock_new_message(s, item)
+    if wake:
+        # This newly created message has no user Manual lock. Release only
+        # the Illegal lock, leaving Pause/leases/owner gates untouched.
+        if _message_locks.source(item) == "illegal":
+            _message_locks.set_lock(item, None)
+        item["wakeMessage"] = True
+        s.queue_pending.insert(0, item)
+    else:
+        s.queue_pending.append(item)
+    for position, row in enumerate(s.queue_pending):
+        row["position"] = position
+    _remember_queue_item(s, item, _DELIVERY_QUEUED)
+    _prepare_receipt_persistence(s)
+    s.queue_revision = getattr(s, "queue_revision", 0) + 1
+
+
+async def _append_new_queue_item(s, item: dict, *, wake: bool = False,
+                                 metadata: dict | None = None) -> dict:
+    # queue_lock is held by caller. Stage before atomic replacement so an
+    # unrelated metadata writer cannot persist an unlocked new Illegal row.
+    def stage(candidate):
+        for key, value in (metadata or {}).items():
+            setattr(candidate, key, copy.deepcopy(value))
+        _stage_new_queue_item(candidate, item.copy(), wake=wake)
+    await _commit_offline(s, stage)
+    return next(row for row in s.queue_pending if row.get("id") == item["id"])
+
+
 async def _enqueue_report(session_id: str, status: str, result: str,
                           task_id: str | None, worker_id: str,
                           report_type: str | None = None,
@@ -5893,12 +5924,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         if (getattr(manager, "agent_reports_paused", False)
                 and _is_pauseable_agent_report(item)):
             _message_locks.manual_change(item, None, True)
-        item["position"] = len(manager.queue_pending)
-        manager.queue_pending.append(item)
-        _remember_queue_item(manager, item, _DELIVERY_QUEUED)
-        manager.queue_revision = getattr(manager, "queue_revision", 0) + 1
+        item = await _append_new_queue_item(manager, item)
         queue_revision = manager.queue_revision
-        await _save_receipt(manager)
     await _bcast({"type": "queue.item_added", "sessionId": manager.id,
                   "queueItemId": item["id"],
                   "queueRevision": queue_revision,
@@ -6297,23 +6324,19 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             # Snapshot the old state at ticket EXECUTION time: commits another
             # writer made between submission and execution are part of the
             # snapshot and are never clobbered by the rollback.
-            old_queue_pending = list(manager.queue_pending)
             old_receipts = dict(getattr(manager, "manual_report_receipts", None) or {})
             old_queue_revision = getattr(manager, "queue_revision", 0)
+            old_offline = _offline.snapshot(manager)
 
             def _rollback() -> None:
                 """Undo the whole attempt in memory."""
-                manager.queue_pending = old_queue_pending
+                _offline.restore(manager, old_offline)
                 manager.manual_report_receipts = old_receipts
-                manager.queue_revision = old_queue_revision
-                manager.queue_delivery_ledger.pop(item["id"], None)
-                _remove_idempotency_receipt(manager, item, item["id"])
 
             try:
                 # Apply the candidate in memory inside the ticket.
                 item["position"] = len(manager.queue_pending)
-                manager.queue_pending.append(item)
-                _remember_queue_item(manager, item, _DELIVERY_QUEUED)
+                _stage_new_queue_item(manager, item)
                 _remember_manual_report_receipt(manager, key, {
                     "sessionId": session_id,
                     "taskId": run_task_id,
@@ -6475,12 +6498,8 @@ async def enqueue_channel_reminder(
         # suppress delivery to every other subscriber.
         subscriber_item = dict(item)
         async with queue_lock(s.id):
-            subscriber_item["position"] = len(s.queue_pending)
-            s.queue_pending.append(subscriber_item)
-            _remember_queue_item(s, subscriber_item, _DELIVERY_QUEUED)
-            s.queue_revision = getattr(s, "queue_revision", 0) + 1
+            subscriber_item = await _append_new_queue_item(s, subscriber_item)
             queue_revision = s.queue_revision
-            await _save_receipt(s)
         await _bcast({"type": "queue.item_added", "sessionId": s.id,
                       "queueItemId": subscriber_item["id"],
                       "queueRevision": queue_revision,
@@ -6609,12 +6628,13 @@ async def enqueue_notice(target_session_id: str, text: str,
         else [target_session_id]
     )
     async with queue_lock(target.id):
-        item["position"] = len(target.queue_pending)
-        target.queue_pending.append(item)
-        _remember_queue_item(target, item, _DELIVERY_QUEUED)
-        target.queue_revision = getattr(target, "queue_revision", 0) + 1
+        if event_id and any(row.get("eventId") == event_id for row in
+                list(target.queue_pending or []) + list(target.queue_delivery_ledger.values())
+                if isinstance(row, dict)):
+            return {"ok": True, "sessionId": target_session_id,
+                    "pending": len(target.queue_pending), "duplicate": True, "eventId": event_id}
+        item = await _append_new_queue_item(target, item)
         queue_revision = target.queue_revision
-        await _save_receipt(target)
     await _bcast({"type": "queue.item_added", "sessionId": target.id,
                   "queueItemId": item["id"],
                   "queueRevision": queue_revision,
@@ -7741,7 +7761,8 @@ async def create_worker(session_id: str) -> Worker | str:
 
 
 async def restart_or_start_worker(session_id: str, *, expected_worker_id: str | None = None,
-                                  expected_generation: int | None = None) -> Worker | str:
+                                  expected_generation: int | None = None,
+                                  allow_illegal_recovery: bool = True) -> Worker | str:
     """Atomically restart a live session worker, or create one if absent.
 
     The session lock covers the liveness decision and lifecycle transition, so
@@ -7760,6 +7781,11 @@ async def restart_or_start_worker(session_id: str, *, expected_worker_id: str | 
     async with lock:
         if _shutdown_started:
             return "Pan main service is shutting down"
+        if not allow_illegal_recovery:
+            target = _get_session_shallow(session_id)
+            await _prepare_offline_recovery(target)
+            if _offline.is_illegal(target):
+                return "illegal_queue_hold"
         alive = _find_control_worker(session_id)
         if alive is not None and requested is alive and alive.generation != requested_generation:
             return alive  # A concurrent click already supplied this generation.
@@ -10163,7 +10189,7 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                              parts: list[dict] | None = None,
                              *, idempotent_task_id: bool = True,
                              activate_task: bool = False,
-                             locked: bool = False) -> tuple[dict | None, str | None]:
+                             locked: bool = False, wake: bool = False) -> tuple[dict | None, str | None]:
     """Durably append one task, atomically with the browser receipt ledger."""
     if _shutdown_started:
         return None, "Pan main service is shutting down"
@@ -10191,13 +10217,10 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
             return existing, None
         if _durable_task_id_seen(s, task_id):
             return None, None
-    old_seq = s.task_seq
-    old_accepted_input_ids = list(s.accepted_input_ids)
-    old_queue_revision = getattr(s, "queue_revision", 0)
-    old_active_task_id = getattr(s, "active_task_id", None)
+    metadata = {}
     if seq is None:
-        s.task_seq += 1
-        seq = s.task_seq
+        seq = s.task_seq + 1
+        metadata["task_seq"] = seq
     item = {
         "type": "task",
         "kind": "task",
@@ -10228,26 +10251,14 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
         item["parts"] = [dict(part) for part in parts]
     if client_message_id:
         item["clientMessageId"] = client_message_id
-        s.accepted_input_ids.append(client_message_id)
-        if len(s.accepted_input_ids) > _ACCEPTED_INPUT_ID_LIMIT:
-            del s.accepted_input_ids[:-_ACCEPTED_INPUT_ID_LIMIT]
-    item["position"] = len(s.queue_pending)
-    s.queue_pending.append(item)
+        metadata["accepted_input_ids"] = (
+            list(s.accepted_input_ids) + [client_message_id])[-_ACCEPTED_INPUT_ID_LIMIT:]
     if activate_task:
-        s.active_task_id = task_id
-    _remember_queue_item(s, item, _DELIVERY_QUEUED)
-    s.queue_revision = old_queue_revision + 1
+        metadata["active_task_id"] = task_id
     try:
-        await _save_receipt(s)
+        item = await _append_new_queue_item(s, item, wake=wake, metadata=metadata)
     except Exception as exc:
-        # Do not poison retry idempotency after a failed durable write.
-        s.queue_pending = [queued for queued in s.queue_pending if queued is not item]
-        s.task_seq = old_seq
-        s.accepted_input_ids = old_accepted_input_ids
-        s.queue_revision = old_queue_revision
-        s.active_task_id = old_active_task_id
-        s.queue_delivery_ledger.pop(item["id"], None)
-        _remove_idempotency_receipt(s, item, item["id"])
+        # The ordered writer staged everything, including browser idempotency.
         return None, f"Failed to persist queued task: {exc}"
     _log.info("[Session %s] queued task id=%s source=%s sourceSessionId=%s",
               s.id, item["id"], source_type, source_sid)
@@ -10260,6 +10271,34 @@ async def _persist_task_item(s, text: str, source: str, seq: int | None,
                          if isinstance(item.get("parts"), list) else {}),
                   }})
     return item, None
+
+
+def configured_wake_message() -> str:
+    from .config import load_config
+    raw = load_config().get("session_lifecycle", {})
+    value = raw.get("wakeMessage") if isinstance(raw, dict) else None
+    return value if isinstance(value, str) and value.strip() and len(value) <= 32000 else "继续"
+
+
+async def wake_session(session_id: str, *, client_message_id: str | None = None,
+                       source: str = "user", source_session_id: str | None = None) -> dict:
+    """Explicit wake: enqueue, release only its Illegal lock and place first.
+
+    Persist all three in one ordered write. A repeated receipt never moves or
+    unlocks an existing item again. Actual successor readiness clears Illegal.
+    """
+    s = _get_session_shallow(session_id)
+    if s is None:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    async with queue_lock(session_id):
+        item, error = await _persist_task_item(s, configured_wake_message(), source,
+            None, None, client_message_id, source_session_id, wake=True)
+        if error:
+            return {"status": "error", "result": error}
+        item_id = _queue_item_id(item) if item else None
+    await _wake_worker(session_id, auto_spawn=False)
+    return {"status": "queued", "sessionId": session_id, "queueItemId": item_id,
+            "queuePaused": bool(s.queue_paused)}
 
 
 async def enqueue_user_message(session_id: str, text: str,
@@ -10474,6 +10513,11 @@ async def _ensure_worker(session_id: str) -> tuple[Worker | None, str | None]:
     """确保 session 有活的 worker。返回 (worker, None) 或 (None, error)。"""
     w = find_worker_by_session(session_id)
     if w is None or not _process_alive(w):
+        target = _get_session_shallow(session_id)
+        if target and _offline.outstanding(target):
+            await _prepare_offline_recovery(target)
+            if _offline.is_illegal(target):
+                return None, "illegal_queue_hold"
         created = await create_worker(session_id)
         if isinstance(created, str):
             return None, created
@@ -10551,7 +10595,7 @@ async def assign(session_id: str, text: str, source: str = "agent",
             "taskId": task_id, "ts": time.monotonic(),
         }
 
-    if getattr(target, "queue_paused", False):
+    if getattr(target, "queue_paused", False) or _offline.is_illegal(target):
         async with queue_lock(session_id):
             item, error = await _persist_task_item(
                 target, text, source_type, None, task_id, None, source_sid,
@@ -10570,6 +10614,15 @@ async def assign(session_id: str, text: str, source: str = "agent",
         if task_id is not None and _task_status.get(task_id) is task_reservation:
             _task_status.pop(task_id, None)
         raise
+    if err == "illegal_queue_hold":
+        async with queue_lock(session_id):
+            item, error = await _persist_task_item(target, text, source_type, None,
+                task_id, None, source_sid, activate_task=task_id is not None)
+        if error and task_id is not None:
+            _task_status.pop(task_id, None)
+        return ({"status": "error", "result": error} if error else
+                {"status": "queued", "sessionId": session_id, "taskId": task_id,
+                 "queueItemId": _queue_item_id(item) if item else None})
     if err:
         if task_id is not None and _task_status.get(task_id) is task_reservation:
             task_reservation.update({
@@ -10698,9 +10751,17 @@ async def send_session(session_id: str, text: str, source: str = "agent",
         return {"status": "queued", "workerId": live.worker_id if live else None,
                 "sessionId": session_id, "queuePaused": paused,
                 "pendingSpawn": recovery is not None}
+    if _offline.is_illegal(target):
+        force = False
     route = steer_delivery_route(w, target) if force else "queue"
     if force and route == "steer":
         async with queue_lock(session_id):
+            if _offline.is_illegal(target):
+                item, error = await _persist_task_item(target, text, source_type, None,
+                    inherited_task_id, client_message_id, source_sid, idempotent_task_id=False)
+                return ({"status": "error", "result": error} if error else
+                        {"status": "queued", "sessionId": session_id,
+                         "queueItemId": _queue_item_id(item) if item else None})
             prior = _find_queue_item_by_idempotency(target, client_message_id=client_message_id)
             item = None
             if prior is not None:
@@ -10735,7 +10796,14 @@ async def send_session(session_id: str, text: str, source: str = "agent",
                 "workerId": w.worker_id, "sessionId": session_id, "queueItemId": _queue_item_id(item),
                 **({"result": error, "retryable": status == "rejected"} if error else {})}
     if force and route == "restart":
-        restarted = await restart_or_start_worker(session_id)
+        restarted = await restart_or_start_worker(session_id, allow_illegal_recovery=False)
+        if restarted == "illegal_queue_hold":
+            async with queue_lock(session_id):
+                item, error = await _persist_task_item(target, text, source_type, None,
+                    inherited_task_id, client_message_id, source_sid, idempotent_task_id=False)
+            return ({"status": "error", "result": error} if error else
+                    {"status": "queued", "sessionId": session_id,
+                     "queueItemId": _queue_item_id(item) if item else None})
         if isinstance(restarted, str):
             return {"status": "error", "result": restarted}
         w = restarted

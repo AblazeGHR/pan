@@ -78,12 +78,14 @@ const WORKER_KEYS = ['timeout_sec', 'task_timeout_sec', 'idle_sec'] as const;
 const DEFAULT_SESSION_LIFECYCLE: ApiSessionLifecyclePreferences = {
   exitStrategy: 'ask',
   startupPreference: 'ask',
+  wakeMessage: '继续',
 };
 
 function normalizeSessionLifecyclePreferences(
   value: ApiSessionLifecyclePreferences,
 ): ApiSessionLifecyclePreferences {
   return {
+    wakeMessage: value?.wakeMessage || '继续',
     exitStrategy: ['ask', 'offline', 'preserve-running'].includes(value?.exitStrategy)
       ? value.exitStrategy
       : 'ask',
@@ -1658,6 +1660,21 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                       <p className="mt-1 text-[10px] text-text-tertiary">
                         Every option stops live Workers before Restart or Exit.
                       </p>
+                    </div>
+                    <div>
+                      <label htmlFor="session-wake-message" className="mb-1 block text-xs text-text-secondary">Wake message</label>
+                      <textarea id="session-wake-message" key={sessionLifecycle.wakeMessage}
+                        defaultValue={sessionLifecycle.wakeMessage || '继续'} maxLength={32000}
+                        disabled={sessionLifecycleSaving}
+                        onBlur={(event) => {
+                          const wakeMessage = event.target.value;
+                          if (wakeMessage.trim() && wakeMessage !== sessionLifecycle.wakeMessage)
+                            void saveSessionLifecycle({ wakeMessage });
+                          else if (!wakeMessage.trim()) event.target.value = sessionLifecycle.wakeMessage || '继续';
+                        }}
+                        className="w-full rounded border border-border-default bg-bg-tertiary px-2 py-1.5 text-xs text-text-primary"
+                      />
+                      <p className="mt-1 text-[10px] text-text-tertiary">Wake enqueues this message, releases its Illegal lock and moves it to the front. Pause and other safety gates still apply. Saved when you leave this field.</p>
                     </div>
                     <div
                       data-settings-anchor="startup-preference"

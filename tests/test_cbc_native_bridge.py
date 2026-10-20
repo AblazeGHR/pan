@@ -284,6 +284,7 @@ def test_large_payload_stays_parseable_and_reports_truncation(bridge):
         assert json.loads(encoded) == frame
 
 
+@pytest.mark.skip(reason="Oneshot mode retired by user; implementation retained")
 def test_native_adapter_keeps_legacy_and_first_spawn_separate(monkeypatch, tmp_path):
     from packages.core.adapters.cbc.adapter import CbcAdapter
     from packages.core.adapters.cbc.native_adapter import CbcNativeAdapter

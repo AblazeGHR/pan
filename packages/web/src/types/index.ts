@@ -1143,6 +1143,7 @@ export type ApiStartupPreference = 'ask' | 'wake-running' | 'clear-illegal' | 'p
 export interface ApiSessionLifecyclePreferences {
   exitStrategy: ApiSessionExitStrategy;
   startupPreference: ApiStartupPreference;
+  wakeMessage?: string;
 }
 
 export interface ApiSessionLegalStateSyncResult {
