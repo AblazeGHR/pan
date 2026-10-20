@@ -1,0 +1,7 @@
+{
+  "observationsOnly": true,
+  "unrelatedSettingsBlockedByStartup": false,
+  "settingsWaitSeconds": 0.0,
+  "eventLoopHeartbeatDelaySecondsDuringActionSave": 0.025,
+  "protectedServicesUsed": false
+}

@@ -30,7 +30,8 @@ async def main():
 
     owner = SimpleNamespace(id='synthetic_startup', adapter_config={}, workdir=None)
     adapter = SimpleNamespace(name='synthetic', build_spawn_args=lambda *args: ['synthetic-never-executed'])
-    with patch.object(worker._sess, 'get', return_value=owner), patch.object(lifecycle, 'capture'), \
+    other = SimpleNamespace(id='synthetic_other', adapter_config={})
+    with patch.object(worker._sess, 'get', side_effect=lambda sid: owner if sid == owner.id else other), patch.object(lifecycle, 'capture_async', AsyncMock()), \
             patch.object(asyncio, 'create_subprocess_exec', slow_spawn), \
             patch.object(server, '_update_session_settings', AsyncMock(return_value={'ok': True})):
         spawning = asyncio.create_task(worker._spawn_process(owner.id, adapter))
@@ -73,7 +74,7 @@ async def main():
               'settingsWaitSeconds': round(gate_wait, 3),
               'eventLoopHeartbeatDelaySecondsDuringActionSave': round(lag, 3),
               'protectedServicesUsed': False}
-    output = Path('.validation/action-review/blockers.json')
+    output = Path('.validation/action-review/b1-probe.json')
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result, indent=2))

@@ -1,39 +1,42 @@
-"""Core Action Panel APIs. Agent-facing routes only maintain drafts."""
+"""Core Action APIs: resource admission, off-loop IO, durable detach/rollback."""
 import copy
 import shutil
 
 from fastapi import APIRouter, HTTPException
 
-from packages.plugins.lifecycle import serialized, pinned
+from packages.plugins.lifecycle import coordinator, io, pinned, settled
 from .store import Store
 
 
 def install(server):
     router = APIRouter()
 
-    def blockers(pid):
+    async def sessions():
+        return await io(server.sess.list_all, load_history=False)
+
+    def bindings(session):
+        return server._session_plugin_fields(session)['pluginBindings']
+
+    def blockers(pid, owners):
         result = []
-        for session in server.sess.list_all(load_history=False):
-            bindings = server._session_plugin_fields(session)['pluginBindings']
+        for session in owners:
             live = server.worker.find_alive_worker_by_session(session.id)
-            if live and live.status == 'running' and any(b['enabled'] and b['plugin_id'] == pid for b in bindings):
+            if live and live.status == 'running' and any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
                 result.append({'id': session.id, 'name': session.name})
         return result
 
-    def view():
-        state = Store().read()
-        sessions = server.sess.list_all(load_history=False)
+    async def view():
+        state, owners = await io(Store().read), await sessions()
         groups = []
         for group in state['groups'].values():
             item = copy.deepcopy(group)
             pid = 'action-group-' + group['id'].replace('_', '-')
-            item['blockers'] = blockers(pid)
+            item['blockers'] = blockers(pid, owners)
             item['sessions'] = []
-            for session in sessions:
-                binding = next((b for b in server._session_plugin_fields(session)['pluginBindings'] if b['plugin_id'] == pid), None)
+            for session in owners:
+                binding = next((b for b in bindings(session) if b['plugin_id'] == pid), None)
                 if binding:
-                    frozen = (pinned(session.id)[0].get(pid)
-                              if server.worker.find_alive_worker_by_session(session.id) else None)
+                    frozen = pinned(session.id)[0].get(pid) if server.worker.find_alive_worker_by_session(session.id) else None
                     item['sessions'].append({'id': session.id, 'name': session.name, **binding,
                                              'loadedVersion': frozen.version if frozen else None})
             groups.append(item)
@@ -41,114 +44,112 @@ def install(server):
 
     @router.get('/api/actions')
     async def listing():
-        return view()
+        return await view()
 
     @router.put('/api/actions/{kind}/{item_id}')
-    @serialized
     async def put(kind: str, item_id: str, data: dict):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
             raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
         try:
-            Store().put(kind, data['item'], data.get('expectedRevision'))
-            return view()
+            await io(Store().put, kind, data['item'], data.get('expectedRevision'))
+            return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.delete('/api/actions/{kind}/{item_id}')
-    @serialized
     async def delete(kind: str, item_id: str, expectedRevision: int | None = None):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
-            Store().delete(kind, item_id, expectedRevision)
-            return view()
+            await io(Store().delete, kind, item_id, expectedRevision)
+            return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.post('/api/actions/groups/{group_id}/{operation}')
-    @serialized
+    @settled
     async def release(group_id: str, operation: str, data: dict):
         if operation not in {'build', 'unbuild'} or set(data) - {'expectedRevision'}:
             raise HTTPException(400, 'Expected build or unbuild and optional expectedRevision')
-        store = Store()
-        group = store.read()['groups'].get(group_id)
-        if not group:
-            raise HTTPException(404, 'Group not found')
         pid = 'action-group-' + group_id.replace('_', '-')
         try:
-            if operation == 'build':
-                catalog = server._plugin_catalog()
-                if pid in catalog.plugins and not group.get('build'):
-                    raise ValueError('Group plugin ID conflicts with an installed plugin')
-                store.build(group_id, data.get('expectedRevision'))
-                # Action releases are pinned even in gateway mode; reuse the
-                # normal idle/deferred restart policy to load the next release.
-                for session in server.sess.list_all(load_history=False):
-                    if any(b['enabled'] and b['plugin_id'] == pid for b in server._session_plugin_fields(session)['pluginBindings']):
-                        if server.worker.find_alive_worker_by_session(session.id):
-                            server.worker.request_delayed_restart(session.id)
-            else:
-                blocked = blockers(pid)
-                if blocked:
-                    message = f'Cannot unbuild action group "{group["name"]}": it is enabled by running sessions:\n'
-                    message += '\n'.join(f'- {s["name"]}: {s["id"]}' for s in blocked)
-                    message += '\nStop or disable the group for these sessions first.'
-                    raise HTTPException(409, message)
-                # Synchronous atomic writes while holding the generic startup gate:
-                # no consumer can become running between check and unregister.
-                originals = []
-                try:
-                    for session in server.sess.list_all(load_history=False):
-                        bindings = server._session_plugin_fields(session)['pluginBindings']
-                        if any(b['plugin_id'] == pid for b in bindings):
-                            originals.append((session, copy.deepcopy(session.adapter_config)))
-                            staged = copy.deepcopy(session.adapter_config)
-                            server._set_plugin_config(staged, [b for b in bindings if b['plugin_id'] != pid])
-                            session.adapter_config = staged
-                            server.sess.save(session)
-                    store.unbuild(group_id, data.get('expectedRevision'))
-                except BaseException as failure:
-                    # Restore all live configurations before attempting any IO:
-                    # one failed rollback write must not strand later Sessions.
-                    for session, previous in originals:
-                        session.adapter_config = previous
-                    rollback_errors = []
-                    for session, _ in originals:
+            # Group first; this closes new-reference admission before collecting
+            # Sessions. No mutex or store writer lock is held while we await IO.
+            async with coordinator().claim(exclusive={pid}):
+                store = Store()
+                state = await io(store.read)
+                group = state['groups'].get(group_id)
+                if not group:
+                    raise HTTPException(404, 'Group not found')
+                if operation == 'build':
+                    catalog = await io(server._plugin_catalog)
+                    if pid in catalog.plugins and not group.get('build'):
+                        raise ValueError('Group plugin ID conflicts with an installed plugin')
+                    await io(store.build, group_id, data.get('expectedRevision'))
+                    for session in await sessions():
+                        if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
+                            if server.worker.find_alive_worker_by_session(session.id):
+                                server.worker.request_delayed_restart(session.id)
+                else:
+                    owners = [s for s in await sessions() if any(b['plugin_id'] == pid for b in bindings(s))]
+                    async with coordinator().claim(exclusive={'session:' + s.id for s in owners}):
+                        blocked = blockers(pid, owners)
+                        if blocked:
+                            message = f'Cannot unbuild action group "{group["name"]}": it is enabled by running sessions:\n'
+                            message += '\n'.join(f'- {s["name"]}: {s["id"]}' for s in blocked)
+                            raise HTTPException(409, message + '\nStop or disable the group for these sessions first.')
+                        originals = []
                         try:
-                            server.sess.save(session)
-                        except Exception as exc:
-                            rollback_errors.append(f'{session.id}: {exc}')
-                    if rollback_errors:
-                        raise HTTPException(500, 'Unbuild failed; registration retained, but Session rollback persistence failed: '
-                                            + '; '.join(rollback_errors)) from failure
-                    raise
-                # Released versions have no effective references after unregister.
-                directory = store.root / 'builds' / group_id
-                try:
-                    if directory.exists():
-                        shutil.rmtree(directory)
-                except OSError as exc:
-                    raise HTTPException(500, 'Group unregistered, but release file cleanup failed: ' + str(exc)) from exc
-                for session, _ in originals:
-                    if server.worker.find_alive_worker_by_session(session.id):
-                        server.worker.request_delayed_restart(session.id)
-            return view()
+                            for session in owners:
+                                previous = copy.deepcopy(session.adapter_config)
+                                staged = copy.deepcopy(previous)
+                                await io(server._set_plugin_config, staged, [b for b in bindings(session) if b['plugin_id'] != pid])
+                                originals.append((session, previous))
+                                await server.sess.commit_adapter_config_async(session, staged, previous_config=previous)
+                            await io(store.unbuild, group_id, data.get('expectedRevision'))
+                        except BaseException as failure:
+                            errors = []
+                            for session, previous in originals:
+                                session.adapter_config = previous
+                            for session, previous in originals:
+                                try:
+                                    await server.sess.commit_adapter_config_async(session, previous)
+                                except Exception as exc:
+                                    errors.append(f'{session.id}: {exc}')
+                            if errors:
+                                raise HTTPException(500, 'Unbuild failed; registration retained, but Session rollback persistence failed: '
+                                                    + '; '.join(errors)) from failure
+                            raise
+                        # Publish retirement before releasing Session admission,
+                        # even if physical cleanup later fails. Old loaded pins
+                        # can never accept another task on this Worker.
+                        for session in owners:
+                            if server.worker.find_alive_worker_by_session(session.id):
+                                server.worker.request_delayed_restart(session.id)
+                        def cleanup():
+                            directory = store.root / 'builds' / group_id
+                            if directory.exists():
+                                shutil.rmtree(directory)
+                        try:
+                            await io(cleanup)
+                        except OSError as exc:
+                            raise HTTPException(500, 'Group unregistered, but release file cleanup failed: ' + str(exc)) from exc
+            return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.post('/api/action-drafts/{kind}/{operation}')
-    @serialized
     async def drafts(kind: str, operation: str, data: dict):
         if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision'}:
             raise HTTPException(400, 'Invalid draft operation')
         try:
             if operation == 'put':
-                Store().put(kind, data.get('item'), data.get('expectedRevision'), draft=True)
+                await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
             else:
-                Store().delete(kind, data.get('id'), data.get('expectedRevision'))
-            return view()
+                await io(Store().delete, kind, data.get('id'), data.get('expectedRevision'))
+            return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 

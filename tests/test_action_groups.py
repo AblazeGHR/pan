@@ -15,7 +15,7 @@ from packages.actions.provider import execute
 from packages.core import session as sess
 from packages.core.character import CharacterManager
 from packages.plugins.catalog import Catalog
-from packages.plugins.lifecycle import gate, pin, _pins
+from packages.plugins.lifecycle import coordinator, pin, _pins
 from packages.plugins.runtime import Runtime
 from packages.web import server as srv
 
@@ -216,7 +216,7 @@ def test_spawn_registration_gate_serializes_unbuild_and_concurrent_builds(setup,
         group(store)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
             revision = store.read()['revision']
-            async with gate():
+            async with coordinator().claim(exclusive={'action-group-tools'}):
                 pending = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
                 await asyncio.sleep(0)
                 assert not pending.done()
@@ -445,14 +445,14 @@ def test_unbuild_rollback_attempts_every_session_even_when_a_restore_write_fails
             sess.save(owner)
         before = [copy.deepcopy(owner.adapter_config) for owner in owners]
         monkeypatch.setattr(srv.sess, 'list_all', lambda **kwargs: owners)
-        original_save = sess.save
+        original_save = sess.commit_adapter_config_async
         calls = []
-        def save(owner):
+        async def save(owner, config, **kwargs):
             calls.append(owner.id)
             if len(calls) in (3, 4):
                 raise OSError('simulated save and rollback failure')
-            return original_save(owner)
-        monkeypatch.setattr(sess, 'save', save)
+            return await original_save(owner, config, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', save)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app, raise_app_exceptions=False), base_url='http://isolated') as client:
             response = await client.post('/api/actions/groups/tools/unbuild', json={})
         assert response.status_code == 500
@@ -545,4 +545,396 @@ def test_new_gateway_group_waits_for_worker_pin_even_when_descriptor_is_unchange
             assert loaded[0]['contract_version'] == next_release['version']
         finally:
             await runtime.close()
+    asyncio.run(run())
+
+
+def test_slow_start_allows_unrelated_settings_and_heartbeat(setup, tmp_path, monkeypatch):
+    async def run():
+        from packages.core import worker, config
+        store, _ = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        config.save_config({'plugin_manifests': []})
+        owner = sess.create(name='Slow startup', adapter='codex')
+        other = sess.create(name='Independent', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        entered, proceed, pulse = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        async def spawn(*args, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return SimpleNamespace(pid=12345)
+        monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+        adapter = SimpleNamespace(build_spawn_args=lambda *args: ['never-launched'], name='codex')
+        task = asyncio.create_task(worker._spawn_process(owner.id, adapter))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            asyncio.get_running_loop().call_soon(pulse.set)
+            await asyncio.wait_for(pulse.wait(), 2)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+                result = await asyncio.wait_for(client.patch('/api/sessions/' + other.id, json={'effort': 'low'}), 2)
+                assert result.status_code == 200 and 'error' not in result.json()
+            assert not task.done() and not proceed.is_set()
+        finally:
+            proceed.set()
+            await task
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('operation', ['save', 'build', 'unbuild'])
+def test_slow_action_disk_does_not_block_heartbeat_or_unrelated_settings(setup, tmp_path, monkeypatch, operation):
+    async def run():
+        import threading
+        from packages.actions import store as module
+        store, _ = setup
+        store.put('actions', api_action())
+        group(store, ids=['list_sessions'])
+        other = sess.create(name='Independent disk', adapter='codex')
+        entered, proceed = threading.Event(), threading.Event()
+        original = module.atomic
+        def atomic(path, value):
+            if path == store.path:
+                entered.set()
+                if not proceed.wait(5):
+                    raise TimeoutError('test barrier was not released')
+            return original(path, value)
+        monkeypatch.setattr(module, 'atomic', atomic)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            request = (client.put('/api/actions/actions/list_sessions', json={'item': api_action()})
+                       if operation == 'save' else client.post('/api/actions/groups/tools/' + operation, json={}))
+            task = asyncio.create_task(request)
+            try:
+                assert await asyncio.wait_for(asyncio.to_thread(entered.wait, 3), 4)
+                pulse = asyncio.Event()
+                asyncio.get_running_loop().call_soon(pulse.set)
+                await asyncio.wait_for(pulse.wait(), 2)
+                response = await asyncio.wait_for(client.patch('/api/sessions/' + other.id, json={'effort': 'low'}), 2)
+                assert response.status_code == 200 and 'error' not in response.json()
+                assert not task.done() and not proceed.is_set()
+            finally:
+                proceed.set()
+                result = await task
+            assert result.status_code == 200, result.text
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('mode', ['standalone', 'pan_native', 'gateway'])
+def test_unbuild_claim_fences_real_handoff_startup_and_settings(setup, monkeypatch, mode):
+    async def run():
+        from packages.core import worker
+        from packages.plugins.lifecycle import capture_async
+        store, manifest = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Idle selected', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'], mode)])
+        sess.save(owner)
+        pin(owner, Catalog(manifest))
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        original_commit = sess.commit_adapter_config_async
+        async def commit(session, config, **kwargs):
+            if session.id == owner.id and not any(b.get('plugin_id') == release['plugin_id'] for b in config.get('plugin_bindings', [])):
+                entered.set()
+                await proceed.wait()
+            return await original_commit(session, config, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', commit)
+        live = SimpleNamespace(status='idle', session_id=owner.id)
+        writes = []
+        async def write():
+            writes.append('CLI input')
+        # Exercise the production final handoff entry, not only the Coordinator.
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            releasing = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.wait_for(entered.wait(), 3)
+            handoff = asyncio.create_task(worker._queue_handoff(live, owner, write, None))
+            settings = asyncio.create_task(client.patch('/api/sessions/' + owner.id, json={'pluginBindings': [binding(release['plugin_id'], mode)]}))
+            # A startup has to reserve the same Session before it may repin.
+            async def startup():
+                from packages.plugins.lifecycle import session_claim
+                async with session_claim(owner):
+                    await capture_async(owner)
+            starting = asyncio.create_task(startup())
+            await asyncio.sleep(0)
+            assert not handoff.done() and not settings.done() and not starting.done()
+            assert writes == []
+            proceed.set()
+            assert (await releasing).status_code == 200
+            # Check stale loaded pins before allowing another startup to clear
+            # them: the waiting handoff was queued first and must reject them.
+            with pytest.raises(worker._QueuePausedBeforeHandoff, match='detached'):
+                await handoff
+            assert (await settings).status_code == 200
+            await starting
+            assert writes == []
+            assert owner.adapter_config['plugin_bindings'] == []
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+def test_handoff_admitted_first_blocks_unbuild_until_real_write_retires(setup, monkeypatch):
+    async def run():
+        from packages.core import worker
+        store, manifest = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Handoff owner', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        sess.save(owner)
+        pin(owner, Catalog(manifest))
+        live = SimpleNamespace(status='idle', pending_restart=False, native_control_mode='pan',
+                               native_input_uncertain=False, _current_queue_item=None, _current_report_items=[],
+                               session_id=owner.id)
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda sid: live if sid == owner.id else None)
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        async def write():
+            entered.set()
+            await proceed.wait()
+            live.status = 'running'
+        handing = asyncio.create_task(worker._queue_handoff(live, owner, write, None))
+        await asyncio.wait_for(entered.wait(), 3)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            releasing = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.sleep(0)
+            assert not releasing.done()
+            proceed.set()
+            await handing
+            result = await releasing
+            assert result.status_code == 409 and owner.id in result.text
+        assert store.read()['groups']['tools']['build'] == release
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+def test_slow_session_persistence_allows_other_session_and_heartbeat(setup, monkeypatch):
+    async def run():
+        import threading
+        first = sess.create(name='Slow settings save', adapter='codex')
+        other = sess.create(name='Unrelated settings save', adapter='codex')
+        entered, proceed = threading.Event(), threading.Event()
+        original = sess._save_body
+        def save(session, *args, **kwargs):
+            if session.id == first.id:
+                entered.set()
+                if not proceed.wait(5):
+                    raise TimeoutError('settings test barrier not released')
+            return original(session, *args, **kwargs)
+        monkeypatch.setattr(sess, '_save_body', save)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            task = asyncio.create_task(client.patch('/api/sessions/' + first.id, json={'effort': 'low'}))
+            try:
+                assert await asyncio.wait_for(asyncio.to_thread(entered.wait, 3), 4)
+                pulse = asyncio.Event()
+                asyncio.get_running_loop().call_soon(pulse.set)
+                await asyncio.wait_for(pulse.wait(), 2)
+                result = await asyncio.wait_for(client.patch('/api/sessions/' + other.id, json={'effort': 'low'}), 2)
+                assert result.status_code == 200 and 'error' not in result.json()
+                assert not task.done()
+            finally:
+                proceed.set()
+                assert (await task).status_code == 200
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('cancel_request', [False, True])
+def test_unbuild_failure_or_cancellation_keeps_admission_until_transaction_retires(setup, monkeypatch, cancel_request):
+    async def run():
+        from packages.core import worker
+        store, manifest = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Rollback and cancel', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        sess.save(owner)
+        before = copy.deepcopy(owner.adapter_config)
+        pin(owner, Catalog(manifest))
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        original_commit = sess.commit_adapter_config_async
+        async def commit(session, config, **kwargs):
+            if not config.get('plugin_bindings'):
+                entered.set()
+                await proceed.wait()
+            return await original_commit(session, config, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', commit)
+        if not cancel_request:
+            def fail(*args, **kwargs):
+                raise OSError('registry failure after durable detach')
+            monkeypatch.setattr(Store, 'unbuild', fail)
+        live = SimpleNamespace(status='idle', pending_restart=False, native_control_mode='pan',
+                               native_input_uncertain=False, _current_queue_item=None, _current_report_items=[],
+                               session_id=owner.id)
+        writes = []
+        async def write():
+            writes.append('input')
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app, raise_app_exceptions=False), base_url='http://isolated') as client:
+            release_task = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.wait_for(entered.wait(), 3)
+            handoff = asyncio.create_task(worker._queue_handoff(live, owner, write, None))
+            if cancel_request:
+                release_task.cancel()
+            await asyncio.sleep(0)
+            assert not release_task.done() and not handoff.done() and writes == []
+            proceed.set()
+            if cancel_request:
+                with pytest.raises(asyncio.CancelledError):
+                    await release_task
+                with pytest.raises(worker._QueuePausedBeforeHandoff):
+                    await handoff
+                assert not store.read()['groups']['tools'].get('build')
+                assert owner.adapter_config['plugin_bindings'] == []
+            else:
+                assert (await release_task).status_code == 500
+                await handoff
+                assert writes == ['input']
+                assert owner.adapter_config == before
+                assert store.read()['groups']['tools']['build'] == release
+                saved = json.loads((sess.SESSION_DIR / f'{owner.id}.json').read_text())
+                assert saved['adapter_config'] == before
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+def test_stream_consumer_cannot_cross_handoff_after_idle_unbuild_check(setup, monkeypatch):
+    async def run():
+        from packages.core import worker
+        store, manifest = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Real stream entry', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        sess.save(owner)
+        pin(owner, Catalog(manifest))
+        pipe = SimpleNamespace(write=Mock(), drain=AsyncMock())
+        live = worker.Worker(worker_id='synthetic-stream', session_id=owner.id,
+            adapter=SimpleNamespace(name='codex', encode_user_message=lambda text: text.encode()),
+            status='idle', process=SimpleNamespace(returncode=None, stdin=pipe),
+            pending_signal=asyncio.Queue(), _task_done=asyncio.Event())
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda sid: live if sid == owner.id else None)
+        monkeypatch.setattr(worker, '_begin_offline_run', AsyncMock())
+        entered, proceed, preparing = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        async def record(w, state, reason):
+            if state == 'running':
+                preparing.set()
+        monkeypatch.setattr(worker, '_record_legal_worker_state', record)
+        original_commit = sess.commit_adapter_config_async
+        async def commit(session, config, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return await original_commit(session, config, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', commit)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            releasing = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.wait_for(entered.wait(), 3)  # running check already saw idle
+            consumer = asyncio.create_task(worker._consumer_stream(live, 'never deliver old tools', 'user', owner))
+            await asyncio.wait_for(preparing.wait(), 2)
+            assert live.status == 'running' and not consumer.done()
+            pipe.write.assert_not_called()
+            proceed.set()
+            assert (await releasing).status_code == 200
+            with pytest.raises(worker._QueuePausedBeforeHandoff, match='detached'):
+                await consumer
+            pipe.write.assert_not_called()
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('cancel_start', [False, True])
+def test_failed_or_cancelled_startup_releases_claim_for_waiting_unbuild(setup, monkeypatch, cancel_start):
+    async def run():
+        from packages.core import worker, config
+        store, _ = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        config.save_config({'plugin_manifests': []})
+        owner = sess.create(name='Failed startup', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        async def spawn(*args, **kwargs):
+            entered.set()
+            await proceed.wait()
+            raise FileNotFoundError('synthetic missing executable')
+        monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+        adapter = SimpleNamespace(build_spawn_args=lambda *args: ['never-launched'], name='codex')
+        starting = asyncio.create_task(worker._spawn_process(owner.id, adapter))
+        await asyncio.wait_for(entered.wait(), 3)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            releasing = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.sleep(0)
+            assert not releasing.done()
+            if cancel_start:
+                starting.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await starting
+            else:
+                proceed.set()
+                assert isinstance(await starting, str)
+            assert (await asyncio.wait_for(releasing, 3)).status_code == 200
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+def test_session_creation_cannot_publish_new_group_reference_during_unbuild(setup, monkeypatch):
+    async def run():
+        store, _ = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        import threading
+        prepared = threading.Event()
+        original = srv._build_session_params
+        def prepare(data):
+            result = original(data)
+            prepared.set()
+            return result
+        monkeypatch.setattr(srv, '_build_session_params', prepare)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            async with coordinator().claim(exclusive={release['plugin_id']}):
+                creating = asyncio.create_task(client.post('/api/sessions', json={'name': 'late-reference', 'adapter': 'codex',
+                    'pluginBindings': [binding(release['plugin_id'])]}))
+                # Drain the validation thread; admission must still be pending.
+                assert await asyncio.wait_for(asyncio.to_thread(prepared.wait, 2), 3)
+                await asyncio.sleep(0)
+                assert not creating.done()
+                store.unbuild('tools')
+            response = await asyncio.wait_for(creating, 3)
+            assert response.status_code == 200, response.text
+            assert 'error' not in response.json(), response.text
+            owner = sess.get(response.json()['id'])
+            assert owner.adapter_config['plugin_bindings'] == []
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+def test_session_branch_waits_for_unbuild_before_copying_plugin_settings(setup, monkeypatch):
+    async def run():
+        store, _ = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        parent = sess.create(name='branch-source', adapter='codex', cli_session_id='synthetic-native')
+        srv._set_plugin_config(parent.adapter_config, [binding(release['plugin_id'])])
+        sess.save(parent)
+        provider = SimpleNamespace(fork_session=Mock(return_value='synthetic-child'),
+                                   parse_history=Mock(return_value=[]), get_raw_usage=Mock(return_value=[]))
+        monkeypatch.setattr(srv, '_sessions_provider', lambda adapter: provider)
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        original = sess.commit_adapter_config_async
+        async def commit(session, config, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return await original(session, config, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', commit)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            releasing = asyncio.create_task(client.post('/api/actions/groups/tools/unbuild', json={}))
+            await asyncio.wait_for(entered.wait(), 3)
+            branching = asyncio.create_task(client.post('/api/sessions/' + parent.id + '/branch', json={'name': 'branch-child'}))
+            await asyncio.sleep(0)
+            assert not branching.done()
+            provider.fork_session.assert_not_called()
+            proceed.set()
+            assert (await releasing).status_code == 200
+            response = await branching
+            assert response.status_code == 200 and 'error' not in response.json(), response.text
+            child = sess.get(response.json()['id'])
+            assert child.adapter_config.get('plugin_bindings', []) == []
+        assert not coordinator().active
     asyncio.run(run())

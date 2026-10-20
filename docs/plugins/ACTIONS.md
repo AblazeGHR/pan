@@ -74,8 +74,15 @@ time. Session persistence failure before unregister restores previous configurat
 Every affected Session is restored in memory before rollback writes begin; all restore
 writes are attempted. A failed rollback write is explicitly reported with its Session
 ID and requires storage recovery; the API does not claim durable rollback succeeded.
-The generic registration gate serializes build/unbuild, plugin settings commits and
-Worker startup; unbuild's check/commit contains no asynchronous scheduling gap.
+Admission uses loop-local Group/Session reservations. Registration and release of
+reservations are short in-memory operations; no global mutex is held across IO,
+Worker startup or Session persistence. Only overlapping resources wait. Unbuild
+exclusively reserves the Group before collecting and reserving referencing Sessions;
+the real queue/native handoff boundary cannot admit old loaded tools after detach.
+Storage operations run off the event loop and preserve ordered Session persistence.
+Cancellation of a multi-file release waits for its transaction/rollback to finish
+before admission is released. Reservations are process-local, not a distributed lock
+or a crash-recovery journal.
 
 ## Agent drafts and HTTP
 

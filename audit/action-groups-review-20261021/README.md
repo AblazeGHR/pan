@@ -1,5 +1,8 @@
 # Independent Action Group acceptance — 2026-10-21
 
+Follow-up repair checkpoint: [B1-REPAIR.md](B1-REPAIR.md). The original findings
+below remain historical evidence; the follow-up candidate awaits MA acceptance.
+
 **Decision: BLOCKED / do not integrate yet.** Ordinary defects were repaired in
 `integration/action-groups-review-20261021`; the global lifecycle gate and event-loop
 IO remain a P1 integration blocker. This is an implementation coordination defect,

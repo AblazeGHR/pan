@@ -1,41 +1,103 @@
-"""Serialize plugin registration with existing Worker startup and settings commits."""
+"""Loop-local admission reservations; no mutex is held across awaits or IO.
+
+Reservations are atomic in-memory operations on the owning event loop. Readers
+share Group resources; release transactions exclusively claim a Group and its
+referencing Sessions. Only overlapping operations wait on the completion event.
+"""
 import asyncio
+from contextlib import asynccontextmanager
 import functools
 import weakref
 
-_gates = weakref.WeakKeyDictionary()
+_coordinators = weakref.WeakKeyDictionary()
 _pins = {}
 
 
-class Gate:
+class Coordinator:
     def __init__(self):
-        self.lock = asyncio.Lock()
-        self.owner = None
-        self.depth = 0
+        self.active = {}
+        self.changed = asyncio.Event()
 
-    async def __aenter__(self):
-        task = asyncio.current_task()
-        if self.owner is not task:
-            await self.lock.acquire()
-            self.owner = task
-        self.depth += 1
-
-    async def __aexit__(self, *args):
-        self.depth -= 1
-        if not self.depth:
-            self.owner = None
-            self.lock.release()
-
-
-def gate():
-    return _gates.setdefault(asyncio.get_running_loop(), Gate())
+    @asynccontextmanager
+    async def claim(self, shared=(), exclusive=()):
+        owner = asyncio.current_task()
+        shared, exclusive = frozenset(shared), frozenset(exclusive)
+        while any(task is not owner and (exclusive & (read | write) or shared & write)
+                  for task, read, write in self.active.values()):
+            await self.changed.wait()
+        token = object()
+        self.active[token] = (owner, shared, exclusive)
+        try:
+            yield
+        finally:
+            del self.active[token]
+            event, self.changed = self.changed, asyncio.Event()
+            event.set()
 
 
-def serialized(function):
+def coordinator():
+    return _coordinators.setdefault(asyncio.get_running_loop(), Coordinator())
+
+
+def action_groups(config):
+    groups = {b['plugin_id'] for b in config.get('plugin_bindings', [])
+              if b.get('enabled') and b.get('plugin_id', '').startswith('action-group-')}
+    groups.update(b['name'] for b in config.get('mcp_servers', [])
+                  if isinstance(b, dict) and b.get('name', '').startswith('action-group-'))
+    return groups
+
+
+@asynccontextmanager
+async def session_claim(session, extra=()):
+    # A preceding settings/release reservation may change the selection while
+    # we wait. Re-read before admission; never proceed with an incomplete claim.
+    while True:
+        groups = action_groups(session.adapter_config) | set(extra)
+        async with coordinator().claim(shared=groups, exclusive={'session:' + session.id}):
+            if not action_groups(session.adapter_config) <= groups:
+                continue
+            yield
+            return
+
+
+def startup(function):
     @functools.wraps(function)
     async def wrapped(*args, **kwargs):
-        async with gate():
+        from packages.core import session as sessions
+        session = sessions.get(args[0] if args else kwargs['session_id'])
+        if session is None:
             return await function(*args, **kwargs)
+        async with session_claim(session):
+            return await function(*args, **kwargs)
+    return wrapped
+
+
+def native_admission(function):
+    @functools.wraps(function)
+    async def wrapped(worker, *args, **kwargs):
+        from packages.core import session as sessions
+        session = sessions.get(worker.session_id)
+        if session is None:
+            return await function(worker, *args, **kwargs)
+        async with session_claim(session):
+            if set(pinned(session.id)[0]) - action_groups(session.adapter_config):
+                raise RuntimeError('Loaded Action Group detached; restart Worker before native admission')
+            return await function(worker, *args, **kwargs)
+    return wrapped
+
+
+async def io(function, *args, **kwargs):
+    """A cancelled caller cannot release its reservation before its writer retires."""
+    from packages.core.session import await_persistence
+    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))
+
+
+def settled(function):
+    """Finish a multi-file transaction (including rollback) before cancellation escapes."""
+    @functools.wraps(function)
+    async def wrapped(*args, **kwargs):
+        from packages.core.session import await_persistence
+        return await await_persistence(asyncio.create_task(function(*args, **kwargs)))
     return wrapped
 
 
@@ -68,3 +130,15 @@ def capture(session):
     from packages.core.manifest_loader import load_manifests
     from .catalog import Catalog
     pin(session, Catalog(load_manifests(load_config().get('plugin_manifests', DEFAULT_PLUGIN_MANIFESTS))))
+
+
+async def capture_async(session):
+    from packages.core.config import load_config, DEFAULT_PLUGIN_MANIFESTS
+    from packages.core.manifest_loader import load_manifests
+    from .catalog import Catalog
+    def load():
+        return Catalog(load_manifests(load_config().get('plugin_manifests', DEFAULT_PLUGIN_MANIFESTS)))
+    if not action_groups(session.adapter_config):
+        _pins.pop(session.id, None)
+    else:
+        pin(session, await io(load))
