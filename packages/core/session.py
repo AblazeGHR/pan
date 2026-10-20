@@ -21,7 +21,7 @@ unknown Session fields cannot read it. No lossy downgrade is attempted.
 
 from __future__ import annotations
 
-from .workdir_retention import REFERENCE_LOCK, reference_commit, validate_reference_paths
+from .workdir_retention import reference_commit, reference_transaction
 
 import asyncio
 import copy
@@ -1363,8 +1363,7 @@ _UNREAD_OVERRIDE_UNSET = object()
 class Session:
     def __setattr__(self, name, value):
         if name == "workdir":
-            with REFERENCE_LOCK:
-                validate_reference_paths([value])
+            with reference_transaction([value]):
                 object.__setattr__(self, name, value)
         else:
             object.__setattr__(self, name, value)

@@ -3,7 +3,7 @@
 - Checkout: `D:/project/pan-worktrees/workdir-retention-20261020`
 - Branch: `feature/workdir-retention-20261020`; baseline `ccc1ca5b65c4c896dd16934a132a6a169c7b16ce`.
 - Implementation: independent default-root orphan workdir scanner; recursive latest mtime; all Session/Workspace overlapping references protected; independent configuration; existing retention runner; no Session-expiry workdir deletion.
-- Concurrency: process-local reference lock covers Session workdir assignment, Session persistence, Workspace dirs assignment/persistence and collection. A write that wins protects its directory; a write that loses rejects a removed path. Windows GENERIC_READ directory handles without share-delete prevent directory replacement; POSIX uses no-follow directory descriptors. Preview has no deletion authority. Partial failures are reported individually.
+- Concurrency (superseded by the MA rework below): the first implementation held a process-local reference lock across scans and saves, which could stall the event loop. That defect is fixed by the claim/transaction design documented in `ma-rework/README.md`. Windows GENERIC_READ directory handles without share-delete prevent directory replacement; POSIX uses no-follow directory descriptors. Preview has no deletion authority. Partial failures are reported individually.
 - Limits: 2,000 root entries; 100,000 traversal entries across a request; 2,048 directories per tree; 20-second traversal/deletion deadline; reference stores capped at 10,000 entries, 8 MiB per record and 32 MiB total. Safety failures retain data and expose errors/skip reasons.
 
 ## Tests
@@ -27,3 +27,8 @@ The prepared canonical dependency junction lacked `@xterm/xterm` and `@xterm/add
 No request was made to 8767/8768. No live service/browser instance was started; no real workdir was deleted. Browser/mobile rendering, HTTP transport integration, POSIX runtime behavior and multiple processes independently writing the same metadata store remain unverified. Reference serialization covers one Pan process; direct external metadata writers are outside that lock. Every validation command completed within three minutes; no full 4,000-test run or new polling loop was used.
 
 Only this isolated branch is committed. MA review and main/practical fast-forward remain pending; no push, merge, release or service restart.
+
+
+## MA rework
+
+The blocking-lock issue in the initial implementation is corrected in the follow-up commit. Current concurrency design, lock-order analysis, bounded-state semantics and updated backend results are in [ma-rework/README.md](ma-rework/README.md). Frontend source is unchanged by that rework; the earlier 60-test frontend, typecheck/build and lint evidence above remains the frontend validation boundary.

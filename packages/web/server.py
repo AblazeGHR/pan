@@ -9647,7 +9647,7 @@ def _retention_disk_session_record(session_id: str) -> tuple[dict, float | None,
     return record, activity, error
 
 
-def _retention_all_session_records() -> list[dict] | None:
+def _retention_all_session_records(deadline: float | None = None) -> list[dict] | None:
     root = Path(sess.SESSION_DIR)
     try:
         resolved_root = _retention_safe_root(root)
@@ -9656,6 +9656,8 @@ def _retention_all_session_records() -> list[dict] | None:
         records = []
         total_bytes = 0
         for index, path in enumerate(resolved_root.iterdir()):
+            if deadline is not None and time.monotonic() > deadline:
+                return None
             if index >= 10000:
                 return None
             if path.suffix != ".json" or path.name.endswith(".history.jsonl"):
@@ -9668,7 +9670,8 @@ def _retention_all_session_records() -> list[dict] | None:
             if size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
                 return None
             raw = json.loads(safe_path.read_text(encoding="utf-8"))
-            if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
+            if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str)
+                    or not raw["id"] or raw["id"] != path.stem):
                 return None
             records.append(raw)
         return records
@@ -9804,64 +9807,84 @@ def _retention_plain_tree(path: Path, root: Path) -> bool:
     return True
 
 
-def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tuple[bool | None, str | None]:
-    records = _retention_all_session_records()
+def _retention_workdir_reference_snapshot(deadline, session_id=""):
+    """Read/resolve references once, off-loop and outside the claim mutex."""
+    def check_deadline():
+        if time.monotonic() > deadline:
+            raise ValueError("workdir_reference_scan_limit")
+
+    paths = []
+    def add(raw, reason):
+        check_deadline()
+        if not isinstance(raw, str) or not raw or not Path(raw).is_absolute():
+            raise ValueError(reason)
+        paths.append((Path(raw).resolve(strict=False), reason))
+
+    check_deadline()
+    records = _retention_all_session_records(deadline)
+    check_deadline()
     if records is None:
-        return None, "workdir_session_references_unclear"
-
-    def overlaps(raw_path: str) -> bool:
-        if not raw_path or not Path(raw_path).is_absolute():
-            raise ValueError("invalid reference path")
-        resolved = Path(raw_path).resolve(strict=False)
-        return (resolved == candidate or resolved in candidate.parents
-                or candidate in resolved.parents)
-
+        raise ValueError("workdir_session_references_unclear")
+    if len(sess._cache) > 10000:
+        raise ValueError("workdir_session_cache_limit")
+    cached_sessions = list(sess._cache.values())
+    if len(cached_sessions) > 10000:
+        raise ValueError("workdir_session_cache_limit")
     records.extend({"id": obj.id, "workdir": obj.workdir}
-                   for obj in list(sess._cache.values()))
+                   for obj in cached_sessions)
     for row in records:
-        if row.get("id") == session_id:
+        if session_id and row.get("id") == session_id:
             continue
         raw = row.get("workdir")
-        if raw is not None and not isinstance(raw, str):
-            return None, "workdir_session_references_unclear"
-        if isinstance(raw, str) and raw:
-            try:
-                if overlaps(raw):
-                    return True, "workdir_referenced_by_session"
-            except (OSError, ValueError):
-                return None, "workdir_session_references_unclear"
+        if raw is not None and raw != "":
+            add(raw, "workdir_referenced_by_session")
     workspace_root = Path(workspaces.WORKSPACE_DIR)
-    if not workspace_root.exists():
-        if workspace_root.is_symlink():
-            return None, "workdir_workspace_references_unclear"
-        return False, None
-    safe_root = _retention_safe_root(workspace_root)
-    if safe_root is None:
-        return None, "workdir_workspace_references_unclear"
-    try:
+    if workspace_root.exists() or workspace_root.is_symlink():
+        safe_root = _retention_safe_root(workspace_root)
+        if safe_root is None:
+            raise ValueError("workdir_workspace_references_unclear")
         total_bytes = 0
         for index, path in enumerate(safe_root.glob("*.json")):
+            check_deadline()
             size = path.lstat().st_size
             total_bytes += size
             if index >= 10000 or size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
-                return None, "workdir_workspace_scan_limit"
+                raise ValueError("workdir_workspace_scan_limit")
             safe = _retention_safe_session_file(safe_root, path)
             if safe is None:
-                return None, "workdir_workspace_references_unclear"
+                raise ValueError("workdir_workspace_references_unclear")
             data = json.loads(safe.read_text(encoding="utf-8"))
             if not isinstance(data, dict) or not isinstance(data.get("dirs", []), list):
-                return None, "workdir_workspace_references_unclear"
+                raise ValueError("workdir_workspace_references_unclear")
             for raw in data.get("dirs", []):
-                if not isinstance(raw, str):
-                    return None, "workdir_workspace_references_unclear"
-                try:
-                    if overlaps(raw):
-                        return True, "workdir_referenced_by_workspace"
-                except (OSError, ValueError):
-                    return None, "workdir_workspace_references_unclear"
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
-        return None, "workdir_workspace_references_unclear"
-    return False, None
+                add(raw, "workdir_referenced_by_workspace")
+    if len(workspaces._cache) > 10000:
+        raise ValueError("workdir_workspace_cache_limit")
+    cached_workspaces = list(workspaces._cache.values())
+    if len(cached_workspaces) > 10000:
+        raise ValueError("workdir_workspace_cache_limit")
+    for workspace in cached_workspaces:
+        for raw in workspace.dirs:
+            add(raw, "workdir_referenced_by_workspace")
+    check_deadline()
+
+    def state(candidate):
+        check_deadline()
+        for index, (reference, reason) in enumerate(paths):
+            if index % 128 == 0:
+                check_deadline()
+            if (reference == candidate or reference in candidate.parents
+                    or candidate in reference.parents):
+                return True, reason
+        return False, None
+    return state
+
+
+def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tuple[bool | None, str | None]:
+    try:
+        return _retention_workdir_reference_snapshot(time.monotonic() + 20, session_id)(candidate)
+    except (OSError, ValueError, TypeError):
+        return None, "workdir_references_unclear"
 
 
 def _retention_remove_workdir(session_id: str, record: dict) -> tuple[bool, str | None]:
@@ -9871,7 +9894,8 @@ def _retention_remove_workdir(session_id: str, record: dict) -> tuple[bool, str 
 
 def _workdir_collector():
     return WorkdirRetention(Path(WORKDIRS_DIR),
-                            lambda path: _retention_workdir_reference_state("", path))
+                            lambda path: _retention_workdir_reference_state("", path),
+                            snapshot_loader=_retention_workdir_reference_snapshot)
 
 
 def _retention_cleanup_auxiliary(session_id: str) -> list[str]:

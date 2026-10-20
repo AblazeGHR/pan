@@ -9,7 +9,7 @@ separate from Session display order.
 
 from __future__ import annotations
 
-from .workdir_retention import REFERENCE_LOCK, reference_commit, validate_reference_paths
+from .workdir_retention import reference_commit, reference_transaction
 
 import json
 import secrets
@@ -53,13 +53,14 @@ def _clean_dirs(value) -> list[str]:
 class Workspace:
     @property
     def dirs(self):
-        return self._dirs
+        # Preserve list-shaped API compatibility without exposing mutable state.
+        return list(self._dirs)
 
     @dirs.setter
     def dirs(self, value):
-        with REFERENCE_LOCK:
-            validate_reference_paths(value)
-            self._dirs = value
+        staged = tuple(value)
+        with reference_transaction(staged):
+            self._dirs = staged
 
     def __init__(self, id: str, name: str, order: int | None = None,
                  created_at: str = "", updated_at: str = "", dirs=None):
