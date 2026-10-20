@@ -1716,17 +1716,15 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
 @mcp.tool()
 def agent_send_force(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
-    """Default for current-task updates: capability-routed Steer first.
+    """Default for sending updates to the agent's current task.
 
     向正在执行任务的 TA 更新当前任务时默认用本工具：需求补充、用户澄清、
     实现纠正、约束或验收条件变化、影响当前工作的证据，无须额外判断是否紧急。
     只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send`。
-    Force 不等同于必然重启。支持 Steer 的 active stream 即时尝试原生 admission，
-    idle 时普通 consumer handoff，无能力才 restart+send。无 Worker 时持久入队。
-    delayed restart、Pause everything、锁和编辑租约优先；不能保证绕过这些门禁。
-    accepted 仅为 CLI 接受，不代表模型已消费；queued/rejected/unknown 如实返回。
-    rejected/unknown 不自动降级 restart。unknown 禁止重发；client_message_id
-    可稳定标识同一事务，重试不得换 ID。自动附加 ////by agent，保留原 task 归属。
+    Pan 自动处理投递方式；本工具不绕过暂停、锁或其他发送限制。
+    返回接受或入队不代表任务已完成。回执不明时不要重复发送；
+    client_message_id 标识同一发送事务，对账时保留原 ID。
+    自动附加 ////by agent，保留原 task 归属。
 
     Args:
         session_id: Agent（= session）ID
