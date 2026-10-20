@@ -7361,6 +7361,7 @@ def _encode_history_search_cursor(
     session_order: list[str], after: tuple[int, int], key: bytes,
     roles: tuple[str, ...] = history_search_index.BODY_ROLES,
     content_counts: bool = False,
+    tool_output: str = "include_output",
 ) -> str:
     payload = {
         "v": 2,
@@ -7373,6 +7374,8 @@ def _encode_history_search_cursor(
         "a": [after[0], after[1]],
         "t": int(time.time()),
     }
+    if tool_output == "command_only":
+        payload["o"] = tool_output
     raw = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
     body = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
     signature = hmac.new(
@@ -7398,8 +7401,11 @@ def _decode_history_search_cursor(cursor: str) -> dict:
             raise ValueError("signature size")
         raw_signature = decode_part(signature)
         payload = json.loads(decode_part(body).decode("utf-8"))
-        if not isinstance(payload, dict) or set(payload) != {"v", "q", "s", "l", "d", "a", "t", "r", "c"}:
+        fields = {"v", "q", "s", "l", "d", "a", "t", "r", "c"}
+        if not isinstance(payload, dict) or set(payload) not in (fields, fields | {"o"}):
             raise ValueError("shape")
+        if "o" in payload and payload["o"] != "command_only":
+            raise ValueError("tool projection")
         if type(payload["v"]) is not int or payload["v"] != 2:
             raise ValueError("version")
         if (type(payload['c']) is not bool or not isinstance(payload['r'], list)
@@ -7447,6 +7453,7 @@ def _history_search_request(
     match_index: int | None = None,
     message_id: str | None = None,
     viewport_range: tuple[int, int] | None = None,
+    tool_output: str = "include_output",
 ) -> dict:
     """Run one lazy search against the authoritative Session registry."""
     sessions = sess.list_all(load_history=False)
@@ -7470,6 +7477,7 @@ def _history_search_request(
             scoped_sessions, live_ids, query, limit=limit, after=after,
             cursor_auth=cursor_auth, load_session=_load_history_search_snapshot,
             roles=roles, content_counts=content_counts, match_index=match_index,
+            tool_output=tool_output,
         )
 
     # A Session may be deleted while the index is loading/rebuilding. Recheck
@@ -7605,9 +7613,14 @@ async def api_history_search(
     prepareLegacy: bool = False,
     viewportStart: int | None = None,
     viewportEnd: int | None = None,
+    toolOutput: str = "include_output",
 ):
     """Search lazily selected text partitions in one Session or globally.
 
+    toolOutput=command_only selects the shared safe tool name/command FTS
+    partition in messages mode. Compatibility default include_output searches
+    the stored tool body. Projection is applied before matching/pagination,
+    and signed cursors bind the mode. No identity preparation is implied.
     roles is a comma-separated subset of user,assistant,tool,thinking; an
     explicit empty subset searches nothing. Omission keeps old clients' body
     scope. countMode=content reports non-overlapping literal occurrences and
@@ -7633,6 +7646,10 @@ async def api_history_search(
     if countMode not in ('messages', 'content'):
         raise HTTPException(status_code=422, detail='countMode must be messages or content')
     content_counts = countMode == 'content'
+    if toolOutput not in ('command_only', 'include_output'):
+        raise HTTPException(status_code=422, detail='toolOutput must be command_only or include_output')
+    if content_counts and toolOutput != 'include_output':
+        raise HTTPException(status_code=422, detail='command_only requires indexed messages mode')
     if messageId is not None and (not content_counts or not sess.is_pan_message_id(messageId)):
         raise HTTPException(status_code=422, detail='messageId requires content mode and a Pan identity')
     if matchIndex is not None and (not content_counts or type(matchIndex) is not int
@@ -7661,6 +7678,7 @@ async def api_history_search(
             or cursor_data["l"] != bounded
             or cursor_data['r'] != list(selected_roles)
             or cursor_data['c'] != content_counts
+            or cursor_data.get('o', 'include_output') != toolOutput
         ):
             raise _history_search_cursor_error()
         after = (cursor_data["a"][0], cursor_data["a"][1])
@@ -7698,6 +7716,7 @@ async def api_history_search(
         result = await _store_read(
             _history_search_request, query, sessionId, bounded, after, cursor_auth,
             selected_roles, content_counts, matchIndex, messageId, viewport_range,
+            toolOutput,
         )
     except _HistorySearchSnapshotChanged:
         if cursor_data is not None:
@@ -7748,6 +7767,7 @@ async def api_history_search(
             key=cursor_key,
             roles=selected_roles,
             content_counts=content_counts,
+            tool_output=toolOutput,
         )
     if prepared_identities:
         result['preparedIdentities'] = prepared_identities

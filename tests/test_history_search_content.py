@@ -147,10 +147,11 @@ def test_existing_disposable_schema_rebuilt_without_modifying_history(tmp_path):
     assert search(path, session, roles=('tool',))['totalMatches'] == 1
     assert session.history == before
     with sqlite3.connect(path) as db:
-        assert db.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert db.execute('PRAGMA user_version').fetchone()[0] == 4
         # External-content FTS has no duplicate content table.
         assert not db.execute("SELECT name FROM sqlite_master WHERE name='history_search_tool_fts_content'").fetchall()
-        for table in ('history_search_fts', 'history_search_tool_fts', 'history_search_thinking_fts'):
+        for table in ('history_search_fts', 'history_search_tool_fts', 'history_search_thinking_fts',
+                      'history_search_tool_command_fts'):
             db.execute(f"INSERT INTO {table}({table}, rank) VALUES ('integrity-check', 1)")
             db.execute(f"INSERT INTO {table}({table}) VALUES ('rebuild')")
         assert db.execute("SELECT count(*) FROM history_search_fts WHERE history_search_fts MATCH 'nee'").fetchone()[0] == 0
@@ -250,3 +251,41 @@ def test_verified_append_materializes_only_suffix_text_blocks(tmp_path, monkeypa
     session.summary_projection['history_total'] += 1
     assert search(path, session)['totalMatches'] == 1001
     assert visited == [1000]
+
+
+def test_concurrent_raw_and_command_partitions_share_index_without_output_leaks(tmp_path):
+    session = make_session([
+        row('tool', 'Command({"command":"needle call","output":"secret-output"})', 1),
+        row('tool', 'Command({"command":"other","output":"needle output-only"})', 2),
+    ])
+    path = tmp_path / 'index.sqlite3'
+    def run(i):
+        mode = 'command_only' if i % 2 else 'include_output'
+        result = search(path, session, roles=('tool',), tool_output=mode)
+        assert result['totalMessages'] == (1 if mode == 'command_only' else 2)
+        if mode == 'command_only':
+            assert 'secret-output' not in str(result)
+            assert result['hits'][0]['role'] == 'tool'
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(run, range(20)))
+    with sqlite3.connect(path) as db:
+        for table in ('history_search_tool_fts', 'history_search_tool_command_fts'):
+            db.execute(f"INSERT INTO {table}({table}, rank) VALUES ('integrity-check', 1)")
+
+
+def test_command_partition_keeps_duplicate_id_rebuild_and_prefix_proof(tmp_path):
+    session = make_session([row('tool', 'Command({"command":"needle old","output":"secret"})', 1)])
+    path = tmp_path / 'index.sqlite3'
+    assert len(search(path, session, roles=('tool',), tool_output='command_only')['hits']) == 1
+    search(path, session, roles=('tool',))
+    # A reused canonical ID must replace both old raw/projected rows.
+    session.history.append(row('assistant', 'needle latest', 1))
+    session.history_revision += 1
+    result = search(path, session, roles=('assistant','tool'), tool_output='command_only')
+    assert [(h['role'], h['messageIndex']) for h in result['hits']] == [('assistant',1)]
+    # Growing history with a changed prefix must never reuse the old projection.
+    session.history[1] = row('tool', 'Command({"command":"changed","output":"needle"})', 1)
+    session.history.append(row('user', 'needle appended', 2))
+    session.history_revision += 1
+    result = search(path, session, roles=('user','assistant','tool'), tool_output='command_only')
+    assert [(h['role'], h['messageIndex']) for h in result['hits']] == [('user',2)]

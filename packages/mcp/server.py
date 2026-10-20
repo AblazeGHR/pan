@@ -12,6 +12,7 @@ Tools exposed:
     - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get filtered session history bodies and result metadata
     - session_message_get: Read one existing durable message ID in its Session
+    - session_history_search: Search one accessible Session with bounded snippets
     - session_usage: Get persisted session input/output/cache usage
     - session_update: Update session settings (model/effort/mcp/workspace etc.)
     - workspace_list: List durable Workspaces (name/id/order/dirs/member count)
@@ -856,6 +857,55 @@ def session_message_get(session_id: str, message_id: str,
         return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
     query = urlencode({"roles": ",".join(sorted(selected)), "toolOutput": tool_output})
     return _api("GET", f"/api/sessions/{quote(session_id, safe='')}/messages/{quote(message_id, safe='')}?{query}")
+
+
+@mcp.tool()
+def session_history_search(session_id: str, query: str, limit: int = 50,
+                           cursor: str | None = None,
+                           roles: list[str] | None = None,
+                           tool_output: str = "command_only") -> dict:
+    """Search literal text in one accessible Session using the existing FTS index.
+
+    Recommended: session_history_search(session_id, query="error", limit=50).
+    Default roles are user/assistant/tool, with tool_output=command_only:
+    only the shared tool name/command projection is searched and excerpted,
+    so output-only text cannot affect hits or pagination. Other tool arguments
+    are conservatively omitted, as in session_get. Opt into stored tool output
+    with include_output, or thinking with roles=[thinking]. roles=[] searches
+    nothing. Query is trimmed, case-insensitive literal text (no regex/FTS
+    syntax), at most 512 characters. Limit is clamped to 1..100 after matching.
+
+    Returns bounded hits with snippet, role, persistent messageId, canonical
+    messageIndex and history version; no complete history, parts or raw output.
+    Read a hit with session_message_get using the same projection options.
+    Missing legacy IDs are skipped, never created. No global search is exposed.
+
+    Pass nextCursor back as cursor with the same Session/query/limit/options
+    until null. It is signed, expires after 15 minutes, and is invalidated by
+    history changes, index rebuild or option changes; restart without cursor
+    on HTTP detail.code=history_search_cursor_expired (409). HTTP error details
+    pass through; missing Session returns error="Session not found". Managed
+    permission checks run before search; denial returns permission_denied.
+    Uses the existing lazy disposable SQLite index, with no background worker
+    or polling. Cold indexing can load history; only result output is bounded.
+    完整编排流程见 /pan skill。
+    """
+    if not session_id or not session_id.strip():
+        return {"ok": False, "error": {"code": "invalid_params", "message": "session_id is required; global search is not exposed"}}
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    from packages.core.history_read import options
+    try:
+        selected, _ = options(roles, tool_output)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    params = {"sessionId": session_id, "q": query, "limit": limit,
+              "roles": ",".join(sorted(selected)), "toolOutput": tool_output,
+              "countMode": "messages"}
+    if cursor is not None:
+        params["cursor"] = cursor
+    return _api("GET", "/api/history/search?" + urlencode(params))
 
 
 @mcp.tool()
