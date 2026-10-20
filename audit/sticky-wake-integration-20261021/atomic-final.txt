@@ -1,0 +1,2 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021
+..........                                                               [100%]

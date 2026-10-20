@@ -1,0 +1,9 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021
+WAKE_READY_FINAL http://127.0.0.1:65168 False 18c433c2598741d5b0ccd1dc5fb28a6c D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\audit\sticky-wake-integration-20261021\owned-runtime\test_explicit_wake_retains_old0
+.CLEANUP http://127.0.0.1:65168 owned server stopped; port released
+WAKE_READY_FINAL http://127.0.0.1:65219 True 7947efd70ebb4728a99347517fcd2449 D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\audit\sticky-wake-integration-20261021\owned-runtime\test_explicit_wake_retains_old1
+.CLEANUP http://127.0.0.1:65219 owned server stopped; port released
+STICKY_JOB_CRASH job_d7d3d819b06fdde2d4171ae7 q_db87e9bdf65540d09262fdebfab42164 D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\audit\sticky-wake-integration-20261021\owned-runtime\test_pan_and_long_job_crash_no0
+.CLEANUP http://127.0.0.1:52435 owned server stopped; port released
+.CLEANUP http://127.0.0.1:49393 owned server stopped; port released
+

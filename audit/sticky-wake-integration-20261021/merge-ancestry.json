@@ -1,0 +1,17 @@
+{
+  "base": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+  "incomingCommits": [
+    "e160782e636d828427e9262e952a1f25c09117b9",
+    "2f1c2b3bd02e901ceadbc2b010960277bafcbb4c",
+    "bad516b9d0dafad26e58ba0616eb508c54724175",
+    "6474274757fc9b1af0e0fbf1fc70ed5a1afb76ec"
+  ],
+  "requiredAncestorsPreserved": true,
+  "merge": "c04447c63bd3c55844c73c98ab293d9010d2ee0e",
+  "parents": [
+    "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+    "e160782e636d828427e9262e952a1f25c09117b9"
+  ],
+  "currentMain": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737",
+  "currentPractical": "20473b41aeeb8dec9aadf4dac1bfe7368ca3f737"
+}

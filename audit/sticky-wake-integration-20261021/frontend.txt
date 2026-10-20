@@ -1,0 +1,27 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/web/src
+
+ ✓ utils/quickNewSession.test.ts (9 tests | 1 skipped) 8ms
+ ✓ stores/queueStore.serverSnapshot.test.ts (4 tests) 7ms
+ ✓ shortcuts/registryActions.test.ts (5 tests) 8ms
+ ✓ stores/queueStore.test.ts (21 tests) 807ms
+ ✓ shortcuts/useGlobalShortcuts.test.tsx (8 tests) 59ms
+ ✓ components/layout/WorkdirCleanup.test.tsx (4 tests) 253ms
+ ✓ components/session/SelectedSessionActions.test.tsx (11 tests) 227ms
+ ✓ components/chat/ServerAttachmentPicker.test.tsx (11 tests) 337ms
+ ✓ components/session/HandoffSessionModal.test.tsx (7 tests) 514ms
+ ✓ components/layout/ShortcutsSettings.test.tsx (9 tests) 705ms
+ ✓ components/session/NewSessionModal.test.tsx (28 tests | 1 skipped) 2191ms
+ ✓ components/chat/InputRow.routeDraft.test.tsx (8 tests) 2028ms
+   ✓ composer draft across a real route unmount > restores text, URL node and a still-pending File with its real bytes 356ms
+   ✓ composer draft across a real route unmount > does not resurrect a sent draft and prunes browser bytes only after an acknowledged clear 797ms
+ ✓ components/layout/AppSettingsModal.test.tsx (57 tests) 4127ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1114ms
+ ✓ components/chat/InputRow.test.tsx (78 tests | 1 skipped) 6321ms
+
+ Test Files  14 passed (14)
+      Tests  257 passed | 3 skipped (260)
+   Start at  00:18:17
+   Duration  11.89s (transform 3.83s, setup 206ms, collect 18.37s, tests 17.59s, environment 27.47s, prepare 4.16s)
+
+JSON report written to D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021/packages/audit/sticky-wake-integration-20261021/frontend.json

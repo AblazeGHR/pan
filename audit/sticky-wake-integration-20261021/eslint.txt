@@ -1,0 +1,9 @@
+
+D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\packages\web\src\components\chat\SettingsPopover.tsx
+  124:6  warning  React Hook useLayoutEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  135:6  warning  React Hook useEffect has a missing dependency: 'updatePopoverPosition'. Either include it or remove the dependency array                                                  react-hooks/exhaustive-deps
+  177:6  warning  React Hook useEffect has missing dependencies: 'session.modelAutoCompactTokenLimit' and 'session.modelContextWindow'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  223:5  warning  React Hook useCallback has an unnecessary dependency: 'effectiveWorkerId'. Either exclude it or remove the dependency array                                               react-hooks/exhaustive-deps
+
+✖ 4 problems (0 errors, 4 warnings)
+

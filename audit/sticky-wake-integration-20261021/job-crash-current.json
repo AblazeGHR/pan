@@ -1,0 +1,995 @@
+{
+  "sessionId": "ses_e6cc75a0bf01079b",
+  "jobId": "job_d7d3d819b06fdde2d4171ae7",
+  "port": "http://127.0.0.1:52435",
+  "failedJob": {
+    "jobId": "job_d7d3d819b06fdde2d4171ae7",
+    "targetSessionId": "ses_e6cc75a0bf01079b",
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-u",
+      "-c",
+      "import time; print('JOB_LONG_STARTED', flush=True); time.sleep(86400)"
+    ],
+    "hideWindow": true,
+    "kind": "background-process",
+    "operation": "run",
+    "creatorSessionId": "ses_e6cc75a0bf01079b",
+    "sourceStruct": {
+      "type": "agent",
+      "sessionId": "ses_e6cc75a0bf01079b"
+    },
+    "targetStruct": {
+      "sessionId": "ses_e6cc75a0bf01079b"
+    },
+    "name": "job-1",
+    "description": "",
+    "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -u -c …",
+    "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "label": "isolated shutdown sticky lock",
+    "status": "failed",
+    "createdAt": 1792513669.5483656,
+    "updatedAt": 1792513670.812871,
+    "pid": null,
+    "processCreatedAt": null,
+    "logPath": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\background_jobs\\logs\\job_d7d3d819b06fdde2d4171ae7.log",
+    "notificationState": "delivered",
+    "terminalEventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+    "runnerPid": 35856,
+    "runnerProcessCreatedAt": 1792513669.5537171,
+    "error": "orphaned: runner identity missing, unavailable, dead, or PID reused",
+    "terminalEventEmittedFor": "job_d7d3d819b06fdde2d4171ae7:terminal",
+    "paused": false
+  },
+  "beforeWake": {
+    "id": "ses_e6cc75a0bf01079b",
+    "name": "real-fifo-job-crash-sticky",
+    "adapter": "cbc",
+    "model": "deepseek-v4-flash",
+    "permission_mode": "bypassPermissions",
+    "pan_access": {
+      "restrict_to_managed": false,
+      "can_claim_unmanaged": false,
+      "auto_claim_created": false
+    },
+    "adapter_config": {
+      "always_thinking_enabled": false,
+      "effort": "",
+      "max_thinking_tokens": null,
+      "output_mode": "stream",
+      "plugin_config_version": 2,
+      "plugin_bindings": [
+        {
+          "plugin_id": "pan",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ],
+      "mcp_servers": [
+        {
+          "name": "pan",
+          "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "args": [
+            "-m",
+            "packages.mcp.server"
+          ],
+          "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021"
+        }
+      ],
+      "plugin_selection_revision": 1,
+      "cli_session_id": "fake-20684"
+    },
+    "character_id": null,
+    "session_template": null,
+    "original_prompt": "",
+    "handoff_prompt": null,
+    "game_id": null,
+    "raw_usage": null,
+    "total_usage": null,
+    "usage_enrichment_pending": [],
+    "workdir": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "history": [
+      {
+        "role": "user",
+        "content": "hold-A",
+        "queueItemIds": [
+          "q_322624e53ffa4cd28ac2e86899aa33fe"
+        ],
+        "delivered_keys": [
+          "task:q_322624e53ffa4cd28ac2e86899aa33fe"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_322624e53ffa4cd28ac2e86899aa33fe",
+            "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+            "text": "hold-A",
+            "source": "user",
+            "seq": 1,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792513669.4446063,
+            "clientMessageId": "active",
+            "position": 0
+          }
+        ],
+        "source": "user",
+        "taskId": null,
+        "clientMessageId": "active",
+        "messageId": "pan:67e74b7d1b764788b03ceafd5bf577b4",
+        "ts": "2026-10-21T00:27:49.502028"
+      }
+    ],
+    "history_epoch": "7df7aec1c992462b9f9926473d6f18ed",
+    "history_revision": 1,
+    "last_result": null,
+    "result_cursor": 0,
+    "terminal_results": [],
+    "last_legal_worker_state": null,
+    "legal_offline": false,
+    "offline_migration_uncertainty": null,
+    "offline_owner": {
+      "runtimeExpected": true,
+      "token": "5cf99922ae9344bf8bec668d1af78beb",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "18585358ce2940a09f6eea10845ca07b",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 36576,
+          "createdAt": 1792513669.4614527
+        },
+        {
+          "pid": 37548,
+          "createdAt": 1792513669.4664176
+        },
+        {
+          "pid": 20684,
+          "createdAt": 1792513669.482878
+        }
+      ]
+    },
+    "offline_run": {
+      "runtimeExpected": true,
+      "token": "5cf99922ae9344bf8bec668d1af78beb",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "18585358ce2940a09f6eea10845ca07b",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 36576,
+          "createdAt": 1792513669.4614527
+        },
+        {
+          "pid": 37548,
+          "createdAt": 1792513669.4664176
+        },
+        {
+          "pid": 20684,
+          "createdAt": 1792513669.482878
+        }
+      ],
+      "id": "2eb7842043664424aab4138713788d20",
+      "kind": "foreground",
+      "admittedRevision": 1,
+      "state": "illegal",
+      "startedAt": 1792513669.4995694,
+      "safeTerminal": false,
+      "incidentId": "2eb7842043664424aab4138713788d20",
+      "reason": "unfinished-run"
+    },
+    "illegal_batches": {
+      "2eb7842043664424aab4138713788d20": {
+        "id": "2eb7842043664424aab4138713788d20",
+        "run": {
+          "runtimeExpected": true,
+          "token": "5cf99922ae9344bf8bec668d1af78beb",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "18585358ce2940a09f6eea10845ca07b",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 36576,
+              "createdAt": 1792513669.4614527
+            },
+            {
+              "pid": 37548,
+              "createdAt": 1792513669.4664176
+            },
+            {
+              "pid": 20684,
+              "createdAt": 1792513669.482878
+            }
+          ],
+          "id": "2eb7842043664424aab4138713788d20",
+          "kind": "foreground",
+          "admittedRevision": 1,
+          "state": "running",
+          "startedAt": 1792513669.4995694,
+          "safeTerminal": false
+        },
+        "messages": [
+          "q_db87e9bdf65540d09262fdebfab42164"
+        ],
+        "incidentId": "2eb7842043664424aab4138713788d20",
+        "reason": "unfinished-run",
+        "createdAt": 1792513670.6014972,
+        "recovered": false
+      }
+    },
+    "legality_schema_version": 2,
+    "operation_revision": 2,
+    "execution_operations": {
+      "2eb7842043664424aab4138713788d20": {
+        "runtimeExpected": true,
+        "token": "5cf99922ae9344bf8bec668d1af78beb",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "18585358ce2940a09f6eea10845ca07b",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 36576,
+            "createdAt": 1792513669.4614527
+          },
+          {
+            "pid": 37548,
+            "createdAt": 1792513669.4664176
+          },
+          {
+            "pid": 20684,
+            "createdAt": 1792513669.482878
+          }
+        ],
+        "id": "2eb7842043664424aab4138713788d20",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "illegal",
+        "startedAt": 1792513669.4995694,
+        "safeTerminal": false,
+        "incidentId": "2eb7842043664424aab4138713788d20",
+        "reason": "unfinished-run"
+      }
+    },
+    "owner_retirements": {},
+    "created_at": "2026-10-21T00:27:49.439168",
+    "updated_at": "2026-10-21T00:27:50.628062",
+    "order": null,
+    "workspace_ids": [],
+    "managed": [],
+    "managed_by": null,
+    "readonly_session": false,
+    "queue_pending": [
+      {
+        "kind": "report",
+        "id": "q_db87e9bdf65540d09262fdebfab42164",
+        "queueItemId": "q_db87e9bdf65540d09262fdebfab42164",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+        "sessionId": "ses_e6cc75a0bf01079b",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "queued",
+        "dispatchState": "queued",
+        "revision": 1,
+        "createdAt": 1792513670.6267703,
+        "eventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_d7d3d819b06fdde2d4171ae7",
+        "creatorSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionIds": [
+          "ses_e6cc75a0bf01079b"
+        ],
+        "queueLockSource": "illegal",
+        "queueLockIllegalBatch": "2eb7842043664424aab4138713788d20",
+        "position": 0
+      }
+    ],
+    "queue_paused": false,
+    "agent_reports_paused": false,
+    "queue_item_locks_version": 1,
+    "queue_edit_locks": {},
+    "queue_delivery_ledger": {
+      "q_322624e53ffa4cd28ac2e86899aa33fe": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_322624e53ffa4cd28ac2e86899aa33fe",
+        "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+        "text": "hold-A",
+        "source": "user",
+        "seq": 1,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792513669.4446063,
+        "clientMessageId": "active",
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792513669.4875832,
+        "receiptAt": 1792513669.502041,
+        "deliveredAt": 1792513669.502041
+      },
+      "q_db87e9bdf65540d09262fdebfab42164": {
+        "kind": "report",
+        "id": "q_db87e9bdf65540d09262fdebfab42164",
+        "queueItemId": "q_db87e9bdf65540d09262fdebfab42164",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+        "sessionId": "ses_e6cc75a0bf01079b",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "queued",
+        "dispatchState": "queued",
+        "revision": 1,
+        "createdAt": 1792513670.6267703,
+        "eventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_d7d3d819b06fdde2d4171ae7",
+        "creatorSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionIds": [
+          "ses_e6cc75a0bf01079b"
+        ],
+        "queueLockSource": "illegal",
+        "queueLockIllegalBatch": "2eb7842043664424aab4138713788d20",
+        "position": 0
+      }
+    },
+    "queue_idempotency_index": {
+      "version": 1,
+      "taskId": {},
+      "clientMessageId": {
+        "active": {
+          "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+          "seenAt": 1792513669.4446063
+        }
+      }
+    },
+    "queue_revision": 5,
+    "task_seq": 1,
+    "unread_done_count": 0,
+    "unread_done_generation": 0,
+    "unread_done_read_generation": 0,
+    "unread_recording_override": null,
+    "active_task_id": null,
+    "accepted_input_ids": [
+      "active"
+    ],
+    "manual_report_receipts": {},
+    "summary_projection": {
+      "revision": 7,
+      "last_user_preview": "hold-A",
+      "last_assistant_preview": "",
+      "last_display_preview": "hold-A",
+      "last_system_preview": "",
+      "last_thinking_preview": "",
+      "last_tool_preview": "",
+      "last_main_role": "user",
+      "history_total": 1,
+      "updated_at": "2026-10-21T00:27:50.603233"
+    },
+    "report_subscriptions": [],
+    "qq_report_targets": [],
+    "qq_report_outbox": {},
+    "qq_subscriptions": [],
+    "wechat_subscriptions": [],
+    "notification_settings": {
+      "browser": false,
+      "system": false
+    }
+  },
+  "afterWake": {
+    "id": "ses_e6cc75a0bf01079b",
+    "name": "real-fifo-job-crash-sticky",
+    "adapter": "cbc",
+    "model": "deepseek-v4-flash",
+    "permission_mode": "bypassPermissions",
+    "pan_access": {
+      "restrict_to_managed": false,
+      "can_claim_unmanaged": false,
+      "auto_claim_created": false
+    },
+    "adapter_config": {
+      "always_thinking_enabled": false,
+      "effort": "",
+      "max_thinking_tokens": null,
+      "output_mode": "stream",
+      "plugin_config_version": 2,
+      "plugin_bindings": [
+        {
+          "plugin_id": "pan",
+          "enabled": true,
+          "mode": "standalone"
+        }
+      ],
+      "mcp_servers": [
+        {
+          "name": "pan",
+          "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "args": [
+            "-m",
+            "packages.mcp.server"
+          ],
+          "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021"
+        }
+      ],
+      "plugin_selection_revision": 1,
+      "cli_session_id": "fake-20684"
+    },
+    "character_id": null,
+    "session_template": null,
+    "original_prompt": "",
+    "handoff_prompt": null,
+    "game_id": null,
+    "raw_usage": null,
+    "total_usage": null,
+    "usage_enrichment_pending": [
+      {
+        "key": "seq:2",
+        "adapter": "cbc",
+        "taskId": null,
+        "taskSeq": 2,
+        "workerId": "worker-1",
+        "generation": 0,
+        "state": "pending",
+        "attempts": 0,
+        "nextAttemptAt": 0.0,
+        "createdAt": 1792513671.858736
+      }
+    ],
+    "workdir": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+    "history": [
+      {
+        "role": "user",
+        "content": "hold-A",
+        "queueItemIds": [
+          "q_322624e53ffa4cd28ac2e86899aa33fe"
+        ],
+        "delivered_keys": [
+          "task:q_322624e53ffa4cd28ac2e86899aa33fe"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_322624e53ffa4cd28ac2e86899aa33fe",
+            "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+            "text": "hold-A",
+            "source": "user",
+            "seq": 1,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792513669.4446063,
+            "clientMessageId": "active",
+            "position": 0
+          }
+        ],
+        "source": "user",
+        "taskId": null,
+        "clientMessageId": "active",
+        "messageId": "pan:67e74b7d1b764788b03ceafd5bf577b4",
+        "ts": "2026-10-21T00:27:49.502028"
+      },
+      {
+        "role": "user",
+        "content": "继续",
+        "queueItemIds": [
+          "q_90b21c7eba644322bb69e9c9eb49c15c"
+        ],
+        "delivered_keys": [
+          "task:q_90b21c7eba644322bb69e9c9eb49c15c"
+        ],
+        "kind": "task",
+        "queueEnvelopes": [
+          {
+            "type": "task",
+            "kind": "task",
+            "id": "q_90b21c7eba644322bb69e9c9eb49c15c",
+            "queueItemId": "q_90b21c7eba644322bb69e9c9eb49c15c",
+            "text": "继续",
+            "source": "agent",
+            "seq": 2,
+            "taskId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792513671.7653208,
+            "clientMessageId": "wake-job-crash",
+            "wakeMessage": true,
+            "position": 0
+          }
+        ],
+        "source": "agent",
+        "taskId": null,
+        "clientMessageId": "wake-job-crash",
+        "messageId": "pan:495a19164736454680673f2b5ea9e13a",
+        "ts": "2026-10-21T00:27:51.824137"
+      },
+      {
+        "role": "assistant",
+        "content": "ack:����",
+        "messageId": "pan:2bbb521f3cc84d9880d9ba3b12098d2c",
+        "ts": "2026-10-21T00:27:51.858389"
+      },
+      {
+        "role": "assistant",
+        "content": "����",
+        "messageId": "pan:21d5ab75da074858b683c2d3d1f16930",
+        "ts": "2026-10-21T00:27:51.858719"
+      },
+      {
+        "role": "user",
+        "content": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSessionId: ses_e6cc75a0bf01079b\neventId: job_d7d3d819b06fdde2d4171ae7:terminal\nresult:\n{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+        "queueItemIds": [
+          "q_db87e9bdf65540d09262fdebfab42164"
+        ],
+        "delivered_keys": [
+          "report:anon:209e1f98b46d"
+        ],
+        "kind": "report",
+        "queueEnvelopes": [
+          {
+            "kind": "report",
+            "id": "q_db87e9bdf65540d09262fdebfab42164",
+            "queueItemId": "q_db87e9bdf65540d09262fdebfab42164",
+            "source": "automation",
+            "status": "failed",
+            "type": "notice",
+            "result": "{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+            "sessionId": "ses_e6cc75a0bf01079b",
+            "taskId": null,
+            "workerId": null,
+            "deliveryState": "writing",
+            "dispatchState": "queued",
+            "revision": 1,
+            "createdAt": 1792513670.6267703,
+            "eventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+            "noticeKind": "background_job_terminal",
+            "jobId": "job_d7d3d819b06fdde2d4171ae7",
+            "creatorSessionId": "ses_e6cc75a0bf01079b",
+            "targetSessionId": "ses_e6cc75a0bf01079b",
+            "targetSessionIds": [
+              "ses_e6cc75a0bf01079b"
+            ],
+            "position": 1
+          }
+        ],
+        "source": "automation",
+        "taskId": null,
+        "eventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_d7d3d819b06fdde2d4171ae7",
+        "messageId": "pan:f27a90d1b8334abd85875951fa48d765",
+        "ts": "2026-10-21T00:27:51.886279"
+      },
+      {
+        "role": "assistant",
+        "content": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSessionId: ses_e6cc75a0bf01079b\neventId: job_d7d3d819b06fdde2d4171ae7:terminal\nresult:\n{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+        "messageId": "pan:959b00cdf4ac440c824404612b9abb38",
+        "ts": "2026-10-21T00:27:51.886912"
+      }
+    ],
+    "history_epoch": "7df7aec1c992462b9f9926473d6f18ed",
+    "history_revision": 6,
+    "last_result": {
+      "status": "done",
+      "result": "����",
+      "cli_session_id": "fake-20684",
+      "timestamp": "2026-10-21T00:27:51.858698",
+      "taskSeq": 2,
+      "executionSeq": 1,
+      "taskId": null,
+      "taskIdempotent": false,
+      "workerId": "worker-1",
+      "generation": 0,
+      "resultCursor": 1,
+      "sourceSessionId": null,
+      "terminalKey": "seq:2",
+      "historyEpoch": "7df7aec1c992462b9f9926473d6f18ed",
+      "historyRevision": 4,
+      "usageEnrichmentKey": "seq:2"
+    },
+    "result_cursor": 1,
+    "terminal_results": [
+      {
+        "resultCursor": 1,
+        "terminalKey": "seq:2",
+        "status": "done",
+        "result": "����",
+        "taskSeq": 2,
+        "executionSeq": 1,
+        "taskId": null,
+        "taskIdempotent": false,
+        "workerId": "worker-1",
+        "generation": 0,
+        "sourceSessionId": null,
+        "timestamp": "2026-10-21T00:27:51.858694",
+        "historyEpoch": "7df7aec1c992462b9f9926473d6f18ed",
+        "historyRevision": 4
+      }
+    ],
+    "last_legal_worker_state": null,
+    "legal_offline": false,
+    "offline_migration_uncertainty": null,
+    "offline_owner": {
+      "runtimeExpected": true,
+      "token": "0ada5acb94cf4dd1ac0f326835a398c1",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "dbeb93612a894cb5bbb01cd7eb340195",
+      "executionSeq": 2,
+      "processes": [
+        {
+          "pid": 39700,
+          "createdAt": 1792513671.7825897
+        },
+        {
+          "pid": 46940,
+          "createdAt": 1792513671.791756
+        },
+        {
+          "pid": 20468,
+          "createdAt": 1792513671.806313
+        }
+      ]
+    },
+    "offline_run": {
+      "runtimeExpected": true,
+      "token": "0ada5acb94cf4dd1ac0f326835a398c1",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "dbeb93612a894cb5bbb01cd7eb340195",
+      "executionSeq": 2,
+      "processes": [
+        {
+          "pid": 39700,
+          "createdAt": 1792513671.7825897
+        },
+        {
+          "pid": 46940,
+          "createdAt": 1792513671.791756
+        },
+        {
+          "pid": 20468,
+          "createdAt": 1792513671.806313
+        }
+      ],
+      "id": "686f684ac4c643f88a676d467dc5b5e9",
+      "kind": "foreground",
+      "admittedRevision": 6,
+      "state": "running",
+      "startedAt": 1792513671.8839703,
+      "safeTerminal": false
+    },
+    "illegal_batches": {
+      "2eb7842043664424aab4138713788d20": {
+        "id": "2eb7842043664424aab4138713788d20",
+        "run": {
+          "runtimeExpected": true,
+          "token": "5cf99922ae9344bf8bec668d1af78beb",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "18585358ce2940a09f6eea10845ca07b",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 36576,
+              "createdAt": 1792513669.4614527
+            },
+            {
+              "pid": 37548,
+              "createdAt": 1792513669.4664176
+            },
+            {
+              "pid": 20684,
+              "createdAt": 1792513669.482878
+            }
+          ],
+          "id": "2eb7842043664424aab4138713788d20",
+          "kind": "foreground",
+          "admittedRevision": 1,
+          "state": "running",
+          "startedAt": 1792513669.4995694,
+          "safeTerminal": false
+        },
+        "messages": [
+          "q_db87e9bdf65540d09262fdebfab42164",
+          "q_90b21c7eba644322bb69e9c9eb49c15c"
+        ],
+        "incidentId": "2eb7842043664424aab4138713788d20",
+        "reason": "unfinished-run",
+        "createdAt": 1792513670.6014972,
+        "recovered": true,
+        "recoveredAt": 1792513671.8531232,
+        "recoveredBy": {
+          "runtimeExpected": true,
+          "token": "0ada5acb94cf4dd1ac0f326835a398c1",
+          "generation": 0,
+          "workerId": "worker-1",
+          "serviceId": "dbeb93612a894cb5bbb01cd7eb340195",
+          "executionSeq": 1,
+          "processes": [
+            {
+              "pid": 39700,
+              "createdAt": 1792513671.7825897
+            },
+            {
+              "pid": 46940,
+              "createdAt": 1792513671.791756
+            },
+            {
+              "pid": 20468,
+              "createdAt": 1792513671.806313
+            }
+          ]
+        }
+      }
+    },
+    "legality_schema_version": 2,
+    "operation_revision": 6,
+    "execution_operations": {
+      "2eb7842043664424aab4138713788d20": {
+        "runtimeExpected": true,
+        "token": "5cf99922ae9344bf8bec668d1af78beb",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "18585358ce2940a09f6eea10845ca07b",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 36576,
+            "createdAt": 1792513669.4614527
+          },
+          {
+            "pid": 37548,
+            "createdAt": 1792513669.4664176
+          },
+          {
+            "pid": 20684,
+            "createdAt": 1792513669.482878
+          }
+        ],
+        "id": "2eb7842043664424aab4138713788d20",
+        "kind": "foreground",
+        "admittedRevision": 1,
+        "state": "illegal",
+        "startedAt": 1792513669.4995694,
+        "safeTerminal": false,
+        "incidentId": "2eb7842043664424aab4138713788d20",
+        "reason": "unfinished-run",
+        "retirement": {
+          "safe": true,
+          "proof": "successor-ready-after-owner-reconciliation",
+          "committedAt": 1792513671.8531253
+        }
+      },
+      "a7245746a41448a091ad481839472e98": {
+        "runtimeExpected": true,
+        "token": "0ada5acb94cf4dd1ac0f326835a398c1",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "dbeb93612a894cb5bbb01cd7eb340195",
+        "executionSeq": 1,
+        "processes": [
+          {
+            "pid": 39700,
+            "createdAt": 1792513671.7825897
+          },
+          {
+            "pid": 46940,
+            "createdAt": 1792513671.791756
+          },
+          {
+            "pid": 20468,
+            "createdAt": 1792513671.806313
+          }
+        ],
+        "id": "a7245746a41448a091ad481839472e98",
+        "kind": "foreground",
+        "admittedRevision": 3,
+        "state": "idle",
+        "startedAt": 1792513671.822057,
+        "safeTerminal": true,
+        "endedAt": 1792513671.8676364,
+        "reason": "task/safe-terminal",
+        "terminalProof": "safe-terminal"
+      },
+      "686f684ac4c643f88a676d467dc5b5e9": {
+        "runtimeExpected": true,
+        "token": "0ada5acb94cf4dd1ac0f326835a398c1",
+        "generation": 0,
+        "workerId": "worker-1",
+        "serviceId": "dbeb93612a894cb5bbb01cd7eb340195",
+        "executionSeq": 2,
+        "processes": [
+          {
+            "pid": 39700,
+            "createdAt": 1792513671.7825897
+          },
+          {
+            "pid": 46940,
+            "createdAt": 1792513671.791756
+          },
+          {
+            "pid": 20468,
+            "createdAt": 1792513671.806313
+          }
+        ],
+        "id": "686f684ac4c643f88a676d467dc5b5e9",
+        "kind": "foreground",
+        "admittedRevision": 6,
+        "state": "running",
+        "startedAt": 1792513671.8839703,
+        "safeTerminal": false
+      }
+    },
+    "owner_retirements": {},
+    "created_at": "2026-10-21T00:27:49.439168",
+    "updated_at": "2026-10-21T00:27:51.888941",
+    "order": null,
+    "workspace_ids": [],
+    "managed": [],
+    "managed_by": null,
+    "readonly_session": false,
+    "queue_pending": [],
+    "queue_paused": false,
+    "agent_reports_paused": false,
+    "queue_item_locks_version": 1,
+    "queue_edit_locks": {},
+    "queue_delivery_ledger": {
+      "q_322624e53ffa4cd28ac2e86899aa33fe": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_322624e53ffa4cd28ac2e86899aa33fe",
+        "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+        "text": "hold-A",
+        "source": "user",
+        "seq": 1,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792513669.4446063,
+        "clientMessageId": "active",
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792513669.4875832,
+        "receiptAt": 1792513669.502041,
+        "deliveredAt": 1792513669.502041
+      },
+      "q_db87e9bdf65540d09262fdebfab42164": {
+        "kind": "report",
+        "id": "q_db87e9bdf65540d09262fdebfab42164",
+        "queueItemId": "q_db87e9bdf65540d09262fdebfab42164",
+        "source": "automation",
+        "status": "failed",
+        "type": "notice",
+        "result": "{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+        "sessionId": "ses_e6cc75a0bf01079b",
+        "taskId": null,
+        "workerId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792513670.6267703,
+        "eventId": "job_d7d3d819b06fdde2d4171ae7:terminal",
+        "noticeKind": "background_job_terminal",
+        "jobId": "job_d7d3d819b06fdde2d4171ae7",
+        "creatorSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionId": "ses_e6cc75a0bf01079b",
+        "targetSessionIds": [
+          "ses_e6cc75a0bf01079b"
+        ],
+        "position": 1,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792513671.8705547,
+        "receiptAt": 1792513671.886289,
+        "deliveredAt": 1792513671.886289
+      },
+      "q_90b21c7eba644322bb69e9c9eb49c15c": {
+        "type": "task",
+        "kind": "task",
+        "id": "q_90b21c7eba644322bb69e9c9eb49c15c",
+        "queueItemId": "q_90b21c7eba644322bb69e9c9eb49c15c",
+        "text": "继续",
+        "source": "agent",
+        "seq": 2,
+        "taskId": null,
+        "deliveryState": "sent_to_cli",
+        "dispatchState": "sent_to_cli",
+        "revision": 1,
+        "createdAt": 1792513671.7653208,
+        "clientMessageId": "wake-job-crash",
+        "wakeMessage": true,
+        "position": 0,
+        "reservedBy": "worker-1",
+        "reservedGeneration": 0,
+        "reservedAt": 1792513671.8119304,
+        "receiptAt": 1792513671.8241482,
+        "deliveredAt": 1792513671.8241482
+      }
+    },
+    "queue_idempotency_index": {
+      "version": 1,
+      "taskId": {},
+      "clientMessageId": {
+        "active": {
+          "queueItemId": "q_322624e53ffa4cd28ac2e86899aa33fe",
+          "seenAt": 1792513669.4446063
+        },
+        "wake-job-crash": {
+          "queueItemId": "q_90b21c7eba644322bb69e9c9eb49c15c",
+          "seenAt": 1792513671.7653208
+        }
+      }
+    },
+    "queue_revision": 11,
+    "task_seq": 2,
+    "unread_done_count": 1,
+    "unread_done_generation": 1,
+    "unread_done_read_generation": 0,
+    "unread_recording_override": null,
+    "active_task_id": null,
+    "accepted_input_ids": [
+      "active",
+      "wake-job-crash"
+    ],
+    "manual_report_receipts": {},
+    "summary_projection": {
+      "revision": 22,
+      "last_user_preview": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSession",
+      "last_assistant_preview": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSes",
+      "last_display_preview": "ack:////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSes",
+      "last_system_preview": "",
+      "last_thinking_preview": "",
+      "last_tool_preview": "",
+      "last_main_role": "assistant",
+      "history_total": 6,
+      "updated_at": "2026-10-21T00:27:51.886917"
+    },
+    "report_subscriptions": [],
+    "qq_report_targets": [],
+    "qq_report_outbox": {},
+    "qq_subscriptions": [],
+    "wechat_subscriptions": [],
+    "notification_settings": {
+      "browser": false,
+      "system": false
+    }
+  },
+  "received": [
+    {
+      "kind": "received",
+      "pid": 20468,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+      "text": "继续",
+      "at": 1792513671.84223
+    },
+    {
+      "kind": "received",
+      "pid": 20468,
+      "cwd": "D:\\project\\pan-worktrees\\legal-offline-sticky-wake-integration-20261021\\audit\\sticky-wake-integration-20261021\\owned-runtime\\test_pan_and_long_job_crash_no0\\runtime\\workdirs\\real-fifo-job-crash-sticky",
+      "text": "////by pan system\nstatus: failed\nnoticeKind: background_job_terminal\njobId: job_d7d3d819b06fdde2d4171ae7\ntargetSessionId: ses_e6cc75a0bf01079b\ntargetSessionIds: ['ses_e6cc75a0bf01079b']\ncreatorSessionId: ses_e6cc75a0bf01079b\neventId: job_d7d3d819b06fdde2d4171ae7:terminal\nresult:\n{\"jobId\": \"job_d7d3d819b06fdde2d4171ae7\", \"status\": \"failed\", \"exitCode\": null, \"logPath\": \"D:\\\\project\\\\pan-worktrees\\\\legal-offline-sticky-wake-integration-20261021\\\\audit\\\\sticky-wake-integration-20261021\\\\owned-runtime\\\\test_pan_and_long_job_crash_no0\\\\runtime\\\\background_jobs\\\\logs\\\\job_d7d3d819b06fdde2d4171ae7.log\"}",
+      "at": 1792513671.886165
+    }
+  ]
+}
