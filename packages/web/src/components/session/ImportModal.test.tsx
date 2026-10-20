@@ -275,3 +275,84 @@ describe('ImportModal adapter availability', () => {
     ));
   });
 });
+
+
+describe('ImportModal model multiplier suffix', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMock.fetchUiSettings.mockResolvedValue({
+      defaultNewSessionToCurrentWorkspace: true,
+    });
+    apiMock.updateUiSettings.mockResolvedValue({});
+    apiMock.fetchCbcProjects.mockResolvedValue([]);
+    apiMock.fetchCbcSessions.mockResolvedValue([]);
+    apiMock.fetchKimiWorkspaces.mockResolvedValue([]);
+    apiMock.fetchKimiSessions.mockResolvedValue([]);
+    apiMock.fetchOpencodeSessions.mockResolvedValue([]);
+    apiMock.fetchCodexSessions.mockResolvedValue([]);
+    apiMock.importCodexSession.mockResolvedValue({ id: 'pan-imported' });
+    useWorkspaceStore.setState({
+      workspaces: [{ id: 'ws-active', name: 'Active', order: null }],
+      loaded: true,
+      loading: false,
+      error: null,
+    });
+    useUIStore.setState({ activeWorkspaceId: 'ws-active' });
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    useSessionStore.setState({
+      loadSessions: vi.fn(async () => {}),
+      selectSession: vi.fn(async () => {}),
+    });
+    useAdapterStore.setState({
+      cliStatus: cliStatus(['cbc', true], ['codex', true]),
+      cliStatusLoading: false,
+      cliStatusError: null,
+      adapterConfigs: {},
+      loadCliStatus: vi.fn(async () => {}),
+    });
+  });
+
+  afterEach(cleanup);
+
+  const codexSession = (model: string) => ({
+    session_id: 'codex-1',
+    title: 'Imported session',
+    workDir: 'D:\\proj',
+    createdAt: '2026-10-20T09:00:00Z',
+    updatedAt: '2026-10-20T10:00:00Z',
+    message_count: 3,
+    model,
+  });
+
+  it('appends the multiplier suffix on import items of the selected adapter (display-only)', async () => {
+    apiMock.fetchCodexSessions.mockResolvedValue([codexSession('gpt-5-codex')]);
+    useAdapterStore.setState({
+      adapterConfigs: {
+        codex: {
+          models: ['gpt-5-codex'],
+          defaultModel: 'gpt-5-codex',
+          effortValues: [],
+          permissionModes: [],
+          defaultPermissionMode: '',
+          supportedSettings: ['model'],
+          modelCreditMultipliers: { 'gpt-5-codex': 0.08 },
+        },
+      },
+    });
+    render(<ImportModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'codex' }));
+    await waitFor(() => expect(screen.getByText('Imported session')).toBeTruthy());
+    expect(screen.getByText(/3 msgs · gpt-5-codex \(x0\.08\) ·/)).toBeTruthy();
+  });
+
+  it('shows the raw model name when the adapter has no multiplier config', async () => {
+    apiMock.fetchCodexSessions.mockResolvedValue([codexSession('gpt-5-codex')]);
+    // adapterConfigs 缺省（未加载）：只显示模型原名，不默认 x1
+    render(<ImportModal open onClose={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'codex' }));
+    await waitFor(() => expect(screen.getByText('Imported session')).toBeTruthy());
+    expect(screen.getByText(/3 msgs · gpt-5-codex ·/)).toBeTruthy();
+  });
+});

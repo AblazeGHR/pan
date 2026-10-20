@@ -386,6 +386,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
         <ModelSelect
           value={currentModel}
           options={modelOptions}
+          multipliers={config.modelCreditMultipliers}
           onChange={(v) => applySetting('model', v)}
         />
       </div>

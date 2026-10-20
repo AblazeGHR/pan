@@ -247,12 +247,14 @@ function ModelPill({
   sessionModel,
   defaultModel,
   models,
+  multipliers,
   show,
   onApply,
 }: {
   sessionModel: string;
   defaultModel: string;
   models: string[];
+  multipliers?: Record<string, number>;
   show: boolean;
   onApply: (key: string, value: string) => void;
 }) {
@@ -267,6 +269,7 @@ function ModelPill({
       <ModelSelect
         value={current}
         options={models}
+        multipliers={multipliers}
         onChange={(m) => onApply('model', m)}
         buttonClassName={PILL_CLASS + ' min-w-0 max-w-full font-semibold'}
         menuClassName="absolute left-0 bottom-full mb-1 z-40 min-w-[160px] w-max"
@@ -2221,6 +2224,7 @@ export function InputRow() {
                 sessionModel={currentSession.model || ''}
                 defaultModel={config?.defaultModel || ''}
                 models={config?.models || []}
+                multipliers={config?.modelCreditMultipliers}
                 show={showModelPill}
                 onApply={applySetting}
               />

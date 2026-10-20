@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SessionItem } from './SessionItem';
 import { useUIStore } from '@/stores/uiStore';
+import { useAdapterStore } from '@/stores/adapterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useJobStore } from '@/stores/jobStore';
 import type { Job } from '@/types/jobs';
@@ -413,5 +414,70 @@ describe('SessionItem Job indicator (J)', () => {
     fireEvent.click(jobBadge(container)!);
     fireEvent.doubleClick(jobBadge(container)!);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe('SessionItem model multiplier suffix', () => {
+  afterEach(() => cleanup());
+
+  it('appends the multiplier suffix from the session adapter config', () => {
+    useAdapterStore.setState({
+      currentAdapter: 'cbc',
+      adapterConfigs: {
+        cbc: {
+          models: ['step-5-preview'],
+          defaultModel: 'step-5-preview',
+          effortValues: [],
+          permissionModes: [],
+          defaultPermissionMode: '',
+          supportedSettings: ['model'],
+          modelCreditMultipliers: { 'step-5-preview': 0 },
+        },
+      },
+    });
+    render(
+      <SessionItem
+        session={session('preview', 'idle', { adapter: 'cbc', model: 'step-5-preview' })}
+        isActive={false}
+      />,
+    );
+    // 0 是有效倍率（免费模型），显示 x0 而不是当作未知
+    expect(screen.getByText('step-5-preview (x0)')).toBeTruthy();
+  });
+
+  it('shows the raw model name when the adapter config has no multipliers', () => {
+    useAdapterStore.setState({ currentAdapter: 'cbc', adapterConfigs: {} });
+    render(
+      <SessionItem
+        session={session('preview', 'idle', { adapter: 'cbc', model: 'glm-5.3-flash' })}
+        isActive={false}
+      />,
+    );
+    expect(screen.getByText('glm-5.3-flash')).toBeTruthy();
+  });
+
+  it('uses the session adapter config, not the current adapter, for the suffix', () => {
+    useAdapterStore.setState({
+      currentAdapter: 'cbc',
+      adapterConfigs: {
+        cbc: {
+          models: ['step-5-preview'],
+          defaultModel: 'step-5-preview',
+          effortValues: [],
+          permissionModes: [],
+          defaultPermissionMode: '',
+          supportedSettings: ['model'],
+          modelCreditMultipliers: { 'step-5-preview': 0.08 },
+        },
+      },
+    });
+    // Session 属于 kimi（无倍率配置）：即使当前 adapter 是 cbc 也只显原名
+    render(
+      <SessionItem
+        session={session('preview', 'idle', { adapter: 'kimi', model: 'step-5-preview' })}
+        isActive={false}
+      />,
+    );
+    expect(screen.getByText('step-5-preview')).toBeTruthy();
   });
 });

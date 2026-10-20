@@ -10164,9 +10164,18 @@ async def api_batch_delete_sessions(data: dict):
 
 @app.get("/api/models")
 async def api_models(adapter: str = "cbc"):
-    """Return model list and default for a given adapter."""
+    """Return model list and default for a given adapter.
+
+    ``modelCreditMultipliers`` is an optional additive field (model id ->
+    credit consumption multiplier); adapters without a reliable source omit
+    it (empty mapping). ``models`` stays a plain list of raw model IDs.
+    """
     a = _safe_adapter(adapter)
-    return {"models": a.supported_models, "default": a.default_model}
+    return {
+        "models": a.supported_models,
+        "default": a.default_model,
+        "modelCreditMultipliers": await _model_credit_multipliers(a),
+    }
 
 
 @app.post("/api/sessions/broadcast")
@@ -10390,6 +10399,20 @@ from packages.web import native_control_api  # noqa: E402
 app.include_router(native_control_api.router)
 
 
+async def _model_credit_multipliers(a) -> dict:
+    """在线程中读取 adapter 的模型倍率表，避免阻塞 event loop。
+
+    cbc 的倍率读取是有界本地文件 IO（单文件 ≤4MB，见 adapter 注释），但
+    async handler 内同步执行仍会卡住事件循环（影响同实例其他请求/WS）。
+    这里经 asyncio.to_thread 隔离；无该能力的 adapter（getattr 缺省 {})、
+    读取异常统一返回空 dict——附加字段缺失不影响主响应形状。
+    """
+    try:
+        return await asyncio.to_thread(lambda: getattr(a, "model_credit_multipliers", {}) or {})
+    except Exception:
+        return {}
+
+
 @app.get("/api/adapter/config")
 async def api_adapter_config(adapter: str = "cbc"):
     """Return adapter configuration for frontend selects (per-adapter dynamic)."""
@@ -10400,6 +10423,7 @@ async def api_adapter_config(adapter: str = "cbc"):
         "defaultModel": a.default_model,
         "effortValues": list(a.effort_values),
         "modelEfforts": getattr(a, "model_efforts", {}),
+        "modelCreditMultipliers": await _model_credit_multipliers(a),
         "permissionModes": a.permission_modes,
         "defaultPermissionMode": a.default_permission_mode,
         "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),

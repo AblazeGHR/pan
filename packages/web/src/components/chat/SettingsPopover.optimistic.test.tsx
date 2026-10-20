@@ -64,7 +64,7 @@ function session(id = 's1', model = 'model-a', effort = 'low'): Session {
   };
 }
 
-function setup(initial = session()) {
+function setup(initial = session(), cfg: AdapterConfig = config) {
   const applySettings = vi.fn();
   const loadSessions = vi.fn().mockResolvedValue(undefined);
   const showToast = vi.fn();
@@ -78,7 +78,7 @@ function setup(initial = session()) {
   });
   useAdapterStore.setState({
     currentAdapter: 'cbc',
-    adapterConfigs: { cbc: config },
+    adapterConfigs: { cbc: cfg },
     applySettings,
   });
   useUIStore.setState({ showToast });
@@ -433,5 +433,46 @@ describe('SettingsPopover mobile Terminal TUI entry (More)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Terminal TUI' }));
     await waitFor(() => expect(switchMode).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('SettingsPopover model multiplier suffix', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMatchMedia(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    document.body.replaceChildren();
+  });
+
+  it('shows the multiplier suffix in the model UI but submits the raw model ID', async () => {
+    const cfg: AdapterConfig = {
+      ...config,
+      modelCreditMultipliers: { 'model-b': 0.08, 'model-c': 2 },
+    };
+    const { applySettings } = setup(session('s1', 'model-b'), cfg);
+    await act(async () => {});
+
+    // 当前值显示带倍率后缀（仅显示层）
+    const trigger = screen.getByRole('button', { name: /model-b \(x0\.08\)/ });
+    expect(trigger).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    // 选项标签带后缀；model-a 无倍率只显原名（不默认 x1）
+    expect(screen.getByRole('option', { name: 'model-a' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'model-c (x2)' })).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option', { name: 'model-c (x2)' }));
+    });
+
+    // 提交与乐观更新仍是原始 model ID：显示后缀不泄漏到持久化
+    expect(applySettings).toHaveBeenCalledWith('s1', expect.objectContaining({ model: 'model-c' }));
+    expect(useSessionStore.getState().sessions[0]?.model).toBe('model-c');
   });
 });

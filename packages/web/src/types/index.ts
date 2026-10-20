@@ -899,6 +899,9 @@ export interface AdapterConfig {
   effortValues: string[];
   /** Per-model reasoning effort values when the adapter exposes them. */
   modelEfforts?: Record<string, string[]>;
+  /** Per-model credit consumption multipliers (e.g. 0.08) when the adapter
+   *  exposes them (cbc). Display-only: the submitted model stays the raw ID. */
+  modelCreditMultipliers?: Record<string, number>;
   permissionModes: PermissionMode[];
   defaultPermissionMode: string;
   supportedSettings: string[];
@@ -912,6 +915,7 @@ export interface ApiConfigResponse {
   defaultModel: string;
   effortValues: string[];
   modelEfforts?: Record<string, string[]>;
+  modelCreditMultipliers?: Record<string, number>;
   permissionModes: PermissionMode[];
   defaultPermissionMode?: string;
   supportedSettings?: string[];

@@ -5,7 +5,9 @@ import { useUIStore } from '@/stores/uiStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useJobStore, selectSessionJobIndicator } from '@/stores/jobStore';
+import { useAdapterStore } from '@/stores/adapterStore';
 import { setReportsToManager, setSessionMsgBridge, setSessionReadonly } from '@/services/api';
+import { formatModelLabel } from '@/utils/modelLabel';
 import { SessionInfoArea } from './SessionInfoArea';
 import type { DropZone } from './sessionDrag';
 import { MessageSquare, Folder, Monitor, Settings, ChevronDown, ChevronRight, Eye, EyeOff, Pin, Bell, Lock, Unlock } from 'lucide-react';
@@ -168,6 +170,11 @@ export const SessionItem = memo(function SessionItem({
   const [busyAction, setBusyAction] = useState<QuickActionKey | null>(null);
   const [syncUnavailable, setSyncUnavailable] = useState(false);
   const busyRef = useRef(false);
+  // 模型名显示附加额度倍率（仅显示用）；取该 Session 所属 adapter 的倍率表，
+  // 未加载/无数据时只显示模型原名。
+  const multipliers = useAdapterStore(
+    (s) => s.adapterConfigs[session.adapter ?? s.currentAdapter]?.modelCreditMultipliers,
+  );
   // A failed refresh leaves the displayed toggle value uncertain. A later
   // Session snapshot (or a remount) is required before another write.
   useEffect(() => { setSyncUnavailable(false); }, [session]);
@@ -407,7 +414,7 @@ export const SessionItem = memo(function SessionItem({
           {session.model && (
             <span className="flex items-center gap-0.5 truncate">
               <Monitor size={10} />
-              {session.model}
+              {formatModelLabel(session.model, multipliers)}
             </span>
           )}
           {session.workdir && (

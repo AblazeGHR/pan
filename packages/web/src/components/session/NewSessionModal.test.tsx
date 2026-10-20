@@ -627,3 +627,60 @@ describe('New Session directory input', () => {
     expect(screen.queryByTestId('new-session-fullscreen')).toBeNull();
   });
 });
+
+describe('New Session model multiplier suffix', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMock.fetchSessionTemplates.mockResolvedValue([]);
+    apiMock.fetchSessionTemplateTargets.mockResolvedValue([]);
+    apiMock.fetchMcpServers.mockResolvedValue([]);
+    apiMock.saveSessionTemplate.mockResolvedValue({ ok: true });
+    apiMock.fetchNewSessionDefaults.mockResolvedValue(null);
+    apiMock.saveNewSessionDefaults.mockImplementation(async (defaults) => defaults);
+    apiMock.fetchUiSettings.mockResolvedValue({
+      defaultNewSessionToCurrentWorkspace: true,
+    });
+    apiMock.updateUiSettings.mockResolvedValue({});
+    apiMock.fetchDirectories.mockResolvedValue(listing('', []));
+    apiMock.createDirectory.mockResolvedValue({ ok: true, path: 'D:\\workspace\\new' });
+    setup();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the multiplier suffix on model options while the submitted value stays the raw ID', async () => {
+    const { createNewSession } = setup();
+    useAdapterStore.setState({
+      adapterConfigs: {
+        cbc: {
+          models: ['model-x', 'model-y'], defaultModel: '', effortValues: ['high'],
+          permissionModes: [{ value: 'safe', label: 'Safe' }], defaultPermissionMode: '',
+          supportedSettings: ['model'],
+          executionModes: ['stream'],
+          modelCreditMultipliers: { 'model-x': 0.08 },
+        },
+      },
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Advanced' }));
+    const select = screen.getByLabelText('Model') as HTMLSelectElement;
+    const optionX = Array.from(select.options).find((o) => o.value === 'model-x')!;
+    const optionY = Array.from(select.options).find((o) => o.value === 'model-y')!;
+    // 显示带倍率后缀，option value 仍是原始模型 ID
+    expect(optionX.textContent).toBe('model-x (x0.08)');
+    expect(optionX.value).toBe('model-x');
+    // 无倍率只显原名
+    expect(optionY.textContent).toBe('model-y');
+
+    fireEvent.change(select, { target: { value: 'model-x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(createNewSession).toHaveBeenCalled());
+    // 提交的 overrides 仍是原始模型 ID（显示后缀不泄漏）
+    const overrides = (createNewSession.mock.calls[0] as unknown as Array<{ model?: string } | undefined>)[4];
+    expect(overrides?.model).toBe('model-x');
+  });
+});
