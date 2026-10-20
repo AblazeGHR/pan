@@ -3673,6 +3673,8 @@ def handoff_session(
     handoff_prompt: str,
     *,
     copy_settings: bool = True,
+    override_original_prompt: bool = False,
+    original_prompt: str | None = None,
     adapter: str | None = None,
     model: str | None = None,
     permission_mode: str | None = None,
@@ -3692,7 +3694,8 @@ def handoff_session(
        adapter_config、model、permission_mode、session_template、pan_access、
        mcp_servers 等，**明确不含 system_prompt**；cli_session_id 清空——B 是
        全新会话）；false 时 B 用默认设置（此时调用方应显式传 adapter）。
-    4. **B.original_prompt = A.original_prompt，B.handoff_prompt = 本次简报**。
+    4. **B.original_prompt 默认继承 A.original_prompt；仅 override_original_prompt=true
+       时使用 original_prompt（空字符串清空），独立于 copy_settings。B.handoff_prompt = 本次简报**。
        B.system_prompt 仅计算本次简报 + original_prompt，不继承旧简报。
     5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
     6. **解除 A 的原关系网**：A.managed / report_subscriptions / qq_subscriptions
@@ -3703,8 +3706,14 @@ def handoff_session(
     a = get(session_id)
     if a is None:
         return f"Session {session_id} not found"
-    if not handoff_prompt or not handoff_prompt.strip():
+    if not isinstance(handoff_prompt, str) or not handoff_prompt.strip():
         return "handoff_prompt is required — session A 的 agent 必须编写交接简报"
+
+    if type(override_original_prompt) is not bool:
+        return "override_original_prompt must be a boolean"
+    if override_original_prompt and not isinstance(original_prompt, str):
+        return "original_prompt must be a string when override_original_prompt is true"
+    selected_original_prompt = original_prompt if override_original_prompt else a.original_prompt
 
     orig_name = a.name
 
@@ -3744,7 +3753,7 @@ def handoff_session(
             adapter_config=new_adapter_config,
             character_id=new_character_id,
             session_template=new_template,
-            original_prompt=a.original_prompt,
+            original_prompt=selected_original_prompt,
             handoff_prompt=handoff_prompt.strip(),
             game_id=new_game_id,
             notification_settings=new_notification_settings,

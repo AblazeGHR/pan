@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  handoffSession,
   deleteSessionQueueItem,
   enqueueSessionMessage,
   fetchSessionQueue,
@@ -32,6 +33,10 @@ describe('frontend mock backend', () => {
     window.fetch = originalFetch;
     resetMockData();
     window.history.replaceState({}, '', '/');
+  });
+
+  it('rejects handoff instead of pretending relationship transfer succeeded', async () => {
+    await expect(handoffSession('mock-alpha', { handoffPrompt: 'brief' })).rejects.toThrow('演示模式不支持替身交接');
   });
 
   it('only enables the URL switch for ?mock=1', () => {

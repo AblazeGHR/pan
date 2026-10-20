@@ -59,6 +59,7 @@ Environment variables:
 """
 
 from __future__ import annotations
+from pydantic import StrictBool, StrictStr
 
 import argparse
 import json
@@ -899,6 +900,8 @@ def session_handoff(
     adapter: str | None = None,
     model: str | None = None,
     permission_mode: str | None = None,
+    override_original_prompt: StrictBool = False,
+    original_prompt: StrictStr | None = None,
 ) -> dict:
     """替身交接：创建孪生 session B 接替 session A（精简上下文 / 切换 adapter）。
 
@@ -917,7 +920,7 @@ def session_handoff(
        mcp_servers 等（**明确不含 system_prompt**；cli_session_id 清空——B 是
        全新会话，不继承 A 的 CLI 上下文）；false 时 B 用默认设置（此时必须显式
        传 adapter，否则报错）。
-    4. **B 的 system_prompt = 本次 handoff_prompt 与 A.original_prompt 拼接**（分
+    4. **B 的 system_prompt = 本次 handoff_prompt 与选定 original_prompt 拼接**（分
        「交接上下文 / 原 system prompt」两节）。
     5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
 
@@ -925,8 +928,12 @@ def session_handoff(
         session_id: 被交接的 session（A）id
         handoff_prompt: 【必填】交接简报——由 session A 的 agent 编写，让 B 彻底
             了解现状与重点（重要开发习惯、现状、上下文精华等）。原始提示会自动
-            保留，无需重复抄入简报。仅本次简报成为 B.handoff_prompt，不叠加旧简报。
+            继承（显式覆写时例外），无需重复抄入简报。仅本次简报成为 B.handoff_prompt，不叠加旧简报。
         copy_settings: 是否 1:1 复制 A 的设置（见上）。默认 true。
+        override_original_prompt: 默认 false，继承 A.original_prompt 并忽略残留文本；
+            true 时使用本次 original_prompt，独立于 copy_settings。
+        original_prompt: 启用覆写时必填字符串，允许空字符串清空；不修改 A，
+            不继承旧简报。B.system_prompt = 本次简报 + 选定 original_prompt。
         adapter: 切换 adapter 时传入（copy_settings=false 时必填）
         model: 覆盖模型（copy_settings=true 时优先于复制值）
         permission_mode: 覆盖权限模式
@@ -936,6 +943,12 @@ def session_handoff(
     B 即可 agent_assign（兼容别名 worker_assign）派活；A 归档但可 session_get 读取。
     完整编排流程见 /pan skill。
     """
+    # Validate before access checks: claim=True may establish managed relationships.
+    if type(override_original_prompt) is not bool or (
+        override_original_prompt and not isinstance(original_prompt, str)
+    ):
+        return {"ok": False, "error": {"code": "invalid_params", "message":
+            "override_original_prompt must be a boolean; when true, original_prompt must be a string (empty clears)"}}
     denied = _check_access(session_id, claim=True)
     if denied:
         return denied
@@ -944,6 +957,9 @@ def session_handoff(
             "code": "missing_params",
             "message": "adapter is required when copy_settings is false"}}
     body: dict = {"handoffPrompt": handoff_prompt, "copySettings": copy_settings}
+    if override_original_prompt:
+        body["overrideOriginalPrompt"] = True
+        body["originalPrompt"] = original_prompt
     if adapter:
         body["adapter"] = adapter
     if model:

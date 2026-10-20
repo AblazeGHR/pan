@@ -786,6 +786,24 @@ export async function renameSession(id: string, name: string): Promise<ApiGeneri
   return data;
 }
 
+export interface HandoffOptions {
+  handoffPrompt: string;
+  copySettings?: boolean;
+  adapter?: string;
+  overrideOriginalPrompt?: boolean;
+  originalPrompt?: string;
+}
+
+export async function handoffSession(id: string, options: HandoffOptions): Promise<{
+  ok: boolean; session: Session; archivedSession: Session;
+}> {
+  const data = await request<{ ok: boolean; session: Session; archivedSession: Session; error?: string }>(
+    `${BASE}/sessions/${id}/handoff`, { method: 'POST', body: JSON.stringify(options) },
+  );
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 export async function branchSession(id: string, name: string): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/sessions/${id}/branch`, {
     method: 'POST',

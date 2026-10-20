@@ -53,6 +53,14 @@ function renderMenuWithCard(onClose: () => void) {
 }
 
 describe('SessionMenu details entry', () => {
+  it('opens handoff for the menu Session after closing the menu', () => {
+    const events: string[] = [];
+    render(<SessionMenu session={session} position={{ x: 10, y: 10 }}
+      onClose={() => events.push('close')} onHandoff={(id) => events.push(id)} />);
+    fireEvent.click(screen.getByRole('button', { name: '替身交接' }));
+    expect(events).toEqual(['close', session.id]);
+  });
+
   it('offers Details and closes the menu before opening the modal', () => {
     const onClose = vi.fn();
     const onDetails = vi.fn();

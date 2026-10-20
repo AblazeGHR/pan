@@ -9400,13 +9400,22 @@ async def api_session_handoff(session_id: str, data: dict):
 
     Body: {"handoffPrompt": <必填，A 的 agent 编写的交接简报>,
            "copySettings": bool (默认 true), "adapter"?, "model"?,
-           "permissionMode"?}
+           "permissionMode"?, "overrideOriginalPrompt": bool (默认 false),
+           "originalPrompt"?: string (启用覆写时必填，空字符串清空)}
 
     行为见 ``sess.handoff_session``：关系网接替 + B 自动 manage A + 可选设置
-    复制（不含旧交接简报）+ B.system_prompt = 本次 handoffPrompt 与 A.original_prompt
+    复制（不含旧交接简报）+ B.system_prompt = 本次 handoffPrompt 与选定 original_prompt
     拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
     """
-    handoff_prompt = (data.get("handoffPrompt") or "").strip()
+    override_original_prompt = data.get("overrideOriginalPrompt", False)
+    original_prompt = data.get("originalPrompt")
+    if type(override_original_prompt) is not bool:
+        return {"error": "overrideOriginalPrompt must be a boolean"}
+    if override_original_prompt and not isinstance(original_prompt, str):
+        return {"error": "originalPrompt must be a string when overrideOriginalPrompt is true"}
+    if not isinstance(data.get("handoffPrompt"), str):
+        return {"error": "handoffPrompt is required and must be a string"}
+    handoff_prompt = data["handoffPrompt"].strip()
     if not handoff_prompt:
         return {"error": "handoffPrompt is required — 由 session A 的 agent 编写交接简报"}
     copy_settings = data.get("copySettings", True)
@@ -9461,6 +9470,7 @@ async def api_session_handoff(session_id: str, data: dict):
     result = sess.handoff_session(
         session_id, handoff_prompt,
         copy_settings=copy_settings, adapter=adapter, model=model,
+        override_original_prompt=override_original_prompt, original_prompt=original_prompt,
         permission_mode=permission_mode,
     )
     if isinstance(result, str):

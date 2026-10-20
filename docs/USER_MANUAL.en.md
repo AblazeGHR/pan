@@ -91,6 +91,10 @@ The default workdir is on the Pan server. For parallel changes to one repository
 
 Valid **Send / Steer** submissions clear the input immediately and show a pending spinner. Confirmed rejection restores the original draft; an unknown outcome retains the pending transaction and blocks duplicate submission. Check the queue/history and the displayed outcome before retrying. A cleared input or queued receipt does not prove task completion.
 
+### Session handoff and original prompt
+
+Choose **替身交接** (Session handoff) from the Session menu and enter a required handoff brief. The successor takes over relationships and settings with a fresh CLI identity; the source is archived. By default it inherits the original prompt. Enable **覆写原始提示** to replace it with the text below; an empty value clears it. Disabled overrides ignore residual text. The effective system prompt combines only the new brief and selected original prompt, preserving both source prompt fields. Failed requests retain the draft; closing/reopening or changing Sessions resets the form.
+
 <a id="workspaces"></a>
 ## 4. Session lists and Workspaces
 

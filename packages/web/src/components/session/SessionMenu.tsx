@@ -29,11 +29,12 @@ interface SessionMenuProps {
   onPostbox?: (id: string) => void;
   /** Open the session details modal for this session. */
   onDetails?: (id: string) => void;
+  onHandoff?: (id: string) => void;
   onRename?: (id: string) => void;
   onDelete?: (id: string) => void;
 }
 
-export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails, onRename, onDelete }: SessionMenuProps) {
+export function SessionMenu({ session, position, onClose, onManage, onPostbox, onDetails, onRename, onHandoff, onDelete }: SessionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   // 挂载前先用点击锚点，量取菜单尺寸后按视口空间翻转/收敛到最终落点。
   const [placement, setPlacement] = useState<{ x: number; y: number }>(() => position);
@@ -216,6 +217,10 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
         <Pencil size={12} className="text-text-tertiary shrink-0" />
         Rename
       </button>
+      {onHandoff && <button
+        onClick={() => { onClose(); onHandoff(session.id); }}
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 flex items-center gap-2"
+      ><GitBranch size={12} />替身交接</button>}
       {session.cliSessionId && (
         <>
           <button

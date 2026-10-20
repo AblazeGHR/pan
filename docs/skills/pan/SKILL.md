@@ -189,7 +189,8 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
 
 ```
 session_handoff(session_id="ses_a...",
-                handoff_prompt="【必填】A 的 agent 编写的交接简报：现状、重点、重要开发习惯、原 system_prompt 内容、上下文精华……",
+                handoff_prompt="【必填】A 的 agent 编写的交接简报：现状、重点、重要开发习惯、上下文精华……",
+                override_original_prompt=false,  # 默认继承；true 时须提供 original_prompt 字符串
                 copy_settings=true,          # 1:1 复制 A 的设置（不含 system_prompt）
                 adapter="kimi", model=..., permission_mode=...)   # 切换 adapter 时传
 → {"ok": true, "archivedSession": {...}, "session": {...B...}}
@@ -199,7 +200,7 @@ session_handoff(session_id="ses_a...",
 1. **关系网接替（自动、必然）**：B.managed = A.managed，A 的子会话 `managed_by` 改 B；A 的 `report_subscriptions`、QQ postbox 绑定（`session_qq_subscribe` 的 inbox 提醒）全部转移给 B。A 若曾被某 manager 管理，B 接替 A 在该 manager 下的位置。
 2. **B 自动 manage A**：B.managed 追加 A，A.managed_by = B——A 归档为 B 的被管理会话，B 收到 A 的完成报告（可 `session_get(A)` 持续读取旧上下文）。
 3. **设置复制**：`copy_settings=true` 复制 adapter / adapter_config / model / permission_mode / session_template / pan_access / mcp_servers 等，**明确不含 system_prompt**，且 `cli_session_id` 清空（B 是全新会话，不继承 A 的 CLI 上下文与 history——精简上下文的关键）；`false` 用默认设置（此时**必须**显式传 `adapter`）。
-4. **B.system_prompt = handoff_prompt 与 A 原 system_prompt 拼接**（分「交接上下文 / 原 system prompt」两节）。
+4. **B.original_prompt 默认继承 A.original_prompt**。仅 `override_original_prompt=true` 时使用本次 `original_prompt`（必填字符串，`""` 明确清空；null/非字符串拒绝）；开关须为布尔值。省略/false 时忽略残留文本，独立于 `copy_settings`。A 的两个 prompt 均不修改。B.handoff_prompt 只用本次必填简报，替换旧简报；B.system_prompt 计算为本次简报 + 选定 original_prompt，不继承旧简报。
 5. **重命名**：A → `(archive) <原名>`，B → `<原名>`；A 的原关系网解除。
 
 交接后 B 即可 `agent_assign` 派活；切换 adapter 的典型用法：`copy_settings=false + adapter="kimi" + handoff_prompt=...`。
@@ -288,7 +289,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?`, `workspace_ids?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。**`workspace_ids?` 移动会话到 Workspace**（0 或 1 个 id，`[]` = 取消分组/ungrouped，省略 = 保持不变；复用 Dashboard 同一个 `PUT /api/sessions/{id}/workspaces`）：成员关系只存于 **management-tree 根**，被管理后代通过 managedBy 链**继承**，因此根移动会传播给整棵子树；**目标 session 若已被管理则拒绝**（错误码 `managed_session`），须先 `session_unclaim` 分离——与 Dashboard 拖拽「先分离再移动」一致，杜绝跨 Workspace 的管理树分裂。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
-| `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 它与 A 原 system_prompt 拼接；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
+| `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `override_original_prompt?`(=false), `original_prompt?`, `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 本次简报 + 选定 original_prompt（默认继承；显式启用覆写后可用空串清空）；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
 | `session_readonly` | `session_id`, `enabled?`(默认 true) | 为**当前 manager 已管理**的 session 设置或清除持久只读状态；不会自动 claim。只读目标拒绝其他 session 发来的任务/消息/通知，返回 `readonly_session`；需 `PAN_AGENT_SESSION_ID` |
 | `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（订阅即接管，开启完成报告推送；后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
 | `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |

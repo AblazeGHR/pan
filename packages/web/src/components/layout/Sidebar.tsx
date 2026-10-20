@@ -11,6 +11,7 @@ import { createQuickNewSession } from '@/utils/quickNewSession';
 import { SessionList } from '@/components/session/SessionList';
 import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 import { SessionMenu } from '@/components/session/SessionMenu';
+import { HandoffSessionModal } from '@/components/session/HandoffSessionModal';
 import { RenameSessionModal } from '@/components/session/RenameSessionModal';
 import { SessionDeleteModal } from '@/components/session/SessionDeleteModal';
 import { collectDescendantIds, hasManagedChildren } from '@/components/session/sessionDeletePlan';
@@ -132,6 +133,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const [manageSessionId, setManageSessionId] = useState<string | null>(null);
   const [postboxSessionId, setPostboxSessionId] = useState<string | null>(null);
   const [detailsSessionId, setDetailsSessionId] = useState<string | null>(null);
+  const [handoffSessionId, setHandoffSessionId] = useState<string | null>(null);
   const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [showDragMenu, setShowDragMenu] = useState(false);
@@ -631,6 +633,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
               }}
               onPostbox={setPostboxSessionId}
               onDetails={setDetailsSessionId}
+              onHandoff={setHandoffSessionId}
               onRename={setRenameSessionId}
               onDelete={(id) => handleDeleteRequest([id])}
             />
@@ -731,6 +734,10 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
           onClose={() => setDetailsSessionId(null)}
         />}
       </Suspense>
+      <HandoffSessionModal
+        session={handoffSessionId ? sessions.find((s) => s.id === handoffSessionId) ?? null : null}
+        onClose={() => setHandoffSessionId(null)}
+      />
       <RenameSessionModal
         session={renameSessionId ? sessions.find((s) => s.id === renameSessionId) ?? null : null}
         onClose={() => setRenameSessionId(null)}
