@@ -44,7 +44,7 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
       });
     } catch (e) {
       if (active.current) {
-        setError(e instanceof Error ? e.message : '交接失败');
+        setError(e instanceof Error ? e.message : 'Handoff failed');
         setBusy(false);
         submitting.current = false;
       }
@@ -56,12 +56,12 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
     try {
       await useSessionStore.getState().loadSessions({ throwOnError: true });
     } catch {
-      useUIStore.getState().showToast('交接已完成，但会话列表刷新失败', 'error');
+      useUIStore.getState().showToast('Handoff completed, but the session list could not be refreshed', 'error');
     }
   };
 
   return (
-    <Modal open onClose={onClose} title={`替身交接 · ${session.name}`} size="lg">
+    <Modal open onClose={onClose} title={`Session Handoff · ${session.name}`} size="lg">
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -70,10 +70,10 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
         }}
       >
         <p className="text-sm text-text-secondary">
-          创建全新 CLI 会话，接管关系与设置，源会话归档。仅携带本次简报，不继承旧简报或对话历史。
+          Create a new CLI session that takes over the relationships and settings, then archives the source session. Only this brief is carried over; previous briefs and chat history are not.
         </p>
         <label className="block text-sm">
-          交接简报（必填）
+          Handoff brief (required)
           <textarea
             required
             value={brief}
@@ -90,13 +90,13 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
             onChange={(e) => setOverride(e.target.checked)}
             disabled={busy}
           />
-          覆写原始提示（originalPrompt）
+          Override original prompt (originalPrompt)
         </label>
         <p className="text-sm text-text-secondary">
-          默认继承源会话的原始提示。启用后使用下方文本；留空会清空原始提示。不会修改源会话提示。
+          By default, the source session's original prompt is inherited. When enabled, the text below is used; an empty value clears the original prompt. The source session is unchanged.
         </p>
         <label className="block text-sm">
-          新的原始提示
+          New original prompt
           <textarea
             value={original}
             onChange={(e) => setOriginal(e.target.value)}
@@ -106,7 +106,7 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
           />
         </label>
         <p className="text-sm text-text-secondary">
-          新会话的系统提示由本次交接简报与选定的原始提示组成。
+          The new session system prompt combines this handoff brief with the selected original prompt.
         </p>
         {error && (
           <p role="alert" className="text-sm text-danger">
@@ -115,14 +115,14 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
         )}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose}>
-            取消
+            Cancel
           </button>
           <button
             type="submit"
             disabled={busy || !brief.trim()}
             className="rounded bg-accent px-3 py-1.5 text-sm disabled:opacity-50"
           >
-            {busy ? '交接中…' : '确认交接'}
+            {busy ? 'Handing off…' : 'Confirm handoff'}
           </button>
         </div>
       </form>

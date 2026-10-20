@@ -220,7 +220,7 @@ export function SessionMenu({ session, position, onClose, onManage, onPostbox, o
       {onHandoff && <button
         onClick={() => { onClose(); onHandoff(session.id); }}
         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-accent/20 flex items-center gap-2"
-      ><GitBranch size={12} />替身交接</button>}
+      ><GitBranch size={12} />Session Handoff</button>}
       {session.cliSessionId && (
         <>
           <button

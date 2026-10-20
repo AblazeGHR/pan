@@ -57,7 +57,7 @@ describe('SessionMenu details entry', () => {
     const events: string[] = [];
     render(<SessionMenu session={session} position={{ x: 10, y: 10 }}
       onClose={() => events.push('close')} onHandoff={(id) => events.push(id)} />);
-    fireEvent.click(screen.getByRole('button', { name: '替身交接' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Session Handoff' }));
     expect(events).toEqual(['close', session.id]);
   });
 

@@ -18,10 +18,10 @@ const a: Session = {
   effort: '',
 };
 const b: Session = { ...a, id: 'b', name: 'Bravo' };
-const submit = () => fireEvent.click(screen.getByRole('button', { name: '确认交接' }));
+const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Confirm handoff' }));
 const brief = () =>
-  screen.getByRole('textbox', { name: '交接简报（必填）' }) as HTMLTextAreaElement;
-const original = () => screen.getByRole('textbox', { name: '新的原始提示' }) as HTMLTextAreaElement;
+  screen.getByRole('textbox', { name: 'Handoff brief (required)' }) as HTMLTextAreaElement;
+const original = () => screen.getByRole('textbox', { name: 'New original prompt' }) as HTMLTextAreaElement;
 const toggle = () => fireEvent.click(screen.getByRole('checkbox'));
 beforeEach(() => {
   vi.mocked(handoffSession).mockReset();
@@ -34,7 +34,7 @@ it('requires a brief and defaults to inheritance, ignoring a disabled residual d
   render(<HandoffSessionModal session={a} onClose={() => {}} />);
   expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
   expect(original().disabled).toBe(true);
-  expect((screen.getByRole('button', { name: '确认交接' }) as HTMLButtonElement).disabled).toBe(
+  expect((screen.getByRole('button', { name: 'Confirm handoff' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
   fireEvent.change(brief(), { target: { value: 'brief' } });

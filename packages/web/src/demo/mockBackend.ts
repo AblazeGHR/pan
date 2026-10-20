@@ -436,7 +436,7 @@ function handleMockRequest(method: string, path: string, body: unknown): unknown
   }
   // Relationship/Job transfer is a server operation; do not fake a successful handoff.
   if (/^\/api\/sessions\/[^/]+\/handoff$/.test(path) && method === 'POST') {
-    return { error: '演示模式不支持替身交接，请连接独立 Pan 实例。' };
+    return { error: 'Session handoff is unavailable in demo mode. Connect to an independent Pan instance.' };
   }
   const historyMatch = path.match(/^\/api\/sessions\/([^/]+)\/history$/);
   if (historyMatch && method === 'GET') {
