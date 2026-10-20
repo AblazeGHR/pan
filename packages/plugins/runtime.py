@@ -85,6 +85,8 @@ class Runtime:
         if session is None:
             raise ValueError("Session not found")
         catalog = Catalog(self.get_manifest())
+        from .lifecycle import apply_pins
+        apply_pins(catalog, sid)
         return session, catalog, session_bindings(session, catalog)
 
     async def snapshot(self, sid, pid):

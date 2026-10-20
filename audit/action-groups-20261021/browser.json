@@ -1,0 +1,14 @@
+{
+  "production": true,
+  "realHttp": true,
+  "createAction": true,
+  "createGroup": true,
+  "sharedCommand": true,
+  "build": true,
+  "sessionBinding": true,
+  "modeSwitch": true,
+  "idleUnbuild": true,
+  "delete": true,
+  "mobileOverflow": false,
+  "pageErrors": []
+}

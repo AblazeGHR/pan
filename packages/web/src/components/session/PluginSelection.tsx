@@ -1,9 +1,9 @@
 import type { McpServerInfo, PluginBinding, PluginMode } from '@/types';
 
 const MODE_LABELS: Record<PluginMode, string> = {
-  standalone: '独立 MCP',
-  pan_native: '并入 Pan MCP',
-  gateway: '聚合发现 / 调用',
+  standalone: 'Standalone MCP',
+  pan_native: 'Pan native',
+  gateway: 'Discover / call',
 };
 
 /** Shared presentation for creation and management; callers own persistence. */
@@ -29,19 +29,20 @@ export function PluginSelection({ servers, bindings, disabled = false, keepOne =
             className="mt-0.5 shrink-0 accent-accent"
             onChange={(event) => change({ enabled: event.target.checked })} />
           <span className="min-w-0">
-            <span className="block text-sm text-text-primary">{server.name}</span>
+            <span className="block text-sm text-text-primary">{server.displayName || server.name}</span>
+            {server.displayName && server.displayName !== server.name && <span className="block text-xs text-text-tertiary">{server.name}</span>}
             {server.command && <span className="block truncate font-mono text-[11px] text-text-tertiary">
               {server.command}{server.cwd ? ` · cwd: ${server.cwd}` : ''}
             </span>}
           </span>
         </label>
-        <select aria-label={`${server.name} 启用方式`} value={binding.mode}
+        <select aria-label={`${server.name} mode`} value={binding.mode}
           disabled={disabled || modes.length === 1}
           onChange={(event) => change({ mode: event.target.value as PluginMode })}
           className="ml-auto max-w-full rounded border border-border-muted bg-bg-primary px-2 py-1 text-xs text-text-primary disabled:opacity-60">
           {(['standalone', 'pan_native', 'gateway'] as PluginMode[]).map((mode) =>
             <option key={mode} value={mode} disabled={!modes.includes(mode)}>
-              {MODE_LABELS[mode]}{!modes.includes(mode) ? '（此插件不支持）' : ''}
+              {MODE_LABELS[mode]}{!modes.includes(mode) ? ' (unsupported)' : ''}
             </option>)}
         </select>
       </div>;

@@ -27,6 +27,16 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
+Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
+`action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
+expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。用户在 Panel
+启用并 build Group 后才注册 `action-group-<id>` MCP 插件，Session 通过已有
+`plugin_bindings` 选择三模式。运行 Worker 固定 release；rebuild 沿用 idle/deferred
+restart，unbuild 只被启用该 Group 的 live running Session 阻塞，错误列出名字/ID，
+idle 允许并清理 bindings。API 首批只允许固定的三个内部 GET 路由，命令用固定
+executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝。不得自动
+重试结果不明的副作用。字段与完整范围见 `docs/plugins/ACTIONS.md`。
+
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
    - 无本地 `config.json` 时默认加载根 `manifest.json` 与 `packages/mcp/manifest.json`；后者注册 `pan` 与 `qq`（旧名 `pan-qq` 兼容）。stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。

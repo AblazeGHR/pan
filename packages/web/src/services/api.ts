@@ -177,6 +177,10 @@ async function request<T>(url: string, options?: RequestInit, background = false
   finally { finish(); }
 }
 
+export function actionRequest<T>(path = '', method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  return request<T>('/api/' + path, { method, signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+
 export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels').PluginPanel[]> {
   const data = await request<{ panels: import('@/types/pluginPanels').PluginPanel[] }>('/api/plugins/panels');
   return data.panels;

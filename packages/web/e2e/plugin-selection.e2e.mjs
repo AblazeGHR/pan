@@ -1,7 +1,10 @@
 /* Real Chromium interaction with the production Manage panel; isolated API fixture. */
+/* global document, innerWidth */
+import process from 'node:process';
+import console from 'node:console';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium, expect } from '@playwright/test';
 import { createServer, transformWithEsbuild } from 'vite';
@@ -85,20 +88,20 @@ try {
     const response = page.waitForResponse(r => r.request().method() === 'PATCH');
     await action();
     await response;
-    await expect(page.getByLabel('qq 启用方式')).toBeEnabled();
+    await expect(page.getByLabel('qq mode')).toBeEnabled();
   };
-  await save(() => page.getByLabel('qq 启用方式').selectOption('pan_native'));
+  await save(() => page.getByLabel('qq mode').selectOption('pan_native'));
   assert.equal(states.ses_a.pluginBindings[0].mode, 'pan_native');
   assert.equal(await page.getByRole('checkbox', { name: 'pan', exact: true }).isChecked(), false);
   await save(() => page.getByRole('checkbox', { name: 'qq', exact: true }).click());
   await expect(page.getByRole('checkbox', { name: 'qq', exact: true })).not.toBeChecked();
-  assert.equal(await page.getByLabel('qq 启用方式').inputValue(), 'pan_native');
+  assert.equal(await page.getByLabel('qq mode').inputValue(), 'pan_native');
   await save(() => page.getByRole('checkbox', { name: 'qq', exact: true }).click());
   await expect(page.getByRole('checkbox', { name: 'qq', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Session B' }).click();
   await page.getByRole('tab', { name: 'MCP and Plugins' }).click();
-  assert.equal(await page.getByLabel('qq 启用方式').inputValue(), 'standalone');
-  await save(() => page.getByLabel('qq 启用方式').selectOption('gateway'));
+  assert.equal(await page.getByLabel('qq mode').inputValue(), 'standalone');
+  await save(() => page.getByLabel('qq mode').selectOption('gateway'));
   assert.equal(states.ses_a.pluginBindings[0].mode, 'pan_native');
   assert.equal(states.ses_b.pluginBindings[0].mode, 'gateway');
   await page.screenshot({ path: path.join(evidence, 'desktop.png'), fullPage: true });

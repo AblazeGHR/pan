@@ -24,6 +24,7 @@ import shutil
 import stat
 import subprocess
 from packages.jobs.window import command_window_options
+from packages.plugins.lifecycle import serialized as _serialize_plugins
 import sys
 import threading
 import time
@@ -6242,6 +6243,7 @@ async def api_set_session_workspaces(session_id: str, data: dict):
 
 
 @app.post("/api/sessions")
+@_serialize_plugins
 async def api_create_session(data: dict):
     """Create a new Session (no worker spawned)."""
     try:
@@ -9146,6 +9148,7 @@ _SESSION_SETTINGS_LOCKS: WeakValueDictionary[str, asyncio.Lock] = WeakValueDicti
 
 
 @app.patch("/api/sessions/{session_id}")
+@_serialize_plugins
 async def api_update_session(session_id: str, data: dict):
     async with _SESSION_SETTINGS_LOCKS.setdefault(session_id, asyncio.Lock()):
         return await _update_session_settings(session_id, data)
@@ -14329,6 +14332,10 @@ else:
 
 
 # ── Static files ──
+from packages.actions.api import install as _install_action_api
+_install_action_api(sys.modules[__name__])
+
+
 STATIC_DIR = _WEB_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
