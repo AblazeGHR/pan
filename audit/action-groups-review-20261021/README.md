@@ -7,6 +7,8 @@ not a request to expand or reopen the frozen product design.
 
 Reviewed input: `1aa2541c12e9572e726c45b98e1f59bfbb08c66f`, against parent
 `6178efe0b7104473ba5968b1fbd7b7b7c0028d75`. Worktree was clean at entry.
+The repair implementation is commit `3112bdd8` on top of that reviewed input;
+the following audit-only commit losslessly compresses failure-reproduction XML.
 Read CODEBUDDY, constraints-and-acceptance, the frozen Action Group design and the
 original audit README before reviewing all changed product code and tests.
 The original source manifest was checked against Git blobs: 13 exact SHA-256
@@ -71,8 +73,8 @@ return the lifecycle repair for acceptance before integration.
    valid shape. The regression selects, edits and saves such a draft.
 
 The first two output defects and the new-gateway pin defect were reproduced as
-failing tests before repair; [output-reproduced.xml](output-reproduced.xml) and
-[pin-reproduced.xml](pin-reproduced.xml) retain those failures as evidence, not
+failing tests before repair; [output-reproduced.xml.gz](output-reproduced.xml.gz) and
+[pin-reproduced.xml.gz](pin-reproduced.xml.gz) retain those failures as evidence, not
 as current failing tests. Five backend regression cases and one frontend case
 were added; none were skipped, weakened or xfailed.
 
