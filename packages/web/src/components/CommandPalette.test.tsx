@@ -16,7 +16,7 @@ describe('CommandPalette layout', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    fireEvent(window, new Event('pan:shortcut:command-palette'));
 
     const input = screen.getByPlaceholderText('Search commands, sessions...');
     const card = input.parentElement?.parentElement;

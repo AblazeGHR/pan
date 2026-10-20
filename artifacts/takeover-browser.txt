@@ -1,0 +1,5 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\takeover-lifecycle-20261019
+TAKEOVER_BROWSER http://127.0.0.1:58638 153.0.8010.12 C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3134\test_browser_empty_to_establis0
+.CLEANUP http://127.0.0.1:58638 owned server stopped; port released
+
+1 passed, 4 deselected in 6.52s

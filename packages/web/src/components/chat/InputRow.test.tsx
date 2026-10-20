@@ -22,8 +22,10 @@ import {
 } from '@/services/api';
 import { wsClient } from '@/services/ws';
 import { useWorkerStore } from '@/stores/workerStore';
+import { resetDraftStateForTests } from '@/stores/composerDraftStore';
 import type { AdapterConfig } from '@/types';
 import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
+import { requestLockedComposerEnqueue } from '@/shortcuts/composerBridge';
 
 // Attachment navigation now requires the same Router context as the Chat route.
 const render = (element: Parameters<typeof renderComponent>[0]) =>
@@ -144,6 +146,9 @@ function deferred<T>() {
 
 beforeEach(() => {
   localStorage.clear();
+  // The draft store is module-scoped and now also feeds remount restoration,
+  // so a previous case's recorded draft must not leak into this one.
+  resetDraftStateForTests();
   useSessionStore.setState({
     currentSessionId: null,
     currentMessages: [],
@@ -2099,6 +2104,70 @@ describe('InputRow ModelPill search', () => {
 
     fireEvent.mouseDown(screen.getByPlaceholderText(/Type a message/));
     expect(screen.queryByPlaceholderText('筛选模型…')).toBeNull();
+  });
+});
+
+describe('InputRow locked-message shortcut bridge', () => {
+  it('uses the normal send transaction with locked=true for text and URL nodes', async () => {
+    setBusySession();
+    render(<InputRow />);
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'hold ' },
+    });
+    const editor = screen.getByTestId('rich-text-composer');
+    const text = editor.querySelector('span')?.firstChild;
+    const range = document.createRange();
+    range.setStart(text!, text!.textContent!.length);
+    range.collapse(true);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        types: ['text/plain'],
+        getData: (type: string) =>
+          type === 'text/plain' ? 'https://locked.test/a then https://locked.test/b' : '',
+      } as unknown as DataTransfer,
+    });
+
+    expect(requestLockedComposerEnqueue('other-session')).toBe(false);
+    expect(requestLockedComposerEnqueue('s1')).toBe(true);
+
+    await waitFor(() =>
+      expect(enqueueSessionMessage).toHaveBeenCalledWith(
+        's1',
+        'hold [https://locked.test/a](https://locked.test/a) then [https://locked.test/b](https://locked.test/b)',
+        expect.any(String),
+        [
+          { type: 'text', text: 'hold ' },
+          { type: 'text', text: '[https://locked.test/a](https://locked.test/a)' },
+          { type: 'text', text: ' then ' },
+          { type: 'text', text: '[https://locked.test/b](https://locked.test/b)' },
+        ],
+        true,
+      ),
+    );
+  });
+
+  it('restores the draft and attachments when a locked enqueue is rejected (no retry)', async () => {
+    setBusySession();
+    render(<InputRow />);
+    vi.mocked(enqueueSessionMessage).mockRejectedValueOnce(
+      new ApiRequestError(409, 'locked enqueue rejected'),
+    );
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {
+      target: { value: 'keep this draft' },
+    });
+
+    expect(requestLockedComposerEnqueue('s1')).toBe(true);
+
+    await waitFor(() =>
+      expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value)
+        .toBe('keep this draft'),
+    );
+    expect(enqueueSessionMessage).toHaveBeenCalledTimes(1);
+    expect(useQueueStore.getState().lockedComposerModes.s1 ?? false).toBe(false);
   });
 });
 

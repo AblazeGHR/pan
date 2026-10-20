@@ -36,7 +36,8 @@ def _gate_for(text: str) -> str | None:
 
 def main() -> None:
     pid = os.getpid()
-    _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time()})
+    _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time(),
+             "stdinEncoding": sys.stdin.encoding, "stdoutEncoding": sys.stdout.encoding})
     init_gate = os.environ.get("PAN_E2E_INIT_GATE")
     while init_gate and not Path(init_gate).exists():
         time.sleep(.01)
@@ -59,6 +60,9 @@ def main() -> None:
         gate = _gate_for(text)
         while gate and not Path(gate).exists():
             time.sleep(0.01)
+        if os.environ.get('PAN_E2E_TAKEOVER_PROBE') == '1':
+            (Path(os.environ['PAN_E2E_DATA_ROOT']) / f'fake-{pid}.resume.json').write_text(
+                json.dumps([{'role': 'user', 'content': text}]), encoding='utf-8')
         print(json.dumps({
             "type": "assistant",
             "message": {"content": [{"type": "text", "text": f"ack:{text}"}]},

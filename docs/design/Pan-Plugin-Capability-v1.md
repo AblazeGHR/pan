@@ -1,5 +1,7 @@
 # Pan 插件声明与 API 能力协议 v1
 
+开发流程与帮助见 [插件开发者入口](../plugins/README.md)；Panel、插件 data 与 Agent 能力白名单见 [Panel 扩展协议](Pan-Plugin-Panels-v1.md)。
+
 实现入口：`packages/plugins`。本批不新增 Pan 鉴权；Session 上下文用于配置、目录和调用路由，既有业务检查与上游认证继续生效。
 
 ## 插件声明

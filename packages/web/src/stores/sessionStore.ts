@@ -278,7 +278,7 @@ interface SessionStore {
   updateQueuedMessage: (sessionId: string, item: { id: string; text: string; parts?: Message['parts'] }) => void;
   removeQueuedMessage: (sessionId: string, queueItemId: string) => void;
   /** Append user messages after the server confirms local CLI hand-off. */
-  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta) => void;
+  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta, summary?: Partial<Session>) => void;
   /** Apply settings locally first, then reconcile or roll back the exact mutation. */
   patchSessionSettings: (
     sessionId: string,
@@ -933,6 +933,7 @@ function sameSessionSnapshot(previous: Session, next: Session, server: Session):
 const SUMMARY_PROJECTION_FIELDS = [
   'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
+  'historyEpoch', 'historyRevision',
   // Execution legality is a durable Session fact, independent of live Worker
   // task cursors (a crash snapshot legitimately omits executionSeq).
   'legalOffline', 'illegalOffline', 'legalityDiagnostics',
@@ -3526,6 +3527,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           appendedResult = true;
         }
       }
+      // Codex plan/diff are live turn summaries and never durable history
+      // rows. Their own terminal is sufficient proof to retire them; waiting
+      // for complete older history can strand them behind the DONE marker.
+      // Keep every ordinary native item under the existing coverage rules.
+      finalized = finalized.filter(row => !row.nativeAggregate);
       const revision = Math.max(
         previousBuffer?.revision ?? 0,
         terminal?.revision ?? 0,
@@ -3619,7 +3625,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // previous version of a row (a superseded live buffer object), not an
           // untracked row that needs adopting.
           const key = runtimeKeyOf(row);
-          return key === null || !trackedKeys.has(key);
+          return key === null || (!trackedKeys.has(key) && !previousLiveKeys.has(key));
         });
         if (adopted.length > 0) {
           nextTranscript = { ...nextTranscript, runtime: [...adopted, ...nextTranscript.runtime] };
@@ -3628,7 +3634,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (previousBuffer?.taskKey && hasResult && coverage.historyEpoch
           && Number.isSafeInteger(coverage.historyRevision)
           && previousBuffer.historyStartOffset !== undefined) {
-        const finalRow = finalized[finalSlot >= 0 ? finalSlot : finalized.length - 1];
+        const finalRow = finalized.findLast(row => row.role === 'assistant');
         if (finalRow?.role === 'assistant') {
           nextTranscript = {
             ...nextTranscript,
@@ -4087,7 +4093,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta) => {
+  appendDeliveredMessages: (sessionId: string, msgs: Message[], meta?: LiveStreamMeta, summary?: Partial<Session>) => {
     if (!msgs.length) return;
     const touchSeq = (localTouchSeq += 1);
     const localMessages = msgs.map((message) => ({
@@ -4176,7 +4182,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // made A→B→A erase an otherwise successful hand-off.
         nextHistory.push(...historyAppend);
         const last = localMessages[localMessages.length - 1];
-        return {
+        return preserveNewerSummary(session, {
           ...session,
           history: nextHistory,
           historyTotal: Math.max(
@@ -4184,7 +4190,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             nextHistory.length,
           ),
           lastMessage: last?.content.slice(0, 200) ?? session.lastMessage,
-        };
+          ...(summary ?? {}),
+        }, s.terminalWatermarks[sessionId]);
       });
 
       const deliveredRuntime = base.runtime.map(row => {

@@ -4,6 +4,12 @@ Pan 是一个用于管理 CLI Agent 会话并协调多 Agent 任务的本地 Web
 
 **[English](./README.en.md) · 中文**
 
+**插件开发者**：从 [开发指南与帮助入口](docs/plugins/README.md) 开始，包含 MCP/CLI/API bridge、Panel 注册、数据目录、可运行示例和只读静态检查工具。
+
+**CC Switch 面板依赖外部 CLI**：Pan 的 `cc-switch-bridge` 面板调用独立的 cc-switch CLI，**不捆绑、也不会自动下载或安装**该 CLI。兼容入口由带 CLI 的 [AblazeGHR/cc-switch-pan](https://github.com/AblazeGHR/cc-switch-pan) fork 提供；按该仓库说明安装或构建控制台入口后，把 `cc-switch` 放入 Pan 进程的 PATH，或在插件 `settings.json` 中用 `executable` 指向它。面板无法发现、无法启动或不兼容 CLI 时，会显示安装/配置指引和该仓库入口。
+
+**Agent adapter 维护状态**：当前积极维护的 Agent adapter 为 **Codex** 与 **CBC（CodeBuddy CLI）**。kimi、opencode、claude 等其他已有 adapter 仍保留在仓库中，但不在积极维护范围内，兼容性需按实际 CLI 版本验证。欢迎为新的 Agent CLI 提交 [issue](https://github.com/AblazeGHR/pan/issues) 反馈适配需求，或按 [CLI Adapter 开发指南](docs/developing-cli-adapters.md) 自行实现 adapter 后提交 [PR](https://github.com/AblazeGHR/pan/pulls)。
+
 ## Pan 可以做什么
 
 - **管理 Sessions**：在一个 Dashboard 中创建、导入、重命名、分支、置顶和删除会话；使用 cbc、kimi、opencode、claude 或 codex adapter。实际可用项取决于本机安装的 CLI。
@@ -70,6 +76,8 @@ python main.py
 - [English user manual](docs/USER_MANUAL.en.md)
 - [QQ 与 SnowLuma 使用说明](docs/QQ_PLUGIN_SNOWLUMA.md)
 - [Pan 编排与 MCP 手册](docs/skills/pan/SKILL.md)：供配置 MA / 外部 Agent 时参考。
+- [CLI Adapter 开发指南](docs/developing-cli-adapters.md)：为 Pan 接入新的 Agent CLI（协议、生命周期、安全边界、测试与 PR 核对）。
+- [CLI Adapter 特殊行为与踩坑](docs/references/cli-adapter-special-behaviors.md)：各 CLI 已知特殊行为与坑位速查。
 
 ## 安全提示
 

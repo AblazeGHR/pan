@@ -108,16 +108,20 @@ export function CommandPalette() {
     }
   }, [open]);
 
-  // Keyboard listener
+  // The shell owns the configurable keydown; this component only reacts to the
+  // dispatched action so there is exactly one global listener.
   useEffect(() => {
+    const toggle = () => setOpen((prev) => !prev);
+    window.addEventListener('pan:shortcut:command-palette', toggle);
+    return () => window.removeEventListener('pan:shortcut:command-palette', toggle);
+  }, []);
+
+  // Escape is contextual to the open overlay and stays outside the registry.
+  useEffect(() => {
+    if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-      if (e.key === 'Escape' && open) {
-        setOpen(false);
-      }
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Escape') setOpen(false);
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

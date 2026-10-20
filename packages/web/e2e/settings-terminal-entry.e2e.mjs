@@ -122,7 +122,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-testid="topbar"]') !== null, null, { timeout: 10000 });
 
   // The harness mounts SettingsPopover open; the More disclosure starts collapsed.
-  const more = page.getByRole('button', { name: 'More' });
+  const more = page.getByRole('button', { name: 'More', exact: true });
   await more.waitFor({ state: 'visible' });
   assert.equal(await page.getByTestId('settings-terminal-tui-entry').count(), 0, 'Terminal entry must stay collapsed inside More');
 

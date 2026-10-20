@@ -304,6 +304,11 @@ export function recordDraft(sessionId: string, draft: ApiSessionDraft | null) {
     //    would be a pointless request.
     if (current.timer !== null || current.inFlight) return;
     if (!current.dirty) return;
+    // A conflict is not a transient failure: retrying the same content on the
+    // newly adopted revision would silently overwrite the other tab's draft
+    // that caused the conflict. Only a *different* draft (an actual user edit)
+    // reaches the path below that clears the conflict.
+    if (current.conflicted) return;
     current.error = null;
     current.conflicted = false;
     current.retries = 0;
@@ -553,6 +558,35 @@ export function canApplyLoadedDraft(
   const current = states.get(sessionId);
   if (!current) return false;
   return !current.touchedLocally && !current.dirty;
+}
+
+/** Test-only: drop every Session's in-tab draft state between cases. */
+export function resetDraftStateForTests() {
+  states.clear();
+}
+
+/**
+ * The draft this tab has recorded locally, for a composer that is about to
+ * remount (route switch, session switch, or a re-created view).
+ *
+ * A route change unmounts the whole Chat route, so component-local refs die
+ * with it.  The recorded draft here is the surviving authority: it is
+ * synchronous, network-free, and it is what `record()` wrote on the way out —
+ * including the `localFileId` references whose bytes live in `draftFiles`.
+ * `null` means "this tab has no content to restore" (never recorded, or an
+ * explicit tombstone); callers must not fall back to a placeholder.
+ */
+export function restorableLocalDraft(sessionId: string): ApiSessionDraft | null {
+  const current = states.get(sessionId);
+  if (!current || !current.touchedLocally) return null;
+  return current.draft;
+}
+
+/** Last persistence error observed for one Session, without subscribing.
+ *  Used when a component remounts after a failed save/conflict happened while
+ *  nothing was mounted to hear the notification. */
+export function localDraftError(sessionId: string): string | null {
+  return states.get(sessionId)?.error ?? null;
 }
 
 /**

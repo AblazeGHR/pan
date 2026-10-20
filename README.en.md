@@ -4,6 +4,10 @@ Pan is a local web app for managing CLI Agent sessions and coordinating multi-ag
 
 **[中文](./README.md) · English**
 
+**CC Switch panel depends on an external CLI**: Pan's `cc-switch-bridge` panel calls a separate cc-switch CLI. Pan **does not bundle, download, or install** that CLI. The compatible entry point comes from the fork with a CLI, [AblazeGHR/cc-switch-pan](https://github.com/AblazeGHR/cc-switch-pan). Follow that repository to install or build the console entry, then make `cc-switch` available on the PATH seen by Pan, or point the plugin `settings.json` `executable` field at it. When the panel cannot find, start, or use a compatible CLI, it shows installation/configuration guidance and a link to that repository.
+
+**Agent adapter maintenance**: the actively maintained Agent adapters are **Codex** and **CBC (CodeBuddy CLI)**. Other existing adapters (kimi, opencode, claude) remain in this repository, but are outside active maintenance; compatibility needs to be verified against the CLI version in use. To adapt a new Agent CLI, open an [issue](https://github.com/AblazeGHR/pan/issues) to request it, or implement an adapter yourself and send a [pull request](https://github.com/AblazeGHR/pan/pulls) — the [CLI adapter development guide](docs/developing-cli-adapters.md) (Chinese) describes the protocol, lifecycle, and PR checklist.
+
 ## What Pan does
 
 - **Manage Sessions**: create, import, rename, branch, pin, and delete Sessions in one Dashboard. Built-in adapters cover cbc, kimi, opencode, claude, and codex; each requires its CLI to be installed locally.
@@ -70,6 +74,8 @@ Use sidebar search and filters for Sessions. The shared search also filters Work
 - [中文用户手册](docs/USER_MANUAL.md)
 - [QQ and SnowLuma guide](docs/QQ_PLUGIN_SNOWLUMA.en.md)
 - [Pan orchestration and MCP handbook](docs/skills/pan/SKILL.md) for setting up an MA or external Agent.
+- [CLI adapter development guide](docs/developing-cli-adapters.md) (Chinese): adding a new Agent CLI to Pan (protocol, lifecycle, security boundaries, testing, PR checklist).
+- [CLI adapter special behaviors](docs/references/cli-adapter-special-behaviors.md) (Chinese): known per-CLI behaviors and pitfalls.
 
 ## Security
 

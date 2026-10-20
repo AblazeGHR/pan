@@ -1093,13 +1093,47 @@ describe('useWebSocket worker.result wiring', () => {
     });
 
     expect(useSessionStore.getState().currentMessages).toEqual([
-      { role: 'thinking', content: '[x] Fix', nativeItemId: 'plan:turn-1' },
+      { role: 'thinking', content: '[x] Fix', nativeItemId: 'plan:turn-1', nativeAggregate: 'plan' },
       {
         role: 'tool',
         content: 'CodexDiff({"diff":"--- a/file\\n+++ b/file\\n+new"})',
         nativeItemId: 'diff:turn-1',
+        nativeAggregate: 'diff',
       },
     ]);
+  });
+
+  it('retires aggregate plan/diff across two DONE boundaries and rejects their late replay', () => {
+    renderHook(() => useWebSocket());
+    for (const taskSeq of [31, 32]) {
+      const scope = { sessionId: 'A', workerId: 'w1', generation: 0, taskSeq, executionSeq: taskSeq };
+      act(() => {
+        wsMock.trigger('worker.status', { ...scope, type: 'worker.status', status: 'running' });
+        wsMock.trigger('worker.stream', { ...scope, type: 'worker.stream', event: {
+          type: 'codex.plan', item_id: `plan:turn-${taskSeq}`, delta: true, replace: true,
+          plan: [{ step: 'Inspect', status: 'completed' }],
+        } });
+        wsMock.trigger('worker.stream', { ...scope, type: 'worker.stream', event: {
+          type: 'assistant', item_id: `body-${taskSeq}`, final: true,
+          message: { content: [{ type: 'text', text: `answer-${taskSeq}` }] },
+        } });
+        wsMock.trigger('worker.stream', { ...scope, type: 'worker.stream', event: {
+          type: 'codex.diff', item_id: `diff:turn-${taskSeq}`, delta: true, replace: true, diff: '+change',
+        } });
+      });
+      expect(useSessionStore.getState().currentMessages.some(m => m.nativeItemId === `diff:turn-${taskSeq}`)).toBe(true);
+      act(() => {
+        wsMock.trigger('worker.result', { ...scope, type: 'worker.result',
+          status: 'done', result: `answer-${taskSeq}`, terminalKey: `seq:${taskSeq}` });
+        wsMock.trigger('worker.stream', { ...scope, type: 'worker.stream', event: {
+          type: 'codex.diff', item_id: `diff:turn-${taskSeq}`, delta: true, replace: true, diff: '+late echo',
+        } });
+      });
+      const messages = useSessionStore.getState().currentMessages;
+      expect(messages.some(m => m.nativeAggregate)).toBe(false);
+      expect(messages.filter(m => m.content === `answer-${taskSeq}`)).toHaveLength(1);
+      expect(messages.at(-1)?.content).toContain('[DONE]');
+    }
   });
 
   it('surfaces native Codex turn errors immediately without adding a fake chat message', () => {
@@ -2679,23 +2713,13 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(lastMessageOf('B')).toBe(long.slice(0, 200));
   });
 
-  it('throttles lastMessage updates within 500ms, flushing the latest text', () => {
+  it('updates every accepted background preview synchronously without a timer', () => {
     renderHook(() => useWebSocket());
-
     streamText('B', 'a');
-    expect(lastMessageOf('B')).toBe('a'); // 首个事件立即 flush
-
-    // 500ms 窗口内的事件合并，未到点不更新卡片
-    vi.advanceTimersByTime(100);
-    streamText('B', 'ab');
-    vi.advanceTimersByTime(100);
-    streamText('B', 'abc');
     expect(lastMessageOf('B')).toBe('a');
-
-    // 到点 → 尾随 timer flush 最新文本
-    act(() => {
-      vi.advanceTimersByTime(400);
-    });
+    streamText('B', 'ab');
+    expect(lastMessageOf('B')).toBe('ab');
+    streamText('B', 'abc');
     expect(lastMessageOf('B')).toBe('abc');
   });
 
@@ -2715,14 +2739,14 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(lastMessageOf('B')).toBeUndefined();
   });
 
-  it('result wins over a pending throttled stream preview', () => {
+  it('result remains authoritative after earlier stream previews', () => {
     renderHook(() => useWebSocket());
 
     streamText('B', 'first');
     expect(lastMessageOf('B')).toBe('first');
 
     vi.advanceTimersByTime(100);
-    streamText('B', 'pending-stream'); // 排了尾随 timer
+    streamText('B', 'pending-stream');
 
     act(() => {
       wsMock.trigger('worker.result', {
@@ -2735,7 +2759,7 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     });
     expect(lastMessageOf('B')).toBe('final-result');
 
-    // 迟到的节流 timer 不得覆盖 result
+    // Advancing time cannot resurrect an earlier stream preview.
     act(() => {
       vi.advanceTimersByTime(1000);
     });

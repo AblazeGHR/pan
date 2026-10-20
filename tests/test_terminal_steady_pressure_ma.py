@@ -1,6 +1,8 @@
 """Three-minute real output/slow observer isolation, not an hours-long SLA."""
 import asyncio
 import base64
+from collections import deque
+import gc
 from contextlib import asynccontextmanager
 import json
 from pathlib import Path
@@ -13,8 +15,54 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason='real Windows ConPTY')
 
 
+@pytest.fixture
+def pressure_timing(monkeypatch):
+    """Bounded timing evidence; do not change GC policy, cadence, or lease."""
+    from packages.core.terminal.service import _Heartbeat
+
+    events = deque(maxlen=64)
+    collections = {}
+    last_beat = {}
+    initial_gc = gc.get_stats()
+    original = _Heartbeat._beat_once
+
+    def collection(phase, info):
+        generation = info["generation"]
+        now = time.monotonic()
+        if phase == "start":
+            collections[generation] = now
+        else:
+            started = collections.pop(generation, now)
+            if now - started >= .05:
+                events.append({"kind": "gc", "start": started, "end": now,
+                               "duration": now - started, **info})
+
+    def beat(heartbeat):
+        started = time.monotonic()
+        previous = last_beat.get(heartbeat.terminal_id, started)
+        last_beat[heartbeat.terminal_id] = started
+        try:
+            return original(heartbeat)
+        finally:
+            ended = time.monotonic()
+            if ended - started >= .2 or started - previous >= max(1.5, heartbeat.interval * 1.5):
+                events.append({"kind": "heartbeat", "start": started, "end": ended,
+                               "duration": ended - started, "start_gap": started - previous,
+                               "terminal_id": heartbeat.terminal_id,
+                               "detail": heartbeat.describe()})
+
+    monkeypatch.setattr(_Heartbeat, "_beat_once", beat)
+    gc.callbacks.append(collection)
+    try:
+        yield
+    finally:
+        gc.callbacks.remove(collection)
+        print("PRESSURE_TIMING " + json.dumps({"initial_gc": initial_gc,
+              "final_gc": gc.get_stats(), "events": list(events)}))
+
+
 @pytest.mark.timeout(300)
-def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
+def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path, pressure_timing):
     sidecar = Path(__file__).resolve().parents[1] / 'packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless/package.json'
     if not sidecar.exists():
         pytest.skip('sidecar dependencies absent')
@@ -141,7 +189,8 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                             # not a process-name scan and never a kill target.
                             rss = psutil.Process(original['pid']).memory_info().rss
                             samples.append({'seconds': round(time.monotonic()-started, 3), 'queues': occupancy,
-                                            'heartbeat': heartbeat['beats'], 'launcher_rss': rss})
+                                            'heartbeat': heartbeat['beats'],
+                                            'heartbeat_detail': heartbeat, 'launcher_rss': rss})
                             try:
                                 await asyncio.wait_for(sampling_done.wait(), 1)
                             except asyncio.TimeoutError:
@@ -173,6 +222,10 @@ def test_three_minute_natural_output_isolates_nonconsuming_observer(tmp_path):
                                 await command('snapshot', timeout_ms=2000)
                         elif event['type'] == 'error':
                             assert event['code'] == 'busy', event
+                        elif event['type'] == 'terminal-state':
+                            pytest.fail(f'owned producer ended before its final marker: '
+                                        f'event={event}; service={service.describe()}; '
+                                        f'terminal={service.get(tid)}; bytes={seen}; gaps={gaps}')
                     assert marker, (seen, gaps)
                     sampling_done.set()
                     await sampler

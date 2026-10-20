@@ -249,12 +249,16 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
                 _write_stdout_line(json.dumps({
                     "type": "result", "is_error": True,
                     "result": f"Codex executable not found: {codex_js}",
+                    "error_source": "wrapper_exception",
+                    "error": {"message": f"Codex executable not found: {codex_js}"},
                 }, ensure_ascii=False))
                 continue
             except OSError as e:
                 _write_stdout_line(json.dumps({
                     "type": "result", "is_error": True,
                     "result": f"OS error spawning Codex: {e}",
+                    "error_source": "wrapper_exception",
+                    "error": {"message": f"OS error spawning Codex: {e}"},
                 }, ensure_ascii=False))
                 continue
 
@@ -277,12 +281,19 @@ def _main_loop(node: str, codex_js: str, extra_opts: list[str],
                 result_event = {
                     "type": "result", "is_error": True,
                     "result": f"[codex] {message}",
+                    "error": err,
+                    "error_text": str(message),
+                    "error_source": "codex_error_payload",
                 }
             elif proc.returncode not in (None, 0) and not last_text:
                 tail = (stderr_bytes or b"").decode("utf-8", errors="replace")[-2000:].strip()
+                full_stderr = (stderr_bytes or b"").decode("utf-8", errors="replace").strip()
                 result_event = {
                     "type": "result", "is_error": True,
                     "result": f"codex exited with code {proc.returncode}:\n{tail}",
+                    "error": {"exitCode": proc.returncode, "stderr": full_stderr},
+                    "error_text": full_stderr,
+                    "error_source": "codex_stderr",
                 }
             else:
                 result_event = {

@@ -4,6 +4,7 @@ import {
   useAppSettingsStore,
   DEFAULT_SETTINGS,
   sanitizeSettings,
+  sanitizeShortcuts,
   sanitizeUnreadRecording,
   toggleUnreadRecordingScope,
 } from '@/stores/appSettingsStore';
@@ -34,6 +35,7 @@ describe('appSettingsStore', () => {
     expect(s.chatViewStyle).toBe('tui');
     expect(s.defaultGroupBy).toBe('none');
     expect(s.showGroupBy).toBe(false);
+    expect(s.showChatViewSwitcher).toBe(true);
     expect(s.defaultNewSessionToCurrentWorkspace).toBe(true);
     expect(s.showMetaAgent).toBe(true);
     expect(s.showTaskAgent).toBe(true);
@@ -44,7 +46,18 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(false);
     expect(s.showMessageNavigationRail).toBe(true);
     expect(s.showHistorySearch).toBe(true);
+    expect(s.showSidebarCollapseHandle).toBe(true);
     expect(s.notifications.confirmCrossWorkspaceManagement).toBe(true);
+  });
+
+  it('persists the sidebar collapse handle visibility', () => {
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(false);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(false);
+    expect(mockedUpdate).toHaveBeenCalledWith({ showSidebarCollapseHandle: false });
+
+    useAppSettingsStore.getState().setShowSidebarCollapseHandle(true);
+    expect(useAppSettingsStore.getState().showSidebarCollapseHandle).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showSidebarCollapseHandle: true });
   });
 
   it('applies backend ui settings on load', async () => {
@@ -191,6 +204,14 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowHistorySearch(false);
     expect(useAppSettingsStore.getState().showHistorySearch).toBe(false);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ showHistorySearch: false });
+
+    // The Chat view switcher defaults on and persists an explicit false.
+    useAppSettingsStore.getState().setShowChatViewSwitcher(false);
+    expect(useAppSettingsStore.getState().showChatViewSwitcher).toBe(false);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showChatViewSwitcher: false });
+    useAppSettingsStore.getState().setShowChatViewSwitcher(true);
+    expect(useAppSettingsStore.getState().showChatViewSwitcher).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ showChatViewSwitcher: true });
   });
 
   it('persists the cross-workspace management confirmation switch and defaults old settings to enabled', () => {
@@ -231,6 +252,7 @@ describe('appSettingsStore', () => {
     useAppSettingsStore.getState().setShowMetaAgent(false);
     useAppSettingsStore.getState().setShowQQ(false);
     useAppSettingsStore.getState().setDefaultNewSessionToCurrentWorkspace(false);
+    useAppSettingsStore.getState().setShowChatViewSwitcher(false);
 
     useAppSettingsStore.getState().resetSettings();
 
@@ -246,6 +268,7 @@ describe('appSettingsStore', () => {
     expect(s.keepScrollOnSessionSwitch).toBe(DEFAULT_SETTINGS.keepScrollOnSessionSwitch);
     expect(s.showMessageNavigationRail).toBe(DEFAULT_SETTINGS.showMessageNavigationRail);
     expect(s.showGroupBy).toBe(DEFAULT_SETTINGS.showGroupBy);
+    expect(s.showChatViewSwitcher).toBe(true);
     expect(mockedUpdate).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS });
   });
 
@@ -319,8 +342,17 @@ describe('appSettingsStore', () => {
     expect(sanitizeSettings({ showHistorySearch: false }).showHistorySearch)
       .toBe(false);
     expect(sanitizeSettings({}).showHistorySearch).toBe(true);
+    // Chat view switcher: default on, explicit false authoritative.
+    expect(sanitizeSettings({}).showChatViewSwitcher).toBe(true);
+    expect(sanitizeSettings({ showChatViewSwitcher: 'no' }).showChatViewSwitcher).toBe(true);
+    expect(sanitizeSettings({ showChatViewSwitcher: false }).showChatViewSwitcher).toBe(false);
+    expect(sanitizeSettings({ showChatViewSwitcher: true }).showChatViewSwitcher).toBe(true);
     expect(sanitizeSettings({ showGroupBy: 'yes' }).showGroupBy).toBe(false);
     expect(sanitizeSettings({ showGroupBy: true }).showGroupBy).toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: 'no' }).showSidebarCollapseHandle)
+      .toBe(true);
+    expect(sanitizeSettings({ showSidebarCollapseHandle: false }).showSidebarCollapseHandle)
+      .toBe(false);
     expect(sanitizeSettings({ defaultGroupBy: 'dir' }).defaultGroupBy).toBe('none');
     expect(sanitizeSettings({ defaultGroupBy: 'off' }).defaultGroupBy).toBe('none');
   });
@@ -399,5 +431,76 @@ describe('appSettingsStore', () => {
       .notifications.unreadRecording).toEqual(['none']);
     expect(sanitizeSettings({ notifications: { unreadRecording: ['pinned'] } })
       .notifications.unreadRecording).toEqual(['pinned']);
+  });
+});
+
+describe('appSettingsStore shortcuts', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useAppSettingsStore.setState({ ...DEFAULT_SETTINGS, loaded: false });
+    mockedFetch.mockReset();
+    mockedUpdate.mockReset();
+    mockedFetch.mockResolvedValue({ ...DEFAULT_SETTINGS });
+    mockedUpdate.mockResolvedValue({});
+  });
+
+  it('sanitizes persisted bindings while preserving explicit clears', () => {
+    expect(sanitizeShortcuts({
+      'app.toggleSidebar': 'shift+mod+b',
+      'queue.enqueueLocked': null,
+      'app.commandPalette': 'Mod+S',
+      'bad': 'not-a-binding',
+    })).toEqual({
+      'app.toggleSidebar': 'Mod+Shift+B',
+      'queue.enqueueLocked': null,
+    });
+  });
+
+  it('persists, clears and restores shortcut overrides through the existing ui endpoint', () => {
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+Shift+B');
+    expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar'])
+      .toBe('Mod+Shift+B');
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      shortcuts: { 'app.toggleSidebar': 'Mod+Shift+B' },
+    });
+
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', null);
+    expect(useAppSettingsStore.getState().shortcuts['app.toggleSidebar']).toBeNull();
+    expect(mockedUpdate).toHaveBeenLastCalledWith({
+      shortcuts: { 'app.toggleSidebar': null },
+    });
+
+    useAppSettingsStore.getState().resetShortcutBinding('app.toggleSidebar');
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
+
+    useAppSettingsStore.getState().setShortcutBinding('queue.lockAll', 'Mod+Shift+L');
+    useAppSettingsStore.getState().resetAllShortcuts();
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ shortcuts: {} });
+  });
+
+  it('rejects reserved combinations instead of silently hijacking the browser', () => {
+    useAppSettingsStore.getState().setShortcutBinding('app.toggleSidebar', 'Mod+S');
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({});
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it('loads persisted shortcuts with missing and malformed entries falling back safely', async () => {
+    mockedFetch.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      shortcuts: {
+        'app.toggleSidebar': 'mod+shift+b',
+        'panel:plugin:alpha/one': 'Mod+3',
+        'queue.lockAll': null,
+        'bad': 7,
+      },
+    } as never);
+    await useAppSettingsStore.getState().loadSettings();
+    expect(useAppSettingsStore.getState().shortcuts).toEqual({
+      'app.toggleSidebar': 'Mod+Shift+B',
+      'panel:plugin:alpha/one': 'Mod+3',
+      'queue.lockAll': null,
+    });
   });
 });

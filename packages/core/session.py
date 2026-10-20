@@ -293,11 +293,15 @@ def save_diagnostics(session_id: str | None = None, *, limit: int = 32) -> dict:
     visible = snapshots[:bounded_limit]
     for item in visible:
         item.pop("_lastActivity", None)
+    from packages.core import session_error_log
     return {
         "sessions": visible,
         "totalTracked": len(snapshots),
         "totalQueued": sum(item["queueDepth"] for item in snapshots),
         "activeSessions": sum(1 for item in snapshots if item["active"]),
+        # Process-local counters for the append-only error sample log.  A
+        # write failure is visible here and in pan.log without affecting tasks.
+        "sessionErrorLog": session_error_log.stats(),
     }
 
 # Session-list previews are a persisted projection, not a second history
@@ -788,6 +792,34 @@ def append_history(s: "Session", message: dict) -> None:
         s.history_revision = max(0, int(getattr(s, "history_revision", 0) or 0)) + 1
         _apply_summary_message(s.summary_projection, message)
         s._summary_history_index = len(s.history)
+
+
+def history_tail_snapshot(s: "Session") -> dict | None:
+    """Return a deep copy of the current last history row, or None.
+
+    Used by the session error sample log: the snapshot must be taken at error
+    detection so a later concurrent append (report, steer, native user) can
+    never replace the message that actually preceded the error.  It never
+    filters by role — tool/thinking rows are valid preceding messages.
+    """
+    with s._summary_lock:
+        rows = getattr(s, "history", None)
+        if not isinstance(rows, list) or not rows:
+            return None
+        row = rows[-1]
+        if not isinstance(row, dict):
+            return None
+        return {
+            "role": row.get("role"),
+            "source": row.get("source"),
+            "messageId": row.get("messageId"),
+            "ts": row.get("ts"),
+            "content": copy.deepcopy(row.get("content")),
+            "historyIndex": len(rows) - 1,
+            "historyEpoch": getattr(s, "history_epoch", None),
+            "historyRevision": getattr(s, "history_revision", 0),
+            "raw": copy.deepcopy(row),
+        }
 
 
 def replace_history(s: "Session", history: list[dict]) -> None:
@@ -2456,6 +2488,22 @@ def _run_persistence_ticket(state: _SessionSaveState, ticket: int,
             state.cancel_before_begin(ticket)
 
 
+def _replace_session_metadata(source: Path, target: Path) -> None:
+    """Keep the same ordered atomic write across brief Windows reader locks."""
+    for attempt in range(6):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError as exc:
+            if (os.name != "nt" or getattr(exc, "winerror", None) not in {5, 32, 33}
+                    or attempt == 5):
+                raise
+            # Readers (including shallow API reads) can deny delete-sharing.
+            # Retry only this prepared replace, never the provider input or
+            # terminal admission. Persistent errors still reach rollback.
+            time.sleep(.01 * (attempt + 1))
+
+
 def _save_body(s: Session, force_full: bool = False, *,
                unread_done_read_generation: int | None = None,
                unread_done_generation: int | None = None,
@@ -2548,7 +2596,7 @@ def _save_body(s: Session, force_full: bool = False, *,
         tmp_path.write_text(
             json.dumps(d, ensure_ascii=False, indent=2),
             encoding="utf-8")
-        os.replace(tmp_path, main_path)
+        _replace_session_metadata(tmp_path, main_path)
         s._last_meta_sig = meta_sig
     if metadata is not s:
         # Publish before retiring the ticket so a subsequent writer cannot

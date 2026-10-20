@@ -142,6 +142,34 @@ describe('responsive WorkspaceRail placement', () => {
     await waitFor(() => expect(desktopRail?.style.width).toBe('172px'));
   });
 
+  it('keeps both floating and nav entries for collapsing and expanding the desktop Sidebar', async () => {
+    stubViewport(false);
+    renderLayout();
+
+    const collapse = await screen.findByTestId('sidebar-collapse-handle');
+    expect(collapse.getAttribute('aria-label')).toBe('收起侧边栏');
+    fireEvent.click(collapse);
+
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+    // Both the floating expand handle and the pre-existing nav entry exist.
+    const floatingExpand = screen.getByTestId('sidebar-collapse-handle');
+    expect(floatingExpand.getAttribute('aria-label')).toBe('展开侧边栏');
+    expect(screen.getByTitle('Expand sidebar')).toBeTruthy();
+    // The workspace handle survives the collapse and keeps its own action.
+    expect(screen.getByTestId('workspace-rail-handle')).toBeTruthy();
+
+    // Floating entry expands...
+    fireEvent.click(floatingExpand);
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+
+    // ...and the nav entry still works as the second entry.
+    fireEvent.click(screen.getByTestId('sidebar-collapse-handle'));
+    expect(useUIStore.getState().sidebarCollapsed).toBe(true);
+    fireEvent.click(screen.getByTitle('Expand sidebar'));
+    expect(useUIStore.getState().sidebarCollapsed).toBe(false);
+    expect(await screen.findByTestId('sidebar-collapse-handle')).toBeTruthy();
+  });
+
   it('opens a deferred detail panel, closes it, and reopens with fresh content', async () => {
     stubViewport(false);
     renderLayout();

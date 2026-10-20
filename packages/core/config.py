@@ -207,6 +207,9 @@ DEFAULT_CONFIG: dict = {
         "defaultGroupBy": "none",
         # 是否显示侧栏 Session 分组循环按钮
         "showGroupBy": False,
+        # 桌面端侧栏边缘的浮动折叠/展开把手（移动端不渲染；
+        # 标题栏折叠按钮与折叠后导航栏的恢复按钮不受此设置影响）
+        "showSidebarCollapseHandle": True,
         # 新建 Session 默认归入当前 Workspace
         "defaultNewSessionToCurrentWorkspace": True,
         # 是否显示 meta-agent（////by agent）消息

@@ -910,7 +910,8 @@ def _cleanup_stale_children(root: Path, state: dict[str, Any], log_path: Path) -
 
 
 def start_service(root: str | Path | None = None, *, timeout: float = READY_TIMEOUT_SEC,
-                  log_path: Path | None = None) -> dict[str, Any]:
+                  log_path: Path | None = None, hidden: bool | None = None,
+                  python_argv: list[str] | None = None) -> dict[str, Any]:
     root_path = checkout_root(root)
     data = _data_dir(root_path)
     data.mkdir(parents=True, exist_ok=True)
@@ -935,9 +936,10 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
         raise PortConflict(
             f"Pan port {port} is already owned by an unverified process PID={owner}; refusing to start"
         )
-    python_argv, source = resolve_python_argv(root_path, probe=True)
-    print(f"[INFO] Pan Python source: {source}")
-    record = _start_main(root_path, port, python_argv, _console_hidden(root_path), log_path)
+    if python_argv is None:
+        python_argv, source = resolve_python_argv(root_path, probe=True)
+        print(f"[INFO] Pan Python source: {source}")
+    record = _start_main(root_path, port, python_argv, _console_hidden(root_path) if hidden is None else hidden, log_path)
     state["main"] = record
     state["port"] = port
     # Capture a QQ child that may have spawned before the readiness barrier so

@@ -18,6 +18,14 @@ import { fetchJobs } from '@/services/api';
  * newer state and would overwrite it or resurrect deleted jobs, so it is
  * discarded — never papered over with a duplicate fetch.
  */
+interface JobEventCursor { epoch?: string; seq?: number }
+
+function jobTime(value: Job['updatedAt']): number {
+  if (typeof value === 'number') return value * 1000;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : -Infinity;
+}
+
 interface JobStoreState {
   jobs: Job[];
   loaded: boolean;
@@ -29,11 +37,13 @@ interface JobStoreState {
   loadSeq: number;
   /** Monotonic generation, bumped by every list mutation (upsert/remove). */
   mutationSeq: number;
+  /** Last server live-event cursor accepted per Job. */
+  eventSeqByJob: Record<string, JobEventCursor>;
 
   loadJobs: () => Promise<void>;
   /** Insert or merge one job. Lifecycle broadcasts omit Pan-owned pin metadata. */
-  upsertJob: (job: Job) => void;
-  removeJob: (jobId: string) => void;
+  upsertJob: (job: Job, cursor?: JobEventCursor) => void;
+  removeJob: (jobId: string, cursor?: JobEventCursor) => void;
 }
 
 export const useJobStore = create<JobStoreState>((set, get) => ({
@@ -44,6 +54,7 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
   pinMetadataUnavailable: false,
   loadSeq: 0,
   mutationSeq: 0,
+  eventSeqByJob: {},
 
   loadJobs: async () => {
     const requestSeq = get().loadSeq + 1;
@@ -72,27 +83,52 @@ export const useJobStore = create<JobStoreState>((set, get) => ({
     }
   },
 
-  upsertJob: (job) => {
-    set((state) => ({
-      mutationSeq: state.mutationSeq + 1,
-      jobs: state.jobs.some((j) => j.jobId === job.jobId)
-        ? state.jobs.map((j) => (j.jobId === job.jobId ? {
-          ...job,
-          pinned: job.pinMetadataStatus === 'unavailable' ? null : job.pinned ?? j.pinned,
-          pinMetadataStatus: job.pinMetadataStatus ?? j.pinMetadataStatus,
-        } : j))
-        : [...state.jobs, job],
-      ...(job.pinMetadataStatus
-        ? { pinMetadataUnavailable: job.pinMetadataStatus === 'unavailable' }
-        : {}),
-    }));
+  upsertJob: (job, cursor) => {
+    set((state) => {
+      const previous = state.jobs.find((candidate) => candidate.jobId === job.jobId);
+      const seen = state.eventSeqByJob[job.jobId];
+      if (cursor?.epoch && cursor.epoch === seen?.epoch
+          && typeof cursor.seq === 'number' && typeof seen.seq === 'number'
+          && cursor.seq <= seen.seq) return state;
+      // A retry can broadcast an older persisted snapshot with a newer transport
+      // cursor. updatedAt belongs to the Job, and survives server restarts.
+      const olderLifecycle = previous && jobTime(job.updatedAt) < jobTime(previous.updatedAt);
+      // Pin metadata has an independent writer and does not advance Job time.
+      // A pin response captured before a lifecycle update still owns its pin,
+      // while its old status/target/schedule must not replace newer Job facts.
+      if (olderLifecycle && job.pinned === undefined && !job.pinMetadataStatus) return state;
+      const merged = {
+        ...(olderLifecycle ? previous : job),
+        pinned: job.pinMetadataStatus === 'unavailable' ? null : job.pinned ?? previous?.pinned,
+        pinMetadataStatus: job.pinMetadataStatus ?? previous?.pinMetadataStatus,
+      };
+      return {
+        mutationSeq: state.mutationSeq + 1,
+        jobs: previous
+          ? state.jobs.map((j) => j.jobId === job.jobId ? merged : j)
+          : [...state.jobs, merged],
+        eventSeqByJob: cursor?.epoch && typeof cursor.seq === 'number'
+          ? { ...state.eventSeqByJob, [job.jobId]: cursor } : state.eventSeqByJob,
+        ...(job.pinMetadataStatus
+          ? { pinMetadataUnavailable: job.pinMetadataStatus === 'unavailable' } : {}),
+      };
+    });
   },
 
-  removeJob: (jobId) => {
-    set((state) => ({
-      mutationSeq: state.mutationSeq + 1,
-      jobs: state.jobs.filter((j) => j.jobId !== jobId),
-    }));
+  removeJob: (jobId, cursor) => {
+    set((state) => {
+      const seen = state.eventSeqByJob[jobId];
+      if (cursor?.epoch && cursor.epoch === seen?.epoch
+          && typeof cursor.seq === 'number' && typeof seen.seq === 'number'
+          && cursor.seq <= seen.seq) return state;
+      return {
+        mutationSeq: state.mutationSeq + 1,
+        jobs: state.jobs.filter((j) => j.jobId !== jobId),
+        // Retain the tombstone so replay cannot resurrect a deleted Job.
+        eventSeqByJob: cursor?.epoch && typeof cursor.seq === 'number'
+          ? { ...state.eventSeqByJob, [jobId]: cursor } : state.eventSeqByJob,
+      };
+    });
   },
 }));
 

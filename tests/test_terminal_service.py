@@ -38,6 +38,40 @@ from packages.core.terminal.contracts import (
     UnknownTerminalError,
 )
 from packages.core.terminal.registry import TerminalRegistry
+
+
+def test_heartbeat_cadence_does_not_add_roundtrip_to_interval(tmp_path, monkeypatch):
+    """A slow successful ACK must not create a >2s gap before the next renewal."""
+    now = [0.0]
+    sent = []
+    stopped = [False]
+
+    class Stop:
+        def is_set(self):
+            return stopped[0]
+
+        def wait(self, delay):
+            assert delay >= 0
+            now[0] += delay
+
+    heartbeat = service_module._Heartbeat(
+        client_factory=lambda *args, **kwargs: None, terminal_id='term_cadence',
+        data_root=tmp_path, client_id='owned', interval=1.0, grace=2.0)
+    monkeypatch.setattr(service_module.time, 'monotonic', lambda: now[0])
+    heartbeat._stop = Stop()
+
+    def beat():
+        sent.append(now[0])
+        # Runner renewed at request arrival, but its reply arrives 1.25s later.
+        now[0] += 1.25
+        if len(sent) == 3:
+            stopped[0] = True
+
+    monkeypatch.setattr(heartbeat, '_beat_once', beat)
+    heartbeat._loop()
+    assert len(sent) == 3
+    assert all(b - a < heartbeat.grace for a, b in zip(sent, sent[1:])), sent
+    assert sent == [0.0, 1.25, 2.5]
 from packages.core.terminal.service import (
     CapacityExceeded,
     CleanupUnconfirmed,

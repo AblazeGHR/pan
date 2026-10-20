@@ -2,6 +2,9 @@
 import json
 import sys
 
+sys.stdin.reconfigure(encoding="utf-8")
+sys.stdout.reconfigure(encoding="utf-8")
+
 for line in sys.stdin:
     request = json.loads(line)
     if request["method"] == "provider.initialize":

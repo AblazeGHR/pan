@@ -1,6 +1,8 @@
 import asyncio
+import json
 import gzip
 import threading
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -8,6 +10,32 @@ from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
 from packages.web.network_json import NetworkJSONResponse
+
+
+def test_history_encoding_converts_only_non_json_leaves(monkeypatch):
+    """A list storm must not clone every already-JSON dict/list a second time."""
+    converted = []
+    original = server.jsonable_encoder
+    timestamp = datetime(2026, 10, 19, tzinfo=timezone.utc)
+    payload = {'sessions': [{'id': 'nested', 'history': [
+        {'content': '中文', 'metadata': {'at': timestamp}},
+    ]}]}
+    expected = original(payload)
+
+    def leaf(value):
+        converted.append(type(value).__name__)
+        assert not isinstance(value, (dict, list)), 'redundant whole-response clone'
+        return original(value)
+
+    monkeypatch.setattr(server, 'jsonable_encoder', leaf)
+
+    async def run():
+        response = await server._history_network_response(payload, object())
+        assert json.loads(response.body) == expected
+        assert converted == ['datetime']
+        assert payload['sessions'][0]['history'][0]['metadata']['at'] is timestamp
+
+    asyncio.run(run())
 from packages.web import server
 
 
@@ -176,16 +204,16 @@ def test_http_history_encoding_yields_to_other_requests_and_freezes_metadata(mon
     target.last_result = {'status': 'done', 'result': 'before', 'nested': {'value': 'before'}}
     entered = threading.Event()
     release = threading.Event()
-    original = server.jsonable_encoder
+    original = server._HistoryJSONResponse.render
     encoding_threads = []
 
-    def blocked(payload):
+    def blocked(self, payload):
         encoding_threads.append(threading.get_ident())
         entered.set()
         assert release.wait(3)
-        return original(payload)
+        return original(self, payload)
 
-    monkeypatch.setattr(server, 'jsonable_encoder', blocked)
+    monkeypatch.setattr(server._HistoryJSONResponse, 'render', blocked)
 
     async def run():
         loop_thread = threading.get_ident()

@@ -11,6 +11,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { parseMarkdownFileLink } from '@/utils/markdownFileLinks';
+import { resolveEditorFileLink } from '@/utils/editorFileLinks';
 import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
 import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
@@ -39,7 +40,7 @@ function looksLikeImageLink(href: string, label: React.ReactNode): boolean {
     || extensionPattern.test(extractLinkText(label));
 }
 
-function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: LinkProps & { attachmentId?: string }) {
+function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, ...props }: LinkProps & { attachmentId?: string; sourcePath?: string }) {
   const navigate = useNavigate();
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const workdir = useSessionStore((s) => s.sessions.find(x => x.id === s.currentSessionId)?.workdir);
@@ -130,35 +131,55 @@ function MarkdownLink({ href, children, attachmentId, node: _node, ...props }: L
       return;
     }
 
-    let editorPath = fileLink.path;
-    if (fileLink.serverAttachmentId) {
-      const finishRequest = beginForegroundRequest();
-      try {
-        const response = await fetch(
-          `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
-          + `?session_id=${encodeURIComponent(fileLink.serverSessionId || sessionId)}`,
-        );
-        const metadata = await response.json() as { ok?: boolean; path?: unknown };
-        if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
-          throw new Error('文件引用已失效');
-        }
-        editorPath = metadata.path;
-      } catch (error) {
-        showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
-        return;
-      } finally {
-        finishRequest();
-      }
-    }
+    let stale = false;
+    const isCurrent = () => {
+      const state = useSessionStore.getState();
+      return !stale && state.currentSessionId === sessionId
+        && state.sessions.find((item) => item.id === sessionId)?.workdir === workdir;
+    };
 
-    // Keep the existing editor root in sync before opening. This also covers
-    // links clicked in Chat/DetailPanel before EditorView has mounted.
-    prepareEditorRoot(sessionId, workdir);
-    const location = fileLink.location && editorPath
-      ? { ...fileLink.location, path: editorPath }
-      : fileLink.location;
-    const opened = await useEditorStore.getState().openFile(editorPath, location);
-    if (opened) navigate('/editor');
+    const unsubscribe = useSessionStore.subscribe(() => {
+      if (!isCurrent()) stale = true;
+    });
+    try {
+      let editorPath = !fileLink.serverAttachmentId
+        ? resolveEditorFileLink(href, sourcePath ?? `${workdir.replace(/\\/g, '/')}/`, workdir)?.path ?? fileLink.path
+        : fileLink.path;
+      if (fileLink.serverAttachmentId) {
+        const finishRequest = beginForegroundRequest();
+        try {
+          const response = await fetch(
+            `/api/attachments/editor/${encodeURIComponent(fileLink.serverAttachmentId)}`
+            + `?session_id=${encodeURIComponent(fileLink.serverSessionId || sessionId)}`,
+          );
+          const metadata = await response.json() as { ok?: boolean; path?: unknown };
+          if (!response.ok || metadata.ok === false || typeof metadata.path !== 'string') {
+            throw new Error('文件引用已失效');
+          }
+          editorPath = metadata.path;
+        } catch (error) {
+          showToast(`打开文件失败：${error instanceof Error ? error.message : '文件引用已失效'}`, 'error');
+          return;
+        } finally {
+          finishRequest();
+        }
+      }
+
+      // Keep the existing editor root in sync before opening. This also covers
+      // links clicked in Chat/DetailPanel before EditorView has mounted.
+      if (!isCurrent()) return;
+      prepareEditorRoot(sessionId, workdir);
+      const location = fileLink.location && editorPath
+        ? { ...fileLink.location, path: editorPath }
+        : fileLink.location;
+      const editor = useEditorStore.getState();
+      const opened = fileLink.serverAttachmentId
+        ? await editor.openFile(editorPath, location, isCurrent)
+        : await editor.openPath(editorPath, location, isCurrent);
+      if (opened && isCurrent()) navigate('/editor');
+    } finally {
+      unsubscribe();
+    }
   };
 
   const handleDragStart = (event: React.DragEvent<HTMLAnchorElement>) => {
@@ -246,6 +267,8 @@ interface MarkdownRendererProps {
   content: string;
   className?: string;
   attachmentIds?: string[];
+  /** Editor document context; Chat links retain their session-root semantics. */
+  sourcePath?: string;
 }
 
 // Keep plugin identity stable so react-markdown does not rebuild its unified
@@ -354,7 +377,7 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [] }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath }: MarkdownRendererProps) {
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
@@ -376,7 +399,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
             const attachmentId = props.href && isSafeAttachmentHref(props.href)
               ? attachmentIds[attachmentIndex++]
               : undefined;
-            return <MarkdownLink {...props} attachmentId={attachmentId} />;
+            return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
           },
         }}
         urlTransform={transformMarkdownUrl}

@@ -1,0 +1,3 @@
+{"kind": "init", "pid": 12800, "cwd": "D:\\project\\pan-worktrees\\takeover-lifecycle-20261019", "at": 1792415830.0863006}
+{"kind": "init", "pid": 42088, "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3137\\test_http_takeover_controls_re1\\runtime\\workdirs\\takeover-http", "at": 1792415830.2049627}
+{"kind": "received", "pid": 42088, "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3137\\test_http_takeover_controls_re1\\runtime\\workdirs\\takeover-http", "text": "establish-native-session", "at": 1792415830.2513914}

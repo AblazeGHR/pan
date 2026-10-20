@@ -1,0 +1,13 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/os-autostart-20261019/packages/web/src[39m
+
+ [32m✓[39m components/layout/LoginStartupSettings.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 181[2mms[22m[39m
+ [32m✓[39m components/layout/AppSettingsModal.test.tsx [2m([22m[2m50 tests[22m[2m)[22m[33m 5065[2mms[22m[39m
+   [33m[2m✓[22m[39m AppSettingsModal[2m > [22mrequires confirmation and reports successful main-service recovery [33m1179[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m54 passed[39m[22m[90m (54)[39m
+[2m   Start at [22m 17:40:21
+[2m   Duration [22m 8.71s[2m (transform 762ms, setup 37ms, collect 1.71s, tests 5.25s, environment 1.95s, prepare 379ms)[22m
+
+JUNIT report written to D:/project/pan-worktrees/os-autostart-20261019/audit/os-autostart-20261019/frontend.xml

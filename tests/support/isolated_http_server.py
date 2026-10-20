@@ -71,6 +71,9 @@ def main() -> None:
 
     data_root = args.data_root.resolve()
     data_root.mkdir(parents=True, exist_ok=True)
+    # Keep the append-only sample log inside this test's owned data root.
+    os.environ["PAN_SESSION_ERROR_LOG_PATH"] = str(
+        data_root / "logs" / "session-errors.jsonl")
 
     from packages.core import session as session_store
     from packages.core import config
@@ -155,6 +158,9 @@ def main() -> None:
         worker._spawn_process = probe_spawn
 
     import uvicorn
+    if os.environ.get("PAN_E2E_TAKEOVER_PROBE") == "1":
+        from takeover_probe import install
+        install(server, data_root)
 
     from packages.core.host_server import PanServer
     host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,

@@ -15,7 +15,9 @@ import {
   flushDraft,
   installDraftLifecycleFlush,
   loadDraft,
+  localDraftError,
   recordDraft,
+  restorableLocalDraft,
   subscribeDraftPersistence,
 } from '@/stores/composerDraftStore';
 import { fromDraft, toDraft } from '@/stores/composerDraftCodec';
@@ -51,6 +53,7 @@ import {
   mockUploadSessionAttachment,
 } from '@/demo/mockBackend';
 import { directoryEntryExists, parentDirectory } from '@/utils/directoryInput';
+import { registerLockedEnqueueHandler } from '@/shortcuts/composerBridge';
 import {
   ChevronDown,
   ChevronUp,
@@ -922,8 +925,24 @@ export function InputRow() {
     const recovery = currentSessionId
       ? recoveryBySessionRef.current.get(currentSessionId)
       : undefined;
+    // A route switch (Chat → Editor/Jobs/Terminal/plugin panel → Chat)
+    // unmounts this component, so the refs above are gone when it comes back.
+    // The draft store is module-scoped and already holds the last recorded
+    // value, including occurrence order and the localFileId of pending bytes;
+    // restoring from it is synchronous and independent of the server.
+    const recorded = !recovery && !stored && currentSessionId
+      ? (() => {
+          const local = restorableLocalDraft(currentSessionId);
+          return local ? fromDraft(local, draft || '') : null;
+        })()
+      : null;
+    if (recorded && currentSessionId) {
+      // Keep the in-memory copy authoritative for later in-component switches
+      // and for the next unmount, instead of re-reading the store each time.
+      draftsBySessionRef.current.set(currentSessionId, recorded);
+    }
     const value = recovery?.value ||
-      stored?.value || {
+      stored?.value || recorded?.value || {
         parts: draft
           ? [{ type: 'text' as const, value: draft }]
           : [{ type: 'text' as const, value: '' }],
@@ -931,7 +950,7 @@ export function InputRow() {
         occurrenceIds: [],
         attachmentIds: [],
       };
-    const restoredAttachments = recovery?.attachments || stored?.attachments || [];
+    const restoredAttachments = recovery?.attachments || stored?.attachments || recorded?.attachments || [];
     const clonedAttachments = restoredAttachments.map((attachment) => ({ ...attachment }));
     composerValueRef.current = cloneComposerValue(value);
     attachmentsRef.current = clonedAttachments;
@@ -943,6 +962,11 @@ export function InputRow() {
     return () => {
       if (activeAttachmentSessionRef.current === currentSessionId && currentSessionId) {
         rememberSessionDraft(currentSessionId, composerValueRef.current, attachmentsRef.current);
+        // Leaving the Session — including an unmount caused by a route change —
+        // is the last cheap moment to persist: the payload is complete and the
+        // user is no longer typing it. Fire-and-forget; navigation must not wait
+        // on the network, and the store coalesces this with any in-flight save.
+        flushDraft(currentSessionId);
       }
     };
   }, [currentSessionId, rememberSessionDraft]);
@@ -971,6 +995,7 @@ export function InputRow() {
     const hasLocalContent =
       !!draftsBySessionRef.current.get(sessionId) ||
       !!recoveryBySessionRef.current.get(sessionId) ||
+      !!restorableLocalDraft(sessionId) ||
       !!useSessionStore.getState().inputDrafts[sessionId];
     if (hasLocalContent) return;
     let cancelled = false;
@@ -1008,6 +1033,15 @@ export function InputRow() {
   // cross-tab conflict is reported instead.
   useEffect(() => {
     let lastError: string | null = null;
+    // A save can fail (transport retries exhausted, or a CAS conflict) while
+    // the Chat route is unmounted and no subscriber exists to hear it. Surface
+    // that standing error once when the composer comes back: the local copy is
+    // preserved, and the user must know it is not durable yet.
+    const standing = currentSessionId ? localDraftError(currentSessionId) : null;
+    if (standing) {
+      lastError = standing;
+      showToast(`${standing}`, 'error');
+    }
     return subscribeDraftPersistence((sessionId, error) => {
       if (sessionId !== currentSessionId || !error || error === lastError) return;
       lastError = error;
@@ -1577,7 +1611,7 @@ export function InputRow() {
   );
 
   const handleSend = useCallback(
-    (_text: string, action: 'send' | 'steer' = 'send') => {
+    (_text: string, action: 'send' | 'steer' = 'send', options?: { forceLocked?: boolean }) => {
       if (!currentSessionId) {
         showToast('Select a session first');
         return;
@@ -1587,7 +1621,8 @@ export function InputRow() {
         return;
       }
       if ([...sendSnapshotsRef.current.values()].some((pending) => pending.sessionId === currentSessionId)) return;
-      const lockedSend = useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
+      const lockedSend = options?.forceLocked === true ||
+        useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
       if (lockedSend && [...sendSnapshotsRef.current.values()].some(
         (pending) => pending.sessionId === currentSessionId && pending.locked,
       )) return;
@@ -1817,6 +1852,19 @@ export function InputRow() {
       setAttachmentMenuOpen,
     ],
   );
+
+  // The global "enqueue as locked" shortcut reuses this exact send transaction
+  // (draft, URL nodes, attachment occurrences, idempotency key, failure
+  // recovery).  The handler is scoped to the mounted Session, so an async
+  // Session switch can never retarget the shortcut at its successor.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    return registerLockedEnqueueHandler((sessionId) => {
+      if (sessionId !== currentSessionId) return false;
+      handleSend('', 'send', { forceLocked: true });
+      return true;
+    });
+  }, [currentSessionId, handleSend]);
 
   const handleSteer = (text: string) => handleSend(text, 'steer');
 

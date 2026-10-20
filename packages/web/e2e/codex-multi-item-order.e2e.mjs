@@ -156,6 +156,37 @@ try {
     row.content.includes('story-5-final')), 'reloaded history');
   assert.equal(reloaded.rows.filter(row => row.role === 'assistant'
     && /^story-[1-5]-first\nstory-[1-5]-final$/.test(row.content)).length, 5);
+
+  // Real Worker/WS lifecycle: plan/diff stay live while the CLI is running,
+  // then disappear at DONE even when canonical history recovery is stale.
+  // A second turn exercises the same boundary without a page refresh.
+  for (const round of [1, 2]) {
+    const turnLabel = `codex-aggregate-ghost-${round}`;
+    const historyRoute = `**/api/sessions/${id}/history**`;
+    const staleHistory = await api(`/api/sessions/${id}/history?before=0&limit=50`);
+    await page.route(historyRoute, route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify(staleHistory),
+    }));
+    try {
+      await api('/api/assign', { sessionId: id, text: turnLabel });
+      await poll(() => fs.stat(path.join(runtime, `${turnLabel}-ready`))
+        .then(() => true).catch(() => false), Boolean, 'aggregate fixture gate');
+      await poll(state, s => s.rows.some(row =>
+        row.nativeItemId === `diff:turn:${turnLabel}`), 'live diff visible');
+      await fs.writeFile(path.join(runtime, `${turnLabel}-release`), 'release');
+      const done = await poll(state, s => {
+        const body = s.rows.findIndex(row => row.content === `answer:${turnLabel}`);
+        return body >= 0 && s.rows.slice(body + 1).some(row =>
+          row.content.includes('[DONE]'));
+      }, 'aggregate turn DONE');
+      assert.ok(!done.rows.some(row => row.nativeItemId?.startsWith(`diff:turn:${turnLabel}`)
+        || row.nativeItemId?.startsWith(`plan:turn:${turnLabel}`)), 'no aggregate behind DONE');
+      assert.equal(done.rows.filter(row => row.content === `answer:${turnLabel}`).length, 1);
+      assert.ok(done.rows.some(row => row.content.includes(`Command(`)
+        && row.content.includes(turnLabel)), 'ordinary persisted tool retained');
+      evidence.stages.push({ aggregateRound: round, noGhostAtDone: true });
+    } finally { await page.unroute(historyRoute); }
+  }
   assert.deepEqual(evidence.errors, []);
   evidence.pass = true;
   evidence.assertions = { durableStories: durableStories.length, finalDom,

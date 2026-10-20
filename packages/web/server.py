@@ -39,6 +39,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 
 from packages.web.static_assets import ReactStaticFiles
 from packages.web.network_json import NetworkJSONResponse
@@ -48,6 +49,7 @@ import httpx
 import psutil
 
 from packages.core import worker
+from packages.core.takeover import readiness as _takeover_readiness
 from packages.core import legal_offline, queue_locks
 from packages.core import session as sess
 from packages.core import session_bookmarks
@@ -1534,7 +1536,12 @@ def _attach_session_summary_patch(data: dict) -> dict:
                 task_id=task_id,
                 task_seq=task_seq,
             )
-    if event_type not in (_SUMMARY_WORKER_EVENT_TYPES
+    # Completed provider blocks have already advanced append_history's
+    # projection. Deltas stay lightweight and use the client's live suffix.
+    completed_stream = (event_type == "worker.stream"
+                        and isinstance(data.get("event"), dict)
+                        and not data["event"].get("delta"))
+    if not completed_stream and event_type not in (_SUMMARY_WORKER_EVENT_TYPES
                           | _SUMMARY_SESSION_EVENT_TYPES
                           | _SUMMARY_QUEUE_EVENT_TYPES):
         return data
@@ -1563,6 +1570,10 @@ def _stamp_live_event(data: dict) -> dict:
         "sourceCursorStart": _EVENT_SEQ,
         "sourceCursorEnd": _EVENT_SEQ,
     }
+
+
+_LINK_PROJECTION_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="pan-link-projection")
 
 
 def _project_worker_event(data: dict) -> dict:
@@ -1665,8 +1676,15 @@ async def broadcast(data: dict):
     # Keep the persisted provider/history representation untouched.  This is
     # the common outbound boundary for live browser events and is intentionally
     # before both dashboard and agent-client fan-out.
+    # Resolving local links can stat files and read/write the attachment
+    # registry. Never do that on the event loop driving HTTP and Worker IO.
+    # The producer awaits its own projection, preserving its event order.
+    if data.get("type") in {"worker.stream", "worker.result"}:
+        data = await asyncio.get_running_loop().run_in_executor(
+            _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
+    # Capture live summary authority after the await, not before another
+    # producer may have advanced this Session while filesystem work ran.
     data = _attach_session_summary_patch(data)
-    data = _project_worker_event(data)
     data = _stamp_live_event(data)
     _stamp_ws_event_ts(data)
     for ws in list(ws_clients):
@@ -1846,7 +1864,8 @@ def _resync_snapshot(
     workers = []
     active_workers = worker.find_alive_workers_by_session()
     for runtime in worker.list_workers():
-        if active_workers.get(runtime.session_id) is not runtime:
+        if (active_workers.get(runtime.session_id) is not runtime
+                and worker._find_control_worker(runtime.session_id) is not runtime):
             continue
         if requested and runtime.session_id not in requested:
             continue
@@ -2006,37 +2025,47 @@ async def _replay_agent_results(
                 return
 
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log every API request with method, path, and status code."""
-    path = request.url.path
-    response = await call_next(request)
+class HTTPPolicyMiddleware:
+    """Apply header/log policies without per-request task or body relays.
 
-    # Prevent browsers/CDNs from serving stale static assets
-    if path.startswith("/static/"):
-        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    Two BaseHTTPMiddleware layers built AnyIO task/stream graphs for every
+    cold read. Their allocation churn triggers whole-interpreter GC pauses,
+    including when the allocating store read runs off the event loop. Only
+    response-start needs inspection; body chunks can pass straight through.
+    """
 
-    if not any(path.startswith(p) for p in _LOG_SKIP):
-        status = response.status_code
-        _log(f"{request.method}  {path}  → {status}")
-    return response
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+
+        async def send_with_policy(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                status = message["status"]
+                if path.startswith("/static/"):
+                    headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+                if path.startswith("/api/"):
+                    conditional_list = (
+                        path == "/api/sessions" and method == "GET"
+                        and status in (200, 304) and "etag" in headers
+                        and headers.get("cache-control") == "private, no-cache")
+                    if not conditional_list:
+                        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                if not any(path.startswith(p) for p in _LOG_SKIP):
+                    # Preserve a record per response and keep blocking stdout
+                    # writes off the loop without spawning detached log tasks.
+                    await asyncio.to_thread(_log, f"{method}  {path}  → {status}")
+            await send(message)
+
+        await self.app(scope, receive, send_with_policy)
 
 
-@app.middleware("http")
-async def no_cache_api(request: Request, call_next):
-    """Keep APIs uncached except the explicitly revalidated private list."""
-    response = await call_next(request)
-    if request.url.path.startswith("/api/"):
-        conditional_list = (
-            request.url.path == "/api/sessions"
-            and request.method == "GET"
-            and response.status_code in (200, 304)
-            and "etag" in response.headers
-            and response.headers.get("cache-control") == "private, no-cache"
-        )
-        if not conditional_list:
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+app.add_middleware(HTTPPolicyMiddleware)
 
 
 # ── helpers ──
@@ -2066,7 +2095,7 @@ def _session_to_api(
     pin_projection: dict | None = None,
 ):
     """Convert Session to API response dict."""
-    w = worker.find_alive_worker_by_session(s.id)
+    w = worker._find_control_worker(s.id)
     a = get_adapter(s.adapter)
     config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
@@ -2229,13 +2258,24 @@ async def _store_read(func, /, *args, **kwargs):
         _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
 
 
+class _HistoryJSONResponse(NetworkJSONResponse):
+    def render(self, content) -> bytes:
+        # Projections already own their JSON-shaped dicts/lists. Let the C
+        # encoder walk those directly; recursively cloning them with FastAPI's
+        # encoder doubles container churn under concurrent cold list reads and
+        # can trigger a stop-the-world collection even on the store thread.
+        # Preserve FastAPI conversion for non-JSON leaves (datetime, Path, etc.).
+        return json.dumps(content, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":"), default=jsonable_encoder).encode("utf-8")
+
+
 async def _history_network_response(payload: dict, request: Request | None):
     # Direct internal callers retain the dict contract. Returning a Response
     # for HTTP skips FastAPI's synchronous recursive encoder and JSON render.
     # Reuse the single worker so a burst cannot fan out GIL-bound encoders.
     if request is None:
         return payload
-    return await _store_read(lambda: NetworkJSONResponse(jsonable_encoder(payload)))
+    return await _store_read(lambda: _HistoryJSONResponse(payload))
 
 
 def _history_pages_for(session_ids: list[str], limit: int) -> dict:
@@ -2264,6 +2304,33 @@ def _history_page_lookup(session_id: str, before: int, limit: int,
     if page is not None:
         page['_bookmarkedMessageIds'] = session_bookmarks.bookmarked_message_ids(session_id)
     return _NOT_FOUND if page is None else page
+
+
+def _history_page_wire_payload(session_id: str, before: int, limit: int,
+                               search_jump: bool = False):
+    """Read and project one private history page entirely off the event loop.
+
+    Link compatibility projection can resolve local paths and perform file
+    I/O. Offloading only the store read and final JSON encoding leaves that
+    middle stage blocking dashboard heartbeats.
+    """
+    page = _history_page_lookup(session_id, before, limit, search_jump)
+    if page is _NOT_FOUND:
+        return {"error": "Session not found"}
+    return {
+        "history": _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+            bookmarked_ids=page.get('_bookmarkedMessageIds'),
+        ),
+        "total": page["total"],
+        "hasMore": page["hasMore"],
+        "start": page["start"],
+        "historyEpoch": page.get("historyEpoch"),
+        "historyRevision": page.get("historyRevision", 0),
+    }
 
 
 def _session_list_api(
@@ -2393,6 +2460,8 @@ def _session_summary(
     """
     w = (active_workers.get(s.id) if active_workers is not None
          else worker.find_alive_worker_by_session(s.id))
+    if w is None and (s.offline_owner or {}).get("externalTakeover"):
+        w = worker._find_control_worker(s.id)
     projection = sess.summary_projection(s)
     worker_state = getattr(s, "_summary_worker_state", None) or {}
     worker_status = w.status if w else worker_state.get("status")
@@ -3040,7 +3109,13 @@ def _build_session_params(
                 raise ValueError(
                     f"Session template {template.name!r} locks MCP servers to {locked_label}"
                 )
-        _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
+        # An explicit empty list deliberately disables MCP.  It is a complete
+        # selection and must remain usable before the optional plugin manifest
+        # has been loaded (for example, during isolated session construction).
+        if not requested_servers:
+            _set_plugin_config(params["adapter_config"], [])
+        else:
+            _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
     elif template.mcp_mode == "always" and template.plugin_bindings is not None:
         _set_plugin_config(params["adapter_config"], _plugin_catalog().bindings(template.plugin_bindings))
     elif template.mcp_mode == "always" and template.mcp_servers:
@@ -3204,6 +3279,10 @@ def _session_plugin_fields(s):
 
 
 def _set_plugin_config(ac, bindings):
+    if not bindings:
+        ac.update(plugin_config_version=2, plugin_bindings=[], mcp_servers=[],
+                  plugin_selection_revision=ac.get("plugin_selection_revision", 0) + 1)
+        return
     catalog = _plugin_catalog()
     from packages.plugins.runtime import read_api_document
     bindings = catalog.bindings(bindings)
@@ -3463,10 +3542,16 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
     async with lock:
         if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
             raise OSError("Takeover superseded by another lifecycle operation")
-        await worker.reserve_takeover_owner(w)
-        if sys.platform == "win32" and w.adapter.name == "codex":
+        if sys.platform == "win32":
             from packages.core.takeover_job import TakeoverJob
             job = TakeoverJob()
+            try:
+                await worker.reserve_takeover_owner(w)
+            except BaseException:
+                # No launch occurred. Release only this newly allocated empty
+                # Job; a failed reservation leaves existing metadata intact.
+                await asyncio.to_thread(job.stop)
+                raise
             w.takeover_job = job
             try:
                 w.takeover_pid = _open_terminal(cmd, cwd, takeover_job=job)
@@ -3474,6 +3559,7 @@ async def _open_takeover_terminal(w, cmd, cwd, generation):
                 await worker._kill_takeover_terminal(w)
                 raise
         else:
+            await worker.reserve_takeover_owner(w)
             w.takeover_pid = _open_terminal(cmd, cwd)
 
 
@@ -4281,12 +4367,23 @@ def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | Non
 
 def _editor_reference_id(session_id: str, path: str, line: int | None, end_line: int | None) -> str:
     canonical_path = str(Path(path).resolve())
+    # Concurrent history/live projections must reuse one durable reference.
+    with _ATTACHMENT_REGISTRY_LOCK:
+        return _editor_reference_id_locked(session_id, canonical_path, line, end_line)
+
+
+def _editor_reference_id_locked(session_id: str, canonical_path: str,
+                                line: int | None, end_line: int | None) -> str:
+    # Registry paths are resolved at registration. Comparing these stored
+    # canonical strings must not resolve every unrelated file again: stale
+    # network drives in the registry can otherwise block each live delta.
+    canonical_key = os.path.normcase(os.path.normpath(canonical_path))
     registry = _read_attachment_registry(session_id)
     for attachment_id, record in registry.items():
         if (
             isinstance(record, dict)
             and record.get("source") == "server_file"
-            and str(Path(str(record.get("path", ""))).resolve()) == canonical_path
+            and os.path.normcase(os.path.normpath(str(record.get("path", "")))) == canonical_key
             and record.get("line") == line
             and record.get("endLine") == end_line
             and record.get("completed", True) is True
@@ -4312,7 +4409,14 @@ def _project_editor_links(session_id: str, content: str) -> str:
     be upgraded to a draggable opaque reference; missing or ambiguous legacy
     links remain ordinary editor links and retain click-only compatibility.
     """
+    destinations: dict[str, str | None] = {}
+
     def replace(match: re.Match[str]) -> str:
+        href = match.group("href")
+        if href in destinations:
+            projected = destinations[href]
+            return f"{match.group('label')}({projected})" if projected else match.group(0)
+        destinations[href] = None
         parsed = _parse_editor_destination(match.group("href"))
         if parsed is None:
             return match.group(0)
@@ -4324,7 +4428,9 @@ def _project_editor_links(session_id: str, content: str) -> str:
             if not target.is_file():
                 return match.group(0)
             attachment_id = _editor_reference_id(session_id, str(target), line, end_line)
-            return f"{match.group('label')}({_editor_attachment_href(session_id, attachment_id, line, end_line)})"
+            projected = _editor_attachment_href(session_id, attachment_id, line, end_line)
+            destinations[href] = projected
+            return f"{match.group('label')}({projected})"
         except (OSError, RuntimeError, ValueError):
             return match.group(0)
 
@@ -7040,24 +7146,9 @@ async def api_session_managers(session_id: str):
 async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
                               searchJump: bool = False, request: Request = None):
     """Paginated session history for lazy-loading older messages."""
-    page = await _store_read(
-        _history_page_lookup, session_id, before, limit, searchJump)
-    if page is _NOT_FOUND:
-        return await _history_network_response({"error": "Session not found"}, request)
-    return await _history_network_response({
-        "history": _api_history(
-            session_id,
-            page["history"],
-            start=page.get("start", 0),
-            history_epoch=page.get("historyEpoch"),
-            bookmarked_ids=page.get('_bookmarkedMessageIds'),
-        ),
-        "total": page["total"],
-        "hasMore": page["hasMore"],
-        "start": page["start"],
-        "historyEpoch": page.get("historyEpoch"),
-        "historyRevision": page.get("historyRevision", 0),
-    }, request)
+    payload = await _store_read(
+        _history_page_wire_payload, session_id, before, limit, searchJump)
+    return await _history_network_response(payload, request)
 
 
 def _navigation_preview(content: str) -> str:
@@ -13218,8 +13309,9 @@ async def api_takeover(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
     if w.status == "held":
         return {"error": "Worker already in takeover mode"}
 
@@ -13252,7 +13344,7 @@ async def api_takeover(worker_id: str):
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
-    except OSError as e:
+    except (OSError, RuntimeError) as e:
         return {"error": str(e)}
 
     return {
@@ -13269,17 +13361,26 @@ async def api_takeover(worker_id: str):
     }
 
 
+@app.get("/api/sessions/{session_id}/worker/takeover-readiness")
+async def api_takeover_readiness(session_id: str):
+    s = _summary_session_get(session_id)
+    if s is None:
+        return {"ready": False, "reason": "Session not found"}
+    return await asyncio.to_thread(_takeover_readiness, s)
+
+
 @app.post("/api/sessions/{session_id}/worker/takeover")
 async def api_session_takeover(session_id: str):
     """Take over the session's live worker using sessionId as the control key."""
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    w = worker.find_alive_worker_by_session(session_id)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
     if not w:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+        return {"error": "Worker is offline. Start the worker before takeover."}
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
@@ -13288,7 +13389,7 @@ async def api_session_takeover(session_id: str):
     if isinstance(result, str):
         return {"error": result}
     if result is None:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+        return {"error": "Worker went offline before takeover. Start the worker and retry."}
     w = result
     generation = w.generation
     await broadcast({
@@ -13304,7 +13405,7 @@ async def api_session_takeover(session_id: str):
         )
     except FileNotFoundError:
         return {"error": "terminal opener not found"}
-    except OSError as e:
+    except (OSError, RuntimeError) as e:
         return {"error": str(e)}
     return {
         "workerId": w.worker_id,
@@ -13330,8 +13431,9 @@ async def api_takeover_command(worker_id: str):
     s = sess.get(w.session_id)
     if not s:
         return {"error": "Session not found"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
 
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
@@ -13353,11 +13455,12 @@ async def api_session_takeover_command(session_id: str):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
-    w = worker.find_alive_worker_by_session(session_id)
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
     if not w:
-        return {"workerId": None, "sessionId": session_id, "status": "offline"}
-    if not s.cli_session_id:
-        return {"error": "Worker has no CLI session yet"}
+        return {"error": "Worker is offline. Start the worker before takeover."}
     adapter_cmd = w.adapter.takeover_command(s)
     if not adapter_cmd:
         return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
@@ -14091,3 +14194,26 @@ else:
 STATIC_DIR = _WEB_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# Native login entries are the sole source of truth; no config.json mirror.
+@app.get("/api/settings/login-startup")
+def api_get_login_startup():
+    from packages.core.login_startup import LoginStartup
+    try:
+        return LoginStartup().status()
+    except (OSError, RuntimeError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/login-startup")
+def api_put_login_startup(data: dict = Body(...)):
+    from packages.core.login_startup import LoginStartup, RegistrationError
+    if set(data) != {"enabled", "revision"} or type(data.get("enabled")) is not bool or not isinstance(data.get("revision"), str):
+        raise HTTPException(status_code=422, detail="enabled (boolean) and revision are required")
+    try:
+        return LoginStartup().update(data["enabled"], data["revision"])
+    except RegistrationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OSError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

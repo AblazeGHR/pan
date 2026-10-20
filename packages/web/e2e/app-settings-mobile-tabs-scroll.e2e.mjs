@@ -15,7 +15,7 @@ const baseURL = `http://127.0.0.1:${port}/${harnessName}.html`;
 const cwd = new URL('..', import.meta.url).pathname.replace(/^\/(\w:)/, '$1').replaceAll('/', '\\');
 const mobileWidths = [320, 360, 390];
 const desktopWidth = 1280;
-const labels = ['General', 'Preferences', 'Appearance', 'Notification', 'Adapter'];
+const labels = ['Lifecycle', 'Behavior', 'Remote', 'Appearance', 'Notifications', 'Adapters', 'Plugins', 'Data'];
 
 await new Promise((resolve, reject) => {
   const server = net.createServer();
@@ -70,19 +70,54 @@ try {
   });
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname;
-    const body = path.endsWith('/models')
-      ? { models: [], default: '' }
-      : path.endsWith('/remote/status')
-        ? { available: false, enabled: false, running: false }
-        : { available: false, pending: false, platform: 'nt', stage: 'idle' };
+    const retentionPolicies = {
+      sessions: { enabled: false, days: null },
+      attachments: { enabled: false, days: null },
+      qq_history: { enabled: false, days: null },
+      qq_media: { enabled: false, days: null },
+      pan_logs: { enabled: false, days: null },
+    };
+    const lastScans = Object.fromEntries(Object.keys(retentionPolicies).map((key) => [key, {
+      scanned: 0, deleted: 0, skipped: 0, skipReasons: {}, lastScanAt: null,
+    }]));
+    const jobRules = {
+      completed: { enabled: false, days: null },
+      failed: { enabled: false, days: null },
+      timed_out: { enabled: false, days: null },
+      cancelled: { enabled: false, days: null },
+      logs: { enabled: false, days: null },
+    };
+    let body;
+    if (path.endsWith('/models')) body = { models: [], default: '' };
+    else if (path.endsWith('/remote/status')) body = { available: false, enabled: false, running: false };
+    else if (path.endsWith('/settings/session-lifecycle')) {
+      body = { exitStrategy: 'ask', startupPreference: 'ask' };
+    } else if (path.endsWith('/data/catalog')) {
+      body = {
+        categories: [],
+        notice: '',
+        jobsRetention: { slot: 'jobs-retention-control', status: 'reserved', message: '' },
+      };
+    } else if (path.endsWith('/settings/data-retention')) {
+      body = { policies: retentionPolicies, configKey: 'data_retention', lastScans };
+    } else if (path.endsWith('/jobs/settings/completed-retention')) {
+      body = {
+        settings: jobRules.completed,
+        rules: jobRules,
+        configValid: true,
+        configValidity: Object.fromEntries(Object.keys(jobRules).map((key) => [key, true])),
+        lastRun: null,
+        lastRuns: Object.fromEntries(Object.keys(jobRules).map((key) => [key, null])),
+      };
+    } else body = { available: false, pending: false, platform: 'nt', stage: 'idle' };
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
   await page.goto(baseURL, { waitUntil: 'networkidle' });
-  await page.getByRole('tab', { name: 'General' }).waitFor({ state: 'visible' });
+  await page.getByRole('tab', { name: 'Lifecycle' }).waitFor({ state: 'visible' });
 
   async function measure(width) {
     await page.setViewportSize({ width, height: 844 });
-    await page.getByRole('tab', { name: 'General' }).waitFor({ state: 'visible' });
+    await page.getByRole('tab', { name: 'Lifecycle' }).waitFor({ state: 'visible' });
     return page.evaluate(() => {
       const rect = (element) => {
         const { x, width: w, left, right } = element.getBoundingClientRect();
@@ -105,11 +140,17 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await page.setViewportSize({ width, height: 844 });
     await page.evaluate(() => { document.querySelector('[role="tablist"]').scrollLeft = 0; });
+    // Lifecycle is intentionally short; measure the independent panel
+    // vertical scroll on Appearance, then return to Lifecycle for the tab
+    // scroll assertions below.
+    await page.getByRole('tab', { name: 'Appearance' }).click();
     const before = await measure(width);
     assert.ok(before.tabList.scrollWidth > before.tabList.clientWidth, `${width}px tablist should overflow horizontally: ${JSON.stringify(before)}`);
     assert.ok(before.documentWidth <= width, `${width}px document overflowed: ${JSON.stringify(before)}`);
     assert.ok(before.card.width <= width, `${width}px card overflowed: ${JSON.stringify(before)}`);
     assert.ok(before.panel.scrollHeight > before.panel.clientHeight, `${width}px settings panel should scroll vertically on its own: ${JSON.stringify(before.panel)}`);
+    await page.getByRole('tab', { name: 'Lifecycle' }).click();
+    await page.evaluate(() => { document.querySelector('[role="tablist"]').scrollLeft = 0; });
 
     const tabRects = await page.getByRole('tab').evaluateAll((tabs) => tabs.map((tab) => ({
       label: tab.textContent.trim(),
@@ -133,18 +174,18 @@ try {
       panelScrollLeft: document.querySelector('[role="tabpanel"]').scrollLeft,
     }));
     assert.ok(afterGesture.scrollLeft > 0, `${width}px touch gesture did not move the tablist: ${JSON.stringify(afterGesture)}`);
-    assert.equal(await page.getByRole('tab', { name: 'General' }).getAttribute('aria-selected'), 'true', 'horizontal scrolling must not activate a tab');
+    assert.equal(await page.getByRole('tab', { name: 'Lifecycle' }).getAttribute('aria-selected'), 'true', 'horizontal scrolling must not activate a tab');
     assert.equal(afterGesture.panelScrollLeft, 0, 'content panel must not move horizontally with the tablist');
 
     await page.evaluate(() => {
       document.querySelector('[role="tablist"]').scrollLeft = 0;
-      document.getElementById('app-settings-tab-general').focus();
+      document.getElementById('app-settings-tab-lifecycle').focus();
     });
     await page.keyboard.press('End');
     await page.waitForTimeout(50);
     const endState = await page.evaluate(() => {
       const list = document.querySelector('[role="tablist"]');
-      const tab = document.getElementById('app-settings-tab-adapter');
+      const tab = document.getElementById('app-settings-tab-data');
       const listRect = list.getBoundingClientRect();
       const tabRect = tab.getBoundingClientRect();
       return {
@@ -155,26 +196,26 @@ try {
       };
     });
     assert.equal(endState.selected, 'true');
-    assert.ok(endState.scrollLeft > 0, `${width}px End did not scroll to Adapter: ${JSON.stringify(endState)}`);
-    assert.ok(endState.fullyVisible, `${width}px Adapter is clipped after End: ${JSON.stringify(endState)}`);
+    assert.ok(endState.scrollLeft > 0, `${width}px End did not scroll to Data: ${JSON.stringify(endState)}`);
+    assert.ok(endState.fullyVisible, `${width}px Data is clipped after End: ${JSON.stringify(endState)}`);
     assert.equal(endState.panelScrollLeft, 0);
     await page.keyboard.press('Home');
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(50);
     const wrappedLeft = await page.evaluate(() => {
       const list = document.querySelector('[role="tablist"]');
-      const tab = document.getElementById('app-settings-tab-adapter');
+      const tab = document.getElementById('app-settings-tab-data');
       const bounds = list.getBoundingClientRect();
       const tabBounds = tab.getBoundingClientRect();
       return { selected: tab.getAttribute('aria-selected'), fullyVisible: tabBounds.left >= bounds.left && tabBounds.right <= bounds.right };
     });
-    assert.equal(wrappedLeft.selected, 'true', `${width}px ArrowLeft did not wrap to Adapter`);
-    assert.ok(wrappedLeft.fullyVisible, `${width}px ArrowLeft left Adapter clipped`);
+    assert.equal(wrappedLeft.selected, 'true', `${width}px ArrowLeft did not wrap to Data`);
+    assert.ok(wrappedLeft.fullyVisible, `${width}px ArrowLeft left Data clipped`);
     await page.keyboard.press('ArrowRight');
-    assert.equal(await page.getByRole('tab', { name: 'General' }).getAttribute('aria-selected'), 'true');
+    assert.equal(await page.getByRole('tab', { name: 'Lifecycle' }).getAttribute('aria-selected'), 'true');
     await page.evaluate(() => { document.querySelector('[role="tablist"]').scrollLeft = 0; });
-    await page.getByRole('tab', { name: 'Adapter' }).click();
-    assert.equal(await page.getByRole('tab', { name: 'Adapter' }).getAttribute('aria-selected'), 'true');
+    await page.getByRole('tab', { name: 'Data' }).click();
+    assert.equal(await page.getByRole('tab', { name: 'Data' }).getAttribute('aria-selected'), 'true');
     console.log(JSON.stringify({ width, before, touch: afterGesture, afterEnd: await measure(width) }));
   }
 

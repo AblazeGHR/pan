@@ -668,11 +668,13 @@ def test_on_event_receives_fired_event(fake_assign, fixed_config):
 
     cycle()
 
-    assert events
-    assert events[0]["type"] == "scheduler.task.fired"
-    assert events[0]["taskId"] == task["id"]
-    assert events[0]["status"] == "dispatched"
-    assert events[0]["dispatchKey"].startswith(task["id"] + ":")
+    assert any(event["type"] == "job.created" for event in events)
+    assert any(event["type"] == "job.updated" for event in events)
+    fired = [event for event in events if event["type"] == "scheduler.task.fired"]
+    assert fired
+    assert fired[0]["taskId"] == task["id"]
+    assert fired[0]["status"] == "dispatched"
+    assert fired[0]["dispatchKey"].startswith(task["id"] + ":")
 
 
 def test_on_event_exception_does_not_break_tick(fake_assign, fixed_config):

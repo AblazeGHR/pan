@@ -9,6 +9,7 @@ consumer has relinquished ownership.
 import asyncio
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import psutil
 
@@ -312,7 +313,7 @@ def test_restart_waits_for_old_consumer_cleanup_before_recovery(monkeypatch):
     _cleanup()
     s = _session()
     w = _worker(s)
-    w.process = object()
+    w.process = SimpleNamespace(returncode=None)
     cleanup_finished = asyncio.Event()
     recovery_started_after_cleanup = []
 
@@ -329,7 +330,7 @@ def test_restart_waits_for_old_consumer_cleanup_before_recovery(monkeypatch):
         await asyncio.Event().wait()
 
     async def fake_kill_process(_w):
-        return None
+        _w.process.returncode = 0
 
     async def fake_spawn(_session_id, adapter, extra_args=None):
         return object()

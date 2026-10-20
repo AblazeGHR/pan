@@ -25,6 +25,17 @@ jobs:
         with:
           node-version: "24"
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.7.0"
+
+      - name: Build React for browser regressions
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+
       - name: Install terminal emulator dependencies
         run: npm ci --prefix packages/core/terminal/emulator_sidecar
 
@@ -40,9 +51,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r minimal-requirements.txt
           pip install -r packages/qq/requirements.txt
-          pip install pytest-timeout
+          pip install pytest-timeout playwright==1.63.0
+
+      - name: Install browser regression dependency
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python -m playwright install --only-shell chromium
 
       - name: Run tests
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
         run: python scripts/run_tests_isolated.py -- python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
 
       - name: Upload test results

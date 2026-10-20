@@ -1,0 +1,80 @@
+{
+  "passed": true,
+  "actions": [
+    {
+      "action": "list",
+      "request": {
+        "arguments": {
+          "app": "codex"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "list",
+      "request": {
+        "arguments": {
+          "app": "codex"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "quota",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-a"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "switch",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-b",
+          "expectedCurrentId": "p-a"
+        },
+        "requestId": "65cfdb78-7b8f-425c-82f3-5a336060709c"
+      },
+      "fake": true
+    },
+    {
+      "action": "switch",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-a",
+          "expectedCurrentId": "p-b"
+        },
+        "requestId": "c6d76470-75dc-45f3-8ddf-e4efa617c4ed"
+      },
+      "fake": true
+    },
+    {
+      "action": "default_account",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "acc-b",
+          "expectedCurrentId": "acc-a"
+        },
+        "requestId": "cd8d1bae-9246-4c16-b166-85ac83057460"
+      },
+      "fake": true
+    }
+  ],
+  "errors": [],
+  "desktop": true,
+  "mobile": true,
+  "realCliExecuted": false,
+  "backend": "stateful intercepted API fixture",
+  "singleClickSwitch": true,
+  "pendingGuardDoubleClick": true,
+  "relativeTimeCountdown": true,
+  "relativeTimeAdvanced": true,
+  "noQuotaPollingDuringWait": true,
+  "port": 5173
+}

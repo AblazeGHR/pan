@@ -1,0 +1,265 @@
+{
+  "id": "ses_b483f2723e97eabb",
+  "name": "takeover-http",
+  "adapter": "cbc",
+  "model": "deepseek-v4-flash",
+  "permission_mode": "bypassPermissions",
+  "pan_access": {
+    "restrict_to_managed": false,
+    "can_claim_unmanaged": false,
+    "auto_claim_created": false
+  },
+  "adapter_config": {
+    "always_thinking_enabled": false,
+    "effort": "",
+    "max_thinking_tokens": null,
+    "output_mode": "stream",
+    "plugin_config_version": 2,
+    "plugin_bindings": [
+      {
+        "plugin_id": "pan",
+        "enabled": true,
+        "mode": "standalone"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "pan",
+        "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "args": [
+          "-m",
+          "packages.mcp.server"
+        ],
+        "cwd": "D:\\project\\pan-worktrees\\takeover-lifecycle-20261019"
+      }
+    ],
+    "plugin_selection_revision": 1,
+    "cli_session_id": "fake-42088"
+  },
+  "character_id": null,
+  "session_template": null,
+  "original_prompt": "",
+  "handoff_prompt": null,
+  "game_id": null,
+  "raw_usage": null,
+  "total_usage": null,
+  "usage_enrichment_pending": [],
+  "workdir": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3137\\test_http_takeover_controls_re1\\runtime\\workdirs\\takeover-http",
+  "history": [
+    {
+      "role": "user",
+      "content": "establish-native-session",
+      "queueItemIds": [
+        "q_f485b61c0ac14c4ebc2ee2e2c3f461e4"
+      ],
+      "delivered_keys": [
+        "task:q_f485b61c0ac14c4ebc2ee2e2c3f461e4"
+      ],
+      "kind": "task",
+      "queueEnvelopes": [
+        {
+          "type": "task",
+          "kind": "task",
+          "id": "q_f485b61c0ac14c4ebc2ee2e2c3f461e4",
+          "queueItemId": "q_f485b61c0ac14c4ebc2ee2e2c3f461e4",
+          "text": "establish-native-session",
+          "source": "user",
+          "seq": 1,
+          "taskId": null,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "revision": 1,
+          "createdAt": 1792415830.2365768,
+          "clientMessageId": "first",
+          "position": 0
+        }
+      ],
+      "source": "user",
+      "taskId": null,
+      "clientMessageId": "first",
+      "messageId": "pan:e4cc75c995814d87b57dac71798ff9b9",
+      "ts": "2026-10-19T21:17:10.251377"
+    },
+    {
+      "role": "assistant",
+      "content": "ack:establish-native-session",
+      "messageId": "pan:4f783f2a6b0c43dc94fa659493cc0242",
+      "ts": "2026-10-19T21:17:10.252686"
+    },
+    {
+      "role": "assistant",
+      "content": "establish-native-session",
+      "messageId": "pan:8df3c4b143d54782a4c22a948a0f5054",
+      "ts": "2026-10-19T21:17:10.255967"
+    }
+  ],
+  "history_epoch": "31c3680004d74066931a57ab3244a82f",
+  "history_revision": 3,
+  "last_result": null,
+  "result_cursor": 0,
+  "terminal_results": [],
+  "last_legal_worker_state": null,
+  "legal_offline": false,
+  "offline_migration_uncertainty": null,
+  "offline_owner": {
+    "runtimeExpected": true,
+    "token": "8ada2cedcb07484985f18092a030a38c",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "38615e3aed6f4cd7bc8eb00592c0e820",
+    "executionSeq": 1,
+    "processes": [
+      {
+        "pid": 43012,
+        "createdAt": 1792415830.1494513
+      },
+      {
+        "pid": 7484,
+        "createdAt": 1792415830.154358
+      },
+      {
+        "pid": 42088,
+        "createdAt": 1792415830.1689265
+      }
+    ]
+  },
+  "offline_run": {
+    "runtimeExpected": true,
+    "token": "8ada2cedcb07484985f18092a030a38c",
+    "generation": 0,
+    "workerId": "worker-1",
+    "serviceId": "38615e3aed6f4cd7bc8eb00592c0e820",
+    "executionSeq": 1,
+    "processes": [
+      {
+        "pid": 43012,
+        "createdAt": 1792415830.1494513
+      },
+      {
+        "pid": 7484,
+        "createdAt": 1792415830.154358
+      },
+      {
+        "pid": 42088,
+        "createdAt": 1792415830.1689265
+      }
+    ],
+    "id": "8f5b9789423b404db817c16d043c14be",
+    "kind": "foreground",
+    "admittedRevision": 1,
+    "state": "running",
+    "startedAt": 1792415830.2493207,
+    "safeTerminal": false
+  },
+  "illegal_batches": {},
+  "legality_schema_version": 2,
+  "operation_revision": 1,
+  "execution_operations": {
+    "8f5b9789423b404db817c16d043c14be": {
+      "runtimeExpected": true,
+      "token": "8ada2cedcb07484985f18092a030a38c",
+      "generation": 0,
+      "workerId": "worker-1",
+      "serviceId": "38615e3aed6f4cd7bc8eb00592c0e820",
+      "executionSeq": 1,
+      "processes": [
+        {
+          "pid": 43012,
+          "createdAt": 1792415830.1494513
+        },
+        {
+          "pid": 7484,
+          "createdAt": 1792415830.154358
+        },
+        {
+          "pid": 42088,
+          "createdAt": 1792415830.1689265
+        }
+      ],
+      "id": "8f5b9789423b404db817c16d043c14be",
+      "kind": "foreground",
+      "admittedRevision": 1,
+      "state": "running",
+      "startedAt": 1792415830.2493207,
+      "safeTerminal": false
+    }
+  },
+  "owner_retirements": {},
+  "created_at": "2026-10-19T21:17:10.099372",
+  "updated_at": "2026-10-19T21:17:10.266144",
+  "order": null,
+  "workspace_ids": [],
+  "managed": [],
+  "managed_by": null,
+  "readonly_session": false,
+  "queue_pending": [],
+  "queue_paused": false,
+  "agent_reports_paused": false,
+  "queue_item_locks_version": 1,
+  "queue_edit_locks": {},
+  "queue_delivery_ledger": {
+    "q_f485b61c0ac14c4ebc2ee2e2c3f461e4": {
+      "type": "task",
+      "kind": "task",
+      "id": "q_f485b61c0ac14c4ebc2ee2e2c3f461e4",
+      "queueItemId": "q_f485b61c0ac14c4ebc2ee2e2c3f461e4",
+      "text": "establish-native-session",
+      "source": "user",
+      "seq": 1,
+      "taskId": null,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "revision": 1,
+      "createdAt": 1792415830.2365768,
+      "clientMessageId": "first",
+      "position": 0,
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792415830.239,
+      "receiptAt": 1792415830.2513893,
+      "deliveredAt": 1792415830.2513893
+    }
+  },
+  "queue_idempotency_index": {
+    "version": 1,
+    "taskId": {},
+    "clientMessageId": {
+      "first": {
+        "queueItemId": "q_f485b61c0ac14c4ebc2ee2e2c3f461e4",
+        "seenAt": 1792415830.2365768
+      }
+    }
+  },
+  "queue_revision": 3,
+  "task_seq": 1,
+  "unread_done_count": 0,
+  "unread_done_generation": 0,
+  "unread_done_read_generation": 0,
+  "unread_recording_override": null,
+  "active_task_id": null,
+  "accepted_input_ids": [
+    "first"
+  ],
+  "manual_report_receipts": {},
+  "summary_projection": {
+    "revision": 11,
+    "last_user_preview": "establish-native-session",
+    "last_assistant_preview": "establish-native-session",
+    "last_display_preview": "establish-native-session",
+    "last_system_preview": "",
+    "last_thinking_preview": "",
+    "last_tool_preview": "",
+    "last_main_role": "assistant",
+    "history_total": 3,
+    "updated_at": "2026-10-19T21:17:10.266141"
+  },
+  "report_subscriptions": [],
+  "qq_report_targets": [],
+  "qq_report_outbox": {},
+  "qq_subscriptions": [],
+  "wechat_subscriptions": [],
+  "notification_settings": {
+    "browser": false,
+    "system": false
+  }
+}

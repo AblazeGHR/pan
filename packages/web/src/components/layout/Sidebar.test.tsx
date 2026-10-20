@@ -420,6 +420,176 @@ describe('Sidebar session navigation from Jobs', () => {
   });
 });
 
+// A real card activation must always land on the Chat view — from Jobs,
+// Terminal, plugin panels or Manage — including a re-click of the already
+// selected Session. Only the card body navigates: quick actions, the
+// multi-select checkbox and background store selections must not.
+// (The /editor sidebar intentionally shows the directory browser instead of
+// the Session list, so no card surface exists there to click.)
+describe('Sidebar session card activation returns to Chat from any non-chat route', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSessionStore.setState({
+      sessions: [
+        { id: 'nav-a', name: 'Nav A', alwaysThinkingEnabled: false, effort: '', history: [] },
+        { id: 'nav-b', name: 'Nav B', alwaysThinkingEnabled: false, effort: '', history: [] },
+      ],
+      currentSessionId: null,
+      multiSelectMode: false,
+      selectedIds: new Set(),
+    });
+    useUIStore.setState({
+      sidebarCollapsed: false,
+      mobileSidebarOpen: false,
+      searchQuery: '',
+      specialFilters: new Set(),
+      groupBy: 'none',
+      sortBy: 'recent',
+      dragEnabled: false,
+    });
+  });
+
+  function renderAt(initial: string) {
+    return render(
+      <MemoryRouter initialEntries={[initial]}>
+        <Sidebar />
+        <Routes>
+          <Route path="/" element={<div>Chat view</div>} />
+          <Route path="/editor" element={<div>Editor view</div>} />
+          <Route path="/jobs" element={<div>Jobs view</div>} />
+          <Route path="/terminals" element={<div>Terminal view</div>} />
+          <Route path="/plugins/:pluginId/:panelId" element={<div>Plugin panel view</div>} />
+          <Route path="/manage/:sessionId" element={<div>Manage view</div>} />
+        </Routes>
+        <RouteProbe />
+      </MemoryRouter>,
+    );
+  }
+
+  function clickCard(container: HTMLElement, id: string) {
+    fireEvent.click(container.querySelector(`[data-session-card-id="${id}"]`)!);
+  }
+
+  it('opens the clicked session in Chat from the Terminal route', () => {
+    const { container } = renderAt('/terminals');
+    expect(screen.getByText('Terminal view')).toBeTruthy();
+
+    clickCard(container, 'nav-a');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-a');
+  });
+
+  it('opens the clicked session in Chat from a plugin panel route', () => {
+    const { container } = renderAt('/plugins/demo/account-switcher');
+    expect(screen.getByText('Plugin panel view')).toBeTruthy();
+
+    clickCard(container, 'nav-b');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-b');
+  });
+
+  it('opens the clicked session in Chat from the Manage route', () => {
+    const { container } = renderAt('/manage/nav-a');
+    expect(screen.getByText('Manage view')).toBeTruthy();
+
+    clickCard(container, 'nav-b');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-b');
+  });
+
+  it('returns to Chat when re-clicking the already selected session from the Terminal route', () => {
+    useSessionStore.setState({ currentSessionId: 'nav-a' });
+    const { container } = renderAt('/terminals');
+    expect(screen.getByText('Terminal view')).toBeTruthy();
+
+    clickCard(container, 'nav-a');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-a');
+  });
+
+  it('returns to Chat again after navigating away and re-clicking the same session', () => {
+    const { container } = renderAt('/jobs');
+
+    clickCard(container, 'nav-a');
+    expect(screen.getByText('Chat view')).toBeTruthy();
+
+    // Route away via the Sidebar's own Jobs entry, then click the same
+    // (still selected) card again: it must come back to Chat.
+    fireEvent.click(screen.getByRole('link', { name: 'Jobs' }));
+    expect(screen.getByText('Jobs view')).toBeTruthy();
+
+    clickCard(container, 'nav-a');
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-a');
+  });
+
+  it('stays on the chat route without stacking navigation when a card is clicked there', () => {
+    const { container } = renderAt('/');
+
+    clickCard(container, 'nav-a');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/: nav-a');
+  });
+
+  it('does not navigate when a card quick action is used from the Terminal route', () => {
+    const { container } = renderAt('/terminals');
+
+    fireEvent.click(container.querySelector('[data-session-card-id="nav-a"] [data-quick-action="pin"]')!);
+
+    expect(screen.getByText('Terminal view')).toBeTruthy();
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+  });
+
+  it('does not navigate when the multi-select checkbox is clicked from the Terminal route', () => {
+    useSessionStore.setState({ multiSelectMode: true });
+    const { container } = renderAt('/terminals');
+
+    fireEvent.click(container.querySelector('[data-session-card-id="nav-a"] [data-testid="select-checkbox-zone"]')!);
+
+    expect(screen.getByText('Terminal view')).toBeTruthy();
+    expect(useSessionStore.getState().selectedIds.has('nav-a')).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+  });
+
+  it('does not navigate when the store selects a session in the background', () => {
+    renderAt('/terminals');
+
+    act(() => {
+      void useSessionStore.getState().selectSession('nav-a');
+    });
+
+    expect(screen.getByText('Terminal view')).toBeTruthy();
+    expect(screen.getByTestId('route-probe').textContent).toContain('/terminals: nav-a');
+    expect(useSessionStore.getState().currentSessionId).toBe('nav-a');
+  });
+
+  it('closes an open mobile Sidebar after navigating from the Terminal route to Chat', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      matches: true,
+      media: '(max-width: 767px)',
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })));
+    useUIStore.setState({ mobileSidebarOpen: true });
+    const { container } = renderAt('/terminals');
+
+    clickCard(container, 'nav-b');
+
+    expect(screen.getByText('Chat view')).toBeTruthy();
+    expect(useUIStore.getState().mobileSidebarOpen).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
 // FE-1: the sidebar chain must only re-render for state it actually reads.
 // Streaming chunks, draft keystrokes, thinking/tool flags, toasts and
 // interactive requests are all irrelevant to the sidebar slice.

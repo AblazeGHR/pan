@@ -23,6 +23,7 @@ from packages.core import session as _sess
 from packages.core import worker as _worker
 from packages.core import background_jobs as _jobs
 from packages.core import config as _config
+from packages.core import session_error_log as _session_error_log
 from packages.scheduler import store as _scheduler
 from packages.core.terminal import registry as _terminal_registry
 
@@ -41,9 +42,24 @@ def isolate_session_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(_terminal_registry, "DEFAULT_REGISTRY_ROOT", tmp_path / "terminals")
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     monkeypatch.setattr(_sess, "_all_loaded", False)
+    _session_error_log.reset_state()
+    monkeypatch.setattr(
+        _session_error_log,
+        "_path_override",
+        tmp_path / "logs" / "session-errors.jsonl",
+    )
     # TestClient 等 lifespan 的 shutdown 段会调 drain_recoveries 置位
     # _shutdown_started；不复位会静默拦掉后续所有测试的 recovery 调度。
     monkeypatch.setattr(_worker, "_shutdown_started", False)
     _sess._cache.clear()
     yield
     _sess._cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolate_terminal_heartbeat_threads(monkeypatch):
+    """Do not carry test-created owner threads into later load/latency tests."""
+    from tests.support.owned_heartbeats import owned_heartbeats
+
+    with owned_heartbeats(monkeypatch):
+        yield

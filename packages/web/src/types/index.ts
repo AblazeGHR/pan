@@ -26,6 +26,8 @@ export interface Message {
   ts?: string;
   /** Transient native Codex identity used to merge live Codex messages. */
   nativeItemId?: string;
+  /** Live-only Codex turn summary; expires at its own execution's terminal. */
+  nativeAggregate?: 'plan' | 'diff';
   /** Queue item(s) whose local CLI hand-off produced this user message. */
   queueItemIds?: string[];
   /** Stable server receipt keys shared by queue delivery events and history. */

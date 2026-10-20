@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import type { OnMount, BeforeMount } from '@monaco-editor/react';
+import { registerEditorFileLinks } from '@/utils/editorFileLinks';
 import {
   setMonacoRef,
   useEditorStore,
@@ -14,6 +15,7 @@ interface CodeEditorProps {
 }
 
 const beforeMount: BeforeMount = (monaco) => {
+  registerEditorFileLinks(monaco);
   monaco.editor.defineTheme('pan-dark', {
     base: 'vs-dark',
     inherit: true,

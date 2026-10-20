@@ -870,6 +870,22 @@ class AppServer:
                 if text:
                     _write_stdout({"type": "pan.native_user", "text": text, "item_id": item.get("id"),
                                    **(state["admission"].identity() if state.get("admission") else {})})
+            item_type = str(item.get("type") or "").replace("_", "").lower()
+            item_status = str(item.get("status") or "").lower()
+            item_error = item.get("error")
+            if item_error or item_status in {"failed", "error"}:
+                # Keep tool/item failures observable without changing the
+                # existing history block or task-terminal semantics.
+                _write_stdout({
+                    "type": "codex.item_error",
+                    "item": item,
+                    "item_type": item_type,
+                    "item_id": item.get("id"),
+                    "item_status": item_status or None,
+                    "error": item_error,
+                    "thread_id": params.get("threadId"),
+                    "turn_id": params.get("turnId", params.get("turn_id")),
+                })
             event = _item_event(item)
             if event is not None:
                 if state is not None and str(item.get("type") or "").replace("_", "").lower() == "agentmessage":
@@ -902,18 +918,32 @@ class AppServer:
                 turn_error = turn.get("error")
                 if turn_error:
                     error = turn_error
+                    state["error_payload"] = turn_error
                 elif status in ("completed", "complete"):
                     # The completed turn notification is authoritative: a
                     # successful turn must not inherit transient in-turn
                     # error notices (e.g. "Reconnecting... 2/5" emitted by
                     # the native client while falling back from WebSockets
                     # to HTTPS), otherwise correct results get flagged
-                    # as errors.
+                    # as errors.  Report the recovery as a structured CLI
+                    # fact, then clear it as before.
+                    recovered = state.get("error_payload")
+                    if recovered is not None:
+                        _write_stdout({
+                            "type": "codex.transient_error_recovered",
+                            "error": recovered,
+                            "error_text": state.get("error") or "",
+                            "turn_status": status,
+                            "thread_id": params.get("threadId", self.thread_id),
+                            "turn_id": (params.get("turnId", params.get("turn_id"))
+                                        or turn.get("id")),
+                        })
+                    state["error_payload"] = None
                     error = None
                 else:
                     # Non-successful completion without an explicit turn
                     # error: fall back to any error notification captured
-                    # during the turn.
+                    # during the turn.  Keep its raw payload for Pan.
                     error = state.get("error")
                 state["done"] = True
                 state["turn_status"] = status
@@ -929,6 +959,7 @@ class AppServer:
             error_text = self._error_text(error)
             if state is not None:
                 state["error"] = error_text
+                state["error_payload"] = error
             _write_stdout({
                 "type": "codex.turn_error",
                 "error": error,
@@ -1276,6 +1307,7 @@ class AppServer:
                     state["done"] = True
                     state["is_error"] = True
                     state["error"] = self._error_text(message["error"])
+                    state["error_payload"] = message["error"]
                 else:
                     turn = (message.get("result") or {}).get("turn") or {}
                     state["turn_id"] = turn.get("id")
@@ -1291,10 +1323,29 @@ class AppServer:
         # next FIFO turn after a terminal race.
         self._turn_active.clear()
         self._drain_controls(state, control_queue)
-        _write_stdout({"type": "result", "is_error": bool(state["is_error"]),
-                       "cancelled": bool(state.get("is_cancelled")),
-                       "turn_status": state.get("turn_status", "completed"),
-                       "result": result, "usage": self.last_usage})
+        payload = {"type": "result", "is_error": bool(state["is_error"]),
+                   "cancelled": bool(state.get("is_cancelled")),
+                   "turn_status": state.get("turn_status", "completed"),
+                   "result": result, "usage": self.last_usage}
+        if state["is_error"]:
+            # Pan must receive the provider error beside assistant text.  A
+            # failed turn without a provider error object still needs a
+            # non-assistant error identity: derive it from the turn status,
+            # never from ``last_text``.
+            raw_error = state.get("error_payload")
+            if raw_error is None:
+                raw_error = {
+                    "message": state.get("error") or "Codex turn failed",
+                    "source": "codex_turn_status",
+                    "turnStatus": state.get("turn_status"),
+                }
+                payload["error_source"] = "codex_turn_status"
+            else:
+                payload["error_source"] = "codex_error_payload"
+            payload["error"] = raw_error
+            if state.get("error"):
+                payload["error_text"] = state["error"]
+        _write_stdout(payload)
 
     def close(self) -> None:
         if self._resident_tui is not None:
@@ -1525,11 +1576,33 @@ def main(argv: list[str] | None = None) -> int:
                     if external is not None:
                         app._drain_controls(external, control_queue)
                         if external["done"]:
-                            _write_stdout({"type": "result", "external_turn": True,
-                                "is_error": bool(external.get("is_error")), "cancelled": bool(external.get("is_cancelled")),
-                                "turn_status": external.get("turn_status"), "result": external.get("last_text") or external.get("error") or "",
-                                "usage": app.last_usage, "turn_id": external["admission"].turn_id,
-                                **external["admission"].identity()})
+                            external_result = {
+                                "type": "result", "external_turn": True,
+                                "is_error": bool(external.get("is_error")),
+                                "cancelled": bool(external.get("is_cancelled")),
+                                "turn_status": external.get("turn_status"),
+                                "result": (external.get("last_text")
+                                           or external.get("error") or ""),
+                                "usage": app.last_usage,
+                                "turn_id": external["admission"].turn_id,
+                                **external["admission"].identity(),
+                            }
+                            if external.get("is_error"):
+                                raw_error = external.get("error_payload")
+                                if raw_error is None:
+                                    raw_error = {
+                                        "message": (external.get("error")
+                                                    or "Codex turn failed"),
+                                        "source": "codex_turn_status",
+                                        "turnStatus": external.get("turn_status"),
+                                    }
+                                    external_result["error_source"] = "codex_turn_status"
+                                else:
+                                    external_result["error_source"] = "codex_error_payload"
+                                external_result["error"] = raw_error
+                                if external.get("error"):
+                                    external_result["error_text"] = external["error"]
+                            _write_stdout(external_result)
                             app.retire_native_reservation(external["admission"])
                             app._turn_active.clear()
                             app._native_turn_pending.clear()
@@ -1554,7 +1627,11 @@ def main(argv: list[str] | None = None) -> int:
             admission.cancel()
             _write_stdout({"type": "pan.native_error", "error": "native-wrapper-failed"})
         else:
-            _write_stdout({"type": "result", "is_error": True, "result": str(exc)})
+            _write_stdout({
+                "type": "result", "is_error": True, "result": str(exc),
+                "error_source": "wrapper_exception",
+                "error": {"message": str(exc), "type": type(exc).__name__},
+            })
         return 1
     finally:
         app.close()

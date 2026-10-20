@@ -1,0 +1,10 @@
+{
+  "source": "D:\\project\\Pan\\data\\sessions",
+  "sessions": 91,
+  "roundTrips": 91,
+  "historiesUnchanged": 91,
+  "legacyRunning": 1,
+  "inventedIncidents": 0,
+  "sourceChangedDuringRead": 0,
+  "sourceMetadataManifestSha256": "f0fd767cf7ca0335b10d2ce51c68627f5e9dac901249581c21441113e12f0362"
+}

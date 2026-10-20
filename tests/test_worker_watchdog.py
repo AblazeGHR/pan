@@ -64,6 +64,18 @@ def _setup_worker(session_id, status="idle", last_activity=None, task_started_at
     return w
 
 
+async def _stop_fake_process_tree(w):
+    """Supply the exit fact that the real tree-stop helper must confirm.
+
+    These tests keep the real kill/watchdog control flow; only OS signals are
+    stubbed. A no-op stub leaves returncode=None and correctly fails the new
+    stop-confirmation gate instead of representing a successful fake stop.
+    """
+    for process in (w.process, w._mcp_proc):
+        if process is not None:
+            process.returncode = -9
+
+
 async def _run_watchdog(w, ticks=5):
     """Run the watchdog loop for `ticks` ticks, then cancel."""
     task = asyncio.create_task(worker._watchdog(w))
@@ -454,7 +466,7 @@ def test_explicit_kill_running_worker_reports_inflight_task(monkeypatch, tmp_pat
     worker._task_status["task-killed"] = {
         "status": "pending", "workerId": w.worker_id,
     }
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     result = asyncio.run(worker.kill_worker(
@@ -492,7 +504,7 @@ def test_explicit_kill_does_not_duplicate_existing_zombie_report(monkeypatch, tm
     _, mgr = _setup_managed_pair()
     w = _setup_worker("ses_child", status="running")
     w._current_task_id = "task-killed"
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     async def scenario():
@@ -519,7 +531,7 @@ def test_explicit_kill_idle_worker_keeps_no_zombie_report(monkeypatch):
     monkeypatch.setattr(worker, "_wake_worker", no_wake)
     _, mgr = _setup_managed_pair()
     w = _setup_worker("ses_child", status="idle")
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
@@ -544,7 +556,7 @@ def test_explicit_kill_default_config_no_zombie_report(monkeypatch, tmp_path):
     worker._task_status["task-killed"] = {
         "status": "pending", "workerId": w.worker_id,
     }
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     result = asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
@@ -572,7 +584,7 @@ def test_explicit_kill_report_disabled_no_zombie_report(monkeypatch, tmp_path):
     worker._task_status["task-queued"] = {
         "status": "pending", "workerId": w.worker_id,
     }
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
@@ -597,7 +609,7 @@ def test_explicit_kill_report_enabled_reports_zombie(monkeypatch, tmp_path):
     worker._task_status["task-killed"] = {
         "status": "pending", "workerId": w.worker_id,
     }
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     asyncio.run(worker.kill_worker(w.worker_id, report_abnormal=True))
@@ -644,7 +656,7 @@ def test_session_kill_entry_respects_report_switch(monkeypatch, tmp_path):
     worker._task_status["task-queued"] = {
         "status": "pending", "workerId": w.worker_id,
     }
-    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock())
+    monkeypatch.setattr(worker, "_kill_process_tree", AsyncMock(side_effect=_stop_fake_process_tree))
     monkeypatch.setattr(worker, "_kill_takeover_terminal", AsyncMock())
 
     result = asyncio.run(worker.kill_session_worker("ses_child", report_abnormal=True))
@@ -754,7 +766,7 @@ def test_watchdog_self_cancel_regression():
     # Use REAL kill_worker; stub only the process-tree kill to avoid real signals
     orig_kpt = worker._kill_process_tree
     orig_ktt = worker._kill_takeover_terminal
-    worker._kill_process_tree = AsyncMock()
+    worker._kill_process_tree = AsyncMock(side_effect=_stop_fake_process_tree)
     worker._kill_takeover_terminal = AsyncMock()
 
     worker._WATCHDOG_TICK_SEC = 0.01
@@ -882,7 +894,7 @@ def test_idle_reclaim_with_real_stdout_loop():
     # Real kill_worker；仅 stub 进程树/终端 kill（同 self-cancel 回归测试）
     orig_kpt = worker._kill_process_tree
     orig_ktt = worker._kill_takeover_terminal
-    worker._kill_process_tree = AsyncMock()
+    worker._kill_process_tree = AsyncMock(side_effect=_stop_fake_process_tree)
     worker._kill_takeover_terminal = AsyncMock()
 
     worker._STDOUT_READ_TIMEOUT_SEC = 0.01  # 哑 stdout 立刻走读超时分支

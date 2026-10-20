@@ -4,6 +4,7 @@ import os
 import subprocess
 import socket
 import sys
+import time
 
 import psutil
 import pytest
@@ -13,6 +14,22 @@ from packages.jobs.window import command_window_options
 from test_real_queue_http_e2e import (
     _PanRuntime, _EventRecorder, _create, _enqueue, _received, _wait_for, _spawn,
 )
+
+
+def _read_session_metadata(path):
+    # The live server atomically replaces this evidence file. Windows can
+    # briefly reject opening the target during replacement. Retry only that
+    # transient open, never the scenario, JSON decoding, or any assertion.
+    for attempt in range(6):
+        try:
+            text = path.read_text(encoding="utf-8")
+            break
+        except PermissionError as exc:
+            if (os.name != "nt" or getattr(exc, "winerror", None) not in {5, 32, 33}
+                    or attempt == 5):
+                raise
+            time.sleep(.01 * (attempt + 1))
+    return json.loads(text)
 
 
 @pytest.fixture(autouse=True)
@@ -105,7 +122,7 @@ def test_locked_queue_delayed_restart(tmp_path, entry):
         assert len(spawns) == 2, "one initial spawn and exactly one replacement"
         result_index = next(i for i, e in enumerate(events) if e["type"] == "worker.result")
         assert result_index < spawns[1], "terminal publication precedes replacement"
-        durable = json.loads((runtime.data_root / "sessions" / f"{sid}.json").read_text(encoding="utf-8"))
+        durable = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
         assert durable["queue_delivery_ledger"][item["id"]]["deliveryState"] == "sent_to_cli"
         print("REAL_DELAYED_RESTART " + json.dumps({
             "entry": entry, "base": runtime.base_url, "dataRoot": str(runtime.data_root),
@@ -172,7 +189,7 @@ def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, orde
             assert updated["delayedRestart"] == accepted
             assert process.is_running() and process.create_time() == created
             assert len(_received(runtime, cwd=s["workdir"])) == 1
-            disk = json.loads((runtime.data_root / "sessions" / f"{sid}.json").read_text(encoding="utf-8"))
+            disk = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
             assert disk["adapter_config"]["plugin_bindings"] == bindings
             runtime.gates["hold-A"].touch()
         completed = _wait_for(lambda: (
@@ -186,7 +203,7 @@ def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, orde
         assert runtime.request("GET", endpoint)["delayedRestart"] == completed
         assert not _received(runtime, cwd=s["workdir"], text="plugin-next")
         if active:
-            manager_disk = json.loads((runtime.data_root / "sessions" / f"{manager['id']}.json").read_text(encoding="utf-8"))
+            manager_disk = _read_session_metadata(runtime.data_root / "sessions" / f"{manager['id']}.json")
             assert len(manager_disk["queue_pending"]) == 1
             assert manager_disk["queue_pending"][0]["result"] == "hold-A"
         runtime.request("PATCH", f"/api/sessions/{sid}/queue/{locked}/lock", json={"locked": False})

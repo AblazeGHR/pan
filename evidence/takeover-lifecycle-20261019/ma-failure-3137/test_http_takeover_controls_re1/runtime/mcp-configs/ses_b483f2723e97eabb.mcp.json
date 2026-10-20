@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "pan": {
+      "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "packages.mcp.server"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\takeover-lifecycle-20261019",
+      "env": {
+        "PYTHONPATH": "D:\\project\\pan-worktrees\\takeover-lifecycle-20261019",
+        "PAN_API_URL": "http://127.0.0.1:8768",
+        "PAN_PYTHON": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "PAN_AGENT_SESSION_ID": "ses_b483f2723e97eabb",
+        "PAN_AGENT_SESSION_TITLE": "takeover-http"
+      },
+      "type": "stdio"
+    }
+  }
+}

@@ -2167,9 +2167,22 @@ class TerminalRunner:
                 # 世代自增：任何已处理的（续约/接管）心跳都让旧 expiry 判定作废。
                 self._lease_epoch += 1
                 status = "ok"
-        if status == "closing":
-            return self._payload("closing", ok=False)
-        return self._payload("ok", ok=True)
+            # A heartbeat uses a dedicated connection to stay independent of
+            # slow runtime/emulator operations. Calling _payload's default
+            # describe() here reintroduces those locks after renewal and can
+            # prevent the next heartbeat from arriving before lease expiry.
+            # Return only the atomic lease ACK; full diagnostics remain on
+            # describe, with the same closing/owner/generation fences above.
+            lease = {"established": self._lease_established,
+                     "owner": self._owner_client_id,
+                     "generation": self._owner_generation,
+                     "age_ms": (None if self._last_heartbeat is None else
+                                int(max(0.0, time.monotonic() - self._last_heartbeat) * 1000)),
+                     "grace_ms": int(self._lease_grace * 1000)}
+        return self._payload(status, ok=status == "ok", extra={
+            "detail": _bounded_json({"schema_version": 1,
+                                     "terminal_id": self.terminal_id,
+                                     "lease": lease}, _DETAIL_BUDGET)})
 
     def register_observer(self, client_id: str) -> dict[str, Any]:
         """observer 连接登记：**不**续约、**不**改变 runtime（浏览器连接不入 runtime）。"""
