@@ -6,4 +6,3 @@ D:\project\pan-worktrees\legal-offline-sticky-wake-integration-20261021\packages
   223:5  warning  React Hook useCallback has an unnecessary dependency: 'effectiveWorkerId'. Either exclude it or remove the dependency array                                               react-hooks/exhaustive-deps
 
 ✖ 4 problems (0 errors, 4 warnings)
-
