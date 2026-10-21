@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { AgentQueueItem } from '@/types';
 
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn() }));
@@ -210,5 +210,34 @@ describe('QueueSourceSession isolation between previews', () => {
     resolveCopy?.();
     await waitFor(() => expect(clipboard.copyText).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('drops a rejected copy when the user switched to another preview', async () => {
+    let rejectCopy: ((error: Error) => void) | undefined;
+    clipboard.copyText.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectCopy = reject; }));
+
+    const { rerender } = render(<QueueSourceSession item={queueItem({ id: 'q-1' })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy source session ID' }));
+
+    rerender(<QueueSourceSession item={queueItem({ id: 'q-2', text: 'other body' })} />);
+    rejectCopy?.(new Error('denied'));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('drops a rejected copy after the preview was closed', async () => {
+    let rejectCopy: ((error: Error) => void) | undefined;
+    clipboard.copyText.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectCopy = reject; }));
+
+    const { unmount } = render(<QueueSourceSession item={queueItem({ id: 'q-1' })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy source session ID' }));
+
+    unmount();
+    rejectCopy?.(new Error('denied'));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(useUIStore.getState().toastQueue).toEqual([]);
   });
 });

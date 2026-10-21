@@ -73,6 +73,12 @@ function SourceSessionIdentity({ itemId, sourceSessionId, onClose }: {
     setCopied(null);
   }, [itemId, sourceSessionId]);
 
+  useEffect(() => () => {
+    // Unmount invalidates in-flight clipboard work as well: closing the preview
+    // must not let a later rejection raise a global "Copy failed" toast.
+    copySeq.current += 1;
+  }, []);
+
   useEffect(() => {
     if (!copied) return;
     const timer = window.setTimeout(() => setCopied(null), 1500);
