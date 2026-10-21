@@ -35,13 +35,18 @@ and command markers before stopping anything. Unrecorded services are never adop
 验证 / Verification:
 
 ```powershell
-python scripts/run_tests_isolated.py -- uv run --no-project --python E:/software/miniforge/python.exe --with-requirements minimal-requirements.txt --with pytest --with pytest-timeout -- python -m pytest tests/test_mcp_remote_parity.py tests/test_mcp_remote_runtime.py -o addopts= -q
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_mcp_remote_parity.py tests/test_mcp_remote_runtime.py -o addopts= -q --junitxml=artifacts/remote-parity.xml
 ```
 
 The parity test starts the real gateway on an ephemeral loopback port (never
 8767/8768/9742) with a locally generated Access key, then compares remote
-`tools/list` with stdio and checks `agent_send_force` description/schema/call
-semantics. It is not a production or public-endpoint test.
+`tools/list` descriptions and input schemas for every tool with stdio. It also
+checks the current history/model/report/Action/Job schemas, force transaction IDs,
+unknown-result non-replay, invalid Access claims, and unbound report/queue access.
+The inherited local caller is deliberately seeded before gateway startup and must
+be cleared. Owned port/PID evidence is written to `artifacts/remote-http-owned.json`;
+the listener must close at teardown. Install test dependencies before running; the
+command does not install or update shared dependencies. It is not a production or public-endpoint test.
 
 Install `minimal-requirements.txt`, including `PyJWT[crypto]`, then configure
 the new `mcp_remote` section in `config.json` or in App Settings:

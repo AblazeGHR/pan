@@ -18,6 +18,7 @@ port (never 8767/8768/9742) and fail if:
 import asyncio
 import json
 import os
+import socket
 import sys
 import threading
 import time
@@ -62,12 +63,17 @@ def _access_token(private_key):
 
 
 @pytest.fixture(scope="module")
-def remote_gateway():
+def access_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+@pytest.fixture(scope="module")
+def remote_gateway(access_key):
     """Run the real gateway app once with a locally generated Access key."""
     import uvicorn
 
     mp = pytest.MonkeyPatch()
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    key = access_key
     mp.setattr(
         mcp_gateway.jwt, "PyJWKClient",
         lambda *args, **kwargs: _FakeJwkClient(key.public_key()),
@@ -81,6 +87,12 @@ def remote_gateway():
         stdio_mcp.settings.json_response,
         stdio_mcp.settings.transport_security,
     )
+    mp.setenv("PAN_AGENT_SESSION_ID", "ses_inherited_local")
+    mp.setenv("PAN_AGENT_SESSION_TITLE", "inherited local caller")
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
+    assert port not in (8767, 8768, 9742)
     server = None
     thread = None
     try:
@@ -93,20 +105,27 @@ def remote_gateway():
         })
         server = uvicorn.Server(uvicorn.Config(
             app, host="127.0.0.1", port=0, log_level="error", access_log=False))
-        thread = threading.Thread(target=server.run, daemon=True)
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
         thread.start()
         deadline = time.monotonic() + 10
         while not server.started and time.monotonic() < deadline:
             time.sleep(0.01)
         if not server.started:
             raise AssertionError("gateway did not start")
-        port = server.servers[0].sockets[0].getsockname()[1]
+        assert server.servers[0].sockets[0].getsockname()[1] == port
+        evidence = ROOT / "artifacts" / "remote-http-owned.json"
+        evidence.parent.mkdir(exist_ok=True)
+        evidence.write_text(json.dumps({"host": "127.0.0.1", "port": port, "pid": os.getpid(), "synthetic_access_key": True}), encoding="utf-8")
         yield f"http://127.0.0.1:{port}/mcp", _access_token(key)
     finally:
         if server is not None:
             server.should_exit = True
         if thread is not None:
             thread.join(5)
+            assert not thread.is_alive(), "owned gateway failed to stop"
+        listener.close()
+        with socket.socket() as probe:
+            assert probe.connect_ex(("127.0.0.1", port)) != 0
         stdio_mcp.settings.stateless_http = saved_settings[0]
         stdio_mcp.settings.json_response = saved_settings[1]
         stdio_mcp.settings.transport_security = saved_settings[2]
@@ -170,14 +189,18 @@ def test_remote_tools_list_equals_stdio_registry(remote_gateway):
     stdio = {tool.name: tool for tool in asyncio.run(stdio_mcp.list_tools())}
     assert set(remote) == set(stdio)
 
+    for name in sorted(stdio):
+        assert remote[name].description == stdio[name].description, name
+        assert remote[name].inputSchema == stdio[name].inputSchema, name
+
     remote_force = remote["agent_send_force"]
     stdio_force = stdio["agent_send_force"]
     assert remote_force.description == stdio_force.description
     assert remote_force.inputSchema == stdio_force.inputSchema
 
     description = remote_force.description or ""
-    assert "Steer first" in description
-    assert "restart+send" in description
+    assert "Default for sending updates to the agent's current task." in description
+    assert "never replay unknown input" in description
     assert "client_message_id" in description
     assert "unknown" in description
     assert "一律" not in description
@@ -266,3 +289,64 @@ def test_remote_unbound_call_cannot_use_local_session_tools(remote_gateway):
     assert terminal["ok"] is False
     assert terminal["error"]["code"] in {
         "caller-required", "caller-unverified", "local-stdio-required"}
+
+
+@pytest.mark.parametrize("name,fields", [
+    ("session_get", {"limit", "roles", "tool_output", "before"}),
+    ("session_message_get", {"message_id", "roles", "tool_output"}),
+    ("session_history_search", {"query", "cursor", "roles", "tool_output"}),
+    ("model_catalog", {"adapter", "session_id"}),
+    ("report_consume", {"item_id"}),
+    ("action_drafts", {"operation", "kind", "item", "expected_revision"}),
+    ("agent_background_start", {"name", "target_session_id", "hide_window"}),
+])
+def test_current_catalog_schema(remote_gateway, name, fields):
+    url, token = remote_gateway
+    tools = {tool.name: tool for tool in _mcp_list_tools(url, token)}
+    assert fields <= tools[name].inputSchema["properties"].keys()
+    if name == "agent_background_start":
+        assert "name" in tools[name].inputSchema["required"]
+
+
+@pytest.mark.parametrize("name,arguments", [
+    ("report_consume", {}),
+    ("report_consume", {"item_id": "original-report-id"}),
+    ("self_queue_consume", {"item_id": "original-queue-id"}),
+])
+def test_unbound_report_and_queue_never_read_or_write_api(monkeypatch, remote_gateway, name, arguments):
+    url, token = remote_gateway
+    monkeypatch.setattr("packages.mcp.server._api", lambda *a, **k: pytest.fail("unbound local tool reached API"))
+    result = _payload(_mcp_call(url, token, name, arguments))
+    assert result["ok"] is False
+    assert result["error"] in {"caller_unavailable", "caller-required", "local-stdio-required"}
+    assert "original-report-id" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("claim", ["aud", "iss", "exp"])
+def test_access_rejects_wrong_claims(remote_gateway, access_key, claim):
+    url, _ = remote_gateway
+    # Keep the trusted signature valid to isolate issuer/audience/expiry checks.
+    key = access_key
+    claims = {"iss": ISSUER, "aud": AUDIENCE, "sub": "synthetic", "iat": int(time.time()), "exp": int(time.time()) + 300}
+    claims[claim] = 1 if claim == "exp" else "wrong"
+    token = pyjwt.encode(claims, key, algorithm="RS256")
+    assert httpx.post(url, json={}, headers={TOKEN_HEADER: token}).status_code == 401
+
+
+@pytest.mark.parametrize("name,arguments", [
+    ("session_get", {"session_id": "ses_unmanaged"}),
+    ("session_message_get", {"session_id": "ses_unmanaged", "message_id": "pan:synthetic"}),
+    ("session_history_search", {"session_id": "ses_unmanaged", "query": "private"}),
+    ("agent_send_force", {"session_id": "ses_unmanaged", "text": "private", "client_message_id": "original-id"}),
+])
+def test_real_managed_gate_before_backend(monkeypatch, remote_gateway, name, arguments):
+    url, token = remote_gateway
+    # Inject a restricted caller snapshot only at the identity lookup; keep the
+    # production permission gate intact to test defense at each tool entry.
+    monkeypatch.setattr("packages.mcp.server._caller_identity", lambda: {
+        "id": "ses_restricted", "managed": ["ses_allowed"],
+        "panAccess": {"restrictToManaged": True, "canClaimUnmanaged": False}})
+    monkeypatch.setattr("packages.mcp.server._api", lambda *a, **k: pytest.fail("denied request reached backend"))
+    result = _payload(_mcp_call(url, token, name, arguments))
+    assert result["ok"] is False
+    assert result["error"]["code"] == "permission_denied"
