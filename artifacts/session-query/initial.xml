@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="37" time="1.219" timestamp="2026-10-22T03:32:41.442820+08:00" hostname="ablaze"><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate0]" time="0.016" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate1]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate2]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate3]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate4]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate5]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate6]" time="0.003" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate7]" time="0.004" /><testcase classname="tests.test_session_query" name="test_valid_grammar_schema_and_semantics[predicate8]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate0]" time="0.003"><failure message="Failed: DID NOT RAISE ValueError">predicate = {}
+
+    @pytest.mark.parametrize('predicate', [{}, {'and': []}, {'or': []}, {'not': None},
+        leaf('history.content'), leaf('adapter.name'), leaf('queuePaused'), leaf('name', 'regex', '.*'),
+        leaf('name', 'contains', ''), leaf('id', 'contains', 'a'), leaf('pinned', 'eq', 1),
+        leaf('readonlySession', 'in', [False, 0]), leaf('workspaceIds', 'in', [['w']]),
+        leaf('workspaceIds', 'contains', ['w']), leaf('workspaceIds', 'eq', 'w'),
+        leaf('name', 'eq', None), leaf('managedBy', 'eq', False), leaf('id', 'in', []),
+        {'or': [leaf(), leaf('unknown')]}, {**leaf(), 'sql': 'SELECT *'},
+        leaf('name', 'eq', 'x' * 513)])
+    def test_invalid_rejected_in_schema_and_store(predicate):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(q.predicate_schema()).validate(predicate)
+&gt;       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_session_query.py:56: Failed</failure></testcase><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate1]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate2]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate3]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate4]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate5]" time="0.005" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate6]" time="0.003" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate7]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate8]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate9]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate10]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate11]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate12]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate13]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate14]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate15]" time="0.003" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate16]" time="0.003" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate17]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate18]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate19]" time="0.004" /><testcase classname="tests.test_session_query" name="test_invalid_rejected_in_schema_and_store[predicate20]" time="0.003" /><testcase classname="tests.test_session_query" name="test_depth_nodes_values_candidates_results_and_order" time="0.012" /><testcase classname="tests.test_session_query" name="test_snapshot_current_pin_effective_workspace_and_no_history" time="0.005"><failure message="TypeError: create() got an unexpected keyword argument 'managed_by'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3555/test_snapshot_current_pin_effe0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000229A2C1ADD0&gt;
+
+    def test_snapshot_current_pin_effective_workspace_and_no_history(tmp_path, monkeypatch):
+        manager = session.create('Manager', adapter='cbc', workspace_ids=['root-w'])
+&gt;       child = session.create('Child', adapter='codex', managed_by=manager.id, workspace_ids=['stale-w'])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_query.py:86:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = ('Child',)
+kwargs = {'adapter': 'codex', 'managed_by': 'ses_09b0353bb5cfbb92', 'workspace_ids': ['stale-w']}
+
+    @wraps(func)
+    def locked(*args, **kwargs):
+        with _STORE_LOCK:
+&gt;           return func(*args, **kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: create() got an unexpected keyword argument 'managed_by'
+
+packages\core\session.py:236: TypeError</failure></testcase><testcase classname="tests.test_session_query" name="test_candidate_cap_precedes_cold_hydration" time="0.007" /><testcase classname="tests.test_session_query" name="test_freezes_once_before_effect_and_reports_partial_failure" time="0.005" /><testcase classname="tests.test_session_query" name="test_zero_results_diagnostic_and_invalid_never_queries" time="0.005" /><testcase classname="tests.test_session_query" name="test_recovery_preserves_frozen_targets_and_never_requeries" time="0.074" /><testcase classname="tests.test_session_query" name="test_legacy_and_draft_authority_gates" time="0.299" /></testsuite></testsuites>

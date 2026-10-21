@@ -7,7 +7,7 @@ from .store import validate_action
 from .provider import execute
 
 
-async def execute_dynamic(action, arguments, event, progress, pause):
+async def execute_dynamic(action, arguments, event, progress, pause, query=None):
     action = await asyncio.to_thread(validate_action, action, automation=True)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action disabled or requires approval policy')
@@ -22,13 +22,19 @@ async def execute_dynamic(action, arguments, event, progress, pause):
         ids = field(event, selector['path'])
         if isinstance(ids, str):
             ids = [ids]
+    elif selector['mode'] == 'query':
+        from .session_query import resolve
+        from packages.automation.events import now
+        selection = await (query or resolve)(selector['query'])
+        ids = selection['ids']
+        query_info = dict(mode='query', matchedAt=now(), candidateCount=selection['candidateCount'], matched=len(ids))
     else:
-        raise ValueError('query selector is reserved, not implemented')
+        raise ValueError('Unknown Session selector mode')
     if not isinstance(ids, list) or any(not isinstance(i, str) or not i for i in ids):
         raise ValueError('Session selector must resolve to Session IDs')
     ids = list(dict.fromkeys(ids))
     results = []
-    await progress(targetIds=ids, targetResults=results)
+    await progress(targetIds=ids, targetResults=results, **({'selection': query_info} if selector['mode'] == 'query' else {}))
     for sid in ids:
         try:
             result = await pause(sid, {'paused': True})

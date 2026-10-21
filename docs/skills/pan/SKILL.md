@@ -53,6 +53,13 @@ restart，unbuild 只被启用该 Group 的 live running Session 阻塞，错误
 idle 允许并清理 bindings。API 首批只允许固定的三个内部 GET 路由，命令用固定
 executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝。不得自动
 重试结果不明的副作用。字段与完整范围见 `docs/plugins/ACTIONS.md`。
+Session Operation 后端支持 explicit/event/query。query 为七字段白名单、有界
+and/or/not 与 typed eq/ne/in/contains；name.contains 为区分大小写字面子串，
+workspaceIds.contains 为精确元素。深度/节点/候选/结果上限 8/64/2048/256，
+执行开始一次查询、固定目标后落盘；不提供脚本/SQL/正则或 Agent 权限旁路。
+`GET /api/actions/session-operation-template` 返回 disabled 模板、谓词 schema
+及限制；`action_drafts` 可保存但不能启用/执行，旧 Group/provider 不接受该类型。
+参数完整定义见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。

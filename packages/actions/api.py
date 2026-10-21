@@ -42,6 +42,11 @@ def install(server):
             groups.append(item)
         return {'revision': state['revision'], 'actions': list(state['actions'].values()), 'groups': groups}
 
+    @router.get('/api/actions/session-operation-template')
+    async def session_operation_template():
+        from .session_query import template
+        return template()
+
     @router.get('/api/actions')
     async def listing():
         return await view()
