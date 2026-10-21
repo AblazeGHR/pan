@@ -12,6 +12,16 @@ Action 是存储在 Pan data 中的独立操作定义。它描述一个可调用
 
 同一个 Action 可以被多个 Group 引用。Action 的定义只保存一份，Group 只保存引用关系。
 
+Action 是可复用、可参数化的操作定义，通常在调用/触发时执行；它本身不是任务实例，具体用途由调用场景与输入参数决定。复制 Action 会通过现有创建通路生成一个全新的稳定 ID，副本是可独立编辑的定义，不自动加入任何 Group，不自动 build 或绑定 Session，也不带有原 Action 的 release/运行身份。
+
+### Action 与 Job
+
+Job 是创建时目标、执行内容和触发安排已经明确、具有生命周期的任务实例，核心执行字段通常固定。Action 则是可以被多个调用场景复用的操作定义。
+
+未来 Job 调用 Action 时采用引用关系：修改被引用的 Action 可以影响后续 Job 的执行，默认不对 Action 做快照或固定版本。若用户希望隔离影响，应自行复制 Action，再让 Job 引用副本。Action 也可以创建一个 Job；Action 调用成功只代表 Job 创建成功，不代表 Job 已经完成。
+
+本轮的复制功能与本文档的边界说明不实现未来 Job 调用 Action，也不改变现有 Group 的不可变 release 或 Session pin 规则。
+
 ### Group
 
 Group 是用户选择若干 Action 后形成的打包单位。Group 的 Action 集合决定它构建后暴露的 MCP 工具集合。
@@ -51,7 +61,7 @@ Group 的 MCP 注册、Session 绑定、Worker 生命周期、三种 MCP 模式�
 
 Action Panel 属于 Pan 核心，负责：
 
-- 创建、查看、修改和禁用 Action 数据；
+- 创建、查看、修改、禁用和复制 Action 数据；
 - 创建和修改 Group；
 - 在 Group 中选择 Action；
 - 执行 build 和 unbuild；

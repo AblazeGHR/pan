@@ -1,0 +1,53 @@
+ audit/action-panel-mock-20261021/README.md         |  314 ++++
+ audit/action-panel-mock-20261021/metrics.json      |  343 ++++
+ .../preview/preview.html                           |  325 ++++
+ .../screenshots/00-before-actions-desktop.png      |  Bin 0 -> 69282 bytes
+ .../screenshots/00-before-groups-320.png           |  Bin 0 -> 47946 bytes
+ .../screenshots/00-before-new-action.png           |  Bin 0 -> 92840 bytes
+ .../screenshots/01-actions-desktop.png             |  Bin 0 -> 214231 bytes
+ .../screenshots/02-groups-desktop.png              |  Bin 0 -> 175925 bytes
+ .../screenshots/03-action-editor.png               |  Bin 0 -> 171067 bytes
+ .../screenshots/04-group-editor.png                |  Bin 0 -> 184833 bytes
+ .../screenshots/05-use-in-session.png              |  Bin 0 -> 204993 bytes
+ .../screenshots/05b-use-in-session-top.png         |  Bin 0 -> 204993 bytes
+ .../screenshots/06-new-action.png                  |  Bin 0 -> 167052 bytes
+ .../screenshots/07-dirty-guard.png                 |  Bin 0 -> 175849 bytes
+ .../screenshots/08-state-loading.png               |  Bin 0 -> 128528 bytes
+ .../screenshots/09-state-error.png                 |  Bin 0 -> 104201 bytes
+ .../screenshots/10-state-empty.png                 |  Bin 0 -> 100244 bytes
+ .../screenshots/11-state-stale.png                 |  Bin 0 -> 208713 bytes
+ .../screenshots/12-light-theme.png                 |  Bin 0 -> 215850 bytes
+ .../screenshots/13-actions-390.png                 |  Bin 0 -> 75393 bytes
+ .../screenshots/13b-sidebar-390.png                |  Bin 0 -> 65562 bytes
+ .../screenshots/14-groups-390.png                  |  Bin 0 -> 72826 bytes
+ .../screenshots/15-actions-320.png                 |  Bin 0 -> 63729 bytes
+ .../screenshots/15b-groups-320.png                 |  Bin 0 -> 64063 bytes
+ .../screenshots/16-action-editor-320.png           |  Bin 0 -> 46861 bytes
+ .../screenshots/17-group-editor-320.png            |  Bin 0 -> 56351 bytes
+ .../screenshots/18-use-390.png                     |  Bin 0 -> 73447 bytes
+ .../screenshots/18b-use-320.png                    |  Bin 0 -> 66916 bytes
+ .../screenshots/18c-use-modes-390.png              |  Bin 0 -> 68905 bytes
+ .../screenshots/18d-use-modes-320.png              |  Bin 0 -> 59975 bytes
+ .../screenshots/19-preview-controls.png            |  Bin 0 -> 243978 bytes
+ .../screenshots/19b-preview-controls-320.png       |  Bin 0 -> 62800 bytes
+ .../screenshots/20-group-built.png                 |  Bin 0 -> 188518 bytes
+ docs/design/PAN_ACTION_GROUP_MCP_PLUGIN_DESIGN.md  |   10 +
+ docs/plugins/ACTIONS.md                            |   30 +
+ packages/web/mock/action-panel/FONT-LICENSE.txt    |   92 +
+ .../web/mock/action-panel/Inter-latin-var.woff2    |  Bin 0 -> 48256 bytes
+ packages/web/mock/action-panel/app.tsx             | 1830 ++++++++++++++++++++
+ packages/web/mock/action-panel/capture.mjs         |  354 ++++
+ packages/web/mock/action-panel/editors.tsx         | 1144 ++++++++++++
+ packages/web/mock/action-panel/fixtures.ts         |  473 +++++
+ packages/web/mock/action-panel/index.html          |   13 +
+ packages/web/mock/action-panel/inline.mjs          |   37 +
+ packages/web/mock/action-panel/main.tsx            |   13 +
+ packages/web/mock/action-panel/mock.css            |  250 +++
+ packages/web/mock/action-panel/model.ts            |  151 ++
+ packages/web/mock/action-panel/tsconfig.json       |    7 +
+ packages/web/mock/action-panel/ui.tsx              |  590 +++++++
+ packages/web/mock/action-panel/use-in-session.tsx  |  264 +++
+ packages/web/src/views/ActionsView.test.tsx        |  428 +++--
+ packages/web/src/views/ActionsView.tsx             | 1401 ++++++++++++---
+ packages/web/vite.mock.config.ts                   |   32 +
+ 52 files changed, 7742 insertions(+), 359 deletions(-)
