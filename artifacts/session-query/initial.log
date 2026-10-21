@@ -1,0 +1,58 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+.........F.....................F.....                                    [100%]
+================================== FAILURES ===================================
+____________ test_invalid_rejected_in_schema_and_store[predicate0] ____________
+
+predicate = {}
+
+    @pytest.mark.parametrize('predicate', [{}, {'and': []}, {'or': []}, {'not': None},
+        leaf('history.content'), leaf('adapter.name'), leaf('queuePaused'), leaf('name', 'regex', '.*'),
+        leaf('name', 'contains', ''), leaf('id', 'contains', 'a'), leaf('pinned', 'eq', 1),
+        leaf('readonlySession', 'in', [False, 0]), leaf('workspaceIds', 'in', [['w']]),
+        leaf('workspaceIds', 'contains', ['w']), leaf('workspaceIds', 'eq', 'w'),
+        leaf('name', 'eq', None), leaf('managedBy', 'eq', False), leaf('id', 'in', []),
+        {'or': [leaf(), leaf('unknown')]}, {**leaf(), 'sql': 'SELECT *'},
+        leaf('name', 'eq', 'x' * 513)])
+    def test_invalid_rejected_in_schema_and_store(predicate):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(q.predicate_schema()).validate(predicate)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_session_query.py:56: Failed
+________ test_snapshot_current_pin_effective_workspace_and_no_history _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3555/test_snapshot_current_pin_effe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000229A2C1ADD0>
+
+    def test_snapshot_current_pin_effective_workspace_and_no_history(tmp_path, monkeypatch):
+        manager = session.create('Manager', adapter='cbc', workspace_ids=['root-w'])
+>       child = session.create('Child', adapter='codex', managed_by=manager.id, workspace_ids=['stale-w'])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_query.py:86:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = ('Child',)
+kwargs = {'adapter': 'codex', 'managed_by': 'ses_09b0353bb5cfbb92', 'workspace_ids': ['stale-w']}
+
+    @wraps(func)
+    def locked(*args, **kwargs):
+        with _STORE_LOCK:
+>           return func(*args, **kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: create() got an unexpected keyword argument 'managed_by'
+
+packages\core\session.py:236: TypeError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_session_query.py::test_invalid_rejected_in_schema_and_store[predicate0]
+FAILED tests/test_session_query.py::test_snapshot_current_pin_effective_workspace_and_no_history
+2 failed, 35 passed, 1 warning in 1.36s
