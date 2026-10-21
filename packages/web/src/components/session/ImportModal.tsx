@@ -42,6 +42,35 @@ const IMPORT_ADAPTERS: Array<{ name: Adapter; label: string }> = [
   { name: 'codex', label: 'codex' },
 ];
 
+// Match native CLI IDs without altering the original item used for import.
+function matchesSession(query: string, ...values: Array<string | undefined>): boolean {
+  const needle = query.trim().toLowerCase();
+  return values.some((value) => (value ?? '').toLowerCase().includes(needle));
+}
+
+function SessionSearch({ value, onChange, scope }: {
+  value: string;
+  onChange: (value: string) => void;
+  scope: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs text-text-secondary">Search loaded sessions</span>
+      <input
+        type="search"
+        aria-label="Search loaded sessions"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Filter by name, path or CLI session ID…"
+        className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
+      />
+      <span className="text-xs text-text-tertiary">
+        {scope} Matches full or partial native CLI session IDs (not Pan session IDs).
+      </span>
+    </label>
+  );
+}
+
 function formatTime(ts: string): string {
   try {
     const d = new Date(ts);
@@ -558,13 +587,12 @@ function CbcSection({
   importingId,
   onImport,
 }: CbcSectionProps) {
-  // Front-end path filter: narrow the session list by the session's
-  // project_dir (cbc sessions are scoped to a project, so this is the path).
+  // Search within the selected project; preserve native identity and source path.
   const [pathFilter, setPathFilter] = useState('');
   const pathFilterTrim = pathFilter.trim();
   const visibleSessions = pathFilterTrim
     ? cbcSessions.filter((s) =>
-        s.project_dir.toLowerCase().includes(pathFilterTrim.toLowerCase()),
+        matchesSession(pathFilterTrim, s.session_id, s.title, s.project_dir),
       )
     : cbcSessions;
 
@@ -655,18 +683,12 @@ function CbcSection({
           </div>
         )}
 
-      {/* Front-end path filter */}
+      {/* Search the loaded list */}
       {selectedProject && !cbcLoading && cbcSessions.length > 0 && (
-        <input
-          type="text"
-          value={pathFilter}
-          onChange={(e) => setPathFilter(e.target.value)}
-          placeholder="Filter by path (project_dir)…"
-          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-        />
+        <SessionSearch value={pathFilter} onChange={setPathFilter} scope="Searches only loaded sessions in the selected project; configured import filters and list limits still apply." />
       )}
 
-      {/* No sessions match the path filter */}
+      {/* No sessions match the search */}
       {selectedProject &&
         !cbcLoading &&
         cbcSessions.length > 0 &&
@@ -768,12 +790,12 @@ function KimiSection({
   importingId,
   onImport,
 }: KimiSectionProps) {
-  // Front-end path filter: narrow the session list by the session's workDir.
+  // Search within the selected workspace; workDir filtering remains available.
   const [pathFilter, setPathFilter] = useState('');
   const pathFilterTrim = pathFilter.trim();
   const visibleSessions = pathFilterTrim
     ? kimiSessions.filter((s) =>
-        s.workDir.toLowerCase().includes(pathFilterTrim.toLowerCase()),
+        matchesSession(pathFilterTrim, s.session_id, s.title, s.workDir),
       )
     : kimiSessions;
 
@@ -839,18 +861,12 @@ function KimiSection({
           </div>
         )}
 
-      {/* Front-end path filter */}
+      {/* Search the loaded list */}
       {selectedWorkspace && !kimiLoading && kimiSessions.length > 0 && (
-        <input
-          type="text"
-          value={pathFilter}
-          onChange={(e) => setPathFilter(e.target.value)}
-          placeholder="Filter by path (workDir)…"
-          className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
-        />
+        <SessionSearch value={pathFilter} onChange={setPathFilter} scope="Searches only the selected workspace." />
       )}
 
-      {/* No sessions match the path filter */}
+      {/* No sessions match the search */}
       {selectedWorkspace &&
         !kimiLoading &&
         kimiSessions.length > 0 &&
@@ -933,6 +949,10 @@ function OpencodeSection({
   onLoad,
   onImport,
 }: OpencodeSectionProps) {
+  const [query, setQuery] = useState('');
+  const visibleSessions = sessions.filter((item) =>
+    matchesSession(query, item.session_id, item.title, item.workDir),
+  );
   return (
     <>
       {/* Working-directory filter (opencode has no workspace list) */}
@@ -971,10 +991,14 @@ function OpencodeSection({
         </div>
       )}
 
-      {/* Session list */}
-      {!loading && sessions.length > 0 && (
+      <SessionSearch value={query} onChange={setQuery}
+        scope="Searches only loaded sessions within the working directory filter; clear the directory and load to broaden discovery." />
+      {!loading && sessions.length > 0 && visibleSessions.length === 0 && (
+        <div className="py-2 text-center text-sm text-text-tertiary">No sessions match “{query.trim()}”</div>
+      )}
+      {!loading && visibleSessions.length > 0 && (
         <div className="max-h-64 overflow-y-auto space-y-1 rounded border border-border-muted bg-bg-primary p-1">
-          {sessions.map((item) => (
+          {visibleSessions.map((item) => (
             <OpencodeSessionItemRow
               key={item.session_id}
               item={item}
@@ -1044,6 +1068,10 @@ function CodexSection({
   onLoad,
   onImport,
 }: CodexSectionProps) {
+  const [query, setQuery] = useState('');
+  const visibleSessions = sessions.filter((item) =>
+    matchesSession(query, item.session_id, item.title, item.workDir),
+  );
   return (
     <>
       <label className="flex flex-col gap-1">
@@ -1079,9 +1107,14 @@ function CodexSection({
         </div>
       )}
 
-      {!loading && sessions.length > 0 && (
+      <SessionSearch value={query} onChange={setQuery}
+        scope="Searches only loaded sessions within the working directory filter; clear the directory and load to broaden discovery." />
+      {!loading && sessions.length > 0 && visibleSessions.length === 0 && (
+        <div className="py-2 text-center text-sm text-text-tertiary">No sessions match “{query.trim()}”</div>
+      )}
+      {!loading && visibleSessions.length > 0 && (
         <div className="max-h-64 overflow-y-auto space-y-1 rounded border border-border-muted bg-bg-primary p-1">
-          {sessions.map((item) => (
+          {visibleSessions.map((item) => (
             <CodexSessionItemRow
               key={item.session_id}
               item={item}
