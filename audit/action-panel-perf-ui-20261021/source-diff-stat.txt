@@ -31,24 +31,24 @@
  .../screenshots/19-preview-controls.png            |  Bin 0 -> 243978 bytes
  .../screenshots/19b-preview-controls-320.png       |  Bin 0 -> 62800 bytes
  .../screenshots/20-group-built.png                 |  Bin 0 -> 188518 bytes
- audit/action-panel-perf-ui-20261021/README.md      |  107 ++
+ audit/action-panel-perf-ui-20261021/README.md      |  112 ++
  audit/action-panel-perf-ui-20261021/cache.json     |   83 +
- audit/action-panel-perf-ui-20261021/checks.json    |  102 ++
+ audit/action-panel-perf-ui-20261021/checks.json    |  108 ++
  audit/action-panel-perf-ui-20261021/result.json    |   96 +
  .../screenshots/action-editor-320.png              |  Bin 0 -> 41728 bytes
  .../screenshots/action-editor-390.png              |  Bin 0 -> 46751 bytes
  .../screenshots/actions-320.png                    |  Bin 0 -> 46742 bytes
  .../screenshots/actions-390.png                    |  Bin 0 -> 48744 bytes
- .../screenshots/actions-desktop.png                |  Bin 0 -> 85276 bytes
- .../screenshots/binding-desktop.png                |  Bin 0 -> 97657 bytes
- .../screenshots/binding-modal.png                  |  Bin 0 -> 97196 bytes
- .../screenshots/duplicate-editor.png               |  Bin 0 -> 132172 bytes
+ .../screenshots/actions-desktop.png                |  Bin 0 -> 85279 bytes
+ .../screenshots/binding-desktop.png                |  Bin 0 -> 97652 bytes
+ .../screenshots/binding-modal.png                  |  Bin 0 -> 97191 bytes
+ .../screenshots/duplicate-editor.png               |  Bin 0 -> 133430 bytes
  .../screenshots/groups-320.png                     |  Bin 0 -> 39423 bytes
  .../screenshots/groups-390.png                     |  Bin 0 -> 40044 bytes
- .../screenshots/groups-desktop.png                 |  Bin 0 -> 108202 bytes
- .../screenshots/refresh-failed.png                 |  Bin 0 -> 118739 bytes
- .../source-diff-name-status.txt                    |   52 +
- .../source-diff-stat.txt                           |   53 +
+ .../screenshots/groups-desktop.png                 |  Bin 0 -> 108180 bytes
+ .../screenshots/refresh-failed.png                 |  Bin 0 -> 117627 bytes
+ .../source-diff-name-status.txt                    |   79 +
+ .../source-diff-stat.txt                           |   80 +
  docs/design/PAN_ACTION_GROUP_MCP_PLUGIN_DESIGN.md  |   12 +-
  docs/plugins/ACTIONS.md                            |   41 +-
  packages/web/e2e/action-panel-cache.e2e.mjs        |  398 +++++
@@ -77,4 +77,4 @@
  packages/web/src/views/actions.css                 |  163 ++
  packages/web/vite.mock.config.ts                   |   32 +
  scripts/verify_action_panel_cache.py               |  171 ++
- 79 files changed, 12331 insertions(+), 365 deletions(-)
+ 79 files changed, 12396 insertions(+), 365 deletions(-)

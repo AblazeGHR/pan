@@ -4,7 +4,7 @@
 ref was moved, nothing was pushed, no existing service/port was operated, and no
 model/Job was executed. The worktree branch is
 `feature/action-panel-perf-ui-20261021`. The current baseline `main`
-`e4f718a5` was merged into the branch as `5472f97d`; the role-guidance docs
+`b472ccf3` was merged into the branch as `2238aefb`; the role-guidance docs
 `docs/skills/pan/references/{ta,ma}.md` and the updated Pan skill were retained.
 `main` is an ancestor of the tested candidate. The approved interactive mock remains at
 `audit/action-panel-mock-20261021/`; this directory records the real product
@@ -45,11 +45,11 @@ Workers, uses production assets and a real browser, then retires the server.
 | --- | --- |
 | First `/react/actions` registry requests | **1** `GET /api/actions` |
 | First load catalog requests | **0** `GET /api/mcp/servers` |
-| First load registry latency | **2934 ms** (cold isolated server, browser observed) |
-| First load to Action list visible | **3994 ms** |
+| First load registry latency | **3353 ms** (cold isolated server, browser observed) |
+| First load to Action list visible | **4327 ms** |
 | Client-side re-entry registry requests | **0** (fresh cache) |
-| Manual Refresh | **1** `GET /api/actions`, **41 ms** |
-| Duplicate Action | **1** `POST /api/actions/actions`, no `item.id`; original unchanged, Group refs unchanged, copy ID `action_9ea9ab40dbe945a59f64b80f` |
+| Manual Refresh | **1** `GET /api/actions`, **45 ms** |
+| Duplicate Action | **1** `POST /api/actions/actions`, no `item.id`; original unchanged, Group refs unchanged, copy ID `action_70259f3b84844b159fd4a9c9` |
 | Action save | **1** `PUT`; **0** secondary registry/catalog/session GETs |
 | Group build | **1** `POST .../build`; **0** eager catalog GETs |
 | Use in Session | catalog and sessions fetched lazily when modal opens; **1** `PATCH`, **1** background `GET /api/actions` for blockers |
@@ -100,7 +100,7 @@ request on re-entry.
 - `screenshots/` — desktop lists, duplicate editor, Group/binding modal, refresh
   failure, 390/320 Actions/Groups and Action editor.
 - `source-diff-name-status.txt`, `source-diff-stat.txt` — source delta since
-  `e4f718a5`.
+  `b472ccf3`.
 
 ## Boundaries
 

@@ -2,9 +2,9 @@
   "production": true,
   "realHttp": true,
   "firstLoad": {
-    "renderMs": 3994,
+    "renderMs": 4327,
     "registryRequests": 1,
-    "registryMs": 2934,
+    "registryMs": 3353,
     "catalogRequests": 0,
     "sessionRequests": 2
   },
@@ -13,11 +13,11 @@
     "renderRequests": 0
   },
   "refresh": {
-    "ms": 41,
+    "ms": 45,
     "registryRequests": 1
   },
   "duplicate": {
-    "id": "action_9ea9ab40dbe945a59f64b80f",
+    "id": "action_70259f3b84844b159fd4a9c9",
     "originalUnchanged": true,
     "copyIndependent": true,
     "groupReferencesUnchanged": true,

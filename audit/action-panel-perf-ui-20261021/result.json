@@ -1,16 +1,16 @@
 {
   "checkout": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021",
-  "pid": 21276,
-  "port": 58489,
-  "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a\\data",
-  "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a",
+  "pid": 29924,
+  "port": 64002,
+  "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-83c6431e07\\data",
+  "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-83c6431e07",
   "browser": {
     "production": true,
     "realHttp": true,
     "firstLoad": {
-      "renderMs": 3994,
+      "renderMs": 4327,
       "registryRequests": 1,
-      "registryMs": 2934,
+      "registryMs": 3353,
       "catalogRequests": 0,
       "sessionRequests": 2
     },
@@ -19,11 +19,11 @@
       "renderRequests": 0
     },
     "refresh": {
-      "ms": 41,
+      "ms": 45,
       "registryRequests": 1
     },
     "duplicate": {
-      "id": "action_9ea9ab40dbe945a59f64b80f",
+      "id": "action_70259f3b84844b159fd4a9c9",
       "originalUnchanged": true,
       "copyIndependent": true,
       "groupReferencesUnchanged": true,
@@ -89,8 +89,8 @@
   },
   "probePlugin": "action-group-probe",
   "sessions": {
-    "first": "ses_702f9a1b86c2cdcc",
-    "second": "ses_724819cfca4a08ea"
+    "first": "ses_eb176e3f207c79c9",
+    "second": "ses_919e104525c96ebc"
   },
   "serverStopped": true
 }
