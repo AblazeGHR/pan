@@ -1,0 +1,290 @@
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+............CLEANUP http://127.0.0.1:52890 owned server stopped; port released
+F................REAL_DELAYED_RESTART {"entry": "http", "base": "http://127.0.0.1:61770", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3553\\test_locked_queue_delayed_rest0\\runtime", "oldPid": 39008, "oldCreatedAt": 1792611159.9258528, "newPid": 31540, "accepted": {"sessionId": "ses_405c9e82c5925cf9", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "pending", "error": null, "revision": 1}, "completed": {"sessionId": "ses_405c9e82c5925cf9", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "completed", "error": null, "revision": 3, "replacementWorkerId": "worker-1", "replacementGeneration": 1}, "lockedItem": {"id": "q_58ceed1bc8a248768c786ee74e511c1e", "queueItemId": "q_58ceed1bc8a248768c786ee74e511c1e", "kind": "task", "text": "locked-next", "createdAt": 1792611160.0053496, "source": "user", "meta": {"seq": 2, "taskId": null, "revision": 1, "dispatchState": "queued", "locked": true, "lockManual": true, "lockSource": "manual", "illegalBatchId": null, "lockAutoReport": false, "steerPending": false, "steerError": null}}, "events": [{"at": 1792611159.8845687, "type": "queue.item_added", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": "q_8fa0a56e0d91447daf7f6d63179c08b7", "queueItemIds": null, "queueRevision": 1, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611159.9276733, "type": "worker.spawned", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611159.9654338, "type": "queue.item_delivered", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": ["q_8fa0a56e0d91447daf7f6d63179c08b7"], "queueRevision": 3, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611159.9655702, "type": "queue.snapshot", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": 3, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611159.9658077, "type": "worker.status", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": 1}, {"at": 1792611160.0082426, "type": "queue.item_added", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": "q_58ceed1bc8a248768c786ee74e511c1e", "queueItemIds": null, "queueRevision": 4, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.049077, "type": "worker.delayed_restart", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.0896206, "type": "worker.result", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": 1}, {"at": 1792611160.0898418, "type": "worker.status", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": 1}, {"at": 1792611160.1007428, "type": "worker.delayed_restart", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.1689749, "type": "worker.spawned", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.1723926, "type": "worker.delayed_restart", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.2342727, "type": "queue.snapshot", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": 4, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.2410116, "type": "queue.snapshot", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": 5, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.2831092, "type": "queue.item_delivered", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": ["q_58ceed1bc8a248768c786ee74e511c1e"], "queueRevision": 7, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.2833142, "type": "queue.snapshot", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": 7, "sourceSessionId": null, "taskSeq": null}, {"at": 1792611160.2962427, "type": "worker.status", "sessionId": "ses_405c9e82c5925cf9", "queueItemId": null, "queueItemIds": null, "queueRevision": null, "sourceSessionId": null, "taskSeq": 2}]}
+CLEANUP http://127.0.0.1:61770 owned server stopped; port released
+.CLEANUP http://127.0.0.1:54333 owned server stopped; port released
+FCLEANUP http://127.0.0.1:54401 owned server stopped; port released
+FPLUGIN_DELAYED_COMBINATION {"order": "idle", "base": "http://127.0.0.1:49722", "accepted": {"sessionId": "ses_f1d0bd964978e188", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "restarting", "error": null, "revision": 2}, "completed": {"sessionId": "ses_f1d0bd964978e188", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "completed", "error": null, "revision": 3, "replacementWorkerId": "worker-1", "replacementGeneration": 1}, "bindings": [{"plugin_id": "qq", "enabled": true, "mode": "pan_native"}]}
+CLEANUP http://127.0.0.1:49722 owned server stopped; port released
+.PLUGIN_DELAYED_COMBINATION {"order": "offline", "base": "http://127.0.0.1:51568", "accepted": {"sessionId": "ses_8323b5a759a06772", "workerId": null, "generation": null, "action": "start", "status": "restarting", "error": null, "revision": 1}, "completed": {"sessionId": "ses_8323b5a759a06772", "workerId": null, "generation": null, "action": "start", "status": "completed", "error": null, "revision": 2, "replacementWorkerId": "worker-1", "replacementGeneration": 0}, "bindings": [{"plugin_id": "qq", "enabled": true, "mode": "pan_native"}]}
+CLEANUP http://127.0.0.1:51568 owned server stopped; port released
+.
+================================== FAILURES ===================================
+_______________________ test_real_stdio_http_lifecycle ________________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_real_stdio_http_lifecycle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000021121DB7350>
+
+    def test_real_stdio_http_lifecycle(tmp_path, monkeypatch):
+        import test_real_queue_http_e2e as real
+        from test_delayed_restart_locked_queue_http import _stop_owned
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, 'PORT', port)
+        runtime = real._PanRuntime(tmp_path / 'runtime')
+        runtime.start()
+        try:
+            s = real._create(runtime, 'real-fifo-delayed-mcp')
+            sid = s['id']
+            monkeypatch.setattr(mcp_server, '_pan_api_url', runtime.base_url)
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+            endpoint = f'/api/sessions/{sid}/worker/delayed-restart'
+            assert mcp_server.agent_restart_delayed_status(sid) == {'ok': True, 'delayedRestart': None}
+            assert not mcp_server.agent_restart_delayed(sid)['ok']
+            assert runtime.request('GET', endpoint)['delayedRestart'] is None
+            assert not mcp_server.agent_restart_delayed('missing')['ok']
+            assert not mcp_server.agent_restart_delayed_status('missing')['ok']
+            real._enqueue(runtime, sid, 'hold-A', 'active')
+            first = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-A'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'paused-next', 'paused')
+    
+            # Real MCP stdio subprocess -> real HTTP -> fake CLI, never a model.
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            async def exercise():
+                env = dict(os.environ, PAN_API_URL=runtime.base_url, PAN_AGENT_SESSION_ID=sid)
+                params = StdioServerParameters(command=sys.executable,
+                    args=['-m', 'packages.mcp.server'], env=env, cwd=str(real.ROOT))
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        tools = {t.name: t for t in (await client.list_tools()).tools}
+                        for name in ('agent_restart_delayed', 'agent_restart_delayed_status'):
+                            assert tools[name].inputSchema['required'] == ['session_id']
+                            assert set(tools[name].inputSchema['properties']) == {'session_id'}
+                        async def call(name):
+                            response = await client.call_tool(name, {'session_id': sid})
+                            assert not response.isError
+                            return response.structuredContent or json.loads(response.content[0].text)
+                        accepted = await call('agent_restart_delayed')
+                        assert accepted['ok'] and accepted['delayedRestart']['status'] == 'pending'
+                        assert await call('agent_restart_delayed') == accepted
+                        assert await call('agent_restart_delayed_status') == accepted
+                        return accepted
+            accepted = asyncio.run(exercise())
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            runtime.gates['hold-A'].touch()
+            finished = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' else None))
+            assert finished['replacementGeneration'] > accepted['delayedRestart']['generation']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            assert runtime.request('GET', f'/api/sessions/{sid}/queue')['queuePaused'] is True
+            idle = mcp_server.agent_restart_delayed(sid)
+            assert idle['ok'] and idle['delayedRestart']['status'] == 'restarting'
+            again = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' and state['revision'] > finished['revision'] else None))
+            after = runtime.request('GET', f'/api/sessions/{sid}')
+            assert after['model'] == s['model']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            # A genuinely failed owned provider creates Illegal state. The new
+            # request cannot turn that state into an implicit recovery/start.
+            from test_legal_offline_http import kill_owned_provider, durable
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': False})
+            real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='paused-next'))
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'hold-recovery', 'illegal-active')
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': False})
+            active = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-recovery'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'illegal-next', 'illegal-next')
+            kill_owned_provider(runtime, active['pid'], s['workdir'])
+>           real._wait_for(lambda: durable(runtime, sid).get('illegal_batches'))
+
+tests\test_mcp_delayed_restart.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = <function test_real_stdio_http_lifecycle.<locals>.<lambda> at 0x000002112283E350>
+timeout = 15.0, label = 'condition'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+>       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for condition: {}
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+_ test_plugin_configuration_and_delayed_restart_share_lifecycle[plugin-first] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_plugin_configuration_and_0')
+order = 'plugin-first'
+
+    @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
+    def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
+        runtime = _PanRuntime(tmp_path / "runtime")
+        runtime.start()
+        recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+        recorder.start()
+        try:
+            s = _create(runtime, "real-fifo-plugin-" + order)
+            sid = s["id"]
+            endpoint = f"/api/sessions/{sid}/worker/delayed-restart"
+            active = order in {"plugin-first", "manual-first"}
+            if active:
+                manager = _create(runtime, "paused-report-manager")
+                runtime.request("PATCH", f"/api/sessions/{manager['id']}/queue/paused", json={"paused": True})
+                assert runtime.request("POST", "/api/report-subscribe", json={
+                    "managerId": manager["id"], "sessionId": sid,
+                })["subscribed"]
+                _enqueue(runtime, sid, "hold-A", "active")
+                first = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))
+                process = psutil.Process(first[0]["pid"])
+                created = process.create_time()
+            elif order == "idle":
+                _spawn(runtime, sid)
+            locked = runtime.request("POST", f"/api/sessions/{sid}/queue", json={
+                "text": "plugin-next", "clientMessageId": "locked", "locked": True,
+            })["item"]["queueItemId"]
+            prior = runtime.request("POST", endpoint)["delayedRestart"] if order == "manual-first" else None
+            bindings = [{"plugin_id": "qq", "enabled": True, "mode": "pan_native"}]
+            changed = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert not changed.get("error"), changed
+            if order == "offline":
+                assert changed["pluginApplyStatus"] == "next_start"
+                assert runtime.request("GET", endpoint)["delayedRestart"] is None
+                accepted = runtime.request("POST", endpoint)["delayedRestart"]
+                assert accepted["action"] == "start"
+            else:
+                accepted = changed["delayedRestart"]
+                assert changed["pluginRestart"] == accepted
+            if active:
+                assert changed["pluginApplyStatus"] == "pending"
+                assert accepted["status"] == "pending"
+                browser_script = os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT")
+                if browser_script and order == "plugin-first":
+                    subprocess.run(["node", browser_script, runtime.base_url, sid, "plugin-pending"],
+                                   check=True, timeout=60, stdout=sys.stdout, stderr=sys.stderr,
+                                   **command_window_options())
+                if prior:
+                    assert accepted == prior
+                assert runtime.request("POST", endpoint)["delayedRestart"] == accepted
+                # A second physical tool-list update joins the same runtime intent.
+                bindings[0]["mode"] = "standalone"
+                updated = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+                assert updated["delayedRestart"] == accepted
+                assert process.is_running() and process.create_time() == created
+                assert len(_received(runtime, cwd=s["workdir"])) == 1
+                disk = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
+                assert disk["adapter_config"]["plugin_bindings"] == bindings
+                runtime.gates["hold-A"].touch()
+            completed = _wait_for(lambda: (
+                state if (state := runtime.request("GET", endpoint)["delayedRestart"])["status"] == "completed"
+                else None), label="plugin/delayed restart completion")
+            queue = runtime.request("GET", f"/api/sessions/{sid}/queue")
+            row = next(item for item in queue["items"] if item["id"] == locked)
+            assert row["meta"]["locked"]
+            same = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert same["pluginApplyStatus"] == "applied" and not same.get("requireRestart")
+            assert runtime.request("GET", endpoint)["delayedRestart"] == completed
+            assert not _received(runtime, cwd=s["workdir"], text="plugin-next")
+            if active:
+                manager_disk = _read_session_metadata(runtime.data_root / "sessions" / f"{manager['id']}.json")
+>               assert len(manager_disk["queue_pending"]) == 1
+E               assert 0 == 1
+E                +  where 0 = len([])
+
+tests\test_delayed_restart_locked_queue_http.py:207: AssertionError
+_ test_plugin_configuration_and_delayed_restart_share_lifecycle[manual-first] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_plugin_configuration_and_1')
+order = 'manual-first'
+
+    @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
+    def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
+        runtime = _PanRuntime(tmp_path / "runtime")
+        runtime.start()
+        recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+        recorder.start()
+        try:
+            s = _create(runtime, "real-fifo-plugin-" + order)
+            sid = s["id"]
+            endpoint = f"/api/sessions/{sid}/worker/delayed-restart"
+            active = order in {"plugin-first", "manual-first"}
+            if active:
+                manager = _create(runtime, "paused-report-manager")
+                runtime.request("PATCH", f"/api/sessions/{manager['id']}/queue/paused", json={"paused": True})
+                assert runtime.request("POST", "/api/report-subscribe", json={
+                    "managerId": manager["id"], "sessionId": sid,
+                })["subscribed"]
+                _enqueue(runtime, sid, "hold-A", "active")
+                first = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))
+                process = psutil.Process(first[0]["pid"])
+                created = process.create_time()
+            elif order == "idle":
+                _spawn(runtime, sid)
+            locked = runtime.request("POST", f"/api/sessions/{sid}/queue", json={
+                "text": "plugin-next", "clientMessageId": "locked", "locked": True,
+            })["item"]["queueItemId"]
+            prior = runtime.request("POST", endpoint)["delayedRestart"] if order == "manual-first" else None
+            bindings = [{"plugin_id": "qq", "enabled": True, "mode": "pan_native"}]
+            changed = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert not changed.get("error"), changed
+            if order == "offline":
+                assert changed["pluginApplyStatus"] == "next_start"
+                assert runtime.request("GET", endpoint)["delayedRestart"] is None
+                accepted = runtime.request("POST", endpoint)["delayedRestart"]
+                assert accepted["action"] == "start"
+            else:
+                accepted = changed["delayedRestart"]
+                assert changed["pluginRestart"] == accepted
+            if active:
+                assert changed["pluginApplyStatus"] == "pending"
+                assert accepted["status"] == "pending"
+                browser_script = os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT")
+                if browser_script and order == "plugin-first":
+                    subprocess.run(["node", browser_script, runtime.base_url, sid, "plugin-pending"],
+                                   check=True, timeout=60, stdout=sys.stdout, stderr=sys.stderr,
+                                   **command_window_options())
+                if prior:
+                    assert accepted == prior
+                assert runtime.request("POST", endpoint)["delayedRestart"] == accepted
+                # A second physical tool-list update joins the same runtime intent.
+                bindings[0]["mode"] = "standalone"
+                updated = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+                assert updated["delayedRestart"] == accepted
+                assert process.is_running() and process.create_time() == created
+                assert len(_received(runtime, cwd=s["workdir"])) == 1
+                disk = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
+                assert disk["adapter_config"]["plugin_bindings"] == bindings
+                runtime.gates["hold-A"].touch()
+            completed = _wait_for(lambda: (
+                state if (state := runtime.request("GET", endpoint)["delayedRestart"])["status"] == "completed"
+                else None), label="plugin/delayed restart completion")
+            queue = runtime.request("GET", f"/api/sessions/{sid}/queue")
+            row = next(item for item in queue["items"] if item["id"] == locked)
+            assert row["meta"]["locked"]
+            same = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert same["pluginApplyStatus"] == "applied" and not same.get("requireRestart")
+            assert runtime.request("GET", endpoint)["delayedRestart"] == completed
+            assert not _received(runtime, cwd=s["workdir"], text="plugin-next")
+            if active:
+                manager_disk = _read_session_metadata(runtime.data_root / "sessions" / f"{manager['id']}.json")
+>               assert len(manager_disk["queue_pending"]) == 1
+E               assert 0 == 1
+E                +  where 0 = len([])
+
+tests\test_delayed_restart_locked_queue_http.py:207: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_mcp_delayed_restart.py::test_real_stdio_http_lifecycle - As...
+FAILED tests/test_delayed_restart_locked_queue_http.py::test_plugin_configuration_and_delayed_restart_share_lifecycle[plugin-first]
+FAILED tests/test_delayed_restart_locked_queue_http.py::test_plugin_configuration_and_delayed_restart_share_lifecycle[manual-first]

@@ -13484,7 +13484,22 @@ async def api_delayed_restart_state(session_id: str):
 
 
 @app.post("/api/sessions/{session_id}/worker/delayed-restart")
-async def api_delayed_restart(session_id: str):
+async def api_delayed_restart(session_id: str, existing_worker_only: bool = False):
+    # MCP never implicitly starts an offline Session. Keep this check and intent
+    # capture synchronous on the event loop, avoiding a client-side check race.
+    if existing_worker_only:
+        session = _summary_session_get(session_id)
+        if not session:
+            return {"error": f"Session {session_id} not found"}
+        if legal_offline.is_illegal(session):
+            return {"error": "Session is Illegal; delayed restart cannot authorize recovery"}
+        if worker.find_alive_worker_by_session(session_id) is None:
+            prior = worker.delayed_restart_state(session_id)
+            if prior and prior.get("action") == "restart" and prior.get("status") == "restarting":
+                # The accepted coordinator may have retired the old process.
+                # A duplicate only reads its receipt; it must not start again.
+                return {"delayedRestart": prior}
+            return {"error": "No live Worker; delayed restart will not start an offline Session"}
     result = worker.request_delayed_restart(session_id)
     return {"error": result} if isinstance(result, str) else {"delayedRestart": result}
 

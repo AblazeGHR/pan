@@ -41,6 +41,8 @@ Tools exposed:
     - scheduler_create/list/get/update/delete/pause/resume/run_now/runs:
       Scheduled tasks (闹钟式定时任务：设定任务文本 + 触发时间/重复规则，到点自动派给目标 session)
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
+    - agent_restart_delayed: Restart a live Worker at its next valid idle boundary
+    - agent_restart_delayed_status: Read the delayed restart receipt without mutation
     - agent_list: List all agents (= sessions) — alias of session_list
     - worker_spawn / worker_task / worker_assign / worker_send / worker_send_force /
       worker_kill / worker_list: DEPRECATED compat aliases — prefer agent_*.
@@ -2551,6 +2553,52 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         if denied:
             return denied
     return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}"))
+
+
+@mcp.tool()
+def agent_restart_delayed(session_id: str) -> dict:
+    """Request a delayed restart of the Session's existing live Worker.
+
+    Running work finishes terminal persistence, reports and queue cleanup first;
+    restart then takes priority over the next queued task at a valid idle boundary.
+    Idle Workers schedule restart immediately. This is not a timer in seconds.
+    No live Worker returns an error, except that a restart already retiring its
+    old Worker returns its existing receipt. Never starts an offline Session.
+    Settings and model are unchanged. Pending/restarting requests merge with the existing
+    intent (including settings restart); completed requests can request a new one.
+    Existing lifecycle gates (including held/Illegal/Pause) are not bypassed.
+    Self and managed access follow the normal agent tools; this does not claim.
+    The delayedRestart receipt is acceptance, not proof of completion: inspect
+    agent_restart_delayed_status after an uncertain response rather than replay.
+    Intent exists only within this Pan service process.
+    """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    result = _api("POST", f"/api/sessions/{quote(session_id, safe='')}/worker/delayed-restart?existing_worker_only=true")
+    if isinstance(result, dict):
+        result.setdefault("ok", "error" not in result)
+    return result
+
+
+@mcp.tool()
+def agent_restart_delayed_status(session_id: str) -> dict:
+    """Read delayed restart state without requesting, starting or restarting a Worker.
+
+    Returns delayedRestart=null if there is no intent; otherwise includes status
+    pending/restarting/completed/failed/cancelled, revision, Worker generation and
+    any error. Acceptance is not completion. Finished state remains observable
+    after the old Worker disappears, only within this Pan service process.
+    Unknown Session returns an error. Uses the same self/managed access as the
+    request tool, without claiming a Session or changing settings/model.
+    """
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    result = _api("GET", f"/api/sessions/{quote(session_id, safe='')}/worker/delayed-restart")
+    if isinstance(result, dict):
+        result.setdefault("ok", "error" not in result)
+    return result
 
 
 @mcp.tool()

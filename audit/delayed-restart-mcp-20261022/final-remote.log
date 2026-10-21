@@ -1,0 +1,15 @@
+.REMOTE_DELAYED_REAL_HTTP {"mcp": "http://127.0.0.1:50663/mcp", "api": "http://127.0.0.1:57350", "pids": [7744, 43836, 49800], "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3570\\test_remote_delayed_restart_re0\\remote-delayed-runtime", "status": {"delayedRestart": null, "ok": true}, "rejected": {"error": "No live Worker; delayed restart will not start an offline Session", "ok": false}}
+CLEANUP http://127.0.0.1:57350 owned server stopped; port released
+.
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_mcp_remote_parity.py::test_remote_tools_list_equals_stdio_registry
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:109: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

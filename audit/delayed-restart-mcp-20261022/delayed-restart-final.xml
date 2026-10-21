@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="34" time="31.098" timestamp="2026-10-22T03:32:18.703998+08:00" hostname="ablaze"><testcase classname="tests.test_mcp_delayed_restart" name="test_access[None-target-True-agent_restart_delayed]" time="0.012" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[None-target-True-agent_restart_delayed_status]" time="0.003" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity1-self-True-agent_restart_delayed]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity1-self-True-agent_restart_delayed_status]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity2-child-True-agent_restart_delayed]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity2-child-True-agent_restart_delayed_status]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity3-other-False-agent_restart_delayed]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity3-other-False-agent_restart_delayed_status]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity4-other-True-agent_restart_delayed]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity4-other-True-agent_restart_delayed_status]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_error_receipt[agent_restart_delayed]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_error_receipt[agent_restart_delayed_status]" time="0.002" /><testcase classname="tests.test_mcp_delayed_restart" name="test_real_stdio_http_lifecycle" time="18.123"><failure message="AssertionError: timed out waiting for condition: {}">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_real_stdio_http_lifecycle0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021121DB7350&gt;
+
+    def test_real_stdio_http_lifecycle(tmp_path, monkeypatch):
+        import test_real_queue_http_e2e as real
+        from test_delayed_restart_locked_queue_http import _stop_owned
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, 'PORT', port)
+        runtime = real._PanRuntime(tmp_path / 'runtime')
+        runtime.start()
+        try:
+            s = real._create(runtime, 'real-fifo-delayed-mcp')
+            sid = s['id']
+            monkeypatch.setattr(mcp_server, '_pan_api_url', runtime.base_url)
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+            endpoint = f'/api/sessions/{sid}/worker/delayed-restart'
+            assert mcp_server.agent_restart_delayed_status(sid) == {'ok': True, 'delayedRestart': None}
+            assert not mcp_server.agent_restart_delayed(sid)['ok']
+            assert runtime.request('GET', endpoint)['delayedRestart'] is None
+            assert not mcp_server.agent_restart_delayed('missing')['ok']
+            assert not mcp_server.agent_restart_delayed_status('missing')['ok']
+            real._enqueue(runtime, sid, 'hold-A', 'active')
+            first = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-A'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'paused-next', 'paused')
+    
+            # Real MCP stdio subprocess -&gt; real HTTP -&gt; fake CLI, never a model.
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            async def exercise():
+                env = dict(os.environ, PAN_API_URL=runtime.base_url, PAN_AGENT_SESSION_ID=sid)
+                params = StdioServerParameters(command=sys.executable,
+                    args=['-m', 'packages.mcp.server'], env=env, cwd=str(real.ROOT))
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        tools = {t.name: t for t in (await client.list_tools()).tools}
+                        for name in ('agent_restart_delayed', 'agent_restart_delayed_status'):
+                            assert tools[name].inputSchema['required'] == ['session_id']
+                            assert set(tools[name].inputSchema['properties']) == {'session_id'}
+                        async def call(name):
+                            response = await client.call_tool(name, {'session_id': sid})
+                            assert not response.isError
+                            return response.structuredContent or json.loads(response.content[0].text)
+                        accepted = await call('agent_restart_delayed')
+                        assert accepted['ok'] and accepted['delayedRestart']['status'] == 'pending'
+                        assert await call('agent_restart_delayed') == accepted
+                        assert await call('agent_restart_delayed_status') == accepted
+                        return accepted
+            accepted = asyncio.run(exercise())
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            runtime.gates['hold-A'].touch()
+            finished = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' else None))
+            assert finished['replacementGeneration'] &gt; accepted['delayedRestart']['generation']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            assert runtime.request('GET', f'/api/sessions/{sid}/queue')['queuePaused'] is True
+            idle = mcp_server.agent_restart_delayed(sid)
+            assert idle['ok'] and idle['delayedRestart']['status'] == 'restarting'
+            again = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' and state['revision'] &gt; finished['revision'] else None))
+            after = runtime.request('GET', f'/api/sessions/{sid}')
+            assert after['model'] == s['model']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            # A genuinely failed owned provider creates Illegal state. The new
+            # request cannot turn that state into an implicit recovery/start.
+            from test_legal_offline_http import kill_owned_provider, durable
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': False})
+            real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='paused-next'))
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'hold-recovery', 'illegal-active')
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': False})
+            active = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-recovery'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'illegal-next', 'illegal-next')
+            kill_owned_provider(runtime, active['pid'], s['workdir'])
+&gt;           real._wait_for(lambda: durable(runtime, sid).get('illegal_batches'))
+
+tests\test_mcp_delayed_restart.py:116: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_real_stdio_http_lifecycle.&lt;locals&gt;.&lt;lambda&gt; at 0x000002112283E350&gt;
+timeout = 15.0, label = 'condition'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for condition: {}
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[offline]" time="0.454" /><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[illegal]" time="0.006" /><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[held]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[error]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[missing]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_http_existing_worker_gates[shutdown]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_original_http_offline_contract_preserved" time="0.005" /><testcase classname="tests.test_steer_restart_priority" name="test_restart_during_running_preparation_blocks_old_handoff[False]" time="0.007" /><testcase classname="tests.test_steer_restart_priority" name="test_restart_during_running_preparation_blocks_old_handoff[True]" time="0.014" /><testcase classname="tests.test_steer_restart_priority" name="test_self_consume_wakeup_keeps_accepted_delayed_intent[False]" time="0.010" /><testcase classname="tests.test_steer_restart_priority" name="test_self_consume_wakeup_keeps_accepted_delayed_intent[True]" time="0.013" /><testcase classname="tests.test_steer_restart_priority" name="test_pause_does_not_block_retirement_wakeup" time="0.007" /><testcase classname="tests.test_steer_restart_priority" name="test_handed_off_task_keeps_terminal_and_cleanup_before_retirement" time="0.009" /><testcase classname="tests.test_steer_restart_priority" name="test_absent_delayed_start_and_automatic_start_share_spawn_lock" time="0.028" /><testcase classname="tests.test_steer_restart_priority" name="test_failed_replacement_keeps_locked_item_and_explicit_retry_starts_once" time="0.013" /><testcase classname="tests.test_steer_restart_priority" name="test_cancel_pending_does_not_retire_running_task_or_unlock_queue" time="0.006" /><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_locked_queue_delayed_restart[http]" time="2.329" /><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_plugin_configuration_and_delayed_restart_share_lifecycle[plugin-first]" time="2.355"><failure message="assert 0 == 1&#10; +  where 0 = len([])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_plugin_configuration_and_0')
+order = 'plugin-first'
+
+    @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
+    def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
+        runtime = _PanRuntime(tmp_path / "runtime")
+        runtime.start()
+        recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+        recorder.start()
+        try:
+            s = _create(runtime, "real-fifo-plugin-" + order)
+            sid = s["id"]
+            endpoint = f"/api/sessions/{sid}/worker/delayed-restart"
+            active = order in {"plugin-first", "manual-first"}
+            if active:
+                manager = _create(runtime, "paused-report-manager")
+                runtime.request("PATCH", f"/api/sessions/{manager['id']}/queue/paused", json={"paused": True})
+                assert runtime.request("POST", "/api/report-subscribe", json={
+                    "managerId": manager["id"], "sessionId": sid,
+                })["subscribed"]
+                _enqueue(runtime, sid, "hold-A", "active")
+                first = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))
+                process = psutil.Process(first[0]["pid"])
+                created = process.create_time()
+            elif order == "idle":
+                _spawn(runtime, sid)
+            locked = runtime.request("POST", f"/api/sessions/{sid}/queue", json={
+                "text": "plugin-next", "clientMessageId": "locked", "locked": True,
+            })["item"]["queueItemId"]
+            prior = runtime.request("POST", endpoint)["delayedRestart"] if order == "manual-first" else None
+            bindings = [{"plugin_id": "qq", "enabled": True, "mode": "pan_native"}]
+            changed = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert not changed.get("error"), changed
+            if order == "offline":
+                assert changed["pluginApplyStatus"] == "next_start"
+                assert runtime.request("GET", endpoint)["delayedRestart"] is None
+                accepted = runtime.request("POST", endpoint)["delayedRestart"]
+                assert accepted["action"] == "start"
+            else:
+                accepted = changed["delayedRestart"]
+                assert changed["pluginRestart"] == accepted
+            if active:
+                assert changed["pluginApplyStatus"] == "pending"
+                assert accepted["status"] == "pending"
+                browser_script = os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT")
+                if browser_script and order == "plugin-first":
+                    subprocess.run(["node", browser_script, runtime.base_url, sid, "plugin-pending"],
+                                   check=True, timeout=60, stdout=sys.stdout, stderr=sys.stderr,
+                                   **command_window_options())
+                if prior:
+                    assert accepted == prior
+                assert runtime.request("POST", endpoint)["delayedRestart"] == accepted
+                # A second physical tool-list update joins the same runtime intent.
+                bindings[0]["mode"] = "standalone"
+                updated = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+                assert updated["delayedRestart"] == accepted
+                assert process.is_running() and process.create_time() == created
+                assert len(_received(runtime, cwd=s["workdir"])) == 1
+                disk = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
+                assert disk["adapter_config"]["plugin_bindings"] == bindings
+                runtime.gates["hold-A"].touch()
+            completed = _wait_for(lambda: (
+                state if (state := runtime.request("GET", endpoint)["delayedRestart"])["status"] == "completed"
+                else None), label="plugin/delayed restart completion")
+            queue = runtime.request("GET", f"/api/sessions/{sid}/queue")
+            row = next(item for item in queue["items"] if item["id"] == locked)
+            assert row["meta"]["locked"]
+            same = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert same["pluginApplyStatus"] == "applied" and not same.get("requireRestart")
+            assert runtime.request("GET", endpoint)["delayedRestart"] == completed
+            assert not _received(runtime, cwd=s["workdir"], text="plugin-next")
+            if active:
+                manager_disk = _read_session_metadata(runtime.data_root / "sessions" / f"{manager['id']}.json")
+&gt;               assert len(manager_disk["queue_pending"]) == 1
+E               assert 0 == 1
+E                +  where 0 = len([])
+
+tests\test_delayed_restart_locked_queue_http.py:207: AssertionError</failure></testcase><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_plugin_configuration_and_delayed_restart_share_lifecycle[manual-first]" time="2.271"><failure message="assert 0 == 1&#10; +  where 0 = len([])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3553/test_plugin_configuration_and_1')
+order = 'manual-first'
+
+    @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
+    def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
+        runtime = _PanRuntime(tmp_path / "runtime")
+        runtime.start()
+        recorder = _EventRecorder(runtime.base_url.replace("http", "ws", 1) + "/ws/agent")
+        recorder.start()
+        try:
+            s = _create(runtime, "real-fifo-plugin-" + order)
+            sid = s["id"]
+            endpoint = f"/api/sessions/{sid}/worker/delayed-restart"
+            active = order in {"plugin-first", "manual-first"}
+            if active:
+                manager = _create(runtime, "paused-report-manager")
+                runtime.request("PATCH", f"/api/sessions/{manager['id']}/queue/paused", json={"paused": True})
+                assert runtime.request("POST", "/api/report-subscribe", json={
+                    "managerId": manager["id"], "sessionId": sid,
+                })["subscribed"]
+                _enqueue(runtime, sid, "hold-A", "active")
+                first = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))
+                process = psutil.Process(first[0]["pid"])
+                created = process.create_time()
+            elif order == "idle":
+                _spawn(runtime, sid)
+            locked = runtime.request("POST", f"/api/sessions/{sid}/queue", json={
+                "text": "plugin-next", "clientMessageId": "locked", "locked": True,
+            })["item"]["queueItemId"]
+            prior = runtime.request("POST", endpoint)["delayedRestart"] if order == "manual-first" else None
+            bindings = [{"plugin_id": "qq", "enabled": True, "mode": "pan_native"}]
+            changed = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert not changed.get("error"), changed
+            if order == "offline":
+                assert changed["pluginApplyStatus"] == "next_start"
+                assert runtime.request("GET", endpoint)["delayedRestart"] is None
+                accepted = runtime.request("POST", endpoint)["delayedRestart"]
+                assert accepted["action"] == "start"
+            else:
+                accepted = changed["delayedRestart"]
+                assert changed["pluginRestart"] == accepted
+            if active:
+                assert changed["pluginApplyStatus"] == "pending"
+                assert accepted["status"] == "pending"
+                browser_script = os.environ.get("PAN_TEST_DELAYED_BROWSER_SCRIPT")
+                if browser_script and order == "plugin-first":
+                    subprocess.run(["node", browser_script, runtime.base_url, sid, "plugin-pending"],
+                                   check=True, timeout=60, stdout=sys.stdout, stderr=sys.stderr,
+                                   **command_window_options())
+                if prior:
+                    assert accepted == prior
+                assert runtime.request("POST", endpoint)["delayedRestart"] == accepted
+                # A second physical tool-list update joins the same runtime intent.
+                bindings[0]["mode"] = "standalone"
+                updated = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+                assert updated["delayedRestart"] == accepted
+                assert process.is_running() and process.create_time() == created
+                assert len(_received(runtime, cwd=s["workdir"])) == 1
+                disk = _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
+                assert disk["adapter_config"]["plugin_bindings"] == bindings
+                runtime.gates["hold-A"].touch()
+            completed = _wait_for(lambda: (
+                state if (state := runtime.request("GET", endpoint)["delayedRestart"])["status"] == "completed"
+                else None), label="plugin/delayed restart completion")
+            queue = runtime.request("GET", f"/api/sessions/{sid}/queue")
+            row = next(item for item in queue["items"] if item["id"] == locked)
+            assert row["meta"]["locked"]
+            same = runtime.request("PATCH", f"/api/sessions/{sid}", json={"pluginBindings": bindings})
+            assert same["pluginApplyStatus"] == "applied" and not same.get("requireRestart")
+            assert runtime.request("GET", endpoint)["delayedRestart"] == completed
+            assert not _received(runtime, cwd=s["workdir"], text="plugin-next")
+            if active:
+                manager_disk = _read_session_metadata(runtime.data_root / "sessions" / f"{manager['id']}.json")
+&gt;               assert len(manager_disk["queue_pending"]) == 1
+E               assert 0 == 1
+E                +  where 0 = len([])
+
+tests\test_delayed_restart_locked_queue_http.py:207: AssertionError</failure></testcase><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_plugin_configuration_and_delayed_restart_share_lifecycle[idle]" time="2.267" /><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_plugin_configuration_and_delayed_restart_share_lifecycle[offline]" time="2.137" /></testsuite></testsuites>
