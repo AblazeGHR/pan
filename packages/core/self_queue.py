@@ -72,6 +72,47 @@ async def read(session_id: str) -> dict:
         return {"ok": True, "items": items}
 
 
+async def report_status(session_id: str) -> dict:
+    """Own persisted subscription configuration, without queue/body counts."""
+    s = worker._get_session_shallow(session_id)
+    if s is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    async with worker.queue_lock(session_id):
+        return {"ok": True, "sessionId": s.id,
+                "reportSubscriptions": sorted(s.report_subscriptions),
+                "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False))}
+
+
+async def report_next(session_id: str) -> dict:
+    """Peek the first visible child-agent report; no reservation or consumption.
+
+    Reuse own-queue eligibility, but never allocate IDs for legacy rows or
+    write missing queueItemId aliases into live rows during a read.
+    """
+    s = worker._get_session_shallow(session_id)
+    if s is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    async with worker.queue_lock(session_id):
+        for item in s.queue_pending:
+            if not worker._is_pauseable_agent_report(item):
+                continue
+            identity = item.get("queueItemId") or item.get("id")
+            if not isinstance(identity, str) or not identity:
+                continue
+            candidate = dict(item, queueItemId=identity)
+            if not _eligible(s, candidate):
+                continue
+            value = {key: copy.deepcopy(item[key]) for key in (
+                "type", "kind", "source", "sourceSessionId", "sessionId",
+                "status", "result", "taskId", "workerId", "createdAt", "revision",
+            ) if key in item}
+            value["queueItemId"] = identity
+            return {"ok": True, "report": value}
+        # Empty, hidden, handed-off and legacy-unaddressable queues are not
+        # distinguishable. Do not expose hidden IDs, counts or positions.
+        return {"ok": True, "report": None}
+
+
 async def consume(session_id: str, item_id: str) -> dict:
     s = worker._get_session_shallow(session_id)
     if s is None:
