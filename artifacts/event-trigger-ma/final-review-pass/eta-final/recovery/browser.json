@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:50602",
+  "runId": "run_342832957f1a4d4bb19d78efaa340b3b",
+  "targetId": "ses_5caf1f5aefbf208a",
+  "uncertainId": "restart-running",
+  "queuedId": "restart-queued",
+  "errors": [],
+  "chromiumVersion": "153.0.8010.12"
+}
