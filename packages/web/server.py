@@ -291,7 +291,7 @@ async def lifespan(app: FastAPI):
     # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
     from packages.plugins.ipc import plugin_lifespan
     from packages.plugins.panels import panel_lifespan
-    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed), panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
+    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed) as plugin_runtime, panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
         async with terminal_tools_api.terminal_tools_lifespan(app):
             async with terminal_ws.websocket_lifespan(app):
                 tailscale = _tailscale_controller()
@@ -305,10 +305,16 @@ async def lifespan(app: FastAPI):
                     app.state.automation = automation
                     try:
                         await automation.start()
+                        await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
+                        app.state.plugin_events = plugin_runtime.events
                         yield
                     finally:
                         try:
-                            await automation.close()
+                            app.state.plugin_events = None
+                            try:
+                                await plugin_runtime.unbind_events()
+                            finally:
+                                await automation.close()
                         finally:
                             app.state.automation = None
                             from packages.web.native_file_picker import native_file_picker
@@ -371,6 +377,18 @@ _character_manager: CharacterManager | None = None
 
 
 app = FastAPI(title="Pan", lifespan=lifespan)
+
+
+@app.middleware('http')
+async def _reconcile_plugin_event_bindings(request, call_next):
+    response = await call_next(request)
+    events = getattr(app.state, 'plugin_events', None)
+    if events and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.url.path.startswith('/api/sessions'):
+        try:
+            await events.reconcile()
+        except Exception as exc:
+            events.diagnostic('runtime', 'binding reconciliation: ' + str(exc))
+    return response
 
 
 async def _reminder_loop():

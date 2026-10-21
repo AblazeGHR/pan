@@ -1,0 +1,68 @@
+{
+  "mcp_servers": [
+    {
+      "name": "event-example-process",
+      "command": "node",
+      "args": [
+        "${PLUGIN_DIR}/provider.mjs"
+      ],
+      "cwd": "${PLUGIN_DIR}"
+    }
+  ],
+  "plugins": [
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "producer",
+      "display_name": "Event producer",
+      "source": {
+        "kind": "pan_api",
+        "capabilities_file": "producer-capabilities.json"
+      },
+      "events": {
+        "provider": {
+          "transport": "stdio_jsonrpc",
+          "command_ref": "event-example-process"
+        },
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "An example external producer observed an integer value.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      }
+    },
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "observer",
+      "display_name": "Event observer",
+      "source": {
+        "kind": "pan_api",
+        "capabilities_file": "observer-capabilities.json"
+      },
+      "events": {
+        "provider": {
+          "transport": "stdio_jsonrpc",
+          "command_ref": "event-example-process"
+        },
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      }
+    }
+  ]
+}

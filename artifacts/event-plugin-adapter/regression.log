@@ -1,0 +1,35 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-plugin-adapter-20261022
+........................................................................ [ 77%]
+.....................                                                    [100%]
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+93 passed, 7 warnings in 52.82s

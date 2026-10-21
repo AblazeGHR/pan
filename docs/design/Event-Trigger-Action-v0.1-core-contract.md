@@ -81,8 +81,13 @@ Internal plugin lifetime uses `plugin_enabled(id)` -> register/subscribe ->
 Runs whose dependencies have become available. Plugin definitions are not a
 second plugin installation/enable authority: the actual plugin lifecycle adapter
 must call these hooks. An internal executable example is `example_plugin.py`.
-Complete external transport and automatic integration with each catalog plugin's
-activation lifecycle are not in this phase.
+External transport and Catalog/Session activation now use the additive
+`pan-events/v1` adapter; see [external event protocol](../plugins/EVENTS.md).
+The three Service hooks and existing HTTP/data contract are unchanged. The
+generic plugin Runtime owns one shared event-role connection per enabled plugin,
+independent of tool connections and all three MCP projection modes. Catalog
+declarations include descriptions, and the adapter preserves this presentation
+metadata on definitions. No public registration/publication endpoint is added.
 
 Limits: 64 runtime owners, 128 definitions, 64 subscriptions, 128 events per
 subscriber, 64 KiB JSON payload per Event; excess admission is rejected visibly.
@@ -162,8 +167,8 @@ so their permission and execution semantics do not expand accidentally.
 
 `query` is a **required follow-up**, reserved in `SessionSelector` types but
 rejected at runtime pending a model-backed field whitelist and product decisions.
-Parallel mode is likewise a reserved type, not an implemented mode. UI, complete
-external plugin transport, large-ledger retention/paging, reliable Event delivery,
+Parallel mode is likewise a reserved type, not an implemented mode. UI,
+large-ledger retention/paging, reliable Event delivery,
 and human Pause/queue acceptance remain later work and are not claimed here.
 
 
