@@ -98,3 +98,8 @@ cd packages/web && node e2e/queue-source-session.chromium.mjs \
 本轮证据：`%TEMP%/pan-queue-source-e2e-verify/artifacts/`
 （`evidence.json` 含 guards 与 checks，另有 `preview-wide.png`、`preview-320.png`、
 `after-jump.png`、`preview-deleted-source.png`）。
+
+## MA 独立验收：通过（2026-10-21）
+
+复核补充候选6ce24116：卸载时递增copySeq，迟到then/catch均失效；浏览器守卫位于所有写操作前，拒绝保护端口并核实fixture及fake CLI。独立运行四文件Vitest：56 passed、0 skipped、exit 0；包含两条卸载迟到失败回归及队列图标共存。git diff --check通过。真实浏览器复制/跳转/320px证据沿用本候选TA隔离实测，不冒称MA重跑。D-1真实provider调用偏差保留，不改写为全程无模型调用。
+按授权快进main/practical；不push/release，不操作既有服务。
