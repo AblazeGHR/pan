@@ -473,11 +473,11 @@ describe('InputRow send queue wiring', () => {
     render(<InputRow />);
     fireEvent.click(screen.getByRole('button', { name: '添加附件' }));
     fireEvent.click(screen.getByRole('button', { name: /服务端附件$/ }));
-    fireEvent.click(screen.getByRole('button', { name: '使用原生文件选择器' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open server file picker' }));
     await screen.findByText('D:\\attachments\\one.txt');
     expect(registerServerFileAttachment).not.toHaveBeenCalled();
     expect(enqueueSessionMessage).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '确认添加所选附件' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm selected attachments' }));
     await waitFor(() => expect(registerServerFileAttachment).toHaveBeenCalledTimes(2));
     await waitFor(() => {
       const chips = screen.getByTestId('server-attachments').textContent;

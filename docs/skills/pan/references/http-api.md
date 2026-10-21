@@ -3,7 +3,21 @@ name: pan-http-api
 description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills/pan/SKILL.md 使用）。覆盖冷启动常用端点请求体、字段命名映射、Windows curl 中文编码坑、轮询兜底策略。MCP 能覆盖的编排操作一律走 MCP 工具，本文件仅用于直调（rename/branch 等无 MCP 工具）与排查。
 ---
 
+## 来源分类与自动回答汇报
+
+`/api/assign`、`/api/send`（含 force）及 `/api/task` 根据验证后的 `sourceSessionId` 和管理祖先链将上行 agent 消息标为 `source=report`，保留原 task 投递事务。设置不影响手动上行投递。
+
+全局 `GET/PUT /api/settings/ui` 的 `autoReport` 值为 `{system:false, ma:true, user:false, plugins:{}}`。PUT 提供完整该值，`plugins` 是按插件 ID 的显式覆盖；重置传默认值及空覆盖。`GET /api/plugins/message-sources` 返回消息能力插件及声明默认/有效开关。插件以可选 `message_source` 对象声明消息能力，`auto_report_default` 可省略，省略为 false；没有消息能力对象的普通注册插件不出现在此列表。
+
+`POST /api/plugins/{plugin_id}/messages` 接受 `{sessionId, text, clientMessageId?}`；要求该插件声明消息能力，持久化 `source=plugin`/`sourcePluginId`，使用原有队列 gate。它与 `/api/send` 同属本地信任边界，不授予额外访问能力。详细快照、旧 QQ 兼容、Stop reports 和防循环规则见 [设计契约](../../../source-aware-auto-report.md)。
+
 # Pan HTTP API 速查（引用文档）
+
+## 主服务 CLI 身份与控制台
+
+- `GET /api/main/identity`：当前进程 `pid`、`createdAt`、`root`、运行 `version` 与 `console={state, hwnd, managed, pid, interactive}`；非 Windows console 为 unsupported。
+- `POST /api/main/console`：`{action:"show"|"hide", pid, createdAt}`，目标身份不符或共享/不可控窗口返回 409。只控制 Pan 自己的交互 console，不控制 Worker/Job 终端，不写启动配置。返回 `{ok:true, console:{...}}`；无法核验可见状态时拒绝。
+- 用户 CLI 对 `POST /api/main/exit|restart` 附带 `X-Pan-Expected-Pid` / `X-Pan-Expected-Created-At`，服务端拒绝查询后已更换的实例；未附 header 的现有 UI/console 调用契约不变。CLI 等持久 Job 终态及进程事实，不将 scheduled/accepted 当作完成。日常命令和注册详见 [Pan CLI](../../../PAN_CLI.md)。
 
 Action/Group 创建：`POST /api/actions/actions` 或 `/api/actions/groups`，body 为
 `{item: {...}, expectedRevision?: number}`。省略 `item.id` 时由服务端生成，返回 registry

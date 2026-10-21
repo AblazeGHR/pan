@@ -3311,6 +3311,23 @@ def _plugin_manifest():
     return _character_manager._manifest_config
 
 
+@app.get("/api/plugins/message-sources")
+async def api_plugin_message_sources():
+    from packages.core import auto_report
+    settings, sources = await auto_report.context()
+    overrides = settings["plugins"]
+    return {"sources": [{**p, "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"])}
+                        for p in sources]}
+
+
+@app.post("/api/plugins/{plugin_id}/messages")
+async def api_plugin_message(plugin_id: str, data: dict):
+    # This local plugin ingress has the same access boundary as /api/send.
+    # It cannot impersonate agent/user/system origins; registration alone is insufficient.
+    return await worker.enqueue_plugin_message(plugin_id, data.get("sessionId"),
+        data.get("text"), client_message_id=data.get("clientMessageId"))
+
+
 @app.get("/api/plugins/panels")
 async def api_plugin_panels():
     from packages.plugins.panels import PanelHost
@@ -3705,6 +3722,41 @@ async def api_internal_main_shutdown():
         return {"ok": False, "error": "Pan Uvicorn server is not registered"}
     server.should_exit = True
     return {"ok": True, "status": "stopping"}
+
+
+@app.get("/api/main/identity")
+async def api_main_identity():
+    from packages.core.host_console import console
+    return {"pid": os.getpid(), "createdAt": launcher.process_create_time(os.getpid()),
+            "root": str(_PROJECT_DIR), "version": __version__, "console": console.snapshot()}
+
+
+@app.middleware("http")
+async def cli_instance_guard(request: Request, call_next):
+    # Bind CLI lifecycle writes to the instance checked before the HTTP call.
+    # Existing UI/console callers without these headers retain their API contract.
+    if request.method == "POST" and request.url.path in {"/api/main/exit", "/api/main/restart"}:
+        pid = request.headers.get("x-pan-expected-pid")
+        created = request.headers.get("x-pan-expected-created-at")
+        if pid is not None or created is not None:
+            if pid != str(os.getpid()) or created != str(launcher.process_create_time(os.getpid())):
+                return Response(content='{"error":"CLI instance identity mismatch"}',
+                                status_code=409, media_type="application/json")
+    return await call_next(request)
+
+
+@app.post("/api/main/console")
+async def api_main_console(payload: Annotated[dict, Body()]):
+    from packages.core.host_console import console, ConsoleError
+    if (payload.get("pid") != os.getpid() or
+            payload.get("createdAt") != launcher.process_create_time(os.getpid())):
+        raise HTTPException(status_code=409, detail="Console instance identity mismatch")
+    if payload.get("action") not in {"show", "hide"}:
+        raise HTTPException(status_code=400, detail="Expected show or hide")
+    try:
+        return {"ok": True, "console": console.change(payload["action"])}
+    except (ConsoleError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/api/diagnostics/persistence")
@@ -10935,7 +10987,10 @@ async def api_get_settings_ui():
     single source of truth for these display-level settings, shared across
     browsers/sessions (previously they lived in browser localStorage).
     """
-    return load_config().get("ui") or {}
+    from packages.core import auto_report
+    ui = dict(load_config().get("ui") or {})
+    ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    return ui
 
 
 @app.get("/api/data/catalog")
@@ -11025,6 +11080,12 @@ async def api_put_settings_ui(data: dict):
     over the ``settings.uiUpdated`` broadcast, and a failed config write
     changes nothing (the previous policy stays active).
     """
+    from packages.core import auto_report
+    if "autoReport" in data:
+        try:
+            data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
     ui = dict(load_config().get("ui") or {})
     if "autoForceSend" in data:
         # Strict shape: the three automatic Force sources are independent

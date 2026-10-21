@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="6" time="34.905" timestamp="2026-10-21T16:38:19.327065+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[legacy-exe]" time="1.134" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[close-exe]" time="30.583"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py&quot;, line 488, in wait_for&#10;      return await fut&#10;             ^^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py&quot;, line 562, in readline&#10;      line = await self.readuntil(sep)&#10;             ^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py&quot;, line 677, in readuntil&#10;      await self._wait_for_data('readuntil')&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py&quot;, line 539, in _wait_for_data&#10;      await self._waiter&#10;  asyncio.exceptions.CancelledError&#10;  &#10;  The above exception was the direct cause of the following exception:&#10;  &#10;  Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py&quot;, line 84, in &lt;module&gt;&#10;      asyncio.run(main())&#10;      ~~~~~~~~~~~^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 127, in run&#10;      return self._loop.run_until_complete(task)&#10;             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py&quot;, line 719, in run_until_complete&#10;      return future.result()&#10;             ~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py&quot;, line 43, in main&#10;      first = (await provider.request('call', payload))['structuredContent']&#10;               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py&quot;, line 174, in request&#10;      result = await self._rpc(&quot;capability.invoke&quot;, {&#10;               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;          &quot;protocol_version&quot;: &quot;pan-capability/v1&quot;, &quot;operation&quot;: execution[&quot;operation&quot;],&#10;          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;          &quot;arguments&quot;: arguments})&#10;          ^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py&quot;, line 139, in _rpc&#10;      initialized = await self._rpc(&quot;provider.initialize&quot;, {&quot;protocol_version&quot;: &quot;pan-capability/v1&quot;})&#10;                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py&quot;, line 147, in _rpc&#10;      line = await asyncio.wait_for(self.process.stdout.readline(), 30)&#10;             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py&quot;, line 487, in wait_for&#10;      async with timeouts.timeout(timeout):&#10;                 ~~~~~~~~~~~~~~~~^^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py&quot;, line 114, in __aexit__&#10;      raise TimeoutError from exc_val&#10;  TimeoutError&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe', 'D:\\project\\pan-...n\\Python314\\Lib\\asyncio\\timeouts.py&quot;, line 114, in __aexit__\n    raise TimeoutError from exc_val\nTimeoutError\n').returncode">tests\test_plugin_provider_window.py:29: in test_owned_api_provider_console_lifecycle
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 488, in wait_for
+E         return await fut
+E                ^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 562, in readline
+E         line = await self.readuntil(sep)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 677, in readuntil
+E         await self._wait_for_data('readuntil')
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 539, in _wait_for_data
+E         await self._waiter
+E     asyncio.exceptions.CancelledError
+E
+E     The above exception was the direct cause of the following exception:
+E
+E     Traceback (most recent call last):
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py", line 84, in &lt;module&gt;
+E         asyncio.run(main())
+E         ~~~~~~~~~~~^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E         return runner.run(main)
+E                ~~~~~~~~~~^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E         return self._loop.run_until_complete(task)
+E                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E         return future.result()
+E                ~~~~~~~~~~~~~^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py", line 43, in main
+E         first = (await provider.request('call', payload))['structuredContent']
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 174, in request
+E         result = await self._rpc("capability.invoke", {
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             "arguments": arguments})
+E             ^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 139, in _rpc
+E         initialized = await self._rpc("provider.initialize", {"protocol_version": "pan-capability/v1"})
+E                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 147, in _rpc
+E         line = await asyncio.wait_for(self.process.stdout.readline(), 30)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 487, in wait_for
+E         async with timeouts.timeout(timeout):
+E                    ~~~~~~~~~~~~~~~~^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py", line 114, in __aexit__
+E         raise TimeoutError from exc_val
+E     TimeoutError
+E
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe', 'D:\\project\\pan-...n\\Python314\\Lib\\asyncio\\timeouts.py", line 114, in __aexit__\n    raise TimeoutError from exc_val\nTimeoutError\n').returncode</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-exe]" time="0.602" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-cmd]" time="0.617" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-powershell]" time="0.762" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[shown-exe]" time="1.091" /></testsuite></testsuites>

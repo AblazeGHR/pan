@@ -1,0 +1,91 @@
+[
+  {
+    "name": "backend",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "tests/test_native_file_picker.py",
+      "tests/test_web_directory_picker.py",
+      "tests/test_attachment_parts_protocol.py",
+      "-o",
+      "addopts=",
+      "-q"
+    ],
+    "exitCode": 0,
+    "seconds": 2.9
+  },
+  {
+    "name": "frontend",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web",
+    "argv": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "node_modules/vitest/vitest.mjs",
+      "run",
+      "src/components/chat/ServerAttachmentPicker.test.tsx",
+      "src/components/chat/InputRow.test.tsx"
+    ],
+    "exitCode": 0,
+    "seconds": 7.87
+  },
+  {
+    "name": "lint",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web",
+    "argv": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "node_modules/eslint/bin/eslint.js",
+      "src/components/chat/ServerAttachmentPicker.tsx",
+      "src/components/chat/ServerAttachmentPicker.test.tsx",
+      "src/components/chat/InputRow.test.tsx"
+    ],
+    "exitCode": 0,
+    "seconds": 1.07
+  },
+  {
+    "name": "typecheck",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web",
+    "argv": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "node_modules/typescript/bin/tsc",
+      "-b"
+    ],
+    "exitCode": 0,
+    "seconds": 12.06
+  },
+  {
+    "name": "build",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web",
+    "argv": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "node_modules/vite/bin/vite.js",
+      "build"
+    ],
+    "exitCode": 0,
+    "seconds": 7.1
+  },
+  {
+    "name": "assets",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web",
+    "argv": [
+      "D:\\software\\nodeJs\\node.EXE",
+      "e2e/verify-precompressed-assets.mjs"
+    ],
+    "exitCode": 0,
+    "seconds": 0.13
+  },
+  {
+    "name": "diff",
+    "cwd": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+    "argv": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exitCode": 0,
+    "seconds": 0.08
+  }
+]

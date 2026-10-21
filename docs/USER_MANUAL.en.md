@@ -147,7 +147,7 @@ A common flow subscribes to a child Session before assigning its task:
 report_subscribe → agent_assign → Worker completes or errors → manager queue_pending → acceptance
 ```
 
-Use `agent_assign` for new work. Its `queued` response means accepted, not completed. `agent_send` queues follow-up context without interrupting the current task. `agent_send_force` is for an urgent message that needs a restart to be delivered. `agent_notify` persistently reports a result from a background command or external task. Completion reports are stored in the manager's `queue_pending` inbox and can be read after a disconnect.
+Use `agent_assign` for new work. Its `queued` response means accepted, not completed. Use `agent_send` for independent follow-up work explicitly intended to wait until the current task ends. Default to `agent_send_force` for additions, clarifications, corrections and constraints on the current task; Pan selects the delivery route by capability. Accepted means CLI admission only; never automatically replay an unknown result. `agent_notify` persistently reports a result from a background command or external task. Completion reports are stored in the manager's `queue_pending` inbox and can be read after a disconnect.
 
 From the Dashboard, click **Subscribe** for the target under the manager's **Manage → Relationship → Manages**. This is different from a QQ inbox subscription under **msgBridge**.
 

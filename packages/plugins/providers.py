@@ -9,6 +9,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 import httpx
+from packages.jobs.window import command_window_options
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
@@ -131,7 +132,10 @@ class ApiProvider:
                 env={**os.environ, **entry.get("env", {}), "PAN_AGENT_SESSION_ID": self.session.id,
                      **({"PAN_PLUGIN_DATA_DIR": str(self.data_dir)} if self.data_dir else {})},
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                limit=2 * 1024 * 1024)
+                # Pipe providers are background helpers even when the host has
+                # detached its console (or explicitly shows its own console).
+                # Without NO_WINDOW Windows allocates a console for the child.
+                limit=2 * 1024 * 1024, **command_window_options())
             initialized = await self._rpc("provider.initialize", {"protocol_version": "pan-capability/v1"})
             if not isinstance(initialized, dict) or initialized.get("protocol_version") != "pan-capability/v1":
                 raise ValueError("API provider protocol version mismatch")

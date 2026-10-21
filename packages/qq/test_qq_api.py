@@ -578,11 +578,10 @@ def test_enqueue_qq_reminder_delivers_to_subscribers(monkeypatch, tmp_path):
     other = sess.create(name="other", model="m")
     sub.qq_subscriptions.add("user:1234567890")
     # 隔离 worker 视角的 session store，只含测试 session（避免读真实落盘）
-    monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
-        list_all=lambda: [sub, other],
-        save_async=lambda s: asyncio.sleep(0),
-        get=lambda sid: next((x for x in [sub, other] if x.id == sid), None),
-    ))
+    # Keep the real ordered persistence store; only narrow the worker's view.
+    monkeypatch.setattr(worker, "_list_sessions_shallow", lambda: [sub, other])
+    monkeypatch.setattr(worker, "_get_session_shallow",
+                        lambda sid: next((x for x in [sub, other] if x.id == sid), None))
     monkeypatch.setattr(worker, "create_worker", AsyncMock())  # auto_spawn 不真建进程
     delivered = _run(worker.enqueue_qq_reminder(
         "user", "1234567890", nickname="TestUser", text="你好", time_str="t"))
@@ -608,12 +607,10 @@ def test_enqueue_qq_reminder_bot_scoped_subscription(monkeypatch, tmp_path):
     legacy_sub.qq_subscriptions.add("user:1234567890")
     bot_sub.qq_subscriptions.add("user:1234567890@1470993983")
     outsider.qq_subscriptions.add("user:1234567890@3494144273")
-    monkeypatch.setattr(worker, "_sess", types.SimpleNamespace(
-        list_all=lambda: [legacy_sub, bot_sub, outsider],
-        save_async=lambda s: asyncio.sleep(0),
-        get=lambda sid: next(
-            (x for x in [legacy_sub, bot_sub, outsider] if x.id == sid), None),
-    ))
+    # Keep the real ordered persistence store; only narrow the worker's view.
+    monkeypatch.setattr(worker, "_list_sessions_shallow", lambda: [legacy_sub, bot_sub, outsider])
+    monkeypatch.setattr(worker, "_get_session_shallow",
+                        lambda sid: next((x for x in [legacy_sub, bot_sub, outsider] if x.id == sid), None))
     monkeypatch.setattr(worker, "create_worker", AsyncMock())  # auto_spawn 不真建进程
     delivered = _run(worker.enqueue_qq_reminder(
         "user", "1234567890", nickname="TestUser", text="hi", time_str="t",

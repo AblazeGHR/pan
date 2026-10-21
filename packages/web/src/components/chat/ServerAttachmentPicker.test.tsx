@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 
-const nativeButton = () => screen.getByRole('button', { name: '使用原生文件选择器' });
+const nativeButton = () => screen.getByRole('button', { name: 'Open server file picker' });
 function setup() {
   const onChange = vi.fn(), onSelect = vi.fn();
   const props = { sessionId: 's1', value: 'C:\\files\\', onChange, onSelect };
@@ -30,7 +30,7 @@ it('fills multiple paths without registration; confirms through existing selecti
   await screen.findByText('C:\\one.txt');
   expect(onSelect).not.toHaveBeenCalled();
   expect(pickNativeServerFiles).toHaveBeenCalledWith('s1', 'C:\\files');
-  fireEvent.click(screen.getByText('确认添加所选附件'));
+  fireEvent.click(screen.getByText('Confirm selected attachments'));
   expect(onSelect.mock.calls).toEqual([['C:\\one.txt'], ['C:\\two.txt']]);
 });
 
@@ -100,7 +100,26 @@ it('cancels staged selection without registration', async () => {
   const { onSelect } = setup();
   fireEvent.click(nativeButton());
   await screen.findByText('C:\\one.txt');
-  fireEvent.click(screen.getByText('取消选择'));
+  fireEvent.click(screen.getByText('Cancel selection'));
   expect(onSelect).not.toHaveBeenCalled();
-  expect(screen.queryByText('确认添加所选附件')).toBeNull();
+  expect(screen.queryByText('Confirm selected attachments')).toBeNull();
+});
+
+
+it('explains where to find the ordinary server window while waiting', async () => {
+  const finish = deferred();
+  setup();
+  fireEvent.click(nativeButton());
+  expect(screen.getByRole('status').textContent).toContain('Pan server attachments taskbar window');
+  expect(screen.getByRole('status').textContent).toContain('90 seconds');
+  await finish();
+});
+
+it('explains a request failure, including an outdated backend, and retains manual selection', async () => {
+  vi.mocked(pickNativeServerFiles).mockRejectedValue(new Error('404'));
+  const { onSelect } = setup();
+  fireEvent.click(nativeButton());
+  await screen.findByText(/The server may need an update/);
+  fireEvent.click(await screen.findByText('manual.txt'));
+  expect(onSelect).toHaveBeenCalledWith('C:\\files\\manual.txt');
 });

@@ -1,0 +1,92 @@
+{
+  "lifecycleJobs": [
+    {
+      "jobId": "job_0e77fcf44fe32424ff27c9ea",
+      "requestId": "bda5c23bab9e4889b9555f4c521fb546",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 33580,
+      "oldPidCreatedAt": 1792565535.3223355,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    },
+    {
+      "jobId": "job_4c00fecf8b16a2cbb265662e",
+      "requestId": "0e80b6fb2ae34aa99f2a583043a4c4e0",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 36092,
+      "oldPidCreatedAt": 1792565259.19277,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    },
+    {
+      "jobId": "job_5317dc57f310dd89590f3227",
+      "requestId": "2af36dcd68af4cffa172d019bcaab8cc",
+      "operation": "restart",
+      "phase": "ready",
+      "status": "completed",
+      "oldPid": 32980,
+      "oldPidCreatedAt": 1792565250.232043,
+      "newPid": 36092,
+      "newPidCreatedAt": 1792565259.19277,
+      "error": null
+    },
+    {
+      "jobId": "job_821563ae5b3e340daed3baea",
+      "requestId": "5e179f77a0cf48c7aff1ee2d6b3766ae",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 8624,
+      "oldPidCreatedAt": 1792565538.795585,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    },
+    {
+      "jobId": "job_83b513486b38c1a6a908e59e",
+      "requestId": "4e0452036fb54aa28285ab1e900dea67",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 23268,
+      "oldPidCreatedAt": 1792565267.426692,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    },
+    {
+      "jobId": "job_9dd365cdc89fa2736288f602",
+      "requestId": "91a80c0768c4407d885396f6a640471a",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 17732,
+      "oldPidCreatedAt": 1792565263.888612,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    },
+    {
+      "jobId": "job_9f90779a996bf83468ce5e43",
+      "requestId": "a7b878962f0248ec880f5b8081848aba",
+      "operation": "exit",
+      "phase": "offline",
+      "status": "completed",
+      "oldPid": 22228,
+      "oldPidCreatedAt": 1792565271.393354,
+      "newPid": null,
+      "newPidCreatedAt": null,
+      "error": null
+    }
+  ],
+  "remainingListener": null,
+  "remainingOwnedProcesses": [],
+  "launcherLog": "[2026-10-21 14:47:30] Pan Core started pid=32980 port=53212 root=C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root\n[2026-10-21 14:47:32] remote.enabled is not explicitly true; cloudflared skipped\n[2026-10-21 14:47:43] Pan Core started pid=17732 port=53212 root=C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root\n[2026-10-21 14:47:44] remote.enabled is not explicitly true; cloudflared skipped\n[2026-10-21 14:47:47] Pan Core started pid=23268 port=53212 root=C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root\n[2026-10-21 14:47:48] remote.enabled is not explicitly true; cloudflared skipped\n[2026-10-21 14:52:15] Pan Core started pid=33580 port=53212 root=C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root\n[2026-10-21 14:52:16] remote.enabled is not explicitly true; cloudflared skipped\n",
+  "noTaskkillFallback": true
+}

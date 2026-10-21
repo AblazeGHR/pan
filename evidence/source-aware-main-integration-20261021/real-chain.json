@@ -1,0 +1,49 @@
+{
+  "port": 58109,
+  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3478\\test_source_policy_real_http_w0\\owned-source-policy",
+  "browser": {
+    "defaults": true,
+    "dynamicUndeclaredPlugin": true,
+    "persistReload": true,
+    "reset": true,
+    "pageErrors": []
+  },
+  "sessions": [
+    "ses_d7761a6788c69108",
+    "ses_2a134ac3f2462b37",
+    "ses_5b61499527bc0c74"
+  ],
+  "pidIdentities": [
+    [
+      24112,
+      1792571665.7318702,
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\source-aware-auto-report-integration-20261021\\tests\\support\\isolated_http_server.py --port 58109 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3478\\test_source_policy_real_http_w0\\owned-source-policy"
+    ],
+    [
+      34208,
+      1792571665.7391765,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ],
+    [
+      33104,
+      1792571665.7524316,
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\source-aware-auto-report-integration-20261021\\tests\\support\\isolated_http_server.py --port 58109 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3478\\test_source_policy_real_http_w0\\owned-source-policy"
+    ]
+  ],
+  "snapshotUnaffectedByPolicyAndQueue": true,
+  "automaticReportNoEcho": true,
+  "threeUpstreamEntries": true,
+  "dynamicPluginAnswer": true,
+  "wsEvents": 37,
+  "fakeCliIdentitiesCleaned": [
+    [
+      26284,
+      1792571670.9842725
+    ],
+    [
+      19196,
+      1792571670.5537512
+    ]
+  ],
+  "ownedPortReleased": true
+}

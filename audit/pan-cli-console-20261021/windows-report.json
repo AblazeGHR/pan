@@ -1,0 +1,294 @@
+{
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root",
+  "port": 53212,
+  "python": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "checks": [
+    {
+      "argv": [
+        "--help"
+      ],
+      "exitCode": 0,
+      "seconds": 0.357,
+      "stdout": "usage: pan [-h] [--version] [--root ROOT]\n           {start,debug,exit,restart,status,doctor,logs,show,hide} ...\n\nPan host CLI; commands operate on the registered checkout\n\npositional arguments:\n  {start,debug,exit,restart,status,doctor,logs,show,hide}\n    start               Start independently, honor startup.console_hidden,\n                        wait for ready\n    debug               Run main.py in the foreground; terminal stays\n                        occupied; no config changes\n    exit                Explicit legal Exit API; wait for durable offline +\n                        old PID gone\n    restart             Explicit legal Restart API; wait for new PID + ready\n    status              Report running/stopped/unknown, PID, port, runtime\n                        version and console\n    doctor              Read-only paths, config, interpreter/dependencies,\n                        port and log diagnostics\n    logs                Show recent persistent log; Ctrl+C ends follow without\n                        stopping Pan\n    show                Show Pan's own interactive console (never a shared\n                        shell)\n    hide                Hide Pan's own interactive console (never a shared\n                        shell)\n\noptions:\n  -h, --help            show this help message and exit\n  --version             show program's version number and exit\n  --root ROOT           installation root (independent of cwd)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "--version"
+      ],
+      "exitCode": 0,
+      "seconds": 0.327,
+      "stdout": "Pan 0.3.4\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "doctor"
+      ],
+      "exitCode": 0,
+      "seconds": 0.713,
+      "stdout": "{\n  \"root\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\",\n  \"entry\": true,\n  \"cli\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\\\\scripts\\\\pan_cli.py\",\n  \"readOnly\": true,\n  \"python\": [\n    \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python314\\\\python.exe\"\n  ],\n  \"pythonSource\": \"config.json python\",\n  \"port\": 53212,\n  \"consoleHidden\": true,\n  \"dependencies\": \"ready\",\n  \"listenerOwner\": null,\n  \"logPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\\\\data\\\\logs\\\\pan.log\",\n  \"logDirectoryExists\": false,\n  \"configPath\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\\\\config.json\",\n  \"configExists\": true,\n  \"ok\": true\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "status"
+      ],
+      "exitCode": 0,
+      "seconds": 0.339,
+      "stdout": "{\n  \"root\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\",\n  \"port\": 53212,\n  \"cliVersion\": \"0.3.4\",\n  \"runningVersion\": null,\n  \"console\": {\n    \"state\": \"unknown\"\n  },\n  \"pid\": null,\n  \"state\": \"stopped\",\n  \"listenerOwner\": null,\n  \"error\": \"No matching recorded instance; run pan status/doctor\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "start"
+      ],
+      "exitCode": 0,
+      "seconds": 2.803,
+      "stdout": "[INFO] Pan Python source: config.json python\n[OK] Pan Core API ready on 127.0.0.1:53212, PID=32980\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "start"
+      ],
+      "exitCode": 2,
+      "seconds": 0.373,
+      "stdout": "",
+      "stderr": "pan: Pan Core is already running for this checkout, PID=32980\n"
+    },
+    {
+      "argv": [
+        "status"
+      ],
+      "exitCode": 0,
+      "seconds": 0.372,
+      "stdout": "{\n  \"root\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\",\n  \"port\": 53212,\n  \"cliVersion\": \"0.3.4\",\n  \"runningVersion\": \"0.3.4\",\n  \"console\": {\n    \"state\": \"absent\",\n    \"hwnd\": 0,\n    \"managed\": true,\n    \"pid\": 32980,\n    \"interactive\": false\n  },\n  \"pid\": 32980,\n  \"state\": \"running\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "show",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.51,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"visible\", \"hwnd\": 16646434, \"managed\": true, \"pid\": 32980, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "hide",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.447,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"hidden\", \"hwnd\": 16646434, \"managed\": true, \"pid\": 32980, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "show",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.435,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"visible\", \"hwnd\": 16646434, \"managed\": true, \"pid\": 32980, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "hide",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.433,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"hidden\", \"hwnd\": 16646434, \"managed\": true, \"pid\": 32980, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "logs",
+        "-n",
+        "3"
+      ],
+      "exitCode": 0,
+      "seconds": 0.331,
+      "stdout": "Log: C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root\\data\\logs\\pan.log (Ctrl+C stops following only)\n2026-10-21 14:47:31 INFO     [pan] [Pan] QQ module disabled (qq.enabled=false), skipping bot.py\n2026-10-21 14:47:31 INFO     [pan] [Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py\n2026-10-21 14:47:31 INFO     [packages.core.worker] [Pan] Global watchdog started (tick=30s)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "restart",
+        "--running",
+        "offline"
+      ],
+      "exitCode": 0,
+      "seconds": 3.358,
+      "stdout": "restart accepted; waiting for terminal state: job_5317dc57f310dd89590f3227\n{\"ok\": true, \"phase\": \"ready\", \"jobId\": \"job_5317dc57f310dd89590f3227\"}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "exit",
+        "--running",
+        "offline"
+      ],
+      "exitCode": 0,
+      "seconds": 1.034,
+      "stdout": "exit accepted; waiting for terminal state: job_4c00fecf8b16a2cbb265662e\n{\"ok\": true, \"phase\": \"offline\", \"jobId\": \"job_4c00fecf8b16a2cbb265662e\"}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "status"
+      ],
+      "exitCode": 0,
+      "seconds": 0.364,
+      "stdout": "{\n  \"root\": \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\Pan CLI 中文 空格 dzrta4rl\\\\安装 root\",\n  \"port\": 53212,\n  \"cliVersion\": \"0.3.4\",\n  \"runningVersion\": null,\n  \"console\": {\n    \"state\": \"unknown\"\n  },\n  \"pid\": null,\n  \"state\": \"stopped\",\n  \"listenerOwner\": null,\n  \"error\": \"No matching recorded instance; run pan status/doctor\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "show",
+        "console"
+      ],
+      "exitCode": 1,
+      "seconds": 0.322,
+      "stdout": "",
+      "stderr": "pan: Recorded PID is stale or belongs to another instance\n"
+    },
+    {
+      "argv": [
+        "exit"
+      ],
+      "exitCode": 1,
+      "seconds": 0.326,
+      "stdout": "",
+      "stderr": "pan: Recorded PID is stale or belongs to another instance\n"
+    },
+    {
+      "argv": [
+        "start"
+      ],
+      "exitCode": 0,
+      "seconds": 2.041,
+      "stdout": "[INFO] Pan Python source: config.json python\n[OK] Pan Core API ready on 127.0.0.1:53212, PID=17732\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "exit",
+        "--running",
+        "offline"
+      ],
+      "exitCode": 1,
+      "seconds": 0.325,
+      "stdout": "",
+      "stderr": "pan: Recorded PID is stale or belongs to another instance\n"
+    },
+    {
+      "argv": [
+        "exit",
+        "--running",
+        "offline"
+      ],
+      "exitCode": 0,
+      "seconds": 1.022,
+      "stdout": "exit accepted; waiting for terminal state: job_9dd365cdc89fa2736288f602\n{\"ok\": true, \"phase\": \"offline\", \"jobId\": \"job_9dd365cdc89fa2736288f602\"}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "start"
+      ],
+      "exitCode": 0,
+      "seconds": 2.028,
+      "stdout": "[INFO] Pan Python source: config.json python\n[OK] Pan Core API ready on 127.0.0.1:53212, PID=23268\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "hide",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.434,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"hidden\", \"hwnd\": 6490226, \"managed\": true, \"pid\": 23268, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "show",
+        "console"
+      ],
+      "exitCode": 0,
+      "seconds": 0.432,
+      "stdout": "{\"ok\": true, \"console\": {\"state\": \"visible\", \"hwnd\": 6490226, \"managed\": true, \"pid\": 23268, \"interactive\": true}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "hide",
+        "console"
+      ],
+      "exitCode": 1,
+      "seconds": 0.389,
+      "stdout": "",
+      "stderr": "pan: HTTP 409: {\"detail\":\"Foreground/shared console is unmanaged; refusing to alter the parent terminal\"}\n"
+    },
+    {
+      "argv": [
+        "exit",
+        "--running",
+        "offline"
+      ],
+      "exitCode": 0,
+      "seconds": 1.036,
+      "stdout": "exit accepted; waiting for terminal state: job_9f90779a996bf83468ce5e43\n{\"ok\": true, \"phase\": \"offline\", \"jobId\": \"job_9f90779a996bf83468ce5e43\"}\n",
+      "stderr": ""
+    }
+  ],
+  "initial": {
+    "pid": 32980,
+    "createdAt": 1792565250.232043,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root",
+    "version": "0.3.4",
+    "console": {
+      "state": "absent",
+      "hwnd": 0,
+      "managed": true,
+      "pid": 32980,
+      "interactive": false
+    }
+  },
+  "hiddenStartupVisibleOwnedWindows": [],
+  "logsFollowCtrlC": {
+    "exitCode": 130,
+    "servicePidAfter": 32980
+  },
+  "restarted": {
+    "pid": 36092,
+    "createdAt": 1792565259.19277,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\Pan CLI 中文 空格 dzrta4rl\\安装 root",
+    "version": "0.3.4",
+    "console": {
+      "state": "absent",
+      "hwnd": 0,
+      "managed": true,
+      "pid": 36092,
+      "interactive": false
+    }
+  },
+  "interactiveQqq": {
+    "pid": 23268,
+    "exited": true
+  },
+  "foregroundDebug": {
+    "pid": 22228,
+    "exitCode": 0,
+    "configUnchanged": true
+  },
+  "ok": true,
+  "remainingListener": null
+}

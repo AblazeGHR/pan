@@ -1,0 +1,21 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\source-aware-auto-report-integration-20261021
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 73%]
+........................................................................ [ 97%]
+.......                                                                  [100%]
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_report_reads.py::test_real_http_mcp_report_handoff_metadata_only
+  tests\test_report_reads.py:313: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property):
+
+tests/test_mcp_remote_parity.py: 20 warnings
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:109: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+295 passed, 22 warnings in 145.18s (0:02:25)

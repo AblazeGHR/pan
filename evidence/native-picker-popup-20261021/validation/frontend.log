@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/native-picker-popup-20261021/packages/web/src
+
+ ✓ components/chat/ServerAttachmentPicker.test.tsx (13 tests) 212ms
+ ✓ components/chat/InputRow.test.tsx (78 tests | 1 skipped) 5048ms
+
+ Test Files  2 passed (2)
+      Tests  90 passed | 1 skipped (91)
+   Start at  14:25:19
+   Duration  7.25s (transform 493ms, setup 19ms, collect 1.13s, tests 5.26s, environment 952ms, prepare 237ms)

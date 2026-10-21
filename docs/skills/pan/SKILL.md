@@ -27,6 +27,8 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
+**主服务用户 CLI（Windows）**：稳定安装可显式注册 `pan`，支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。最终用户 PATH 由 MA 验收后注册到稳定 practical，不指向 TA 树；用户级 skill 同步由 MA 处理。
+
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
 expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。
@@ -142,6 +144,8 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 **按消息用途选择工具**：向正在执行任务的 TA 更新当前任务，默认使用 `agent_send_force`，包括需求补充、用户澄清、实现纠正、约束或验收条件变化，以及影响当前工作的证据。无须额外判断是否紧急，不因消息较短、语气不急或称为“补充”而改用普通发送。只有明确希望在当前任务结束后处理的独立后续事项，才使用 `agent_send`。Force 是按能力选择发送路径，不等同于必然重启。
 
 上述默认 Force 规则不覆盖 Illegal 保护：Illegal Session 的当前任务补充同样持久入队并锁定，Force 不等同于取消 Illegal。只有显式 Wake（原子发消息、解自己的 Illegal 锁、置队首）、手动解锁或 Start/Restart 才可按有效 ready 条件恢复；保留 owner/unknown、Pause、Manual、报告策略和 lease 的原作用范围。
+
+发送来源由可信发送 Session 与 managedBy 祖先链分类：发往自己的 MA 或更高祖先标为 Report，其余保持 MA；不按正文前缀猜身份，不改变访问/claim/订阅。显式上行仍保留原 task 信封、附件和幂等/force 回执，并遵守 Stop reports。Behavior → Auto report 只控制回答的自动汇报：MA 默认开，System/真用户默认关；插件按注册声明默认（未声明 false），各插件独立覆盖。执行入场持久快照决定本轮行为；Report 输入回答不会再次自动汇报，避免回流循环。契约与恢复/混合批次规则见 [source-aware-auto-report](../../source-aware-auto-report.md)。
 
 force 返回 queued/accepted/rejected/unknown；accepted 仅为 CLI admission，
 不是模型已消费。unknown 保留原事务，禁止自动重发或降级 restart；明确拒绝后

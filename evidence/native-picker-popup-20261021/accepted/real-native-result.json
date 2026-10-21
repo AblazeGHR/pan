@@ -1,0 +1,57 @@
+{
+  "identity": {
+    "pid": 25340,
+    "checkout": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+    "port": 54186,
+    "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-popup-1w67jxrx"
+  },
+  "cases": [
+    {
+      "action": "select",
+      "helperPid": 15124,
+      "responsiveHTTP": 200,
+      "concurrentStatus": "busy",
+      "automationExit": 0,
+      "automation": "{\"guiThreadRead\":true,\"centerTopWindow\":394370,\"foreground\":394370,\"hwnd\":657780,\"topmost\":false,\"title\":\"Select server attachments\",\"owner\":3606786,\"keyboardFocusRoot\":657780,\"button\":\"Open\",\"processId\":15124,\"windowRendered\":true,\"rect\":\"978,287,1120,840\",\"isOffscreen\":false,\"windows\":[{\"topmost\":true,\"hwnd\":4523516,\"class\":\"Auto-Suggest Dropdown\",\"visible\":false},{\"topmost\":true,\"hwnd\":2623656,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":true,\"hwnd\":854514,\"class\":\"Auto-Suggest Dropdown\",\"visible\":false},{\"topmost\":true,\"hwnd\":1247708,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":true,\"hwnd\":723338,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":657806,\"class\":\"WorkerW\",\"visible\":false},{\"topmost\":false,\"hwnd\":2754948,\"class\":\"ComboLBox\",\"visible\":false},{\"topmost\":false,\"hwnd\":657780,\"class\":\"#32770\",\"visible\":true},{\"topmost\":false,\"hwnd\":854524,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":526684,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":723370,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":2491904,\"class\":\"_SearchEditBoxFakeWindow\",\"visible\":false},{\"topmost\":false,\"hwnd\":1378850,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":3606786,\"class\":\"WindowsForms10.Window.8.app.0.3200f3_r8_ad1\",\"visible\":true},{\"topmost\":false,\"hwnd\":461362,\"class\":\"ComboLBox\",\"visible\":false},{\"topmost\":false,\"hwnd\":985502,\"class\":\".NET-BroadcastEventWindow.4.0.0.0.3200f3.0\",\"visible\":false},{\"topmost\":false,\"hwnd\":2296126,\"class\":\"GDI+ Hook Window Class\",\"visible\":false},{\"topmost\":false,\"hwnd\":4721006,\"class\":\"IME\",\"visible\":false},{\"topmost\":false,\"hwnd\":3148256,\"class\":\"MSCTFIME UI\",\"visible\":false},{\"topmost\":false,\"hwnd\":2099686,\"class\":\"IME\",\"visible\":false}]}\r\n",
+      "error": "",
+      "response": {
+        "status": "selected",
+        "paths": [
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-popup-1w67jxrx\\native-附件.txt"
+        ]
+      },
+      "uncoveredAtCenter": false,
+      "focused": false,
+      "helperExited": true,
+      "confirmation": {
+        "ok": true,
+        "attachmentId": "att_8fafda6b0be348bdb4b484fc7b576382",
+        "displayName": "native-附件.txt",
+        "href": "/api/attachments/ref/att_8fafda6b0be348bdb4b484fc7b576382?session_id=ses_native_probe",
+        "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-native-popup-1w67jxrx\\native-附件.txt",
+        "size": 24
+      }
+    },
+    {
+      "action": "cancel",
+      "helperPid": 23672,
+      "responsiveHTTP": 200,
+      "concurrentStatus": "busy",
+      "automationExit": 0,
+      "automation": "{\"guiThreadRead\":true,\"centerTopWindow\":394370,\"foreground\":394370,\"hwnd\":1378434,\"topmost\":false,\"title\":\"Select server attachments\",\"owner\":1575240,\"keyboardFocusRoot\":1378434,\"processId\":23672,\"rect\":\"978,287,1120,840\",\"isOffscreen\":false,\"windows\":[{\"topmost\":true,\"hwnd\":1378780,\"class\":\"Auto-Suggest Dropdown\",\"visible\":false},{\"topmost\":true,\"hwnd\":985586,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":true,\"hwnd\":657934,\"class\":\"Auto-Suggest Dropdown\",\"visible\":false},{\"topmost\":true,\"hwnd\":1771858,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":true,\"hwnd\":8259820,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":3605976,\"class\":\"WorkerW\",\"visible\":false},{\"topmost\":false,\"hwnd\":3409438,\"class\":\"ComboLBox\",\"visible\":false},{\"topmost\":false,\"hwnd\":1378434,\"class\":\"#32770\",\"visible\":true},{\"topmost\":false,\"hwnd\":920080,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":2689204,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":526688,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":1116588,\"class\":\"_SearchEditBoxFakeWindow\",\"visible\":false},{\"topmost\":false,\"hwnd\":3082384,\"class\":\"tooltips_class32\",\"visible\":false},{\"topmost\":false,\"hwnd\":1575240,\"class\":\"WindowsForms10.Window.8.app.0.e29eb0_r8_ad1\",\"visible\":true},{\"topmost\":false,\"hwnd\":5376298,\"class\":\"ComboLBox\",\"visible\":false},{\"topmost\":false,\"hwnd\":723502,\"class\":\".NET-BroadcastEventWindow.4.0.0.0.e29eb0.0\",\"visible\":false},{\"topmost\":false,\"hwnd\":2230720,\"class\":\"GDI+ Hook Window Class\",\"visible\":false},{\"topmost\":false,\"hwnd\":723322,\"class\":\"IME\",\"visible\":false},{\"topmost\":false,\"hwnd\":3868828,\"class\":\"MSCTFIME UI\",\"visible\":false},{\"topmost\":false,\"hwnd\":985474,\"class\":\"IME\",\"visible\":false}]}\r\n",
+      "error": "",
+      "response": {
+        "status": "cancelled",
+        "paths": []
+      },
+      "uncoveredAtCenter": false,
+      "focused": false,
+      "helperExited": true
+    }
+  ],
+  "cleanup": {
+    "hostThreadStopped": true,
+    "portClosed": true,
+    "helperOwned": false
+  }
+}

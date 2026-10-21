@@ -135,7 +135,12 @@ def _run_stream_worker(child, events, *, seq, task_id="task-1",
     w._current_seq = seq
     w._current_task_id = task_id
     worker.workers[w.worker_id] = w
-    asyncio.run(worker._read_stdout(w))
+    async def run():
+        # This fixture simulates an admitted MA execution. Production freezes
+        # that origin at handoff; stdout/history alone cannot establish it.
+        await worker._capture_auto_report(w, [{"source": "agent"}])
+        await worker._read_stdout(w)
+    asyncio.run(run())
     return w
 
 

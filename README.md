@@ -62,6 +62,8 @@ python main.py
 
 已完成安装的环境也可使用仓库中的入口脚本：Windows `scripts\start_pan.bat` / `scripts\stop.bat`，macOS/Linux `bash scripts/start.sh` / `bash scripts/stop.sh`。前台运行可用 `python main.py`，按 Ctrl+C 退出。
 
+Windows 可显式注册用户级 `pan` 命令：start、exit、restart、debug、status、logs、doctor、show/hide console 及 help/version。隐藏启动确认 ready 后返回，合法退出使用 `pan exit`（主服务 Ctrl+C 不构成安全退出授权）。窗口控制和稳定安装的注册/卸载步骤见 [Pan CLI](docs/PAN_CLI.md)。
+
 ## 第一个 Session
 
 打开 Dashboard，点击侧栏 **New** 快速创建；点击旁边的设置按钮可指定 Adapter、Session Template、模型和 workdir。选中 Session 后点击 **Start**，或直接发送第一条消息。忙碌时追加的消息会进入发送队列。**Import** 可浏览并导入支持的 CLI 历史会话。
