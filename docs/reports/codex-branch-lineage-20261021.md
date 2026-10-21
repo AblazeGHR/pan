@@ -97,3 +97,10 @@ pydantic `lifespan` forward reference；不将 warning 或缺失插件记作测�
 未运行全量测试、前端构建、远端模型、实际用户分支恢复、压缩 `.jsonl.zst` 祖先、并发
 revert/归档/重命名期间的 fork 竞态。当前读取仅支持可定位的普通 JSONL 祖先；缺失或歧义
 来源明确失败。未改变共享依赖；未操作他人进程、既有服务或受保护端口。
+
+## MA 独立验收（2026-10-21）
+
+已审阅 ownership 字段修改、物理谱系读取、冻结祖先边界、重复正文和损坏谱系拒绝路径。
+合入 main e4f718a5 的角色文档后，在整合树使用 canonical Python 独立执行上述同一组八文件回归：181 passed、0 failed/error/skipped，exit 0，耗时 6.59 秒；仅既有 Pydantic forward-reference warning。
+证据：evidence/codex-branch-lineage/ma-after.xml。包含自有本地合成 provider 与真实 Codex CLI/Worker Resume，无收费模型。
+验收通过本次代码范围；已有用户受损分支未修改，恢复仍须按前述条件逐项核对。用户级 skill 按当前要求未同步。
