@@ -27,6 +27,7 @@ const version = browser.version();
 const externalRequests = [];
 const consoleErrors = [];
 const viewportChecks = [];
+const rowActionChecks = [];
 const interactions = {};
 const screenshots = [];
 
@@ -295,6 +296,32 @@ try {
     await page.close();
   }
 
+  // Row-action fit at every breakpoint. Catches text/label overflow that a
+  // document-level scrollWidth check would miss because the list clips rows.
+  for (const view of ['groups', 'actions']) {
+    for (const width of [1600, 1440, 1366, 1280, 1152, 1024, 900, 768, 390, 320]) {
+      const page = await openPage(width, 900, `${QUERY}&view=${view}`);
+      const check = await page.evaluate((viewName) => {
+        const label = viewName === 'groups' ? 'Groups' : 'Actions';
+        const list = document.querySelector(`ul[aria-label="${label}"]`)?.parentElement;
+        const row = document.querySelector(`ul[aria-label="${label}"] > li`);
+        if (!list || !row) return null;
+        return {
+          listOverflow: list.scrollWidth > list.clientWidth,
+          documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          clippedButtons: [...row.querySelectorAll('button')]
+            .filter((button) => button.scrollWidth > button.clientWidth + 1)
+            .map((button) => button.innerText.trim()),
+        };
+      }, view);
+      if (!check) throw new Error(`Missing ${view} row at ${width}px`);
+      const ok = !check.listOverflow && !check.documentOverflow && check.clippedButtons.length === 0;
+      rowActionChecks.push({ view, width, ...check, ok });
+      if (!ok) throw new Error(`Row action overflow in ${view} at ${width}px: ${JSON.stringify(check)}`);
+      await page.close();
+    }
+  }
+
   // Mid-size desktop check to catch the 768px sidebar+list squeeze.
   {
     const page = await openPage(768, 900, QUERY);
@@ -312,6 +339,7 @@ try {
     preview: 'preview/preview.html',
     screenshots,
     viewportChecks,
+    rowActionChecks,
     interactions,
     externalRequests,
     consoleErrors,

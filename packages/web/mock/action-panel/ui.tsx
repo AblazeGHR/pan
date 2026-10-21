@@ -579,7 +579,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex size-7 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40',
+        'inline-flex size-7 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40',
         className,
       )}
       {...props}

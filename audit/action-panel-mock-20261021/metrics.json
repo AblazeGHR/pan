@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T07:18:10.047Z",
+  "generatedAt": "2026-10-21T07:44:11.481Z",
   "browser": "Chromium 153.0.8010.12",
   "source": "local fixture preview.html (file://)",
   "preview": "preview/preview.html",
@@ -154,6 +154,168 @@
       "ok": true
     }
   ],
+  "rowActionChecks": [
+    {
+      "view": "groups",
+      "width": 1600,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1440,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1366,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1280,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1152,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1024,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 900,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 768,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 390,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 320,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1600,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1440,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1366,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1280,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1152,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 1024,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 900,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 768,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 390,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 320,
+      "listOverflow": false,
+      "documentOverflow": false,
+      "clippedButtons": [],
+      "ok": true
+    }
+  ],
   "interactions": {
     "searchEchoRows": 1,
     "groupRows": 6,
@@ -170,7 +332,7 @@
     "mobileDrawerX": 0,
     "mobileDrawerOpen": true,
     "createdActionRow": 1,
-    "generatedActionId": "action_fcec9e868b3458cf51bb1542",
+    "generatedActionId": "action_103c9a030f230f0b0170120e",
     "generatedActionIdLength": 31,
     "buildToast": "Group built\n\nWorkspace Utilities · action-group-group-workspace-utilities\n\nMock only — nothing was sent to Pan.",
     "unbuildReason": "Unbuild is blocked by running Sessions."

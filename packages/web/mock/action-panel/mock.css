@@ -82,7 +82,7 @@ textarea {
 
 .group-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 208px 132px 108px 220px;
+  grid-template-columns: minmax(0, 1fr) 208px 132px 108px 232px;
   gap: 16px;
   align-items: center;
 }
@@ -138,7 +138,7 @@ textarea {
   }
 
   .group-grid {
-    grid-template-columns: minmax(0, 1fr) 112px 40px;
+    grid-template-columns: minmax(0, 1fr) 112px 150px;
   }
 
   .group-col-release {

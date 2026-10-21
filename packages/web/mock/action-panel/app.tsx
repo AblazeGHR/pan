@@ -58,6 +58,7 @@ import {
   Info,
   Braces,
   Layers,
+  Lock,
   Menu,
   Moon,
   MoreHorizontal,
@@ -1093,7 +1094,8 @@ function RegistryPage({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
-                placeholder={tab === 'actions' ? 'Search Actions, IDs or routes' : 'Search Groups or Action names'}
+                placeholder={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
+                title={tab === 'actions' ? 'Search by name, description, ID or route' : 'Search by Group name, ID or Action name'}
                 className="w-full rounded-md border border-border-default bg-bg-tertiary py-1.5 pl-8 pr-8 text-xs text-text-primary placeholder:text-text-tertiary focus:border-accent/60 focus:outline-none"
               />
               {query && (
@@ -1293,7 +1295,7 @@ function ActionRow({
   return (
     <li className="border-b border-border-muted last:border-0">
       <div className="action-grid action-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
-        <div className="flex min-w-0 items-start gap-2.5">
+        <div className="flex min-w-0 flex-1 items-start gap-2.5">
           <IconTile tone={action.execution.kind === 'api' ? 'accent' : 'neutral'}>
             {action.execution.kind === 'api' ? <Braces size={14} /> : <TerminalSquare size={14} />}
           </IconTile>
@@ -1311,15 +1313,12 @@ function ActionRow({
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={action.description}>
               {action.description}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
               <span className={action.enabled ? 'text-success' : 'text-text-tertiary'}>
                 {action.enabled ? 'Enabled' : 'Draft'}
               </span>
-              <span aria-hidden="true">·</span>
               <span>{action.execution.kind === 'api' ? 'API' : 'Command'}</span>
-              <span aria-hidden="true">·</span>
               <span>{EFFECT_LABELS[action.effect]}</span>
-              <span aria-hidden="true">·</span>
               <span>{groups.length} {groups.length === 1 ? 'Group' : 'Groups'}</span>
             </div>
           </div>
@@ -1341,11 +1340,10 @@ function ActionRow({
         <div className="action-col-usage text-xs text-text-secondary" title={groupedNames || 'Not used by any Group'}>
           {groups.length ? `${groups.length} ${groups.length === 1 ? 'Group' : 'Groups'}` : '—'}
         </div>
-        <div className="flex items-center justify-end gap-1">
-          <Button type="button" size="sm" variant="ghost" className="max-sm:hidden" onClick={onEdit} aria-label={`Edit ${action.name}`}>
-            <Pencil size={12} />
-            <span className="hidden xl:inline">Edit</span>
-          </Button>
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <IconButton label={`Edit ${action.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
+            <Pencil size={14} />
+          </IconButton>
           <div className="relative">
             <IconButton
               label={`More actions for ${action.name}`}
@@ -1441,7 +1439,7 @@ function GroupRow({
   return (
     <li className="border-b border-border-muted last:border-0">
       <div className="group-grid group-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -1455,48 +1453,36 @@ function GroupRow({
           <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={actionNames.join(' · ')}>
             {actionNames.join(' · ') || 'No Actions selected'}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
-            <span className={built ? 'text-success' : 'text-text-tertiary'}>{built ? 'Registered' : 'Unbuilt'}</span>
-            <span aria-hidden="true">·</span>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+            <span className={built ? 'text-success' : 'text-text-tertiary'}>{built ? 'Built' : 'Unbuilt'}</span>
             <span>{group.action_ids.length} Actions</span>
-            <span aria-hidden="true">·</span>
             <span>{group.sessions.length} Sessions</span>
             {built && group.blockers.length > 0 && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="text-warning">{group.blockers.length} running</span>
-              </>
-            )}
-            {!built && gate && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="text-warning">Build blocked</span>
-              </>
+              <span className="text-warning">{group.blockers.length} running</span>
             )}
           </div>
         </div>
-        <div className="group-col-release min-w-0">
+        <div className="group-col-release min-w-0" title={group.build?.version ?? group.id}>
           {built ? (
             <>
-              <p className="text-xs text-text-secondary">Version</p>
-              <p className="truncate font-mono text-[10px] text-text-tertiary" title={group.build?.version}>
-                {shortVersion(group.build?.version ?? '')}
+              <p className="truncate font-mono text-[11px] text-text-secondary">
+                v {shortVersion(group.build?.version ?? '')}
               </p>
+              <p className="mt-0.5 truncate text-[10px] text-text-tertiary">Immutable release</p>
             </>
           ) : (
             <>
               <p className="text-xs text-text-secondary">Not built</p>
-              <p className={cx('truncate text-[10px]', gate ? 'text-warning' : 'text-text-tertiary')}>
+              <p className={cx('mt-0.5 truncate text-[10px]', gate ? 'text-warning' : 'text-text-tertiary')}>
                 {gate ? 'Resolve build gates' : 'Ready to build'}
               </p>
             </>
           )}
         </div>
-        <div className="group-col-composition min-w-0">
+        <div className="group-col-composition min-w-0" title={group.id}>
           <p className="text-xs text-text-secondary">
             {group.action_ids.length} Actions · {group.sessions.length} Sessions
           </p>
-          <p className="truncate font-mono text-[10px] text-text-tertiary">{group.id}</p>
         </div>
         <div className="group-col-status">
           <Badge tone={built ? 'success' : 'muted'} dot>
@@ -1509,30 +1495,38 @@ function GroupRow({
           )}
           {!built && gate && <p className="mt-1 text-[10px] text-warning">Build blocked</p>}
         </div>
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex shrink-0 items-center justify-end gap-0.5">
           {built ? (
-            <Button type="button" size="sm" variant="secondary" className="whitespace-nowrap" onClick={onUseInSession}>
+            <button
+              type="button"
+              onClick={onUseInSession}
+              title="Use in Session"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
+            >
               <Play size={12} />
               <span className="hidden min-[1440px]:inline">Use in Session</span>
               <span className="min-[1440px]:hidden">Use</span>
-            </Button>
+            </button>
+          ) : gate ? (
+            <span
+              title={gate.message}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/25 bg-warning/10 px-2 py-1 text-xs font-medium text-warning"
+            >
+              <Lock size={12} /> Blocked
+            </span>
           ) : (
-            <Button
+            <button
               type="button"
-              size="sm"
-              variant="primary"
-              className="whitespace-nowrap"
-              disabled={Boolean(gate)}
-              title={gate?.message ?? 'Build this Group'}
+              title="Build this Group"
               onClick={onBuild}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
             >
               <Hammer size={12} /> Build
-            </Button>
+            </button>
           )}
-          <Button type="button" size="sm" variant="ghost" className="whitespace-nowrap max-sm:hidden" onClick={onEdit} aria-label={`Edit ${group.name}`}>
-            <Pencil size={12} />
-            <span className="hidden min-[1440px]:inline">Edit</span>
-          </Button>
+          <IconButton label={`Edit ${group.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
+            <Pencil size={14} />
+          </IconButton>
           <div className="relative">
             <IconButton
               label={`More actions for ${group.name}`}

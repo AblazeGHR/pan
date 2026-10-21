@@ -106,6 +106,10 @@ opens a WebSocket.
    common actions. Ten Actions and six Groups fit in a 1440 × 900 desktop view
    without losing scanability. Columns progressively collapse below 1440,
    1280, 1120, 960 and 768 px; below 768 the row becomes a two-line mobile row.
+   Row actions reserve their width (`shrink-0`, explicit grid columns) and never
+   shrink or clip their label. The primary row action is a soft accent button
+   (Use in Session / Build); Edit is an icon-only control with a tooltip, and
+   gated Groups show a lock “Blocked” chip instead of a dim disabled button.
 2. **Editing owns the main panel.** Opening an Action or Group replaces the
    list and its tabs. The breadcrumb/back button, dirty badge, and sticky
    Save/Cancel footer make entry and exit unambiguous. The sidebar is never
@@ -233,6 +237,20 @@ and failed responses, late/out-of-order responses, cache invalidation after
 mutations, and 409/error handling. No mock timing will be reported as upstream
 performance.
 
+## Polish pass (2026-10-21, after user review)
+
+- The clipped “Use in Session” label and the 320–900 px row squeeze are fixed:
+  action buttons no longer flex-shrink, the Actions column is 232 px at 1440,
+  the 768–959 px Group grid reserves 150 px for actions, and mobile rows use a
+  single overflow menu when space is tight.
+- Group rows now show the version as `v 7f1277b4…` with an “Immutable release”
+  hint, counts only in Composition, a soft accent action button, a lock
+  “Blocked” chip for failed gates, and an icon-only Edit control.
+- Action rows use the same icon-only Edit + overflow pattern; search
+  placeholders were shortened so they never clip at 320 px.
+- `metrics.json` now includes `rowActionChecks` for the exact button overflow
+  regression.
+
 ## Verification performed
 
 - Mock build: `pnpm exec vite build --config vite.mock.config.ts` succeeded.
@@ -241,6 +259,9 @@ performance.
 - Evidence capture: `node mock/action-panel/capture.mjs` passed.
   - **27 screenshots**, **15 viewport checks** at 1440/768/390/320, all with
     `scrollWidth == clientWidth`.
+  - **20 row-action fit checks** at 1600/1440/1366/1280/1152/1024/900/768/390/
+    320 for both tabs: no document or list overflow and no button whose text
+    exceeds its content box.
   - **0 external requests**, **0 console errors / page errors**.
   - Interactions: search returns 1 Echo row; 6 group rows; 3 mode radios with
     Discover selected; dirty dialog visible; Escape opens the guard; Ctrl+S
