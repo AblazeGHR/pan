@@ -1,8 +1,11 @@
 # Event–Trigger–Action core API and data contract (v0.1)
 
-This is the backend handoff contract. Production UI and external plugin transport
-are a subsequent phase. The authoritative scope is Event-Trigger-Action-v0.1.md
-and its implementation supplement.
+This is the stable backend handoff contract. The integrated v0.1 candidate now
+includes the production Action/Automation/query UI and the local stdio external
+plugin adapter. The authoritative scope is Event-Trigger-Action-v0.1.md and its
+implementation supplement. See `artifacts/eta-final/DESIGN-MATRIX.md` for the
+implemented, verified, deferred and manual-acceptance boundaries; integration
+validation does not mean overall human acceptance.
 
 ## Lifetime and storage
 
@@ -166,9 +169,10 @@ Session Operation is rejected by the legacy Group build/provider entry points,
 so their permission and execution semantics do not expand accidentally.
 
 `query` is implemented by the authorized Session query follow-up below.
-Parallel mode remains reserved. Combined UI acceptance,
-large-ledger retention/paging, reliable Event delivery,
-and human Pause/queue acceptance remain later work and are not claimed here.
+Parallel mode remains reserved. Production UI and the stdio external plugin
+transport are integrated and have isolated combination evidence. Alternative
+remote transports, large-ledger retention/paging and reliable Event delivery
+remain deferred. Overall human Pause/queue acceptance is pending the user.
 
 
 ## Scheduler concurrency clarification (core acceptance rework)
