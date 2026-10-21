@@ -119,6 +119,25 @@ class Ledger:
             return run
         return self.mutate(change)
 
+    def defer_unavailable(self, rid, expected):
+        """Return a pre-effect claim to waiting without resurrecting cancellation.
+
+        The same transaction rechecks Run ownership/revision and current Trigger
+        enablement. Disable before or after this transaction therefore converges
+        to cancelled; a stale deferral never overwrites a newer Run transition.
+        """
+        def change(state):
+            run = state['runs'][rid]
+            if run['status'] != 'running' or run['revision'] != expected:
+                return run
+            trigger = state['triggers'].get(run['triggerId'])
+            if trigger and trigger['enabled']:
+                run.update(status='queued', waitingReason='Event dependency unavailable', revision=expected + 1)
+            else:
+                run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
+            return run
+        return self.mutate(change)
+
     def cancel(self, rid, expected):
         def change(state):
             run = state['runs'][rid]

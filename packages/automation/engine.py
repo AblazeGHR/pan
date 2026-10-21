@@ -56,6 +56,7 @@ class Engine:
         self.execute, self.state_reader = execute, state_reader
         self.max_pending, self.max_triggers = max_pending, max_triggers
         self.tasks = {}
+        self.wakes = set()
         self.diagnostics = deque(maxlen=100)
         self.closed = False
         self.matching = asyncio.Lock()
@@ -73,9 +74,12 @@ class Engine:
         return all(self.bus.available(t) for t in trigger['eventTypes'])
 
     async def start(self):
+        if self.closed:
+            return
         await self.io(self.ledger.recover)
-        self.closed = False
-        await self.kick()
+        # close is terminal for this Service instance, including in-flight start.
+        if not self.closed:
+            await self.kick()
 
     async def match(self, event):
         # Only matching/append is serialized. Never wait for an Action here.
@@ -119,13 +123,34 @@ class Engine:
     async def kick(self):
         if self.closed:
             return
-        self.tasks = {tid: task for tid, task in self.tasks.items() if not task.done()}
         state = await self.io(self.ledger.read)
+        # Publication below and runner retirement have no await: the event loop
+        # orders ownership changes, even when this snapshot predates close.
+        if self.closed:
+            return
         for trigger in state['triggers'].values():
             tid = trigger['id']
-            if trigger['enabled'] and self.available(trigger) and (tid not in self.tasks or self.tasks[tid].done()):
+            if trigger['enabled'] and self.available(trigger):
                 if any(r['triggerId'] == tid and r['status'] == 'queued' and r.get('admitted', True) for r in state['runs'].values()):
-                    self.tasks[tid] = asyncio.create_task(self.drain(tid))
+                    self.wakes.add(tid)
+                    if tid not in self.tasks:
+                        self.tasks[tid] = asyncio.create_task(self._runner(tid))
+
+    async def _runner(self, tid):
+        try:
+            while not self.closed:
+                self.wakes.discard(tid)
+                await self.drain(tid)
+                # A kick during any drain await leaves a coalesced wake. Consume
+                # it with a fresh read, including after an empty stale snapshot.
+                if tid not in self.wakes:
+                    return
+        finally:
+            # No await between wake decision and ownership retirement. A later
+            # kick either wakes this owner or installs its successor, never both.
+            if self.tasks.get(tid) is asyncio.current_task():
+                del self.tasks[tid]
+                self.wakes.discard(tid)
 
     async def drain(self, tid):
         try:
@@ -141,7 +166,7 @@ class Engine:
                 if not run:
                     continue
                 if not self.available(trigger):
-                    await self.io(self.ledger.update, run['id'], status='queued', waitingReason='Event dependency unavailable')
+                    await self.io(self.ledger.defer_unavailable, run['id'], run['revision'])
                     return
                 try:
                     action = (await self.io(self.actions.read))['actions'][run['actionId']]
@@ -168,7 +193,11 @@ class Engine:
 
     async def close(self):
         self.closed = True
-        for task in self.tasks.values():
+        tasks = tuple(self.tasks.values())
+        for task in tasks:
             task.cancel()
-        await asyncio.gather(*self.tasks.values(), return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # A task cancelled before its first step never enters _runner.finally.
+        self.tasks.clear()
+        self.wakes.clear()
         await self.io(self.ledger.recover)

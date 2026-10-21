@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="2.730" timestamp="2026-10-22T02:57:55.387080+08:00" hostname="ablaze"><testcase classname="tests.test_automation_concurrency" name="test_empty_snapshot_then_match_cannot_lose_wakeup" time="2.086"><failure message="TimeoutError">fut = &lt;coroutine object settled at 0x0000024467401300&gt;, timeout = 2
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+
+        Coroutine will be wrapped in Task.
+
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+
+        If the wait is cancelled, the task is also cancelled.
+
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+
+
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+
+            if fut.done():
+                return fut.result()
+
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_automation_core.py:53: in settled
+    await until(done)
+tests\test_automation_core.py:45: in until
+    await asyncio.sleep(.01)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+delay = 0.01, result = None
+
+    async def sleep(delay, result=None):
+        """Coroutine that completes after a given time (in seconds)."""
+        if delay &lt;= 0:
+            await __sleep0()
+            return result
+
+        if math.isnan(delay):
+            raise ValueError("Invalid delay: NaN (not a number)")
+
+        loop = events.get_running_loop()
+        future = loop.create_future()
+        h = loop.call_later(delay,
+                            futures._set_result_unless_cancelled,
+                            future, result)
+        try:
+&gt;           return await future
+                   ^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:702: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3526/test_empty_snapshot_then_match0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002446735B950&gt;
+
+    @async_test
+    async def test_empty_snapshot_then_match_cannot_lose_wakeup(tmp_path, monkeypatch):
+        engine, calls, _ = await setup(tmp_path)
+        engine.ledger.put(trigger(), 0, True)
+        captured, release = asyncio.Event(), asyncio.Event()
+        original = engine.io
+        frozen = False
+        async def io(fn, *args, **kw):
+            nonlocal frozen
+            result = await original(fn, *args, **kw)
+            if (not frozen and fn == engine.ledger.read
+                    and asyncio.current_task() is engine.tasks.get('t')
+                    and calls and not any(r['status'] == 'queued' for r in result['runs'].values())):
+                frozen = True
+                captured.set()
+                await release.wait()
+            return result
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.match(event('first'))
+            await signal(captured)
+            old = engine.tasks['t']
+            await engine.match(event('second'))
+            assert engine.tasks['t'] is old
+            release.set()
+&gt;           await asyncio.wait_for(settled(engine, 2), 2)
+
+tests\test_automation_concurrency.py:36:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x000002446750DD00&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_disable_between_claim_and_dependency_deferral_cancels" time="0.053"><failure message="AssertionError: assert 'queued' == 'cancelled'&#10;  &#10;  - cancelled&#10;  + queued">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3526/test_disable_between_claim_and0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002446735B820&gt;
+
+    @async_test
+    async def test_disable_between_claim_and_dependency_deferral_cancels(tmp_path, monkeypatch):
+        engine, calls, _ = await setup(tmp_path)
+        engine.ledger.put(trigger(), 0, True)
+        captured, release = asyncio.Event(), asyncio.Event()
+        original = engine.io
+        async def io(fn, *args, **kw):
+            result = await original(fn, *args, **kw)
+            if fn == engine.ledger.claim and result:
+                engine.bus.definitions['workers.all_idle']['available'] = False
+                captured.set()
+                await release.wait()
+            return result
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.match(event())
+            await signal(captured)
+            task = engine.tasks['t']
+            engine.ledger.put({**trigger(), 'enabled': False}, 1, True)
+            release.set()
+            await asyncio.wait_for(asyncio.shield(task), 2)
+            row = next(iter(engine.ledger.read()['runs'].values()))
+&gt;           assert row['status'] == 'cancelled'
+E           AssertionError: assert 'queued' == 'cancelled'
+E
+E             - cancelled
+E             + queued
+
+tests\test_automation_concurrency.py:65: AssertionError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_kick_read_inflight_at_close_must_not_spawn" time="0.057"><failure message="AssertionError: assert not {'t': &lt;Task finished name='Task-169' coro=&lt;Engine.drain() done, defined at D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\engine.py:130&gt; result=None&gt;}&#10; +  where {'t': &lt;Task finished name='Task-169' coro=&lt;Engine.drain() done, defined at D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\engine.py:130&gt; result=None&gt;} = &lt;packages.automation.engine.Engine object at 0x00000244674734D0&gt;.tasks">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3526/test_kick_read_inflight_at_clo0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002446740A8D0&gt;
+
+    @async_test
+    async def test_kick_read_inflight_at_close_must_not_spawn(tmp_path, monkeypatch):
+        engine, _, _ = await setup(tmp_path)
+        engine.ledger.put(trigger(), 0, True)
+        engine.ledger.append(dict(id='queued', event=event(), status='queued', triggerId='t', triggerRevision=1, actionId='pause', arguments={}))
+        captured, release = asyncio.Event(), asyncio.Event()
+        original = engine.io
+        kick_task = None
+        async def io(fn, *args, **kw):
+            result = await original(fn, *args, **kw)
+            if fn == engine.ledger.read and asyncio.current_task() is kick_task:
+                captured.set()
+                await release.wait()
+            return result
+        monkeypatch.setattr(engine, 'io', io)
+        kick_task = asyncio.create_task(engine.kick())
+        try:
+            await signal(captured)
+            await engine.close()
+            release.set()
+            await kick_task
+&gt;           assert not engine.tasks
+E           AssertionError: assert not {'t': &lt;Task finished name='Task-169' coro=&lt;Engine.drain() done, defined at D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\engine.py:130&gt; result=None&gt;}
+E            +  where {'t': &lt;Task finished name='Task-169' coro=&lt;Engine.drain() done, defined at D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\engine.py:130&gt; result=None&gt;} = &lt;packages.automation.engine.Engine object at 0x00000244674734D0&gt;.tasks
+
+tests\test_automation_concurrency.py:93: AssertionError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_start_recovery_inflight_at_close_must_not_reopen" time="0.059"><failure message="assert False&#10; +  where False = &lt;packages.automation.engine.Engine object at 0x00000244674CA650&gt;.closed">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3526/test_start_recovery_inflight_a0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000244674F0F30&gt;
+
+    @async_test
+    async def test_start_recovery_inflight_at_close_must_not_reopen(tmp_path, monkeypatch):
+        engine, _, _ = await setup(tmp_path)
+        captured, release = asyncio.Event(), asyncio.Event()
+        original = engine.io
+        start_task = None
+        async def io(fn, *args, **kw):
+            result = await original(fn, *args, **kw)
+            if fn == engine.ledger.recover and asyncio.current_task() is start_task:
+                captured.set()
+                await release.wait()
+            return result
+        monkeypatch.setattr(engine, 'io', io)
+        start_task = asyncio.create_task(engine.start())
+        try:
+            await signal(captured)
+            await engine.close()
+            release.set()
+            await start_task
+&gt;           assert engine.closed
+E           assert False
+E            +  where False = &lt;packages.automation.engine.Engine object at 0x00000244674CA650&gt;.closed
+
+tests\test_automation_concurrency.py:119: AssertionError</failure></testcase></testsuite></testsuites>
