@@ -1,0 +1,34 @@
+{
+  "base": "6eff88c6fc665f989e475700abf92386d0fbbb93",
+  "targetedTests": {
+    "passed": 187,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 2,
+    "seconds": 46.83
+  },
+  "diagnosticsRecheck": {
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0
+  },
+  "compileall": true,
+  "diffCheck": true,
+  "externalSampler": {
+    "version": "0.4.2",
+    "python": "3.14.5",
+    "exitCode": 0,
+    "installedCheckouts": [
+      "D:/project/Pan",
+      "D:/project/Pan-main"
+    ]
+  },
+  "incidentRootCauseConfirmed": false,
+  "snapshotSessions": 111,
+  "syntheticUnclosedLabels": {
+    "original8000Ms": 884.89,
+    "patched100000Ms": 3.783
+  },
+  "originalIncidentEvidence": "D:/project/Pan/evidence/pan-crash-20261021-112531",
+  "productionServiceRestarted": false
+}

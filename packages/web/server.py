@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from packages.core import runtime_diagnostics as _runtime_diag
+from packages.core.markdown_links import MarkdownLinks
+
 import asyncio
 import base64
 import copy
@@ -1584,6 +1587,32 @@ def _stamp_live_event(data: dict) -> dict:
 
 _LINK_PROJECTION_EXECUTOR = ThreadPoolExecutor(
     max_workers=2, thread_name_prefix="pan-link-projection")
+_HTTP_LOG_EXECUTOR = _runtime_diag.AccessLogExecutor()
+_HTTP_LOG_SLOT = threading.BoundedSemaphore(1)
+_DIAGNOSTIC_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pan-diagnostic-read")
+
+
+async def _write_access_log(message):
+    # stdout is diagnostic output, never response backpressure. Keep at most
+    # one outstanding write, and expose drops rather than queueing indefinitely.
+    if not _HTTP_LOG_SLOT.acquire(blocking=False):
+        _runtime_diag.runtime.record("http.log_dropped")
+        return
+    try:
+        future = _HTTP_LOG_EXECUTOR.submit(_log, message)
+    except BaseException:
+        _HTTP_LOG_SLOT.release()
+        _runtime_diag.runtime.record("http.log_submission_failed")
+        return
+    future.add_done_callback(lambda _: _HTTP_LOG_SLOT.release())
+    wrapped = asyncio.wrap_future(future)
+    wrapped.add_done_callback(lambda f: None if f.cancelled() else f.exception())
+    try:
+        await asyncio.wait_for(asyncio.shield(wrapped), timeout=0.05)
+    except asyncio.TimeoutError:
+        _runtime_diag.runtime.record("http.log_slow")
+    except Exception:
+        _runtime_diag.runtime.record("http.log_failed")
 
 
 def _project_worker_event(data: dict) -> dict:
@@ -1690,8 +1719,8 @@ async def broadcast(data: dict):
     # registry. Never do that on the event loop driving HTTP and Worker IO.
     # The producer awaits its own projection, preserving its event order.
     if data.get("type") in {"worker.stream", "worker.result"}:
-        data = await asyncio.get_running_loop().run_in_executor(
-            _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
+        data = await _runtime_diag.run_in_executor(
+            "link-projection", _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
     # Capture live summary authority after the await, not before another
     # producer may have advanced this Session while filesystem work ran.
     data = _attach_session_summary_patch(data)
@@ -2052,11 +2081,22 @@ class HTTPPolicyMiddleware:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
         method = scope.get("method", "")
+        rid = uuid.uuid4().hex[:16]
+        context = _runtime_diag.request_id.set(rid)
+        token = _runtime_diag.runtime.begin("http", requestId=rid,
+                                            method=method, path=path[:240], stage="routing")
+        _runtime_diag.runtime.record("http.start", requestId=rid, method=method, path=path[:240])
+        status = None
+        body_bytes = 0
+        complete = False
+        outcome = "incomplete"
 
         async def send_with_policy(message):
+            nonlocal status, body_bytes, complete
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
                 status = message["status"]
+                headers["X-Pan-Request-Id"] = rid
                 if path.startswith("/static/"):
                     headers["Cache-Control"] = "public, max-age=0, must-revalidate"
                 if path.startswith("/api/"):
@@ -2066,13 +2106,30 @@ class HTTPPolicyMiddleware:
                         and headers.get("cache-control") == "private, no-cache")
                     if not conditional_list:
                         headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-                if not any(path.startswith(p) for p in _LOG_SKIP):
-                    # Preserve a record per response and keep blocking stdout
-                    # writes off the loop without spawning detached log tasks.
-                    await asyncio.to_thread(_log, f"{method}  {path}  → {status}")
+                _runtime_diag.runtime.stage(token, "sending_headers", status=status)
+                _runtime_diag.runtime.record("http.headers", requestId=rid, status=status)
+            if message["type"] == "http.response.body":
+                body_bytes += len(message.get("body", b""))
+                _runtime_diag.runtime.stage(token, "sending_body", bodyBytes=body_bytes)
             await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                complete = True
+                _runtime_diag.runtime.stage(token, "body_complete")
 
-        await self.app(scope, receive, send_with_policy)
+        try:
+            await self.app(scope, receive, send_with_policy)
+            outcome = "completed" if complete else "incomplete"
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
+        except BaseException:
+            outcome = "error"
+            raise
+        finally:
+            _runtime_diag.runtime.end(token, outcome=outcome, complete=complete)
+            _runtime_diag.request_id.reset(context)
+        if not any(path.startswith(p) for p in _LOG_SKIP):
+            await _write_access_log(f"{method}  {path}  → {status}")
 
 
 app.add_middleware(HTTPPolicyMiddleware)
@@ -2103,6 +2160,7 @@ def _session_to_api(
     include_last_result: bool = True,
     app_config: dict | None = None,
     pin_projection: dict | None = None,
+    project_links: bool = True,
 ):
     """Convert Session to API response dict."""
     w = worker._find_control_worker(s.id)
@@ -2110,7 +2168,7 @@ def _session_to_api(
     config = (load_config() if app_config is None else app_config).get(s.adapter, {})
     ac = s.adapter_config
     last_result = s.last_result if include_last_result else None
-    if include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
+    if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
             **last_result,
             "result": _project_editor_links(s.id, last_result["result"]),
@@ -2263,9 +2321,8 @@ _STORE_READ_EXECUTOR = ThreadPoolExecutor(
 
 async def _store_read(func, /, *args, **kwargs):
     """Run one blocking Session-store read on the dedicated store-read thread."""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _STORE_READ_EXECUTOR, functools.partial(func, *args, **kwargs))
+    return await _runtime_diag.run_in_executor(
+        "store-read", _STORE_READ_EXECUTOR, func, *args, **kwargs)
 
 
 class _HistoryJSONResponse(NetworkJSONResponse):
@@ -2360,12 +2417,20 @@ def _session_list_api(
     """
     api = copy.deepcopy(_session_to_api(
         s, include_history=False, app_config=app_config,
-        pin_projection=pin_projection,
+        pin_projection=pin_projection, project_links=False,
     ))
     # Freeze live usage/result/config metadata before yielding to HTTP encoding.
     # History pages below are already owned, nested-isolated store snapshots.
     if page is _PAGE_UNSET:
         page = sess.history_page(s.id, limit=history_limit)
+    return _project_session_list_row(s.id, api, page, getattr(s, "history_epoch", None))
+
+
+def _project_session_list_row(session_id, api, page, history_epoch):
+    """Only private snapshots cross to the projection thread, never live Sessions."""
+    result = api.get("lastResult")
+    if isinstance(result, dict) and isinstance(result.get("result"), str):
+        result["result"] = _project_editor_links(session_id, result["result"])
     if page is None:
         history = []
         total = 0
@@ -2375,10 +2440,10 @@ def _session_list_api(
         total = page.get("total", len(history))
         has_more = bool(page.get("hasMore"))
     api["history"] = _api_history(
-        s.id,
+        session_id,
         history,
         start=page.get("start", 0) if page else 0,
-        history_epoch=page.get("historyEpoch") if page else getattr(s, "history_epoch", None),
+        history_epoch=page.get("historyEpoch") if page else history_epoch,
         bookmarked_ids=page.get('_bookmarkedMessageIds') if page else frozenset(),
     )
     api["historyTruncated"] = has_more
@@ -3650,7 +3715,16 @@ async def api_persistence_diagnostics(session_id: str | None = None,
     The response contains queue depth and timings only; it deliberately never
     exposes history/queue message bodies or durable Session state.
     """
-    return sess.save_diagnostics(session_id, limit=limit)
+    return await _runtime_diag.run_in_executor(
+        "diagnostic-read", _DIAGNOSTIC_EXECUTOR, sess.save_diagnostics, session_id, limit=limit)
+
+
+@app.get("/api/diagnostics/runtime")
+async def api_runtime_diagnostics():
+    """Locations and bounded timings only; independent of Session read queues."""
+    return {**_runtime_diag.runtime.snapshot(),
+            "tasks": _runtime_diag.runtime.task_stacks(),
+            "threads": _runtime_diag.runtime.thread_stacks()}
 
 
 @app.get("/api/main/restart/status")
@@ -4298,9 +4372,7 @@ def _attachment_markdown(display_name: str, href: str) -> str:
 
 
 _LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
-_MESSAGE_ATTACHMENT_HREF_RE = re.compile(
-    r"\[(?:\\.|[^\]\\\r\n])*\]\((?P<href>/api/(?:attachments/(?:ref/|editor/|[^)\s]+)|fs/read\?[^)\s]+))\)"
-)
+_MESSAGE_ATTACHMENT_HREF_RE = MarkdownLinks(attachments_only=True)
 
 
 def _legacy_attachment_href(session_id: str, raw_path: str) -> str:
@@ -4331,9 +4403,7 @@ def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
     return _LEGACY_ATTACHMENT_RE.sub(replace, content)
 
 
-_MARKDOWN_LINK_RE = re.compile(
-    r"(?P<label>\[(?:\\.|[^\]\\\r\n])*\])\((?P<href>[^)\s]+)\)"
-)
+_MARKDOWN_LINK_RE = MarkdownLinks()
 
 
 def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | None] | None:
@@ -5621,9 +5691,13 @@ async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
     app_config = await _store_read(load_config)
     items = []
     for s in sessions:
-        items.append(_session_list_api(
-            s, page=pages.get(s.id), app_config=app_config,
-            pin_projection=pin_projection_for(s.id)))
+        api = copy.deepcopy(_session_to_api(
+            s, include_history=False, app_config=app_config,
+            pin_projection=pin_projection_for(s.id), project_links=False))
+        items.append(await _runtime_diag.run_in_executor(
+            "link-projection", _LINK_PROJECTION_EXECUTOR,
+            _project_session_list_row, s.id, api, pages.get(s.id),
+            getattr(s, "history_epoch", None)))
         # Shaping must stay on the event loop because it can register editor
         # references. Bound each uninterrupted slice to one Session's tail:
         # a list storm must not monopolize dashboard heartbeat/worker traffic
