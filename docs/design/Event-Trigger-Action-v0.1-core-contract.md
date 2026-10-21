@@ -160,9 +160,8 @@ marks interrupted effects uncertain; it does not claim to roll them back.
 Session Operation is rejected by the legacy Group build/provider entry points,
 so their permission and execution semantics do not expand accidentally.
 
-`query` is a **required follow-up**, reserved in `SessionSelector` types but
-rejected at runtime pending a model-backed field whitelist and product decisions.
-Parallel mode is likewise a reserved type, not an implemented mode. UI, complete
+`query` is implemented by the authorized Session query follow-up below.
+Parallel mode remains a reserved type, not an implemented mode. UI, complete
 external plugin transport, large-ledger retention/paging, reliable Event delivery,
 and human Pause/queue acceptance remain later work and are not claimed here.
 
@@ -187,3 +186,79 @@ becomes cancelled. A changed Run status/revision is retained unchanged. Disable
 before or after this transaction therefore cannot resurrect a cancelled Run.
 This does not change HTTP shapes, selectors, token policy, or the rule that
 already-started business effects continue on Trigger disable.
+
+
+## Session query selector (authorized follow-up)
+
+Create/update a normal Action through the existing source/draft APIs. The additive
+`GET /api/actions/session-operation-template` returns a disabled ordinary Action
+`item` (no ID; create assigns one), `queryFields`, `queryPredicateSchema` and
+`limits`. It neither enumerates Sessions nor executes an operation. Agents still
+create disabled drafts; user management/Trigger token boundaries and legacy
+Group/provider gates are unchanged. Query is selection data, never authority.
+Automatic execution remains the user-enabled rule's business operation; it does
+not impersonate an Agent, inject an auth context, or add a scope override. This
+is the existing local-process API trust boundary, not new per-user HTTP security.
+
+```json
+{"kind":"session_operation","operation":"pause_everything",
+ "selector":{"mode":"query","query":{"and":[
+   {"field":"name","op":"contains","value":"review"},
+   {"field":"readonlySession","op":"eq","value":false},
+   {"not":{"field":"adapter","op":"in","value":["codex"]}}
+ ]}}}
+```
+
+Grammar is closed: `{and:[Predicate,...]}`, `{or:[Predicate,...]}`,
+`{not:Predicate}`, or `{field,op,value}`. Every branch is validated before reading
+any Session, including branches that evaluation would short-circuit. Empty
+objects/and/or/in, unknown keys/fields/operators and type mismatches fail clearly;
+there is no default match-all or fallback to all Sessions. No script, SQL, regex,
+property path or user-provided comparator is accepted. Text is literal data.
+
+| Field | Source / type | Operators |
+|---|---|---|
+| id | Session.id, string | eq / ne / in |
+| name | Session.name, string | eq / ne / in / contains |
+| adapter | Session.adapter, string | eq / ne / in |
+| managedBy | Session.managed_by, string or null | eq / ne / in |
+| readonlySession | Session.readonly_session, boolean | eq / ne / in |
+| pinned | shared session_pin_state membership, boolean | eq / ne / in |
+| workspaceIds | effective_workspace_ids (managed-root membership), array of strings | eq / ne / contains |
+
+`eq/ne` compare exact typed values. Array equality is ordered whole-array equality.
+`in` requires a nonempty list of the scalar field's type (nullable managedBy also
+allows null); it means the field equals one listed value. `workspaceIds.contains`
+means one exact string element, never a substring. `name.contains` requires a
+nonempty string and means a case-sensitive literal Unicode substring, without
+regex, case folding or normalization. Other string fields do not support contains.
+Booleans do not accept 0/1 or string representations. Broken/cyclic management
+chains inherit the existing effective-workspace behavior (ungrouped), with no new
+relationship mutation or traversal language exposed to query callers.
+
+Limits are fixed: depth **8** (root = 1), total predicate nodes **64**,
+individual operand arrays / in lists **128**, literal string length **512** Unicode
+code points, candidate Sessions **2048**, unique matched targets **256**. and/or
+must be nonempty. Candidate overflow is rejected before cold metadata hydration;
+result overflow fails the whole selection before effects. Neither case truncates.
+Candidate count is checked before filtering, even for an ID predicate. Limits
+apply only to query; explicit/event keep their prior accepted shapes and order.
+
+The resolver uses shallow Session metadata and shared Pin state off the event
+loop; no histories are loaded. Existing Session listing now has an optional
+internal admission limit; ordinary list API callers retain the default behavior.
+A single metadata projection is read at Action execution start. This is not a
+transactional global snapshot of simultaneous Session edits. The resulting IDs
+are deduplicated and sorted lexicographically, then durably checkpointed once,
+before the first target operation, together with:
+`selection:{mode:"query",matchedAt,candidateCount,matched}`. Matching time is the
+completion time of the one selection. Invalid runtime metadata fails explicitly.
+
+Rename/move/pin changes and new Sessions after this checkpoint do not alter that
+Run. Per-target operations still recheck their actual business state and may
+fail (e.g. a target was deleted); the existing partial-result aggregation applies.
+Zero targets checkpoint an empty target set and successful matched=0 result with
+selection diagnostics. Cancellation/write failure/uncertain behavior is unchanged.
+Recovered running/uncertain Runs never requery or replay their target set. Queued
+Runs that have never started resolve once when they actually start after recovery.
+No target recomputation or generic retry API is introduced.

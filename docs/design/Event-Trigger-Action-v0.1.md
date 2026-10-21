@@ -213,7 +213,7 @@ running（进程中断）→ uncertain
 | event | 从 Event 字段取得 Session ID／列表 |
 | query | 按当前 Session 字段筛选 |
 
-query 首版建议采用明确白名单字段和 AND 比较，不引入任意表达式、关联查询或递归。workspace、标签、manager、状态等仅作为候选；必须先核对实际数据模型和真实用例，再确定支持字段，不将示例视为已存在字段。
+后续 query 任务已明确采用白名单字段与有界 and/or/not 谓词；字段为 id/name/adapter/managedBy/readonlySession/pinned/workspaceIds，按字段类型限制 eq/ne/in/contains。禁止脚本、SQL、正则与任意属性遍历。执行开始一次查询并冻结目标；限制与精确定义见实施补充及 core-contract 的 Session query 小节。此前 AND-only 和候选字段建议由此次明确授权替代。
 
 Trigger State 判断“本次是否执行”；选择器判断“对哪些 Session 执行”，两者独立。
 

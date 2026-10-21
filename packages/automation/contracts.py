@@ -1,6 +1,6 @@
 """Transport-neutral declarations for future adapters and UI clients.
 
-query and parallel are reserved extension values, rejected by the v0.1 runtime.
+query is a bounded predicate tree; parallel remains a reserved extension value.
 """
 from typing import Any, Literal, NotRequired, TypedDict
 

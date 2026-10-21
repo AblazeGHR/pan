@@ -3026,6 +3026,18 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
     API execution: {kind: api, method: GET, path: /api/sessions|/api/models|/api/workspaces}.
     Command execution: {kind: command, executable: absolute file, cwd: absolute dir,
     args: string array, timeout_sec: 1..30}. A scalar {field} occupies one whole argv.
+    Session Operation execution: {kind: session_operation, operation: pause_everything,
+    selector: {mode: explicit, ids: [...]}, {mode: event, path: payload.sessionIds}, or
+    {mode: query, query: Predicate}}. Predicate: {and: [...]}/{or: [...]}/{not: ...}
+    or {field, op, value}. Fields id/name/adapter (string), managedBy (string|null),
+    readonlySession/pinned (boolean), workspaceIds (string array). eq/ne exact;
+    scalar in uses a nonempty typed list; workspaceIds.contains exact element;
+    name.contains nonempty case-sensitive literal substring. No script/SQL/regex,
+    dotted fields or implicit match-all. Limits depth/nodes/candidates/results:
+    8/64/2048/256, operand arrays 128, text 512 code points; overflow fails.
+    Targets freeze at execution start. Draft cannot execute; user-enabled Trigger
+    automation uses this type; legacy Group build/provider rejects it. Backend
+    template/schema: GET /api/actions/session-operation-template.
     Group fields: optional id, name, action_ids. IDs use lowercase letters/digits/underscores.
     User enables Actions and builds Groups in the core Actions Panel. This tool
     cannot build, unbuild, enable, or execute a draft. Built tools use generic plugins.

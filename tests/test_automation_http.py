@@ -10,7 +10,7 @@ from tests import test_real_queue_http_e2e as harness
 from tests.test_automation_core import action, trigger
 
 
-def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
+def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=None):
     assert harness.PORT not in {8767, 8768}
     launcher = Path(__file__).parent / 'support' / 'automation_http_server.py'
     monkeypatch.setattr(harness, 'SERVER_LAUNCHER', launcher)
@@ -36,9 +36,28 @@ def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
             result = harness._spawn(runtime, session['id'])
             assert 'error' not in result, result
         a = action([target['id']])
-        runtime.request('POST', '/api/actions/actions', json={'item': a})
+        if selector_mode == 'query':
+            a['execution']['selector'] = {'mode': 'query', 'query': {'and': [
+                {'field': 'name', 'op': 'contains', 'value': 'auto-target'},
+                {'field': 'adapter', 'op': 'in', 'value': ['cbc']},
+                {'field': 'managedBy', 'op': 'eq', 'value': None},
+                {'field': 'readonlySession', 'op': 'eq', 'value': False},
+                {'field': 'pinned', 'op': 'eq', 'value': False},
+                {'field': 'workspaceIds', 'op': 'eq', 'value': []}]}}
+            template = runtime.request('GET', '/api/actions/session-operation-template')
+            assert template['limits']['results'] == 256
+            draft_action = runtime.request('POST', '/api/action-drafts/actions/put', json={'item': a})
+            assert not draft_action['item']['enabled']
+            runtime.request('PUT', '/api/actions/actions/pause', json={'item': a, 'expectedRevision': draft_action['revision']})
+        else:
+            runtime.request('POST', '/api/actions/actions', json={'item': a})
         draft = {**trigger(), 'enabled': False}
         runtime.request('POST', '/api/automation/triggers', json={'item': draft, 'expectedRevision': 0})
+        if selector_mode == 'query':
+            import httpx
+            rejected = httpx.post(runtime.base_url + '/api/automation/triggers',
+                                  json={'item': trigger(), 'expectedRevision': 1}, trust_env=False)
+            assert rejected.status_code == 401
         harness._enqueue(runtime, source['id'], 'default-off-probe', 'off')
         harness._wait_for(lambda: harness._received(runtime, text='default-off-probe'), label='default off source handoff')
         harness._wait_for(lambda: all(s.get('workerStatus') != 'running' for s in runtime.request('GET', '/api/sessions')['sessions']), label='source idle')
@@ -58,6 +77,8 @@ def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
         run = next(iter(automation['runs'].values()))
         assert run['event']['type'] == 'workers.all_idle' and run['event']['payload'] == {'runningCount': 0}
         assert run['targetIds'] == [target['id']] and run['targetResults'][0]['ok']
+        if selector_mode == 'query':
+            assert run['selection']['candidateCount'] == 3 and run['selection']['matched'] == 1
         queue = runtime.request('GET', f"/api/sessions/{target['id']}/queue")
         assert queue['queuePaused']
         runtime.request('PATCH', f"/api/sessions/{target['id']}/queue/{item['queueItemId']}/lock", json={'locked': False})
@@ -90,7 +111,11 @@ def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
         evidence['ownedProcessesRemaining'] = remaining
         assert not remaining, remaining
         evidence['portReleased'] = harness._port_is_free(harness.PORT)
-        output = Path('artifacts/event-trigger-core')
+        output = output or Path('artifacts/event-trigger-core')
         output.mkdir(parents=True, exist_ok=True)
         (output / 'http-evidence.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
         (output / 'http-server.log').write_text((runtime.data_root / 'pan.log').read_text(encoding='utf-8', errors='replace'), encoding='utf-8')
+
+
+def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
+    run_automation_http(tmp_path, monkeypatch)
