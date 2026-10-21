@@ -61,7 +61,7 @@ executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝
 
 ### 读取和提前消费自己的队列
 
-- `self_queue_read()` 返回自己的可消费队列项，包含原 `id`、完整正文和原始元数据；报告正文不按 Dashboard 的预览长度截断，附件保留服务器路径。读取本身不消费。
+- `self_queue_read()` 返回自己的可消费队列项。child-agent 报告只返回原 ID/type/source，不返回正文、result、snippet、parts、附件文本或任意 envelope；其他非 report 消息的既有正文/元数据读取不变。读取本身不消费。报告推荐先用 `report_consume()`，由真实 CLI 交接/history 表明正文进入 context 的时点。
 - `self_queue_consume(item_id)` 按读取所得的原 ID 提前消费，可打断当前任务。接口不接受 Session 参数；身份来自 Pan 为本地 stdio MCP 注入的可信调用者上下文，远程无绑定身份的调用不可用。
 - 带逐项锁、全体锁、Stop reports 实际自动锁、编辑租约，以及 Pause everything 阻止的项不可见、不可消费；不会返回隐藏项的正文、ID、数量、队列位置或整体 revision。Stop reports 只隐藏实际锁定的 Agent 报告，通道提醒和显式通知沿用原规则；UI 显式解锁后可恢复可见。消费会复检当前限制并遵守最终交接 gate。
 - 只有 `ok=true, status=consumed` 证明原消息已实际交给 CLI；这不是任务完成报告。`pending`、`unconfirmed` 不表示成功。调用可能因为打断当前任务而失去响应；再次使用**同一原 ID**只查已有意图或持久回执，不重新发送正文或伪造新消息。不确定交接不会自动重投；待确认项继续受阻，需由用户调查处置。
@@ -208,17 +208,17 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 每个字段提供 source/status/scope。modelList.origin 以及源数据更新时间未记录时明确 unknown/null；freshness 的 fresh/stale/ageSeconds/ttlSeconds 只描述已有进程模型缓存 TTL，不代表上游数据新鲜度，缺少可靠时间则 unknown。倍率仅投影可直接读取的字面声明，缺失绝不填 x1；动态 getter 可能读取凭据，目录不调用。尤其 CBC 的倍率刷新依赖当前账号 JWT，目录也不使用缺乏当前账号绑定证明的暖倍率缓存，故该来源在目录中保持 unknown；原 API 的倍率功能不改。倍率 freshness 目前 unknown。目录不读凭据、不跨账号收集、不创建新缓存/轮询、不启动 CLI、不调用模型。安全元数据 hook 失败时不返回原异常内容，缺失字段降级 unknown。
 
-### 自己的报告：订阅状态与 next（只读）
+### 自己的报告：订阅状态与 consume
 
-`report_status()` 返回自己持久化的 reportSubscriptions 和 agentReportsPaused 配置，不代表目标仍存在/运行，也不证明报告已经产生或交接。它不 claim、不修复关系、不改变订阅；订阅变更仍用 report_subscribe/report_unsubscribe。
+`report_status()` 只读自己的持久 reportSubscriptions 和 agentReportsPaused 配置，不 claim/修复关系，也不证明目标活着、报告已产生或交接。订阅变更仍用 report_subscribe/report_unsubscribe。
 
-`report_next()` 一次性读取当前 queue_pending 中第一份可见 child-agent 报告，返回 `report={queueItemId,...,status,result}`；没有可见报告返回 report=null，不泄漏隐藏条目的 ID、数量、位置。返回现有 queueItemId（旧行仅有 id 时使用该原 ID），无 ID 旧记录跳过、不分配身份。普通 task、notice/Job 和 channel 不作为 child-agent 报告。正文来自自己队列的持久报告，不额外读取来源 Session 的历史或当前名称。
+报告推荐 `report_consume()`：把当前可处理的 child-agent 报告按原相对顺序聚集到队首，持久化后组成一条消息强制交给 CLI。running 且支持原生 Steer 时是一条真正的批量 Steer；无 Steer 按既有 Force restart 路由；idle/queued 用普通 handoff，不因无 Steer 能力而阻止发送或额外重启，无 Worker 则创建/恢复 Worker。delayed restart 仍优先。非 report 项保留相互顺序，Job/notice/channel 不混入该批次。复用原报告行、ID、来源及普通 batch 格式/history 映射，不复制入队、不伪造报告。
 
-两工具均无 Session 参数，复用 self_queue 的 stdio/loopback 自身身份桥接；remote/SSE、无身份、浏览器 Origin/Fetch、非本机调用不能借用服务进程身份。next 复用 self_queue 的真实可见性检查：readonly、Pause、native/Manual owner、Illegal/手动锁、Stop-report 实际锁、编辑 lease、交接中/未知/非 queued 状态等边界保持。agentReportsPaused 是未来报告策略，不能替代实际行锁；已显式解锁的行仍按既有规则判断。
+回执只含 `itemId`（首个原 ID）、`queueItemIds` 和交接状态；没有 result、正文、snippet 或附件文本。`accepted` 仅证明 CLI 接受，绝非 MA 处理完成或模型执行完成；`queued/pending/unknown/unconfirmed` 不能当作成功。保留 itemId，调用 `report_consume(item_id=原ID)` **只查询该批次回执，不写 CLI、不补写 Session、不重发**。任一原成员 ID 均可查询。未结束批次保持同一组成员，未知写入不能重组为新 batch 或自动重投。普通队列/Steer 以同一批次为不可拆交接单元；实际交接与 Action unbuild/settings/startup 共用 Session/Group reservation，已卸载的 loaded pin 阻止写入，reservation 保持到交接写入/回执 owner 结束；已拒绝但未交接的批次仍可由正常消费者按原批次处理。
 
-**next 是 peek，不是消费或 ack**。重复读取返回同一份仍可见报告，不预留、不删除、不移位、不发送、不产生回执、不唤醒 Worker；既有队列生命周期推进后才可能返回下一份。不回放已交接并从队列移除的报告，null 不能用来断言没有隐藏/历史报告。正常 report_subscribe 完成通知仍是唤醒路径，不将 next 用作持续轮询。
+两工具无 Session 参数，仅绑定本地 stdio 自身身份；remote/SSE、浏览器 Origin/Fetch、非 loopback 不能借用身份。Illegal/manual/Stop-report 实际锁、Pause、readonly、lease、native owner、未知交接等 gate 均保留；不能消费项跳过，不泄漏其身份/数量。编辑 lease 阻止批次聚集和 Steer，不为聚集解锁。无 ID 旧报告跳过，不生成持久身份；未来 stop-report 配置不替代实际行锁。批次形成后若任一成员被锁/编辑/重排则不拆分投递，等待既有 gate 解除。
 
-本轮 report_ack 尚未定义/暴露：现有 sent_to_cli 只证明真实 CLI 交接，没有独立“MA 已处理”持久状态。不得用 self_queue_consume（实际交接原 item）冒充 ack；不得为了 next 前进擅自删除或解锁队列。待明确 ack 是处理标记还是结束投递生命周期，以及 pending/已交接/过期 ID 的处理、状态落点、保留与自动投递竞态后再实施。当前只读交付不表示 A8 的 ack 部分完成。
+用户原写法 `report_comsume` 对应规范工具名 **report_consume**，不另设别名。`report_next` 已移除，`report_ack` 不实现。`self_queue_read` 不再提前暴露 child-agent 报告正文。正文只经真实 CLI 成功交接进入 history，不把读取当消费，也不把 CLI 交接当处理确认。正常订阅通知仍是唤醒路径，不为报告建立轮询。
 
 ### 2.5 清理（收尾）
 
@@ -296,9 +296,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 |------|------|---------------|
 | `PAN_AGENT_SESSION_ID` 存在 | **由 Pan adapter 注入 MCP server 进程环境**（写在 `data/mcp-configs/<session_id>.mcp.json` 的 `env` 段，随 stdio 启动带入）。**不在你的 shell `env` 里**——用 `env \| grep` 查不到属正常，别据此判断缺失；可从 `CODEBUDDY_MCP_CONFIG` 文件名/内容确认自己的 session id | 工具报缺少 manager id |
 | **同实例**：manager session 与被管 session 在**同一个 Pan 服务**（同端口） | MCP server 默认连 `PAN_API_URL`（默认 **8768**），而 `PAN_AGENT_SESSION_ID` 可能属于**另一个**服务（如 8767 pan-test）。三者（mcp-config `cwd`/`PAN_API_URL`/manager session 所在服务）必须一致 | manager session 在目标服务上"不存在"，订阅无效（§10.2 G9） |
-| 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_status` | (无) | 只读自己的持久报告订阅配置；不 claim/订阅，不证明报告已交接 |
-| `report_next` | (无) | peek 自己队列首份可见 child-agent 报告；原 queueItemId，不消费/发送/ack，不暴露隐藏条目 |
-| `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§10.2 G10） |
+| 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§10.2 G10） |
 
 ```
 1. agent_assign 前先订阅（前置见上表）：
@@ -490,6 +488,8 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
+| `report_status` | (无) | 只读自己的持久报告订阅配置，不证明报告已交接 |
+| `report_consume` | item_id? | 无参数按原序聚集可处理报告并批量 Force；同原 ID 仅查交接回执，无正文/隐藏项泄漏 |
 | `report_subscribe` | `session_id` | 订阅 session 的完成报告（需 `PAN_AGENT_SESSION_ID` 环境变量，仅 Pan 内 session 生效）。**订阅即接管**：自动 claim 目标 session 建立 managed 关系（§3）；已归本 manager 管理则仅确保订阅 |
 | `report_unsubscribe` | `session_id` | 仅取消完成报告订阅，**保留 managed 关系**（仅能退订**自己管理**的 session）；想解除整个管理关系用 `session_unclaim`（见下方四操作对比） |
 

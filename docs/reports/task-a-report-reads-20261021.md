@@ -1,5 +1,7 @@
 # A8 partial candidate: own report subscription status and read-only next
 
+> Superseded by the user decision to remove report_next, omit report_ack and add report_consume. This file preserves historical evidence for 1e74c374 only. Current contract and validation: [report-consume candidate](task-a-report-consume-20261021.md).
+
 Worktree `D:/project/pan-worktrees/task-a-history-read-20261021`; branch `feature/task-a-history-read-20261021`; base `978beef4680f33bed05c156a7592e6b075db3b46`; initial status clean. This is a fast-forward candidate for the two determined read operations only. **A8 ack is not complete and is not exposed.** No other A item or Action change is included.
 
 ## Definition and existing lifecycle audit
