@@ -24,6 +24,8 @@ import shutil
 import stat
 import subprocess
 from packages.jobs.window import command_window_options
+from packages.plugins.lifecycle import session_claim as _plugin_session_claim, coordinator as _plugin_coordinator, io as _plugin_io, action_groups as _action_groups
+from packages.plugins.lifecycle import startup as _plugin_copy_admission
 import sys
 import threading
 import time
@@ -3383,14 +3385,19 @@ def _normalize_context_setting_keys(data: dict) -> None:
             data.pop(native_key, None)
 
 
-def _apply_session_updates(s: sess.Session, data: dict):
+_PLUGIN_CONFIG_UNSET = object()
+
+
+def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN_CONFIG_UNSET):
     """Apply model/mode/thinking/effort fields from data to a Session (in-place).
 
     Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
     AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
     """
     _normalize_context_setting_keys(data)
-    plugin_config = _validate_plugin_update(s, data)
+    prepared_plugins = plugin_config is not _PLUGIN_CONFIG_UNSET
+    if not prepared_plugins:
+        plugin_config = _validate_plugin_update(s, data)
     # systemPrompt was not a supported settings field. Reject effective-prompt
     # writes explicitly so a detail response cannot become a recursive baseline.
     if "systemPrompt" in data:
@@ -3428,7 +3435,7 @@ def _apply_session_updates(s: sess.Session, data: dict):
     for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
         if api_key in data:
             s.set_adapter_field(native_key, data[api_key])
-    if "mcpServers" in data:
+    if "mcpServers" in data and not prepared_plugins:
         # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
         _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
     if plugin_config is not None:
@@ -6245,7 +6252,7 @@ async def api_set_session_workspaces(session_id: str, data: dict):
 async def api_create_session(data: dict):
     """Create a new Session (no worker spawned)."""
     try:
-        params = _build_session_params(data)
+        params = await _plugin_io(_build_session_params, data)
     except ValueError as e:
         return {"error": str(e)}
     name = params["name"]
@@ -6253,7 +6260,18 @@ async def api_create_session(data: dict):
     if err:
         return {"error": err}
 
-    s = sess.create(**params)
+    while True:
+        groups = _action_groups(params.get('adapter_config', {}))
+        async with _plugin_coordinator().claim(shared=groups, exclusive={'session-name:' + name}):
+            # Recompile after waiting: unbuild may have retired the selection.
+            params = await _plugin_io(_build_session_params, data)
+            if not _action_groups(params.get('adapter_config', {})) <= groups:
+                continue
+            err = await _plugin_io(_check_session_name, name)
+            if err:
+                return {'error': err}
+            s = await _plugin_io(sess.create, **params)
+            break
     await broadcast({
         "type": "session.created",
         "sessionId": s.id,
@@ -8150,7 +8168,8 @@ async def _run_rewind_job(parent_session_id: str, message_id: str,
         latest_parent = await _store_read(sess.get, parent_session_id)
         if latest_parent is None:
             raise RuntimeError('parent session disappeared during rewind')
-        new_session = _create_rewound_session(latest_parent, result, anchor_index)
+        async with _plugin_session_claim(latest_parent):
+            new_session = await _plugin_io(_create_rewound_session, latest_parent, result, anchor_index)
         update(
             stage='completed',
             status='completed',
@@ -9263,7 +9282,13 @@ _SESSION_SETTINGS_LOCKS: WeakValueDictionary[str, asyncio.Lock] = WeakValueDicti
 @app.patch("/api/sessions/{session_id}")
 async def api_update_session(session_id: str, data: dict):
     async with _SESSION_SETTINGS_LOCKS.setdefault(session_id, asyncio.Lock()):
-        return await _update_session_settings(session_id, data)
+        s = sess.get(session_id)
+        if s is None:
+            return {'error': 'Session not found'}
+        requested = {b.get('plugin_id', '') for b in data.get('pluginBindings', []) if isinstance(b, dict)}
+        requested.update(n for n in data.get('mcpServers', []) if isinstance(n, str))
+        async with _plugin_session_claim(s, {p for p in requested if p.startswith('action-group-')}):
+            return await _update_session_settings(session_id, data)
 
 
 async def _update_session_settings(session_id: str, data: dict):
@@ -9277,7 +9302,18 @@ async def _update_session_settings(session_id: str, data: dict):
     old_mcp_servers = s.adapter_config.get("mcp_servers")
     old_output_mode = s.adapter_config.get("output_mode")
     try:
-        _apply_session_updates(s, data)
+        if changing_plugins:
+            def prepare_plugins():
+                if 'pluginBindings' in data:
+                    return _validate_plugin_update(s, data)
+                staged_session = copy.copy(s)
+                staged_session.adapter_config = copy.deepcopy(s.adapter_config)
+                _apply_mcp_servers(staged_session, data['mcpServers'], force=bool(data.get('forceMcp')))
+                return staged_session.adapter_config
+            prepared = await _plugin_io(prepare_plugins)
+            _apply_session_updates(s, data, plugin_config=prepared)
+        else:
+            _apply_session_updates(s, data)
     except ValueError as e:
         if previous_config is not None:
             s.adapter_config = previous_config
@@ -9287,6 +9323,13 @@ async def _update_session_settings(session_id: str, data: dict):
     # MCP servers 增删或执行模式切换都需要重启 worker 才生效
     require_restart = (old_mcp_servers != new_mcp_servers
                        or old_output_mode != new_output_mode)
+    if previous_config is not None:
+        def enabled_action_groups(config):
+            return {b['plugin_id'] for b in config.get('plugin_bindings', [])
+                    if b.get('enabled') and b.get('plugin_id', '').startswith('action-group-')}
+        # Group releases load only at Worker startup, including when an
+        # already-present gateway keeps exactly the same physical descriptor.
+        require_restart |= enabled_action_groups(previous_config) != enabled_action_groups(s.adapter_config)
     if previous_config is not None:
         staged_config = s.adapter_config
         s.adapter_config = previous_config
@@ -9300,13 +9343,6 @@ async def _update_session_settings(session_id: str, data: dict):
             raise
     else:
         await sess.save_async(s)
-    await broadcast({
-        "type": "session.updated",
-        "sessionId": s.id,
-        # Safe summary fields let connected routes update immediately; the
-        # debounced list refresh below remains the final reconciliation.
-        "session": _session_summary(s),
-    })
     result = _session_to_api(s)
     # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
     # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
@@ -9325,6 +9361,14 @@ async def _update_session_settings(session_id: str, data: dict):
         result["requireRestart"] = True
     if "pluginBindings" in data:
         result["pluginApplyStatus"] = "failed" if result.get("restartError") else "pending" if result.get("delayedRestart") else "next_start" if require_restart else "applied"
+    # Register retirement immediately after the durable commit, before an
+    # external notification can fail or be cancelled. The saved selection must
+    # never depend on successful WebSocket delivery to take effect in a Worker.
+    await broadcast({
+        "type": "session.updated",
+        "sessionId": s.id,
+        "session": _session_summary(s),
+    })
     return result
 
 
@@ -9401,6 +9445,7 @@ def _branch_ownership(source: sess.Session) -> tuple[str | None, list[str]] | st
 
 
 @app.post("/api/sessions/{session_id}/branch")
+@_plugin_copy_admission
 async def api_branch_session(session_id: str, data: dict):
     """Branch from a session — copy adapter-specific transcript, import new session, preserve settings.
 
@@ -9513,6 +9558,7 @@ async def api_branch_session(session_id: str, data: dict):
 
 
 @app.post("/api/sessions/{session_id}/handoff")
+@_plugin_copy_admission
 async def api_session_handoff(session_id: str, data: dict):
     """替身交接（session_handoff v1）：创建孪生 session B 接替 A。
 
@@ -11611,27 +11657,15 @@ async def api_spawn(data: dict):
         existing = worker.find_worker_by_session(session_id)
         if existing:
             await worker.kill_worker(existing.worker_id)
-        try:
-            _apply_session_updates(s, data)
-        except ValueError as e:
-            return {"error": str(e)}
-        await sess.save_async(s)
+        settings_result = await api_update_session(session_id, data)
+        if settings_result.get('error'):
+            return settings_result
     else:
-        try:
-            params = _build_session_params(data)
-        except ValueError as e:
-            return {"error": str(e)}
-        name = params["name"]
-        err_name = _check_session_name(name)
-        if err_name:
-            return {"error": err_name}
-        s = sess.create(**params)
+        created = await api_create_session(data)
+        if created.get('error'):
+            return created
+        s = sess.get(created['id'])
         session_id = s.id
-        await broadcast({
-            "type": "session.created",
-            "sessionId": s.id,
-            "name": s.name,
-        })
 
     result = await worker.create_worker(session_id)
     if isinstance(result, str):
@@ -13260,24 +13294,18 @@ async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
         raw_usage_entries[0].get("model") if raw_usage_entries else None
     )
 
-    s = sess.create(
-        name=name,
-        adapter=adapter,
-        cli_session_id=session_id,
-        history=history,
-        raw_usage=raw_usage,
-        total_usage=total_usage,
-        workdir=cwd,
-        model=model,
-        permission_mode=params.get("permission_mode"),
-        session_template=params.get("session_template"),
-        original_prompt=params.get("original_prompt"),
-        handoff_prompt=params.get("handoff_prompt"),
-        pan_access=params.get("pan_access"),
-        adapter_config={**(params.get("adapter_config") or {}),
-                        **sess.native_usage_cursor_config(adapter, raw_usage_entries)},
-        workspace_ids=params.get("workspace_ids", []),
-    )
+    config = copy.deepcopy(params.get('adapter_config') or {})
+    async with _plugin_coordinator().claim(shared=_action_groups(config)):
+        if 'plugin_bindings' in config:
+            await _plugin_io(_set_plugin_config, config, config['plugin_bindings'])
+        s = await _plugin_io(sess.create,
+            name=name, adapter=adapter, cli_session_id=session_id, history=history,
+            raw_usage=raw_usage, total_usage=total_usage, workdir=cwd, model=model,
+            permission_mode=params.get('permission_mode'), session_template=params.get('session_template'),
+            original_prompt=params.get('original_prompt'), handoff_prompt=params.get('handoff_prompt'),
+            pan_access=params.get('pan_access'),
+            adapter_config={**config, **sess.native_usage_cursor_config(adapter, raw_usage_entries)},
+            workspace_ids=params.get('workspace_ids', []))
 
     await broadcast({
         "type": "session.created",
@@ -13368,11 +13396,9 @@ async def api_worker_settings(worker_id: str, data: dict):
     if not s:
         return {"error": "Session not found"}
 
-    try:
-        _apply_session_updates(s, data)
-    except ValueError as e:
-        return {"error": str(e)}
-    await sess.save_async(s)
+    settings_result = await api_update_session(s.id, data)
+    if settings_result.get('error'):
+        return settings_result
 
     adapter = get_adapter(s.adapter)
     extra_args: list[str] = []
@@ -14464,6 +14490,10 @@ else:
 
 
 # ── Static files ──
+from packages.actions.api import install as _install_action_api
+_install_action_api(sys.modules[__name__])
+
+
 STATIC_DIR = _WEB_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

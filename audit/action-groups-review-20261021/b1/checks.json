@@ -1,0 +1,38 @@
+{
+  "junit": {
+    "b1-final.xml": {
+      "tests": 250,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "b1-lifecycle.xml": {
+      "tests": 218,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    },
+    "b1-copy-paths.xml": {
+      "tests": 69,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "b1-frontend.xml": {
+      "tests": 47,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "remainingOwnedPluginProcesses": [],
+  "listeners": {
+    "8768": 6032
+  },
+  "harnessPidExists": false,
+  "notice95SafeShutdown": true,
+  "newTestsStartedAfterNotice": false,
+  "buildExit": 0,
+  "lintExit": 0,
+  "compressedAssetsVerified": 74
+}

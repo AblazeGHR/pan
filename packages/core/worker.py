@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 from packages.jobs.window import command_window_options
+from packages.plugins.lifecycle import startup as _admit_plugin_startup
+from packages.plugins.lifecycle import native_admission as _plugin_native_admission
 import copy
 import hashlib
 import inspect
@@ -2816,6 +2818,7 @@ async def _native_operation_event(w, runtime, event) -> bool:
     return changed
 
 
+@_plugin_native_admission
 async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None,
                              thread_id: str | None = None,
                              control_generation: int | None = None,
@@ -7123,6 +7126,15 @@ class _OneShotSpawnFailed(Exception):
 
 
 async def _queue_handoff(w: Worker, s, operation, on_handoff):
+    from packages.plugins.lifecycle import session_claim, action_groups, pinned
+    async with session_claim(s):
+        if set(pinned(s.id)[0]) - action_groups(s.adapter_config):
+            request_delayed_restart(s.id)
+            raise _QueuePausedBeforeHandoff('Loaded Action Group was detached; Worker restart required')
+        return await _queue_handoff_admitted(w, s, operation, on_handoff)
+
+
+async def _queue_handoff_admitted(w: Worker, s, operation, on_handoff):
     """Serialize pause with write/drain or spawn and receipt, not execution.
 
     Pause waits for a handoff already holding this lock. Reserved rows that
@@ -7946,6 +7958,7 @@ async def _apply_pending_native_configuration(s) -> None:
     await _bcast({"type": "session.updated", "sessionId": s.id})
 
 
+@_admit_plugin_startup
 async def _create_worker(session_id: str) -> Worker | str:
     """create_worker 的锁内实现（勿直接调用）。"""
     s = _sess.get(session_id)
@@ -8001,6 +8014,8 @@ async def _create_worker(session_id: str) -> Worker | str:
     if mode == "oneshot":
         # One-shot mode: no long-running process, consumer spawns per-task
         # (no stdin). See docs/design/adapter-p1-oneshot.md.
+        from packages.plugins.lifecycle import capture_async
+        await capture_async(s)
         proc = None
         spawn_injected = False
     else:
@@ -8008,7 +8023,8 @@ async def _create_worker(session_id: str) -> Worker | str:
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
         # spawned with --mcp-config (build_spawn_args -> mcp_args) so the
         # long-running stream keeps MCP tools (cbc >= 2.137.0).
-        extra_args = _spawn_system_prompt_args(adapter, s, mcp_on, prompt_files)
+        from packages.plugins.lifecycle import io
+        extra_args = await io(_spawn_system_prompt_args, adapter, s, mcp_on, prompt_files)
         spawn_injected = extra_args is not None
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
@@ -8828,6 +8844,7 @@ async def _respawn_worker(w: Worker | None, intent: dict) -> None:
         _log.exception("[Session %s] delayed restart failed", sid)
 
 
+@_admit_plugin_startup
 async def _spawn_process(session_id: str,
                          adapter: CliAdapter,
                          extra_args: list[str] | None = None
@@ -8837,7 +8854,9 @@ async def _spawn_process(session_id: str,
         return f"Session {session_id} not found"
 
     try:
-        args = adapter.build_spawn_args(s, extra_args)
+        from packages.plugins.lifecycle import capture_async, io
+        await capture_async(s)
+        args = await io(adapter.build_spawn_args, s, extra_args)
         _log_mcp_launch(worker_id=s.worker_id if hasattr(s, "worker_id") else session_id,
                         session=s, args=args)
         return await asyncio.create_subprocess_exec(
@@ -8954,6 +8973,9 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     # calling _spawn_process here would launch a stream CLI with the wrong
     # protocol and can leave force-send callers waiting forever.
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        from packages.plugins.lifecycle import session_claim, capture_async
+        async with session_claim(_session(w)):
+            await capture_async(_session(w))
         w.status = "idle"
         await _restart_tasks(w)
         await _record_legal_worker_state(w, "idle", "pan/restart-start")
@@ -9059,6 +9081,9 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     # their consumer path for the same reason as restart: their provider
     # process is created per task by _consumer_oneshot, never by this helper.
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        from packages.plugins.lifecycle import session_claim, capture_async
+        async with session_claim(_session(w)):
+            await capture_async(_session(w))
         w.status = "idle"
         await _restart_tasks(w)
         await _record_legal_worker_state(w, "idle", "pan/respawn-start")

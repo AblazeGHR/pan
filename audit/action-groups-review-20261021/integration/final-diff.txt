@@ -1,0 +1,187 @@
+Source snapshot compared with 54189ff4 at 423d443c88925131c0a039ff209a01243b8b6cf0; later audit-only files excluded.
+
+ artifacts/task-a-history-search-junit.xml      |   1 +
+ artifacts/task-a-history-search-tests.txt      |  28 +++
+ artifacts/task-a-model-catalog-junit.xml       |   1 +
+ artifacts/task-a-model-catalog-tests.txt       |  18 ++
+ docs/reports/task-a-history-search-20261021.md |  50 +++++
+ docs/reports/task-a-model-catalog-20261021.md  |  55 ++++++
+ docs/skills/pan/SKILL.md                       |  20 ++
+ docs/skills/pan/references/http-api.md         |  26 +++
+ packages/core/adapters/codex/adapter.py        |   4 +
+ packages/core/history_search_index.py          |  51 +++--
+ packages/core/model_catalog.py                 | 105 ++++++++++
+ packages/mcp/manifest.json                     |   4 +-
+ packages/mcp/server.py                         |  88 +++++++++
+ packages/plugins/runtime.py                    |   4 +-
+ packages/web/server.py                         |  57 +++++-
+ tests/test_action_groups.py                    | 123 ++++++++++++
+ tests/test_history_search_content.py           |  43 +++-
+ tests/test_model_catalog.py                    | 202 +++++++++++++++++++
+ tests/test_session_history_search_mcp.py       | 260 +++++++++++++++++++++++++
+ 19 files changed, 1112 insertions(+), 28 deletions(-)
+
+A	artifacts/task-a-history-search-junit.xml
+A	artifacts/task-a-history-search-tests.txt
+A	artifacts/task-a-model-catalog-junit.xml
+A	artifacts/task-a-model-catalog-tests.txt
+A	docs/reports/task-a-history-search-20261021.md
+A	docs/reports/task-a-model-catalog-20261021.md
+M	docs/skills/pan/SKILL.md
+M	docs/skills/pan/references/http-api.md
+M	packages/core/adapters/codex/adapter.py
+M	packages/core/history_search_index.py
+A	packages/core/model_catalog.py
+M	packages/mcp/manifest.json
+M	packages/mcp/server.py
+M	packages/plugins/runtime.py
+M	packages/web/server.py
+M	tests/test_action_groups.py
+M	tests/test_history_search_content.py
+A	tests/test_model_catalog.py
+A	tests/test_session_history_search_mcp.py
+
+Source snapshot compared with 978beef4 at 423d443c88925131c0a039ff209a01243b8b6cf0; later audit-only files excluded.
+
+ audit/action-groups-20261021/README.md             |  102 ++
+ audit/action-groups-20261021/browser.json          |   14 +
+ audit/action-groups-20261021/build.log.gz          |  Bin 0 -> 2033 bytes
+ audit/action-groups-20261021/final-backend.log.gz  |  Bin 0 -> 810 bytes
+ audit/action-groups-20261021/final-backend.xml     |    1 +
+ audit/action-groups-20261021/final-frontend.log.gz |  Bin 0 -> 123 bytes
+ audit/action-groups-20261021/final-frontend.xml.gz |  Bin 0 -> 2333 bytes
+ audit/action-groups-20261021/lint.log.gz           |  Bin 0 -> 20 bytes
+ audit/action-groups-20261021/live.log.gz           |  Bin 0 -> 899 bytes
+ audit/action-groups-20261021/panel-desktop.png     |  Bin 0 -> 135012 bytes
+ audit/action-groups-20261021/panel-mobile.png      |  Bin 0 -> 52414 bytes
+ audit/action-groups-20261021/runtime.json          |   55 +
+ audit/action-groups-20261021/source-sha256.json    |   30 +
+ audit/action-groups-review-20261021/B1-REPAIR.md   |   97 ++
+ audit/action-groups-review-20261021/README.md      |  151 +++
+ .../b1/b1-build.log.gz                             |  Bin 0 -> 1964 bytes
+ .../b1/b1-copy-paths.xml.gz                        |  Bin 0 -> 1485 bytes
+ .../b1/b1-final.xml.gz                             |  Bin 0 -> 4835 bytes
+ .../b1/b1-frontend.xml.gz                          |  Bin 0 -> 2393 bytes
+ .../b1/b1-lifecycle.xml.gz                         |  Bin 0 -> 4521 bytes
+ .../b1/b1-live.log.gz                              |  Bin 0 -> 847 bytes
+ .../action-groups-review-20261021/b1/browser.json  |   14 +
+ audit/action-groups-review-20261021/b1/checks.json |   38 +
+ .../b1/panel-desktop.png                           |  Bin 0 -> 135428 bytes
+ .../b1/panel-mobile.png                            |  Bin 0 -> 52414 bytes
+ audit/action-groups-review-20261021/b1/probe.json  |    7 +
+ .../action-groups-review-20261021/b1/runtime.json  |   55 +
+ .../b1/source-sha256.json                          |   10 +
+ audit/action-groups-review-20261021/blockers.json  |    7 +
+ audit/action-groups-review-20261021/browser.json   |   14 +
+ .../final-backend.xml.gz                           |  Bin 0 -> 4096 bytes
+ .../final-checks.json                              |   12 +
+ .../action-groups-review-20261021/frontend.xml.gz  |  Bin 0 -> 2378 bytes
+ audit/action-groups-review-20261021/live.log.gz    |  Bin 0 -> 851 bytes
+ .../original-hash-check.json                       |   35 +
+ .../output-reproduced.xml.gz                       |  Bin 0 -> 3784 bytes
+ .../panel-desktop.png                              |  Bin 0 -> 136332 bytes
+ .../action-groups-review-20261021/panel-mobile.png |  Bin 0 -> 52414 bytes
+ .../pin-reproduced.xml.gz                          |  Bin 0 -> 1595 bytes
+ audit/action-groups-review-20261021/runtime.json   |   55 +
+ .../source-sha256.json                             |   11 +
+ docs/design/Pan-Plugin-Capability-v1.md            |    5 +
+ docs/plugins/ACTIONS.md                            |  127 +++
+ docs/plugins/README.md                             |    1 +
+ docs/skills/pan/SKILL.md                           |   10 +
+ packages/actions/__init__.py                       |    1 +
+ packages/actions/api.py                            |  156 +++
+ packages/actions/command_runner.py                 |   32 +
+ packages/actions/provider.py                       |  122 +++
+ packages/actions/store.py                          |  233 +++++
+ packages/core/worker.py                            |   29 +-
+ packages/mcp/server.py                             |   27 +
+ packages/plugins/catalog.py                        |    5 +
+ packages/plugins/lifecycle.py                      |  144 +++
+ packages/plugins/runtime.py                        |   43 +-
+ packages/web/e2e/action-groups.e2e.mjs             |   60 ++
+ packages/web/e2e/plugin-selection.e2e.mjs          |   15 +-
+ packages/web/server.py                             |  144 +--
+ packages/web/src/components/layout/viewEntries.ts  |    1 +
+ .../components/session/PluginSelection.test.tsx    |   10 +-
+ .../web/src/components/session/PluginSelection.tsx |   13 +-
+ packages/web/src/router.tsx                        |    2 +
+ packages/web/src/services/api.ts                   |    4 +
+ packages/web/src/types/actions.ts                  |   20 +
+ packages/web/src/views/ActionsView.test.tsx        |  108 ++
+ packages/web/src/views/ActionsView.tsx             |  159 +++
+ scripts/probe_action_group_review.py               |   84 ++
+ scripts/verify_action_groups.py                    |  150 +++
+ tests/test_action_groups.py                        | 1063 ++++++++++++++++++++
+ tests/test_test_isolation.py                       |    5 +
+ 70 files changed, 3396 insertions(+), 85 deletions(-)
+
+A	audit/action-groups-20261021/README.md
+A	audit/action-groups-20261021/browser.json
+A	audit/action-groups-20261021/build.log.gz
+A	audit/action-groups-20261021/final-backend.log.gz
+A	audit/action-groups-20261021/final-backend.xml
+A	audit/action-groups-20261021/final-frontend.log.gz
+A	audit/action-groups-20261021/final-frontend.xml.gz
+A	audit/action-groups-20261021/lint.log.gz
+A	audit/action-groups-20261021/live.log.gz
+A	audit/action-groups-20261021/panel-desktop.png
+A	audit/action-groups-20261021/panel-mobile.png
+A	audit/action-groups-20261021/runtime.json
+A	audit/action-groups-20261021/source-sha256.json
+A	audit/action-groups-review-20261021/B1-REPAIR.md
+A	audit/action-groups-review-20261021/README.md
+A	audit/action-groups-review-20261021/b1/b1-build.log.gz
+A	audit/action-groups-review-20261021/b1/b1-copy-paths.xml.gz
+A	audit/action-groups-review-20261021/b1/b1-final.xml.gz
+A	audit/action-groups-review-20261021/b1/b1-frontend.xml.gz
+A	audit/action-groups-review-20261021/b1/b1-lifecycle.xml.gz
+A	audit/action-groups-review-20261021/b1/b1-live.log.gz
+A	audit/action-groups-review-20261021/b1/browser.json
+A	audit/action-groups-review-20261021/b1/checks.json
+A	audit/action-groups-review-20261021/b1/panel-desktop.png
+A	audit/action-groups-review-20261021/b1/panel-mobile.png
+A	audit/action-groups-review-20261021/b1/probe.json
+A	audit/action-groups-review-20261021/b1/runtime.json
+A	audit/action-groups-review-20261021/b1/source-sha256.json
+A	audit/action-groups-review-20261021/blockers.json
+A	audit/action-groups-review-20261021/browser.json
+A	audit/action-groups-review-20261021/final-backend.xml.gz
+A	audit/action-groups-review-20261021/final-checks.json
+A	audit/action-groups-review-20261021/frontend.xml.gz
+A	audit/action-groups-review-20261021/live.log.gz
+A	audit/action-groups-review-20261021/original-hash-check.json
+A	audit/action-groups-review-20261021/output-reproduced.xml.gz
+A	audit/action-groups-review-20261021/panel-desktop.png
+A	audit/action-groups-review-20261021/panel-mobile.png
+A	audit/action-groups-review-20261021/pin-reproduced.xml.gz
+A	audit/action-groups-review-20261021/runtime.json
+A	audit/action-groups-review-20261021/source-sha256.json
+M	docs/design/Pan-Plugin-Capability-v1.md
+A	docs/plugins/ACTIONS.md
+M	docs/plugins/README.md
+M	docs/skills/pan/SKILL.md
+A	packages/actions/__init__.py
+A	packages/actions/api.py
+A	packages/actions/command_runner.py
+A	packages/actions/provider.py
+A	packages/actions/store.py
+M	packages/core/worker.py
+M	packages/mcp/server.py
+M	packages/plugins/catalog.py
+A	packages/plugins/lifecycle.py
+M	packages/plugins/runtime.py
+A	packages/web/e2e/action-groups.e2e.mjs
+M	packages/web/e2e/plugin-selection.e2e.mjs
+M	packages/web/server.py
+M	packages/web/src/components/layout/viewEntries.ts
+M	packages/web/src/components/session/PluginSelection.test.tsx
+M	packages/web/src/components/session/PluginSelection.tsx
+M	packages/web/src/router.tsx
+M	packages/web/src/services/api.ts
+A	packages/web/src/types/actions.ts
+A	packages/web/src/views/ActionsView.test.tsx
+A	packages/web/src/views/ActionsView.tsx
+A	scripts/probe_action_group_review.py
+A	scripts/verify_action_groups.py
+A	tests/test_action_groups.py
+M	tests/test_test_isolation.py

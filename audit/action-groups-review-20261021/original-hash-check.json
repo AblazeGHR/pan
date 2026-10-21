@@ -1,0 +1,35 @@
+{
+  "exact": [
+    "docs/plugins/ACTIONS.md",
+    "packages/actions/__init__.py",
+    "packages/actions/api.py",
+    "packages/actions/command_runner.py",
+    "packages/actions/provider.py",
+    "packages/actions/store.py",
+    "packages/plugins/lifecycle.py",
+    "packages/web/e2e/action-groups.e2e.mjs",
+    "packages/web/src/types/actions.ts",
+    "packages/web/src/views/ActionsView.test.tsx",
+    "packages/web/src/views/ActionsView.tsx",
+    "scripts/verify_action_groups.py",
+    "tests/test_action_groups.py"
+  ],
+  "crlf_equivalent": [
+    "docs/design/Pan-Plugin-Capability-v1.md",
+    "docs/plugins/README.md",
+    "docs/skills/pan/SKILL.md",
+    "packages/core/worker.py",
+    "packages/mcp/server.py",
+    "packages/plugins/catalog.py",
+    "packages/plugins/runtime.py",
+    "packages/web/e2e/plugin-selection.e2e.mjs",
+    "packages/web/server.py",
+    "packages/web/src/components/layout/viewEntries.ts",
+    "packages/web/src/components/session/PluginSelection.test.tsx",
+    "packages/web/src/components/session/PluginSelection.tsx",
+    "packages/web/src/router.tsx",
+    "packages/web/src/services/api.ts",
+    "tests/test_test_isolation.py"
+  ],
+  "unexplained": []
+}
