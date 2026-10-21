@@ -3314,9 +3314,10 @@ def _plugin_manifest():
 @app.get("/api/plugins/message-sources")
 async def api_plugin_message_sources():
     from packages.core import auto_report
-    overrides = auto_report.normalize((load_config().get("ui") or {}).get("autoReport"))["plugins"]
+    settings, sources = await auto_report.context()
+    overrides = settings["plugins"]
     return {"sources": [{**p, "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"])}
-                        for p in (await auto_report.context())[1]]}
+                        for p in sources]}
 
 
 @app.post("/api/plugins/{plugin_id}/messages")
