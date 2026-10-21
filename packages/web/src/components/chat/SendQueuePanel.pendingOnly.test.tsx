@@ -96,6 +96,86 @@ it('shows the Illegal composite icon and explanation while preserving manual unl
   }
 });
 
+describe('SendQueuePanel row lock icon priority', () => {
+  it('shows the Re report-lock composite icon and still unlocks on click', () => {
+    const report = { ...item('q-report-lock', 'Report auto locked', 'queued', 'report', 'report'),
+      meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockAutoReport: true, lockManual: false } };
+    const unlock = vi.fn();
+    const original = useQueueStore.getState().setQueueItemLocked;
+    useQueueStore.setState({ queues: { s1: [report] }, setQueueItemLocked: unlock, queuePaused: {}, queuePauseLoaded: {} });
+    try {
+      render(<SendQueuePanel />);
+      const button = screen.getByRole('button', { name: 'Unlock queued message 1' });
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      expect(button.title).toBe('Unlock');
+      expect(within(button).getByText('Re')).toBeTruthy();
+      expect(within(button).queryByText('i')).toBeNull();
+      expect(within(button).queryByText('P')).toBeNull();
+      expect(button.querySelector('svg')?.getAttribute('width')).toBe('8');
+      fireEvent.click(button);
+      expect(unlock).toHaveBeenCalledWith('s1', 'q-report-lock', false);
+    } finally {
+      useQueueStore.setState({ setQueueItemLocked: original, queuePaused: {}, queuePauseLoaded: {} });
+    }
+  });
+
+  it('shows a display-only P glyph while Pause everything holds an unlocked row', () => {
+    const plain = item('q-plain', '未锁定', 'queued');
+    const unlock = vi.fn();
+    const original = useQueueStore.getState().setQueueItemLocked;
+    useQueueStore.setState({ queues: { s1: [plain] }, setQueueItemLocked: unlock, queuePaused: { s1: true }, queuePauseLoaded: { s1: true } });
+    try {
+      render(<SendQueuePanel />);
+      const button = screen.getByRole('button', { name: 'Lock queued message 1' });
+      expect(button.getAttribute('aria-pressed')).toBe('false');
+      expect(button.title).toBe('Lock');
+      expect(within(button).getByText('P')).toBeTruthy();
+      expect(within(button).queryByText('Re')).toBeNull();
+      expect(button.querySelector('svg')).toBeNull();
+      fireEvent.click(button);
+      expect(unlock).toHaveBeenCalledWith('s1', 'q-plain', true);
+    } finally {
+      useQueueStore.setState({ setQueueItemLocked: original, queuePaused: {}, queuePauseLoaded: {} });
+    }
+  });
+
+  it('prefers real lock icons over the pause P glyph', () => {
+    const illegal = { ...item('q-illegal-p', 'Illegal', 'queued'),
+      meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockSource: 'illegal' as const } };
+    const report = { ...item('q-report-p', 'Report', 'queued', 'report', 'report'),
+      meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockAutoReport: true, lockManual: false } };
+    const manual = { ...item('q-manual-p', 'Manual', 'queued'),
+      meta: { dispatchState: 'queued' as const, revision: 1, locked: true, lockSource: 'manual' as const } };
+    useQueueStore.setState({ queues: { s1: [illegal, report, manual] }, queuePaused: { s1: true }, queuePauseLoaded: { s1: true } });
+    try {
+      render(<SendQueuePanel />);
+      const illegalButton = screen.getByRole('button', { name: 'Unlock queued message 1' });
+      expect(within(illegalButton).getByText('i')).toBeTruthy();
+      expect(within(illegalButton).queryByText('P')).toBeNull();
+      const reportButton = screen.getByRole('button', { name: 'Unlock queued message 2' });
+      expect(within(reportButton).getByText('Re')).toBeTruthy();
+      expect(within(reportButton).queryByText('P')).toBeNull();
+      const manualButton = screen.getByRole('button', { name: 'Unlock queued message 3' });
+      expect(within(manualButton).queryByText('P')).toBeNull();
+      expect(within(manualButton).queryByText('Re')).toBeNull();
+      expect(manualButton.querySelector('svg')?.getAttribute('width')).toBe('12');
+    } finally {
+      useQueueStore.setState({ queuePaused: {}, queuePauseLoaded: {} });
+    }
+  });
+
+  it('keeps the plain Unlock icon for unlocked rows while the queue runs', () => {
+    const plain = item('q-open', '未锁定', 'queued');
+    useQueueStore.setState({ queues: { s1: [plain] }, queuePaused: {}, queuePauseLoaded: {} });
+    render(<SendQueuePanel />);
+    const button = screen.getByRole('button', { name: 'Lock queued message 1' });
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(within(button).queryByText('P')).toBeNull();
+    expect(within(button).queryByText('Re')).toBeNull();
+    expect(button.querySelector('svg')?.getAttribute('width')).toBe('12');
+  });
+});
+
 describe('SendQueuePanel pending-only view', () => {
   it('keeps the native queue open without changing the saved Pan preference', async () => {
     useQueueStore.setState({ panelOpen: false });
