@@ -1,0 +1,13 @@
+{
+  "initialExit": 1,
+  "interruptedRunExit": "unavailable-no-terminal-result",
+  "compileExit": 0,
+  "testsExit": 0,
+  "testedSha": "4dd87d660c594267d63275ea15a1e78f85a41790",
+  "tests": 192,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "stagedDiffCheckExit": 0,
+  "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_session_query.py tests/test_automation_core.py tests/test_automation_concurrency.py tests/test_automation_http.py tests/test_action_groups.py tests/test_action_ids.py tests/test_session_queue_api.py tests/test_session_metadata_api.py tests/test_session_pin_api.py tests/test_workspaces_backend.py -o addopts= -q --junitxml=artifacts/session-query/final.xml"
+}

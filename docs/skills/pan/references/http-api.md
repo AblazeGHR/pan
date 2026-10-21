@@ -349,3 +349,14 @@ Native rejected receipts retain the original queued batch; a subsequent ordinary
 Consumption can hydrate the existing own Session history before taking row references, because native runtime validation and the Worker lifecycle use the full canonical Session. This is not a bounded-memory history read operation; responses remain metadata-only. Structured report parts that the native Steer contract cannot preserve are skipped on that route.
 
 No response contains report result/body/snippet/parts/attachment text. `self_queue_read` now projects child-agent reports as identity/type/source only; non-report messages retain existing read behavior. Use consume first, then real handoff/history to determine when report text entered agent context. No ack, parallel inbox, polling, queue deletion/unlock or history rewrite is added.
+
+
+### Session Operation query template
+
+`GET /api/actions/session-operation-template` 返回 disabled 普通 Action 模板、
+`queryFields/queryPredicateSchema/limits`，不读取 Session 或执行操作。
+现有 Action draft/source 接口接受 `execution:{kind:"session_operation",
+operation:"pause_everything",selector:{mode:"query",query:Predicate}}`。
+Predicate 使用 and/or/not 或 field/op/value；七字段、类型约束与 8/64/2048/256
+深度/节点/候选/结果限制见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
+Agent 草稿强制关闭、Trigger token 管理与 Group/provider 安全门禁不变。

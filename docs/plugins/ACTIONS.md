@@ -183,3 +183,33 @@ OS-assigned port, stores all state under `.validation/action-groups/`, launches 
 production browser, and calls both an API Action and command Action over actual stdio
 MCP in all three modes. It starts no model, gateway or deployed service. Logs, JUnit,
 screenshots and `latest-live.json` are local evidence, separate from unit results.
+
+
+## Session Operation query backend
+
+`GET /api/actions/session-operation-template` supplies a disabled ordinary Action
+item, query field/type declarations, recursive predicate JSON Schema, and fixed
+limits. Save it with the existing draft/source APIs; no new execution endpoint is
+provided. Session Operation is for user-enabled automation only: legacy Group
+build/provider entry points reject it, and existing Group releases/pins do not
+change. Agent draft put still forces disabled.
+
+Execution is `{kind:"session_operation",operation:"pause_everything",selector:
+{mode:"query",query:Predicate}}`. Predicate is `{and:[...]}`, `{or:[...]}`,
+`{not:...}` or `{field,op,value}`. Fields: id/name/adapter strings, managedBy
+string|null, readonlySession/pinned booleans, workspaceIds string array. eq/ne
+are exact typed comparisons; scalar in is a nonempty list of matching types;
+workspaceIds.contains is exact membership; name.contains is a nonempty,
+case-sensitive literal substring. No other string contains, scripting, SQL,
+regex, dotted fields, unknown keys, empty boolean lists or implicit match-all.
+Depth/node/candidate/result limits are 8/64/2048/256, operand arrays 128 and
+literal strings 512 code points. Overflow fails, never truncates.
+
+Only shallow live metadata is queried once when execution starts. Effective
+workspace inheritance and shared Pin truth are reused. Ordered unique targets
+(ID ascending) and `selection:{mode,matchedAt,candidateCount,matched}` are saved
+before the first operation. A Run never refreshes targets after rename/move/new
+Sessions; interrupted running records recover uncertain without requery/replay.
+Zero results succeed with diagnostics. Per-target business checks and partial
+failures remain in force. This adds selection, not caller authority or an Agent
+permission bypass. Details: `docs/design/Event-Trigger-Action-v0.1-core-contract.md`.

@@ -47,6 +47,8 @@ def identifier(value):
 def validate_action(raw, automation=True):
     if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format'}:
         raise ValueError('Unknown Action fields')
+    from .session_query import validate_action_query
+    validate_action_query(raw)
     action = copy.deepcopy(raw)
     identifier(action.get('id'))
     if not isinstance(action.get('name'), str) or not action['name'].strip():
@@ -127,8 +129,13 @@ def validate_action(raw, automation=True):
         elif selector.get('mode') == 'event':
             if set(selector) != {'mode', 'path'} or not isinstance(selector['path'], str) or not selector['path']:
                 raise ValueError('Invalid Event selector path')
+        elif selector.get('mode') == 'query':
+            if set(selector) != {'mode', 'query'}:
+                raise ValueError('Query selector requires only mode and query')
+            from .session_query import validate_query
+            validate_query(selector['query'])
         else:
-            raise ValueError('query selector reserved for required follow-up')
+            raise ValueError('Unknown Session selector mode')
     else:
         raise ValueError('Execution kind must be api, command or session_operation')
     return action
@@ -156,6 +163,9 @@ class Store:
 
     def put(self, kind, raw, expected=None, draft=False, create=False):
         def change(state):
+            if kind == 'actions':
+                from .session_query import validate_action_query
+                validate_action_query(raw)
             value = copy.deepcopy(raw)
             if isinstance(value, dict) and 'id' not in value:
                 # Allocate under the same registry writer as publication. Names
