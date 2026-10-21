@@ -16,7 +16,7 @@ Source facts and resulting behavior:
 
 Naming contract and audited boundaries:
 
-- Latest user instruction takes precedence: the frontend **may leave Name blank**. `/api/jobs` retains the existing automatic `job-N` algorithm before invoking process creation. The existing NewJobForm Name entry remains optional; explicit names over 200 trimmed characters are rejected.
+- Direct user override received in the TA conversation: “但是用户前端允许不填写job name，空的时候按照现有逻辑自动生成job name”. It arrived after the forwarded instruction requiring name. This is the source of the candidate behavior; the MA later reported that this direct override was not visible in its context. The frontend **may leave Name blank**. `/api/jobs` retains the existing automatic `job-N` algorithm before invoking process creation. The existing NewJobForm Name entry remains optional; explicit names over 200 trimmed characters are rejected.
 - `agent_background_start` now has required keyword `name`, optional `label`; its actual MCP tool schema is tested. Name must be a nonblank string of at most 200 trimmed characters. It forwards to `/api/background-jobs`, which now forwards name to the process registry. The core process start and independent service reject missing/blank/overlong new names before spawning. Label remains optional.
 - Production process callers audited: unified Job API, legacy background HTTP API, core retry, scheduled-shell child creation, service lifecycle creation, MCP start and the navigation fixture. Retry explicitly preserves the previous displayed name (bounded for the new record); old independent payload replay is checked before validating a new insertion. New lifecycle Jobs use operation/port names. Scheduled-shell children already have parent-derived meaningful names.
 - Session-message/broadcast scheduling APIs, scheduler task definitions and templates are a separate scheduling boundary: their existing optional/automatic names and signatures are retained. They are not routed through the ordinary process start contract. No broad removal of automatic names was made. Existing persisted Job reads and names are unchanged, including overlong historical names; no migration or registry rewrite was added.
@@ -58,3 +58,21 @@ Evidence is in `evidence/jobs-controls-sort/`: final logs/JUnit, browser-result.
 Real process evidence is separate from browser fixtures: `test_cancel_proves_and_terminates_the_owned_process_tree` creates and cancels its own temporary independent Job via the real HTTP service, with process-tree termination checks; lifecycle/launcher tests likewise own their temporary roots and processes. No real user Job was cancelled. The browser fixture is not an end-to-end cancellation against a running full Pan instance.
 
 Limits: no full suite, protected service, release, push, merge or interactive human acceptance. One existing test is skipped because registering a temporary Windows task requires explicit opt-in (`test_external_user_host_survives_real_pan_graceful_and_job_tree_exit`). Pytest reports existing timeout-plugin, Pydantic forward-reference and Starlette/httpx warnings. Build retains existing dynamic-import/chunk-size warnings. Dependencies were reused through a local node_modules junction; no dependency installation or lockfile update was performed.
+
+
+## MA baseline integration and naming conflict follow-up
+
+MA requested integration of `69ca7574912f57f4b8cc63e2f57a119962ab7a0a`. It was merged into this isolated branch as `24203a13` without conflicts. `69ca7574` is an ancestor; Action implementation remains identical to that baseline and Jobs product implementation remains identical to `02014ac6`. Task A API/skill additions remain present.
+
+The TA did receive a direct user override that MA apparently did not see: **“但是用户前端允许不填写job name，空的时候按照现有逻辑自动生成job name”**. This was a standalone user-role message between the forwarded naming assignment and the TA response acknowledging optional frontend Name. It was not inferred from code or a skill. Per the current MA instruction to report direct override evidence before reversing behavior, this follow-up does **not** change the frontend to required Name or tighten `/api/jobs` against blank Name. Naming policy therefore remains explicitly pending reconciliation with MA/user, and the candidate is not marked accepted. MCP/process-name requirements remain as previously implemented.
+
+Post-merge targeted coexistence validation:
+
+- Frontend: ActionsView, PluginSelection, JobsView search/bulk/schedule, JobDetailDrawer, NewJobForm window and jobStore: **66 passed / 7 files**.
+- `python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_groups.py tests/test_background_job_api.py tests/test_jobs_api.py -o addopts= -q`: **141 passed**; JUnit/log `coexistence.*`.
+- Report subscription/agent subscription: **41 passed**; `task-a-coexistence.*`.
+- `tests/test_report_reads.py`: passed; exact counts in `task-a-reads.*`.
+- Build (includes TypeScript) and 72 compressed-asset validation: passed; `coexistence-build.log`. Existing bundle warnings remain.
+- Scoped ESLint on JobsView, ActionsView, shared API and JobDetailDrawer: passed.
+- Final production Jobs browser: passed again at owned ephemeral port **51977**, zero page errors, Cancel POSTs 2, DELETEs 0, desktop/mobile layouts and live updates verified. Fixture server/browser closed. Action browser against a real HTTP instance was not rerun in this follow-up; Action coexistence is covered by targeted backend/UI tests and build.
+- No main/practical update, push, release, protected-service operation, full suite or subdelegation. No naming behavior was silently reversed.
