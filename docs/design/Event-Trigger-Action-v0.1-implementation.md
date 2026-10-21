@@ -33,4 +33,3 @@ workspaceIds 使用现有托管根 effective_workspace_ids，pinned 使用共享
 新增后端模板/语法发现支持，Agent 草稿仍关闭、Trigger 用户授权和旧 Group/provider
 安全门禁不变。完整字段/参数/边界以 core-contract 的 Session query 小节为准。
 本任务不改 React、外部插件适配或其他 TA 工作树，不移动 main/practical。
-

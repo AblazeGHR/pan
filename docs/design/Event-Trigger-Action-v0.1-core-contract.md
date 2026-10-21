@@ -267,4 +267,3 @@ selection diagnostics. Cancellation/write failure/uncertain behavior is unchange
 Recovered running/uncertain Runs never requery or replay their target set. Queued
 Runs that have never started resolve once when they actually start after recovery.
 No target recomputation or generic retry API is introduced.
-
