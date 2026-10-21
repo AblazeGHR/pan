@@ -1,0 +1,81 @@
+{
+  "identity": {
+    "pid": 47492,
+    "port": 56396,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-review-1792610670002",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-review-1792610670002\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "posts": [
+    {
+      "item": {
+        "id": "trg_c2f866e76d2d4008b70dca32e852c9d3",
+        "name": "Literal review",
+        "description": "",
+        "enabled": false,
+        "eventTypes": [
+          "workers.all_idle"
+        ],
+        "condition": {
+          "and": [
+            {
+              "field": "workers.runningCount",
+              "op": "eq",
+              "value": 22
+            }
+          ]
+        },
+        "actionId": "fixture_pause",
+        "arguments": {},
+        "executionMode": "serial"
+      },
+      "expectedRevision": 1
+    },
+    {
+      "item": {
+        "id": "trg_c2f866e76d2d4008b70dca32e852c9d3",
+        "name": "Literal review",
+        "description": "Unrelated rerender",
+        "enabled": false,
+        "eventTypes": [
+          "workers.all_idle"
+        ],
+        "condition": {
+          "and": [
+            {
+              "field": "workers.runningCount",
+              "op": "eq",
+              "value": 22
+            }
+          ]
+        },
+        "actionId": "fixture_pause",
+        "arguments": {},
+        "executionMode": "serial"
+      },
+      "expectedRevision": 2
+    },
+    {
+      "item": {
+        "id": "trg_c2f866e76d2d4008b70dca32e852c9d3",
+        "name": "Literal review",
+        "description": "",
+        "enabled": false,
+        "eventTypes": [
+          "workers.all_idle"
+        ],
+        "condition": {
+          "field": "workers.runningCount",
+          "op": "eq",
+          "value": 0
+        },
+        "actionId": "fixture_pause",
+        "arguments": {},
+        "executionMode": "serial"
+      },
+      "expectedRevision": 4
+    }
+  ],
+  "noPageErrors": true
+}

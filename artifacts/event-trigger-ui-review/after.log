@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/src
+
+ ✓ components/automation/fields.test.tsx (5 tests) 89ms
+ ✓ views/AutomationView.test.tsx (13 tests) 835ms
+
+ Test Files  2 passed (2)
+      Tests  18 passed (18)
+   Start at  03:25:15
+   Duration  2.76s (transform 109ms, setup 20ms, collect 504ms, tests 924ms, environment 1.18s, prepare 229ms)
+
+JUNIT report written to D:/project/pan-worktrees/event-trigger-ui-20261022/artifacts/event-trigger-ui-review/after.xml

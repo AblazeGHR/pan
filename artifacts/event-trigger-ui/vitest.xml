@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="23" failures="0" errors="0" time="2.486">
+    <testsuite name="views/ActionsView.test.tsx" timestamp="2026-10-21T19:09:29.313Z" hostname="ablaze" tests="9" failures="0" errors="0" skipped="0" time="0.4775262">
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; edits API drafts whose valid object schema omits properties" time="0.0963739">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; creates an Action with typed input fields and fixed command argv" time="0.0689306">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; edits shared references through Group selection and displays build metadata" time="0.0329181">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; keeps user edits and shows write errors" time="0.0560567">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; ignores stale Session loads and uses shared plugin bindings with English modes" time="0.0527682">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; keeps a committed creation ID when the follow-up catalog read fails" time="0.0484979">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; shows three regions and saves the generated identity on later edits" time="0.0682545">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; does not submit malformed advanced JSON and keeps the text for repair" time="0.0317128">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; explains an empty Session list in the Group binding context" time="0.0209951">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-21T19:09:29.323Z" hostname="ablaze" tests="9" failures="0" errors="0" skipped="0" time="0.5434947">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs" time="0.190932">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.0768424">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.0909521">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.0482926">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0005596">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0007002">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.1059066">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0282274">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0004415">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/ViewEntryGroups.test.tsx" timestamp="2026-10-21T19:09:29.327Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0972888">
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; renders no badge when no job is running" time="0.0519978">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; floats the count at the bottom-right corner over the Jobs entry" time="0.0211828">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; navigates when the floating badge itself is clicked" time="0.0093406">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; caps the count at 99+" time="0.0055411">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; hides the badge again when the last running job settles" time="0.0085492">
+            <system-err>
+No routes matched location &quot;/&quot;
+
+            </system-err>
+        </testcase>
+    </testsuite>
+</testsuites>

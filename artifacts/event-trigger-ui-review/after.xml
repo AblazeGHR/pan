@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="18" failures="0" errors="0" time="2.765">
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-21T19:25:18.218Z" hostname="ablaze" tests="13" failures="0" errors="0" skipped="0" time="0.8352334">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs" time="0.1740279">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.0776539">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.0983241">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.0591675">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.000543">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.000602">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.0926246">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0219442">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0003448">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.0780517">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards accepted switching, but blocks departure and duplicate submits while saving" time="0.0623694">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.0925257">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.0763856">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/automation/fields.test.tsx" timestamp="2026-10-21T19:25:18.223Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.088705">
+        <testcase classname="components/automation/fields.test.tsx" name="keeps the surviving literal display equal to the condition after deleting its predecessor" time="0.0532162">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="syncs an external literal and clears obsolete custom validity" time="0.0049399">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="retains unfinished invalid text on the surviving condition and on unrelated rerenders" time="0.0121735">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="preserves a valid unnormalized lexeme through its own edit and a sibling edit" time="0.0093817">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="replacing the condition structure resets obsolete literal buffers and validity" time="0.0084673">
+        </testcase>
+    </testsuite>
+</testsuites>
