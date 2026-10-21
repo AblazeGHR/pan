@@ -1,5 +1,8 @@
 # Independent Action Group acceptance — 2026-10-21
 
+Latest integration candidate: [INTEGRATION-CANDIDATE.md](INTEGRATION-CANDIDATE.md).
+The following initial disposition is historical; MA acceptance remains pending.
+
 Follow-up repair checkpoint: [B1-REPAIR.md](B1-REPAIR.md). The original findings
 below remain historical evidence; the follow-up candidate awaits MA acceptance.
 
