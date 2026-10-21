@@ -10,6 +10,14 @@ _attempts: dict[tuple[str, str], asyncio.Task] = {}
 UNAVAILABLE = {"ok": False, "error": "item_unavailable"}
 
 
+def _own_session(session_id):
+    # Cold shallow reads are detached projections. Mutation and receipt queries
+    # must share one canonical object with queue/Worker coordinators, without
+    # hydrating the entire history. There is no await between lookup and pin.
+    s = worker._get_session_shallow(session_id)
+    return sess._cache.setdefault(session_id, s) if s is not None else None
+
+
 def _eligible(s, item):
     if s.readonly_session or not worker.queue_item_eligible(s, item):
         return False
@@ -52,13 +60,21 @@ async def _confirmed(s, *, already=False, receipt=None):
 
 
 async def read(session_id: str) -> dict:
-    s = worker._get_session_shallow(session_id)
+    s = _own_session(session_id)
     if s is None:
         return {"ok": False, "error": "caller_unavailable"}
     async with worker.queue_lock(session_id):
         # No queue revision, position or total: these would reveal hidden rows.
         items = []
         for item in s.queue_pending:
+            if worker._is_pauseable_agent_report(item):
+                # Never allocate a legacy report ID or expose its body/parts.
+                identity = item.get("queueItemId") or item.get("id")
+                if (isinstance(identity, str) and identity
+                        and _eligible(s, dict(item, queueItemId=identity))):
+                    items.append({"id": identity, "queueItemId": identity,
+                                  "type": "report", "source": "report"})
+                continue
             if _eligible(s, item):
                 value = copy.deepcopy(item)
                 for key in list(value):
@@ -74,7 +90,7 @@ async def read(session_id: str) -> dict:
 
 async def report_status(session_id: str) -> dict:
     """Own persisted subscription configuration, without queue/body counts."""
-    s = worker._get_session_shallow(session_id)
+    s = _own_session(session_id)
     if s is None:
         return {"ok": False, "error": "caller_unavailable"}
     async with worker.queue_lock(session_id):
@@ -83,38 +99,155 @@ async def report_status(session_id: str) -> dict:
                 "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False))}
 
 
-async def report_next(session_id: str) -> dict:
-    """Peek the first visible child-agent report; no reservation or consumption.
+_report_attempts: dict[str, asyncio.Task] = {}
 
-    Reuse own-queue eligibility, but never allocate IDs for legacy rows or
-    write missing queueItemId aliases into live rows during a read.
-    """
-    s = worker._get_session_shallow(session_id)
+
+def _report_receipt(s, item_id):
+    """Metadata only. A provided original ID queries a frozen unit, never retries."""
+    if (s.readonly_session or s.queue_paused or worker._native_handoff_blocked(s)
+            or any(worker.queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks))):
+        return dict(UNAVAILABLE)
+    anchor = next((row for row in s.queue_pending
+                   if (row.get("queueItemId") or row.get("id")) == item_id), None)
+    anchor = anchor or worker._ledger_record(s, item_id)
+    if not anchor or not anchor.get("reportConsumeIds"):
+        return dict(UNAVAILABLE)
+    ids = anchor["reportConsumeIds"]
+    if (not isinstance(ids, list) or not ids
+            or not all(isinstance(identity, str) and identity for identity in ids)
+            or len(ids) != len(set(ids))):
+        return dict(UNAVAILABLE)
+    rows = []
+    for identity in ids:
+        row = next((row for row in s.queue_pending
+                    if (row.get("queueItemId") or row.get("id")) == identity), None)
+        if row is not None:
+            candidate = dict(row)
+            # Our transaction's uncertainty is queryable, but user/policy gates
+            # still hide its identity. These fields are NEVER cleared in storage.
+            candidate.pop("queueSteerPending", None)
+            candidate.pop("selfConsumeUncertain", None)
+            if not worker.queue_item_eligible(s, candidate, queued=False):
+                return dict(UNAVAILABLE)
+        else:
+            row = worker._ledger_record(s, identity)
+        if row is None or row.get("reportConsumeIds") != ids:
+            return {"ok": False, "status": "unknown", "retryable": False}
+        rows.append(row)
+    status = "queued"
+    if all(worker._delivery_state(row) == worker._DELIVERY_SENT for row in rows):
+        status = "accepted"
+    elif any(row.get("queueSteerPending") or row.get("selfConsumeUncertain") for row in rows):
+        status = "unknown"
+    elif any(row.get("lastSteerError") for row in rows):
+        status = "rejected"
+    elif any(worker._delivery_state(row) != worker._DELIVERY_QUEUED for row in rows):
+        status = "pending"
+    return {"ok": status == "accepted", "status": status, "itemId": ids[0],
+            "queueItemIds": list(ids), "retryable": False}
+
+
+async def report_consume(session_id: str, item_id: str | None = None) -> dict:
+    """Own a shielded attempt; explicit IDs only inspect the original receipt."""
+    s = _own_session(session_id)
+    if s is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    if item_id is not None:
+        async with worker.queue_lock(session_id):
+            receipt = _report_receipt(s, item_id)
+            if receipt.get("status") == "accepted":
+                confirmed = await _confirmed(s, already=True)
+                if not confirmed.get("ok"):
+                    receipt.update(ok=False, status="unconfirmed")
+            return receipt
+    # The existing native runtime validator/Worker lifecycle reads full own
+    # history. Hydrate in place BEFORE capturing original row references; late
+    # hydration would replace queue objects under a reserved transaction.
+    s = sess.get(session_id)
+    if s is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    task = _report_attempts.get(session_id)
+    if task is None:
+        task = asyncio.create_task(_report_consume(session_id))
+        _report_attempts[session_id] = task
+        def finished(done):
+            if _report_attempts.get(session_id) is done:
+                _report_attempts.pop(session_id, None)
+            if not done.cancelled():
+                done.exception()
+        task.add_done_callback(finished)
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), 10)
+    except asyncio.TimeoutError:
+        async with worker.queue_lock(session_id):
+            row = next((row for row in s.queue_pending if row.get("reportConsumeIds")), None)
+            return _report_receipt(s, row["reportConsumeIds"][0]) if row else {
+                "ok": False, "status": "pending", "retryable": False}
+
+
+async def _report_consume(session_id: str) -> dict:
+    s = _own_session(session_id)
     if s is None:
         return {"ok": False, "error": "caller_unavailable"}
     async with worker.queue_lock(session_id):
-        for item in s.queue_pending:
-            if not worker._is_pauseable_agent_report(item):
-                continue
-            identity = item.get("queueItemId") or item.get("id")
-            if not isinstance(identity, str) or not identity:
-                continue
-            candidate = dict(item, queueItemId=identity)
-            if not _eligible(s, candidate):
-                continue
-            value = {key: copy.deepcopy(item[key]) for key in (
-                "type", "kind", "source", "sourceSessionId", "sessionId",
-                "status", "result", "taskId", "workerId", "createdAt", "revision",
-            ) if key in item}
-            value["queueItemId"] = identity
-            return {"ok": True, "report": value}
-        # Empty, hidden, handed-off and legacy-unaddressable queues are not
-        # distinguishable. Do not expose hidden IDs, counts or positions.
-        return {"ok": True, "report": None}
+        # An unfinished frozen unit always wins. Never regroup an uncertain write.
+        prior = next((row for row in s.queue_pending if row.get("reportConsumeIds")), None)
+        if prior is not None:
+            return _report_receipt(s, prior["reportConsumeIds"][0])
+        if (s.readonly_session or s.queue_paused or worker._native_handoff_blocked(s)
+                or worker._offline.is_illegal(s)
+                or any(worker.queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks))):
+            return dict(UNAVAILABLE)
+        selected = []
+        for row in s.queue_pending:
+            identity = row.get("queueItemId") or row.get("id")
+            if (worker._is_pauseable_agent_report(row) and isinstance(identity, str) and identity
+                    and not row.get("selfConsumeRequested")
+                    and _eligible(s, dict(row, queueItemId=identity))):
+                selected.append(row)
+        ids = [row.get("queueItemId") or row["id"] for row in selected]
+        if not ids or len(ids) != len(set(ids)):
+            return dict(UNAVAILABLE)
+        outcome = sess.DurableOutcome()
+        def apply():
+            old_queue = list(s.queue_pending)
+            originals = [(row, dict(row)) for row in selected]
+            old_revision = s.queue_revision
+            try:
+                if (s.readonly_session or worker._offline.is_illegal(s)
+                        or any(not _eligible(s, row) for row in selected)):
+                    raise ValueError("report unavailable")
+                for row in selected:
+                    row["reportConsumeIds"] = list(ids)
+                    row["selfConsumeRequested"] = True
+                chosen = {id(row) for row in selected}
+                s.queue_pending = selected + [row for row in s.queue_pending if id(row) not in chosen]
+                s.queue_revision += 1
+                sess._save_body(s)
+            except BaseException:
+                s.queue_pending = old_queue
+                for row, original in originals:
+                    row.clear(); row.update(original)
+                s.queue_revision = old_revision
+                raise
+        try:
+            await sess._persist_async_outcome(s.id, apply, outcome)
+        except asyncio.CancelledError:
+            if not outcome.succeeded:
+                raise
+        except Exception:
+            return {"ok": False, "error": "persist_failed", "retryable": True}
+    # Reuse self-consume's actual Force/Steer routing, never enqueue new bodies.
+    result = await _consume(session_id, ids[0], requested_batch=True)
+    async with worker.queue_lock(session_id):
+        receipt = _report_receipt(s, ids[0])
+        if receipt.get("status") == "accepted" and not result.get("ok"):
+            receipt.update(ok=False, status="unconfirmed")
+        return receipt
 
 
 async def consume(session_id: str, item_id: str) -> dict:
-    s = worker._get_session_shallow(session_id)
+    s = sess.get(session_id)
     if s is None:
         return {"ok": False, "error": "caller_unavailable"}
     async with worker.queue_lock(session_id):
@@ -143,8 +276,8 @@ async def consume(session_id: str, item_id: str) -> dict:
         return {"ok": False, "status": "pending", "retryable": False}
 
 
-async def _consume(session_id: str, item_id: str) -> dict:
-    s = worker._get_session_shallow(session_id)
+async def _consume(session_id: str, item_id: str, *, requested_batch=False) -> dict:
+    s = _own_session(session_id)
     if s is None:
         return {"ok": False, "error": "caller_unavailable"}
     async with worker.queue_lock(session_id):
@@ -160,9 +293,9 @@ async def _consume(session_id: str, item_id: str) -> dict:
             return dict(UNAVAILABLE)
         if s.readonly_session:
             return dict(UNAVAILABLE)
-        if item.get("selfConsumeRequested"):
+        if item.get("selfConsumeRequested") and not requested_batch:
             return {"ok": False, "status": "pending", "retryable": False}
-        if any(isinstance(it, dict) and it.get("selfConsumeRequested") and _eligible(s, it)
+        if not requested_batch and any(isinstance(it, dict) and it.get("selfConsumeRequested") and _eligible(s, it)
                for it in s.queue_pending):
             return {"ok": False, "status": "pending", "retryable": False}
         w = worker.find_alive_worker_by_session(session_id)
@@ -170,7 +303,7 @@ async def _consume(session_id: str, item_id: str) -> dict:
         route = worker.steer_delivery_route(w, s)
         native = route == "steer"
         revision = item.get("revision", 1)
-        if not native:
+        if not native and not requested_batch:
             # Candidate apply/save/rollback belong to ONE ordered ticket. A
             # previously queued writer cannot persist a failed candidate.
             outcome = sess.DurableOutcome()
@@ -223,8 +356,9 @@ async def _consume(session_id: str, item_id: str) -> dict:
             await worker._wake_worker(session_id)
             result = w
         elif (w is not None and w.status in {"idle", "queued"}
-                and worker.resolve_execution_mode(w.adapter, s) == "stream"
-                and getattr(w.adapter, "supports_native_steer", False)):
+                and (requested_batch or (
+                    worker.resolve_execution_mode(w.adapter, s) == "stream"
+                    and getattr(w.adapter, "supports_native_steer", False)))):
             # There is no active turn to interrupt. The existing consumer also
             # owns delayed-restart priority; a wakeup does not cancel it.
             await worker._wake_worker(session_id)

@@ -163,7 +163,8 @@ def test_stop_reports_uses_actual_auto_locks_not_future_rule(monkeypatch):
         await server.api_session_queue_item_lock(s.id, "report", {"locked": False})
         visible = (await self_queue.read(s.id))["items"]
         assert s.agent_reports_paused
-        assert "R" * 900 in visible[1]["content"]
+        assert visible[1] == {"id": "report", "queueItemId": "report", "type": "report", "source": "report"}
+        assert "R" * 900 not in str(visible)
         await server.api_session_queue_locks(s.id, {"locked": True})
         assert (await self_queue.read(s.id))["items"] == []
     asyncio.run(run())

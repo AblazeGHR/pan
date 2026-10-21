@@ -3581,6 +3581,22 @@ async def _legacy_consumer_reference(w: Worker):
 # one large, fragile edit.
 
 
+def _report_consume_unit(s, item) -> list[dict] | None:
+    """Resolve a frozen report unit from original IDs; never split or invent it."""
+    ids = item.get("reportConsumeIds")
+    if (not isinstance(ids, list) or not ids
+            or not all(isinstance(value, str) and value for value in ids)
+            or len(ids) != len(set(ids))):
+        return None
+    rows = [row for row in s.queue_pending
+            if (row.get("queueItemId") or row.get("id")) in ids]
+    if ([row.get("queueItemId") or row.get("id") for row in rows] != ids
+            or any(row.get("reportConsumeIds") != ids or not _is_pauseable_agent_report(row)
+                   for row in rows)):
+        return None
+    return rows
+
+
 def _select_queue_unit(s) -> list[dict] | None:
     """Select the first unlocked queued unit in durable FIFO order."""
     if getattr(s, "queue_paused", False) or _native_handoff_blocked(s):
@@ -3595,6 +3611,13 @@ def _select_queue_unit(s) -> list[dict] | None:
             # reserved/writing/sent rows belong to the current/recovering
             # hand-off.  They must not let a later item overtake them.
             return None
+        if item.get("reportConsumeIds"):
+            unit = _report_consume_unit(s, item)
+            # An existing batch is indivisible, even after edits/setting changes.
+            if (not unit or unit[0] is not item
+                    or any(not queue_item_eligible(s, row) for row in unit)):
+                return None
+            return unit
         if _queue_item_locked(item):
             continue
         if not _retry_due(item):
@@ -3612,7 +3635,8 @@ def _select_queue_unit(s) -> list[dict] | None:
             if _queue_item_locked(follower):
                 # A locked row remains in place and ends this delivery batch.
                 break
-            if (_queue_item_kind(follower) not in {"report", "qq", "wechat"}
+            if (follower.get("reportConsumeIds")
+                    or _queue_item_kind(follower) not in {"report", "qq", "wechat"}
                     or not _is_dispatchable(follower)
                     or queue_item_edit_locked(s, _queue_item_id(follower))):
                 break
@@ -4554,7 +4578,7 @@ _RECEIPT_COMPACT_KEYS = frozenset({
     "jobId", "creatorSessionId", "targetSessionId", "targetSessionIds",
     "status", "workerId", "seq", "revision", "createdAt", "updatedAt",
     "receiptAt", "deliveredAt", "deletedAt", "deliveryState",
-    "dispatchState", "receiptVersion", "receiptOnly",
+    "dispatchState", "receiptVersion", "receiptOnly", "reportConsumeIds",
 })
 
 
@@ -9948,6 +9972,11 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 return "Queue item is locked or awaiting Steer confirmation"
             if any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks)):
                 return "Cannot Steer while a queued message is being edited"
+            items = _report_consume_unit(s, item) if item.get("reportConsumeIds") else [item]
+            if (not items or items[0] is not item
+                    or (item.get("reportConsumeIds")
+                        and any(not queue_item_eligible(s, row) for row in items))):
+                return "Report batch is unavailable"
             kind = _queue_item_kind(item)
             if kind == "task":
                 if not _is_valid_task_item(item) or _task_source(item) is None:
@@ -9965,9 +9994,9 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                 except ValueError as exc:
                     return f"Queue attachment cannot be steered: {exc}"
             elif kind in {"report", "qq", "wechat"}:
-                if item.get("parts"):
+                if any(row.get("parts") for row in items):
                     return "Structured report/channel attachments cannot be steered losslessly"
-                history_text = native_text = _format_report_batch([item])
+                history_text = native_text = _format_report_batch(items)
             else:
                 return "Unknown queue kind cannot be steered losslessly"
             # Encode before reserving: encoding failure proves no provider write.
@@ -9984,20 +10013,22 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             # Apply, write and failed rollback inside the same writer ticket.
             durable = _sess.DurableOutcome()
             def apply_reservation():
-                original = dict(item)
+                originals = [(row, dict(row)) for row in items]
                 old_revision = s.queue_revision
                 try:
-                    item["queueSteerPending"] = True
-                    item["queueSteerRequestId"] = request_id
-                    item["queueSteerWorkerId"] = w.worker_id
-                    item["queueSteerGeneration"] = generation
-                    if origin is not None:
-                        item["queueSteerOrigin"] = origin
+                    for row in items:
+                        row["queueSteerPending"] = True
+                        row["queueSteerRequestId"] = request_id
+                        row["queueSteerWorkerId"] = w.worker_id
+                        row["queueSteerGeneration"] = generation
+                        if origin is not None:
+                            row["queueSteerOrigin"] = origin
                     s.queue_revision += 1
                     _sess._save_body(s)
                 except BaseException:
-                    item.clear()
-                    item.update(original)
+                    for row, original in originals:
+                        row.clear()
+                        row.update(original)
                     s.queue_revision = old_revision
                     raise
             try:
@@ -10007,11 +10038,12 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     raise
                 # Cancellation may follow a successful ticket. In either case
                 # no control has been written: durably release the reservation.
-                item.pop("queueSteerPending", None)
-                item.pop("queueSteerRequestId", None)
-                item.pop("queueSteerWorkerId", None)
-                item.pop("queueSteerGeneration", None)
-                item.pop("queueSteerOrigin", None)
+                for row in items:
+                    row.pop("queueSteerPending", None)
+                    row.pop("queueSteerRequestId", None)
+                    row.pop("queueSteerWorkerId", None)
+                    row.pop("queueSteerGeneration", None)
+                    row.pop("queueSteerOrigin", None)
                 s.queue_revision += 1
                 cleanup = _own_queue_steer_task(_persist_queue_steer_state(w, s))
                 while not cleanup.done():
@@ -10020,15 +10052,25 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     except asyncio.CancelledError:
                         continue
                 raise
-            if (w.native_control_mode != "pan" or not _control_runtime_matches(w.worker_id, runtime)
+            def still_allowed(row):
+                candidate = dict(row)
+                candidate.pop("queueSteerPending", None)
+                if candidate.get("forceSend"):
+                    candidate.pop("forceSendHeld", None)
+                return queue_item_eligible(s, candidate)
+            if (s.readonly_session or (item.get("reportConsumeIds") and _offline.is_illegal(s))
+                    or any(not still_allowed(row) for row in items)
+                    or any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks))
+                    or w.native_control_mode != "pan" or not _control_runtime_matches(w.worker_id, runtime)
                     or w.status != "running" or (origin is not None and
                     (w._terminal_handled or w._steer_run_id != origin["runId"]))
                     or process is None or process.returncode is not None or stdin is None):
-                item.pop("queueSteerPending", None)
-                item.pop("queueSteerRequestId", None)
-                item.pop("queueSteerWorkerId", None)
-                item.pop("queueSteerGeneration", None)
-                item.pop("queueSteerOrigin", None)
+                for row in items:
+                    row.pop("queueSteerPending", None)
+                    row.pop("queueSteerRequestId", None)
+                    row.pop("queueSteerWorkerId", None)
+                    row.pop("queueSteerGeneration", None)
+                    row.pop("queueSteerOrigin", None)
                 s.queue_revision += 1
                 await _persist_queue_steer_state(w, s)
                 return "Worker turn ended before Steer handoff"
@@ -10044,7 +10086,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
                     if not done.cancelled():
                         disposition, detail = _steer_receipt_result(done.result())
                         _own_queue_steer_task(_settle_queue_steer(
-                            w, s, item, history_text, detail, request_id, generation,
+                            w, s, items, history_text, detail, request_id, generation,
                             disposition=disposition))
                 future.add_done_callback(settle_receipt)
             # This synchronous write is the pause/lease linearization boundary.
@@ -10058,7 +10100,7 @@ async def _steer_queue_item(session_id: str, item_id: str, expected_revision: in
             except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
                 write_error = str(exc)
             owner = _own_queue_steer_task(_finish_queue_steer(
-                w, s, item, history_text, request_id, generation, process,
+                w, s, items, history_text, request_id, generation, process,
                 future if wants_receipt else None, write_error, outcome=outcome, stdin=stdin))
     # No lifecycle or queue lock is held while drain/RPC/broadcast is awaited.
     return await asyncio.shield(owner)
@@ -10099,20 +10141,22 @@ async def _finish_queue_steer(w, s, item, text, request_id, generation, process,
 async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error: str | None,
                             request_id: str, generation: int, *, disposition: str = "unknown"):
     """Apply an authoritative receipt, including one arriving after HTTP timeout."""
+    items = item if isinstance(item, list) else [item]
+    item = items[0]
     delivery = None
     async with queue_lock(s.id):
-        if (not any(candidate is item for candidate in s.queue_pending)
-                or not item.get("queueSteerPending") or item.get("queueSteerRequestId") != request_id
-                or item.get("queueSteerWorkerId") != w.worker_id or item.get("queueSteerGeneration") != generation):
+        if any(not any(candidate is row for candidate in s.queue_pending)
+               or not row.get("queueSteerPending") or row.get("queueSteerRequestId") != request_id
+               or row.get("queueSteerWorkerId") != w.worker_id or row.get("queueSteerGeneration") != generation
+               for row in items):
             return
         if error:
-            if disposition == "rejected":
-                item.pop("queueSteerPending", None)
-                item.pop("queueSteerRequestId", None)
-                item.pop("queueSteerWorkerId", None)
-                item.pop("queueSteerGeneration", None)
-                item.pop("queueSteerOrigin", None)
-            item["lastSteerError"] = error
+            for row in items:
+                if disposition == "rejected":
+                    for key in ("queueSteerPending", "queueSteerRequestId", "queueSteerWorkerId",
+                                "queueSteerGeneration", "queueSteerOrigin"):
+                        row.pop(key, None)
+                row["lastSteerError"] = error
             s.queue_revision += 1
             await _persist_queue_steer_state(w, s)
             if (not item.get("queueSteerPending") and workers.get(w.worker_id) is w
@@ -10120,25 +10164,25 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
                 _wake_after_queue_unit(w, s)
         else:
             origin = item.get("queueSteerOrigin")
-            item.pop("queueSteerPending", None)
-            item.pop("queueSteerRequestId", None)
-            item.pop("queueSteerWorkerId", None)
-            item.pop("queueSteerGeneration", None)
-            item.pop("queueSteerOrigin", None)
-            row = _queue_history_row([item], history_text)
+            for member in items:
+                for key in ("queueSteerPending", "queueSteerRequestId", "queueSteerWorkerId",
+                            "queueSteerGeneration", "queueSteerOrigin"):
+                    member.pop(key, None)
+            row = _queue_history_row(items, history_text)
             if origin is not None:
                 row["steer"] = dict(origin)
             _sess.append_history(s, row)
-            # Provider accepted: never requeue on a later persistence failure.
-            _set_delivery_state(s, item, _DELIVERY_SENT)
-            if origin is not None:
-                s.queue_delivery_ledger[_queue_item_id(item)]["steer"] = dict(origin)
+            # One native admission, one history row, one receipt per original ID.
+            for member in items:
+                _set_delivery_state(s, member, _DELIVERY_SENT)
+                if origin is not None:
+                    s.queue_delivery_ledger[_queue_item_id(member)]["steer"] = dict(origin)
             s.queue_revision += 1
-            _remove_queue_items_by_identity(s, [item])
+            _remove_queue_items_by_identity(s, items)
             await _persist_queue_steer_state(w, s)
             delivery = {"type": "queue.item_delivered", "sessionId": s.id,
-                          "queueItemIds": [_queue_item_id(item)], "queueRevision": s.queue_revision,
-                          "messages": [_public_queue_receipt({**row, **_queue_origin_metadata([item])})]}
+                          "queueItemIds": [_queue_item_id(member) for member in items], "queueRevision": s.queue_revision,
+                          "messages": [_public_queue_receipt({**row, **_queue_origin_metadata(items)})]}
     if delivery is not None:
         await _queue_steer_bcast(delivery)
     await _queue_steer_bcast({"type": "queue.snapshot", "sessionId": s.id,
@@ -10315,7 +10359,7 @@ async def _auto_force_item(session_id: str, item_id: str,
     item = next((queued for queued in (s.queue_pending or [])
                  if isinstance(queued, dict)
                  and _queue_item_id(queued) == item_id), None)
-    if item is None:
+    if item is None or item.get("reportConsumeIds"):
         return {"status": "skipped", "reason": "not_queued"}
     if not auto_force_settings().get(source_class):
         return {"status": "skipped", "reason": "disabled"}
@@ -10370,7 +10414,7 @@ async def _auto_force_restart_item(session_id: str, item_id: str) -> dict:
             item = next((queued for queued in (s.queue_pending or [])
                          if isinstance(queued, dict)
                          and _queue_item_id(queued) == item_id), None)
-            if item is None or _delivery_state(item) != _DELIVERY_QUEUED:
+            if item is None or item.get("reportConsumeIds") or _delivery_state(item) != _DELIVERY_QUEUED:
                 return {"status": "skipped", "reason": "not_queued"}
             if (queue_item_edit_locked(s, item_id)
                     or _queue_item_locked(item)

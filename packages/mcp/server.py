@@ -137,7 +137,8 @@ def _self_queue_api(operation: str, item_id: str | None = None) -> dict:
         return {"ok": False, "error": "caller_unavailable"}
     req = urllib.request.Request(
         f"{_pan_api_url.rstrip('/')}/api/self-queue/{operation}",
-        data=json.dumps({"itemId": item_id} if operation == "consume" else {}).encode("utf-8"),
+        data=json.dumps({"itemId": item_id} if operation == "consume" or (
+            operation == "report-consume" and item_id is not None) else {}).encode("utf-8"),
         method="POST", headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
@@ -153,8 +154,10 @@ def _self_queue_api(operation: str, item_id: str | None = None) -> dict:
 
 @mcp.tool()
 def self_queue_read() -> dict:
-    """Read complete visible messages in your own queue, with original IDs and metadata.
+    """Read visible own queue messages; child-agent reports expose identity only.
 
+    Child-agent report bodies/results/attachments are withheld until actual CLI
+    handoff. Prefer report_consume() for reports; non-report bodies are unchanged.
     Locked, paused and unavailable messages are hidden. Reading does not consume.
     Caller identity is bound by Pan; no session selection is accepted.
     完整编排流程见 /pan skill。
@@ -1494,27 +1497,27 @@ def report_status() -> dict:
 
 
 @mcp.tool()
-def report_next() -> dict:
-    """Peek your first visible persisted child-agent report without consuming it.
+def report_consume(item_id: str | None = None) -> dict:
+    """Force eligible child-agent reports into CLI context as one original-ID batch.
 
-    Returns {ok:true,report:{queueItemId,...,result}} or report=null.
-    queueItemId is the existing durable queue ID, never a newly invented report
-    identity. Legacy rows without an ID are skipped; unrelated notices, Jobs
-    and channel messages are not selected. Uses the same locks, Pause, native
-    owner/Manual, readonly and edit-lease visibility gates as self_queue_read.
-    Stop-report locks and Illegal locks remain authoritative; hidden rows do
-    not reveal their IDs/counts/positions. No total queue size is returned.
+    Call without arguments to persistently group currently processable reports
+    at the queue front in original order, then use native Steer when running
+    and capable, otherwise the existing Force/ordinary idle handoff route.
+    Jobs/channel notices are excluded. Locks, Illegal, stop reports, Pause,
+    readonly, edit leases and native ownership remain authoritative. Hidden
+    reports disclose no IDs/counts. No body, result, snippet or attachment text
+    is returned: inspect real handoff/history to know when context was entered.
 
-    Repeated peeks return the same first visible report until existing queue
-    lifecycle advances. Reading neither reserves, dequeues, acknowledges nor
-    sends it to a CLI; it cannot replay reports already handed off. This is a
-    one-shot read, not a polling/wait loop. Normal subscribed report delivery
-    remains the wakeup path. self_queue_consume actually hands off the original
-    item and is NOT an acknowledgement. No report_ack mutation is defined yet.
-    Only bound local stdio callers can read their own queue; no Session args.
+    Receipt contains only original IDs and handoff status. accepted means CLI
+    admission, never task completion. queued/pending/unconfirmed/unknown are
+    not success. Save itemId and call with that SAME item_id to inspect the
+    frozen batch receipt (query only, never resend). An unfinished batch is
+    never regrouped or automatically replayed after an uncertain write.
+    Bound local stdio own Session only. report_ack/report_next are not offered.
+    The spelling report_comsume refers to this tool; there is no alias.
     完整编排流程见 /pan skill。
     """
-    return _self_queue_api("report-next")
+    return _self_queue_api("report-consume", item_id)
 
 
 @mcp.tool()
