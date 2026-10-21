@@ -1,0 +1,177 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+  "head": "8ddb45ed7ff07c94c6a8313f5c97ee23651da92b",
+  "pid": 23700,
+  "port": 63457,
+  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-picker-web-nwj82uqi",
+  "sessionId": "ses_a974b8c0077082ca",
+  "lifespan": "off: full production app routes/static/WS, no service startup loops",
+  "events": [
+    {
+      "kind": "browser-ready",
+      "time": 1792564780.2032187,
+      "foreground": {
+        "hwnd": 394370,
+        "pid": 29716,
+        "thread": 3252,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394370
+      },
+      "browserProcesses": [
+        {
+          "pid": 23748,
+          "ppid": 34976,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 27304,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 26336,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 32920,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 6064,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 5324,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 12924,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 5168,
+          "ppid": 23748,
+          "name": "msedge.exe"
+        }
+      ]
+    },
+    {
+      "kind": "test-browser-activation-mouse",
+      "time": 1792564780.8078208,
+      "foreground": {
+        "hwnd": 394064,
+        "pid": 23748,
+        "thread": 34644,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394064
+      },
+      "action": "cancel",
+      "mouse": {
+        "x": 173,
+        "y": 43,
+        "lastInputBefore": 2301968,
+        "lastInputAfter": 2301968
+      }
+    },
+    {
+      "kind": "before-browser-click",
+      "time": 1792564780.9685934,
+      "foreground": {
+        "hwnd": 394064,
+        "pid": 23748,
+        "thread": 34644,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394064
+      },
+      "action": "cancel",
+      "lastInput": 2302015,
+      "browserHwnd": 394064
+    },
+    {
+      "kind": "test-native-mouse-button-click",
+      "time": 1792564781.0413556,
+      "foreground": {
+        "hwnd": 394064,
+        "pid": 23748,
+        "thread": 34644,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394064
+      },
+      "action": "cancel",
+      "metrics": {
+        "outerWidth": 1129,
+        "outerHeight": 711,
+        "innerWidth": 1280,
+        "innerHeight": 900,
+        "devicePixelRatio": 0.9999999700984716
+      },
+      "box": {
+        "x": 208.99671936035156,
+        "y": 363.00433349609375,
+        "width": 862.2614593505859,
+        "height": 33.73773193359375
+      },
+      "rect": {
+        "left": 23,
+        "top": 23,
+        "right": 2611,
+        "bottom": 1651
+      },
+      "mouse": {
+        "x": 1317,
+        "y": 634,
+        "lastInputBefore": 2302015,
+        "lastInputAfter": 2302203
+      }
+    },
+    {
+      "kind": "after-browser-click",
+      "time": 1792564781.0415943,
+      "foreground": {
+        "hwnd": 394064,
+        "pid": 23748,
+        "thread": 34644,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394064
+      },
+      "action": "cancel"
+    }
+  ],
+  "cases": [],
+  "error": "Traceback (most recent call last):\n  File \"D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\web_probe.py\", line 148, in <module>\n    asyncio.run(run());report['harnessPassed']=True\n    ~~~~~~~~~~~^^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py\", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\web_probe.py\", line 116, in run\n    assert process is not None,'helper not started'\n           ^^^^^^^^^^^^^^^^^^^\nAssertionError: helper not started\n",
+  "cleanup": {
+    "hostStopped": true,
+    "helpersExited": true,
+    "portClosed": true
+  }
+}

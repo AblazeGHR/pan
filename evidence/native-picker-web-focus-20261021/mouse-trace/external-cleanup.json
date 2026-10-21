@@ -1,0 +1,11 @@
+{
+  "pid": 22712,
+  "creationTime": 1792565105.7722723,
+  "verifiedArgv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\web_probe.py",
+    "mouse-trace"
+  ],
+  "ownedTraceHarnessTerminated": true,
+  "reason": "harness assertion interrupted dialog handling; port already closed but uvicorn thread had not stopped"
+}

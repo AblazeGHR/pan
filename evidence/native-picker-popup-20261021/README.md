@@ -5,7 +5,9 @@ Branch: `fix/native-picker-popup-20261021`
 Baseline: `0a2e5f04d13917cdcf9ff8175f96e97e1411bfbf`
 Original implementation: `fc0c8d6f836509ced4784229b12aacda8dfbc4b5`
 
-**Candidate only: automatic foreground focus is NOT accepted.** The final safe activation request was refused by Windows in both recorded cases. Do not integrate on the assumption that this fully fixes the focus requirement.
+> Follow-up correction: this document records the earlier background route probe. It does not establish failure of a foreground user's Web click. The [production Web / native mouse follow-up](../native-picker-web-focus-20261021/README.md) records successful real foreground button paths, the original-helper comparison, and remaining limits. MA clarified that main/practical restrictions are this TA's delivery boundary, not a prohibition on MA fast-forward after acceptance.
+
+**Earlier probe status:** foreground activation was refused in the two background cases below. Do not extrapolate those cases into a conclusion that a genuine foreground button click cannot focus the dialog.
 
 ## Proven defect before edits
 
@@ -43,7 +45,7 @@ Exit 0. Host PID 14120, port 54459, temporary profile `C:/Users/14709/AppData/Lo
 - Real helpers exited, host thread stopped, port closed, and picker ownership cleared. No visible ConsoleWindowClass appeared among helper-owned windows. This enumeration plus CREATE_NO_WINDOW is evidence for hidden helper consoles, not proof about unrelated console hosts.
 - PrintWindow captures dialog rendering, not desktop foreground. It is partially black/cropped under this desktop's rendering/DPI setup and must not be presented as proof of unobscured display. Win32 metadata is the visibility/focus evidence.
 
-Microsoft documents that SetForegroundWindow can be refused even when eligibility conditions appear met, and recommends taskbar notification when another window is in use: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow . A reliable foreground guarantee from a background HTTP service would need foreground-process cooperation or a native launch/activation bridge; that is outside this minimal candidate. No restriction bypass was attempted.
+Microsoft documents that SetForegroundWindow can be refused even when eligibility conditions appear met, and recommends taskbar notification when another window is in use: https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow . Those background observations alone do not prove that a native bridge is necessary; the follow-up actually measured successful foreground Web-button clicks. No restriction bypass was attempted.
 
 ## Validation
 
@@ -77,4 +79,4 @@ D:/project/Pan-main/.venv/Scripts/python.exe evidence/native-picker-popup-202610
 
 Intermediate directories are historical investigations, not final acceptance: `normal` records an earlier ordinary-window run that reached foreground before the final activation hook; `fixed` is the rejected topmost experiment; `final`, `focus`, `accepted`, and `candidate` are superseded trial runs, including a harness timing assertion failure. They cannot substitute for the final `event-focus` result. Automatic approval blocked deletion of these owned intermediate evidence directories with the reason `blocked by policy`; they are retained rather than bypassing that rejection.
 
-No main/practical movement, push, release, existing-service requests/restart/kill or real Session changes. The user's narrower candidate-only boundary overrides the general workflow fast-forward policy.
+No main/practical movement, push, release, existing-service requests/restart/kill or real Session changes. MA clarified that these are TA delivery boundaries; MA may apply the requested fast-forward strategy after acceptance. There is no additional user-imposed candidate-only restriction.

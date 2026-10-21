@@ -1,0 +1,996 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+  "head": "8ddb45ed7ff07c94c6a8313f5c97ee23651da92b",
+  "helperSha256": "93409d7b8191acd4cad9310ad747586e5536d290897b10b96ec182b6d6ed2c56",
+  "pid": 6964,
+  "port": 58479,
+  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-picker-web-b19d92nv",
+  "sessionId": "ses_0497a775dd9e605c",
+  "lifespan": "off: full production app routes/static/WS, no service startup loops",
+  "events": [
+    {
+      "kind": "browser-ready",
+      "time": 1792565311.0260756,
+      "foreground": {
+        "hwnd": 2820398,
+        "pid": 35704,
+        "thread": 35688,
+        "class": "CASCADIA_HOSTING_WINDOW_CLASS",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 2820398
+      },
+      "lastInput": 2769156,
+      "serverDesktopSession": 1,
+      "browserProcesses": [
+        {
+          "pid": 13804,
+          "ppid": 20000,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 14316,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 36832,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 12096,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 20304,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 33712,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 2796,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 19284,
+          "ppid": 13804,
+          "name": "msedge.exe"
+        }
+      ]
+    },
+    {
+      "kind": "test-browser-activation-mouse",
+      "time": 1792565311.5595765,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832718,
+      "serverDesktopSession": 1,
+      "action": "cancel",
+      "mouse": {
+        "x": 173,
+        "y": 43,
+        "lastInputBefore": 2832500,
+        "lastInputAfter": 2832718
+      }
+    },
+    {
+      "kind": "before-browser-click",
+      "time": 1792565311.7290854,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832718,
+      "serverDesktopSession": 1,
+      "action": "cancel",
+      "browserHwnd": 3607048,
+      "serverParentPid": 3712
+    },
+    {
+      "kind": "test-native-mouse-button-click",
+      "time": 1792565311.757035,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832921,
+      "serverDesktopSession": 1,
+      "action": "cancel",
+      "metrics": {
+        "outerWidth": 1129,
+        "outerHeight": 711,
+        "innerWidth": 1111,
+        "innerHeight": 574,
+        "devicePixelRatio": 2.2925000190734863
+      },
+      "box": {
+        "x": 124.3729476928711,
+        "y": 199.86367797851562,
+        "width": 862.2613906860352,
+        "height": 33.73773193359375
+      },
+      "rect": {
+        "left": 23,
+        "top": 23,
+        "right": 2611,
+        "bottom": 1651
+      },
+      "mouse": {
+        "x": 1317,
+        "y": 813,
+        "lastInputBefore": 2832718,
+        "lastInputAfter": 2832921
+      }
+    },
+    {
+      "kind": "after-browser-click",
+      "time": 1792565311.7570858,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832921,
+      "serverDesktopSession": 1,
+      "action": "cancel"
+    },
+    {
+      "kind": "http-native-start",
+      "time": 1792565311.7614782,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832921,
+      "serverDesktopSession": 1,
+      "path": "/api/sessions/ses_0497a775dd9e605c/attachments/native-picker"
+    },
+    {
+      "kind": "helper-start",
+      "time": 1792565311.7851439,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832921,
+      "serverDesktopSession": 1,
+      "helperPid": 33004,
+      "helperDesktopSession": 1,
+      "parentPid": 6964,
+      "serverParentPid": 3712,
+      "argv": [
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-STA",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web\\native_file_dialog.ps1"
+      ]
+    },
+    {
+      "kind": "http-native-end",
+      "time": 1792565319.0508099,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2832921,
+      "serverDesktopSession": 1,
+      "status": 200
+    },
+    {
+      "kind": "test-browser-activation-mouse",
+      "time": 1792565319.5417955,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840703,
+      "serverDesktopSession": 1,
+      "action": "select",
+      "mouse": {
+        "x": 173,
+        "y": 43,
+        "lastInputBefore": 2832921,
+        "lastInputAfter": 2840703
+      }
+    },
+    {
+      "kind": "before-browser-click",
+      "time": 1792565319.7129636,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840703,
+      "serverDesktopSession": 1,
+      "action": "select",
+      "browserHwnd": 3607048,
+      "serverParentPid": 3712
+    },
+    {
+      "kind": "test-native-mouse-button-click",
+      "time": 1792565319.7207568,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840890,
+      "serverDesktopSession": 1,
+      "action": "select",
+      "metrics": {
+        "outerWidth": 1129,
+        "outerHeight": 711,
+        "innerWidth": 1111,
+        "innerHeight": 574,
+        "devicePixelRatio": 2.2925000190734863
+      },
+      "box": {
+        "x": 124.3729476928711,
+        "y": 183.86721801757812,
+        "width": 862.2613906860352,
+        "height": 33.73773193359375
+      },
+      "rect": {
+        "left": 23,
+        "top": 23,
+        "right": 2611,
+        "bottom": 1651
+      },
+      "mouse": {
+        "x": 1317,
+        "y": 777,
+        "lastInputBefore": 2840703,
+        "lastInputAfter": 2840890
+      }
+    },
+    {
+      "kind": "after-browser-click",
+      "time": 1792565319.7208686,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840890,
+      "serverDesktopSession": 1,
+      "action": "select"
+    },
+    {
+      "kind": "http-native-start",
+      "time": 1792565319.7229302,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840890,
+      "serverDesktopSession": 1,
+      "path": "/api/sessions/ses_0497a775dd9e605c/attachments/native-picker"
+    },
+    {
+      "kind": "helper-start",
+      "time": 1792565319.751763,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840890,
+      "serverDesktopSession": 1,
+      "helperPid": 3884,
+      "helperDesktopSession": 1,
+      "parentPid": 6964,
+      "serverParentPid": 3712,
+      "argv": [
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "-NoProfile",
+        "-NonInteractive",
+        "-STA",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "D:\\project\\pan-worktrees\\native-picker-popup-20261021\\packages\\web\\native_file_dialog.ps1"
+      ]
+    },
+    {
+      "kind": "http-native-end",
+      "time": 1792565327.01075,
+      "foreground": {
+        "hwnd": 3607048,
+        "pid": 13804,
+        "thread": 3068,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 3607048
+      },
+      "lastInput": 2840890,
+      "serverDesktopSession": 1,
+      "status": 200
+    }
+  ],
+  "cases": [
+    {
+      "action": "cancel",
+      "foregroundAt400ms": {
+        "hwnd": 5309982,
+        "pid": 33004,
+        "thread": 31592,
+        "class": "#32770",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 395912,
+        "guiRead": true,
+        "keyboardFocusRoot": 5309982
+      },
+      "measurementLastInput": 2832921,
+      "dialog": {
+        "hwnd": 5309982,
+        "pid": 33004,
+        "thread": 31592,
+        "class": "#32770",
+        "title": "Select server attachments",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 395912
+      },
+      "foreground": {
+        "hwnd": 5309982,
+        "pid": 33004,
+        "thread": 31592,
+        "class": "#32770",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 395912,
+        "guiRead": true,
+        "keyboardFocusRoot": 5309982
+      },
+      "windows": [
+        {
+          "hwnd": 5442164,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 0
+        },
+        {
+          "hwnd": 8063198,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 0
+        },
+        {
+          "hwnd": 3476000,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "Auto-Suggest Dropdown",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 264906,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "Auto-Suggest Dropdown",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 11340402,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 12257916,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 7801182,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "_SearchEditBoxFakeWindow",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 10750412,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 3607062,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 4459032,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 5309982,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "#32770",
+          "title": "Select server attachments",
+          "visible": true,
+          "enabled": true,
+          "topmost": false,
+          "owner": 395912
+        },
+        {
+          "hwnd": 395912,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "WindowsForms10.Window.8.app.0.1567992_r8_ad1",
+          "title": "Pan server attachments",
+          "visible": true,
+          "enabled": false,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 6294056,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "ComboLBox",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 6752824,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "ComboLBox",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 4065460,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "WorkerW",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 199354,
+          "pid": 33004,
+          "thread": 31592,
+          "class": ".NET-BroadcastEventWindow.4.0.0.0.1567992.0",
+          "title": ".NET-BroadcastEventWindow.4.0.0.0.1567992.0",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 3344950,
+          "pid": 33004,
+          "thread": 32636,
+          "class": "GDI+ Hook Window Class",
+          "title": "GDI+ Window (powershell.exe)",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 13240632,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "MSCTFIME UI",
+          "title": "MSCTFIME UI",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 1182350
+        },
+        {
+          "hwnd": 1182350,
+          "pid": 33004,
+          "thread": 31592,
+          "class": "IME",
+          "title": "Default IME",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 5309982
+        },
+        {
+          "hwnd": 6030264,
+          "pid": 33004,
+          "thread": 32636,
+          "class": "IME",
+          "title": "Default IME",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 3344950
+        }
+      ],
+      "focused": true,
+      "responsiveHTTP": 200,
+      "httpStatus": 200,
+      "response": {
+        "status": "cancelled",
+        "paths": []
+      },
+      "focusDiagnostic": "trace stage=before-owner-show fg=3607048 target=395912 visible=False enabled=True inputAgeMs=469\r\ntrace stage=after-owner-show fg=395912 target=395912 visible=True enabled=True inputAgeMs=500\r\ntrace stage=before-zorder fg=5309982 target=5309982 visible=True enabled=True inputAgeMs=891\r\ntrace stage=before-focus fg=5309982 target=5309982 visible=True enabled=True inputAgeMs=891\r\ntrace stage=after-focus fg=5309982 target=5309982 visible=True enabled=True inputAgeMs=891\r\npan-picker: foreground-granted\r\n",
+      "helperExited": true
+    },
+    {
+      "action": "select",
+      "foregroundAt400ms": {
+        "hwnd": 15730924,
+        "pid": 3884,
+        "thread": 2860,
+        "class": "#32770",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 4721186,
+        "guiRead": true,
+        "keyboardFocusRoot": 15730924
+      },
+      "measurementLastInput": 2840890,
+      "dialog": {
+        "hwnd": 15730924,
+        "pid": 3884,
+        "thread": 2860,
+        "class": "#32770",
+        "title": "Select server attachments",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 4721186
+      },
+      "foreground": {
+        "hwnd": 15730924,
+        "pid": 3884,
+        "thread": 2860,
+        "class": "#32770",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 4721186,
+        "guiRead": true,
+        "keyboardFocusRoot": 15730924
+      },
+      "windows": [
+        {
+          "hwnd": 8194270,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 0
+        },
+        {
+          "hwnd": 4524216,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 0
+        },
+        {
+          "hwnd": 3803536,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "Auto-Suggest Dropdown",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 1313422,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "Auto-Suggest Dropdown",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 2034092,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": true,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 5114372,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 3410314,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "_SearchEditBoxFakeWindow",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 4000082,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 3934828,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 13174804,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "tooltips_class32",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 15730924,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "#32770",
+          "title": "Select server attachments",
+          "visible": true,
+          "enabled": true,
+          "topmost": false,
+          "owner": 4721186
+        },
+        {
+          "hwnd": 4721186,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "WindowsForms10.Window.8.app.0.1567992_r8_ad1",
+          "title": "Pan server attachments",
+          "visible": true,
+          "enabled": false,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 8128872,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "ComboLBox",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 3868840,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "ComboLBox",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 8259892,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "WorkerW",
+          "title": "",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 2230836,
+          "pid": 3884,
+          "thread": 2860,
+          "class": ".NET-BroadcastEventWindow.4.0.0.0.1567992.0",
+          "title": ".NET-BroadcastEventWindow.4.0.0.0.1567992.0",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 2034244,
+          "pid": 3884,
+          "thread": 22372,
+          "class": "GDI+ Hook Window Class",
+          "title": "GDI+ Window (powershell.exe)",
+          "visible": false,
+          "enabled": true,
+          "topmost": false,
+          "owner": 0
+        },
+        {
+          "hwnd": 2886130,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "MSCTFIME UI",
+          "title": "MSCTFIME UI",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 6031932
+        },
+        {
+          "hwnd": 6031932,
+          "pid": 3884,
+          "thread": 2860,
+          "class": "IME",
+          "title": "Default IME",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 15730924
+        },
+        {
+          "hwnd": 4524638,
+          "pid": 3884,
+          "thread": 22372,
+          "class": "IME",
+          "title": "Default IME",
+          "visible": false,
+          "enabled": false,
+          "topmost": false,
+          "owner": 2034244
+        }
+      ],
+      "focused": true,
+      "responsiveHTTP": 200,
+      "httpStatus": 200,
+      "response": {
+        "status": "selected",
+        "paths": [
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-picker-web-b19d92nv\\work\\native-附件.txt"
+        ]
+      },
+      "focusDiagnostic": "trace stage=before-owner-show fg=3607048 target=4721186 visible=False enabled=True inputAgeMs=391\r\ntrace stage=after-owner-show fg=4721186 target=4721186 visible=True enabled=True inputAgeMs=406\r\ntrace stage=before-zorder fg=15730924 target=15730924 visible=True enabled=True inputAgeMs=750\r\ntrace stage=before-focus fg=15730924 target=15730924 visible=True enabled=True inputAgeMs=750\r\ntrace stage=after-focus fg=15730924 target=15730924 visible=True enabled=True inputAgeMs=750\r\npan-picker: foreground-granted\r\n",
+      "helperExited": true,
+      "confirmed": true
+    }
+  ],
+  "focusAcceptancePassed": true,
+  "browserClicks": [
+    {
+      "trusted": true,
+      "time": 1792565311760,
+      "visibility": "visible",
+      "focus": true
+    },
+    {
+      "trusted": true,
+      "time": 1792565319722,
+      "visibility": "visible",
+      "focus": true
+    }
+  ],
+  "harnessPassed": true,
+  "cleanup": {
+    "hostStopped": true,
+    "helpersExited": true,
+    "portClosed": true
+  }
+}
