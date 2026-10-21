@@ -10,6 +10,7 @@ import { steerSessionQueueItem } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
+import { QueueSourceSession } from '@/components/chat/QueueSourceSession';
 import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
@@ -59,6 +60,9 @@ function QueueMessagePreview({ item, canEdit, onEdit, onClose }: {
         <span className="self-start rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary">
           {label(item)} {item.kind}
         </span>
+        {/* Structured origin only: agent/report items carry meta.sourceSessionId
+            from the server. Other sources render nothing. */}
+        <QueueSourceSession item={item} onClose={onClose} />
         <div
           tabIndex={0}
           role="region"
@@ -398,6 +402,7 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
       </Modal>
       {preview && (
         <QueueMessagePreview
+          key={preview.id}
           item={preview}
           canEdit={!!sessionId && !edit && !readonlySession && preview.meta?.dispatchState === 'queued'}
           onEdit={(item) => {

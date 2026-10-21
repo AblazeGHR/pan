@@ -191,6 +191,19 @@ function applyTarget(
 
 type SessionLookup = 'found' | 'missing' | 'unknown';
 
+/**
+ * Optional caller-owned wording for the jump feedback. Notification clicks keep
+ * the defaults; other entry points (e.g. the queue preview's "open source
+ * session" action) pass their own copy. Only the messages are overridable —
+ * routing, lookup and race guards are unchanged.
+ */
+export interface SessionJumpMessages {
+  missing?: string;
+  listUnavailable?: string;
+  workspaceUnavailable?: string;
+  routeFailed?: string;
+}
+
 /** Resolve once no session-list refresh is in flight (bounded wait). */
 function settleLoads(): Promise<void> {
   const store = useSessionStore;
@@ -277,8 +290,15 @@ async function lookupSessionRef(sessionId: string): Promise<SessionLookup> {
  *   4. after the workspace-list settle: the same guards again, then the
  *      workspace scope and the session are applied together.
  */
-export async function openSessionFromNotification(sessionId: string): Promise<boolean> {
+export async function openSessionFromNotification(
+  sessionId: string,
+  messages: SessionJumpMessages = {},
+): Promise<boolean> {
   if (!isValidSessionRef(sessionId)) return false;
+  const missingMessage = messages.missing ?? MISSING_SESSION_MESSAGE;
+  const listUnavailableMessage = messages.listUnavailable ?? LIST_UNAVAILABLE_MESSAGE;
+  const workspaceUnavailableMessage = messages.workspaceUnavailable ?? WORKSPACE_UNAVAILABLE_MESSAGE;
+  const routeFailedMessage = messages.routeFailed ?? ROUTE_FAILED_MESSAGE;
   const intent = ++clickIntent;
   const startEpoch = selectionEpoch();
   const startLocation = locationKey();
@@ -292,13 +312,13 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
   if (intent !== clickIntent) return false; // a newer click superseded us
   if (userTookOver()) return false; // the user acted while we resolved
   if (lookup === 'missing') {
-    useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+    useUIStore.getState().showToast(missingMessage, 'warning');
     return false;
   }
   if (lookup === 'unknown') {
     // The refresh failed: deletion is NOT proven. Stay honest and let the
     // user retry (the notification is still in the system tray).
-    useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
+    useUIStore.getState().showToast(listUnavailableMessage, 'warning');
     return false;
   }
 
@@ -317,7 +337,7 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
     // still take time (first load/cold cache), so re-validate afterwards.
     ({ router } = await import('@/router'));
   } catch {
-    useUIStore.getState().showToast(ROUTE_FAILED_MESSAGE, 'error');
+    useUIStore.getState().showToast(routeFailedMessage, 'error');
     return false;
   }
   if (intent !== clickIntent) return false;
@@ -326,7 +346,7 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
   try {
     await router.navigate('/');
   } catch {
-    useUIStore.getState().showToast(ROUTE_FAILED_MESSAGE, 'error');
+    useUIStore.getState().showToast(routeFailedMessage, 'error');
     return false;
   }
   // Post-navigation: any selection or workspace change (even A → B → A) or a
@@ -354,23 +374,23 @@ export async function openSessionFromNotification(sessionId: string): Promise<bo
   if (workspaceEpoch() !== startWorkspaceEpoch) return false;
   if (!isAtChatRoot()) return false;
   if (verified === 'missing') {
-    useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+    useUIStore.getState().showToast(missingMessage, 'warning');
     return false;
   }
   if (verified === 'unknown') {
-    useUIStore.getState().showToast(LIST_UNAVAILABLE_MESSAGE, 'warning');
+    useUIStore.getState().showToast(listUnavailableMessage, 'warning');
     return false;
   }
   const target = resolveWorkspaceTarget(sessionId);
   if (target.kind === 'missing') {
-    useUIStore.getState().showToast(MISSING_SESSION_MESSAGE, 'warning');
+    useUIStore.getState().showToast(missingMessage, 'warning');
     return false;
   }
   if (target.kind === 'unknown') {
     // Cannot prove the workspace: never fall back to '无工作区'. The
     // notification stays in the tray, so the user can retry once the list is
     // back.
-    useUIStore.getState().showToast(WORKSPACE_UNAVAILABLE_MESSAGE, 'warning');
+    useUIStore.getState().showToast(workspaceUnavailableMessage, 'warning');
     return false;
   }
   // Atomic from here: the workspace scope and the session are applied together

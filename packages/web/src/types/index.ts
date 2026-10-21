@@ -1431,6 +1431,11 @@ export interface AgentQueueItem {
     lockAutoReport?: boolean;
     lockSource?: 'manual' | 'illegal' | null;
     illegalBatchId?: string | null;
+    /**
+     * 结构化来源身份：服务端写入的 sourceSessionId（agent 发送方的 Session）。
+     * 只做展示与跳转，来源身份绝不从正文前缀推导。
+     */
+    sourceSessionId?: string | null;
   };
 }
 
