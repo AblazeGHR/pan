@@ -12,6 +12,7 @@ Tools exposed:
     - manager_chain: Return the caller's manager chain (upper-level managers)
     - session_get: Get filtered session history bodies and result metadata
     - session_message_get: Read one existing durable message ID in its Session
+    - session_history_search: Search one accessible Session with bounded snippets
     - session_usage: Get persisted session input/output/cache usage
     - session_update: Update session settings (model/effort/mcp/workspace etc.)
     - workspace_list: List durable Workspaces (name/id/order/dirs/member count)
@@ -856,6 +857,55 @@ def session_message_get(session_id: str, message_id: str,
         return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
     query = urlencode({"roles": ",".join(sorted(selected)), "toolOutput": tool_output})
     return _api("GET", f"/api/sessions/{quote(session_id, safe='')}/messages/{quote(message_id, safe='')}?{query}")
+
+
+@mcp.tool()
+def session_history_search(session_id: str, query: str, limit: int = 50,
+                           cursor: str | None = None,
+                           roles: list[str] | None = None,
+                           tool_output: str = "command_only") -> dict:
+    """Search literal text in one accessible Session using the existing FTS index.
+
+    Recommended: session_history_search(session_id, query="error", limit=50).
+    Default roles are user/assistant/tool, with tool_output=command_only:
+    only the shared tool name/command projection is searched and excerpted,
+    so output-only text cannot affect hits or pagination. Other tool arguments
+    are conservatively omitted, as in session_get. Opt into stored tool output
+    with include_output, or thinking with roles=[thinking]. roles=[] searches
+    nothing. Query is trimmed, case-insensitive literal text (no regex/FTS
+    syntax), at most 512 characters. Limit is clamped to 1..100 after matching.
+
+    Returns bounded hits with snippet, role, persistent messageId, canonical
+    messageIndex and history version; no complete history, parts or raw output.
+    Read a hit with session_message_get using the same projection options.
+    Missing legacy IDs are skipped, never created. No global search is exposed.
+
+    Pass nextCursor back as cursor with the same Session/query/limit/options
+    until null. It is signed, expires after 15 minutes, and is invalidated by
+    history changes, index rebuild or option changes; restart without cursor
+    on HTTP detail.code=history_search_cursor_expired (409). HTTP error details
+    pass through; missing Session returns error="Session not found". Managed
+    permission checks run before search; denial returns permission_denied.
+    Uses the existing lazy disposable SQLite index, with no background worker
+    or polling. Cold indexing can load history; only result output is bounded.
+    完整编排流程见 /pan skill。
+    """
+    if not session_id or not session_id.strip():
+        return {"ok": False, "error": {"code": "invalid_params", "message": "session_id is required; global search is not exposed"}}
+    denied = _check_access(session_id)
+    if denied:
+        return denied
+    from packages.core.history_read import options
+    try:
+        selected, _ = options(roles, tool_output)
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    params = {"sessionId": session_id, "q": query, "limit": limit,
+              "roles": ",".join(sorted(selected)), "toolOutput": tool_output,
+              "countMode": "messages"}
+    if cursor is not None:
+        params["cursor"] = cursor
+    return _api("GET", "/api/history/search?" + urlencode(params))
 
 
 @mcp.tool()
@@ -2784,6 +2834,44 @@ def _model_list_error(code: str, message: str, available: list[dict]) -> dict:
     else:
         result["callHint"] = "Call model_list(adapter='<registered adapter>') after an adapter is available."
     return result
+
+
+@mcp.tool()
+def model_catalog(adapter: str | None = None, session_id: str | None = None) -> dict:
+    """Read cached models and explicitly declared capabilities without discovery.
+
+    Recommended: model_catalog(adapter="codex"). Omit adapter for all registered
+    adapters. Optional session_id (otherwise PAN_AGENT_SESSION_ID) passes through
+    the existing managed access check before metadata is read. HTTP itself is a
+    trusted local admin interface, not a manager-authenticated API.
+
+    Model IDs come from existing service caches or literal adapter declarations;
+    cold dynamic sources remain unknown, with no CLI/provider request or refresh.
+    This is selectable model metadata, not proof of account/provider availability.
+    Per-model effort is reported only when declared for that model; generic
+    adapterEffortValues are not a per-model support guarantee. Missing booleans,
+    source dates, defaults, effort or multipliers are null/status=unknown, never
+    assumed supported or x1. Explicit false/empty declarations are preserved.
+
+    Fresh/stale model-list age refers only to the existing process cache TTL;
+    origin and provider sourceUpdatedAt stay unknown if not recorded. Dynamic
+    credit multiplier getters are not invoked, since they may read credentials;
+    an unsafe/unbound multiplier source remains unknown even if other APIs can
+    refresh it. No credential files, account aggregation, new polling, model
+    calls or cache invalidation. model_list retains its discovery compatibility.
+    Errors include permission_denied and unknown_adapter; individual adapter
+    failures degrade to explicit unknown without returning raw exception text.
+    完整编排流程见 /pan skill。
+    """
+    target = session_id or os.environ.get("PAN_AGENT_SESSION_ID")
+    if target:
+        denied = _check_access(target)
+        if denied:
+            return denied
+    if adapter is not None and not adapter.strip():
+        return {"ok": False, "error": {"code": "invalid_params", "message": "adapter must be nonempty when provided"}}
+    query = "?" + urlencode({"adapter": adapter.strip()}) if adapter is not None else ""
+    return _api("GET", "/api/model-catalog" + query)
 
 
 @mcp.tool()

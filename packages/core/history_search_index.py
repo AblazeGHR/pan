@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from .session import is_pan_message_id
+from .history_read import command_content
 from .history_search_query import cached_query_page, clear_query_cache, install_query_schema
 
 DEFAULT_HISTORY_SEARCH_LIMIT = 50
@@ -27,9 +28,11 @@ _SNIPPET_RADIUS = 42
 _BUSY_TIMEOUT_MS = 10_000
 SEARCH_ROLES = ('user', 'assistant', 'tool', 'thinking')
 BODY_ROLES = ('user', 'assistant')
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
+_INDEX_ROLES = (*SEARCH_ROLES, "tool_command")
 _FTS_TABLES = {'user': 'history_search_fts', 'assistant': 'history_search_fts',
-               'tool': 'history_search_tool_fts', 'thinking': 'history_search_thinking_fts'}
+               'tool': 'history_search_tool_fts', 'thinking': 'history_search_thinking_fts',
+               'tool_command': 'history_search_tool_command_fts'}
 
 
 def normalize_roles(roles: Iterable[str] | None) -> tuple[str, ...]:
@@ -39,6 +42,13 @@ def normalize_roles(roles: Iterable[str] | None) -> tuple[str, ...]:
     if selected - set(SEARCH_ROLES):
         raise ValueError('roles must contain only user, assistant, tool, thinking')
     return tuple(role for role in SEARCH_ROLES if role in selected)
+
+
+def _normalize_index_roles(roles):
+    selected = set(roles)
+    if selected - set(_INDEX_ROLES):
+        raise ValueError('Invalid internal search partition')
+    return tuple(role for role in _INDEX_ROLES if role in selected)
 
 
 class HistorySearchError(RuntimeError):
@@ -179,12 +189,18 @@ def _snapshot(session, previous_total: int | None = None,
                 content=content,
             )
 
+        messages = list(by_id.values())
+        # Derived rows retain canonical position/identity and use the same
+        # lazy indexing, append proof and query cache as every other partition.
+        messages.extend(_SearchMessage(message.message_id, message.message_index,
+                                       'tool_command', command_content(message.content))
+                        for message in by_id.values() if message.role == 'tool')
         return _HistorySnapshot(
             session_id=str(getattr(session, "id", "")),
             history_epoch=epoch,
             history_revision=revision,
             history_total=len(history),
-            messages=tuple(sorted(by_id.values(), key=lambda item: item.message_index)),
+            messages=tuple(sorted(messages, key=lambda item: item.message_index)),
             digest=full_digest,
             prefix_digest=prefix_digest,
             roles=roles,
@@ -203,7 +219,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
         return
     # Only the disposable index is migrated, never canonical history. Recheck
-    # after acquiring the lock so concurrent first requests cannot drop v3.
+    # after acquiring the lock so concurrent first requests cannot drop the current schema.
     connection.execute('BEGIN IMMEDIATE')
     if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
         connection.commit()
@@ -213,7 +229,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
                   'history_search_queries', 'history_search_messages',
                   'history_search_sessions', 'history_search_meta'):
         connection.execute(f'DROP TABLE IF EXISTS {table}')
-    for name in ('body', 'tool', 'thinking'):
+    for name in ('body', 'tool', 'thinking', 'tool_command'):
         connection.execute(f'DROP VIEW IF EXISTS history_search_{name}_content')
     connection.execute(
         """CREATE TABLE IF NOT EXISTS history_search_sessions (
@@ -230,10 +246,10 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
                session_id TEXT NOT NULL,
                message_id TEXT NOT NULL,
                message_index INTEGER NOT NULL,
-               role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool', 'thinking')),
+               role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'tool', 'thinking', 'tool_command')),
                content TEXT NOT NULL,
                folded_content TEXT NOT NULL,
-               UNIQUE(session_id, message_id)
+               UNIQUE(session_id, message_id, role)
            )"""
     )
     connection.execute(
@@ -250,7 +266,8 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     # importing the app creates no file, connection, thread, or background task.
     partitions = (('body', 'history_search_fts', "'user','assistant'"),
                   ('tool', 'history_search_tool_fts', "'tool'"),
-                  ('thinking', 'history_search_thinking_fts', "'thinking'"))
+                  ('thinking', 'history_search_thinking_fts', "'thinking'"),
+                  ('tool_command', 'history_search_tool_command_fts', "'tool_command'"))
     for name, table, roles_sql in partitions:
         # The external content view has exactly this partition's documents.
         # SQLite integrity-check/rebuild must not silently add excluded roles.
@@ -360,7 +377,7 @@ def _replace_session(connection: sqlite3.Connection, snapshot: _HistorySnapshot)
             return
         # A concurrent query may have enabled another partition since this
         # snapshot was captured. Preserve its coverage while replacing rows.
-        effective_roles = normalize_roles((*snapshot.roles,
+        effective_roles = _normalize_index_roles((*snapshot.roles,
             *(current['indexed_roles'].split(',') if current else ())))
         _delete_session(connection, snapshot.session_id)
         connection.execute(
@@ -487,6 +504,7 @@ def search_history(
     load_session: Callable[[str], object | None],
     roles: Iterable[str] | None = None,
     content_counts: bool = False,
+    tool_output: str = "include_output",
     match_index: int | None = None,
 ) -> dict:
     """Search the requested live Session scope and repair changed index rows.
@@ -497,11 +515,16 @@ def search_history(
     if not isinstance(query, str):
         raise ValueError("query must be a string")
     needle_text = query.strip()
-    selected_roles = normalize_roles(roles)
+    public_roles = normalize_roles(roles)
+    if tool_output not in ('command_only', 'include_output'):
+        raise ValueError('tool_output must be command_only or include_output')
+    selected_roles = _normalize_index_roles(
+        'tool_command' if role == 'tool' and tool_output == 'command_only' else role
+        for role in public_roles)
     result_limit = bounded_limit(limit)
     if not needle_text or not selected_roles:
         return {"hits": [], "versions": [], "limit": result_limit, "hasMore": False,
-                **({'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected_roles)} if content_counts else {})}
+                **({'totalMatches': 0, 'totalMessages': 0, 'roles': list(public_roles)} if content_counts else {})}
     if len(needle_text) > MAX_HISTORY_SEARCH_QUERY_LENGTH:
         raise ValueError(
             f"query must be at most {MAX_HISTORY_SEARCH_QUERY_LENGTH} characters"
@@ -580,7 +603,7 @@ def search_history(
                 )
             previous_total = int(indexed["history_total"]) if indexed else None
             indexed_roles = tuple(indexed['indexed_roles'].split(',')) if indexed else ()
-            wanted_roles = normalize_roles((*indexed_roles, *selected_roles))
+            wanted_roles = _normalize_index_roles((*indexed_roles, *selected_roles))
             only_suffix = bool(indexed and set(indexed_roles) >= set(selected_roles)
                                and indexed['history_epoch'] == epoch
                                and history_total is not None and history_total > previous_total)
@@ -674,7 +697,7 @@ def search_history(
                 "sessionId": row["session_id"],
                 "messageId": row["message_id"],
                 "messageIndex": int(row["message_index"]),
-                "role": row["role"],
+                "role": "tool" if row["role"] == "tool_command" else row["role"],
                 "snippet": _snippet(content, needle, offset),
                 "historyEpoch": version["historyEpoch"],
                 "historyRevision": version["historyRevision"],
@@ -689,7 +712,7 @@ def search_history(
             "hasMore": len(rows) > result_limit,
             "_cursorKey": cursor_key,
             **({'totalMatches': counts['totalMatches'], 'totalMessages': counts['totalMessages'],
-                'roles': list(selected_roles)} if content_counts else {}),
+                'roles': list(public_roles)} if content_counts else {}),
         }
         if len(rows) > result_limit and hits:
             last = rows[result_limit - 1]

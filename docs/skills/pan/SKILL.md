@@ -190,6 +190,24 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
 
 history 投影不带 summary 正文预览。lastResult 保留状态/终态身份和（选择 assistant 时的）最终 result 正文，剔除其他 provider 字段；history 筛选不将 lastResult 当历史行计数。底层 Dashboard 默认 full/history API 兼容路径保持原行为，不应当作安全筛选工具的替代。
 
+### 目标 Session 历史搜索
+
+推荐 `session_history_search(session_id, query="error", limit=50)`。复用已有 `/api/history/search` 的 FTS messages 模式，限定目标 Session，不提供全局搜索；先过既有 managed 权限检查，每页均重新检查。`roles` 默认 user/assistant/tool，`tool_output` 默认 command_only；thinking 必须显式选择，工具完整存储正文必须 `tool_output="include_output"`。command_only 在索引匹配、片段提取及分页之前应用与 session_get 相同的保守工具名/command/cmd 投影；输出专属文本不会命中或影响分页，其他工具参数不会被默认搜索。该模式不是匹配完整输出后再隐藏 snippet。
+
+query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查询语法），最长 512 字符。`limit` 默认 50，限制为 1..100；返回 hits 中的有界 snippet、role、持久 messageId、messageIndex 和历史版本，不返回完整正文或 parts。需要完整选中消息时用 `session_message_get` 并保持对应 roles/tool_output。旧无规范 Pan ID 的记录跳过，不回填、不伪造 ID。空 query/空 roles 返回空结果，目标不存在沿用 HTTP `error="Session not found"`；HTTP detail 错误原样透传。
+
+沿 `nextCursor` 续读，保持 Session、query、limit、roles、tool_output 相同，null 代表结束；游标签名且 15 分钟有效。历史版本、索引重建或选项变化可能使其失效，`detail.code=history_search_cursor_expired` 时从无 cursor 重新搜索。搜索不新增轮询或后台索引；复用同一可丢弃 SQLite 文件及既有按需更新/可验证 append proof。工具 command 派生分区按需启用，与原始工具分区分别缓存且共存；索引 schema 升为 4，首次使用按既有机制重建可丢弃索引，不迁移规范历史。输出有界不等于冷索引建立内存/延迟有界；首次/变化后的索引建立沿用既有加载成本。
+
+### 模型目录与声明能力
+
+推荐 `model_catalog(adapter="codex")` 集中读取一个 adapter 的服务缓存模型及已声明能力；省略 adapter 返回已注册 adapter 的各自目录，不扫描或聚合账号。可传 session_id，省略时绑定 PAN_AGENT_SESSION_ID；在读取前使用既有 managed 权限检查。没有 Session 身份时沿用公共模型元数据工具的读取语义。HTTP 为可信本机管理员接口，不将 session_id 当 HTTP 身份认证。
+
+该工具 **不触发发现或刷新**：只读现有 `_cached_models` 或字面 `supported_models` 声明。冷动态源返回 models=[]、modelList.status=unknown；这不表示没有模型。需要既有发现行为时仍使用 `model_list(adapter=...)`，其兼容契约未变；目录本身不会代调该工具。列出的 ID 仅代表缓存可选项，不保证当前账号授权、余额、provider 可达或付费模型实际可用。
+
+`capabilities` 的 resume/fork/nativeSteer/nativeInterrupt/steerReceipt 仅投影 adapter 已声明布尔值，缺失为 value=null/status=unknown，false 保持 false。supportedSettings、executionModes 与 adapterEffortValues 均标明 adapter scope，不表示每个模型支持。动态默认值不读取时 defaultModel 为 unknown，不从列表第一项推断。逐模型 effort 仅取已有明确 model_efforts；Codex 复用现有 models_cache.json 解析器的逐模型声明，其他未声明项 unknown，不用通用 effort 补齐。旧停用的 oneshot 与现有服务配置一样不列为执行模式。
+
+每个字段提供 source/status/scope。modelList.origin 以及源数据更新时间未记录时明确 unknown/null；freshness 的 fresh/stale/ageSeconds/ttlSeconds 只描述已有进程模型缓存 TTL，不代表上游数据新鲜度，缺少可靠时间则 unknown。倍率仅投影可直接读取的字面声明，缺失绝不填 x1；动态 getter 可能读取凭据，目录不调用。尤其 CBC 的倍率刷新依赖当前账号 JWT，目录也不使用缺乏当前账号绑定证明的暖倍率缓存，故该来源在目录中保持 unknown；原 API 的倍率功能不改。倍率 freshness 目前 unknown。目录不读凭据、不跨账号收集、不创建新缓存/轮询、不启动 CLI、不调用模型。安全元数据 hook 失败时不返回原异常内容，缺失字段降级 unknown。
+
 ### 2.5 清理（收尾）
 
 ```
@@ -316,6 +334,7 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 | `manager_chain` | (无) | 返回调用方（`PAN_AGENT_SESSION_ID`）的**上级 manager 链**（从最近一级 manager 逐级向上，每级含 `level/id/name/workerStatus/lastResultStatus`）。需调用方身份；独立 MCP 进程（无身份）不可用 |
 | `session_get` | `session_id`, `limit?`, `roles?`, `tool_output?`, `before?` | 筛选后的 history + lastResult；默认 user/assistant/tool、command_only；建议 limit=50；nextBefore 续读 |
 | `session_message_get` | `session_id`, `message_id`, `roles?`, `tool_output?` | 按本 Session 已持久化 Pan messageId 读取；复用同一投影和 managed 权限；thinking/output 必须显式选择 |
+| `session_history_search` | `session_id`, `query`, `limit?`, `cursor?`, `roles?`, `tool_output?` | 目标 Session 的已有 FTS 搜索；默认 user/assistant/tool command_only；建议 limit=50；nextCursor 续页，命中后用 session_message_get |
 | `session_usage` | `session_id?` | 查询当前或显式 Pan Session 的持久化 input/output/cache 用量；显式目标复用 `_check_access` managed 隔离。返回 `input`、`output`、`cache.read/write`、`total.tokens/credit`、`source`、`updatedAt`；缺失字段为 `null`，持久化零为 `0`，cache 不重复计入 input/output；优先 `Session.rawUsage`，旧数据回退 `Session.totalUsage`，不返回历史 raw payload |
 | `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?`, `workspace_ids?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。**`workspace_ids?` 移动会话到 Workspace**（0 或 1 个 id，`[]` = 取消分组/ungrouped，省略 = 保持不变；复用 Dashboard 同一个 `PUT /api/sessions/{id}/workspaces`）：成员关系只存于 **management-tree 根**，被管理后代通过 managedBy 链**继承**，因此根移动会传播给整棵子树；**目标 session 若已被管理则拒绝**（错误码 `managed_session`），须先 `session_unclaim` 分离——与 Dashboard 拖拽「先分离再移动」一致，杜绝跨 Workspace 的管理树分裂。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
@@ -478,6 +497,7 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 | 工具 | 参数 | 说明 |
 |------|------|------|
 | `permission_prompt` | `tool_name`, `input?` | **Claude Code 审批桥**：当 claude adapter 以 `--permission-prompt-tool mcp__pan__permission_prompt` 长驻运行时，Claude 的非交互权限请求经本工具转发到 Dashboard 审批栏，返回 `allow`/`deny` 决策（超时默认 360s 自动拒绝）。普通编排流程**不会**主动调用它；只有在 Dashboard 上批准 Claude 工具调用时才间接生效 |
+| `model_catalog` | `adapter?`, `session_id?` | 集中读取服务缓存模型和显式声明能力；建议指定 adapter；未知值不推断支持，不触发发现/凭据读取/账号聚合；model_list 保留原行为 |
 | `model_list` | `adapter`（必填） | 列出指定的**任一已注册 adapter** 的模型与默认模型；省略、空串或空白值不会选择 CBC，而是返回 `adapter_required`、`availableAdapters` 和可执行提示。示例：`model_list(adapter="codex")` 查询 Codex（如 `gpt-5.6-luna`）模型 |
 | `codex_quota` | `window?`(`all`/`first`/`secondary`), `session_id?` | 查询 live Codex Worker 的事件快照；`first` = 五小时窗口，`secondary` = 周窗口。MCP caller 层先做 `_check_access`，受限 caller 只能查 managed graph；底层 loopback HTTP 直连是无 manager 认证的本机受信管理接口，两者不是同一权限契约。`updatedAt`（兼容字段）与 `receivedAt` 都是 Pan Worker 接收 `account/rateLimits/updated` 的本地时间，不是 provider 原始更新时间；不会主动执行 `account/rateLimits/read`，绝对 used/remaining/limit 缺失时返回 `null`。错误码：`invalid_window`、`session_not_found`、`unsupported_provider`、`quota_unavailable`、`quota_ambiguous` |
 | `pan_handbook` | (无) | **返回本 SKILL.md 全文**（读文件实时返回，单一事实源，立项 C）。冷启动 agent 不确定编排流程时先调它；内容与 §0–§11 完全一致 |

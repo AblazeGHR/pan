@@ -186,6 +186,10 @@ class CodexAdapter:
                 result[ident] = levels
         return result
 
+    def model_catalog_metadata(self) -> dict:
+        """Credential-free model declarations; do not refresh model discovery."""
+        return {"modelEfforts": self.model_efforts}
+
     # Settings are encoded into --codex-extra-args by build_spawn_args. The
     # wrapper itself intentionally does not accept CBC-style runtime flags.
     settings_via_session = True
