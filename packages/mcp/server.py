@@ -3017,13 +3017,16 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
                   item_id: str | None = None, expected_revision: int | None = None) -> dict:
     """List Action/Group sources or put/delete a draft. kind is actions or groups.
 
-    Action fields: id, name, description, enabled (forced false for agents),
+    Omit item.id to create with a server-generated stable ID; the response item
+    contains that ID. Supply the original item.id to update; renaming keeps it.
+    Explicit valid IDs remain supported. Do not replay an unconfirmed creation.
+    Action fields: optional id, name, description, enabled (forced false for agents),
     effect (read/write_local/write_external/high_risk), output_format (json/text),
     input_schema (object, additionalProperties false), execution.
     API execution: {kind: api, method: GET, path: /api/sessions|/api/models|/api/workspaces}.
     Command execution: {kind: command, executable: absolute file, cwd: absolute dir,
     args: string array, timeout_sec: 1..30}. A scalar {field} occupies one whole argv.
-    Group fields: id, name, action_ids. IDs use lowercase letters/digits/underscores.
+    Group fields: optional id, name, action_ids. IDs use lowercase letters/digits/underscores.
     User enables Actions and builds Groups in the core Actions Panel. This tool
     cannot build, unbuild, enable, or execute a draft. Built tools use generic plugins.
 

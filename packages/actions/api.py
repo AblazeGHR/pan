@@ -46,6 +46,18 @@ def install(server):
     async def listing():
         return await view()
 
+    @router.post('/api/actions/{kind}')
+    async def create(kind: str, data: dict):
+        if kind not in {'actions', 'groups'}:
+            raise HTTPException(404, 'Unknown item kind')
+        if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict):
+            raise HTTPException(400, 'Request requires item and optional expectedRevision')
+        try:
+            item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True)
+            return {**await view(), 'item': item}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     @router.put('/api/actions/{kind}/{item_id}')
     async def put(kind: str, item_id: str, data: dict):
         if kind not in {'actions', 'groups'}:
@@ -146,7 +158,8 @@ def install(server):
             raise HTTPException(400, 'Invalid draft operation')
         try:
             if operation == 'put':
-                await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
+                item = await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
+                return {**await view(), 'item': item}
             else:
                 await io(Store().delete, kind, data.get('id'), data.get('expectedRevision'))
             return await view()

@@ -29,7 +29,11 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
-expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。用户在 Panel
+expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。
+新建 Action/Group 或 Agent 新建草稿均可省略 `item.id`，服务端生成稳定唯一 ID，
+返回 `item` 含已分配 ID。更新传原 `item.id`，重命名不改 ID；显式合法 ID 兼容。
+创建结果不明时先 list 核对，禁止盲目重发省略 ID 的创建。
+Panel 使用 Actions / New Action / Groups 导航；Groups 中 Use in Session 配置绑定。用户
 启用并 build Group 后才注册 `action-group-<id>` MCP 插件，Session 通过已有
 `plugin_bindings` 选择三模式。运行 Worker 固定 release；rebuild 沿用 idle/deferred
 restart，unbuild 只被启用该 Group 的 live running Session 阻塞，错误列出名字/ID，

@@ -140,9 +140,24 @@ class Store:
             atomic(self.path, state)
             return result
 
-    def put(self, kind, raw, expected=None, draft=False):
+    def put(self, kind, raw, expected=None, draft=False, create=False):
         def change(state):
-            item = validate_action(raw) if kind == 'actions' else self.validate_group(raw, state)
+            value = copy.deepcopy(raw)
+            if isinstance(value, dict) and 'id' not in value:
+                # Allocate under the same registry writer as publication. Names
+                # never determine identity; retries cannot overwrite a collision.
+                for _ in range(100):
+                    candidate = ('action_' if kind == 'actions' else 'group_') + uuid.uuid4().hex[:24]
+                    pid = 'action-group-' + candidate.replace('_', '-')
+                    if (candidate not in state['actions'] and candidate not in state['groups']
+                            and pid not in state.get('retired_plugins', [])):
+                        value['id'] = candidate
+                        break
+                else:
+                    raise ValueError('Could not allocate a unique ID; retry creation')
+            if create and isinstance(value, dict) and value.get('id') in state[kind]:
+                raise ValueError('ID already exists; update the existing item by ID')
+            item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
             if draft and kind == 'actions':
                 item['enabled'] = False
             state[kind][item['id']] = item

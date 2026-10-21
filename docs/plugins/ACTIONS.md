@@ -1,5 +1,31 @@
 # Actions and Group MCP plugins
 
+## Create and organize
+
+The Panel has three sections: **Actions** lists definitions and their edit entry;
+**New Action** creates an API or command definition; **Groups** creates/edits shared
+selections, builds releases and offers **Use in Session**. That entry loads the
+chosen Session and uses the shared PluginSelection component and existing three
+modes. An empty Session list explains how to create a Session and refresh.
+
+IDs are assigned by the server when omitted, independently of display names.
+The Panel hides ID inputs on creation; existing items expose a selectable ID and
+Copy ID under Details. Rename preserves the ID, shared references and plugin/release
+identity. No existing data is migrated and no import feature is added.
+
+`POST /api/actions/actions` and `POST /api/actions/groups` accept
+`{item: {...}, expectedRevision?: number}`. Omit `item.id` for automatic allocation;
+the response includes the registry plus `item` with the authoritative ID. Explicit
+valid IDs are accepted on creation, but an existing ID is rejected without overwrite.
+Existing `PUT /api/actions/{kind}/{id}` remains compatible and requires the matching
+item ID. Agent draft `put` also permits omitted `item.id` and returns `item`, while
+still forcing Actions disabled. Supplying the existing ID updates that draft.
+
+Allocation and publication use the same registry writer; collisions retry without
+overwriting another item. IDs retain the lowercase/number/underscore format and
+32-character limit. Creation without an ID is not idempotent: after an unknown
+response, list and reconcile before retrying rather than creating another item.
+
 The core **Actions** view (`/react/actions`) stores reusable operation definitions in
 `data/actions/registry.json`. Groups contain Action IDs, so an Action can be shared
 without duplicating its source. Nothing is registered until the user builds a Group.
@@ -96,6 +122,7 @@ not a new HTTP authentication or OS-user separation scheme.
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/actions` | Sources, registry revision, release status, blockers and bindings |
+| `POST /api/actions/{actions|groups}` | Create with optional ID, body `{item, expectedRevision?}`; response includes created `item` |
 | `PUT /api/actions/{actions|groups}/{id}` | User save, body `{item, expectedRevision?}` |
 | `DELETE /api/actions/{actions|groups}/{id}?expectedRevision=N` | Delete unreferenced source |
 | `POST /api/actions/groups/{id}/{build|unbuild}` | User release operation, `{expectedRevision?}` |
