@@ -1,0 +1,23 @@
+{
+  "samples": [
+    {
+      "runs": 1,
+      "bytes": 1042,
+      "readMs": 0.5565999999816995,
+      "atomicUpdateMs": 5.319899999449262
+    },
+    {
+      "runs": 100,
+      "bytes": 56554,
+      "readMs": 0.9809000002860557,
+      "atomicUpdateMs": 8.171599998604506
+    },
+    {
+      "runs": 1000,
+      "bytes": 564154,
+      "readMs": 5.284800001390977,
+      "atomicUpdateMs": 44.100700000853976
+    }
+  ],
+  "retention": "indefinite; no paging or pruning; finite synthetic sample only"
+}
