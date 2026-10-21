@@ -6,6 +6,7 @@
 | --- | --- |
 | 已有标准 MCP，接入 Pan | [开发指南：MCP](DEVELOPING.md#已有-mcp) |
 | 已有 CLI/API，写 bridge | [开发指南：API 与 CLI](DEVELOPING.md#api-与-cli-bridge) |
+| 将固定内部 API 或命令组合成 MCP 插件 | [核心 Actions 与 Group](ACTIONS.md) |
 | 增加类似 Chat/Jobs 的入口 | [开发指南：Panel](DEVELOPING.md#panel-与数据目录) |
 | 复制一个无外部副作用的例子 | [可运行 API 示例](../examples/plugin-capabilities/README.md) |
 | 检查发布前是否准备好 | [交付检查表](CHECKLIST.md) |

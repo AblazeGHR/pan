@@ -1,0 +1,32 @@
+{
+  "finalCommand": [
+    "python",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "python",
+    "-c",
+    "import sys; sys.path.insert(0, TASK_LOCAL_PLUGIN_DIR); import pytest_timeout, pytest; raise SystemExit(pytest.main(TEST_ARGS))"
+  ],
+  "TASK_LOCAL_PLUGIN_DIR": "D:\\project\\pan-worktrees\\action-groups-review-20261021\\.validation\\action-review\\integration\\pytest-plugins",
+  "TEST_ARGS": [
+    "tests/test_action_groups.py",
+    "tests/test_plugin_session_config.py",
+    "tests/test_plugin_platform.py",
+    "tests/test_history_read.py",
+    "tests/test_history_search_content.py",
+    "tests/test_session_history_search_mcp.py",
+    "tests/test_model_catalog.py",
+    "tests/test_codex_native_admission.py",
+    "tests/test_delayed_restart_locked_queue_http.py",
+    "tests/test_session_adapter_validation.py",
+    "tests/test_worker_system_prompt_spawn.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=D:\\project\\pan-worktrees\\action-groups-review-20261021\\.validation\\action-review\\integration\\final.xml"
+  ],
+  "pluginInstall": "python -m pip install --disable-pip-version-check --no-cache-dir --no-deps --target .validation/action-review/integration/pytest-plugins pytest-timeout==2.4.0",
+  "failureFirstSource": "7aee59d9157d6f3873497e29779476002349348e",
+  "failureFirstSelection": "committed_group_settings_register_restart_before_notification or core_enabled_slow_catalog",
+  "initialHead": "54189ff4db415d6fddd9ea87ec040a1c577ceb66"
+}

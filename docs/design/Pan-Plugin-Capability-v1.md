@@ -4,6 +4,11 @@
 
 实现入口：`packages/plugins`。本批不新增 Pan 鉴权；Session 上下文用于配置、目录和调用路由，既有业务检查与上游认证继续生效。
 
+核心 Actions Panel 生成的 Group 同样注册为 `pan_api` 插件，复用三模式、Session
+bindings、stdio projection 和延迟 restart。其不可变 release 在 Worker 启动时固定，
+rebuild 请求通用 idle/deferred restart；普通 gateway 插件的动态目录策略不变。
+数据格式、API 和执行范围见 [Actions 实现说明](../plugins/ACTIONS.md)。
+
 ## 插件声明
 
 在现有 `manifest.json` 的 `plugins` 数组声明插件；原 `mcp_servers` 继续作为连接描述符来源。旧 MCP 无需改造即可按历史 standalone 方式使用。新插件默认关闭。

@@ -1511,7 +1511,7 @@ def report_consume(item_id: str | None = None) -> dict:
     Receipt contains only original IDs and handoff status. accepted means CLI
     admission, never task completion. queued/pending/unconfirmed/unknown are
     not success. Save itemId and call with that SAME item_id to inspect the
-    frozen batch receipt (query only, never resend). An unfinished batch is
+    frozen batch receipt (query only: no CLI write or Session save, never resend). An unfinished batch is
     never regrouped or automatically replayed after an uncertain write.
     Bound local stdio own Session only. report_ack/report_next are not offered.
     The spelling report_comsume refers to this tool; there is no alias.
@@ -3007,6 +3007,33 @@ def pan_handbook() -> dict:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+@mcp.tool()
+def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | None = None,
+                  item_id: str | None = None, expected_revision: int | None = None) -> dict:
+    """List Action/Group sources or put/delete a draft. kind is actions or groups.
+
+    Action fields: id, name, description, enabled (forced false for agents),
+    effect (read/write_local/write_external/high_risk), output_format (json/text),
+    input_schema (object, additionalProperties false), execution.
+    API execution: {kind: api, method: GET, path: /api/sessions|/api/models|/api/workspaces}.
+    Command execution: {kind: command, executable: absolute file, cwd: absolute dir,
+    args: string array, timeout_sec: 1..30}. A scalar {field} occupies one whole argv.
+    Group fields: id, name, action_ids. IDs use lowercase letters/digits/underscores.
+    User enables Actions and builds Groups in the core Actions Panel. This tool
+    cannot build, unbuild, enable, or execute a draft. Built tools use generic plugins.
+
+    完整编排流程见 /pan skill。
+    """
+    if operation == 'list':
+        return _api('GET', '/api/actions')
+    if operation not in {'put', 'delete'} or kind not in {'actions', 'groups'}:
+        return {'error': 'Invalid draft operation or kind'}
+    return _api('POST', f'/api/action-drafts/{kind}/{operation}',
+                {**({'item': item} if item is not None else {}),
+                 **({'id': item_id} if item_id is not None else {}),
+                 **({'expectedRevision': expected_revision} if expected_revision is not None else {})})
+
 
 def main():
     global _pan_api_url, _terminal_transport

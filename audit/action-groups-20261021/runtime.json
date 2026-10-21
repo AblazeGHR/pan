@@ -1,0 +1,55 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\action-groups-20261021",
+  "pid": 30080,
+  "port": 64580,
+  "dataRoot": "D:\\project\\pan-worktrees\\action-groups-20261021\\.validation\\action-groups\\live-764392fad7\\data",
+  "runtime": "D:\\project\\pan-worktrees\\action-groups-20261021\\.validation\\action-groups\\live-764392fad7",
+  "mcp": [
+    {
+      "mode": "standalone",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "standalone",
+      "action": "echo",
+      "ok": true
+    },
+    {
+      "mode": "pan_native",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "pan_native",
+      "action": "echo",
+      "ok": true
+    },
+    {
+      "mode": "gateway",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "gateway",
+      "action": "echo",
+      "ok": true
+    }
+  ],
+  "browser": {
+    "production": true,
+    "realHttp": true,
+    "createAction": true,
+    "createGroup": true,
+    "sharedCommand": true,
+    "build": true,
+    "sessionBinding": true,
+    "modeSwitch": true,
+    "idleUnbuild": true,
+    "delete": true,
+    "mobileOverflow": false,
+    "pageErrors": []
+  },
+  "browserSessionId": "ses_c72774322267cd46",
+  "serverStopped": true
+}

@@ -14,6 +14,7 @@ from mcp import types
 from .catalog import Catalog, digest, session_bindings
 from .providers import ApiProvider, McpProvider
 from .validation import validate_document
+from .lifecycle import coordinator, io
 
 log = logging.getLogger(__name__)
 
@@ -85,20 +86,33 @@ class Runtime:
         if session is None:
             raise ValueError("Session not found")
         catalog = Catalog(self.get_manifest())
-        return session, catalog, session_bindings(session, catalog)
+        from .lifecycle import apply_pins, pinned
+        apply_pins(catalog, sid)
+        bindings = session_bindings(session, catalog)
+        unpinned = [b for b in bindings if b['enabled'] and b['plugin_id'].startswith('action-group-')
+                    and b['plugin_id'] not in pinned(sid)[0]]
+        if unpinned:
+            from packages.core.worker import find_alive_worker_by_session
+            if find_alive_worker_by_session(sid):
+                # Adding a Group to an existing gateway does not change its
+                # descriptor. Still require a real Worker start to admit it.
+                for binding in unpinned:
+                    binding['enabled'] = False
+        return session, catalog, bindings
 
     async def snapshot(self, sid, pid):
-        async with self.locks.setdefault((sid, pid), asyncio.Lock()):
-            return await self._snapshot(sid, pid)
+        async with coordinator().claim(shared={pid} if pid.startswith('action-group-') else ()):
+            async with self.locks.setdefault((sid, pid), asyncio.Lock()):
+                return await self._snapshot(sid, pid)
 
     async def _snapshot(self, sid, pid):
-        session, catalog, bindings = self.context(sid)
+        session, catalog, bindings = await io(self.context, sid)
         plugin = catalog.get(pid)
         binding = next((b for b in bindings if b["plugin_id"] == plugin.id and b["enabled"]), None)
         if not binding:
             raise ValueError("Plugin is disabled for this Session")
         key = (sid, plugin.id)
-        document = read_api_document(plugin) if plugin.source["kind"] == "pan_api" else None
+        document = await io(read_api_document, plugin) if plugin.source["kind"] == "pan_api" else None
         config = document if document else catalog.servers[plugin.source["server_ref"]]
         revision = digest([plugin.source, config, plugin.agent_capabilities, plugin.data_version])
         owner = self.providers.get(key)
@@ -142,7 +156,7 @@ class Runtime:
         return descriptors
 
     async def directory(self, sid, view, plugin_id=None):
-        _, catalog, bindings = self.context(sid)
+        _, catalog, bindings = await io(self.context, sid)
         mode = {"native": "pan_native", "gateway": "gateway", "standalone": "standalone"}.get(view)
         if mode is None:
             raise ValueError("Unknown projection view")
@@ -164,6 +178,17 @@ class Runtime:
         descriptor = next((d for d in descriptors if d[key] == name), None)
         if not descriptor:
             return error("tool_unavailable", "Tool is not enabled in this Session projection")
+        if descriptor['plugin'].startswith('action-group-'):
+            async with coordinator().claim(shared={descriptor['plugin']}):
+                # The initial directory may have preceded an unbuild/rebuild.
+                current = await self.directory(sid, view, plugin_id)
+                descriptor = next((d for d in current if d[key] == name), None)
+                if descriptor is None:
+                    return error('tool_unavailable', 'Action Group changed before admission')
+                return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
+        return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
+
+    async def _invoke_resolved(self, sid, view, descriptor, arguments, expected_digest):
         if expected_digest and expected_digest != descriptor["contract_digest"]:
             return error("contract_changed", "Discover the current schema before calling again")
         try:
@@ -171,7 +196,7 @@ class Runtime:
         except jsonschema.ValidationError as exc:
             return error("invalid_arguments", exc.message)
         # Resolve current bindings again after discovery awaited upstream work.
-        _, _, bindings = self.context(sid)
+        _, _, bindings = await io(self.context, sid)
         mode = {"native": "pan_native", "gateway": "gateway", "standalone": "standalone"}[view]
         if not any(b["enabled"] and b["plugin_id"] == descriptor["plugin"] and b["mode"] == mode for b in bindings):
             return error("tool_unavailable", "Plugin configuration changed")
@@ -198,7 +223,7 @@ class Runtime:
         sid, op = request["session_id"], request["operation"]
         view, plugin = request.get("view", "gateway"), request.get("plugin")
         if op == "core_enabled":
-            _, _, bindings = self.context(sid)
+            _, _, bindings = await io(self.context, sid)
             return {"enabled": any(b["enabled"] and b["plugin_id"] == "pan" for b in bindings)}
         if op == "list":
             return {"tools": await self.directory(sid, view, plugin)}
@@ -261,7 +286,7 @@ class Runtime:
                 if self.closing:
                     break
                 try:
-                    bindings = self.context(sid)[2] if self.get_session(sid) is not None else []
+                    bindings = (await io(self.context, sid))[2] if self.get_session(sid) is not None else []
                     if any(b["enabled"] and b["plugin_id"] == pid for b in bindings):
                         await asyncio.wait_for(self.snapshot(sid, pid), 10)
                     elif not self.invocations:

@@ -1,5 +1,7 @@
 # A8 candidate: report status and original-ID batch consumption
 
+> Historical c5a9140 evidence. The Action-integrated successor and read-only receipt correction are documented in [integration candidate](task-a-action-report-integration-20261021.md).
+
 Worktree: `D:/project/pan-worktrees/task-a-history-read-20261021`. Branch: `feature/task-a-history-read-20261021`. Base: `1e74c3742561ce28b5b2385d4a94bcc430bf988b`, verified clean before edits. Fast-forward candidate for MA acceptance only; no main/practical movement, push/release or existing-service operation.
 
 The latest user decision supersedes historical PAN_SMA A8 next/ack: **no report_ack; remove report_next; add report_consume** (canonical spelling for the user's report_comsume, no alias). report_status remains. This is the complete requested implementation candidate, not an MA acceptance claim. The previous report-reads report and artifacts are historical baseline evidence only.

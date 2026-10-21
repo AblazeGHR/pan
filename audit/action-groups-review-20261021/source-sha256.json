@@ -1,0 +1,11 @@
+{
+  "docs/plugins/ACTIONS.md": "41a15a5f5a8eade21112dbeb6d0a69ac80e22ef257076c6ab53c549f0665462c",
+  "packages/actions/api.py": "e8765558ba9512f91019bacba360fd24be0233f3038018372d0f62b96551e86b",
+  "packages/actions/provider.py": "4d6fb9e2d1ae611391cb33bb79da3d5c683a697f37588ce15ae98f4c1b08e33e",
+  "packages/plugins/runtime.py": "268aae5829cefdb0225cc84ae42cb75a12a861ea76af38bd601fcaa2183ce671",
+  "packages/web/server.py": "c20234a5fd6880ef2d4c707733cf91876658b76d321cdae5868f0f28536795f4",
+  "packages/web/src/views/ActionsView.test.tsx": "4f6e933648b5b73b0187f3f74f7b1aeb201f62e77940af5f0dc721e95dafa981",
+  "packages/web/src/views/ActionsView.tsx": "2f8568b1c642b5858d95f7e021c2a5ab6c4124105c6745151073cc7993be6aa7",
+  "tests/test_action_groups.py": "edce6a22418fe33a8e4977d4088748d1d44af9218c77cd6187555bd72ccc99a5",
+  "scripts/probe_action_group_review.py": "59002df3394cc59d2ddfca9f593bc0d2375bcce981ed2626c459046584301001"
+}

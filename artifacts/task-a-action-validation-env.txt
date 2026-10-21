@@ -1,0 +1,20 @@
+[2026-10-21 10:57:24][INFO] === prepare_validation_env.ps1 ===
+[2026-10-21 10:57:24][INFO] Mode: Prepare
+[2026-10-21 10:57:24][INFO] Worktree: D:/project/pan-worktrees/task-a-history-read-20261021
+[2026-10-21 10:57:24][OK] Canonical Python: D:\project\Pan-main\.venv\Scripts\python.exe
+[2026-10-21 10:57:24][INFO]   Python 3.14.5
+[2026-10-21 10:57:24][OK]   [OK] import dotenv
+[2026-10-21 10:57:26][OK]   [OK] import mcp
+[2026-10-21 10:57:26][OK]   [OK] import pytest
+[2026-10-21 10:57:27][OK]   [OK] import fastapi
+[2026-10-21 10:57:27][OK]   [OK] import httpx
+[2026-10-21 10:57:27][OK]   [OK] import pydantic
+[2026-10-21 10:57:27][INFO] Python repair skipped (default/check mode is read-only).
+[2026-10-21 10:57:27][OK] Playwright package present in canonical venv.
+[2026-10-21 10:57:27][INFO] Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.
+[2026-10-21 10:57:27][OK] Canonical node_modules target verified (directory): D:\project\Pan-main\packages\web\node_modules
+[2026-10-21 10:57:27][INFO] Creating junction: cmd /c mklink /J "D:\project\pan-worktrees\task-a-history-read-20261021\packages\web\node_modules" "D:\project\Pan-main\packages\web\node_modules"
+[2026-10-21 10:57:27][INFO]   Junction created for D:\project\pan-worktrees\task-a-history-read-20261021\packages\web\node_modules <<===>> D:\project\Pan-main\packages\web\node_modules
+[2026-10-21 10:57:27][OK] Junction created and verified: D:\project\pan-worktrees\task-a-history-read-20261021\packages\web\node_modules -> D:\project\Pan-main\packages\web\node_modules
+[2026-10-21 10:57:27][INFO] Recorded script ownership marker: D:\project\pan-worktrees\task-a-history-read-20261021\packages\web\.pan-validation-node-modules.junction
+[2026-10-21 10:57:27][INFO] Exit code: 0

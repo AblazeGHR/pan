@@ -31,6 +31,11 @@ def test_environment_filters_all_pan_settings_without_changing_parent(tmp_path):
 
 
 def test_storage_probe_uses_only_fixture_roots(tmp_path):
+    from packages.actions.store import Store
+    action_store = Store()
+    assert action_store.root == tmp_path / 'actions'
+    action_store.put('groups', {'id': 'isolation_probe', 'name': 'Isolation probe', 'action_ids': []})
+    assert (tmp_path / 'actions/registry.json').is_file()
     assert jobs._root() == tmp_path / "background_jobs"
     assert store.data_root() == tmp_path / "background_jobs"
     assert registry._resolve_root(None) == tmp_path / "terminals"

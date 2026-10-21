@@ -1,6 +1,7 @@
 """Own queue projection and original-item consumption; provider routing is private."""
 import asyncio
 import copy
+import json
 
 from . import session as sess
 from . import worker
@@ -156,8 +157,18 @@ async def report_consume(session_id: str, item_id: str | None = None) -> dict:
         async with worker.queue_lock(session_id):
             receipt = _report_receipt(s, item_id)
             if receipt.get("status") == "accepted":
-                confirmed = await _confirmed(s, already=True)
-                if not confirmed.get("ok"):
+                # Receipt inspection is read-only, including disk persistence.
+                # Memory's sent marker alone cannot prove a failed writer.
+                def durable():
+                    try:
+                        data = json.loads(sess._path(session_id).read_text(encoding="utf-8"))
+                        ledger = data.get("queue_delivery_ledger", {})
+                        return all(worker._delivery_state(ledger.get(identity, {})) == worker._DELIVERY_SENT
+                                   and ledger[identity].get("reportConsumeIds") == receipt["queueItemIds"]
+                                   for identity in receipt["queueItemIds"])
+                    except (OSError, ValueError, TypeError, KeyError):
+                        return False
+                if not await asyncio.to_thread(durable):
                     receipt.update(ok=False, status="unconfirmed")
             return receipt
     # The existing native runtime validator/Worker lifecycle reads full own

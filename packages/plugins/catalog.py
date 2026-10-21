@@ -128,6 +128,8 @@ class Catalog:
             modes = ("standalone",) if name == "pan" else MODES
             self._add(Plugin(name, name, {"kind": "mcp", "server_ref": name},
                              supported_modes=modes, legacy=True))
+        from packages.actions.store import extend_catalog
+        extend_catalog(self)
         # Aliases may refer to legacy descriptors, but cannot shadow another plugin.
         for alias, pid in self.aliases.items():
             if alias in self.plugins and alias != pid:
@@ -157,6 +159,9 @@ class Catalog:
         for item in raw:
             if not isinstance(item, dict) or set(item) - {"plugin_id", "enabled", "mode"}:
                 raise ValueError("Invalid plugin binding fields")
+            from packages.actions.store import inactive_plugin
+            if inactive_plugin(item.get('plugin_id')):
+                continue  # Unregistration atomically invalidates stale saved descriptors too.
             plugin = self.get(item.get("plugin_id"))
             enabled = item.get("enabled", True)
             mode = item.get("mode", plugin.default_mode)

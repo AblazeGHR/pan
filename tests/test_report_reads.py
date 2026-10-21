@@ -530,6 +530,8 @@ def test_post_acceptance_persistence_failure_is_unconfirmed_not_resend(monkeypat
         assert (await self_queue.report_consume(s.id,"a"))["status"] == "unconfirmed"
         assert stdin.write.call_count == 1
         monkeypatch.setattr(sess,"_save_body",original)
+        # The persistence owner, not a query, repairs durable proof.
+        await sess.save_async(s)
         assert (await self_queue.report_consume(s.id,"a"))["status"] == "accepted"
         assert stdin.write.call_count == 1
     asyncio.run(run())

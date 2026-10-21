@@ -27,6 +27,16 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
+Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
+`action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
+expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。用户在 Panel
+启用并 build Group 后才注册 `action-group-<id>` MCP 插件，Session 通过已有
+`plugin_bindings` 选择三模式。运行 Worker 固定 release；rebuild 沿用 idle/deferred
+restart，unbuild 只被启用该 Group 的 live running Session 阻塞，错误列出名字/ID，
+idle 允许并清理 bindings。API 首批只允许固定的三个内部 GET 路由，命令用固定
+executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝。不得自动
+重试结果不明的副作用。字段与完整范围见 `docs/plugins/ACTIONS.md`。
+
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
    - 无本地 `config.json` 时默认加载根 `manifest.json` 与 `packages/mcp/manifest.json`；后者注册 `pan` 与 `qq`（旧名 `pan-qq` 兼容）。stdio MCP command 使用 `${PAN_PYTHON}`（优先环境变量，否则使用运行 Pan 的 Python 解释器），git worktree 不需要私有 `.venv`。选择未知或不可用 server 时，session 配置 API 返回明确错误。
@@ -204,7 +214,7 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 报告推荐 `report_consume()`：把当前可处理的 child-agent 报告按原相对顺序聚集到队首，持久化后组成一条消息强制交给 CLI。running 且支持原生 Steer 时是一条真正的批量 Steer；无 Steer 按既有 Force restart 路由；idle/queued 用普通 handoff，不因无 Steer 能力而阻止发送或额外重启，无 Worker 则创建/恢复 Worker。delayed restart 仍优先。非 report 项保留相互顺序，Job/notice/channel 不混入该批次。复用原报告行、ID、来源及普通 batch 格式/history 映射，不复制入队、不伪造报告。
 
-回执只含 `itemId`（首个原 ID）、`queueItemIds` 和交接状态；没有 result、正文、snippet 或附件文本。`accepted` 仅证明 CLI 接受，绝非 MA 处理完成或模型执行完成；`queued/pending/unknown/unconfirmed` 不能当作成功。保留 itemId，调用 `report_consume(item_id=原ID)` **只查询该批次回执，不重发**。任一原成员 ID 均可查询。未结束批次保持同一组成员，未知写入不能重组为新 batch 或自动重投。普通队列/Steer 以同一批次为不可拆交接单元；已拒绝但未交接的批次仍可由正常消费者按原批次处理。
+回执只含 `itemId`（首个原 ID）、`queueItemIds` 和交接状态；没有 result、正文、snippet 或附件文本。`accepted` 仅证明 CLI 接受，绝非 MA 处理完成或模型执行完成；`queued/pending/unknown/unconfirmed` 不能当作成功。保留 itemId，调用 `report_consume(item_id=原ID)` **只查询该批次回执，不写 CLI、不补写 Session、不重发**。任一原成员 ID 均可查询。未结束批次保持同一组成员，未知写入不能重组为新 batch 或自动重投。普通队列/Steer 以同一批次为不可拆交接单元；实际交接与 Action unbuild/settings/startup 共用 Session/Group reservation，已卸载的 loaded pin 阻止写入，reservation 保持到交接写入/回执 owner 结束；已拒绝但未交接的批次仍可由正常消费者按原批次处理。
 
 两工具无 Session 参数，仅绑定本地 stdio 自身身份；remote/SSE、浏览器 Origin/Fetch、非 loopback 不能借用身份。Illegal/manual/Stop-report 实际锁、Pause、readonly、lease、native owner、未知交接等 gate 均保留；不能消费项跳过，不泄漏其身份/数量。编辑 lease 阻止批次聚集和 Steer，不为聚集解锁。无 ID 旧报告跳过，不生成持久身份；未来 stop-report 配置不替代实际行锁。批次形成后若任一成员被锁/编辑/重排则不拆分投递，等待既有 gate 解除。
 

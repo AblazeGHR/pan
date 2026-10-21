@@ -15,7 +15,10 @@ All persistent data lives in Session (session.py) — 即 Agent 的持久身份�
 from __future__ import annotations
 
 import asyncio
+from contextlib import AsyncExitStack
 from packages.jobs.window import command_window_options
+from packages.plugins.lifecycle import startup as _admit_plugin_startup
+from packages.plugins.lifecycle import native_admission as _plugin_native_admission
 import copy
 import hashlib
 import inspect
@@ -2816,6 +2819,7 @@ async def _native_operation_event(w, runtime, event) -> bool:
     return changed
 
 
+@_plugin_native_admission
 async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = None,
                              thread_id: str | None = None,
                              control_generation: int | None = None,
@@ -7147,6 +7151,15 @@ class _OneShotSpawnFailed(Exception):
 
 
 async def _queue_handoff(w: Worker, s, operation, on_handoff):
+    from packages.plugins.lifecycle import session_claim, action_groups, pinned
+    async with session_claim(s):
+        if set(pinned(s.id)[0]) - action_groups(s.adapter_config):
+            request_delayed_restart(s.id)
+            raise _QueuePausedBeforeHandoff('Loaded Action Group was detached; Worker restart required')
+        return await _queue_handoff_admitted(w, s, operation, on_handoff)
+
+
+async def _queue_handoff_admitted(w: Worker, s, operation, on_handoff):
     """Serialize pause with write/drain or spawn and receipt, not execution.
 
     Pause waits for a handoff already holding this lock. Reserved rows that
@@ -7970,6 +7983,7 @@ async def _apply_pending_native_configuration(s) -> None:
     await _bcast({"type": "session.updated", "sessionId": s.id})
 
 
+@_admit_plugin_startup
 async def _create_worker(session_id: str) -> Worker | str:
     """create_worker 的锁内实现（勿直接调用）。"""
     s = _sess.get(session_id)
@@ -8025,6 +8039,8 @@ async def _create_worker(session_id: str) -> Worker | str:
     if mode == "oneshot":
         # One-shot mode: no long-running process, consumer spawns per-task
         # (no stdin). See docs/design/adapter-p1-oneshot.md.
+        from packages.plugins.lifecycle import capture_async
+        await capture_async(s)
         proc = None
         spawn_injected = False
     else:
@@ -8032,7 +8048,8 @@ async def _create_worker(session_id: str) -> Worker | str:
         # If MCP is configured (mcp_on, output_mode="stream"), the process is
         # spawned with --mcp-config (build_spawn_args -> mcp_args) so the
         # long-running stream keeps MCP tools (cbc >= 2.137.0).
-        extra_args = _spawn_system_prompt_args(adapter, s, mcp_on, prompt_files)
+        from packages.plugins.lifecycle import io
+        extra_args = await io(_spawn_system_prompt_args, adapter, s, mcp_on, prompt_files)
         spawn_injected = extra_args is not None
         proc = await _spawn_process(session_id, adapter=adapter, extra_args=extra_args)
         if isinstance(proc, str):
@@ -8852,6 +8869,7 @@ async def _respawn_worker(w: Worker | None, intent: dict) -> None:
         _log.exception("[Session %s] delayed restart failed", sid)
 
 
+@_admit_plugin_startup
 async def _spawn_process(session_id: str,
                          adapter: CliAdapter,
                          extra_args: list[str] | None = None
@@ -8861,7 +8879,9 @@ async def _spawn_process(session_id: str,
         return f"Session {session_id} not found"
 
     try:
-        args = adapter.build_spawn_args(s, extra_args)
+        from packages.plugins.lifecycle import capture_async, io
+        await capture_async(s)
+        args = await io(adapter.build_spawn_args, s, extra_args)
         _log_mcp_launch(worker_id=s.worker_id if hasattr(s, "worker_id") else session_id,
                         session=s, args=args)
         return await asyncio.create_subprocess_exec(
@@ -8978,6 +8998,9 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     # calling _spawn_process here would launch a stream CLI with the wrong
     # protocol and can leave force-send callers waiting forever.
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        from packages.plugins.lifecycle import session_claim, capture_async
+        async with session_claim(_session(w)):
+            await capture_async(_session(w))
         w.status = "idle"
         await _restart_tasks(w)
         await _record_legal_worker_state(w, "idle", "pan/restart-start")
@@ -9083,6 +9106,9 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     # their consumer path for the same reason as restart: their provider
     # process is created per task by _consumer_oneshot, never by this helper.
     if resolve_execution_mode(w.adapter, _session(w)) == "oneshot":
+        from packages.plugins.lifecycle import session_claim, capture_async
+        async with session_claim(_session(w)):
+            await capture_async(_session(w))
         w.status = "idle"
         await _restart_tasks(w)
         await _record_legal_worker_state(w, "idle", "pan/respawn-start")
@@ -9943,167 +9969,176 @@ async def steer_queue_item(session_id: str, item_id: str, expected_revision: int
 async def _steer_queue_item(session_id: str, item_id: str, expected_revision: int, *, outcome=None):
     if outcome is None:
         outcome = {"status": "rejected"}
-    lock = await _session_spawn_lock(session_id)
-    async with lock:
-        w = find_alive_worker_by_session(session_id)
-        s = _get_session_shallow(session_id)
-        if s is None:
-            return "Session not found"
-        if s.readonly_session:
-            return READONLY_SESSION_ERROR
-        if w is None or w.status != "running":
-            return "Queue Steer requires an existing running Worker; idle restart has priority"
-        if not getattr(w.adapter, "supports_native_steer", False):
-            return "Adapter does not support native Steer"
-        async with queue_lock(session_id):
+    async with AsyncExitStack() as admission:
+        lock = await _session_spawn_lock(session_id)
+        async with lock:
+            w = find_alive_worker_by_session(session_id)
+            s = _get_session_shallow(session_id)
+            if s is None:
+                return "Session not found"
+            # Match startup's spawn -> Session reservation order. Keep the
+            # Action claim through the actual write/drain/receipt owner, while
+            # releasing the spawn/queue locks before waiting for provider IO.
+            from packages.plugins.lifecycle import session_claim, action_groups, pinned
+            await admission.enter_async_context(session_claim(s))
+            if set(pinned(s.id)[0]) - action_groups(s.adapter_config):
+                request_delayed_restart(s.id)
+                return "Loaded Action Group detached; restart Worker before queue Steer"
             if s.readonly_session:
                 return READONLY_SESSION_ERROR
-            item = next((it for it in s.queue_pending if _queue_item_id(it) == item_id), None)
-            if item is None or _delivery_state(item) != _DELIVERY_QUEUED:
-                return "Queue item is no longer queued"
-            if item.get("revision", 1) != expected_revision:
-                return "Queue item revision conflict"
-            if s.queue_paused:
-                return "Pause everything blocks queue Steer"
-            eligible_item = dict(item) if item.get("forceSend") else item
-            if item.get("forceSend"):
-                eligible_item.pop("forceSendHeld", None)
-            if not queue_item_eligible(s, eligible_item):
-                return "Queue item is locked or awaiting Steer confirmation"
-            if any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks)):
-                return "Cannot Steer while a queued message is being edited"
-            items = _report_consume_unit(s, item) if item.get("reportConsumeIds") else [item]
-            if (not items or items[0] is not item
-                    or (item.get("reportConsumeIds")
-                        and any(not queue_item_eligible(s, row) for row in items))):
-                return "Report batch is unavailable"
-            kind = _queue_item_kind(item)
-            if kind == "task":
-                if not _is_valid_task_item(item) or _task_source(item) is None:
-                    return "Task source/body cannot be preserved losslessly"
-                history_text = item["text"]
-                parts = item.get("parts")
-                if isinstance(parts, list) and any(
-                        not isinstance(part, dict) or part.get("type") not in {"text", "attachment"}
-                        or (part.get("type") == "text" and not isinstance(part.get("text", part.get("value")), str))
-                        or (part.get("type") == "attachment" and not part.get("__serverPath"))
-                        for part in parts):
-                    return "Task parts cannot be steered losslessly; canonical attachment paths are required"
-                try:
-                    native_text = project_message_parts(parts, history_text)
-                except ValueError as exc:
-                    return f"Queue attachment cannot be steered: {exc}"
-            elif kind in {"report", "qq", "wechat"}:
-                if any(row.get("parts") for row in items):
-                    return "Structured report/channel attachments cannot be steered losslessly"
-                history_text = native_text = _format_report_batch(items)
-            else:
-                return "Unknown queue kind cannot be steered losslessly"
-            # Encode before reserving: encoding failure proves no provider write.
-            request_id = uuid.uuid4().hex
-            process, generation = w.process, w.generation
-            stdin = getattr(process, "stdin", None)
-            runtime = (w, generation, process, stdin)
-            origin = _steer_origin(w) if getattr(w.adapter, "steer_requires_run_id", False) else None
-            try:
-                wire = w.adapter.encode_control_message(
-                    _prepare_steer_control(w, native_text, request_id, origin)) + b"\n"
-            except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
-                return f"Steer encoding failed before handoff: {exc}"
-            # Apply, write and failed rollback inside the same writer ticket.
-            durable = _sess.DurableOutcome()
-            def apply_reservation():
-                originals = [(row, dict(row)) for row in items]
-                old_revision = s.queue_revision
-                try:
-                    for row in items:
-                        row["queueSteerPending"] = True
-                        row["queueSteerRequestId"] = request_id
-                        row["queueSteerWorkerId"] = w.worker_id
-                        row["queueSteerGeneration"] = generation
-                        if origin is not None:
-                            row["queueSteerOrigin"] = origin
-                    s.queue_revision += 1
-                    _sess._save_body(s)
-                except BaseException:
-                    for row, original in originals:
-                        row.clear()
-                        row.update(original)
-                    s.queue_revision = old_revision
-                    raise
-            try:
-                await _sess._persist_async_outcome(s.id, apply_reservation, durable)
-            except BaseException:
-                if not durable.succeeded:
-                    raise
-                # Cancellation may follow a successful ticket. In either case
-                # no control has been written: durably release the reservation.
-                for row in items:
-                    row.pop("queueSteerPending", None)
-                    row.pop("queueSteerRequestId", None)
-                    row.pop("queueSteerWorkerId", None)
-                    row.pop("queueSteerGeneration", None)
-                    row.pop("queueSteerOrigin", None)
-                s.queue_revision += 1
-                cleanup = _own_queue_steer_task(_persist_queue_steer_state(w, s))
-                while not cleanup.done():
+            if w is None or w.status != "running":
+                return "Queue Steer requires an existing running Worker; idle restart has priority"
+            if not getattr(w.adapter, "supports_native_steer", False):
+                return "Adapter does not support native Steer"
+            async with queue_lock(session_id):
+                if s.readonly_session:
+                    return READONLY_SESSION_ERROR
+                item = next((it for it in s.queue_pending if _queue_item_id(it) == item_id), None)
+                if item is None or _delivery_state(item) != _DELIVERY_QUEUED:
+                    return "Queue item is no longer queued"
+                if item.get("revision", 1) != expected_revision:
+                    return "Queue item revision conflict"
+                if s.queue_paused:
+                    return "Pause everything blocks queue Steer"
+                eligible_item = dict(item) if item.get("forceSend") else item
+                if item.get("forceSend"):
+                    eligible_item.pop("forceSendHeld", None)
+                if not queue_item_eligible(s, eligible_item):
+                    return "Queue item is locked or awaiting Steer confirmation"
+                if any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks)):
+                    return "Cannot Steer while a queued message is being edited"
+                items = _report_consume_unit(s, item) if item.get("reportConsumeIds") else [item]
+                if (not items or items[0] is not item
+                        or (item.get("reportConsumeIds")
+                            and any(not queue_item_eligible(s, row) for row in items))):
+                    return "Report batch is unavailable"
+                kind = _queue_item_kind(item)
+                if kind == "task":
+                    if not _is_valid_task_item(item) or _task_source(item) is None:
+                        return "Task source/body cannot be preserved losslessly"
+                    history_text = item["text"]
+                    parts = item.get("parts")
+                    if isinstance(parts, list) and any(
+                            not isinstance(part, dict) or part.get("type") not in {"text", "attachment"}
+                            or (part.get("type") == "text" and not isinstance(part.get("text", part.get("value")), str))
+                            or (part.get("type") == "attachment" and not part.get("__serverPath"))
+                            for part in parts):
+                        return "Task parts cannot be steered losslessly; canonical attachment paths are required"
                     try:
-                        await asyncio.shield(cleanup)
-                    except asyncio.CancelledError:
-                        continue
-                raise
-            def still_allowed(row):
-                candidate = dict(row)
-                candidate.pop("queueSteerPending", None)
-                if candidate.get("forceSend"):
-                    candidate.pop("forceSendHeld", None)
-                return queue_item_eligible(s, candidate)
-            if (s.readonly_session or (item.get("reportConsumeIds") and _offline.is_illegal(s))
-                    or any(not still_allowed(row) for row in items)
-                    or any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks))
-                    or w.native_control_mode != "pan" or not _control_runtime_matches(w.worker_id, runtime)
-                    or w.status != "running" or (origin is not None and
-                    (w._terminal_handled or w._steer_run_id != origin["runId"]))
-                    or process is None or process.returncode is not None or stdin is None):
-                for row in items:
-                    row.pop("queueSteerPending", None)
-                    row.pop("queueSteerRequestId", None)
-                    row.pop("queueSteerWorkerId", None)
-                    row.pop("queueSteerGeneration", None)
-                    row.pop("queueSteerOrigin", None)
-                s.queue_revision += 1
-                await _persist_queue_steer_state(w, s)
-                return "Worker turn ended before Steer handoff"
-            future = asyncio.get_running_loop().create_future()
-            wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
-            if wants_receipt:
-                w._steer_receipts[request_id] = future
-                w._steer_contexts[request_id] = {"runtime": runtime, "origin": origin or _steer_origin(w)}
-                def settle_receipt(done):
-                    if w._steer_receipts.get(request_id) is done:
-                        w._steer_receipts.pop(request_id, None)
-                    w._steer_contexts.pop(request_id, None)
-                    if not done.cancelled():
-                        disposition, detail = _steer_receipt_result(done.result())
-                        _own_queue_steer_task(_settle_queue_steer(
-                            w, s, items, history_text, detail, request_id, generation,
-                            disposition=disposition))
-                future.add_done_callback(settle_receipt)
-            # This synchronous write is the pause/lease linearization boundary.
-            # Once attempted, even a write/drain error is conservatively unknown.
-            write_error = None
-            outcome["status"] = "unknown"
-            try:
-                written = stdin.write(wire)
-                if isinstance(written, int) and written != len(wire):
-                    raise OSError("partial Steer control write")
-            except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                write_error = str(exc)
-            owner = _own_queue_steer_task(_finish_queue_steer(
-                w, s, items, history_text, request_id, generation, process,
-                future if wants_receipt else None, write_error, outcome=outcome, stdin=stdin))
-    # No lifecycle or queue lock is held while drain/RPC/broadcast is awaited.
-    return await asyncio.shield(owner)
+                        native_text = project_message_parts(parts, history_text)
+                    except ValueError as exc:
+                        return f"Queue attachment cannot be steered: {exc}"
+                elif kind in {"report", "qq", "wechat"}:
+                    if any(row.get("parts") for row in items):
+                        return "Structured report/channel attachments cannot be steered losslessly"
+                    history_text = native_text = _format_report_batch(items)
+                else:
+                    return "Unknown queue kind cannot be steered losslessly"
+                # Encode before reserving: encoding failure proves no provider write.
+                request_id = uuid.uuid4().hex
+                process, generation = w.process, w.generation
+                stdin = getattr(process, "stdin", None)
+                runtime = (w, generation, process, stdin)
+                origin = _steer_origin(w) if getattr(w.adapter, "steer_requires_run_id", False) else None
+                try:
+                    wire = w.adapter.encode_control_message(
+                        _prepare_steer_control(w, native_text, request_id, origin)) + b"\n"
+                except (AttributeError, TypeError, ValueError, RuntimeError, OSError) as exc:
+                    return f"Steer encoding failed before handoff: {exc}"
+                # Apply, write and failed rollback inside the same writer ticket.
+                durable = _sess.DurableOutcome()
+                def apply_reservation():
+                    originals = [(row, dict(row)) for row in items]
+                    old_revision = s.queue_revision
+                    try:
+                        for row in items:
+                            row["queueSteerPending"] = True
+                            row["queueSteerRequestId"] = request_id
+                            row["queueSteerWorkerId"] = w.worker_id
+                            row["queueSteerGeneration"] = generation
+                            if origin is not None:
+                                row["queueSteerOrigin"] = origin
+                        s.queue_revision += 1
+                        _sess._save_body(s)
+                    except BaseException:
+                        for row, original in originals:
+                            row.clear()
+                            row.update(original)
+                        s.queue_revision = old_revision
+                        raise
+                try:
+                    await _sess._persist_async_outcome(s.id, apply_reservation, durable)
+                except BaseException:
+                    if not durable.succeeded:
+                        raise
+                    # Cancellation may follow a successful ticket. In either case
+                    # no control has been written: durably release the reservation.
+                    for row in items:
+                        row.pop("queueSteerPending", None)
+                        row.pop("queueSteerRequestId", None)
+                        row.pop("queueSteerWorkerId", None)
+                        row.pop("queueSteerGeneration", None)
+                        row.pop("queueSteerOrigin", None)
+                    s.queue_revision += 1
+                    cleanup = _own_queue_steer_task(_persist_queue_steer_state(w, s))
+                    while not cleanup.done():
+                        try:
+                            await asyncio.shield(cleanup)
+                        except asyncio.CancelledError:
+                            continue
+                    raise
+                def still_allowed(row):
+                    candidate = dict(row)
+                    candidate.pop("queueSteerPending", None)
+                    if candidate.get("forceSend"):
+                        candidate.pop("forceSendHeld", None)
+                    return queue_item_eligible(s, candidate)
+                if (s.readonly_session or (item.get("reportConsumeIds") and _offline.is_illegal(s))
+                        or any(not still_allowed(row) for row in items)
+                        or any(queue_item_edit_locked(s, identity) for identity in list(s.queue_edit_locks))
+                        or w.native_control_mode != "pan" or not _control_runtime_matches(w.worker_id, runtime)
+                        or w.status != "running" or (origin is not None and
+                        (w._terminal_handled or w._steer_run_id != origin["runId"]))
+                        or process is None or process.returncode is not None or stdin is None):
+                    for row in items:
+                        row.pop("queueSteerPending", None)
+                        row.pop("queueSteerRequestId", None)
+                        row.pop("queueSteerWorkerId", None)
+                        row.pop("queueSteerGeneration", None)
+                        row.pop("queueSteerOrigin", None)
+                    s.queue_revision += 1
+                    await _persist_queue_steer_state(w, s)
+                    return "Worker turn ended before Steer handoff"
+                future = asyncio.get_running_loop().create_future()
+                wants_receipt = getattr(w.adapter, "supports_steer_receipt", False)
+                if wants_receipt:
+                    w._steer_receipts[request_id] = future
+                    w._steer_contexts[request_id] = {"runtime": runtime, "origin": origin or _steer_origin(w)}
+                    def settle_receipt(done):
+                        if w._steer_receipts.get(request_id) is done:
+                            w._steer_receipts.pop(request_id, None)
+                        w._steer_contexts.pop(request_id, None)
+                        if not done.cancelled():
+                            disposition, detail = _steer_receipt_result(done.result())
+                            _own_queue_steer_task(_settle_queue_steer(
+                                w, s, items, history_text, detail, request_id, generation,
+                                disposition=disposition))
+                    future.add_done_callback(settle_receipt)
+                # This synchronous write is the pause/lease linearization boundary.
+                # Once attempted, even a write/drain error is conservatively unknown.
+                write_error = None
+                outcome["status"] = "unknown"
+                try:
+                    written = stdin.write(wire)
+                    if isinstance(written, int) and written != len(wire):
+                        raise OSError("partial Steer control write")
+                except (BrokenPipeError, ConnectionError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    write_error = str(exc)
+                owner = _own_queue_steer_task(_finish_queue_steer(
+                    w, s, items, history_text, request_id, generation, process,
+                    future if wants_receipt else None, write_error, outcome=outcome, stdin=stdin))
+        # No spawn/queue lock spans provider IO; Action reservation remains.
+        return await _sess.await_persistence(owner)
 
 
 async def _finish_queue_steer(w, s, item, text, request_id, generation, process, future, write_error, *, outcome=None, stdin=None):

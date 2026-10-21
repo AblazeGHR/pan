@@ -1,0 +1,65 @@
+{
+  "baseline": "978beef4680f33bed05c156a7592e6b075db3b46",
+  "merge": "7aee59d9157d6f3873497e29779476002349348e",
+  "testedSourceCommit": "423d443c88925131c0a039ff209a01243b8b6cf0",
+  "junit": {
+    "failure-first.xml": {
+      "cases": 3,
+      "failures": 3,
+      "errors": 0,
+      "skips": 0
+    },
+    "coexistence.xml": {
+      "cases": 156,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "lifecycle.xml": {
+      "cases": 156,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0
+    },
+    "final.xml": {
+      "cases": 250,
+      "failures": 0,
+      "errors": 0,
+      "skips": 0,
+      "byModule": {
+        "tests.test_action_groups": 63,
+        "tests.test_plugin_session_config": 11,
+        "tests.test_plugin_platform": 17,
+        "tests.test_history_read": 23,
+        "tests.test_history_search_content": 18,
+        "tests.test_session_history_search_mcp": 11,
+        "tests.test_model_catalog": 14,
+        "tests.test_codex_native_admission": 32,
+        "tests.test_delayed_restart_locked_queue_http": 5,
+        "tests.test_session_adapter_validation": 42,
+        "tests.test_worker_system_prompt_spawn": 14
+      }
+    }
+  },
+  "finalExit": 0,
+  "finalSeconds": 72.64,
+  "timeoutPlugin": {
+    "version": "2.4.0",
+    "path": "D:\\project\\pan-worktrees\\action-groups-review-20261021\\.validation\\action-review\\integration\\pytest-plugins\\pytest_timeout.py",
+    "registered": true,
+    "defaultTimeoutSeconds": "300"
+  },
+  "frontendInputsChangedSince54189ff4": false,
+  "compileallExit": 0,
+  "diffCheckExit": 0,
+  "mainAndPracticalObserved": "978beef4680f33bed05c156a7592e6b075db3b46",
+  "protectedListener8768Pid": 6032,
+  "protected8767Unused": true,
+  "remainingOwnedServiceOrProviderProcesses": [],
+  "protectedListeners": [
+    {
+      "port": 8768,
+      "pid": 6032
+    }
+  ]
+}
