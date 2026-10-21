@@ -108,3 +108,41 @@ are recognized by their declared legacy source, independently of message text.
 that value use defaults and an empty `plugins` map removes overrides. Other UI
 settings retain their existing update behavior. GET sanitizes malformed persisted
 values, while PUT strictly rejects unknown fields and non-boolean values.
+
+## 2026-10-21 integration with current main
+
+The original branch and its evidence above remain historical, unchanged. The
+integration candidate starts at main `3f601e9c66125d7a0313e4b679958bdc49eac935`,
+merges the complete original feature history, and additionally includes main
+`b6502ea940b3d852b7e6824f6c2d4e66fe7666fc`. This candidate is delivered for MA
+acceptance; it does not move main/practical or authorize service operations.
+
+The current Illegal/Wake admission writer remains authoritative for every new
+message, including plugin messages and explicit upstream Report tasks. Ordinary
+Force and automatic Force cannot implicitly Wake or clear the incident's locks.
+Auto Force's Report switch recognizes explicit upstream task messages, while
+formal assign remains a dispatch, excluded from automatic injection. Auto Force
+settings and automatic-answer-report settings remain independent.
+
+Own-queue reads hide every `source=report` task's body/parts, even without the
+optional `explicitReport` marker. `report_consume` handles such a task as a
+single original unit, preserving its text, attachment projection, task ID and
+formal idempotency. It never combines task envelopes with `result` report
+envelopes. Ordinary completion reports retain main's batch/single-control
+behavior. A corrupt restored mixed unit is rejected instead of dropping input.
+Original-ID queries remain metadata-only, and unknown receipts never regroup
+or retransmit the unit.
+
+Registry/manifest discovery runs through cancellation-safe off-loop IO. Action
+Session/Group reservations remain held until admitted IO/writes retire. Policy
+metadata is computed on detached candidates and published through the existing
+durable reservation; failed writes restore item/ledger policy and do not update
+the Worker decision. A late accepted receipt can settle the original ID but can
+only extend the active decision when Worker identity, generation and execution
+all still match. Native TUI admission snapshots real-user policy in its durable
+offline run. Runtime handoff/preflight errors and zombie infrastructure reports
+retain their existing reporting/subscription rules independently of answer
+policy.
+
+New integration commands, JUnit, production browser evidence and limits are in
+`evidence/source-aware-main-integration-20261021/README.md`.

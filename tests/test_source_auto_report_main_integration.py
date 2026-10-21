@@ -75,6 +75,18 @@ def test_invalid_mixed_frozen_unit_cannot_drop_explicit_task_body():
     assert worker._report_consume_unit(s, a) is None
 
 
+def test_report_task_without_optional_marker_still_hides_body_before_handoff():
+    async def run():
+        s, _, _, _ = setup()
+        s.queue_pending = [{'id': 'raw-report-task', 'queueItemId': 'raw-report-task',
+                            'type': 'task', 'source': 'report', 'text': 'SECRET task',
+                            'parts': [{'type': 'text', 'text': 'SECRET parts'}]}]
+        projection = await self_queue.read(s.id)
+        assert projection['items'] == [{'id': 'raw-report-task', 'queueItemId': 'raw-report-task',
+                                        'type': 'report', 'source': 'report'}]
+    asyncio.run(run())
+
+
 def test_upstream_plugin_and_automatic_reports_stay_illegal_until_explicit_wake(monkeypatch):
     from tests.test_illegal_queue_wake import incident
     async def run():
@@ -182,4 +194,27 @@ def test_infrastructure_error_report_bypasses_answer_policy(monkeypatch):
         assert manager.queue_pending[0]['status'] == 'error'
         assert manager.queue_pending[0]['result'] == 'infrastructure handoff failed'
         assert child.last_result['status'] == 'error'
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('retirement', ['execution', 'generation', 'worker'])
+def test_late_accepted_receipt_never_contaminates_successor_policy(retirement):
+    async def run():
+        s, _, _, _ = setup(); s.queue_pending = []
+        w, _ = runtime(s)
+        w._execution_seq = 5
+        await worker._capture_auto_report(w, [{'source': 'user'}])
+        item, error = await worker._persist_task_item(s, 'late MA', 'agent', None, None, 'late', auto_force=False)
+        assert error is None
+        auto_report.admission([item], auto_report.DEFAULTS, [])
+        generation = w.generation
+        item.update(queueSteerPending=True, queueSteerRequestId='late-request',
+                    queueSteerWorkerId=w.worker_id, queueSteerGeneration=generation, autoReportExecutionSeq=5)
+        if retirement == 'execution': w._execution_seq += 1
+        elif retirement == 'generation': w.generation += 1
+        else: worker.workers[w.worker_id] = SimpleNamespace()
+        await worker._settle_queue_steer(w, s, item, item['text'], None, 'late-request', generation)
+        assert w._auto_report_admission['enabled'] is False
+        assert worker._delivery_state(worker._ledger_record(s, item['id'])) == 'sent_to_cli'
+        assert not s.queue_pending
     asyncio.run(run())

@@ -4485,7 +4485,7 @@ def _is_pauseable_agent_report(item) -> bool:
     item_type = item.get("type")
     if item_type in {"notice", "qq", "wechat"}:
         return False
-    if item_type == "task" and item.get("explicitReport") is True:
+    if item_type == "task":
         return item.get("source") == "report"
     if item_type in {"report", "zombie"}:
         return item.get("source") in {None, "report"}
