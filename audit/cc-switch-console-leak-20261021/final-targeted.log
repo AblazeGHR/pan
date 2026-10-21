@@ -1,0 +1,48 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\cc-switch-console-leak-20261021
+{"mode": "legacy", "launcher": "exe", "host_pid": 19928, "child": {"pid": 9396, "ppid": 19928, "hwnd": 2427626, "visible": true, "window_pid": 9396, "window_class": "PseudoConsoleWindow", "desktop_windows": []}, "exitcode": 0, "cleaned": true}
+.{"mode": "hidden", "launcher": "exe", "host_pid": 38168, "child": {"pid": 31016, "ppid": 38168, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": "", "desktop_windows": []}, "exitcode": 0, "cleaned": true}
+.{"mode": "hidden", "launcher": "cmd", "host_pid": 39616, "child": {"pid": 18212, "ppid": 18720, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": "", "desktop_windows": []}, "exitcode": 0, "cleaned": true}
+.{"mode": "hidden", "launcher": "powershell", "host_pid": 35652, "child": {"pid": 34848, "ppid": 33104, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": "", "desktop_windows": []}, "exitcode": 0, "cleaned": true}
+.{"mode": "shown", "launcher": "exe", "host_pid": 34344, "child": {"pid": 36260, "ppid": 34344, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": "", "desktop_windows": []}, "exitcode": 0, "cleaned": true}
+Tool 'session_list' not listed, no validation will be performed
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+[10/21/26 16:45:52] INFO     Processing request of type           server.py:733
+                             ListToolsRequest
+                    INFO     Processing request of type           server.py:733
+                             CallToolRequest
+                    INFO     Processing request of type           server.py:733
+                             CallToolRequest
+                    INFO     Processing request of type           server.py:733
+                             ListToolsRequest
+................{"provider_pid": 32288, "exitcode": 23, "effects": 1, "starts": 1, "unconfirmed": true, "replay_blocked": true}
+..................[16:46:13] GET  /api/plugins/panels  �� 200
+[16:46:13] POST  /api/plugins/cc-switch-bridge/panels/accounts/actions/list  �� 200
+[16:46:13] POST  /api/plugins/cc-switch-bridge/panels/accounts/actions/delete  �� 400
+[16:46:13] POST  /api/plugins/cc-switch-bridge/panels/accounts/actions/switch  �� 400
+[16:46:13] POST  /api/plugins/cc-switch-bridge/panels/accounts/actions/list  �� 400
+[16:46:13] GET  /api/plugins/panels  �� 200
+[16:46:13] POST  /api/plugins/cc-switch-bridge/panels/accounts/actions/list  �� 400
+..........exit accepted; waiting for terminal state: job_test
+.exit accepted; waiting for terminal state: job_test
+.........
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_plugin_platform.py::test_existing_http_and_sse_mcp_are_upstream_sources[http]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+58 passed, 4 warnings in 30.83s

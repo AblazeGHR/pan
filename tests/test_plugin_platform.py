@@ -328,6 +328,46 @@ def test_external_api_document_provider_all_modes(tmp_path, mode, view):
     asyncio.run(run())
 
 
+def test_real_api_provider_disconnect_is_unknown_and_never_replayed(tmp_path):
+    """An effect happened, but the process exited before confirming its result."""
+    state = tmp_path / 'owned-effects.jsonl'
+    doc = tmp_path / 'api.json'
+    doc.write_text(json.dumps({'protocol': 'pan-capability/v1', 'plugin_id': 'disconnect',
+        'provider': {'transport': 'stdio_jsonrpc', 'command_ref': 'owned-process'},
+        'capabilities': [{'id': 'disconnect.effect', 'export_key': 'effect', 'description': 'owned effect',
+            'contract_version': '1.0.0', 'input_schema': {'type': 'object'},
+            'execution': {'operation': 'effect'}}]}), encoding='utf-8')
+    manifest = ManifestConfig(mcp_servers=[McpServer('owned-process', command=sys.executable,
+        args=[str(REPO_ROOT / 'tests/fixtures/provider_disconnect_probe.py'), str(state)])], plugins=[{
+            'protocol': 'pan-plugin/v1', 'id': 'disconnect',
+            'source': {'kind': 'pan_api', 'capabilities_file': str(doc)}}])
+    session = sess.Session(id='ses_owned_disconnect', name='owned',
+        adapter_config={'plugin_bindings': [binding('disconnect')]})
+
+    async def run():
+        runtime = Runtime(lambda: manifest, lambda _: session, data_root=tmp_path / 'runtime')
+        request = {'session_id': session.id, 'operation': 'call', 'name': 'disconnect.effect', 'arguments': {}}
+        try:
+            result = await runtime.handle(request)
+            assert result['isError'] and 'execution_unconfirmed' in str(result), result
+            assert 'Do not automatically replay' in str(result)
+            provider = runtime.providers[(session.id, 'disconnect')][1]
+            process = provider.process
+            assert await asyncio.wait_for(process.wait(), 5) == 23
+            for _ in range(2):
+                result = await runtime.handle(request)
+                assert result['isError'] and 'execution_unconfirmed' in str(result), result
+                assert 'explicit reconnect required' in str(result)
+                assert provider.process is process
+            assert len(state.read_text().splitlines()) == 1
+            assert len(state.with_suffix('.starts').read_text().splitlines()) == 1
+            print(json.dumps({'provider_pid': process.pid, 'exitcode': process.returncode,
+                'effects': 1, 'starts': 1, 'unconfirmed': True, 'replay_blocked': True}))
+        finally:
+            await runtime.close()
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("method", ["GET", "POST"])
 def test_existing_http_api_document_uses_only_its_declared_route(tmp_path, monkeypatch, method):
     import threading

@@ -1,0 +1,74 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\cc-switch-console-leak-20261021
+{"mode": "legacy", "launcher": "exe", "host_pid": 4312, "child": {"pid": 34004, "ppid": 4312, "hwnd": 395926, "visible": true, "window_pid": 34004, "window_class": "PseudoConsoleWindow"}, "exitcode": 0, "cleaned": true}
+.F{"mode": "hidden", "launcher": "exe", "host_pid": 10872, "child": {"pid": 15152, "ppid": 10872, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": ""}, "exitcode": 0, "cleaned": true}
+.{"mode": "hidden", "launcher": "cmd", "host_pid": 38800, "child": {"pid": 36912, "ppid": 5004, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": ""}, "exitcode": 0, "cleaned": true}
+.{"mode": "hidden", "launcher": "powershell", "host_pid": 36264, "child": {"pid": 5440, "ppid": 38096, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": ""}, "exitcode": 0, "cleaned": true}
+.{"mode": "shown", "launcher": "exe", "host_pid": 37468, "child": {"pid": 36688, "ppid": 37468, "hwnd": 0, "visible": false, "window_pid": 0, "window_class": ""}, "exitcode": 0, "cleaned": true}
+.
+================================== FAILURES ===================================
+____________ test_owned_api_provider_console_lifecycle[close-exe] _____________
+tests\test_plugin_provider_window.py:29: in test_owned_api_provider_console_lifecycle
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 488, in wait_for
+E         return await fut
+E                ^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 562, in readline
+E         line = await self.readuntil(sep)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 677, in readuntil
+E         await self._wait_for_data('readuntil')
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\streams.py", line 539, in _wait_for_data
+E         await self._waiter
+E     asyncio.exceptions.CancelledError
+E
+E     The above exception was the direct cause of the following exception:
+E
+E     Traceback (most recent call last):
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py", line 84, in <module>
+E         asyncio.run(main())
+E         ~~~~~~~~~~~^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E         return runner.run(main)
+E                ~~~~~~~~~~^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E         return self._loop.run_until_complete(task)
+E                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E         return future.result()
+E                ~~~~~~~~~~~~~^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\tests\fixtures\provider_console_host.py", line 43, in main
+E         first = (await provider.request('call', payload))['structuredContent']
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 174, in request
+E         result = await self._rpc("capability.invoke", {
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             "arguments": arguments})
+E             ^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 139, in _rpc
+E         initialized = await self._rpc("provider.initialize", {"protocol_version": "pan-capability/v1"})
+E                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "D:\project\pan-worktrees\cc-switch-console-leak-20261021\packages\plugins\providers.py", line 147, in _rpc
+E         line = await asyncio.wait_for(self.process.stdout.readline(), 30)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 487, in wait_for
+E         async with timeouts.timeout(timeout):
+E                    ~~~~~~~~~~~~~~~~^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py", line 114, in __aexit__
+E         raise TimeoutError from exc_val
+E     TimeoutError
+E
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe', 'D:\\project\\pan-...n\\Python314\\Lib\\asyncio\\timeouts.py", line 114, in __aexit__\n    raise TimeoutError from exc_val\nTimeoutError\n').returncode
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_provider_window.py::test_owned_api_provider_console_lifecycle[close-exe]
+1 failed, 5 passed, 1 warning in 34.96s
