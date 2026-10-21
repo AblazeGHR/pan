@@ -1480,6 +1480,44 @@ def session_history(session_id: str, limit: int = 50, before: int | None = None)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
+def report_status() -> dict:
+    """Read your own persisted report subscription configuration.
+
+    Returns sessionId, reportSubscriptions and agentReportsPaused. This is
+    stored subscription configuration, not proof that a target is alive or a
+    report was delivered. Does not claim, subscribe, repair, count hidden queue
+    rows, or read other Sessions. Bound local stdio identity only; no Session
+    argument and no identity lending to remote/SSE MCP clients.
+    完整编排流程见 /pan skill。
+    """
+    return _self_queue_api("report-status")
+
+
+@mcp.tool()
+def report_next() -> dict:
+    """Peek your first visible persisted child-agent report without consuming it.
+
+    Returns {ok:true,report:{queueItemId,...,result}} or report=null.
+    queueItemId is the existing durable queue ID, never a newly invented report
+    identity. Legacy rows without an ID are skipped; unrelated notices, Jobs
+    and channel messages are not selected. Uses the same locks, Pause, native
+    owner/Manual, readonly and edit-lease visibility gates as self_queue_read.
+    Stop-report locks and Illegal locks remain authoritative; hidden rows do
+    not reveal their IDs/counts/positions. No total queue size is returned.
+
+    Repeated peeks return the same first visible report until existing queue
+    lifecycle advances. Reading neither reserves, dequeues, acknowledges nor
+    sends it to a CLI; it cannot replay reports already handed off. This is a
+    one-shot read, not a polling/wait loop. Normal subscribed report delivery
+    remains the wakeup path. self_queue_consume actually hands off the original
+    item and is NOT an acknowledgement. No report_ack mutation is defined yet.
+    Only bound local stdio callers can read their own queue; no Session args.
+    完整编排流程见 /pan skill。
+    """
+    return _self_queue_api("report-next")
+
+
+@mcp.tool()
 def report_subscribe(session_id: str) -> dict:
     """Subscribe to completion reports for a session.
 

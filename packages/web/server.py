@@ -8509,6 +8509,12 @@ async def api_self_queue(operation: str, request: Request):
     caller = request.headers.get("X-Pan-Queue-Caller")
     if not caller or not _local(request) or resolve_caller(caller) is None:
         return {"ok": False, "error": "caller_unavailable"}
+    if operation in {"report-status", "report-next"}:
+        data = await request.json()
+        if not isinstance(data, dict) or data:
+            return {"ok": False, "error": "invalid_request"}
+        return await (self_queue.report_status(caller) if operation == "report-status"
+                      else self_queue.report_next(caller))
     if operation == "read":
         return await self_queue.read(caller)
     if operation == "consume":

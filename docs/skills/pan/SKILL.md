@@ -198,6 +198,18 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 每个字段提供 source/status/scope。modelList.origin 以及源数据更新时间未记录时明确 unknown/null；freshness 的 fresh/stale/ageSeconds/ttlSeconds 只描述已有进程模型缓存 TTL，不代表上游数据新鲜度，缺少可靠时间则 unknown。倍率仅投影可直接读取的字面声明，缺失绝不填 x1；动态 getter 可能读取凭据，目录不调用。尤其 CBC 的倍率刷新依赖当前账号 JWT，目录也不使用缺乏当前账号绑定证明的暖倍率缓存，故该来源在目录中保持 unknown；原 API 的倍率功能不改。倍率 freshness 目前 unknown。目录不读凭据、不跨账号收集、不创建新缓存/轮询、不启动 CLI、不调用模型。安全元数据 hook 失败时不返回原异常内容，缺失字段降级 unknown。
 
+### 自己的报告：订阅状态与 next（只读）
+
+`report_status()` 返回自己持久化的 reportSubscriptions 和 agentReportsPaused 配置，不代表目标仍存在/运行，也不证明报告已经产生或交接。它不 claim、不修复关系、不改变订阅；订阅变更仍用 report_subscribe/report_unsubscribe。
+
+`report_next()` 一次性读取当前 queue_pending 中第一份可见 child-agent 报告，返回 `report={queueItemId,...,status,result}`；没有可见报告返回 report=null，不泄漏隐藏条目的 ID、数量、位置。返回现有 queueItemId（旧行仅有 id 时使用该原 ID），无 ID 旧记录跳过、不分配身份。普通 task、notice/Job 和 channel 不作为 child-agent 报告。正文来自自己队列的持久报告，不额外读取来源 Session 的历史或当前名称。
+
+两工具均无 Session 参数，复用 self_queue 的 stdio/loopback 自身身份桥接；remote/SSE、无身份、浏览器 Origin/Fetch、非本机调用不能借用服务进程身份。next 复用 self_queue 的真实可见性检查：readonly、Pause、native/Manual owner、Illegal/手动锁、Stop-report 实际锁、编辑 lease、交接中/未知/非 queued 状态等边界保持。agentReportsPaused 是未来报告策略，不能替代实际行锁；已显式解锁的行仍按既有规则判断。
+
+**next 是 peek，不是消费或 ack**。重复读取返回同一份仍可见报告，不预留、不删除、不移位、不发送、不产生回执、不唤醒 Worker；既有队列生命周期推进后才可能返回下一份。不回放已交接并从队列移除的报告，null 不能用来断言没有隐藏/历史报告。正常 report_subscribe 完成通知仍是唤醒路径，不将 next 用作持续轮询。
+
+本轮 report_ack 尚未定义/暴露：现有 sent_to_cli 只证明真实 CLI 交接，没有独立“MA 已处理”持久状态。不得用 self_queue_consume（实际交接原 item）冒充 ack；不得为了 next 前进擅自删除或解锁队列。待明确 ack 是处理标记还是结束投递生命周期，以及 pending/已交接/过期 ID 的处理、状态落点、保留与自动投递竞态后再实施。当前只读交付不表示 A8 的 ack 部分完成。
+
 ### 2.5 清理（收尾）
 
 ```
@@ -274,7 +286,9 @@ MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**�
 |------|------|---------------|
 | `PAN_AGENT_SESSION_ID` 存在 | **由 Pan adapter 注入 MCP server 进程环境**（写在 `data/mcp-configs/<session_id>.mcp.json` 的 `env` 段，随 stdio 启动带入）。**不在你的 shell `env` 里**——用 `env \| grep` 查不到属正常，别据此判断缺失；可从 `CODEBUDDY_MCP_CONFIG` 文件名/内容确认自己的 session id | 工具报缺少 manager id |
 | **同实例**：manager session 与被管 session 在**同一个 Pan 服务**（同端口） | MCP server 默认连 `PAN_API_URL`（默认 **8768**），而 `PAN_AGENT_SESSION_ID` 可能属于**另一个**服务（如 8767 pan-test）。三者（mcp-config `cwd`/`PAN_API_URL`/manager session 所在服务）必须一致 | manager session 在目标服务上"不存在"，订阅无效（§10.2 G9） |
-| 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§10.2 G10） |
+| 服务端含 `report-subscribe` 路由 | 该端点较新；**运行中的服务可能落后于 MCP 工具版本** | `report_status` | (无) | 只读自己的持久报告订阅配置；不 claim/订阅，不证明报告已交接 |
+| `report_next` | (无) | peek 自己队列首份可见 child-agent 报告；原 queueItemId，不消费/发送/ack，不暴露隐藏条目 |
+| `report_subscribe` 返回 `{"detail":"Not Found"}`（404，实测于 8768/main；本分支 `server.py` 已含）（§10.2 G10） |
 
 ```
 1. agent_assign 前先订阅（前置见上表）：
