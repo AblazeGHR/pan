@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/session-summary-regression-20261021/packages/web/src
+
+ ❯ stores/sessionStore.snapshot.test.ts (15 tests | 1 failed) 16ms
+   × session summary reconciliation > keeps queued and edited optimistic text out of the authoritative card preview and count 7ms
+     → expected { id: 's1', name: 's1', …(10) } to match object { lastMessage: 'answer', …(1) }
+(10 matching properties omitted from actual)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  stores/sessionStore.snapshot.test.ts > session summary reconciliation > keeps queued and edited optimistic text out of the authoritative card preview and count
+AssertionError: expected { id: 's1', name: 's1', …(10) } to match object { lastMessage: 'answer', …(1) }
+(10 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "historyTotal": 1,
+-   "lastMessage": "answer",
++   "historyTotal": 2,
++   "lastMessage": "edited pending",
+  }
+
+ ❯ stores/sessionStore.snapshot.test.ts:158:33
+    156|     state().appendQueuedMessage('s1', { id: 'pending', text: 'not hand…
+    157|     state().updateQueuedMessage('s1', { id: 'pending', text: 'edited p…
+    158|     expect(state().sessions[0]).toMatchObject({ lastMessage: 'answer',…
+       |                                 ^
+    159|     expect(state().sessions[0]?.history.at(-1)?.content).toBe('edited …
+    160|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 passed (15)
+   Start at  20:48:03
+   Duration  1.84s (transform 165ms, setup 11ms, collect 214ms, tests 16ms, environment 505ms, prepare 110ms)
+
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

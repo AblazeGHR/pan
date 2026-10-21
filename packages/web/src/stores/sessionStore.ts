@@ -575,6 +575,8 @@ export interface LiveStreamBuffer {
   taskKey?: string;
   /** Absolute history boundary captured when this task entered running state. */
   historyStartOffset?: number;
+  /** Summary prefix observed at this execution's first stream frame. */
+  summaryBaseTotal?: number;
   revision: number;
   messages: Message[];
   /** Projection indexes let delta updates avoid scanning canonical history. */
@@ -934,9 +936,14 @@ const SUMMARY_PROJECTION_FIELDS = [
   'summaryRevision', 'lastUserPreview', 'lastAssistantPreview',
   'lastDisplayPreview', 'lastMessage', 'historyTotal', 'updatedAt',
   'historyEpoch', 'historyRevision',
+  'summaryHistoryRevision',
   // Execution legality is a durable Session fact, independent of live Worker
   // task cursors (a crash snapshot legitimately omits executionSeq).
   'legalOffline', 'illegalOffline', 'legalityDiagnostics',
+] as const;
+
+const SUMMARY_PREVIEW_FIELDS = [
+  'lastUserPreview', 'lastAssistantPreview', 'lastDisplayPreview', 'lastMessage',
 ] as const;
 
 const WORKER_SNAPSHOT_FIELDS = ['workerId', 'workerStatus', 'workerGeneration',
@@ -966,9 +973,27 @@ function preserveNewerWorker(current: Session, incoming: Session, terminal?: Ter
 }
 
 /** A delayed HTTP/WS snapshot must not roll a newer summary projection back. */
-function preserveNewerSummary(current: Session, incoming: Session, terminal?: TerminalWatermark): Session {
+function preserveNewerSummary(current: Session, incoming: Session, terminal?: TerminalWatermark, summary: Partial<Session> = incoming): Session {
   const currentRevision = current.summaryRevision;
   const incomingRevision = incoming.summaryRevision;
+  const summaryProvided = typeof summary.summaryRevision === 'number';
+  const currentHistoryRevision = current.summaryHistoryRevision ?? current.historyRevision;
+  const unchangedHistory = typeof currentHistoryRevision === 'number'
+    && typeof summary.historyRevision === 'number'
+    && summary.historyRevision === currentHistoryRevision;
+  if (summaryProvided && typeof summary.historyRevision === 'number') {
+    incoming = { ...incoming, summaryHistoryRevision: summary.historyRevision };
+  }
+  // A delta changes the live preview without changing the durable revision.
+  // Re-reading that same immutable projection must not erase the live suffix.
+  // Unversioned local writes still advance the preview normally.
+  if (summaryProvided && typeof currentRevision === 'number'
+      && (currentRevision === incomingRevision || unchangedHistory)) {
+    incoming = { ...incoming };
+    for (const field of SUMMARY_PREVIEW_FIELDS) {
+      if (field in current) Object.assign(incoming, { [field]: current[field] });
+    }
+  }
   if (typeof currentRevision !== 'number'
       || currentRevision <= (typeof incomingRevision === 'number' ? incomingRevision : -1)) {
     return preserveNewerWorker(current, preserveNewerQueue(current, preserveNewerUnread(current, incoming)), terminal);
@@ -1900,7 +1925,7 @@ function applyHistoryPageToState(
   const projectedTotal = Math.max(
     merged.window.total,
     session.historyTotal ?? 0,
-    canonicalDisplay.length,
+    typeof session.summaryRevision === 'number' ? 0 : canonicalDisplay.length,
   );
   return {
     sessions: s.sessions.map((candidate) => candidate.id === sessionId
@@ -1912,7 +1937,8 @@ function applyHistoryPageToState(
           historyTruncated: (merged.window.start ?? 0) > 0,
           historyEpoch: merged.window.epoch ?? candidate.historyEpoch,
           historyRevision: merged.window.revision,
-          ...(lastCanonicalRow
+          summaryHistoryRevision: candidate.summaryHistoryRevision ?? candidate.historyRevision,
+          ...(lastCanonicalRow && typeof candidate.lastDisplayPreview !== 'string'
             ? { lastMessage: String(lastCanonicalRow.content).slice(0, 200) }
             : {}),
         }
@@ -2109,9 +2135,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // canonical history and reconciles this projection by identity.
           const summaryHasHistory = Array.isArray(sess.history)
             && sess.history.length > 0;
-          const hasLocalUserProjection = Boolean(
-            cur && (cur.history || []).some(isLocallyOwnedUserMessage),
-          );
           if (cur && !summaryHasHistory && (cur.history || []).length > 0) {
             next = {
               ...next,
@@ -2125,9 +2148,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 cur.historyTotal ?? 0,
                 cur.history.length,
               ),
-              ...(hasLocalUserProjection && cur.lastMessage
-                ? { lastMessage: cur.lastMessage }
-                : {}),
             };
           }
           // The selected chat is rendered from `currentMessages` plus its
@@ -2270,7 +2290,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               next = mergeSessionSettingPatch(next, mutation?.authoritative);
             }
           }
-          next = preserveNewerSummary(cur, next, s.terminalWatermarks[sid]);
+          // Compare intact server projections. Local history preservation and
+          // cached event patches must not splice an old preview/revision into
+          // a newer HTTP response before the monotonicity check.
+          if (typeof sess.summaryRevision === 'number') {
+            for (const field of SUMMARY_PROJECTION_FIELDS) {
+              // These cursors describe the loaded window (or the client's
+              // separate summary cursor), not fields owned by this merge.
+              if (field === 'historyEpoch' || field === 'historyRevision' || field === 'summaryHistoryRevision') continue;
+              if (field in sess) Object.assign(next, { [field]: sess[field] });
+            }
+          }
+          next = preserveNewerSummary(cur, next, s.terminalWatermarks[sid], sess);
           return sameSessionSnapshot(cur, next, sess) ? cur : next;
         });
         const consumedEventIds = new Set(sessions.map((sess) => sess.id));
@@ -3378,6 +3409,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         taskKey,
         historyStartOffset: replacing ? Math.max(base.window.total, base.anchorOffset)
           : previous?.historyStartOffset ?? base.anchorOffset,
+        summaryBaseTotal: (!replacing ? previous?.summaryBaseTotal : undefined)
+          ?? Math.max(session?.historyTotal ?? 0, base.window.total, base.anchorOffset),
         revision,
         messages: messages.slice(),
       };
@@ -3969,12 +4002,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ? {
             ...session,
             history: nextHistory,
-            historyTotal: Math.max(
+            historyTotal: typeof session.summaryRevision === 'number' ? session.historyTotal : Math.max(
               session.historyTotal ?? history.length,
               nextHistory.length,
               historyTotal + (historyHasItem ? 0 : 1),
             ),
-            lastMessage: item.text.slice(0, 200),
+            lastMessage: typeof session.summaryRevision === 'number' ? session.lastMessage : item.text.slice(0, 200),
           }
         : session);
       return {
@@ -4033,7 +4066,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (!changed) return s;
       return {
         sessions: s.sessions.map((session) => session.id === sessionId
-          ? { ...session, history, lastMessage: item.text.slice(0, 200) }
+          ? { ...session, history, lastMessage: typeof session.summaryRevision === 'number' ? session.lastMessage : item.text.slice(0, 200) }
           : session),
         ...(s.sessionTranscripts[sessionId] ? withTranscript(s, sessionId, {
           ...s.sessionTranscripts[sessionId]!,
@@ -4182,7 +4215,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // made A→B→A erase an otherwise successful hand-off.
         nextHistory.push(...historyAppend);
         const last = localMessages[localMessages.length - 1];
-        return preserveNewerSummary(session, {
+        const next = preserveNewerSummary(session, {
           ...session,
           history: nextHistory,
           historyTotal: Math.max(
@@ -4191,7 +4224,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ),
           lastMessage: last?.content.slice(0, 200) ?? session.lastMessage,
           ...(summary ?? {}),
-        }, s.terminalWatermarks[sessionId]);
+        }, s.terminalWatermarks[sessionId], summary ?? {});
+        const live = s.liveStreamBuffers[sessionId];
+        // write/drain can yield to stdout before the input receipt is sent.
+        // This exact execution's input prefix precedes its streamed response,
+        // even when the receipt advances the history/summary revisions later.
+        // A Steer/unrelated execution or a summary covering later history does
+        // not qualify. Keep the input's canonical cursor and lastUserPreview.
+        if (live && meta?.executionSeq !== undefined && live.executionSeq === meta.executionSeq
+            && meta.workerId && live.workerId === meta.workerId
+            && meta.generation !== undefined && live.generation === meta.generation
+            && (live.summaryBaseTotal ?? live.historyStartOffset) !== undefined && typeof summary?.historyTotal === 'number'
+            && summary.historyTotal <= (live.summaryBaseTotal ?? live.historyStartOffset)! + localMessages.length) {
+          const response = live.messages.findLast(row => row.role === 'assistant' && row.content);
+          if (response) return { ...next, lastMessage: response.content.slice(0, 200),
+            lastDisplayPreview: response.content.slice(0, 200), lastAssistantPreview: response.content.slice(0, 200) };
+        }
+        return next;
       });
 
       const deliveredRuntime = base.runtime.map(row => {
@@ -4367,7 +4416,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           { ...current, ...patch },
           s.sessionSettingMutations[current.id]?.pending
             ? s.sessionSettingMutations[current.id]?.patch : undefined,
-        ), s.terminalWatermarks[current.id]);
+        ), s.terminalWatermarks[current.id], incoming);
         if (sameSessionSnapshot(current, next, patch as Session)) return current;
         changed = true;
         touches[current.id] = (wsTouchSeq += 1);
@@ -4391,6 +4440,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                   : undefined,
               ),
               s.terminalWatermarks[id],
+              data,
             )
           : session,
       ),

@@ -1,0 +1,28 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\session-summary-regression-20261021
+F                                                                        [100%]
+================================== FAILURES ===================================
+______________ test_send_session_accepts_future_external_sources ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000272A296A8B0>
+
+    def test_send_session_accepts_future_external_sources(monkeypatch):
+        """δ�� external meta-agent / automation source �� worker ��ͬ���Ϸ���"""
+        target = _session("target")
+        caller = _session("caller")
+        monkeypatch.setattr(_sess, "save_async", AsyncMock())
+        monkeypatch.setattr(worker, "_schedule_session_recovery", lambda _sid: None)
+
+        result = asyncio.run(worker.send_session(
+            target.id, "task", source="meta-agent", source_session_id=caller.id))
+
+        assert result["status"] == "queued"
+>       assert target.queue_pending[0]["source"] == "meta-agent"
+E       AssertionError: assert 'agent' == 'meta-agent'
+E
+E         - meta-agent
+E         + agent
+
+tests\test_source_metadata.py:135: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_source_metadata.py::test_send_session_accepts_future_external_sources
+1 failed in 0.98s

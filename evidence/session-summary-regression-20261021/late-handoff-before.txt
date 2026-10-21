@@ -1,0 +1,46 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/session-summary-regression-20261021/packages/web/src
+
+ ❯ stores/sessionStore.snapshot.test.ts (8 tests | 1 failed) 12ms
+   × session summary reconciliation > keeps the response when its proven execution handoff receipt arrives after the delta 6ms
+     → expected { id: 's1', name: 's1', …(12) } to match object { summaryRevision: 11, …(4) }
+(9 matching properties omitted from actual)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  stores/sessionStore.snapshot.test.ts > session summary reconciliation > keeps the response when its proven execution handoff receipt arrives after the delta
+AssertionError: expected { id: 's1', name: 's1', …(12) } to match object { summaryRevision: 11, …(4) }
+(9 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "lastDisplayPreview": "partial",
+-   "lastMessage": "partial",
++   "lastDisplayPreview": "MA input",
++   "lastMessage": "MA input",
+    "lastUserPreview": "MA input",
+    "summaryHistoryRevision": 4,
+    "summaryRevision": 11,
+  }
+
+ ❯ stores/sessionStore.snapshot.test.ts:128:52
+    126|       lastMessage: 'MA input', lastDisplayPreview: 'MA input', lastUse…
+    127|     });
+    128|     expect(useSessionStore.getState().sessions[0]).toMatchObject({
+       |                                                    ^
+    129|       summaryRevision: 11, summaryHistoryRevision: 4, lastUserPreview:…
+    130|       lastMessage: 'partial', lastDisplayPreview: 'partial',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  20:45:09
+   Duration  1.50s (transform 148ms, setup 10ms, collect 189ms, tests 12ms, environment 439ms, prepare 105ms)
+
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

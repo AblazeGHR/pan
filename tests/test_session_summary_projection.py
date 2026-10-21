@@ -725,3 +725,45 @@ def test_completed_stream_publishes_current_summary_after_injected_input(source)
     # High-frequency deltas remain transient, without duplicating full metadata.
     delta = {**event, "event": {"type": "assistant", "delta": True, "stream_text": "partial"}}
     assert "session" not in server._attach_session_summary_patch(delta)
+
+
+@pytest.mark.parametrize("source", ["agent", "report", "automation", "system_prompt", "user"])
+def test_input_answer_projection_survives_cold_summary_and_detail_hydration(source):
+    target = _new_session("summary-regression")
+    sess.append_history(target, {"role": "user", "source": source, "content": "MA input"})
+    input_summary = server._session_summary(target)
+    sess.append_history(target, {"role": "assistant", "content": "latest answer"})
+    sess.save(target)
+    expected = server._session_summary(target)
+    assert expected["summaryRevision"] > input_summary["summaryRevision"]
+    assert expected["historyRevision"] > input_summary["historyRevision"]
+    sess._cache.clear()
+    sess._all_loaded = False
+    cold = next(row for row in asyncio.run(server.api_list_sessions(summary=1))["sessions"]
+                if row["id"] == target.id)
+    detail = asyncio.run(server.api_get_session(target.id, view="full"))
+    for snapshot in (cold, detail):
+        assert snapshot["lastUserPreview"] == "MA input"
+        assert snapshot["lastAssistantPreview"] == "latest answer"
+        assert snapshot["lastDisplayPreview"] == "latest answer"
+        assert snapshot["summaryRevision"] >= expected["summaryRevision"]
+    assert cold["lastMessage"] == "latest answer"
+
+
+def test_paused_agent_send_does_not_project_queued_body_as_history(monkeypatch):
+    from packages.core import worker
+    target = _new_session("queued-summary")
+    target.queue_paused = True
+    sess.append_history(target, {"role": "assistant", "content": "latest answer"})
+    sess.save(target)
+    before = server._session_summary(target)
+    monkeypatch.setattr(worker, "_schedule_session_recovery", lambda _sid: None)
+    response = asyncio.run(server.api_send({
+        "sessionId": target.id, "source": "agent", "text": "not yet handed off",
+    }))
+    assert response["status"] == "queued"
+    after = server._session_summary(target)
+    assert after["lastMessage"] == before["lastMessage"] == "latest answer"
+    assert after["historyRevision"] == before["historyRevision"]
+    assert after["historyTotal"] == before["historyTotal"]
+    assert target.queue_pending[0]["text"] == "not yet handed off"
