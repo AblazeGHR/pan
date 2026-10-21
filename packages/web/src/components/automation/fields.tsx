@@ -1,16 +1,25 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import type { Argument, Condition } from '@/types/automation';
 import { comparison } from '@/types/automation';
 
 export const fieldClass = 'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm';
 export const cardClass = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4';
+// UI identity never enters the persisted condition. Immutable edits retain the
+// edited row's key; deletion retains the surviving node's key, not its index.
+const conditionKeys = new WeakMap<Condition, number>();
+let nextConditionKey = 0;
+function conditionKey(value: Condition) {
+  let key = conditionKeys.get(value);
+  if (key === undefined) { key = ++nextConditionKey; conditionKeys.set(value, key); }
+  return key;
+}
 export function JsonDetail({ label, value }: { label: string; value: unknown }) {
   return <details className="min-w-0 text-sm"><summary className="cursor-pointer">{label}</summary><pre className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{JSON.stringify(value ?? null, null, 2)}</pre></details>;
 }
 export function ConditionEditor({ value, onChange, depth = 0 }: { value: Condition; onChange: (value: Condition) => void; depth?: number }) {
   const kind = 'and' in value ? 'and' : 'or' in value ? 'or' : 'not' in value ? 'not' : 'comparison';
-  return <div className="min-w-0 space-y-2 rounded border border-border-default p-2">
+  return <div key={kind} className="min-w-0 space-y-2 rounded border border-border-default p-2">
     <label className="block text-sm">Condition type<select className={fieldClass} value={kind} onChange={(e) => onChange(e.target.value === 'and' ? { and: [comparison()] } : e.target.value === 'or' ? { or: [comparison()] } : e.target.value === 'not' ? { not: comparison() } : comparison())}>
       <option value="comparison">Compare State</option><option value="and">AND</option><option value="or">OR</option><option value="not">NOT</option></select></label>
     {'field' in value ? <>
@@ -20,17 +29,24 @@ export function ConditionEditor({ value, onChange, depth = 0 }: { value: Conditi
     </> : 'not' in value ? <ConditionEditor depth={depth + 1} value={value.not} onChange={(not) => onChange({ not })} /> : (() => {
       const children = 'and' in value ? value.and : value.or;
       const update = (items: Condition[]) => onChange('and' in value ? { and: items } : { or: items });
-      return <>{children.map((child, i) => <div key={i} className="space-y-2"><ConditionEditor depth={depth + 1} value={child} onChange={(next) => update(children.map((c, j) => j === i ? next : c))} /><Button type="button" size="sm" disabled={children.length === 1} onClick={() => update(children.filter((_, j) => j !== i))}>Remove condition {i + 1}</Button></div>)}<Button type="button" size="sm" disabled={depth >= 8} onClick={() => update([...children, comparison()])}>Add condition</Button></>;
+      return <>{children.map((child, i) => { const key = conditionKey(child); return <div key={key} className="space-y-2"><ConditionEditor depth={depth + 1} value={child} onChange={(next) => { conditionKeys.set(next, key); update(children.map((c, j) => j === i ? next : c)); }} /><Button type="button" size="sm" disabled={children.length === 1} onClick={() => update(children.filter((_, j) => j !== i))}>Remove condition {i + 1}</Button></div>; })}<Button type="button" size="sm" disabled={depth >= 8} onClick={() => update([...children, comparison()])}>Add condition</Button></>;
     })()}
   </div>;
 }
 
 function LiteralInput({ label, value, onChange }: { label: string; value: unknown; onChange: (value: unknown) => void }) {
-  const [text, setText] = useState(() => JSON.stringify(value));
-  return <label className="block text-sm">{label}<input required className={`${fieldClass} font-mono`} value={text} onChange={(e) => {
-    const input = e.currentTarget; setText(input.value);
-    try { const next: unknown = JSON.parse(input.value); input.setCustomValidity(''); onChange(next); }
-    catch { input.setCustomValidity('Enter valid JSON. Strings need double quotes.'); }
+  const source = JSON.stringify(value);
+  const [buffer, setBuffer] = useState(() => ({ source, text: source, error: '' }));
+  const inputRef = useRef<HTMLInputElement>(null);
+  // A local valid edit records its emitted value before notifying the parent,
+  // preserving lexemes such as 22.0. Unrelated renders retain incomplete JSON.
+  // An external value replaces the buffer and any obsolete validity error.
+  if (buffer.source !== source) setBuffer({ source, text: source, error: '' });
+  useLayoutEffect(() => { inputRef.current?.setCustomValidity(buffer.error); }, [buffer.error, buffer.source]);
+  return <label className="block text-sm">{label}<input ref={inputRef} required className={`${fieldClass} font-mono`} value={buffer.text} onChange={(e) => {
+    const input = e.currentTarget;
+    try { const next: unknown = JSON.parse(input.value); input.setCustomValidity(''); setBuffer({ source: JSON.stringify(next), text: input.value, error: '' }); onChange(next); }
+    catch { const error = 'Enter valid JSON. Strings need double quotes.'; input.setCustomValidity(error); setBuffer({ source, text: input.value, error }); }
   }} /></label>;
 }
 export function ArgumentsEditor({ value, onChange, names }: { value: Record<string, Argument>; onChange: (value: Record<string, Argument>) => void; names: string[] }) {

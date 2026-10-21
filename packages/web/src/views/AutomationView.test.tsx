@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+function TestRouter({ children }: { children: ReactNode }) {
+  const [router] = useState(() => createMemoryRouter([{ path: '/', element: children }, { path: '/actions', element: <div>Actions destination</div> }]));
+  return <RouterProvider router={router} />;
+}
 import AutomationView from './AutomationView';
 import { automationLogin, automationRequest, useAutomationAuth, useAutomationStore } from '@/stores/automationStore';
 import type { AutomationSnapshot, Trigger } from '@/types/automation';
@@ -38,13 +43,14 @@ beforeEach(async () => {
   });
   vi.stubGlobal('fetch', fetcher);
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 async function openNew() {
-  render(<MemoryRouter><AutomationView /></MemoryRouter>);
+  const view = render(<TestRouter><AutomationView /></TestRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'New Trigger' }));
   fireEvent.change(screen.getByLabelText('Trigger name'), { target: { value: 'Idle pause' } });
   fireEvent.click(screen.getByLabelText('workers.all_idle · Available'));
   fireEvent.change(screen.getByLabelText('Action reference'), { target: { value: 'pause' } });
+  return view;
 }
 it('creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs', async () => {
   await openNew();
@@ -76,7 +82,7 @@ it('requires an explicit Action/parameter review before enable and clears auth o
 });
 it('preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes', async () => {
   snapshot.triggers[saved.id] = structuredClone(saved);
-  render(<MemoryRouter><AutomationView /></MemoryRouter>);
+  render(<TestRouter><AutomationView /></TestRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Edit Existing' }));
   fireEvent.change(screen.getByLabelText('Trigger name'), { target: { value: 'My local name' } });
   snapshot.triggers[saved.id]!.revision = 2;
@@ -92,10 +98,14 @@ it('preserves a conflicting draft and offers explicit comparison/rebase, keeping
   expect(writes.at(-1)?.body.expectedRevision).toBe(2);
 });
 it('does not let a delayed save overwrite a different editor', async () => {
-  await openNew();
+  const view = await openNew();
   let release!: (r: Response) => void;
   fetcher.mockImplementationOnce(() => new Promise<Response>((resolve) => { release = resolve; }));
   fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  // A host unmount can still occur independently of the guarded controls.
+  view.unmount();
+  render(<TestRouter><AutomationView /></TestRouter>);
+  await screen.findByRole('button', { name: 'New Trigger' });
   fireEvent.click(screen.getByRole('button', { name: 'New Trigger' }));
   fireEvent.change(screen.getByLabelText('Trigger name'), { target: { value: 'Second draft' } });
   await act(async () => { release(response({ item: saved })); });
@@ -131,7 +141,7 @@ it('preserves Event field parameters and nested OR/NOT conditions in the request
   expect(writes[0]!.body.item).toMatchObject({ condition: { or: [{ not: { field: 'workers.runningCount', op: 'eq', value: 0 } }] }, arguments: { message: { from: 'event', path: 'payload.message' } } });
 });
 it('creates the Event target template as a normal Action using the registry revision', async () => {
-  render(<MemoryRouter><AutomationView /></MemoryRouter>);
+  render(<TestRouter><AutomationView /></TestRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Pause Everything template' }));
   fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
   fireEvent.change(screen.getByLabelText(/Target Event path/), { target: { value: 'payload.targets' } });
@@ -150,4 +160,90 @@ it('a late unauthorized response cannot clear a newer login', async () => {
   release(response({}, 401));
   await expect(request).rejects.toMatchObject({ status: 401 });
   expect(useAutomationAuth.getState().token).toBe('new-token');
+});
+it('guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty', async () => {
+  snapshot.triggers[saved.id] = structuredClone(saved);
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await openNew();
+  fireEvent.click(screen.getByRole('button', { name: 'New Trigger' }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect((screen.getByLabelText('Trigger name') as HTMLInputElement).value).toBe('Idle pause');
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Existing' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+  expect(confirm).toHaveBeenCalledTimes(3);
+  fireEvent.click(screen.getByRole('link', { name: 'Manage Actions' }));
+  await waitFor(() => expect(confirm).toHaveBeenCalledTimes(4));
+  expect((screen.getByLabelText('Trigger name') as HTMLInputElement).value).toBe('Idle pause');
+  const unload = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  await screen.findByText('Trigger saved.');
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+  expect(confirm).toHaveBeenCalledTimes(4);
+  expect(screen.queryByLabelText('Trigger name')).toBeNull();
+  confirm.mockRestore();
+});
+it('guards accepted switching, but blocks departure and duplicate submits while saving', async () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  await openNew();
+  fireEvent.click(screen.getByRole('button', { name: 'New Trigger' }));
+  expect((screen.getByLabelText('Trigger name') as HTMLInputElement).value).toBe('');
+  expect(confirm).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText('Trigger name'), { target: { value: 'Pending' } });
+  fireEvent.click(screen.getByLabelText('workers.all_idle · Available'));
+  fireEvent.change(screen.getByLabelText('Action reference'), { target: { value: 'pause' } });
+  let release!: (r: Response) => void;
+  const count = writes.length;
+  fetcher.mockImplementationOnce(() => new Promise<Response>((resolve) => { release = resolve; }));
+  const form = screen.getByRole('button', { name: 'Save disabled draft' }).closest('form')!;
+  fireEvent.submit(form); fireEvent.submit(form);
+  expect((screen.getByRole('button', { name: 'New Trigger' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Close editor' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('link', { name: 'Manage Actions' }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('Actions destination')).toBeNull();
+  await act(async () => { release(response({ item: saved })); });
+  await screen.findByText('Trigger saved.');
+  // Only the first fetch was delayed; a duplicate would reach the regular mock.
+  expect(writes).toHaveLength(count);
+  fireEvent.click(screen.getByRole('button', { name: 'New Trigger' }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+});
+it('posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase', async () => {
+  snapshot.triggers[saved.id] = { ...structuredClone(saved), condition: { and: [{ field: 'workers.runningCount', op: 'eq', value: 11 }, { field: 'workers.runningCount', op: 'eq', value: 22 }] } };
+  render(<TestRouter><AutomationView /></TestRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Existing' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove condition 1' }));
+  expect((screen.getByLabelText('Compare value (JSON)') as HTMLInputElement).value).toBe('22');
+  snapshot.triggers[saved.id]!.revision = 2; rejectStatus = 409;
+  fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  await screen.findByText(/Revision conflict/);
+  expect(writes.at(-1)?.body.item).toMatchObject({ condition: { and: [{ value: 22 }] } });
+  fireEvent.change(screen.getByLabelText('Compare value (JSON)'), { target: { value: '22e' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Keep draft against latest revision' }));
+  const input = screen.getByLabelText('Compare value (JSON)') as HTMLInputElement;
+  expect(input.value).toBe('22e'); expect(input.checkValidity()).toBe(false);
+  fireEvent.change(input, { target: { value: '22.0' } });
+  rejectStatus = 0;
+  fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  await screen.findByText('Trigger saved.');
+  expect(writes.at(-1)?.body).toMatchObject({ expectedRevision: 2, item: { condition: { and: [{ value: 22 }] } } });
+  expect((screen.getByLabelText('Compare value (JSON)') as HTMLInputElement).value).toBe('22');
+});
+it('loading a conflicting server configuration replaces local literal text and resets dirty', async () => {
+  snapshot.triggers[saved.id] = { ...structuredClone(saved), condition: { field: 'workers.runningCount', op: 'eq', value: 11 } };
+  render(<TestRouter><AutomationView /></TestRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Existing' }));
+  fireEvent.change(screen.getByLabelText('Compare value (JSON)'), { target: { value: '12' } });
+  snapshot.triggers[saved.id] = { ...snapshot.triggers[saved.id]!, revision: 2, condition: { field: 'workers.runningCount', op: 'eq', value: 33 } }; rejectStatus = 409;
+  fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  await screen.findByText(/Revision conflict/);
+  fireEvent.change(screen.getByLabelText('Compare value (JSON)'), { target: { value: '12e' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Discard draft and load server' }));
+  const input = screen.getByLabelText('Compare value (JSON)') as HTMLInputElement;
+  expect(input.value).toBe('33'); expect(input.checkValidity()).toBe(true);
+  rejectStatus = 0;
+  fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
+  await screen.findByText('Trigger saved.');
+  expect(writes.at(-1)?.body.item).toMatchObject({ condition: { value: 33 } });
 });

@@ -1,0 +1,36 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/src
+
+ ✓ components/automation/fields.test.tsx (3 tests) 74ms
+ ❯ views/AutomationView.test.tsx (12 tests | 1 failed) 741ms
+   × does not let a delayed save overwrite a different editor 51ms
+     → expected 'Existing' to be 'Second draft' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  views/AutomationView.test.tsx > does not let a delayed save overwrite a different editor
+AssertionError: expected 'Existing' to be 'Second draft' // Object.is equality
+
+Expected: "Second draft"
+Received: "Existing"
+
+ ❯ views/AutomationView.test.tsx:108:77
+    106|   await act(async () => { release(response({ item: saved })); });
+    107|   await waitFor(() => expect(useAutomationStore.getState().loading).to…
+    108|   expect((screen.getByLabelText('Trigger name') as HTMLInputElement).v…
+       |                                                                             ^
+    109| });
+    110| it('deduplicates refresh and rejects an old read after mutation invali…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 14 passed (15)
+   Start at  03:21:50
+   Duration  2.60s (transform 105ms, setup 18ms, collect 482ms, tests 814ms, environment 1.13s, prepare 237ms)
+
+JUNIT report written to D:/project/pan-worktrees/event-trigger-ui-20261022/artifacts/event-trigger-ui-review/after-first.xml
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

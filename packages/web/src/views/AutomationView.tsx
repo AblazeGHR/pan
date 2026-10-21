@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { automationLogin, automationLogout, useAutomationAuth, useAutomationStore } from '@/stores/automationStore';
@@ -24,6 +24,13 @@ export default function AutomationView() {
   const [tab, setTab] = useState<'Triggers' | 'Runs' | 'Diagnostics'>('Triggers');
   const [editor, setEditor] = useState<{ key: number; initial: Trigger | null } | null>(null);
   const [template, setTemplate] = useState(false);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const editorSequence = useRef(0);
+  const [editorBusy, setEditorBusy] = useState(false);
+  function openEditor(initial: Trigger | null) {
+    if (editor && !leaveGuard.current?.()) return;
+    setEditor({ key: ++editorSequence.current, initial });
+  }
   useEffect(() => { void refresh(); }, [refresh]);
   return <section aria-label="Automation management" className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div className="mx-auto max-w-5xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Events → Triggers → Actions</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void refresh()}>{tab === 'Runs' ? 'Refresh Runs' : 'Refresh'}</Button></div></header>
@@ -32,14 +39,14 @@ export default function AutomationView() {
     <Login />
     <nav aria-label="Automation sections" className="flex flex-wrap gap-2">{(['Triggers', 'Runs', 'Diagnostics'] as const).map((name) => <Button key={name} aria-pressed={tab === name} variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</nav>
     {data && <>
-      {<section hidden={tab !== 'Triggers'} aria-label="Triggers" className="min-w-0 space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Triggers</h2><div className="flex flex-wrap gap-2"><Button onClick={() => setTemplate(true)}>Pause Everything template</Button><Button variant="primary" onClick={() => setEditor({ key: Date.now(), initial: null })}>New Trigger</Button></div></div>
+      {<section hidden={tab !== 'Triggers'} aria-label="Triggers" className="min-w-0 space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Triggers</h2><div className="flex flex-wrap gap-2"><Button onClick={() => setTemplate(true)}>Pause Everything template</Button><Button disabled={editorBusy} variant="primary" onClick={() => openEditor(null)}>New Trigger</Button></div></div>
         {template && <PauseTemplate data={data} onClose={() => setTemplate(false)} />}
-        {editor && <TriggerEditor key={editor.key} initial={editor.initial} data={data} onClose={() => setEditor(null)} />}
+        {editor && <TriggerEditor key={editor.key} initial={editor.initial} data={data} leaveGuard={leaveGuard} onBusyChange={setEditorBusy} onClose={() => setEditor(null)} />}
         {!Object.keys(data.automation.triggers).length && <p className={cardClass}>No Triggers yet. Create a disabled draft, choose Events and reference an Action.</p>}
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">{Object.values(data.automation.triggers).map((trigger) => { const dependency = data.automation.dependencies[trigger.id]; const action = data.actions.actions.find((a) => a.id === trigger.actionId); return <article key={trigger.id} className={`${cardClass} space-y-3`}>
           <h3 className="break-words font-semibold">{trigger.name}</h3><p className="text-sm">{trigger.enabled ? 'Enabled' : 'Disabled'} · Serial · Revision {trigger.revision}</p><p className="break-all text-xs text-text-secondary">{trigger.id} · Created by {trigger.createdBy.type}{trigger.createdBy.id ? `: ${trigger.createdBy.id}` : ''}</p><p className="break-words text-sm">{trigger.description}</p>
           <p className="break-all text-sm">Events (OR): {trigger.eventTypes.join(', ')}</p><p className="break-all text-sm">Action: {action?.name ?? trigger.actionId} · {action?.enabled ? 'Enabled' : action ? 'Disabled' : 'Missing'}</p><p className="break-all text-sm">Dependencies: {dependency?.available ? 'Available' : 'Unavailable'}{dependency?.unavailable.length ? ` · ${dependency.unavailable.join(', ')}` : ''}</p>
-          <Button onClick={() => setEditor({ key: Date.now(), initial: trigger })}>Edit {trigger.name}</Button>
+          <Button disabled={editorBusy} onClick={() => openEditor(trigger)}>Edit {trigger.name}</Button>
         </article>; })}</div>
       </section>}
       {tab === 'Runs' && <RunList snapshot={data.automation} />}
