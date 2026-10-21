@@ -120,6 +120,7 @@ packages/web/test-results/
 
 # Isolated plugin-platform validation dependencies and mutable runtime data.
 /.validation/
+/evidence/diagnostics/
 /audit/plugin-platform-20261018/tmp-*/
 /audit/plugin-platform-20261018/pytest-cache/
 /audit/plugin-platform-20261018/venv/

@@ -761,6 +761,10 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
             stdout_handle = _open_redirect(log_path.parent / "pan-console.out.log", "a")
             stderr_handle = _open_redirect(log_path.parent / "pan-console.err.log", "a")
         child_env = os.environ.copy()
+        if hidden:
+            # Text file handles do not transmit an encoding to child Python
+            # interpreters. Pin main + inherited QQ/WeChat output explicitly.
+            child_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
         # Pin the port already selected by the launcher. Pan workers inherit this
         # environment and generate their MCP descriptors later, including after a
         # config reload has changed config.json.

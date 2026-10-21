@@ -1,0 +1,2 @@
+# Optional external thread stacks when Python's loop/GIL cannot run diagnostics.
+py-spy==0.4.2
