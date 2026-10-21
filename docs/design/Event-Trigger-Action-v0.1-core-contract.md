@@ -165,3 +165,25 @@ rejected at runtime pending a model-backed field whitelist and product decisions
 Parallel mode is likewise a reserved type, not an implemented mode. UI, complete
 external plugin transport, large-ledger retention/paging, reliable Event delivery,
 and human Pause/queue acceptance remain later work and are not claimed here.
+
+
+## Scheduler concurrency clarification (core acceptance rework)
+
+`kick` reads off-loop, then rechecks the terminal close latch before publishing
+any runner. Each Trigger has one task owner and a coalesced wake bit. A kick
+against an existing owner records the wake; an owner that has read an empty or
+otherwise stopping snapshot consumes any intervening wake with a fresh read.
+The wake decision and removal of ownership execute without an await, so a later
+kick either wakes the existing owner or installs its successor. No polling,
+per-Run task spawning, or Action-duration lock is used. Close blocks new runner
+publication, cancels/joins its fixed task snapshot, and clears registrations
+including tasks cancelled before their coroutine's first step. In-flight start
+recovery cannot reopen a closed instance.
+
+If Event dependencies disappear after a durable claim, the pre-effect deferral
+is one ledger transaction, conditional on that exact running Run revision. It
+rechecks the current Trigger: enabled becomes queued/waiting; disabled/deleted
+becomes cancelled. A changed Run status/revision is retained unchanged. Disable
+before or after this transaction therefore cannot resurrect a cancelled Run.
+This does not change HTTP shapes, selectors, token policy, or the rule that
+already-started business effects continue on Trigger disable.
