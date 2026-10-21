@@ -1,0 +1,83 @@
+{
+  "production": true,
+  "realHttp": true,
+  "firstLoad": {
+    "renderMs": 4327,
+    "registryRequests": 1,
+    "registryMs": 3353,
+    "catalogRequests": 0,
+    "sessionRequests": 2
+  },
+  "reentry": {
+    "registryRequests": 0,
+    "renderRequests": 0
+  },
+  "refresh": {
+    "ms": 45,
+    "registryRequests": 1
+  },
+  "duplicate": {
+    "id": "action_70259f3b84844b159fd4a9c9",
+    "originalUnchanged": true,
+    "copyIndependent": true,
+    "groupReferencesUnchanged": true,
+    "createdWithoutId": true
+  },
+  "mutation": {
+    "putRequests": 1,
+    "secondaryRegistryRequests": 0,
+    "catalogRequests": 0,
+    "sessionRequests": 0
+  },
+  "releaseAndBinding": {
+    "buildRequests": 1,
+    "catalogAfterBuild": 0,
+    "catalogOpenedLazily": true,
+    "sessionsOpenedLazily": true,
+    "bindingPatch": 1,
+    "backgroundRegistryAfterBinding": 1,
+    "unbuildRequests": 1,
+    "catalogAfterUnbuild": 0
+  },
+  "refreshFailure": {
+    "cachedListVisible": true,
+    "copyStillVisible": true,
+    "createRequests": 0
+  },
+  "lateRegistry": {
+    "draftAfterLateResponse": "Late editor draft",
+    "editorStillOpen": true
+  },
+  "refreshSaveInterleaving": {
+    "refreshStayedBusyDuringSave": true,
+    "refreshReEnabled": true,
+    "savedTextVisible": true
+  },
+  "firstLoadFailure": {
+    "blockingError": true,
+    "retryRecovered": true
+  },
+  "lateSession": {
+    "secondSelected": true,
+    "expectedRevision": 0
+  },
+  "narrow": {
+    "320": {
+      "document": 320,
+      "documentClient": 320,
+      "panel": 320,
+      "panelClient": 320
+    },
+    "390": {
+      "document": 390,
+      "documentClient": 390,
+      "panel": 390,
+      "panelClient": 390
+    }
+  },
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ]
+}

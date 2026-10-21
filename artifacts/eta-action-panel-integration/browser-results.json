@@ -1,0 +1,58 @@
+{
+  "head": "db34b9aaa607a2f7e56c028dfecf9841f025e701",
+  "identity": {
+    "pid": 48188,
+    "port": 54078,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986",
+  "results": [
+    {
+      "name": "compact Action list and Automation share one fresh registry read across routes",
+      "ok": true
+    },
+    {
+      "name": "full panel edits Session Operation and commits mutation response without registry refetch",
+      "ok": true
+    },
+    {
+      "name": "Duplicate preserves operation, independent targets and original immutable Group release",
+      "ok": true
+    },
+    {
+      "name": "new full-panel Session Operation creation and Group build rejection coexist with legacy build",
+      "ok": true
+    },
+    {
+      "name": "Automation Pause template mutates shared registry once with no ledger or registry read",
+      "ok": true
+    },
+    {
+      "name": "late registry GET cannot replace edited targets or newer mutation; explicit Refresh converges",
+      "ok": true
+    },
+    {
+      "name": "server-discovered query template is disabled; structured nested editor and raw errors remain safe",
+      "ok": true
+    },
+    {
+      "name": "real HTTP and production UI query → frozen target → Pause Everything → Run selection diagnostics",
+      "ok": true
+    },
+    {
+      "name": "zero-match query succeeds honestly; malformed predicates fail closed before creation",
+      "ok": true
+    },
+    {
+      "name": "query Duplicate retains nested typed predicates and creates an independent disabled-capable editor",
+      "ok": true
+    }
+  ],
+  "serverExitCode": 1,
+  "portReleased": true,
+  "checkoutDataUnchanged": true,
+  "ok": true
+}

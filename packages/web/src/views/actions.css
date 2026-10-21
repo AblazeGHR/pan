@@ -1,0 +1,163 @@
+/* Action Panel list geometry. Kept scoped to the Actions route so the rest of
+   the shell does not inherit table-like column rules. */
+
+.action-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px 112px 104px 92px 132px;
+  gap: 16px;
+  align-items: center;
+}
+
+.group-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 208px 132px 108px 232px;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 1439px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 176px 104px 96px 84px 124px;
+    gap: 14px;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 190px 124px 100px 150px;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 168px 104px 96px 124px;
+  }
+
+  .action-col-usage {
+    display: none;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 176px 120px 150px;
+  }
+
+  .group-col-sessions {
+    display: none;
+  }
+}
+
+@media (max-width: 1119px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 156px 92px 118px;
+  }
+
+  .action-col-effect {
+    display: none;
+  }
+}
+
+@media (max-width: 959px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 92px 112px;
+  }
+
+  .action-col-type,
+  .group-col-composition {
+    display: none;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 112px 150px;
+  }
+
+  .group-col-release {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .action-grid,
+  .group-grid {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .action-col-status,
+  .group-col-status {
+    display: none;
+  }
+
+  .action-row,
+  .group-row {
+    min-height: 64px;
+    padding: 10px 12px;
+  }
+
+  .list-header {
+    display: none;
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-text-primary) 7%, transparent),
+    transparent
+  );
+  animation: actions-skeleton-sweep 1.4s infinite;
+}
+
+@keyframes actions-skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes actions-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.actions-modal-in {
+  animation: actions-modal-in 0.14s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .actions-modal-in {
+    animation: none;
+  }
+}
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

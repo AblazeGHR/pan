@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="79" failures="0" errors="0" time="4.2">
+    <testsuite name="stores/actionRegistryStore.test.ts" timestamp="2026-10-21T19:56:09.549Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="0.0088392">
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; dedupes concurrent first loads and keeps secondary resources lazy" time="0.0026916">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; serves a fresh cache on re-entry and revalidates only after the TTL" time="0.00044">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; keeps the last usable registry when a background refresh fails" time="0.0003606">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; drops a late GET that started before a successful mutation" time="0.0003473">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; serializes mutations so an older response cannot overwrite a newer one" time="0.0002589">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; ends refreshing when a cached refresh is invalidated by a later mutation" time="0.00039">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; keeps a binding applied during an in-flight refresh" time="0.00051">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; does not regress on a lower-revision response and allows another Refresh" time="0.0002665">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; does not let an older refresh clear a newer refresh busy state" time="0.000324">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; loads Sessions lazily and keeps cached rows on failure" time="0.0007251">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; caches Session detail per id and ignores a late response for a switched id" time="0.000378">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops an in-flight Session detail response after cache reset" time="0.000205">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a late catalog response after a force refresh" time="0.0003628">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a build-time catalog invalidation response and still accepts the next force load" time="0.0002907">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a late Session list response after a force refresh" time="0.0002599">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops an in-flight Session list response after cache reset" time="0.0002036">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/ActionsView.test.tsx" timestamp="2026-10-21T19:56:09.556Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="2.071911">
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; loads only the registry first and renders the compact list" time="0.1047914">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; filters and clears without another request" time="0.0521646">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; keeps cached rows and shows a retry banner when refresh fails" time="0.0631576">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query" time="0.2788605">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits, duplicates and saves a Session Operation without changing its original or Group release" time="0.2052111">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates Session Operation in the new editor and rejects invalid Event targets without posting" time="0.0852882">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; blocks Group build for enabled Session Operation while preserving membership and build APIs" time="0.0446772">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates an Action without a client ID and returns to the list" time="0.076088">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; duplicates through POST without an ID, opens the copy, and never touches Group references" time="0.088934">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; uses a clear suffixed default name when the first copy name already exists" time="0.100349">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; keeps the draft and shows the write error" time="0.1727637">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; does not submit malformed advanced JSON and keeps the text for repair" time="0.0969524">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; guards a dirty draft before returning to the list" time="0.2033272">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; builds and unbuilds a Group through the existing mutation paths" time="0.1592879">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; preserves other plugin bindings and sends the expected revision" time="0.2455335">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; disables unbuild while a running Session blocks the Group" time="0.0932899">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-21T19:56:09.560Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="0.9639755">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs" time="0.2056027">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.0940766">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.1104173">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.0636377">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0004881">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0006779">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.0941513">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0423752">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0004289">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="shares Action loads, adopts template mutation without extra reads, and fences late registry replies" time="0.0006871">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.0894611">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards accepted switching, but blocks departure and duplicate submits while saving" time="0.0641088">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.1195278">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.0775668">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/actions/sessionQueryModel.test.ts" timestamp="2026-10-21T19:56:09.563Z" hostname="ablaze" tests="28" failures="0" errors="0" skipped="0" time="0.0034346">
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;id&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[&quot;a&quot;,&quot;b&quot;]}" time="0.0008299">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;contains&quot;,&quot;value&quot;:&quot;Review&quot;}" time="0.0001127">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;adapter&quot;,&quot;op&quot;:&quot;ne&quot;,&quot;value&quot;:&quot;cbc&quot;}" time="0.0000657">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;managedBy&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[null,&quot;ses_a&quot;]}" time="0.0000589">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;readonlySession&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false}" time="0.0000666">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[true,false]}" time="0.0000604">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;workspaceIds&quot;,&quot;op&quot;:&quot;contains&quot;,&quot;value&quot;:&quot;ws_a&quot;}" time="0.0000439">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;workspaceIds&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:[&quot;ws_b&quot;,&quot;ws_a&quot;]}" time="0.000055">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;and&quot;:[{&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;One&quot;},{&quot;or&quot;:[{&quot;not&quot;:{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:true}}]}]}" time="0.0000589">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="accepts contract predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀&quot;}" time="0.0000654">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {}" time="0.0004118">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;and&quot;:[]}" time="0.0000618">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;or&quot;:[]}" time="0.0000531">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;contains&quot;,&quot;value&quot;:&quot;&quot;}" time="0.0000453">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:1}" time="0.0000398">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;readonlySession&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;false&quot;}" time="0.0000366">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:null}" time="0.0000482">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;unknown&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;&quot;}" time="0.0000528">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;adapter&quot;,&quot;op&quot;:&quot;contains&quot;,&quot;value&quot;:&quot;c&quot;}" time="0.0000461">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;workspaceIds&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[&quot;a&quot;]}" time="0.0000502">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;workspaceIds&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;a&quot;}" time="0.000035">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;id&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[]}" time="0.0000321">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;managedBy&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[true]}" time="0.0000445">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;regex&quot;,&quot;value&quot;:&quot;.*&quot;}" time="0.0000323">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;id&quot;,&quot;op&quot;:&quot;in&quot;,&quot;value&quot;:[&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;]}" time="0.0000301">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;field&quot;:&quot;name&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:&quot;😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀&quot;}" time="0.0000358">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="rejects invalid predicate {&quot;and&quot;:[{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false},{&quot;field&quot;:&quot;pinned&quot;,&quot;op&quot;:&quot;eq&quot;,&quot;value&quot;:false}]}" time="0.0000478">
+        </testcase>
+        <testcase classname="components/actions/sessionQueryModel.test.ts" name="bounds nested NOT with root counted at depth one" time="0.0001498">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/automation/fields.test.tsx" timestamp="2026-10-21T19:56:09.569Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1034142">
+        <testcase classname="components/automation/fields.test.tsx" name="keeps the surviving literal display equal to the condition after deleting its predecessor" time="0.0628664">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="syncs an external literal and clears obsolete custom validity" time="0.0058837">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="retains unfinished invalid text on the surviving condition and on unrelated rerenders" time="0.0143512">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="preserves a valid unnormalized lexeme through its own edit and a sibling edit" time="0.0101752">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="replacing the condition structure resets obsolete literal buffers and validity" time="0.009511">
+        </testcase>
+    </testsuite>
+</testsuites>

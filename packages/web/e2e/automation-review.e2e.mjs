@@ -158,7 +158,7 @@ try {
     await page.getByLabel('Trigger name').fill('Leave for Actions');
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('link', { name: 'Manage Actions' }).click();
-    await expect(page.getByRole('heading', { name: 'Actions', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Actions & Groups', exact: true })).toBeVisible();
   });
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(out, 'http-evidence.json'), JSON.stringify({ identity, posts, noPageErrors: true }, null, 2));

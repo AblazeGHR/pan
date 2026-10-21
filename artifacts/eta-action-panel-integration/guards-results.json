@@ -1,0 +1,38 @@
+{
+  "head": "db34b9aaa607a2f7e56c028dfecf9841f025e701",
+  "identity": {
+    "pid": 34304,
+    "port": 50702,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-review-1792612384225",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-review-1792612384225\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-review-1792612384225",
+  "results": [
+    {
+      "name": "deleting first condition keeps visible 22 equal to real POST and ledger value",
+      "ok": true
+    },
+    {
+      "name": "cancelled New, Edit, Close and router departure retain unfinished JSON and validity",
+      "ok": true
+    },
+    {
+      "name": "real 409 rebase preserves invalid JSON; load server replaces value and validity",
+      "ok": true
+    },
+    {
+      "name": "accepted discard switches editor; condition structure replacement resets literal correctly",
+      "ok": true
+    },
+    {
+      "name": "pending save blocks switching and duplicate submission; successful save closes without dirty prompt",
+      "ok": true
+    }
+  ],
+  "serverExitCode": 1,
+  "portReleased": true,
+  "checkoutDataUnchanged": true,
+  "ok": true
+}

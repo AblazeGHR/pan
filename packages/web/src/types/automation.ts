@@ -15,6 +15,7 @@ export type AutomationRun = {
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'uncertain' | 'skipped';
   arguments: Record<string, unknown>; state?: unknown; createdAt: string; startedAt?: string; finishedAt?: string;
   action?: Action; actionDigest?: string; error?: string; result?: unknown; targetIds?: string[]; targetResults?: unknown[];
+  selection?: { mode: 'query'; matchedAt: string; candidateCount: number; matched: number };
 };
 export type AutomationSnapshot = {
   revision: number; triggers: Record<string, Trigger>; runs: Record<string, AutomationRun>;

@@ -7,6 +7,7 @@ import { TriggerEditor } from '@/components/automation/TriggerEditor';
 import { PauseTemplate } from '@/components/automation/PauseTemplate';
 import { RunList } from '@/components/automation/RunList';
 import type { Trigger } from '@/types/automation';
+import { useActionRegistryStore } from '@/stores/actionRegistryStore';
 
 function Login() {
   const token = useAutomationAuth((s) => s.token);
@@ -20,7 +21,10 @@ function Login() {
 }
 
 export default function AutomationView() {
-  const { data, loading, error, refresh, updatedAt } = useAutomationStore();
+  const { data: snapshot, loading, error, refresh, updatedAt } = useAutomationStore();
+  const registry = useActionRegistryStore((s) => s.registry);
+  const registryError = useActionRegistryStore((s) => s.refreshError);
+  const data = snapshot ? { ...snapshot, actions: registry } : null;
   const [tab, setTab] = useState<'Triggers' | 'Runs' | 'Diagnostics'>('Triggers');
   const [editor, setEditor] = useState<{ key: number; initial: Trigger | null } | null>(null);
   const [template, setTemplate] = useState(false);
@@ -33,14 +37,15 @@ export default function AutomationView() {
   }
   useEffect(() => { void refresh(); }, [refresh]);
   return <section aria-label="Automation management" className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div className="mx-auto max-w-5xl space-y-5">
-    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Events → Triggers → Actions</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void refresh()}>{tab === 'Runs' ? 'Refresh Runs' : 'Refresh'}</Button></div></header>
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Events → Triggers → Actions</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void refresh(tab !== 'Runs')}>{tab === 'Runs' ? 'Refresh Runs' : 'Refresh'}</Button></div></header>
+    {registryError && <p role="alert" className="text-sm text-danger">Action refresh failed: {registryError}. Cached Actions are retained.</p>}
     <p role="status" className="text-xs text-text-secondary">{loading ? 'Refreshing snapshot…' : updatedAt ? `Snapshot fetched ${new Date(updatedAt).toLocaleString()}. Manual refresh; no live updates.` : 'No snapshot loaded.'}</p>
     {error && <p role="alert" className="text-sm text-danger">Refresh failed: {error}. The last successful snapshot is retained.</p>}
     <Login />
     <nav aria-label="Automation sections" className="flex flex-wrap gap-2">{(['Triggers', 'Runs', 'Diagnostics'] as const).map((name) => <Button key={name} aria-pressed={tab === name} variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</nav>
     {data && <>
       {<section hidden={tab !== 'Triggers'} aria-label="Triggers" className="min-w-0 space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Triggers</h2><div className="flex flex-wrap gap-2"><Button onClick={() => setTemplate(true)}>Pause Everything template</Button><Button disabled={editorBusy} variant="primary" onClick={() => openEditor(null)}>New Trigger</Button></div></div>
-        {template && <PauseTemplate data={data} onClose={() => setTemplate(false)} />}
+        {template && <PauseTemplate onClose={() => setTemplate(false)} />}
         {editor && <TriggerEditor key={editor.key} initial={editor.initial} data={data} leaveGuard={leaveGuard} onBusyChange={setEditorBusy} onClose={() => setEditor(null)} />}
         {!Object.keys(data.automation.triggers).length && <p className={cardClass}>No Triggers yet. Create a disabled draft, choose Events and reference an Action.</p>}
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">{Object.values(data.automation.triggers).map((trigger) => { const dependency = data.automation.dependencies[trigger.id]; const action = data.actions.actions.find((a) => a.id === trigger.actionId); return <article key={trigger.id} className={`${cardClass} space-y-3`}>

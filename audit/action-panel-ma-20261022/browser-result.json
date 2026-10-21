@@ -1,0 +1,96 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021",
+  "pid": 26928,
+  "port": 63152,
+  "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-d98443dd18\\data",
+  "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-d98443dd18",
+  "browser": {
+    "production": true,
+    "realHttp": true,
+    "firstLoad": {
+      "renderMs": 3466,
+      "registryRequests": 1,
+      "registryMs": 2884,
+      "catalogRequests": 0,
+      "sessionRequests": 2
+    },
+    "reentry": {
+      "registryRequests": 0,
+      "renderRequests": 0
+    },
+    "refresh": {
+      "ms": 29,
+      "registryRequests": 1
+    },
+    "duplicate": {
+      "id": "action_a8bdf3e6a29b4c87ad7cec67",
+      "originalUnchanged": true,
+      "copyIndependent": true,
+      "groupReferencesUnchanged": true,
+      "createdWithoutId": true
+    },
+    "mutation": {
+      "putRequests": 1,
+      "secondaryRegistryRequests": 0,
+      "catalogRequests": 0,
+      "sessionRequests": 0
+    },
+    "releaseAndBinding": {
+      "buildRequests": 1,
+      "catalogAfterBuild": 0,
+      "catalogOpenedLazily": true,
+      "sessionsOpenedLazily": true,
+      "bindingPatch": 1,
+      "backgroundRegistryAfterBinding": 1,
+      "unbuildRequests": 1,
+      "catalogAfterUnbuild": 0
+    },
+    "refreshFailure": {
+      "cachedListVisible": true,
+      "copyStillVisible": true,
+      "createRequests": 0
+    },
+    "lateRegistry": {
+      "draftAfterLateResponse": "Late editor draft",
+      "editorStillOpen": true
+    },
+    "refreshSaveInterleaving": {
+      "refreshStayedBusyDuringSave": true,
+      "refreshReEnabled": true,
+      "savedTextVisible": true
+    },
+    "firstLoadFailure": {
+      "blockingError": true,
+      "retryRecovered": true
+    },
+    "lateSession": {
+      "secondSelected": true,
+      "expectedRevision": 0
+    },
+    "narrow": {
+      "320": {
+        "document": 320,
+        "documentClient": 320,
+        "panel": 320,
+        "panelClient": 320
+      },
+      "390": {
+        "document": 390,
+        "documentClient": 390,
+        "panel": 390,
+        "panelClient": 390
+      }
+    },
+    "pageErrors": [],
+    "consoleErrors": [
+      "Failed to load resource: net::ERR_FAILED",
+      "Failed to load resource: net::ERR_FAILED"
+    ]
+  },
+  "probePlugin": "action-group-probe",
+  "sessions": {
+    "first": "ses_6e565c24c22c4452",
+    "second": "ses_6b977c9eb6cdd253"
+  },
+  "serverStopped": true
+}

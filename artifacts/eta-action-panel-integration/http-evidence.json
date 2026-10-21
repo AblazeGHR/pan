@@ -1,0 +1,884 @@
+{
+  "identity": {
+    "pid": 48188,
+    "port": 54078,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "requests": [
+    {
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/session-operation-template",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/actions/fixture_pause",
+      "method": "PUT",
+      "body": {
+        "item": {
+          "id": "fixture_pause",
+          "name": "Fixture pause",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "event",
+              "path": "payload.sessionIds"
+            }
+          },
+          "description": "Fixture pause",
+          "output_format": "json"
+        },
+        "expectedRevision": 4
+      }
+    },
+    {
+      "path": "/api/actions/actions",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Fixture pause copy",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "event",
+              "path": "payload.sessionIds"
+            }
+          },
+          "description": "Fixture pause",
+          "output_format": "json"
+        },
+        "expectedRevision": 5
+      }
+    },
+    {
+      "path": "/api/actions/actions/action_496fee5bf546475791ff613d",
+      "method": "PUT",
+      "body": {
+        "item": {
+          "name": "Fixture pause copy",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_38b74b43cfc5363b"
+              ]
+            }
+          },
+          "description": "Fixture pause",
+          "output_format": "json",
+          "id": "action_496fee5bf546475791ff613d"
+        },
+        "expectedRevision": 6
+      }
+    },
+    {
+      "path": "/api/actions/actions",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Created in full panel",
+          "description": "Pause selected Sessions",
+          "enabled": false,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_e7bc813575e63348"
+              ]
+            }
+          }
+        },
+        "expectedRevision": 7
+      }
+    },
+    {
+      "path": "/api/actions/groups",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Automation only blocked",
+          "action_ids": [
+            "action_69bca3e9c21e48e38c83fed9"
+          ]
+        },
+        "expectedRevision": 8
+      }
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/actions",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Shared template",
+          "description": "Pause Everything for a frozen Session query result",
+          "enabled": false,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_e7bc813575e63348"
+              ]
+            }
+          }
+        },
+        "expectedRevision": 9
+      }
+    },
+    {
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/actions/action_496fee5bf546475791ff613d",
+      "method": "PUT",
+      "body": {
+        "item": {
+          "name": "Fixture pause copy",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_38b74b43cfc5363b",
+                "ses_missing_preserved"
+              ]
+            }
+          },
+          "description": "Fixture pause",
+          "output_format": "json",
+          "id": "action_496fee5bf546475791ff613d"
+        },
+        "expectedRevision": 10
+      }
+    },
+    {
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/actions",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Query selected",
+          "description": "Pause Everything for a frozen Session query result",
+          "enabled": false,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "and": [
+                  {
+                    "field": "name",
+                    "op": "eq",
+                    "value": "Selected target"
+                  },
+                  {
+                    "field": "readonlySession",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "not": {
+                      "field": "adapter",
+                      "op": "in",
+                      "value": [
+                        "codex"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expectedRevision": 11
+      }
+    },
+    {
+      "path": "/api/actions/actions/action_d1bb995280934cf6a301888f",
+      "method": "PUT",
+      "body": {
+        "item": {
+          "name": "Query selected",
+          "description": "Pause Everything for a frozen Session query result",
+          "enabled": true,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "and": [
+                  {
+                    "field": "name",
+                    "op": "eq",
+                    "value": "Selected target"
+                  },
+                  {
+                    "field": "readonlySession",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "not": {
+                      "field": "adapter",
+                      "op": "in",
+                      "value": [
+                        "codex"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "id": "action_d1bb995280934cf6a301888f"
+        },
+        "expectedRevision": 12
+      }
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "path": "/api/automation/triggers",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Query trigger",
+          "description": "",
+          "enabled": true,
+          "eventTypes": [
+            "workers.all_idle"
+          ],
+          "condition": null,
+          "actionId": "action_d1bb995280934cf6a301888f",
+          "arguments": {},
+          "executionMode": "serial"
+        },
+        "expectedRevision": 0
+      }
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/history",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/history",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions/ses_da538a6abf82cc03/queue",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "path": "/api/actions/actions",
+      "method": "POST",
+      "body": {
+        "item": {
+          "name": "Query selected copy",
+          "description": "Pause Everything for a frozen Session query result",
+          "enabled": true,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "and": [
+                  {
+                    "field": "name",
+                    "op": "eq",
+                    "value": "Selected target"
+                  },
+                  {
+                    "field": "readonlySession",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "not": {
+                      "field": "adapter",
+                      "op": "in",
+                      "value": [
+                        "codex"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expectedRevision": 14
+      }
+    },
+    {
+      "path": "/api/actions/actions/action_37b1d618aa244834903767d7",
+      "method": "PUT",
+      "body": {
+        "item": {
+          "name": "Query selected copy",
+          "description": "Pause Everything for a frozen Session query result",
+          "enabled": false,
+          "effect": "write_local",
+          "output_format": "json",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "and": [
+                  {
+                    "field": "name",
+                    "op": "eq",
+                    "value": "Selected target"
+                  },
+                  {
+                    "field": "readonlySession",
+                    "op": "eq",
+                    "value": false
+                  },
+                  {
+                    "not": {
+                      "field": "adapter",
+                      "op": "in",
+                      "value": [
+                        "codex"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "id": "action_37b1d618aa244834903767d7"
+        },
+        "expectedRevision": 15
+      }
+    }
+  ],
+  "originalRelease": {
+    "plugin_id": "action-group-group-3019e3bc6dac4d58b07152ee",
+    "version": "99a58836f62249c1b27bfc63bb452264",
+    "directory": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986\\actions\\builds\\group_3019e3bc6dac4d58b07152ee\\99a58836f62249c1b27bfc63bb452264",
+    "action_ids": [
+      "action_0847fba5a5e441609a19bca5"
+    ]
+  },
+  "finalRegistry": {
+    "revision": 16,
+    "actions": [
+      {
+        "id": "fixture_pause",
+        "name": "Fixture pause",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "event",
+            "path": "payload.sessionIds"
+          }
+        },
+        "description": "Fixture pause",
+        "output_format": "json"
+      },
+      {
+        "name": "Read control",
+        "enabled": true,
+        "effect": "read",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "api",
+          "method": "GET",
+          "path": "/api/sessions"
+        },
+        "id": "action_0847fba5a5e441609a19bca5",
+        "description": "Read control",
+        "output_format": "json"
+      },
+      {
+        "name": "Fixture pause copy",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "ses_38b74b43cfc5363b",
+              "ses_missing_preserved"
+            ]
+          }
+        },
+        "description": "Fixture pause",
+        "output_format": "json",
+        "id": "action_496fee5bf546475791ff613d"
+      },
+      {
+        "name": "Created in full panel",
+        "description": "Pause selected Sessions",
+        "enabled": false,
+        "effect": "write_local",
+        "output_format": "json",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "ses_e7bc813575e63348"
+            ]
+          }
+        },
+        "id": "action_69bca3e9c21e48e38c83fed9"
+      },
+      {
+        "name": "Shared template",
+        "description": "Pause Everything for a frozen Session query result",
+        "enabled": false,
+        "effect": "write_local",
+        "output_format": "json",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "ses_e7bc813575e63348"
+            ]
+          }
+        },
+        "id": "action_915ca385c5fd4d63b2407ab0"
+      },
+      {
+        "name": "Query selected",
+        "description": "Pause Everything for a frozen Session query result",
+        "enabled": true,
+        "effect": "write_local",
+        "output_format": "json",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "query",
+            "query": {
+              "and": [
+                {
+                  "field": "name",
+                  "op": "eq",
+                  "value": "Selected target"
+                },
+                {
+                  "field": "readonlySession",
+                  "op": "eq",
+                  "value": false
+                },
+                {
+                  "not": {
+                    "field": "adapter",
+                    "op": "in",
+                    "value": [
+                      "codex"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "id": "action_d1bb995280934cf6a301888f"
+      },
+      {
+        "name": "Empty query",
+        "description": "Pause Everything for a frozen Session query result",
+        "enabled": true,
+        "effect": "write_local",
+        "output_format": "json",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "query",
+            "query": {
+              "field": "name",
+              "op": "contains",
+              "value": "NoSuchSession_ExactCase"
+            }
+          }
+        },
+        "id": "action_54d01bebf21f4a3292485e61"
+      },
+      {
+        "name": "Query selected copy",
+        "description": "Pause Everything for a frozen Session query result",
+        "enabled": false,
+        "effect": "write_local",
+        "output_format": "json",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "query",
+            "query": {
+              "and": [
+                {
+                  "field": "name",
+                  "op": "eq",
+                  "value": "Selected target"
+                },
+                {
+                  "field": "readonlySession",
+                  "op": "eq",
+                  "value": false
+                },
+                {
+                  "not": {
+                    "field": "adapter",
+                    "op": "in",
+                    "value": [
+                      "codex"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "id": "action_37b1d618aa244834903767d7"
+      }
+    ],
+    "groups": [
+      {
+        "name": "Immutable control",
+        "action_ids": [
+          "action_0847fba5a5e441609a19bca5"
+        ],
+        "id": "group_3019e3bc6dac4d58b07152ee",
+        "build": {
+          "plugin_id": "action-group-group-3019e3bc6dac4d58b07152ee",
+          "version": "99a58836f62249c1b27bfc63bb452264",
+          "directory": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986\\actions\\builds\\group_3019e3bc6dac4d58b07152ee\\99a58836f62249c1b27bfc63bb452264",
+          "action_ids": [
+            "action_0847fba5a5e441609a19bca5"
+          ]
+        },
+        "last_build": {
+          "plugin_id": "action-group-group-3019e3bc6dac4d58b07152ee",
+          "version": "99a58836f62249c1b27bfc63bb452264",
+          "directory": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\eta-action-panel-1792612576986\\actions\\builds\\group_3019e3bc6dac4d58b07152ee\\99a58836f62249c1b27bfc63bb452264",
+          "action_ids": [
+            "action_0847fba5a5e441609a19bca5"
+          ]
+        },
+        "blockers": [],
+        "sessions": []
+      },
+      {
+        "name": "Automation only blocked",
+        "action_ids": [
+          "action_69bca3e9c21e48e38c83fed9"
+        ],
+        "id": "group_34e872f51f4945a3a718ec23",
+        "blockers": [],
+        "sessions": []
+      }
+    ]
+  },
+  "noPageErrors": true
+}

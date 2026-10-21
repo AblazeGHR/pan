@@ -2,11 +2,12 @@
 
 ## Create and organize
 
-The Panel has three sections: **Actions** lists definitions and their edit entry;
-**New Action** creates an API or command definition; **Groups** creates/edits shared
-selections, builds releases and offers **Use in Session**. That entry loads the
-chosen Session and uses the shared PluginSelection component and existing three
-modes. An empty Session list explains how to create a Session and refresh.
+The Panel shows compact **Actions** and **Groups** lists. **New Action** and
+**New Group** open a full-panel editor that replaces the list, with a back
+breadcrumb, dirty-draft guard and sticky Save/Cancel. **Groups** creates/edits
+shared selections, builds releases and offers **Use in Session**. That entry loads
+the chosen Session and uses the existing three modes. An empty Session list
+explains how to create a Session and refresh.
 
 IDs are assigned by the server when omitted, independently of display names.
 The Panel hides ID inputs on creation; existing items expose a selectable ID and
@@ -34,6 +35,36 @@ An Action has an ID, name, description, enabled flag, effect, input JSON Schema,
 execution definition and output format. The Panel supplies typed scalar input fields;
 the draft API accepts an object JSON Schema with `additionalProperties: false`.
 Schema references are rejected. Draft edits do not modify built releases.
+
+### Duplicate Action
+
+The Action row overflow menu exposes **Duplicate Action** (English UI). Duplication
+uses the existing `POST /api/actions/actions` creation/validation path with the
+`id` omitted, so the server allocates a fresh stable ID. The new definition is an
+independent copy: the original Action and its Group references are unchanged, and
+the copy is not added to a Group, built, bound to a Session, or given the original
+release/runtime identity. The default name is `"<name> copy"` (with a numeric suffix
+if that name already exists); the user may edit it. The Panel opens the created copy
+in the full-panel editor. A confirmed creation returns the authoritative item, so a
+failed secondary refresh cannot lead to a second create request.
+
+### Actions and Jobs
+
+An Action is a reusable, parameterizable operation definition. It is typically
+executed when called, and its concrete purpose is determined by the calling
+scenario and input arguments. A Job is a task instance with a goal, execution
+content and trigger schedule fixed at creation time; it has a lifecycle and its
+core execution fields are normally fixed.
+
+Future Job-to-Action integration will use references, not snapshots: changing a
+referenced Action can affect execution of subsequent Jobs, and a Job does not pin an
+Action version by default. A user who wants isolation should duplicate the Action
+and reference the copy. An Action may create a Job; a successful Action call only
+means the Job was created, not that the Job completed.
+
+This round implements duplication and these boundaries only. It does not add Job
+execution of Actions and does not change Group immutable release or Session pin
+semantics.
 
 ## Execution scope
 
