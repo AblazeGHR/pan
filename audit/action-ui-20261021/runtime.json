@@ -1,0 +1,63 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\action-groups-review-20261021",
+  "pid": 28744,
+  "port": 59732,
+  "dataRoot": "D:\\project\\pan-worktrees\\action-groups-review-20261021\\.validation\\action-groups\\live-5d56add2bb\\data",
+  "runtime": "D:\\project\\pan-worktrees\\action-groups-review-20261021\\.validation\\action-groups\\live-5d56add2bb",
+  "mcp": [
+    {
+      "mode": "standalone",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "standalone",
+      "action": "echo",
+      "ok": true
+    },
+    {
+      "mode": "pan_native",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "pan_native",
+      "action": "echo",
+      "ok": true
+    },
+    {
+      "mode": "gateway",
+      "action": "list_sessions",
+      "ok": true
+    },
+    {
+      "mode": "gateway",
+      "action": "echo",
+      "ok": true
+    }
+  ],
+  "browser": {
+    "production": true,
+    "realHttp": true,
+    "threeSections": true,
+    "automaticActionId": "action_354483f47c5c40d5a3532f83",
+    "automaticGroupId": "group_9036c0750a6b47599e67fc18",
+    "renamePreservesIdsAndRelease": true,
+    "copyId": true,
+    "sharedCommand": true,
+    "build": true,
+    "contextualSessionBinding": true,
+    "preservesOtherBindings": true,
+    "allThreeModes": true,
+    "idleUnbuild": true,
+    "delete": true,
+    "narrowWidths": [
+      390,
+      320
+    ],
+    "mobileOverflow": false,
+    "pageErrors": []
+  },
+  "browserSessionId": "ses_37d5f223d8392d0c",
+  "serverStopped": true
+}

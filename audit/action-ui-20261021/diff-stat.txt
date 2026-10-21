@@ -1,0 +1,11 @@
+ docs/plugins/ACTIONS.md                     |  27 +++
+ docs/skills/pan/SKILL.md                    |   6 +-
+ docs/skills/pan/references/http-api.md      |   7 +
+ packages/actions/api.py                     |  15 +-
+ packages/actions/store.py                   |  19 +-
+ packages/mcp/server.py                      |   7 +-
+ packages/web/e2e/action-groups.e2e.mjs      | 121 +++++++++---
+ packages/web/src/views/ActionsView.test.tsx |  92 ++++++++-
+ packages/web/src/views/ActionsView.tsx      | 279 ++++++++++++++++++----------
+ tests/test_action_ids.py                    | 117 ++++++++++++
+ 10 files changed, 544 insertions(+), 146 deletions(-)

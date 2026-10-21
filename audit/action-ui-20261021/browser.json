@@ -1,0 +1,22 @@
+{
+  "production": true,
+  "realHttp": true,
+  "threeSections": true,
+  "automaticActionId": "action_354483f47c5c40d5a3532f83",
+  "automaticGroupId": "group_9036c0750a6b47599e67fc18",
+  "renamePreservesIdsAndRelease": true,
+  "copyId": true,
+  "sharedCommand": true,
+  "build": true,
+  "contextualSessionBinding": true,
+  "preservesOtherBindings": true,
+  "allThreeModes": true,
+  "idleUnbuild": true,
+  "delete": true,
+  "narrowWidths": [
+    390,
+    320
+  ],
+  "mobileOverflow": false,
+  "pageErrors": []
+}

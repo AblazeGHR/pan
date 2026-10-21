@@ -1,0 +1,50 @@
+{
+  "baseAtStart": "6eff88c6fc665f989e475700abf92386d0fbbb93",
+  "baselineIntegrated": "4d3b1cf1261eb2c0cb324aa1a955dfac5b79ba2c",
+  "testedSourceSha": "9abca940efae776390c30641ebbd05d5852ac3ab",
+  "junit": {
+    "backend-integrated.xml": {
+      "cases": 84,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "frontend.xml": {
+      "cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "coexistence.xml": {
+      "cases": 82,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "buildExit": 0,
+  "compressedAssets": 74,
+  "typecheckExit": 0,
+  "targetedLintExit": 0,
+  "compileallExit": 0,
+  "diffCheckExit": 0,
+  "preCommitReactCheck": "passed",
+  "ownedHttpPidExists": false,
+  "remainingOwnedProcesses": [],
+  "finalListeners": [
+    {
+      "port": 8768,
+      "pid": 2688
+    }
+  ],
+  "mcpCalls": 6,
+  "pageErrors": [],
+  "mainPracticalReadOnlyObservations": {
+    "start": "6eff88c6",
+    "end": "4d3b1cf1"
+  },
+  "paidModelCalls": 0,
+  "sharedDependencyWrites": false,
+  "fullSuiteRun": false,
+  "delegation": false
+}

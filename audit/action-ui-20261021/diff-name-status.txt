@@ -1,0 +1,10 @@
+M	docs/plugins/ACTIONS.md
+M	docs/skills/pan/SKILL.md
+M	docs/skills/pan/references/http-api.md
+M	packages/actions/api.py
+M	packages/actions/store.py
+M	packages/mcp/server.py
+M	packages/web/e2e/action-groups.e2e.mjs
+M	packages/web/src/views/ActionsView.test.tsx
+M	packages/web/src/views/ActionsView.tsx
+A	tests/test_action_ids.py

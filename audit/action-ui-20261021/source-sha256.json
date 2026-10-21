@@ -1,0 +1,12 @@
+{
+  "docs/plugins/ACTIONS.md": "93007cffcb61be857a8c9879e40ad20c229313733ab4852918c2b8d358037481",
+  "docs/skills/pan/SKILL.md": "f6776e8b12885dab87494b9ed1894274a18d8385a63a1ea0b6544f2ac0b6cf9f",
+  "docs/skills/pan/references/http-api.md": "38d2762971ba54b6e55cd1427ba284ad3a05e5742455a9c5d1dc9c4f81cac0ac",
+  "packages/actions/api.py": "edb6d42fd509ed705344161a37ffc832595114b252ff06ef4e974b8d4705a680",
+  "packages/actions/store.py": "29450048c5d5e2779e0e4b90178c3f0f79973a03c0b6b939191fdaf8a01bc156",
+  "packages/mcp/server.py": "5380c6ca92fe74022fee387a696e3cb811eb8a7381a86a5eff424f9c037b1b36",
+  "packages/web/e2e/action-groups.e2e.mjs": "419b74103861c5a2d18354d6b0346fed71c0b02a1ab813e31af49a269541fac7",
+  "packages/web/src/views/ActionsView.test.tsx": "1eb29f6bab1c1eb42fa78a89a01d217b802a0143472d3171d924522cfba34ea1",
+  "packages/web/src/views/ActionsView.tsx": "fde9a48e8b9252ab0b942aac7b7d1da77474ad80bd160f557ef1415b15d37ad3",
+  "tests/test_action_ids.py": "7fa68952b020fbc0c2544faa53cd9fdfc2d032391f283f599b7f87c645ba24af"
+}
