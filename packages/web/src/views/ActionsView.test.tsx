@@ -1,182 +1,385 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ActionsView from './ActionsView';
 import { actionRequest } from '@/services/api';
-import type { ActionRegistry, InputSchema } from '@/types/actions';
+import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
+import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
+import type { Session } from '@/types';
 
 vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 const invoke = vi.mocked(actionRequest);
+
+const source: Action = {
+  id: 'list_sessions',
+  name: 'List Sessions',
+  description: 'List isolated Sessions',
+  enabled: true,
+  effect: 'read',
+  output_format: 'json',
+  input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  execution: { kind: 'api', method: 'GET', path: '/api/sessions' },
+};
+
 let registry: ActionRegistry;
-const source = { id: 'list_sessions', name: 'List sessions', description: 'List Sessions', enabled: true,
-  effect: 'read' as const, output_format: 'json' as const,
-  input_schema: { type: 'object' as const, properties: {}, required: [], additionalProperties: false as const },
-  execution: { kind: 'api' as const, method: 'GET' as const, path: '/api/sessions' } };
+let nextId = 1;
+
+function makeSession(id: string, name: string, bindings: Session['pluginBindings'] = []): Session {
+  return {
+    id,
+    name,
+    alwaysThinkingEnabled: false,
+    effort: '',
+    pluginBindings: bindings,
+    pluginSelectionRevision: 4,
+  } as Session;
+}
+
+function makeBuiltGroup(overrides: Partial<ActionGroup> = {}): ActionGroup {
+  return {
+    id: 'tools',
+    name: 'Tools',
+    action_ids: ['list_sessions'],
+    build: { plugin_id: 'action-group-tools', version: 'v1', action_ids: ['list_sessions'] },
+    blockers: [],
+    sessions: [],
+    ...overrides,
+  };
+}
 
 beforeEach(() => {
   registry = { revision: 1, actions: [structuredClone(source)], groups: [] };
+  nextId = 1;
   invoke.mockReset();
+  resetActionCachesForTests();
   invoke.mockImplementation(async (path, method = 'GET', body) => {
     if (path === 'actions' && method === 'GET') return structuredClone(registry);
-    if (path === 'mcp/servers') return { servers: [{ name: 'action-group-tools', displayName: 'Tools', supportedModes: ['standalone', 'pan_native', 'gateway'] }] };
-    if (path === 'sessions') return { sessions: [{ id: 's1', name: 'First' }, { id: 's2', name: 'Second' }] };
-    if (path?.startsWith('sessions/')) return { id: path.split('/')[1], name: path, pluginBindings: [], pluginSelectionRevision: 0 };
-    const request = body as { item: typeof source; expectedRevision: number };
-    if (method === 'POST' && path === 'actions/actions') {
-      const item = { ...request.item, id: 'action_generated' }; registry.actions.push(item); registry.revision++;
-      return { ...structuredClone(registry), item };
+    if (path === 'mcp/servers') {
+      return {
+        servers: [
+          {
+            name: 'action-group-tools',
+            displayName: 'Tools',
+            supportedModes: ['standalone', 'pan_native', 'gateway'],
+            defaultMode: 'pan_native',
+          },
+        ],
+      };
     }
-    if (method === 'PUT' && path?.startsWith('actions/actions/')) registry.actions = [...registry.actions.filter((a) => a.id !== request.item.id), request.item];
-    registry.revision++;
-    return structuredClone(registry);
+    if (path === 'sessions' && method === 'GET') {
+      return {
+        sessions: [
+          makeSession('s1', 'First', [{ plugin_id: 'other', enabled: true, mode: 'standalone' }]),
+          makeSession('s2', 'Second'),
+        ],
+      };
+    }
+    if (path?.startsWith('sessions/') && method === 'GET') {
+      const id = decodeURIComponent(path.split('/')[1] ?? '');
+      return makeSession(id, id === 's1' ? 'First' : 'Second', [
+        { plugin_id: 'other', enabled: true, mode: 'standalone' },
+      ]);
+    }
+    if (path?.startsWith('sessions/') && method === 'PATCH') {
+      const id = decodeURIComponent(path.split('/')[1] ?? '');
+      const request = body as { pluginBindings: NonNullable<Session['pluginBindings']> };
+      return {
+        ...makeSession(id, id === 's1' ? 'First' : 'Second', request.pluginBindings),
+        pluginApplyStatus: 'applied',
+      } as Session;
+    }
+    if (method === 'POST' && path === 'actions/actions') {
+      const request = body as { item: Action };
+      const item = { ...structuredClone(request.item), id: `action_copy_${nextId++}` };
+      registry.actions.push(item);
+      registry.revision += 1;
+      return { ...structuredClone(registry), item: structuredClone(item) };
+    }
+    if (method === 'PUT' && path?.startsWith('actions/actions/')) {
+      const request = body as { item: Action };
+      registry.actions = registry.actions.map((action) =>
+        action.id === request.item.id ? structuredClone(request.item) : action,
+      );
+      registry.revision += 1;
+      return structuredClone(registry);
+    }
+    if (method === 'DELETE' && path?.startsWith('actions/actions/')) {
+      const id = decodeURIComponent(path.split('/')[2]?.split('?')[0] ?? '');
+      registry.actions = registry.actions.filter((action) => action.id !== id);
+      registry.revision += 1;
+      return structuredClone(registry);
+    }
+    if (method === 'POST' && path?.endsWith('/build')) {
+      const id = decodeURIComponent(path.split('/')[2] ?? '');
+      registry.groups = registry.groups.map((group) =>
+        group.id === id
+          ? {
+              ...group,
+              build: {
+                plugin_id: `action-group-${id}`,
+                version: 'v2',
+                action_ids: [...group.action_ids],
+              },
+              blockers: [],
+            }
+          : group,
+      );
+      registry.revision += 1;
+      return structuredClone(registry);
+    }
+    if (method === 'POST' && path?.endsWith('/unbuild')) {
+      const id = decodeURIComponent(path.split('/')[2] ?? '');
+      registry.groups = registry.groups.map((group) =>
+        group.id === id ? { ...group, build: undefined, sessions: [], blockers: [] } : group,
+      );
+      registry.revision += 1;
+      return structuredClone(registry);
+    }
+    throw new Error(`Unhandled request ${method} ${path}`);
   });
 });
-afterEach(cleanup);
 
-describe('core Actions Panel', () => {
-  it('edits API drafts whose valid object schema omits properties', async () => {
-    delete (registry.actions[0]!.input_schema as Partial<InputSchema>).properties;
-    render(<ActionsView />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit List sessions' }));
-    expect(screen.getByLabelText('Description')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('New input field'), { target: { value: 'filter' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
-    expect(screen.getByLabelText('filter type')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('actions/actions/list_sessions', 'PUT', expect.objectContaining({
-      item: expect.objectContaining({ input_schema: expect.objectContaining({ properties: { filter: { type: 'string' } } }) }) })));
+afterEach(() => {
+  cleanup();
+});
+
+async function renderList() {
+  render(<ActionsView />);
+  await screen.findByRole('button', { name: 'Edit List Sessions' });
+}
+
+describe('Action Panel cache and lists', () => {
+  it('loads only the registry first and renders the compact list', async () => {
+    await renderList();
+    expect(invoke.mock.calls.map(([path]) => path)).toEqual(['actions']);
+    expect(screen.getByRole('button', { name: /^Actions/ }).textContent).toContain('1');
+    expect(screen.getByRole('button', { name: 'New Action' })).toBeTruthy();
+    expect(screen.getByLabelText('Search Actions')).toBeTruthy();
   });
 
-  it('creates an Action with typed input fields and fixed command argv', async () => {
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    fireEvent.click(screen.getByRole('tab', { name: 'New Action' }));
-    expect(screen.queryByLabelText('ID', { exact: true })).toBeNull();
-    fireEvent.change(screen.getByLabelText('Name', { exact: true }), { target: { value: 'Echo' } });
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Echo a value' } });
-    fireEvent.change(screen.getByLabelText('New input field'), { target: { value: 'value' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
-    fireEvent.change(screen.getByLabelText('value type'), { target: { value: 'integer' } });
-    fireEvent.change(screen.getByLabelText('Execution'), { target: { value: 'command' } });
-    fireEvent.change(screen.getByLabelText('Executable'), { target: { value: 'C:/python.exe' } });
-    fireEvent.change(screen.getByLabelText('Working directory'), { target: { value: 'D:/work' } });
-    fireEvent.change(screen.getByLabelText('Arguments (one per line)'), { target: { value: 'echo.py\n{value}' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('actions/actions', 'POST', expect.objectContaining({ expectedRevision: 1,
-      item: expect.objectContaining({ input_schema: expect.objectContaining({ properties: { value: { type: 'integer' } }, required: ['value'] }),
-        execution: expect.objectContaining({ args: ['echo.py', '{value}'] }) }) })));
+  it('filters and clears without another request', async () => {
+    await renderList();
+    fireEvent.change(screen.getByLabelText('Search Actions'), { target: { value: 'missing' } });
+    expect(screen.getByText('No Actions match this view')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByRole('button', { name: 'Edit List Sessions' })).toBeTruthy();
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it('edits shared references through Group selection and displays build metadata', async () => {
-    registry.groups = [{ id: 'tools', name: 'Tools', action_ids: ['list_sessions'],
-      build: { plugin_id: 'action-group-tools', version: 'v1', action_ids: ['list_sessions'] },
-      blockers: [{ id: 'busy_id', name: 'Busy MA' }], sessions: [{ id: 'busy_id', name: 'Busy MA', enabled: true, mode: 'gateway', plugin_id: 'action-group-tools', loadedVersion: 'v0' }] }];
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    fireEvent.click(screen.getByRole('tab', { name: 'Groups' }));
+  it('keeps cached rows and shows a retry banner when refresh fails', async () => {
+    await renderList();
+    invoke.mockRejectedValueOnce(new Error('offline'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByText(/Couldn’t refresh\./)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit List Sessions' })).toBeTruthy();
+  });
+});
+
+describe('Action create, edit and duplicate', () => {
+  it('edits, duplicates and saves a Session Operation without changing its original or Group release', async () => {
+    const pause: Action = { ...structuredClone(source), id: 'pause', name: 'Pause selected', effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1', 'missing'] } } };
+    registry.actions.push(pause);
+    registry.groups = [makeBuiltGroup()];
+    const groupBefore = structuredClone(registry.groups);
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Pause selected' }));
+    expect(screen.getByRole('heading', { name: 'Pause selected' })).toBeTruthy();
+    expect((screen.getByLabelText('Effect') as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getAllByText(/Not in current Session list/).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit Pause selected' });
+    expect(registry.actions.find((a) => a.id === 'pause')?.execution).toEqual({ kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'event', path: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Pause selected' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Duplicate Action/ }));
+    await screen.findByRole('heading', { name: 'Pause selected copy' });
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'explicit' } });
+    fireEvent.change(screen.getByLabelText('Session ID to add'), { target: { value: 's2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Session ID' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit Pause selected copy' });
+    expect(registry.actions.find((a) => a.name === 'Pause selected copy')?.execution).toMatchObject({ selector: { mode: 'explicit', ids: ['s2'] } });
+    expect(registry.actions.find((a) => a.id === 'pause')?.execution).toMatchObject({ selector: { mode: 'event', path: 'payload.targets' } });
+    expect(registry.groups).toEqual(groupBefore);
+    expect(invoke.mock.calls.filter(([path, method]) => path === 'actions' && (!method || method === 'GET'))).toHaveLength(1);
+  });
+  it('creates Session Operation in the new editor and rejects invalid Event targets without posting', async () => {
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'New Action' }));
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'New pause' } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Pause targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Session Operation' }));
+    expect((screen.getByLabelText('Effect') as HTMLSelectElement).value).toBe('write_local');
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload..targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
+    expect(screen.getByRole('alert').textContent).toContain('valid target Event');
+    expect(invoke.mock.calls.some(([, method]) => method === 'POST')).toBe(false);
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
+    await screen.findByRole('button', { name: 'Edit New pause' });
+    expect(registry.actions.find((a) => a.name === 'New pause')?.execution).toMatchObject({ kind: 'session_operation', selector: { path: 'payload.targets' } });
+  });
+  it('blocks Group build for enabled Session Operation while preserving membership and build APIs', async () => {
+    registry.actions[0] = { ...structuredClone(source), effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1'] } } };
+    registry.groups = [makeBuiltGroup({ build: undefined })];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit Tools' }));
-    expect(screen.getByText('tools')).toBeTruthy();
-    expect(screen.queryByLabelText('Group ID')).toBeNull();
-    expect(screen.getByText('Version: v1')).toBeTruthy();
-    expect(screen.getByText('Exposed Actions: list_sessions')).toBeTruthy();
-    expect(screen.getByText(/Unbuild blocked by running Sessions: Busy MA \(busy_id\)/)).toBeTruthy();
-    expect(screen.getByText(/Loaded version: v0/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'New Group' }));
-    expect(screen.queryByLabelText('Group ID')).toBeNull();
-    expect(screen.getAllByRole('checkbox').some((input) => (input as HTMLInputElement).checked)).toBe(false);
+    expect((screen.getByRole('button', { name: 'Build Group' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByText(/Session Operation is automation only/).length).toBeGreaterThan(0);
+    expect(invoke.mock.calls.some(([path]) => path?.endsWith('/build'))).toBe(false);
+  });
+  it('creates an Action without a client ID and returns to the list', async () => {
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'New Action' }));
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Echo' } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Echo a value' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
+    await screen.findByRole('button', { name: 'Edit Echo' });
+    const post = invoke.mock.calls.find(([path, method]) => path === 'actions/actions' && method === 'POST');
+    expect(post).toBeTruthy();
+    const body = post?.[2] as { item: Action; expectedRevision: number };
+    expect(body.item).not.toHaveProperty('id');
+    expect(body.expectedRevision).toBe(1);
+    expect(registry.actions.some((action) => action.name === 'Echo')).toBe(true);
   });
 
-  it('keeps user edits and shows write errors', async () => {
-    render(<ActionsView />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit List sessions' }));
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'My edit' } });
+  it('duplicates through POST without an ID, opens the copy, and never touches Group references', async () => {
+    registry.groups = [makeBuiltGroup()];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Actions/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for List Sessions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Duplicate Action/ }));
+
+    await screen.findByRole('heading', { name: 'List Sessions copy' });
+    const post = invoke.mock.calls.find(([path, method]) => path === 'actions/actions' && method === 'POST');
+    const body = post?.[2] as { item: Action; expectedRevision: number };
+    expect(body.item).not.toHaveProperty('id');
+    expect(body.item.name).toBe('List Sessions copy');
+    expect(body.expectedRevision).toBe(1);
+    expect(registry.groups[0]!.action_ids).toEqual(['list_sessions']);
+    expect(useActionRegistryStore.getState().registry.actions.filter((action) => action.id === 'list_sessions')).toHaveLength(1);
+    expect(screen.getByText('action_copy_1')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Copy renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit Copy renamed' });
+    expect(invoke.mock.calls.filter(([path, method]) => path === 'actions/actions' && method === 'POST')).toHaveLength(1);
+    expect(invoke.mock.calls.some(([path, method]) => path === 'actions/actions/action_copy_1' && method === 'PUT')).toBe(true);
+  });
+
+  it('uses a clear suffixed default name when the first copy name already exists', async () => {
+    registry.actions.push({ ...structuredClone(source), id: 'list_sessions_copy', name: 'List Sessions copy' });
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for List Sessions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Duplicate Action/ }));
+    await screen.findByRole('heading', { name: 'List Sessions copy 2' });
+    const post = invoke.mock.calls.find(([path, method]) => path === 'actions/actions' && method === 'POST');
+    expect((post?.[2] as { item: Action }).item.name).toBe('List Sessions copy 2');
+  });
+
+  it('keeps the draft and shows the write error', async () => {
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit List Sessions' }));
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'My edit' } });
     invoke.mockRejectedValueOnce(new Error('Action registry changed; reload before saving'));
     fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
     expect((await screen.findByRole('alert')).textContent).toContain('registry changed');
-    expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe('My edit');
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Save Action' }) as HTMLButtonElement).disabled).toBe(false));
-  });
-
-  it('ignores stale Session loads and uses shared plugin bindings with English modes', async () => {
-    registry.groups = [{ id: 'tools', name: 'Tools', action_ids: ['list_sessions'], build: { plugin_id: 'action-group-tools', version: 'v1', action_ids: ['list_sessions'] }, blockers: [], sessions: [] }];
-    let resolveFirst: (value: unknown) => void = () => {};
-    const base = invoke.getMockImplementation()!;
-    invoke.mockImplementation((path, ...args) => path === 'sessions/s1'
-      ? new Promise((resolve) => { resolveFirst = resolve; }) : base(path, ...args));
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    fireEvent.click(screen.getByRole('tab', { name: 'Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Use in Session' }));
-    fireEvent.change(screen.getByLabelText('Session', { exact: true }), { target: { value: 's1' } });
-    fireEvent.change(screen.getByLabelText('Session', { exact: true }), { target: { value: 's2' } });
-    await screen.findByLabelText('action-group-tools mode');
-    await act(async () => resolveFirst({ id: 's1', name: 'First', pluginBindings: [{ plugin_id: 'action-group-tools', enabled: true, mode: 'pan_native' }], pluginSelectionRevision: 8 }));
-    expect((screen.getByRole('checkbox', { name: /Tools/ }) as HTMLInputElement).checked).toBe(false);
-    fireEvent.change(screen.getByLabelText('action-group-tools mode'), { target: { value: 'gateway' } });
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('sessions/s2', 'PATCH', expect.objectContaining({ expectedPluginRevision: 0,
-      pluginBindings: [{ plugin_id: 'action-group-tools', enabled: false, mode: 'gateway' }] })));
-  });
-});
-
-
-describe('Actions navigation and creation states', () => {
-  it('keeps a committed creation ID when the follow-up catalog read fails', async () => {
-    const base = invoke.getMockImplementation()!;
-    let created = false;
-    invoke.mockImplementation(async (path, ...args) => {
-      if (path === 'mcp/servers' && created) { created = false; throw new Error('Catalog unavailable'); }
-      const result = await base(path, ...args);
-      if (path === 'actions/actions' && args[0] === 'POST') created = true;
-      return result;
-    });
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    fireEvent.click(screen.getByRole('tab', { name: 'New Action' }));
-    fireEvent.change(screen.getByLabelText('Name', { exact: true }), { target: { value: 'Committed' } });
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Keep its ID' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Catalog unavailable');
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('actions/actions/action_generated', 'PUT', expect.anything()));
-    expect(invoke.mock.calls.filter(([path, method]) => path === 'actions/actions' && method === 'POST')).toHaveLength(1);
-  });
-
-  it('shows three regions and saves the generated identity on later edits', async () => {
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Actions', 'New Action', 'Groups']);
-    fireEvent.click(screen.getByRole('tab', { name: 'New Action' }));
-    fireEvent.change(screen.getByLabelText('Name', { exact: true }), { target: { value: 'Generated' } });
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Created without ID' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    await screen.findByRole('button', { name: 'Edit Generated' });
-    const createdBody = invoke.mock.calls.find(([path, method]) => path === 'actions/actions' && method === 'POST')?.[2] as { item: object };
-    expect(createdBody.item).not.toHaveProperty('id');
-    fireEvent.change(screen.getByLabelText('Name', { exact: true }), { target: { value: 'Renamed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('actions/actions/action_generated', 'PUT', expect.objectContaining({ item: expect.objectContaining({ id: 'action_generated', name: 'Renamed' }) })));
+    expect((screen.getByLabelText(/^Description/) as HTMLTextAreaElement).value).toBe('My edit');
+    expect((screen.getByRole('button', { name: 'Save Action' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('does not submit malformed advanced JSON and keeps the text for repair', async () => {
-    render(<ActionsView />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit List sessions' }));
-    fireEvent.change(screen.getByLabelText('Input schema'), { target: { value: '{bad' } });
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit List Sessions' }));
+    fireEvent.click(screen.getByRole('button', { name: /Advanced JSON schema/ }));
+    fireEvent.change(screen.getByLabelText('Input schema JSON'), { target: { value: '{bad' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(invoke.mock.calls.some(([,method]) => method === 'PUT')).toBe(false);
-    expect((screen.getByLabelText('Input schema') as HTMLTextAreaElement).value).toBe('{bad');
+    expect(invoke.mock.calls.some(([, method]) => method === 'PUT')).toBe(false);
+    expect((screen.getByLabelText('Input schema JSON') as HTMLTextAreaElement).value).toBe('{bad');
   });
 
-  it('explains an empty Session list in the Group binding context', async () => {
-    registry.groups = [{ id: 'tools', name: 'Tools', action_ids: [], build: { plugin_id: 'action-group-tools', version: 'v1', action_ids: [] }, blockers: [], sessions: [] }];
-    const base = invoke.getMockImplementation()!;
-    invoke.mockImplementation((path, ...args) => path === 'sessions' ? Promise.resolve({ sessions: [] }) : base(path, ...args));
-    render(<ActionsView />);
-    await screen.findByRole('button', { name: 'Edit List sessions' });
-    expect(screen.queryByLabelText('Session', { exact: true })).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: 'Groups' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Use in Session' }));
-    expect(screen.getByText(/No Sessions available/)).toBeTruthy();
-    expect(screen.queryByLabelText('Session', { exact: true })).toBeNull();
+  it('guards a dirty draft before returning to the list', async () => {
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit List Sessions' }));
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Changed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Changed')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+    await screen.findByRole('button', { name: 'New Action' });
+  });
+});
+
+describe('Group release and Session binding', () => {
+  it('builds and unbuilds a Group through the existing mutation paths', async () => {
+    registry.groups = [makeBuiltGroup()];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Tools' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Rebuild Group' }));
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([path, method]) => path === 'actions/groups/tools/build' && method === 'POST')).toBe(true),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Unbuild Group' }));
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([path, method]) => path === 'actions/groups/tools/unbuild' && method === 'POST')).toBe(true),
+    );
+  });
+
+  it('preserves other plugin bindings and sends the expected revision', async () => {
+    registry.groups = [makeBuiltGroup()];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Tools' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Use in Session' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await screen.findByText('First', { exact: true }));
+    await screen.findByText('Plugin binding');
+    fireEvent.click(screen.getByText('Discover / call', { exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to Session' }));
+    await waitFor(() =>
+      expect(invoke.mock.calls.some(([path, method]) => path === 'sessions/s1' && method === 'PATCH')).toBe(true),
+    );
+    const patch = invoke.mock.calls.find(([path, method]) => path === 'sessions/s1' && method === 'PATCH');
+    expect(patch?.[2]).toMatchObject({
+      expectedPluginRevision: 4,
+      pluginBindings: [
+        { plugin_id: 'other', enabled: true, mode: 'standalone' },
+        { plugin_id: 'action-group-tools', enabled: true, mode: 'gateway' },
+      ],
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(dialog).toBeTruthy();
+  });
+
+  it('disables unbuild while a running Session blocks the Group', async () => {
+    registry.groups = [
+      makeBuiltGroup({
+        blockers: [{ id: 's1', name: 'First' }],
+        sessions: [
+          {
+            id: 's1',
+            name: 'First',
+            enabled: true,
+            mode: 'pan_native',
+            plugin_id: 'action-group-tools',
+            loadedVersion: 'v1',
+          },
+        ],
+      }),
+    ];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Tools' }));
+    const unbuild = await screen.findByRole('button', { name: 'Unbuild Group' });
+    expect((unbuild as HTMLButtonElement).disabled).toBe(true);
+    expect(unbuild.getAttribute('title')).toContain('blocked by running Sessions');
   });
 });

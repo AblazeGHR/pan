@@ -8,8 +8,11 @@ function TestRouter({ children }: { children: ReactNode }) {
   return <RouterProvider router={router} />;
 }
 import AutomationView from './AutomationView';
-import { automationLogin, automationRequest, useAutomationAuth, useAutomationStore } from '@/stores/automationStore';
+import { automationLogin, automationRequest, createAutomationAction, useAutomationAuth, useAutomationStore } from '@/stores/automationStore';
 import type { AutomationSnapshot, Trigger } from '@/types/automation';
+import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
+import { actionRequest } from '@/services/api';
+vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 
 let snapshot: AutomationSnapshot;
 const action = { id: 'pause', name: 'Pause targets', description: 'Pause', enabled: true, effect: 'write_local', output_format: 'json', input_schema: { type: 'object', properties: { message: { type: 'string' } }, additionalProperties: false }, execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1'] } } };
@@ -24,6 +27,11 @@ beforeEach(async () => {
   useAutomationAuth.getState().clear();
   useAutomationStore.setState({ data: null, updatedAt: 0, error: '' });
   fetcher.mockReset();
+  resetActionCachesForTests();
+  vi.mocked(actionRequest).mockImplementation(async (path) => {
+    const result = await fetcher(`/api/${path}`);
+    return result.json();
+  });
   fetcher.mockImplementation(async (url: string, init: RequestInit = {}) => {
     if (!init.method || init.method === 'GET') {
       if (url === '/api/automation') return response(snapshot);
@@ -39,6 +47,7 @@ beforeEach(async () => {
       snapshot.triggers[item.id] = item;
       return response({ item });
     }
+    if (url === '/api/actions/actions') return response({ revision: 4, actions: [action], groups: [], item: { id: 'new_pause' } });
     return response({ ok: true });
   });
   vi.stubGlobal('fetch', fetcher);
@@ -160,6 +169,22 @@ it('a late unauthorized response cannot clear a newer login', async () => {
   release(response({}, 401));
   await expect(request).rejects.toMatchObject({ status: 401 });
   expect(useAutomationAuth.getState().token).toBe('new-token');
+});
+it('shares Action loads, adopts template mutation without extra reads, and fences late registry replies', async () => {
+  await Promise.all([useAutomationStore.getState().refresh(), useActionRegistryStore.getState().ensureRegistry()]);
+  expect(fetcher.mock.calls.filter(([url]) => url === '/api/actions')).toHaveLength(1);
+  const old = structuredClone(useActionRegistryStore.getState().registry);
+  let release!: (value: typeof old) => void;
+  vi.mocked(actionRequest).mockImplementationOnce(() => new Promise<typeof old>((resolve) => { release = resolve; }));
+  const read = useActionRegistryStore.getState().ensureRegistry({ force: true });
+  await createAutomationAction({ name: 'Template pause' });
+  expect(useActionRegistryStore.getState().registry.revision).toBe(4);
+  release(old); await read;
+  expect(useActionRegistryStore.getState().registry.revision).toBe(4);
+  expect(useActionRegistryStore.getState().refreshing).toBe(false);
+  expect(fetcher.mock.calls.filter(([url]) => url === '/api/actions')).toHaveLength(1);
+  await useAutomationStore.getState().invalidate();
+  expect(fetcher.mock.calls.filter(([url]) => url === '/api/actions')).toHaveLength(1);
 });
 it('guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty', async () => {
   snapshot.triggers[saved.id] = structuredClone(saved);

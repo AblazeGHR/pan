@@ -1,0 +1,250 @@
+@import '../../src/index.css';
+@source '../../src';
+@source './';
+
+@font-face {
+  font-family: 'PanInter';
+  src: url('./Inter-latin-var.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-sans: 'PanInter', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+* {
+  min-width: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Pan uses compact square-ish form controls; keep native controls from
+   inheriting a different font or overflowing in narrow rows. */
+textarea {
+  resize: vertical;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Page shell ─────────────────────────────────────────────────────────── */
+
+.mock-ribbon {
+  height: 28px;
+}
+
+.mock-shell {
+  height: calc(100dvh - 28px);
+}
+
+.mock-main {
+  scrollbar-color: var(--color-border-default) transparent;
+}
+
+.mock-main::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.mock-main::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 8px;
+  border: 2px solid var(--color-bg-primary);
+}
+
+/* ── List rows ──────────────────────────────────────────────────────────── */
+
+.action-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px 112px 104px 92px 132px;
+  gap: 16px;
+  align-items: center;
+}
+
+.group-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 208px 132px 108px 232px;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 1439px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 176px 104px 96px 84px 124px;
+    gap: 14px;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 190px 124px 100px 150px;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 168px 104px 96px 124px;
+  }
+
+  .action-col-usage {
+    display: none;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 176px 120px 142px;
+  }
+
+  .group-col-sessions {
+    display: none;
+  }
+}
+
+@media (max-width: 1119px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 156px 92px 118px;
+  }
+
+  .action-col-effect {
+    display: none;
+  }
+}
+
+@media (max-width: 959px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr) 92px 112px;
+  }
+
+  .action-col-type,
+  .group-col-composition {
+    display: none;
+  }
+
+  .group-grid {
+    grid-template-columns: minmax(0, 1fr) 112px 150px;
+  }
+
+  .group-col-release {
+    display: none;
+  }
+}
+
+/* Mobile: name on the first line, metadata on the second, actions on the
+   right. No horizontal scrolling at 320px. */
+@media (max-width: 767px) {
+  .action-grid,
+  .group-grid {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .action-col-status,
+  .group-col-status {
+    display: none;
+  }
+
+  .action-row,
+  .group-row {
+    padding: 10px 12px;
+    min-height: 64px;
+  }
+
+  .list-header {
+    display: none;
+  }
+}
+
+/* ── Loading ────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-text-primary) 7%, transparent), transparent);
+  animation: skeleton-sweep 1.4s infinite;
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
+
+/* ── Modal / drawer ─────────────────────────────────────────────────────── */
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-in {
+  animation: modal-in 0.14s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-in {
+    animation: none;
+  }
+}
+
+/* ── Misc ───────────────────────────────────────────────────────────────── */
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

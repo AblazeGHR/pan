@@ -1,234 +1,1199 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { actionRequest } from '@/services/api';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { PluginSelection } from '@/components/session/PluginSelection';
-import type { McpServerInfo, PluginBinding } from '@/types';
-import type { Action, ActionGroup, ActionRegistry, InputSchema } from '@/types/actions';
+import { actionRequest } from '@/services/api';
+import { useUIStore } from '@/stores/uiStore';
+import {
+  useActionCatalogStore,
+  useActionRegistryStore,
+  useActionSessionDetailStore,
+} from '@/stores/actionRegistryStore';
+import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
+import {
+  EFFECT_LABELS,
+  actionEditorState,
+  actionRoute,
+  buildGate,
+  effectTone,
+  emptyActionDraft,
+  executionLabel,
+  formatTime,
+  groupEditorState,
+  isEditorDirty,
+  sessionOperationError,
+  pluginIdFor,
+  shortVersion,
+  usedByGroups,
+  type EditorState,
+} from '@/components/actions/actionsModel';
+import { ActionEditorPage, GroupEditorPage } from '@/components/actions/ActionGroupEditors';
+import { UseInSessionDialog } from '@/components/actions/UseInSessionDialog';
+import {
+  Badge,
+  ConfirmDialog,
+  IconButton,
+  IconTile,
+  ListEmpty,
+  LoadError,
+  Segmented,
+  SkeletonList,
+  StaleBanner,
+  cx,
+} from '@/components/actions/ActionsUi';
+import {
+  Braces,
+  Copy,
+  Hammer,
+  Layers,
+  Lock,
+  MoreHorizontal,
+  CopyPlus,
+  PackageOpen,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  TerminalSquare,
+  Trash2,
+  X,
+} from 'lucide-react';
+import './actions.css';
 
-const emptyAction = (): Action => ({ id: '', name: '', description: '', enabled: false, effect: 'read', output_format: 'json',
-  input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
-  execution: { kind: 'api', method: 'GET', path: '/api/sessions' } });
-type SessionConfig = { id: string; name: string; pluginBindings: PluginBinding[]; pluginSelectionRevision: number; pluginApplyStatus?: string; error?: string };
-type GroupDraft = Pick<ActionGroup, 'id' | 'name' | 'action_ids'>;
-type Tab = 'Actions' | 'New Action' | 'Groups';
-const fieldClass = 'mt-1 w-full min-w-0 rounded-md border border-border-default bg-bg-primary px-3 py-2 text-sm focus:border-accent focus:outline-none';
-const cardClass = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 sm:p-6';
+type Tab = 'actions' | 'groups';
+type ConfirmState =
+  | { kind: 'discard' }
+  | { kind: 'delete-action'; action: Action }
+  | { kind: 'delete-group'; group: ActionGroup };
+type ActionRegistryWithItem = import('@/types/actions').ActionRegistry & {
+  item?: Action | ActionGroup;
+};
 
 export default function ActionsView() {
-  const [tab, setTab] = useState<Tab>('Actions');
-  const [registry, setRegistry] = useState<ActionRegistry>({ revision: 0, actions: [], groups: [] });
-  const [action, setAction] = useState<Action | null>(null);
-  const [group, setGroup] = useState<GroupDraft | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [sessions, setSessions] = useState<{ id: string; name: string }[]>([]);
-  const [sessionId, setSessionId] = useState('');
-  const [session, setSession] = useState<SessionConfig | null>(null);
-  const [servers, setServers] = useState<McpServerInfo[]>([]);
-  const [bindingGroupId, setBindingGroupId] = useState('');
-  const currentSession = useRef(sessionId);
-  currentSession.current = sessionId;
+  const registry = useActionRegistryStore((state) => state.registry);
+  const hasLoaded = useActionRegistryStore((state) => state.hasLoaded);
+  const status = useActionRegistryStore((state) => state.status);
+  const loadError = useActionRegistryStore((state) => state.error);
+  const refreshError = useActionRegistryStore((state) => state.refreshError);
+  const lastLoadedAt = useActionRegistryStore((state) => state.lastLoadedAt);
+  const refreshing = useActionRegistryStore((state) => state.refreshing);
+  const mutationPending = useActionRegistryStore((state) => state.mutationPending);
+  const showToast = useUIStore((state) => state.showToast);
 
-  const reload = useCallback(async () => {
-    const [sources, catalog, list] = await Promise.all([
-      actionRequest<ActionRegistry>('actions'), actionRequest<{ servers: McpServerInfo[] }>('mcp/servers'),
-      actionRequest<{ sessions: { id: string; name: string }[] }>('sessions'),
-    ]);
-    setRegistry(sources); setServers(catalog.servers); setSessions(list.sessions);
-  }, []);
-  useEffect(() => { void reload().catch((e: Error) => setError(e.message)).finally(() => setLoading(false)); }, [reload]);
+  const [tab, setTab] = useState<Tab>('actions');
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const [editorError, setEditorError] = useState('');
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [useGroupId, setUseGroupId] = useState<string | null>(null);
+  const [actionQuery, setActionQuery] = useState('');
+  const [groupQuery, setGroupQuery] = useState('');
+  const [actionFilter, setActionFilter] = useState<'all' | 'enabled' | 'draft'>('all');
+  const [groupFilter, setGroupFilter] = useState<'all' | 'built' | 'unbuilt'>('all');
+  const [duplicating, setDuplicating] = useState(false);
+  const duplicateInFlight = useRef(false);
+
   useEffect(() => {
-    setSession(null);
-    if (!sessionId) return;
-    const controller = new AbortController();
-    void actionRequest<SessionConfig>(`sessions/${encodeURIComponent(sessionId)}`, 'GET', undefined, controller.signal)
-      .then((value) => { if (!controller.signal.aborted) { if (value.error) throw new Error(value.error); setSession(value); } })
-      .catch((e: Error) => { if (!controller.signal.aborted) setError(e.message); });
-    return () => controller.abort();
-  }, [sessionId]);
+    void useActionRegistryStore.getState().ensureRegistry();
+    const onFocus = () => useActionRegistryStore.getState().maybeRevalidate();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
-  async function perform(operation: () => Promise<void>) {
-    setBusy(true); setError('');
-    try { await operation(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
+  useEffect(() => {
+    if (!editor || !isEditorDirty(editor)) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor || confirm || useGroupId) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        requestCloseEditor();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
+
+  function notify(message: string, type: 'error' | 'info' | 'warning' = 'info') {
+    showToast(message, type);
   }
-  async function mutate(path: string, method: string, item?: unknown) {
-    const selected = sessionId;
-    const data = await actionRequest<ActionRegistry & { item?: Action | ActionGroup }>(path, method,
-      { ...(item ? { item } : {}), expectedRevision: registry.revision });
-    setRegistry(data);
-    // Commit the returned identity before secondary refreshes, so a failed
-    // catalog read cannot turn a successful create into another create on retry.
-    if (data.item && 'execution' in data.item) { setAction(data.item); setTab('Actions'); }
-    else if (data.item) setGroup({ id: data.item.id, name: data.item.name, action_ids: data.item.action_ids });
-    const catalog = await actionRequest<{ servers: McpServerInfo[] }>('mcp/servers');
-    setServers(catalog.servers);
-    if (selected) {
-      const updated = await actionRequest<SessionConfig>(`sessions/${encodeURIComponent(selected)}`);
-      if (currentSession.current === selected) setSession(updated);
+
+  function updateEditor(next: EditorState) {
+    setEditor(next);
+    setEditorError('');
+  }
+
+  function openAction(action: Action) {
+    setEditor(actionEditorState(action, 'edit'));
+    setEditorError('');
+  }
+
+  function newAction() {
+    setTab('actions');
+    setEditor(actionEditorState(emptyActionDraft(), 'new'));
+    setEditorError('');
+  }
+
+  function openGroup(group: ActionGroup) {
+    setEditor(
+      groupEditorState(
+        { id: group.id, name: group.name, action_ids: [...group.action_ids] },
+        'edit',
+      ),
+    );
+    setEditorError('');
+  }
+
+  function newGroup() {
+    setTab('groups');
+    setEditor(groupEditorState({ id: '', name: '', action_ids: [] }, 'new'));
+    setEditorError('');
+  }
+
+  function closeEditor() {
+    const kind = editor?.kind;
+    setEditor(null);
+    setEditorError('');
+    if (kind === 'group') setTab('groups');
+    if (kind === 'action') setTab('actions');
+  }
+
+  function requestCloseEditor() {
+    if (!editor) return;
+    if (isEditorDirty(editor)) {
+      setConfirm({ kind: 'discard' });
+      return;
     }
-    return data;
+    closeEditor();
   }
-  const selectedGroup = registry.groups.find((item) => item.id === group?.id);
-  const bindingGroup = registry.groups.find((item) => item.id === bindingGroupId);
-  function newAction() { setAction(emptyAction()); setTab('New Action'); }
-  function chooseGroup(item: ActionGroup) { setGroup({ id: item.id, name: item.name, action_ids: [...item.action_ids] }); }
 
-  return <main className="h-full overflow-auto bg-bg-primary px-4 py-6 text-text-primary sm:px-8" aria-label="Actions Panel">
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 pl-7 md:pl-0">
-        <div><h1 className="text-2xl font-semibold tracking-tight">Actions & Groups</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-secondary">Define an Action once. Share it across Groups, then build a Group to use it in a Session.</p></div>
-        <Button disabled={busy || loading} onClick={() => void perform(reload)}>Refresh</Button>
-      </header>
-      <nav aria-label="Actions navigation" className="flex gap-1 rounded-lg bg-bg-secondary p-1" role="tablist">
-        {(['Actions', 'New Action', 'Groups'] as Tab[]).map((name) => <button key={name} role="tab" aria-selected={tab === name}
-          className={`min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${tab === name ? 'bg-bg-tertiary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-          onClick={() => { if (name === 'New Action') newAction(); else setTab(name); }}>{name}</button>)}
-      </nav>
-      {error && <div role="alert" className="whitespace-pre-wrap break-words rounded-lg border border-danger/40 bg-danger/10 p-4 text-sm">{error}</div>}
-      {loading ? <p role="status" className={cardClass}>Loading Actions and Groups…</p> : <>
-        {tab === 'Actions' && <section aria-label="Actions" className="space-y-4">
-          <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Actions</h2><p className="text-sm text-text-secondary">Reusable definitions · {registry.actions.length} total</p></div><Button variant="primary" disabled={busy} onClick={newAction}>New Action</Button></div>
-          {!registry.actions.length && <div className={cardClass}><h3 className="font-medium">No Actions yet</h3><p className="mt-2 text-sm text-text-secondary">Create an internal API or command Action, then add it to a Group.</p></div>}
-          <div className="grid gap-3 sm:grid-cols-2">{registry.actions.map((item) => <article key={item.id} className={cardClass}>
-            <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 break-words font-semibold">{item.name}</h3><span className="shrink-0 rounded bg-bg-tertiary px-2 py-1 text-xs">{item.enabled ? 'Enabled' : 'Draft'}</span></div>
-            <p className="my-3 break-words text-sm text-text-secondary">{item.description}</p>
-            <p className="mb-4 text-xs text-text-tertiary">{item.execution.kind === 'api' ? 'Internal API' : 'Command'} · {item.effect.replaceAll('_', ' ')} · {registry.groups.filter((g) => g.action_ids.includes(item.id)).length} Groups</p>
-            <Button disabled={busy} aria-label={`Edit ${item.name}`} onClick={() => setAction(structuredClone(item))}>Edit</Button>
-          </article>)}</div>
-          {action?.id && <div className={cardClass}><div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Edit Action</h2><Button variant="ghost" disabled={busy} onClick={() => setAction(null)}>Close editor</Button></div>
-            <ActionEditor key={action.id} action={action} busy={busy} onChange={setAction} onSave={(value) => perform(async () => { const saved = await mutate(`actions/actions/${encodeURIComponent(value.id)}`, 'PUT', value); setAction(saved.actions.find((a) => a.id === value.id) ?? value); })}
-              onDelete={() => void perform(async () => { await mutate(`actions/actions/${action.id}?expectedRevision=${registry.revision}`, 'DELETE'); setAction(null); })} /></div>}
-        </section>}
-        {tab === 'New Action' && action && <section aria-label="New Action" className={cardClass}><h2 className="text-lg font-semibold">New Action</h2>
-          <p className="mb-6 mt-1 text-sm text-text-secondary">Choose what it does. A stable ID is assigned automatically when you save.</p>
-          <ActionEditor key="new" action={action} busy={busy} onChange={setAction} onSave={(value) => perform(async () => {
-            const { id: _id, ...item } = value; void _id;
-            await mutate('actions/actions', 'POST', item);
-          })} /></section>}
-        {tab === 'Groups' && <section aria-label="Groups" className="space-y-4">
-          <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Groups</h2><p className="text-sm text-text-secondary">Select Actions, build a plugin, choose a Session.</p></div><Button variant="primary" disabled={busy} onClick={() => setGroup({ id: '', name: '', action_ids: [] })}>New Group</Button></div>
-          {!registry.groups.length && <div className={cardClass}><h3 className="font-medium">No Groups yet</h3><p className="mt-2 text-sm text-text-secondary">Group your shared Actions to make them available as a Session plugin.</p></div>}
-          <div className="grid gap-3 sm:grid-cols-2">{registry.groups.map((item) => <article key={item.id} className={cardClass}>
-            <div className="flex items-start justify-between gap-3"><h3 className="min-w-0 break-words font-semibold">{item.name}</h3><span className="shrink-0 rounded bg-bg-tertiary px-2 py-1 text-xs">{item.build ? 'Registered' : 'Unbuilt'}</span></div>
-            <p className="my-3 text-sm text-text-secondary">{item.action_ids.length} Actions · {item.sessions.length} Sessions</p>
-            <div className="flex flex-wrap gap-2"><Button disabled={busy} aria-label={`Edit ${item.name}`} onClick={() => chooseGroup(item)}>Edit</Button>
-              <Button disabled={busy || !item.build} onClick={() => { setBindingGroupId(item.id); setSessionId(''); setSession(null); }}>Use in Session</Button></div>
-            {!item.build && <p className="mt-3 text-xs text-text-tertiary">Build this Group before choosing a Session.</p>}
-          </article>)}</div>
-          {group && <div className={cardClass}><div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">{group.id ? 'Edit Group' : 'New Group'}</h2><Button variant="ghost" disabled={busy} onClick={() => setGroup(null)}>Close editor</Button></div>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void perform(async () => {
-              if (group.id) await mutate(`actions/groups/${group.id}`, 'PUT', group);
-              else await mutate('actions/groups', 'POST', { name: group.name, action_ids: group.action_ids });
-            }); }}><fieldset disabled={busy} className="min-w-0 space-y-4">
-              {group.id && <Identity id={group.id} />}
-              <label className="block text-sm">Group name<input required className={fieldClass} value={group.name} onChange={(e) => setGroup({ ...group, name: e.target.value })} /></label>
-              <div role="group" aria-label="Group Actions"><h3 className="mb-2 text-sm font-medium">Shared Actions</h3>
-                {!registry.actions.length && <p className="text-sm text-text-secondary">Create an Action in New Action first.</p>}
-                {registry.actions.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-lg border border-border-default p-3 text-sm"><input type="checkbox" checked={group.action_ids.includes(item.id)}
-                  onChange={(e) => setGroup({ ...group, action_ids: e.target.checked ? [...group.action_ids, item.id] : group.action_ids.filter((id) => id !== item.id) })} /><span className="min-w-0 break-words">{item.name}<span className="ml-2 text-xs text-text-tertiary">{item.enabled ? 'Enabled' : 'Draft'}</span></span></label>)}</div>
-              <Button type="submit" variant="primary">Save Group</Button>
-            </fieldset></form>
-            {selectedGroup && <div className="mt-5 space-y-4 border-t border-border-default pt-5">
-              <p className="text-sm text-text-secondary">Build approves the current execution definitions. Running Workers keep their loaded release until restart.</p>
-              <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void perform(() => mutate(`actions/groups/${group.id}/build`, 'POST').then(() => undefined))}>Build Group</Button>
-                <Button disabled={busy || !selectedGroup.build} onClick={() => void perform(() => mutate(`actions/groups/${group.id}/unbuild`, 'POST').then(() => undefined))}>Unbuild Group</Button>
-                <Button variant="danger" disabled={busy || !!selectedGroup.build} onClick={() => void perform(async () => { await mutate(`actions/groups/${group.id}?expectedRevision=${registry.revision}`, 'DELETE'); setGroup(null); if (bindingGroupId === group.id) setBindingGroupId(''); })}>Delete Group</Button></div>
-              <div className="space-y-2 break-all text-xs text-text-secondary"><p>Status: {selectedGroup.build ? 'Registered' : 'Unbuilt'}</p>
-                {selectedGroup.build && <><p>Plugin: {selectedGroup.build.plugin_id}</p><p>Version: {selectedGroup.build.version}</p><p>Exposed Actions: {selectedGroup.build.action_ids.join(', ')}</p></>}
-                {selectedGroup.blockers.length > 0 && <p className="text-danger">Unbuild blocked by running Sessions: {selectedGroup.blockers.map((s) => `${s.name} (${s.id})`).join(', ')}</p>}
-                {selectedGroup.sessions.map((s) => <p key={s.id}>{s.name} ({s.id}): {s.enabled ? s.mode : 'Disabled'} · Loaded version: {s.loadedVersion ?? 'Next start'}</p>)}
+  async function saveAction() {
+    if (!editor || editor.kind !== 'action') return;
+    const { draft, schemaError } = editor;
+    if (sessionOperationError(draft)) { setEditorError(sessionOperationError(draft)); return; }
+    if (!draft.name.trim() || !draft.description.trim() || schemaError) {
+      setEditorError('Name, description and a valid input schema are required.');
+      return;
+    }
+    setEditorError('');
+    try {
+      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) => {
+        if (editor.mode === 'new') {
+          const { id: _ignored, ...item } = draft;
+          void _ignored;
+          return actionRequest<ActionRegistryWithItem>('actions/actions', 'POST', {
+            item,
+            expectedRevision,
+          });
+        }
+        return actionRequest<ActionRegistryWithItem>(
+          `actions/actions/${encodeURIComponent(draft.id)}`,
+          'PUT',
+          { item: draft, expectedRevision },
+        );
+      });
+      const item = result.item as Action | undefined;
+      closeEditor();
+      notify(
+        editor.mode === 'new'
+          ? `Action created${item ? ` · ${item.id}` : ''}`
+          : 'Action saved',
+        'info',
+      );
+    } catch (caught) {
+      const message = messageOf(caught);
+      setEditorError(message);
+      notify(`Couldn’t save Action: ${message}`, 'error');
+      if (/revision|changed|conflict/i.test(message)) {
+        void useActionRegistryStore.getState().ensureRegistry({ force: true });
+      }
+    }
+  }
+
+  async function saveGroup() {
+    if (!editor || editor.kind !== 'group') return;
+    if (!editor.draft.name.trim()) {
+      setEditorError('A Group name is required.');
+      return;
+    }
+    setEditorError('');
+    try {
+      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) => {
+        const item =
+          editor.mode === 'new'
+            ? { name: editor.draft.name.trim(), action_ids: [...editor.draft.action_ids] }
+            : {
+                id: editor.draft.id,
+                name: editor.draft.name.trim(),
+                action_ids: [...editor.draft.action_ids],
+              };
+        return actionRequest<ActionRegistryWithItem>(
+          editor.mode === 'new'
+            ? 'actions/groups'
+            : `actions/groups/${encodeURIComponent(editor.draft.id)}`,
+          editor.mode === 'new' ? 'POST' : 'PUT',
+          { item, expectedRevision },
+        );
+      });
+      const item = result.item as ActionGroup | undefined;
+      closeEditor();
+      notify(
+        editor.mode === 'new'
+          ? `Group created${item ? ` · ${item.id}` : ''}`
+          : 'Group saved',
+        'info',
+      );
+    } catch (caught) {
+      const message = messageOf(caught);
+      setEditorError(message);
+      notify(`Couldn’t save Group: ${message}`, 'error');
+      if (/revision|changed|conflict/i.test(message)) {
+        void useActionRegistryStore.getState().ensureRegistry({ force: true });
+      }
+    }
+  }
+
+  function invalidateReleaseDetails(group: ActionGroup | undefined) {
+    useActionCatalogStore.getState().invalidateCatalog();
+    if (!group) return;
+    for (const session of group.sessions) {
+      useActionSessionDetailStore.getState().invalidateSession(session.id);
+    }
+  }
+
+  async function buildGroup(groupId: string) {
+    const group = registry.groups.find((item) => item.id === groupId);
+    if (!group) return;
+    const gate = buildGate(group.action_ids, registry.actions);
+    if (gate) {
+      notify(gate.message, 'error');
+      return;
+    }
+    try {
+      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistry>(`actions/groups/${encodeURIComponent(groupId)}/build`, 'POST', {
+          expectedRevision,
+        }),
+      );
+      invalidateReleaseDetails(group);
+      notify(`Group built · ${pluginIdFor(group.id)}`, 'info');
+    } catch (caught) {
+      notify(`Couldn’t build Group: ${messageOf(caught)}`, 'error');
+    }
+  }
+
+  async function unbuildGroup(groupId: string) {
+    const group = registry.groups.find((item) => item.id === groupId);
+    if (!group) return;
+    if (!group.build) {
+      notify('This Group has no registered release.', 'warning');
+      return;
+    }
+    if (group.blockers.length) {
+      notify(
+        `Unbuild blocked by ${group.blockers.length} running ${
+          group.blockers.length === 1 ? 'Session' : 'Sessions'
+        }.`,
+        'error',
+      );
+      return;
+    }
+    try {
+      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistry>(`actions/groups/${encodeURIComponent(groupId)}/unbuild`, 'POST', {
+          expectedRevision,
+        }),
+      );
+      invalidateReleaseDetails(group);
+      notify('Group unbuilt · Session bindings removed', 'info');
+    } catch (caught) {
+      notify(`Couldn’t unbuild Group: ${messageOf(caught)}`, 'error');
+    }
+  }
+
+  function requestDeleteAction(action: Action) {
+    const usage = usedByGroups(registry, action.id);
+    if (usage.length) {
+      notify(
+        `Action is used by ${usage.map((group) => group.name).join(', ')}. Remove it from those Groups first.`,
+        'error',
+      );
+      return;
+    }
+    setConfirm({ kind: 'delete-action', action });
+  }
+
+  async function duplicateAction(action: Action) {
+    if (duplicateInFlight.current || mutationPending) return;
+    duplicateInFlight.current = true;
+    setDuplicating(true);
+    const existingIds = new Set(registry.actions.map((item) => item.id));
+    const copyName = duplicateName(action.name, registry.actions.map((item) => item.name));
+    try {
+      const { id: _ignored, ...copy } = structuredClone(action);
+      void _ignored;
+      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistryWithItem>('actions/actions', 'POST', {
+          item: { ...copy, name: copyName },
+          expectedRevision,
+        }),
+      );
+      const created =
+        (result.item as Action | undefined) ??
+        result.actions.find((item) => !existingIds.has(item.id) && item.name === copyName);
+      if (!created) {
+        notify('Action was duplicated, but the new item was not returned. Refresh and open it from the list.', 'warning');
+        return;
+      }
+      setEditor(actionEditorState(created, 'edit'));
+      setEditorError('');
+      notify(`Action duplicated · ${created.id}`, 'info');
+    } catch (caught) {
+      notify(`Couldn’t duplicate Action: ${messageOf(caught)}`, 'error');
+    } finally {
+      duplicateInFlight.current = false;
+      setDuplicating(false);
+    }
+  }
+
+  function requestDeleteGroup(group: ActionGroup) {
+    if (group.build) {
+      notify('Unbuild the Group before deleting it.', 'error');
+      return;
+    }
+    setConfirm({ kind: 'delete-group', group });
+  }
+
+  async function deleteAction(action: Action) {
+    try {
+      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistry>(
+          `actions/actions/${encodeURIComponent(action.id)}?expectedRevision=${expectedRevision}`,
+          'DELETE',
+        ),
+      );
+      setConfirm(null);
+      closeEditor();
+      notify('Action deleted', 'info');
+    } catch (caught) {
+      setConfirm(null);
+      setEditorError(messageOf(caught));
+      notify(`Couldn’t delete Action: ${messageOf(caught)}`, 'error');
+    }
+  }
+
+  async function deleteGroup(group: ActionGroup) {
+    try {
+      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistry>(
+          `actions/groups/${encodeURIComponent(group.id)}?expectedRevision=${expectedRevision}`,
+          'DELETE',
+        ),
+      );
+      setConfirm(null);
+      closeEditor();
+      notify('Group deleted', 'info');
+    } catch (caught) {
+      setConfirm(null);
+      setEditorError(messageOf(caught));
+      notify(`Couldn’t delete Group: ${messageOf(caught)}`, 'error');
+    }
+  }
+
+  function copyText(value: string, label: string) {
+    void navigator.clipboard
+      ?.writeText(value)
+      .then(() => notify(`${label} copied`, 'info'))
+      .catch(() => notify('Clipboard unavailable; select the value to copy it.', 'warning'));
+  }
+
+  async function refresh() {
+    const ok = await useActionRegistryStore.getState().refreshRegistry();
+    notify(
+      ok ? 'Action registry refreshed' : 'Refresh failed — showing the last loaded registry.',
+      ok ? 'info' : 'error',
+    );
+  }
+
+  const actionCount = hasLoaded ? registry.actions.length : 0;
+  const groupCount = hasLoaded ? registry.groups.length : 0;
+  const useGroup = registry.groups.find((group) => group.id === useGroupId) ?? null;
+  const liveGroup =
+    editor?.kind === 'group' && editor.originalId
+      ? (registry.groups.find((group) => group.id === editor.originalId) ?? null)
+      : null;
+  const loadingFirst = status === 'loading' && !hasLoaded;
+  const blockingError = status === 'error' && !hasLoaded;
+
+  const filteredActions = registry.actions.filter((action) => {
+    const value = actionQuery.trim().toLowerCase();
+    const matches =
+      !value ||
+      action.name.toLowerCase().includes(value) ||
+      action.description.toLowerCase().includes(value) ||
+      action.id.toLowerCase().includes(value) ||
+      actionRoute(action).toLowerCase().includes(value);
+    if (!matches) return false;
+    if (actionFilter === 'enabled') return action.enabled;
+    if (actionFilter === 'draft') return !action.enabled;
+    return true;
+  });
+  const filteredGroups = registry.groups.filter((group) => {
+    const value = groupQuery.trim().toLowerCase();
+    const actionNames = group.action_ids
+      .map((id) => registry.actions.find((action) => action.id === id)?.name ?? '')
+      .join(' ');
+    const matches =
+      !value ||
+      group.name.toLowerCase().includes(value) ||
+      group.id.toLowerCase().includes(value) ||
+      actionNames.toLowerCase().includes(value);
+    if (!matches) return false;
+    if (groupFilter === 'built') return Boolean(group.build);
+    if (groupFilter === 'unbuilt') return !group.build;
+    return true;
+  });
+
+  const query = tab === 'actions' ? actionQuery : groupQuery;
+  const setQuery = tab === 'actions' ? setActionQuery : setGroupQuery;
+  const filter = tab === 'actions' ? actionFilter : groupFilter;
+  const setFilter =
+    tab === 'actions'
+      ? (value: string) => setActionFilter(value as typeof actionFilter)
+      : (value: string) => setGroupFilter(value as typeof groupFilter);
+  const visibleCount = tab === 'actions' ? filteredActions.length : filteredGroups.length;
+  const totalCount = tab === 'actions' ? actionCount : groupCount;
+
+  return (
+    <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
+      {editor ? (
+        editor.kind === 'action' ? (
+          <ActionEditorPage
+            state={editor}
+            groups={registry.groups}
+            busy={mutationPending}
+            error={editorError}
+            onChange={updateEditor}
+            onSave={() => void saveAction()}
+            onCancel={requestCloseEditor}
+            onDelete={() => requestDeleteAction(editor.draft)}
+          />
+        ) : (
+          <GroupEditorPage
+            state={editor}
+            liveGroup={liveGroup}
+            actions={registry.actions}
+            busy={mutationPending}
+            error={editorError}
+            onChange={updateEditor}
+            onSave={() => void saveGroup()}
+            onCancel={requestCloseEditor}
+            onDelete={() => liveGroup && requestDeleteGroup(liveGroup)}
+            onBuild={() => liveGroup && void buildGroup(liveGroup.id)}
+            onUnbuild={() => liveGroup && void unbuildGroup(liveGroup.id)}
+            onUseInSession={() => {
+              if (!liveGroup) return;
+              setUseGroupId(liveGroup.id);
+            }}
+          />
+        )
+      ) : (
+        <div className="flex h-full min-h-0 flex-col">
+          <header className="shrink-0 border-b border-border-default bg-bg-primary">
+            <div className="flex flex-wrap items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+              <div className="min-w-0 pl-10 sm:pl-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">
+                    Actions &amp; Groups
+                  </h1>
+                </div>
+                <p className="mt-1 max-w-2xl text-xs leading-relaxed text-text-secondary sm:text-sm">
+                  {tab === 'actions'
+                    ? 'Define an Action once. Share it across Groups, then build a Group to use it in a Session.'
+                    : 'Select Actions, build a release, then bind it to a Session in one of three modes.'}
+                </p>
               </div>
-            </div>}
-          </div>}
-          {bindingGroup?.build && <section aria-label="Use in Session" className={cardClass}>
-            <h2 className="text-lg font-semibold">Use in Session</h2><p className="my-2 break-words text-sm text-text-secondary">Choose a Session for {bindingGroup.name}, then enable the plugin and select its mode. Running Workers apply connection changes after becoming idle.</p>
-            {!sessions.length ? <p role="status" className="rounded-lg bg-bg-tertiary p-3 text-sm">No Sessions available. Create a Session from the sidebar, then Refresh here.</p> : <label className="block text-sm">Session<select aria-label="Session" className={fieldClass} value={sessionId} disabled={busy} onChange={(e) => { setSession(null); setError(''); setSessionId(e.target.value); }}><option value="">Select a Session</option>
-              {sessions.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}</select></label>}
-            {!sessionId && sessions.length > 0 && <p className="mt-3 text-xs text-text-tertiary">Select a Session to load its plugin settings.</p>}
-            {sessionId && !session && !error && <p role="status" className="mt-3 text-sm">Loading Session settings…</p>}
-            {session && session.id === sessionId && <div className="mt-4"><PluginSelection servers={servers.filter((s) => s.name === bindingGroup.build?.plugin_id)} bindings={session.pluginBindings ?? []} disabled={busy}
-              onChange={(value) => { const selected = session.id; void perform(async () => {
-                const result = await actionRequest<SessionConfig>(`sessions/${encodeURIComponent(selected)}`, 'PATCH', { pluginBindings: [...session.pluginBindings.filter((b) => b.plugin_id !== value.plugin_id), value], expectedPluginRevision: session.pluginSelectionRevision });
-                if (result.error) throw new Error(result.error);
-                if (currentSession.current === selected) setSession(result);
-                await reload();
-              }); }} /></div>}
-            {session?.pluginApplyStatus && <p role="status" className="mt-2 text-sm">Apply status: {session.pluginApplyStatus}</p>}
-          </section>}
-        </section>}
-      </>}
-    </div>
-  </main>;
+              <div className="ml-auto flex items-center gap-2">
+                <span className="hidden flex-col items-end text-[10px] leading-tight text-text-tertiary md:flex">
+                  {lastLoadedAt ? (
+                    <>
+                      <span>Updated {formatTime(lastLoadedAt)}</span>
+                      <span className="font-mono">revision {registry.revision}</span>
+                    </>
+                  ) : (
+                    <span>{loadingFirst ? 'Loading…' : 'Not loaded'}</span>
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void refresh()}
+                  disabled={refreshing || loadingFirst}
+                  title="Refresh the Action registry"
+                >
+                  <RefreshCw size={13} className={refreshing ? 'animate-spin' : undefined} />
+                  <span>Refresh</span>
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
+              <Segmented
+                label="Registry view"
+                value={tab}
+                options={[
+                  { value: 'actions' as const, label: 'Actions', count: hasLoaded ? actionCount : undefined },
+                  { value: 'groups' as const, label: 'Groups', count: hasLoaded ? groupCount : undefined },
+                ]}
+                onChange={setTab}
+              />
+              <span className="hidden text-[11px] text-text-tertiary lg:inline">
+                {tab === 'actions'
+                  ? 'Actions are reusable definitions.'
+                  : 'Groups become MCP plugins when built.'}
+              </span>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="ml-auto max-sm:w-full max-sm:justify-center"
+                onClick={tab === 'actions' ? newAction : newGroup}
+              >
+                <Plus size={13} /> {tab === 'actions' ? 'New Action' : 'New Group'}
+              </Button>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="sticky top-0 z-10 border-b border-border-muted bg-bg-primary/95 px-4 py-2.5 backdrop-blur sm:px-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-0 flex-1 basis-full sm:basis-56">
+                  <Search
+                    size={13}
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary"
+                  />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
+                    placeholder={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
+                    title={
+                      tab === 'actions'
+                        ? 'Search by name, description, ID or route'
+                        : 'Search by Group name, ID or Action name'
+                    }
+                    className="w-full rounded-md border border-border-default bg-bg-tertiary py-1.5 pl-8 pr-8 text-xs text-text-primary placeholder:text-text-tertiary focus:border-accent/60 focus:outline-none"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setQuery('')}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-text-tertiary hover:text-text-primary"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <Segmented
+                  label={tab === 'actions' ? 'Filter Actions' : 'Filter Groups'}
+                  value={filter}
+                  disabled={loadingFirst || blockingError}
+                  options={
+                    tab === 'actions'
+                      ? [
+                          { value: 'all', label: 'All' },
+                          { value: 'enabled', label: 'Enabled' },
+                          { value: 'draft', label: 'Draft' },
+                        ]
+                      : [
+                          { value: 'all', label: 'All' },
+                          { value: 'built', label: 'Registered' },
+                          { value: 'unbuilt', label: 'Unbuilt' },
+                        ]
+                  }
+                  onChange={setFilter}
+                />
+                <span aria-live="polite" className="tabular ml-auto shrink-0 text-[11px] text-text-tertiary">
+                  {loadingFirst
+                    ? 'Loading…'
+                    : blockingError
+                      ? 'Unavailable'
+                      : `${visibleCount} of ${totalCount} ${tab === 'actions' ? 'Actions' : 'Groups'}`}
+                </span>
+              </div>
+            </div>
+
+            <div className="px-3 pb-24 pt-3 sm:px-6 sm:pb-10">
+              {refreshError && hasLoaded && (
+                <StaleBanner message={refreshError} onRetry={() => void refresh()} />
+              )}
+              {blockingError ? (
+                <LoadError
+                  message={loadError || 'The Action registry could not be reached.'}
+                  onRetry={() => void useActionRegistryStore.getState().ensureRegistry({ force: true })}
+                />
+              ) : loadingFirst ? (
+                <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
+                  <SkeletonList rows={8} kind={tab === 'actions' ? 'action' : 'group'} />
+                </div>
+              ) : tab === 'actions' ? (
+                filteredActions.length === 0 ? (
+                  <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
+                    {registry.actions.length === 0 ? (
+                      <ListEmpty
+                        icon={<Layers size={18} />}
+                        title="No Actions yet"
+                        description="Create an internal API or command Action, then add it to a Group."
+                        action={
+                          <Button type="button" size="sm" variant="primary" onClick={newAction}>
+                            <Plus size={13} /> New Action
+                          </Button>
+                        }
+                      />
+                    ) : (
+                      <ListEmpty
+                        icon={<Search size={18} />}
+                        title="No Actions match this view"
+                        description="Clear the search or switch the filter to see the rest of the registry."
+                        action={
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              setActionQuery('');
+                              setActionFilter('all');
+                            }}
+                          >
+                            <RotateCcw size={13} /> Clear filters
+                          </Button>
+                        }
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
+                    <div className="action-grid list-header border-b border-border-default px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                      <span>Name</span>
+                      <span>Type</span>
+                      <span className="action-col-effect">Effect</span>
+                      <span className="action-col-status">Status</span>
+                      <span className="action-col-usage">Used in</span>
+                      <span className="text-right">Actions</span>
+                    </div>
+                    <ul aria-label="Actions">
+                      {filteredActions.map((action) => (
+                        <ActionRow
+                          key={action.id}
+                          action={action}
+                          groups={usedByGroups(registry, action.id)}
+                          onEdit={() => openAction(action)}
+                          onDelete={() => requestDeleteAction(action)}
+                          onCopy={() => copyText(action.id, 'Action ID')}
+                          onDuplicate={() => void duplicateAction(action)}
+                          duplicateDisabled={duplicating || mutationPending}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )
+              ) : filteredGroups.length === 0 ? (
+                <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
+                  {registry.groups.length === 0 ? (
+                    <ListEmpty
+                      icon={<Layers size={18} />}
+                      title="No Groups yet"
+                      description="Group shared Actions to make them available as a Session plugin."
+                      action={
+                        <Button type="button" size="sm" variant="primary" onClick={newGroup}>
+                          <Plus size={13} /> New Group
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <ListEmpty
+                      icon={<Search size={18} />}
+                      title="No Groups match this view"
+                      description="Clear the search or switch the filter to see the rest of the registry."
+                      action={
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setGroupQuery('');
+                            setGroupFilter('all');
+                          }}
+                        >
+                          <RotateCcw size={13} /> Clear filters
+                        </Button>
+                      }
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
+                  <div className="group-grid list-header border-b border-border-default px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                    <span>Name</span>
+                    <span className="group-col-release">Release</span>
+                    <span className="group-col-composition">Composition</span>
+                    <span className="group-col-status">Status</span>
+                    <span className="text-right">Actions</span>
+                  </div>
+                  <ul aria-label="Groups">
+                    {filteredGroups.map((group) => (
+                      <GroupRow
+                        key={group.id}
+                        group={group}
+                        actions={registry.actions}
+                        onEdit={() => openGroup(group)}
+                        onDelete={() => requestDeleteGroup(group)}
+                        onBuild={() => void buildGroup(group.id)}
+                        onUnbuild={() => void unbuildGroup(group.id)}
+                        onUseInSession={() => setUseGroupId(group.id)}
+                        onCopy={() => copyText(pluginIdFor(group.id), 'Plugin ID')}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirm?.kind === 'discard' && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message="Your draft has unsaved changes. Leaving now discards them and returns to the list."
+          confirmLabel="Discard draft"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            setConfirm(null);
+            closeEditor();
+            notify('Draft discarded', 'info');
+          }}
+        />
+      )}
+      {confirm?.kind === 'delete-action' && (
+        <ConfirmDialog
+          title={`Delete “${confirm.action.name}”?`}
+          message="This removes the Action from the registry. Actions referenced by a Group must be removed from those Groups first."
+          confirmLabel="Delete Action"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void deleteAction(confirm.action)}
+        />
+      )}
+      {confirm?.kind === 'delete-group' && (
+        <ConfirmDialog
+          title={`Delete “${confirm.group.name}”?`}
+          message="This removes the Group from the registry. Built Groups must be unbuilt first."
+          confirmLabel="Delete Group"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void deleteGroup(confirm.group)}
+        />
+      )}
+
+      {useGroup && <UseInSessionDialog group={useGroup} onClose={() => setUseGroupId(null)} />}
+    </main>
+  );
 }
 
-function Identity({ id }: { id: string }) {
-  const [message, setMessage] = useState('');
-  async function copyId() {
-    try { await navigator.clipboard.writeText(id); setMessage('ID copied'); }
-    catch { setMessage('Copy unavailable. Select the ID to copy it.'); }
+function duplicateName(name: string, existingNames: string[]): string {
+  const used = new Set(existingNames.map((value) => value.trim().toLowerCase()));
+  const base = `${name.trim() || 'Untitled Action'} copy`;
+  let candidate = base;
+  let index = 2;
+  while (used.has(candidate.toLowerCase())) {
+    candidate = `${base} ${index}`;
+    index += 1;
   }
-  return <details className="rounded-lg bg-bg-tertiary p-3 text-xs text-text-secondary"><summary className="cursor-pointer">Details</summary>
-    <div className="mt-2 flex flex-wrap items-center gap-2"><span>ID: <code className="break-all select-all">{id}</code></span><Button type="button" size="sm" onClick={() => void copyId()}>Copy ID</Button>{message && <span role="status">{message}</span>}</div></details>;
+  return candidate;
 }
 
-function ActionEditor({ action, busy, onChange, onSave, onDelete }: {
-  action: Action; busy: boolean; onChange: (value: Action) => void; onSave: (value: Action) => Promise<void>; onDelete?: () => void;
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/* ── Rows ──────────────────────────────────────────────────────────────── */
+
+function ActionRow({
+  action,
+  groups,
+  onEdit,
+  onDelete,
+  onCopy,
+  onDuplicate,
+  duplicateDisabled,
+}: {
+  action: Action;
+  groups: ActionGroup[];
+  onEdit: () => void;
+  onDelete: () => void;
+  onCopy: () => void;
+  onDuplicate: () => void;
+  duplicateDisabled: boolean;
 }) {
-  const [schemaText, setSchemaText] = useState(JSON.stringify(action.input_schema, null, 2));
-  const [schemaError, setSchemaError] = useState('');
-  function updateSchema(properties: InputSchema['properties'], required = action.input_schema.required ?? []) {
-    const schema: InputSchema = { ...action.input_schema, properties, required };
-    onChange({ ...action, input_schema: schema }); setSchemaText(JSON.stringify(schema, null, 2)); setSchemaError('');
-  }
-  return <form onSubmit={(event) => { event.preventDefault(); try {
-    const schema: unknown = JSON.parse(schemaText);
-    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw new Error('Schema must be a JSON object');
-    setSchemaError(''); void onSave({ ...action, input_schema: schema as InputSchema });
-  } catch (e) { setSchemaError(e instanceof Error ? e.message : String(e)); } }}>
-    <fieldset disabled={busy} className="min-w-0 space-y-6">
-      {action.id && <Identity id={action.id} />}
-      <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Name<input required className={fieldClass} value={action.name} onChange={(e) => onChange({ ...action, name: e.target.value })} /></label>
-        <label className="text-sm">Description<input required className={fieldClass} value={action.description} onChange={(e) => onChange({ ...action, description: e.target.value })} /></label></div>
-      <div className="flex flex-wrap items-center gap-5"><label className="text-sm"><input type="checkbox" checked={action.enabled} onChange={(e) => onChange({ ...action, enabled: e.target.checked })} /> Enable for build</label>
-        <label className="min-w-40 text-sm">Effect<select className={fieldClass} value={action.effect} onChange={(e) => onChange({ ...action, effect: e.target.value as Action['effect'] })}>
-          <option value="read">Read</option><option value="write_local">Write local</option><option value="write_external">Write external</option><option value="high_risk">High risk (build blocked)</option></select></label></div>
-      <section className="space-y-3 border-t border-border-default pt-5"><h3 className="font-medium">Input fields</h3><p className="text-xs text-text-secondary">Add scalar fields here. Use the JSON schema editor for nested fields, defaults and constraints.</p>
-        {Object.entries(action.input_schema.properties ?? {}).map(([name, schema]) => <div key={name} className="flex flex-wrap items-center gap-3 rounded-lg bg-bg-primary p-3 text-sm">
-          <span className="min-w-0 break-all font-mono">{name}</span><select className="rounded border border-border-default bg-bg-primary p-1" aria-label={`${name} type`} value={schema.type ?? ''} onChange={(e) => updateSchema({ ...action.input_schema.properties, [name]: { ...schema, type: e.target.value } })}>
-            <option value="" disabled>Custom schema</option>{['string', 'integer', 'number', 'boolean', 'object', 'array'].map((type) => <option key={type}>{type}</option>)}</select>
-          <label><input type="checkbox" checked={action.input_schema.required?.includes(name) ?? false} onChange={(e) => updateSchema(action.input_schema.properties,
-            e.target.checked ? [...(action.input_schema.required ?? []), name] : action.input_schema.required?.filter((n) => n !== name))} /> Required</label>
-          <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${name}`} onClick={() => updateSchema(Object.fromEntries(Object.entries(action.input_schema.properties ?? {}).filter(([key]) => key !== name)), action.input_schema.required?.filter((n) => n !== name))}>Remove</Button>
-        </div>)}
-        <AddField onAdd={(name) => { if (name in (action.input_schema.properties ?? {})) { setSchemaError('Input field already exists'); return; }
-          updateSchema({ ...action.input_schema.properties, [name]: { type: 'string' } }, [...(action.input_schema.required ?? []), name]); }} />
-        <details className="rounded-lg border border-border-default p-3 text-sm"><summary className="cursor-pointer">Advanced JSON schema</summary><p className="my-2 text-xs text-text-secondary">This JSON replaces the field settings when saved.</p>
-          <label className="block">Input schema<textarea className={`${fieldClass} font-mono`} rows={10} value={schemaText} onChange={(e) => setSchemaText(e.target.value)} /></label></details>
-        {schemaError && <p role="alert" className="text-sm text-danger">{schemaError}</p>}
-      </section>
-      <section className="space-y-4 border-t border-border-default pt-5"><h3 className="font-medium">Execution</h3>
-        <label className="block text-sm">Execution<select className={fieldClass} value={action.execution.kind} onChange={(e) => onChange({ ...action, execution: e.target.value === 'api'
-          ? { kind: 'api', method: 'GET', path: '/api/sessions' } : { kind: 'command', executable: '', args: [], cwd: '', timeout_sec: 30 } })}><option value="api">Internal API</option><option value="command">Command</option>{action.execution.kind === 'session_operation' && <option value="session_operation">Session Operation</option>}</select></label>
-        {action.execution.kind === 'api' ? <label className="block text-sm">API route<select className={fieldClass} value={action.execution.path} onChange={(e) => onChange({ ...action, execution: { kind: 'api', method: 'GET', path: e.target.value } })}>
-          {['/api/sessions', '/api/models', '/api/workspaces'].map((path) => <option key={path}>{path}</option>)}</select></label> : action.execution.kind === 'session_operation' ? <div className="min-w-0 text-sm"><p>Pause Everything · Session Operation (automation only)</p><pre className="whitespace-pre-wrap break-all">{JSON.stringify(action.execution.selector, null, 2)}</pre><p>Group build does not support Session Operation. Create another target configuration in Automation.</p></div> : <>
-          <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Executable<input required className={fieldClass} value={action.execution.executable} onChange={(e) => { if (action.execution.kind === 'command') onChange({ ...action, execution: { ...action.execution, executable: e.target.value } }); }} /></label>
-            <label className="text-sm">Working directory<input required className={fieldClass} value={action.execution.cwd} onChange={(e) => { if (action.execution.kind === 'command') onChange({ ...action, execution: { ...action.execution, cwd: e.target.value } }); }} /></label></div>
-          <label className="block text-sm">Arguments (one per line)<textarea className={`${fieldClass} font-mono`} rows={4} value={action.execution.args.join('\n')} onChange={(e) => { if (action.execution.kind === 'command') onChange({ ...action, execution: { ...action.execution, args: e.target.value ? e.target.value.split('\n') : [] } }); }} /></label>
-          <p className="text-xs text-text-secondary">Use {'{field}'} for one complete argument. Input is never interpreted by a shell. The executable must handle its arguments safely.</p>
-          <label className="block text-sm">Timeout (seconds)<input type="number" min={1} max={30} required className={fieldClass} value={action.execution.timeout_sec ?? 30} onChange={(e) => { if (action.execution.kind === 'command') onChange({ ...action, execution: { ...action.execution, timeout_sec: Number(e.target.value) } }); }} /></label>
-        </>}
-        <label className="block text-sm">Output<select className={fieldClass} value={action.output_format} onChange={(e) => onChange({ ...action, output_format: e.target.value as Action['output_format'] })}><option value="json">JSON</option><option value="text">Text</option></select></label>
-      </section>
-      <div className="flex flex-wrap gap-3 border-t border-border-default pt-5"><Button type="submit" variant="primary">Save Action</Button>{onDelete && <Button type="button" variant="danger" onClick={onDelete}>Delete Action</Button>}</div>
-    </fieldset>
-  </form>;
+  const [menu, setMenu] = useState(false);
+  const groupedNames = groups.map((group) => group.name).join(', ');
+  return (
+    <li className="border-b border-border-muted last:border-0">
+      <div className="action-grid action-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
+        <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <IconTile tone={action.execution.kind === 'api' ? 'accent' : 'neutral'}>
+            {action.execution.kind === 'api' ? <Braces size={14} /> : <TerminalSquare size={14} />}
+          </IconTile>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
+                title={`Edit ${action.name}`}
+              >
+                {action.name}
+              </button>
+            </div>
+            <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={action.description}>
+              {action.description}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+              <span className={action.enabled ? 'text-success' : 'text-text-tertiary'}>
+                {action.enabled ? 'Enabled' : 'Draft'}
+              </span>
+              <span>{executionLabel(action)}</span>
+              <span>{EFFECT_LABELS[action.effect]}</span>
+              <span>{groups.length} {groups.length === 1 ? 'Group' : 'Groups'}</span>
+            </div>
+          </div>
+        </div>
+        <div className="action-col-type min-w-0">
+          <p className="text-xs text-text-secondary">{executionLabel(action)}</p>
+          <p className="truncate font-mono text-[10px] text-text-tertiary" title={actionRoute(action)}>
+            {actionRoute(action)}
+          </p>
+        </div>
+        <div className="action-col-effect">
+          <Badge tone={effectTone(action.effect)}>{EFFECT_LABELS[action.effect]}</Badge>
+        </div>
+        <div className="action-col-status">
+          <Badge tone={action.enabled ? 'success' : 'muted'} dot>
+            {action.enabled ? 'Enabled' : 'Draft'}
+          </Badge>
+        </div>
+        <div className="action-col-usage text-xs text-text-secondary" title={groupedNames || 'Not used by any Group'}>
+          {groups.length ? `${groups.length} ${groups.length === 1 ? 'Group' : 'Groups'}` : '—'}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-1">
+          <IconButton label={`Edit ${action.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
+            <Pencil size={14} />
+          </IconButton>
+          <div className="relative">
+            <IconButton
+              label={`More actions for ${action.name}`}
+              aria-haspopup="menu"
+              aria-expanded={menu}
+              onClick={() => setMenu((value) => !value)}
+            >
+              <MoreHorizontal size={15} />
+            </IconButton>
+            {menu && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="fixed inset-0 z-20 cursor-default"
+                  onClick={() => setMenu(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-30 mt-1 w-52 rounded-md border border-border-default bg-bg-primary p-1 shadow-dropdown"
+                >
+                  <MenuItem
+                    onClick={() => {
+                      setMenu(false);
+                      onEdit();
+                    }}
+                  >
+                    <Pencil size={13} /> Edit Action
+                  </MenuItem>
+                  <MenuItem
+                    disabled={duplicateDisabled}
+                    title={duplicateDisabled ? 'A duplicate is already being created.' : 'Create an independent copy and open it in the editor'}
+                    onClick={() => {
+                      setMenu(false);
+                      onDuplicate();
+                    }}
+                  >
+                    <CopyPlus size={13} /> Duplicate Action
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setMenu(false);
+                      onCopy();
+                    }}
+                  >
+                    <Copy size={13} /> Copy Action ID
+                  </MenuItem>
+                  <MenuItem
+                    disabled={groups.length > 0}
+                    title={
+                      groups.length
+                        ? `In use by ${groupedNames}. Remove it from those Groups first.`
+                        : 'Delete this Action'
+                    }
+                    onClick={() => {
+                      setMenu(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 size={13} /> Delete Action
+                  </MenuItem>
+                  {groups.length > 0 && (
+                    <p className="px-2 py-1 text-[10px] leading-relaxed text-text-tertiary">
+                      In use by {groups.length} {groups.length === 1 ? 'Group' : 'Groups'}; deletion is blocked.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
 }
 
-function AddField({ onAdd }: { onAdd: (name: string) => void }) {
-  const [name, setName] = useState('');
-  return <div className="flex flex-wrap gap-2"><input aria-label="New input field" className={`${fieldClass} flex-1 basis-40`} value={name} onChange={(e) => setName(e.target.value)} placeholder="Field name" />
-    <Button type="button" disabled={!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)} onClick={() => { onAdd(name); setName(''); }}>Add field</Button></div>;
+function GroupRow({
+  group,
+  actions,
+  onEdit,
+  onDelete,
+  onBuild,
+  onUnbuild,
+  onUseInSession,
+  onCopy,
+}: {
+  group: ActionGroup;
+  actions: Action[];
+  onEdit: () => void;
+  onDelete: () => void;
+  onBuild: () => void;
+  onUnbuild: () => void;
+  onUseInSession: () => void;
+  onCopy: () => void;
+}) {
+  const [menu, setMenu] = useState(false);
+  const gate = buildGate(group.action_ids, actions);
+  const actionNames = group.action_ids
+    .map((id) => actions.find((action) => action.id === id)?.name ?? '')
+    .filter(Boolean);
+  const built = Boolean(group.build);
+  return (
+    <li className="border-b border-border-muted last:border-0">
+      <div className="group-grid group-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
+              title={`Edit ${group.name}`}
+            >
+              {group.name}
+            </button>
+          </div>
+          <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={actionNames.join(' · ')}>
+            {actionNames.join(' · ') || 'No Actions selected'}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
+            <span className={built ? 'text-success' : 'text-text-tertiary'}>{built ? 'Built' : 'Unbuilt'}</span>
+            <span>{group.action_ids.length} Actions</span>
+            <span>{group.sessions.length} Sessions</span>
+            {built && group.blockers.length > 0 && (
+              <span className="text-warning">{group.blockers.length} running</span>
+            )}
+          </div>
+        </div>
+        <div className="group-col-release min-w-0" title={group.build?.version ?? group.id}>
+          {built ? (
+            <>
+              <p className="truncate font-mono text-[11px] text-text-secondary">
+                v {shortVersion(group.build?.version ?? '')}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] text-text-tertiary">Immutable release</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-text-secondary">Not built</p>
+              <p className={cx('mt-0.5 truncate text-[10px]', gate ? 'text-warning' : 'text-text-tertiary')}>
+                {gate ? 'Resolve build gates' : 'Ready to build'}
+              </p>
+            </>
+          )}
+        </div>
+        <div className="group-col-composition min-w-0" title={group.id}>
+          <p className="text-xs text-text-secondary">
+            {group.action_ids.length} Actions · {group.sessions.length} Sessions
+          </p>
+        </div>
+        <div className="group-col-status">
+          <Badge tone={built ? 'success' : 'muted'} dot>
+            {built ? 'Registered' : 'Unbuilt'}
+          </Badge>
+          {built && group.blockers.length > 0 && (
+            <p className="mt-1 text-[10px] text-warning" title={group.blockers.map((item) => item.name).join(', ')}>
+              {group.blockers.length} running
+            </p>
+          )}
+          {!built && gate && <p className="mt-1 text-[10px] text-warning">Build blocked</p>}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-0.5">
+          {built ? (
+            <button
+              type="button"
+              onClick={onUseInSession}
+              title="Use in Session"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
+            >
+              <Play size={12} />
+              <span className="hidden min-[1440px]:inline">Use in Session</span>
+              <span className="min-[1440px]:hidden">Use</span>
+            </button>
+          ) : gate ? (
+            <span
+              title={gate.message}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/25 bg-warning/10 px-2 py-1 text-xs font-medium text-warning"
+            >
+              <Lock size={12} /> Blocked
+            </span>
+          ) : (
+            <button
+              type="button"
+              title="Build this Group"
+              onClick={onBuild}
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
+            >
+              <Hammer size={12} /> Build
+            </button>
+          )}
+          <IconButton label={`Edit ${group.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
+            <Pencil size={14} />
+          </IconButton>
+          <div className="relative">
+            <IconButton
+              label={`More actions for ${group.name}`}
+              aria-haspopup="menu"
+              aria-expanded={menu}
+              onClick={() => setMenu((value) => !value)}
+            >
+              <MoreHorizontal size={15} />
+            </IconButton>
+            {menu && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="fixed inset-0 z-20 cursor-default"
+                  onClick={() => setMenu(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-30 mt-1 w-56 rounded-md border border-border-default bg-bg-primary p-1 shadow-dropdown"
+                >
+                  <MenuItem
+                    onClick={() => {
+                      setMenu(false);
+                      onEdit();
+                    }}
+                  >
+                    <Pencil size={13} /> Edit Group
+                  </MenuItem>
+                  <MenuItem
+                    disabled={Boolean(gate)}
+                    title={gate?.message ?? (built ? 'Rebuild this Group' : 'Build this Group')}
+                    onClick={() => {
+                      setMenu(false);
+                      onBuild();
+                    }}
+                  >
+                    <Hammer size={13} /> {built ? 'Rebuild Group' : 'Build Group'}
+                  </MenuItem>
+                  <MenuItem
+                    disabled={!built || group.blockers.length > 0}
+                    title={
+                      !built
+                        ? 'The Group is not built.'
+                        : group.blockers.length
+                          ? `Blocked by ${group.blockers.map((item) => item.name).join(', ')}.`
+                          : 'Unbuild this Group'
+                    }
+                    onClick={() => {
+                      setMenu(false);
+                      onUnbuild();
+                    }}
+                  >
+                    <PackageOpen size={13} /> Unbuild Group
+                  </MenuItem>
+                  <MenuItem
+                    disabled={!built}
+                    onClick={() => {
+                      setMenu(false);
+                      onCopy();
+                    }}
+                  >
+                    <Copy size={13} /> Copy Plugin ID
+                  </MenuItem>
+                  <MenuItem
+                    disabled={built}
+                    title={built ? 'Unbuild the Group before deleting it.' : 'Delete this Group'}
+                    onClick={() => {
+                      setMenu(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 size={13} /> Delete Group
+                  </MenuItem>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  disabled = false,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      title={title}
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
+    >
+      {children}
+    </button>
+  );
 }

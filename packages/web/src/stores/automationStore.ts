@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AutomationData, AutomationSnapshot } from '@/types/automation';
 import type { ActionRegistry } from '@/types/actions';
+import { useActionRegistryStore } from './actionRegistryStore';
 
 export class AutomationError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -43,20 +44,22 @@ export async function automationLogout() {
   finally { clearTimeout(expiry); useAutomationAuth.getState().clear(); }
 }
 
-type State = { data: AutomationData | null; updatedAt: number; loading: boolean; error: string; refresh: () => Promise<void>; invalidate: () => Promise<void> };
+type State = { data: AutomationData | null; updatedAt: number; loading: boolean; error: string; refresh: (forceActions?: boolean) => Promise<void>; invalidate: () => Promise<void> };
 let generation = 0;
 let pending: Promise<void> | undefined;
 export const useAutomationStore = create<State>((set, get) => ({
   data: null, updatedAt: 0, loading: false, error: '',
-  refresh: () => {
+  refresh: (forceActions = false) => {
     if (pending) return pending;
     const version = generation;
     set({ loading: true, error: '' });
     const request = Promise.all([
-      automationRequest<AutomationSnapshot>('automation'), automationRequest<ActionRegistry>('actions'),
+      automationRequest<AutomationSnapshot>('automation'), useActionRegistryStore.getState().ensureRegistry({ force: forceActions }),
       automationRequest<{ sessions: AutomationData['sessions'] }>('sessions?summary=1'),
-    ]).then(([automation, actions, sessions]) => {
-      if (version === generation) set({ data: { automation, actions, sessions: sessions.sessions }, updatedAt: Date.now() });
+    ]).then(([automation, , sessions]) => {
+      const actions = useActionRegistryStore.getState();
+      if (!actions.hasLoaded) throw new Error(actions.error ?? 'Action registry unavailable');
+      if (version === generation) set({ data: { automation, actions: actions.registry, sessions: sessions.sessions }, updatedAt: Date.now() });
     }).catch((error: unknown) => { if (version === generation) set({ error: error instanceof Error ? error.message : 'Refresh failed' }); })
       .finally(() => { if (pending === request) { pending = undefined; set({ loading: false }); } });
     pending = request;
@@ -68,4 +71,11 @@ export const useAutomationStore = create<State>((set, get) => ({
 export async function automationMutation<T>(path: string, method: string, body?: unknown): Promise<T> {
   try { return await automationRequest<T>(path, method, body); }
   finally { await useAutomationStore.getState().invalidate(); }
+}
+
+export function createAutomationAction<T extends ActionRegistry>(item: unknown): Promise<T> {
+  // Same serialized mutation/GET fencing as Actions. No redundant GET, catalog
+  // invalidation or automation-ledger refresh after a registry-only mutation.
+  return useActionRegistryStore.getState().runMutation((expectedRevision) =>
+    automationRequest<T>('actions/actions', 'POST', { item, expectedRevision }));
 }
