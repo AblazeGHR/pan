@@ -1544,14 +1544,15 @@ def _build_fake_codex_dir(tmp: Path) -> tuple[Path, Path, Path]:
     return state, hist, tmp / "sessions"
 
 
-def test_sessions_provider_e2e():
+def test_sessions_provider_e2e(monkeypatch):
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         state, hist, sess_dir = _build_fake_codex_dir(tmp)
         # monkeypatch 模块级路径到 fake ~/.codex
-        codex_sessions._STATE_DB = state
-        codex_sessions._HISTORY_DB = hist
-        codex_sessions._SESSIONS_DIR = sess_dir
+        monkeypatch.setattr(codex_sessions, "_CODEX_DIR", tmp)
+        monkeypatch.setattr(codex_sessions, "_STATE_DB", state)
+        monkeypatch.setattr(codex_sessions, "_HISTORY_DB", hist)
+        monkeypatch.setattr(codex_sessions, "_SESSIONS_DIR", sess_dir)
 
         # list_sessions + cwd 过滤
         all_sessions = codex_sessions.list_sessions()
@@ -1606,8 +1607,8 @@ def test_sessions_provider_e2e():
         assert Path(rp).is_file(), "fork must materialize a rollout file"
         meta = json.loads(Path(rp).read_text(encoding="utf-8").splitlines()[0])
         assert meta["payload"]["id"] == new_id
-        assert meta["payload"]["session_id"] == new_id
-        assert Path(rp).read_text(encoding="utf-8").find("thread_abc") == -1
+        assert meta["payload"]["session_id"] == "thread_abc"  # native session-tree root
+        assert meta["payload"]["context_window"]["window_id"] == "thread_abc-ctx"
         print("PASS: sessions provider e2e (fake ~/.codex)")
 
 
@@ -1820,5 +1821,7 @@ if __name__ == "__main__":
     test_item_to_block_mapping()
     test_norm_path()
     test_cwd_matches_repository_root()
-    test_sessions_provider_e2e()
+    import pytest
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        test_sessions_provider_e2e(monkeypatch)
     print("\n=== ALL CODEX ADAPTER TESTS PASSED ===")
