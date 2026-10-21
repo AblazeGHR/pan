@@ -343,6 +343,81 @@ def _content_text(content) -> str:
     )
 
 
+def _physical_rollout_id(path: Path) -> str:
+    match = re.search(r"[-_]([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\.jsonl$", path.name)
+    return match.group(1).lower() if match else str(path.resolve())
+
+
+def _lineage_events(path: Path, session_id: str) -> list[dict]:
+    """Read frozen physical prefixes, never following a logical thread's current path.
+
+    Revert keeps the logical ID but selects a new physical rollout. A base with
+    that logical ID still names the OLD immutable file, not the selected row.
+    SQLite projection caches are not an additional source of conversation rows.
+    """
+    segments, seen = [], set()
+    cutoff = None
+    initial = True
+
+    def invalid(detail):
+        return ValueError(f"invalid paginated history lineage for {session_id}: {detail}")
+
+    while True:
+        physical_id = _physical_rollout_id(path)
+        if physical_id in seen:
+            raise invalid("cycle detected")
+        seen.add(physical_id)
+        events, offset = [], 0
+        with path.open("rb") as handle:
+            for raw in handle:
+                if cutoff is not None and offset == cutoff["end_byte_offset"]:
+                    break
+                offset += len(raw)
+                if cutoff is not None and offset > cutoff["end_byte_offset"]:
+                    raise invalid("cutoff byte offset is not a record boundary")
+                try:
+                    event = json.loads(raw)
+                except ValueError:
+                    if cutoff is not None:
+                        raise invalid("invalid source record")
+                    continue
+                if not isinstance(event, dict):
+                    raise invalid("invalid source record")
+                if cutoff is not None:
+                    ordinal = event.get("ordinal")
+                    if type(ordinal) is not int or ordinal < 0:
+                        raise invalid("invalid source ordinal")
+                    if ordinal >= cutoff["end_ordinal_exclusive"]:
+                        raise invalid("cutoff ordinal and byte offset disagree")
+                events.append(event)
+        if cutoff is not None and offset != cutoff["end_byte_offset"]:
+            raise invalid("cutoff byte offset is past the source rollout")
+        meta = next((e.get("payload") for e in events if e.get("type") == "session_meta"), None)
+        if not isinstance(meta, dict):
+            raise invalid("missing session metadata")
+        if initial and (meta.get("id") or meta.get("session_id")) != session_id:
+            raise invalid("source rollout belongs to another thread")
+        if not initial and meta.get("history_mode") != "paginated":
+            raise invalid("source rollout is not paginated")
+        segments.append(events)
+        base = meta.get("history_base")
+        if base is None:
+            break
+        if (meta.get("history_mode") != "paginated" or not isinstance(base, dict)
+                or not isinstance(base.get("thread_id"), str)
+                or not re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", base["thread_id"])
+                or any(type(base.get(k)) is not int or base[k] <= 0
+                       for k in ("end_byte_offset", "end_ordinal_exclusive"))):
+            raise invalid("invalid history base")
+        candidates = [p for root in (_SESSIONS_DIR, _CODEX_DIR / "archived_sessions")
+                      for p in root.rglob(f"*{base['thread_id']}.jsonl")
+                      if _physical_rollout_id(p) == base["thread_id"].lower()]
+        if len(candidates) != 1:
+            raise invalid("missing or ambiguous source rollout")
+        path, cutoff, initial = candidates[0], base, False
+    return [event for segment in reversed(segments) for event in segment]
+
+
 def _rollout_history(path: Path, session_id: str) -> list[dict]:
     """Read native completed items, falling back to legacy response items per turn.
 
@@ -351,11 +426,19 @@ def _rollout_history(path: Path, session_id: str) -> list[dict]:
     discard intentionally repeated messages. Compaction snapshots are not new
     conversation messages and must not replace earlier history.
     """
-    events = list(_iter_jsonl(path))
-    meta = next((event.get("payload") for event in events
+    own_events = list(_iter_jsonl(path))
+    meta = next((event.get("payload") for event in own_events
                  if event.get("type") == "session_meta"), None)
-    if not isinstance(meta, dict) or (meta.get("id") or meta.get("session_id")) != session_id:
+    if not isinstance(meta, dict):
         return []
+    if meta.get("history_mode") == "paginated":
+        events = _lineage_events(path, session_id)
+    else:
+        if (meta.get("id") or meta.get("session_id")) != session_id:
+            return []
+        events = own_events
+    owners = {(e.get("payload") or {}).get("id") for e in events if e.get("type") == "session_meta"}
+    owners.add(session_id)
     turn = ""
     records = []
     completed_turns = set()
@@ -370,7 +453,7 @@ def _rollout_history(path: Path, session_id: str) -> list[dict]:
         elif kind == "event_msg" and payload.get("type") == "task_started":
             turn = payload.get("turn_id") or turn
         elif kind == "event_msg" and payload.get("type") == "item_completed":
-            if payload.get("thread_id") not in (None, session_id):
+            if payload.get("thread_id") is not None and payload.get("thread_id") not in owners:
                 continue
             item = payload.get("item")
             if isinstance(item, dict):
@@ -436,8 +519,10 @@ def parse_codex_history(session_id: str, workdir: str | None = None) -> list[dic
         rollout = _rollout_full_path(row.get("rollout_path")) if row else None
         if rollout is not None:
             history = _rollout_history(rollout, session_id)
-            if history:
+            if history or row.get("history_mode") == "paginated":
                 return history
+        elif row and row.get("history_mode") == "paginated":
+            raise ValueError(f"invalid paginated history lineage for {session_id}: missing source rollout")
     con = _connect_ro(_HISTORY_DB)
     if con is None:
         return []
@@ -490,7 +575,9 @@ def get_codex_raw_usage(session_id: str, workdir: str | None = None) -> list[dic
             return []
         last_usage: dict | None = None
         last_ts = ""
-        for line in _iter_jsonl(rollout):
+        events = (_lineage_events(rollout, session_id) if row.get("history_mode") == "paginated"
+                  else _iter_jsonl(rollout))
+        for line in events:
             etype = line.get("type")
             if etype != "event_msg":
                 continue
@@ -575,24 +662,29 @@ def write_codex_custom_title(session_id: str, title: str, workdir: str | None = 
 
 
 def fork_codex_session(parent_id: str, name: str, workdir: str | None = None) -> str:
-    """Fork 一个 codex thread：复制 state threads 行 + history items/turns。
+    """Materialize a provider-backed branch without starting a CLI or model turn.
 
-    codex CLI 无 headless ``--fork``（``codex fork`` 是交互 picker），故直接复制
-    DB 行：在 state_5.threads 建新线程（parent 指向保持 cwd/title=name），并把
-    thread_items / thread_turns 复制到新 thread_id（resume 时 codex 从
-    thread_history_1.sqlite 重建上下文）。rollout_path 指向按新 id 生成的新路径
-    （首次 resume 时 codex 会新建）。
-
-    Returns the new thread id.
+    Keep physical history references and native session-tree identity intact.
+    Legacy index-only history is copied for compatibility; paginated indexes
+    must be rebuilt by Codex from the new rollout and its frozen ancestors.
     """
     scon = _connect_rw(_STATE_DB)
     if scon is None:
         raise FileNotFoundError(f"Codex state DB not found for session {parent_id}")
     hcon = _connect_rw(_HISTORY_DB)
+    created_rollout = None
     try:
         parent = _thread_row(scon, parent_id)
         if not parent:
             raise FileNotFoundError(f"Codex thread not found: {parent_id}")
+
+        src_rollout = _rollout_full_path(parent.get("rollout_path"))
+        if src_rollout is None:
+            raise FileNotFoundError(f"Codex rollout not found for session {parent_id}")
+        # Validate before creating any child state. Physical IDs, not logical
+        # thread IDs, define cycles after a native revert.
+        if parent.get("history_mode") == "paginated":
+            _lineage_events(src_rollout, parent_id)
 
         new_id = str(_uuid.uuid4())
         now = int(datetime.now().timestamp())
@@ -627,7 +719,7 @@ def fork_codex_session(parent_id: str, name: str, workdir: str | None = None) ->
         )
 
         # 复制 items / turns（history DB）
-        if hcon is not None:
+        if hcon is not None and parent.get("history_mode") != "paginated":
             hcon.execute(
                 "INSERT INTO thread_items "
                 "(thread_id, turn_id, item_id, rollout_ordinal, created_at_ms, "
@@ -648,24 +740,33 @@ def fork_codex_session(parent_id: str, name: str, workdir: str | None = None) ->
                 "FROM thread_turns WHERE thread_id=?",
                 (new_id, parent_id),
             )
-            hcon.commit()
 
-        # 物化新 rollout：codex resume 依赖 rollout 文件（新路径必须存在，且其
-        # session_meta 必须属于新线程）。复制父 rollout 并重写其中的父 thread id
-        # （完整 UUID，实测仅出现在 session_meta.session_id/id 与 event_msg.thread_id
-        # 字段），否则首次 resume 报 "no rollout found for thread id ..." 或
-        # "session metadata ... belongs to thread ..."。best-effort：复制失败不阻塞
-        # fork（后续 resume 时由 codex 报错）。
-        src_rollout = _rollout_full_path(parent.get("rollout_path"))
-        if src_rollout is not None:
-            try:
-                new_rollout.parent.mkdir(parents=True, exist_ok=True)
-                payload = src_rollout.read_text(encoding="utf-8")
-                if parent_id in payload:
-                    payload = payload.replace(parent_id, new_id)
-                new_rollout.write_text(payload, encoding="utf-8")
-            except OSError:
-                pass
+        # Only ownership fields change. history_base names a physical ancestor;
+        # session_id names the session-tree root, and body/turn/item/window IDs
+        # retain their native meaning. No paginated cache is cloned: metadata
+        # serialization changes byte offsets, so Codex must project the new file.
+        new_rollout.parent.mkdir(parents=True, exist_ok=True)
+        with src_rollout.open("rb") as source, new_rollout.open("xb") as target:
+            created_rollout = new_rollout
+            for raw in source:
+                try:
+                    event = json.loads(raw)
+                except ValueError:
+                    target.write(raw)
+                    continue
+                if not isinstance(event, dict):
+                    target.write(raw)
+                    continue
+                payload = event.get("payload")
+                changed = False
+                if isinstance(payload, dict):
+                    key = {"session_meta": "id", "event_msg": "thread_id"}.get(event.get("type"))
+                    if key and payload.get(key) == parent_id:
+                        payload[key] = new_id
+                        if event.get("type") == "session_meta":
+                            payload["forked_from_id"] = parent_id
+                        changed = True
+                target.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8") if changed else raw)
 
         # 记录 fork 父子关系（best-effort；部分版本无此表/状态枚举差异，失败忽略）
         try:
@@ -676,8 +777,17 @@ def fork_codex_session(parent_id: str, name: str, workdir: str | None = None) ->
             )
         except sqlite3.Error:
             pass
+        if hcon is not None:
+            hcon.commit()
         scon.commit()
         return new_id
+    except BaseException:
+        scon.rollback()
+        if hcon is not None:
+            hcon.rollback()
+        if created_rollout is not None:
+            created_rollout.unlink(missing_ok=True)
+        raise
     finally:
         scon.close()
         if hcon is not None:

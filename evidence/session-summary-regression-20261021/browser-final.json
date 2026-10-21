@@ -1,0 +1,544 @@
+{
+  "root": "D:\\project\\pan-worktrees\\session-summary-regression-20261021",
+  "runtime": "D:\\project\\pan-worktrees\\session-summary-regression-20261021\\packages\\web\\test-results\\summary-1792587104559",
+  "port": 58279,
+  "checks": [
+    "newer real HTTP summary wins over cached older MA WS patch",
+    "older real history HTTP response released after newer assistant WS cannot restore MA preview",
+    "Session switch and cold production-page hydration retain durable assistant preview",
+    "real agent Send: paused enqueue excludes body from context, handoff streams, duplicate projection and reconnect do not regress, terminal updates",
+    "real agent Force while running restarts fake CLI, streams replacement, terminal survives switch and cold refresh"
+  ],
+  "events": [
+    {
+      "type": "resync.snapshot"
+    },
+    {
+      "type": "queue.item_delivered",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 1,
+      "historyRevision": 1,
+      "preview": "MA send old input"
+    },
+    {
+      "type": "session.updated",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 1,
+      "historyRevision": 1,
+      "preview": "MA send old input"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "assistant",
+      "revision": 3,
+      "historyRevision": 3,
+      "preview": "Current assistant answer"
+    },
+    {
+      "type": "resync.snapshot"
+    },
+    {
+      "type": "queue.item_added",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 3,
+      "historyRevision": 3,
+      "preview": "Current assistant answer"
+    },
+    {
+      "type": "worker.spawned",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "idle",
+      "generation": 0,
+      "revision": 5,
+      "historyRevision": 3,
+      "preview": "Current assistant answer"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 5,
+      "historyRevision": 3,
+      "preview": "Current assistant answer"
+    },
+    {
+      "type": "queue.item_delivered",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "generation": 0,
+      "revision": 7,
+      "historyRevision": 4,
+      "preview": "probe-one"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 7,
+      "historyRevision": 4,
+      "preview": "probe-one"
+    },
+    {
+      "type": "worker.status",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "running",
+      "taskSeq": 1,
+      "generation": 0,
+      "revision": 8,
+      "historyRevision": 4,
+      "preview": "probe-one"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "system",
+      "taskSeq": 1,
+      "generation": 0,
+      "revision": 9,
+      "historyRevision": 4,
+      "preview": "probe-one"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "assistant",
+      "delta": true,
+      "taskSeq": 1,
+      "generation": 0
+    },
+    {
+      "type": "session.updated",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 9,
+      "historyRevision": 4,
+      "preview": "probe-one"
+    },
+    {
+      "type": "resync.snapshot"
+    },
+    {
+      "type": "queue.item_added",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 14,
+      "historyRevision": 5,
+      "preview": "probe-one answer"
+    },
+    {
+      "type": "worker.status",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "queued",
+      "taskSeq": null,
+      "generation": 0,
+      "revision": 15,
+      "historyRevision": 5,
+      "preview": "probe-one answer"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "assistant",
+      "delta": true,
+      "taskSeq": 2,
+      "generation": 0
+    },
+    {
+      "type": "queue.item_delivered",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "generation": 0,
+      "revision": 17,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 17,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "worker.status",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "running",
+      "taskSeq": 2,
+      "generation": 0,
+      "revision": 18,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "queue.item_added",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 18,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 18,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "worker.restarted",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "idle",
+      "generation": 1,
+      "revision": 21,
+      "historyRevision": 6,
+      "preview": "probe-interrupt"
+    },
+    {
+      "type": "queue.item_delivered",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "generation": 1,
+      "revision": 23,
+      "historyRevision": 7,
+      "preview": "probe-force"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 23,
+      "historyRevision": 7,
+      "preview": "probe-force"
+    },
+    {
+      "type": "worker.status",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "running",
+      "taskSeq": 3,
+      "generation": 1,
+      "revision": 24,
+      "historyRevision": 7,
+      "preview": "probe-force"
+    },
+    {
+      "type": "queue.snapshot",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 25,
+      "historyRevision": 7,
+      "preview": "probe-force"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "system",
+      "taskSeq": 3,
+      "generation": 1,
+      "revision": 25,
+      "historyRevision": 7,
+      "preview": "probe-force"
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "assistant",
+      "delta": true,
+      "taskSeq": 3,
+      "generation": 1
+    },
+    {
+      "type": "worker.stream",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "event": "assistant",
+      "taskSeq": 3,
+      "generation": 1,
+      "revision": 26,
+      "historyRevision": 8,
+      "preview": "probe-force answer"
+    },
+    {
+      "type": "worker.result",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "done",
+      "taskSeq": 3,
+      "generation": 1,
+      "revision": 29,
+      "historyRevision": 8,
+      "preview": "probe-force answer"
+    },
+    {
+      "type": "worker.status",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "status": "idle",
+      "taskSeq": 3,
+      "generation": 1,
+      "revision": 30,
+      "historyRevision": 8,
+      "preview": "probe-force answer"
+    },
+    {
+      "type": "session.updated",
+      "sessionId": "ses_f40cb55f14d9b259",
+      "revision": 31,
+      "historyRevision": 8,
+      "preview": "probe-force answer"
+    },
+    {
+      "type": "resync.snapshot"
+    }
+  ],
+  "errors": [],
+  "bundle": "index-CnYuy3g3-pc2.js",
+  "bundleHasFix": true,
+  "launcherPid": 33520,
+  "newerHttpSummary": {
+    "sessions": [
+      {
+        "id": "ses_4b276bd8433453e7",
+        "name": "Summary A",
+        "adapter": "cbc",
+        "cliSessionId": null,
+        "nativeControl": false,
+        "workerStatus": null,
+        "workerId": null,
+        "workerGeneration": null,
+        "workerTaskId": null,
+        "workerTaskSeq": null,
+        "workerExecutionSeq": null,
+        "lastLegalWorkerState": null,
+        "legalOffline": true,
+        "illegalOffline": false,
+        "legalityDiagnostics": {
+          "migrationUncertainty": null,
+          "coverage": "pan-managed",
+          "revision": 0,
+          "outstanding": []
+        },
+        "unreadDoneCount": 0,
+        "unreadDoneGeneration": 0,
+        "unreadDoneReadGeneration": 0,
+        "unreadTracking": true,
+        "unreadRecordingOverride": null,
+        "updatedAt": "2026-10-21T20:51:45.182028",
+        "summaryRevision": 0,
+        "order": null,
+        "pinned": false,
+        "pinOrder": null,
+        "pinRevision": 0,
+        "workspaceIds": [],
+        "managedBy": null,
+        "readonlySession": false,
+        "reportsToManager": null,
+        "msgBridgeEnabled": false,
+        "agentLevel": 1,
+        "terminalResults": [],
+        "lastUserPreview": "",
+        "lastAssistantPreview": "",
+        "lastDisplayPreview": "",
+        "lastMessage": "",
+        "historyTotal": 0,
+        "historyEpoch": "15ee08358b594a69a70c69192a3809e0",
+        "historyRevision": 0,
+        "totalUsage": null,
+        "managed": [],
+        "mcpServers": [],
+        "pluginBindings": [],
+        "pluginSelectionRevision": 0,
+        "pluginRestart": null,
+        "pluginConfigVersion": 2,
+        "mcpLockReason": null,
+        "model": null,
+        "permissionMode": null,
+        "alwaysThinkingEnabled": false,
+        "effort": "",
+        "modelContextWindow": null,
+        "modelAutoCompactTokenLimit": null,
+        "workdir": "D:\\project\\pan-worktrees\\session-summary-regression-20261021\\packages\\web\\test-results\\summary-1792587104559\\session-workdir",
+        "queuePendingCount": 0,
+        "queueAllLocked": false,
+        "queueRevision": 0,
+        "queuePaused": true
+      },
+      {
+        "id": "ses_f40cb55f14d9b259",
+        "name": "Summary B",
+        "adapter": "cbc",
+        "cliSessionId": null,
+        "nativeControl": false,
+        "workerStatus": null,
+        "workerId": null,
+        "workerGeneration": null,
+        "workerTaskId": null,
+        "workerTaskSeq": null,
+        "workerExecutionSeq": null,
+        "lastLegalWorkerState": null,
+        "legalOffline": true,
+        "illegalOffline": false,
+        "legalityDiagnostics": {
+          "migrationUncertainty": null,
+          "coverage": "pan-managed",
+          "revision": 0,
+          "outstanding": []
+        },
+        "unreadDoneCount": 0,
+        "unreadDoneGeneration": 0,
+        "unreadDoneReadGeneration": 0,
+        "unreadTracking": true,
+        "unreadRecordingOverride": null,
+        "updatedAt": "2026-10-21T20:51:49.355334",
+        "summaryRevision": 2,
+        "order": null,
+        "pinned": false,
+        "pinOrder": null,
+        "pinRevision": 0,
+        "workspaceIds": [],
+        "managedBy": null,
+        "readonlySession": false,
+        "reportsToManager": null,
+        "msgBridgeEnabled": false,
+        "agentLevel": 1,
+        "terminalResults": [],
+        "lastUserPreview": "MA send old input",
+        "lastAssistantPreview": "Current assistant answer",
+        "lastDisplayPreview": "Current assistant answer",
+        "lastMessage": "Current assistant answer",
+        "historyTotal": 2,
+        "historyEpoch": "606635f3c48e4ab681793816701f90bb",
+        "historyRevision": 2,
+        "totalUsage": null,
+        "managed": [],
+        "mcpServers": [],
+        "pluginBindings": [],
+        "pluginSelectionRevision": 0,
+        "pluginRestart": null,
+        "pluginConfigVersion": 2,
+        "mcpLockReason": null,
+        "model": null,
+        "permissionMode": null,
+        "alwaysThinkingEnabled": false,
+        "effort": "",
+        "modelContextWindow": null,
+        "modelAutoCompactTokenLimit": null,
+        "workdir": "D:\\project\\pan-worktrees\\session-summary-regression-20261021\\packages\\web\\test-results\\summary-1792587104559\\session-workdir",
+        "queuePendingCount": 0,
+        "queueAllLocked": false,
+        "queueRevision": 0,
+        "queuePaused": true
+      }
+    ]
+  },
+  "heldHistory": {
+    "history": [
+      {
+        "role": "user",
+        "source": "agent",
+        "content": "MA send old input",
+        "queueItemIds": [
+          "owned-q"
+        ],
+        "messageId": "pan:cf353c5b36e8458c8d612396e444879f",
+        "ts": "2026-10-21T20:51:49.317309"
+      },
+      {
+        "role": "assistant",
+        "content": "Current assistant answer",
+        "messageId": "pan:fc6b8e218783453fb2090ee1e4390aea",
+        "ts": "2026-10-21T20:51:49.355313"
+      }
+    ],
+    "total": 2,
+    "hasMore": false,
+    "start": 0,
+    "historyEpoch": "606635f3c48e4ab681793816701f90bb",
+    "historyRevision": 2
+  },
+  "previewTimelines": [
+    [
+      "Current assistant answer",
+      "probe-one",
+      "probe-one streaming",
+      "probe-one answer",
+      "probe-interrupt streaming",
+      "probe-force",
+      "probe-force streaming",
+      "probe-force answer"
+    ]
+  ],
+  "finalSummary": {
+    "id": "ses_f40cb55f14d9b259",
+    "name": "Summary B",
+    "adapter": "cbc",
+    "cliSessionId": "fake-37420",
+    "nativeControl": false,
+    "workerStatus": "idle",
+    "workerId": "worker-1",
+    "workerGeneration": 1,
+    "workerTaskId": null,
+    "workerTaskSeq": 3,
+    "workerExecutionSeq": 3,
+    "lastLegalWorkerState": null,
+    "legalOffline": true,
+    "illegalOffline": false,
+    "legalityDiagnostics": {
+      "migrationUncertainty": null,
+      "coverage": "pan-managed",
+      "revision": 7,
+      "outstanding": []
+    },
+    "unreadDoneCount": 0,
+    "unreadDoneGeneration": 2,
+    "unreadDoneReadGeneration": 2,
+    "unreadTracking": true,
+    "unreadRecordingOverride": null,
+    "updatedAt": "2026-10-21T20:51:53.979989",
+    "summaryRevision": 31,
+    "order": null,
+    "pinned": false,
+    "pinOrder": null,
+    "pinRevision": 0,
+    "workspaceIds": [],
+    "managedBy": null,
+    "readonlySession": false,
+    "reportsToManager": null,
+    "msgBridgeEnabled": false,
+    "agentLevel": 1,
+    "terminalResults": [
+      {
+        "taskId": null,
+        "taskSeq": 1,
+        "resultCursor": 1,
+        "terminalKey": "seq:1",
+        "status": "done",
+        "historyEpoch": "606635f3c48e4ab681793816701f90bb",
+        "historyRevision": 5
+      },
+      {
+        "taskId": null,
+        "taskSeq": 3,
+        "resultCursor": 2,
+        "terminalKey": "seq:3",
+        "status": "done",
+        "historyEpoch": "606635f3c48e4ab681793816701f90bb",
+        "historyRevision": 8
+      }
+    ],
+    "lastUserPreview": "probe-force",
+    "lastAssistantPreview": "probe-force answer",
+    "lastDisplayPreview": "probe-force answer",
+    "lastMessage": "probe-force answer",
+    "historyTotal": 8,
+    "historyEpoch": "606635f3c48e4ab681793816701f90bb",
+    "historyRevision": 8,
+    "totalUsage": null,
+    "managed": [],
+    "mcpServers": [],
+    "pluginBindings": [],
+    "pluginSelectionRevision": 0,
+    "pluginRestart": null,
+    "pluginConfigVersion": 2,
+    "mcpLockReason": null,
+    "model": null,
+    "permissionMode": null,
+    "alwaysThinkingEnabled": false,
+    "effort": "",
+    "modelContextWindow": null,
+    "modelAutoCompactTokenLimit": null,
+    "workdir": "D:\\project\\pan-worktrees\\session-summary-regression-20261021\\packages\\web\\test-results\\summary-1792587104559\\session-workdir",
+    "queuePendingCount": 0,
+    "queueAllLocked": false,
+    "queueRevision": 11,
+    "queuePaused": false
+  },
+  "portReleased": true
+}

@@ -236,6 +236,8 @@ export interface Session {
   lastMessage?: string;
   /** Monotonic backend summary projection version. */
   summaryRevision?: number;
+  /** Client summary cursor, independent of the loaded transcript window. */
+  summaryHistoryRevision?: number;
   lastUserPreview?: string;
   lastAssistantPreview?: string;
   lastDisplayPreview?: string;
