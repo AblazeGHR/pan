@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="46" time="123.231" timestamp="2026-10-22T03:30:09.425569+08:00" hostname="ablaze"><testcase classname="tests.test_mcp_delayed_restart" name="test_access[None-target-True-agent_restart_delayed]" time="0.041" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[None-target-True-agent_restart_delayed_status]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity1-self-True-agent_restart_delayed]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity1-self-True-agent_restart_delayed_status]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity2-child-True-agent_restart_delayed]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity2-child-True-agent_restart_delayed_status]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity3-other-False-agent_restart_delayed]" time="0.003" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity3-other-False-agent_restart_delayed_status]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity4-other-True-agent_restart_delayed]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_access[identity4-other-True-agent_restart_delayed_status]" time="0.004" /><testcase classname="tests.test_mcp_delayed_restart" name="test_error_receipt[agent_restart_delayed]" time="0.006" /><testcase classname="tests.test_mcp_delayed_restart" name="test_error_receipt[agent_restart_delayed_status]" time="0.005" /><testcase classname="tests.test_mcp_delayed_restart" name="test_real_stdio_http_lifecycle" time="4.997"><failure message="KeyError: 'paused'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3547/test_real_stdio_http_lifecycle0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024F39A904D0&gt;
+
+    def test_real_stdio_http_lifecycle(tmp_path, monkeypatch):
+        import test_real_queue_http_e2e as real
+        from test_delayed_restart_locked_queue_http import _stop_owned
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, 'PORT', port)
+        runtime = real._PanRuntime(tmp_path / 'runtime')
+        runtime.start()
+        try:
+            s = real._create(runtime, 'real-fifo-delayed-mcp')
+            sid = s['id']
+            monkeypatch.setattr(mcp_server, '_pan_api_url', runtime.base_url)
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+            endpoint = f'/api/sessions/{sid}/worker/delayed-restart'
+            assert mcp_server.agent_restart_delayed_status(sid) == {'ok': True, 'delayedRestart': None}
+            assert not mcp_server.agent_restart_delayed(sid)['ok']
+            assert runtime.request('GET', endpoint)['delayedRestart'] is None
+            assert not mcp_server.agent_restart_delayed('missing')['ok']
+            assert not mcp_server.agent_restart_delayed_status('missing')['ok']
+            real._enqueue(runtime, sid, 'hold-A', 'active')
+            first = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-A'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'paused-next', 'paused')
+    
+            # Real MCP stdio subprocess -&gt; real HTTP -&gt; fake CLI, never a model.
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            async def exercise():
+                env = dict(os.environ, PAN_API_URL=runtime.base_url, PAN_AGENT_SESSION_ID=sid)
+                params = StdioServerParameters(command=sys.executable,
+                    args=['-m', 'packages.mcp.server'], env=env, cwd=str(real.ROOT))
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        tools = {t.name: t for t in (await client.list_tools()).tools}
+                        for name in ('agent_restart_delayed', 'agent_restart_delayed_status'):
+                            assert tools[name].inputSchema['required'] == ['session_id']
+                            assert set(tools[name].inputSchema['properties']) == {'session_id'}
+                        async def call(name):
+                            response = await client.call_tool(name, {'session_id': sid})
+                            assert not response.isError
+                            return response.structuredContent or json.loads(response.content[0].text)
+                        accepted = await call('agent_restart_delayed')
+                        assert accepted['ok'] and accepted['delayedRestart']['status'] == 'pending'
+                        assert await call('agent_restart_delayed') == accepted
+                        assert await call('agent_restart_delayed_status') == accepted
+                        return accepted
+            accepted = asyncio.run(exercise())
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            runtime.gates['hold-A'].touch()
+            finished = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' else None))
+            assert finished['replacementGeneration'] &gt; accepted['delayedRestart']['generation']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+&gt;           assert runtime.request('GET', f'/api/sessions/{sid}/queue')['paused'] is True
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'paused'
+
+tests\test_mcp_delayed_restart.py:97: KeyError</failure></testcase><testcase classname="tests.test_mcp_remote_parity" name="test_gateway_has_no_second_tool_registry" time="0.005" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_tools_list_equals_stdio_registry" time="5.174" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_access_requires_valid_jwt" time="9.297" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_send_force_keeps_capability_semantics" time="4.545" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_unknown_result_is_not_retried" time="4.359" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_call_still_runs_managed_access_gate" time="4.516" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_unbound_call_cannot_use_local_session_tools" time="8.638" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_get-fields0]" time="4.584" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_message_get-fields1]" time="4.364" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_history_search-fields2]" time="4.374" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[model_catalog-fields3]" time="4.438" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[report_consume-fields4]" time="4.508" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[action_drafts-fields5]" time="4.446" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[agent_background_start-fields6]" time="4.554" /><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[report_consume-arguments0]" time="4.345" /><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[report_consume-arguments1]" time="4.800" /><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[self_queue_consume-arguments2]" time="5.016" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[aud]" time="4.580" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[iss]" time="4.602" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[exp]" time="4.375" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_get-arguments0]" time="4.616" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_message_get-arguments1]" time="4.884" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_history_search-arguments2]" time="4.766" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[agent_send_force-arguments3]" time="7.052" /><testcase classname="tests.test_steer_restart_priority" name="test_restart_during_running_preparation_blocks_old_handoff[False]" time="0.004" /><testcase classname="tests.test_steer_restart_priority" name="test_restart_during_running_preparation_blocks_old_handoff[True]" time="0.009" /><testcase classname="tests.test_steer_restart_priority" name="test_self_consume_wakeup_keeps_accepted_delayed_intent[False]" time="0.009" /><testcase classname="tests.test_steer_restart_priority" name="test_self_consume_wakeup_keeps_accepted_delayed_intent[True]" time="0.028" /><testcase classname="tests.test_steer_restart_priority" name="test_pause_does_not_block_retirement_wakeup" time="0.004" /><testcase classname="tests.test_steer_restart_priority" name="test_handed_off_task_keeps_terminal_and_cleanup_before_retirement" time="0.006" /><testcase classname="tests.test_steer_restart_priority" name="test_absent_delayed_start_and_automatic_start_share_spawn_lock" time="0.006" /><testcase classname="tests.test_steer_restart_priority" name="test_failed_replacement_keeps_locked_item_and_explicit_retry_starts_once" time="0.013" /><testcase classname="tests.test_steer_restart_priority" name="test_cancel_pending_does_not_retire_running_task_or_unlock_queue" time="0.007" /></testsuite></testsuites>

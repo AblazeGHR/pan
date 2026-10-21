@@ -1,0 +1,15 @@
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+............REAL_MCP_DELAYED {"base": "http://127.0.0.1:59163", "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3551\\test_real_stdio_http_lifecycle0\\runtime", "panPids": [16860, 31216, 40304], "oldProviderPid": 19280, "accepted": {"delayedRestart": {"sessionId": "ses_5375f139f65817da", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "pending", "error": null, "revision": 1}, "ok": true}, "completed": {"sessionId": "ses_5375f139f65817da", "workerId": "worker-1", "generation": 0, "action": "restart", "status": "completed", "error": null, "revision": 3, "replacementWorkerId": "worker-1", "replacementGeneration": 1}, "idleCompleted": {"sessionId": "ses_5375f139f65817da", "workerId": "worker-1", "generation": 1, "action": "restart", "status": "completed", "error": null, "revision": 6, "replacementWorkerId": "worker-1", "replacementGeneration": 2}}
+CLEANUP http://127.0.0.1:59163 owned server stopped; port released
+.................
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

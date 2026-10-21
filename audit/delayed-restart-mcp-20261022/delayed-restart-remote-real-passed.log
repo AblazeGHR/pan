@@ -1,0 +1,28 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0 -- D:\project\Pan-main\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\delayed-restart-mcp-20261022
+configfile: pytest.ini
+plugins: anyio-4.15.1, timeout-2.4.0
+timeout: 60.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 1 item
+
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http REMOTE_DELAYED_REAL_HTTP {"mcp": "http://127.0.0.1:52742/mcp", "api": "http://127.0.0.1:52745", "pids": [44768, 41912, 40784], "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3560\\test_remote_delayed_restart_re0\\remote-delayed-runtime", "status": {"delayedRestart": null, "ok": true}, "rejected": {"error": "No live Worker; delayed restart will not start an offline Session", "ok": false}}
+CLEANUP http://127.0.0.1:52745 owned server stopped; port released
+PASSED
+
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:109: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: D:\project\pan-worktrees\delayed-restart-mcp-20261022\artifacts\delayed-restart-remote-real-passed.xml -
+======================= 1 passed, 3 warnings in 12.69s ========================

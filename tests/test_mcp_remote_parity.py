@@ -296,6 +296,8 @@ def test_remote_unbound_call_cannot_use_local_session_tools(remote_gateway):
     ("session_message_get", {"message_id", "roles", "tool_output"}),
     ("session_history_search", {"query", "cursor", "roles", "tool_output"}),
     ("model_catalog", {"adapter", "session_id"}),
+    ("agent_restart_delayed", {"session_id"}),
+    ("agent_restart_delayed_status", {"session_id"}),
     ("report_consume", {"item_id"}),
     ("action_drafts", {"operation", "kind", "item", "expected_revision"}),
     ("agent_background_start", {"name", "target_session_id", "hide_window"}),
@@ -334,6 +336,8 @@ def test_access_rejects_wrong_claims(remote_gateway, access_key, claim):
 
 
 @pytest.mark.parametrize("name,arguments", [
+    ("agent_restart_delayed", {"session_id": "ses_unmanaged"}),
+    ("agent_restart_delayed_status", {"session_id": "ses_unmanaged"}),
     ("session_get", {"session_id": "ses_unmanaged"}),
     ("session_message_get", {"session_id": "ses_unmanaged", "message_id": "pan:synthetic"}),
     ("session_history_search", {"session_id": "ses_unmanaged", "query": "private"}),
@@ -350,3 +354,30 @@ def test_real_managed_gate_before_backend(monkeypatch, remote_gateway, name, arg
     result = _payload(_mcp_call(url, token, name, arguments))
     assert result["ok"] is False
     assert result["error"]["code"] == "permission_denied"
+
+
+def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path):
+    import test_real_queue_http_e2e as real
+    from test_delayed_restart_locked_queue_http import _stop_owned
+    from types import SimpleNamespace
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    assert port not in {8767, 8768}
+    monkeypatch.setattr(real, 'PORT', port)
+    runtime = real._PanRuntime(tmp_path / 'remote-delayed-runtime')
+    runtime.start()
+    try:
+        monkeypatch.setattr('packages.mcp.server._pan_api_url', runtime.base_url)
+        session = real._create(runtime, 'remote-delayed-offline')
+        sid = session['id']
+        url, token = remote_gateway
+        status = _payload(_mcp_call(url, token, 'agent_restart_delayed_status', {'session_id': sid}))
+        assert status == {'ok': True, 'delayedRestart': None}
+        rejected = _payload(_mcp_call(url, token, 'agent_restart_delayed', {'session_id': sid}))
+        assert rejected['ok'] is False and 'No live Worker' in rejected['error']
+        assert runtime.request('GET', f'/api/sessions/{sid}/worker/delayed-restart')['delayedRestart'] is None
+        assert not [row for row in runtime.fake_records() if row.get('cwd') == session['workdir']]
+        print('REMOTE_DELAYED_REAL_HTTP ' + json.dumps({'mcp': url, 'api': runtime.base_url, 'pids': runtime.pan_pids, 'dataRoot': str(runtime.data_root), 'status': status, 'rejected': rejected}))
+    finally:
+        _stop_owned(runtime, SimpleNamespace(stop=lambda: None), locals().get('sid'))

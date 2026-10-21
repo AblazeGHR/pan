@@ -1,0 +1,17 @@
+﻿[2026-10-22 03:28:47][INFO] === prepare_validation_env.ps1 ===
+[2026-10-22 03:28:48][INFO] Mode: Check
+[2026-10-22 03:28:48][INFO] Worktree: D:/project/pan-worktrees/delayed-restart-mcp-20261022
+[2026-10-22 03:28:48][OK] Canonical Python: D:\project\Pan-main\.venv\Scripts\python.exe
+[2026-10-22 03:28:48][INFO]   Python 3.14.5
+[2026-10-22 03:28:48][OK]   [OK] import dotenv
+[2026-10-22 03:28:48][OK]   [OK] import mcp
+[2026-10-22 03:28:48][OK]   [OK] import pytest
+[2026-10-22 03:28:49][OK]   [OK] import fastapi
+[2026-10-22 03:28:49][OK]   [OK] import httpx
+[2026-10-22 03:28:49][OK]   [OK] import pydantic
+[2026-10-22 03:28:49][INFO] Python repair skipped (default/check mode is read-only).
+[2026-10-22 03:28:49][OK] Playwright package present in canonical venv.
+[2026-10-22 03:28:49][INFO] Browser binaries and launch are not checked by this script; run a browser smoke check before claiming E2E capability.
+[2026-10-22 03:28:49][OK] Canonical node_modules target verified (directory): D:\project\Pan-main\packages\web\node_modules
+[2026-10-22 03:28:49][INFO] [dry-run/check] would create junction: D:\project\pan-worktrees\delayed-restart-mcp-20261022\packages\web\node_modules -> D:\project\Pan-main\packages\web\node_modules
+[2026-10-22 03:28:49][INFO] Exit code: 0

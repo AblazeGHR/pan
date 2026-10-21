@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="14.377" timestamp="2026-10-22T03:33:39.670465+08:00" hostname="ablaze"><testcase classname="tests.test_mcp_remote_parity" name="test_remote_delayed_restart_real_http" time="13.376"><failure message="AssertionError: assert not [{'kind': 'init', 'pid': 41152, 'cwd': 'D:\\project\\pan-worktrees\\delayed-restart-mcp-20261022', 'at': 1792611221.7761528, ...}]&#10; +  where [{'kind': 'init', 'pid': 41152, 'cwd': 'D:\\project\\pan-worktrees\\delayed-restart-mcp-20261022', 'at': 1792611221.7761528, ...}] = fake_records()&#10; +    where fake_records = &lt;test_real_queue_http_e2e._PanRuntime object at 0x00000145DF7382F0&gt;.fake_records">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000145DF057230&gt;
+remote_gateway = ('http://127.0.0.1:53006/mcp', 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3RlYW0uY2xvdWRmbGFyZWFjY2Vzc..._XgJDSZeoc2-fRx-vDhLNcLDZnvCV3KVOJ7EalnWctphCNL_6w9T1_h-_uVDaydOl7wl4kVoaKC1CTsl5F8HZON1IgG44KWF37xZlLuiwVickVW2hURmg')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3558/test_remote_delayed_restart_re0')
+
+    def test_remote_delayed_restart_real_http(monkeypatch, remote_gateway, tmp_path):
+        import test_real_queue_http_e2e as real
+        from test_delayed_restart_locked_queue_http import _stop_owned
+        from types import SimpleNamespace
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, 'PORT', port)
+        runtime = real._PanRuntime(tmp_path / 'remote-delayed-runtime')
+        runtime.start()
+        try:
+            monkeypatch.setattr('packages.mcp.server._pan_api_url', runtime.base_url)
+            sid = real._create(runtime, 'remote-delayed-offline')['id']
+            url, token = remote_gateway
+            status = _payload(_mcp_call(url, token, 'agent_restart_delayed_status', {'session_id': sid}))
+            assert status == {'ok': True, 'delayedRestart': None}
+            rejected = _payload(_mcp_call(url, token, 'agent_restart_delayed', {'session_id': sid}))
+            assert rejected['ok'] is False and 'No live Worker' in rejected['error']
+            assert runtime.request('GET', f'/api/sessions/{sid}/worker/delayed-restart')['delayedRestart'] is None
+&gt;           assert not runtime.fake_records()
+E           AssertionError: assert not [{'kind': 'init', 'pid': 41152, 'cwd': 'D:\\project\\pan-worktrees\\delayed-restart-mcp-20261022', 'at': 1792611221.7761528, ...}]
+E            +  where [{'kind': 'init', 'pid': 41152, 'cwd': 'D:\\project\\pan-worktrees\\delayed-restart-mcp-20261022', 'at': 1792611221.7761528, ...}] = fake_records()
+E            +    where fake_records = &lt;test_real_queue_http_e2e._PanRuntime object at 0x00000145DF7382F0&gt;.fake_records
+
+tests\test_mcp_remote_parity.py:379: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,115 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0 -- D:\project\Pan-main\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\project\pan-worktrees\delayed-restart-mcp-20261022
+configfile: pytest.ini
+plugins: anyio-4.15.1, timeout-2.4.0
+timeout: 45.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 20 items
+
+tests/test_mcp_delayed_restart.py::test_access[None-target-True-agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_access[None-target-True-agent_restart_delayed_status] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity1-self-True-agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity1-self-True-agent_restart_delayed_status] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity2-child-True-agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity2-child-True-agent_restart_delayed_status] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity3-other-False-agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity3-other-False-agent_restart_delayed_status] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity4-other-True-agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_access[identity4-other-True-agent_restart_delayed_status] PASSED
+tests/test_mcp_delayed_restart.py::test_error_receipt[agent_restart_delayed] PASSED
+tests/test_mcp_delayed_restart.py::test_error_receipt[agent_restart_delayed_status] PASSED
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+tests/test_mcp_delayed_restart.py::test_real_stdio_http_lifecycle CLEANUP http://127.0.0.1:51837 owned server stopped; port released
+FAILED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[offline] PASSED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[illegal] PASSED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[held] PASSED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[error] PASSED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[missing] PASSED
+tests/test_mcp_delayed_restart.py::test_http_existing_worker_gates[shutdown] PASSED
+tests/test_mcp_delayed_restart.py::test_original_http_offline_contract_preserved PASSED
+
+================================== FAILURES ===================================
+_______________________ test_real_stdio_http_lifecycle ________________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3549/test_real_stdio_http_lifecycle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000261BB3D8F50>
+
+    def test_real_stdio_http_lifecycle(tmp_path, monkeypatch):
+        import test_real_queue_http_e2e as real
+        from test_delayed_restart_locked_queue_http import _stop_owned
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, 'PORT', port)
+        runtime = real._PanRuntime(tmp_path / 'runtime')
+        runtime.start()
+        try:
+            s = real._create(runtime, 'real-fifo-delayed-mcp')
+            sid = s['id']
+            monkeypatch.setattr(mcp_server, '_pan_api_url', runtime.base_url)
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+            endpoint = f'/api/sessions/{sid}/worker/delayed-restart'
+            assert mcp_server.agent_restart_delayed_status(sid) == {'ok': True, 'delayedRestart': None}
+            assert not mcp_server.agent_restart_delayed(sid)['ok']
+            assert runtime.request('GET', endpoint)['delayedRestart'] is None
+            assert not mcp_server.agent_restart_delayed('missing')['ok']
+            assert not mcp_server.agent_restart_delayed_status('missing')['ok']
+            real._enqueue(runtime, sid, 'hold-A', 'active')
+            first = real._wait_for(lambda: real._received(runtime, cwd=s['workdir'], text='hold-A'))[0]
+            runtime.request('PATCH', f'/api/sessions/{sid}/queue/paused', json={'paused': True})
+            real._enqueue(runtime, sid, 'paused-next', 'paused')
+    
+            # Real MCP stdio subprocess -> real HTTP -> fake CLI, never a model.
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            async def exercise():
+                env = dict(os.environ, PAN_API_URL=runtime.base_url, PAN_AGENT_SESSION_ID=sid)
+                params = StdioServerParameters(command=sys.executable,
+                    args=['-m', 'packages.mcp.server'], env=env, cwd=str(real.ROOT))
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        tools = {t.name: t for t in (await client.list_tools()).tools}
+                        for name in ('agent_restart_delayed', 'agent_restart_delayed_status'):
+                            assert tools[name].inputSchema['required'] == ['session_id']
+                            assert set(tools[name].inputSchema['properties']) == {'session_id'}
+                        async def call(name):
+                            response = await client.call_tool(name, {'session_id': sid})
+                            assert not response.isError
+                            return response.structuredContent or json.loads(response.content[0].text)
+                        accepted = await call('agent_restart_delayed')
+                        assert accepted['ok'] and accepted['delayedRestart']['status'] == 'pending'
+                        assert await call('agent_restart_delayed') == accepted
+                        assert await call('agent_restart_delayed_status') == accepted
+                        return accepted
+            accepted = asyncio.run(exercise())
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+            runtime.gates['hold-A'].touch()
+            finished = real._wait_for(lambda: (state if (state := runtime.request('GET', endpoint)['delayedRestart'])['status'] == 'completed' else None))
+            assert finished['replacementGeneration'] > accepted['delayedRestart']['generation']
+            assert len(real._received(runtime, cwd=s['workdir'])) == 1
+>           assert runtime.request('GET', f'/api/sessions/{sid}/queue')['paused'] is True
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'paused'
+
+tests\test_mcp_delayed_restart.py:97: KeyError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: D:\project\pan-worktrees\delayed-restart-mcp-20261022\artifacts\delayed-restart-mcp.xml -
+=========================== short test summary info ===========================
+FAILED tests/test_mcp_delayed_restart.py::test_real_stdio_http_lifecycle - Ke...
+=================== 1 failed, 19 passed, 1 warning in 4.28s ===================
