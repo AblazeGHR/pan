@@ -52,7 +52,7 @@ def test_real_http_plugin_lifecycle_and_restart(tmp_path, monkeypatch):
         response = runtime.request('PATCH', f"/api/sessions/{owner['id']}", json={'pluginBindings': bindings('producer')})
         assert 'error' not in response, response
         capture()
-        assert any(d['type'] == 'producer.ping' and d['available'] for d in view()['definitions']), view()
+        harness._wait_for(lambda: any(d['type'] == 'producer.ping' and d['available'] for d in view()['definitions']), label='asynchronous plugin ready')
         publish(runtime.data_root, type='producer.ping', payload={'value': 1}, event_id='http-event')
         def succeeded():
             state = view()
@@ -70,14 +70,14 @@ def test_real_http_plugin_lifecycle_and_restart(tmp_path, monkeypatch):
         assert view()['dependencies']['t']['unavailable'] == ['producer.ping']
         assert view()['triggers']['t']['enabled']
         runtime.request('PATCH', f"/api/sessions/{owner['id']}", json={'pluginBindings': bindings('producer')})
-        assert [r for r in records(runtime.data_root, 'producer') if r['kind'] == 'ready'][-1]['generation'] != generation
+        harness._wait_for(lambda: [r for r in records(runtime.data_root, 'producer') if r['kind'] == 'ready'][-1]['generation'] != generation, label='new peer ready')
         # Persisted Session bindings restore peers at web startup, without tool use.
         capture()
         runtime.stop()
         harness._wait_for(stopped, label='owned server and Node subtree retirement')
         runtime.start()
         capture()
-        assert next(d for d in view()['definitions'] if d['type'] == 'producer.ping')['available']
+        harness._wait_for(lambda: any(d['type'] == 'producer.ping' and d['available'] for d in view()['definitions']), label='restored peer ready')
         assert len(view()['runs']) == 1
         publish(runtime.data_root, type='producer.ping', payload={'value': 2}, event_id='after-server-restart')
         harness._wait_for(lambda: len([r for r in view()['runs'].values() if r['status'] == 'succeeded']) == 2, label='restart event Action')

@@ -61,10 +61,43 @@ class EventConnection:
         self.write_lock = asyncio.Lock()
         self.closed = False
         self.ready = False
+        self.stderr = None
+        self.startup = None
+        self.cleanup = None
+        self.revocation = None
+        self.failed = False
+
+    def invalidate(self):
+        """Loop-local terminal fence, before scheduling any asynchronous teardown."""
+        self.closed, self.ready = True, False
+        if self.startup and self.startup is not asyncio.current_task():
+            self.startup.cancel()
+
+    def retire(self, failed=False):
+        self.failed = self.failed or failed
+        self.invalidate()
+        if self.cleanup is None:
+            self.cleanup = asyncio.create_task(self._close(), name=f'events-cleanup-{self.plugin.id}')
+            self.manager.cleanups.add(self.cleanup)
+            self.cleanup.add_done_callback(self.manager.cleanup_done)
+
+    async def revoke(self):
+        # This hook only removes Bus ownership and cancels our own subscriber;
+        # it never waits for a provider handshake, process or stderr stream.
+        handle, self.handle = self.handle, None
+        if handle is not None:
+            self.revocation = asyncio.create_task(self.manager.service.plugin_disabled(handle))
+        if self.revocation:
+            await asyncio.shield(self.revocation)
+
+    async def check_start(self):
+        if not await self.manager.eligible(self):
+            raise ValueError('Plugin binding changed during Event startup')
 
     async def start(self):
         root = self.manager.root
         data = await io(plugin_data_dir, root, self.plugin.id, self.plugin.data_version)
+        await self.check_start()
         entry = provider_entry(self.catalog.servers[self.plugin.events['provider']['command_ref']],
                                type('Owner', (), {'id': '', 'name': self.plugin.display_name})())
         argv = [entry['command'], *entry.get('args', [])]
@@ -77,10 +110,18 @@ class EventConnection:
         env['PYTHONPATH'] = str(Path(__file__).resolve().parents[2]) + (
             os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
         env.pop('PAN_AGENT_SESSION_ID', None)
-        self.process = await asyncio.create_subprocess_exec(
+        spawn = asyncio.create_task(asyncio.create_subprocess_exec(
             *argv, cwd=entry.get('cwd'), env=env, stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            limit=MAX_FRAME, **(command_window_options() if windows else {'start_new_session': True}))
+            limit=MAX_FRAME, **(command_window_options() if windows else {'start_new_session': True})))
+        # Cancellation may intersect OS process creation. Retain the resulting
+        # handle before propagating it, so cleanup always owns the entire tree.
+        try:
+            self.process = await asyncio.shield(spawn)
+        except asyncio.CancelledError:
+            self.process = await spawn
+            raise
+        await self.check_start()
         self.reader = asyncio.create_task(self.read(), name=f'events-{self.plugin.id}')
         self.stderr = asyncio.create_task(self.drain_stderr())
         initialized = await self.request('provider.initialize', {'protocol_version': 'pan-capability/v1',
@@ -92,18 +133,24 @@ class EventConnection:
             'definitions': self.plugin.events['definitions'], 'subscriptions': self.plugin.events['subscriptions']})
         if reply != {'ready': True}:
             raise ValueError('Event provider not ready')
-        if self.reader.done() or not await self.manager.eligible(self):
+        if self.reader.done():
             raise ValueError('Plugin binding changed during Event startup')
+        await self.check_start()
         self.handle = await self.manager.service.plugin_enabled(self.plugin.id)
+        if self.closed or self.manager.stopping:
+            await self.revoke()
+            raise ValueError('Event runtime stopped during activation')
         for definition in self.plugin.events['definitions']:
             self.manager.service.bus.register(self.handle, definition['type'], definition['schema'], definition['schemaVersion'])
             # Presentation metadata; eligibility and schema ownership remain Bus authority.
             self.manager.service.bus.definitions[definition['type']]['description'] = definition['description']
         if self.plugin.events['subscriptions']:
             self.manager.service.bus.subscribe(self.handle, 'plugin.' + self.plugin.id, self.deliver)
-        self.ready = True
         await self.manager.service.plugin_ready()
+        await self.check_start()
+        self.ready = True
         await self.request('events.ready', {'generation': self.generation})
+        await self.check_start()
 
     async def drain_stderr(self):
         while chunk := await self.process.stderr.read(2048):
@@ -174,13 +221,10 @@ class EventConnection:
         except Exception as exc:
             self.manager.diagnostic(self.plugin.id, str(exc))
         finally:
-            self.ready = False
             for future in self.pending.values():
                 if not future.done():
                     future.set_exception(RuntimeError('Event connection disconnected'))
-            if self.handle is not None:
-                await self.manager.service.plugin_disabled(self.handle)
-                self.handle = None
+            self.retire(failed=not self.closed)
 
     async def deliver(self, event):
         if event['type'] not in self.plugin.events['subscriptions']:
@@ -193,19 +237,31 @@ class EventConnection:
         except Exception as exc:
             self.manager.diagnostic(self.plugin.id, 'delivery: ' + (str(exc) or type(exc).__name__))
             # A stalled consumer loses its connection; other subscribers continue.
-            self.ready = False
-            if self.reader:
-                self.reader.cancel()
+            self.retire(failed=True)
             raise
 
     async def close(self):
-        self.closed, self.ready = True, False
-        if self.reader:
-            self.reader.cancel()
-            await asyncio.gather(self.reader, return_exceptions=True)
-        if self.handle is not None:
-            await self.manager.service.plugin_disabled(self.handle)
-            self.handle = None
+        self.retire()
+        await asyncio.shield(self.cleanup)
+
+    async def _close(self):
+        self.kill()
+        await self.revoke()
+        if self.startup:
+            await asyncio.gather(self.startup, return_exceptions=True)
+        # Kill first, before joining any pipe/reader tasks. In particular a
+        # malformed stdout stream must not leave an idle child holding stderr.
+        self.kill()  # A cancelled spawn may only now have yielded its handle.
+        await self.revoke()
+        tasks = [t for t in (self.reader, self.stderr) if t]
+        for task in tasks:
+            task.cancel()
+        async with asyncio.timeout(TIMEOUT):
+            if self.process:
+                await self.process.wait()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def kill(self):
         if self.process:
             if os.name == 'nt':
                 if self.process.returncode is None:
@@ -215,22 +271,29 @@ class EventConnection:
                     os.killpg(self.process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            await asyncio.wait_for(self.process.wait(), TIMEOUT)
-            await asyncio.gather(self.stderr, return_exceptions=True)
 
 
 class EventRuntime:
-    """Service-owned union of the existing enabled Session bindings; no new enable flag."""
+    """Short loop-local coordination; external work has one independent owner per plugin."""
     def __init__(self, service, get_manifest, get_sessions, root):
         self.service, self.get_manifest, self.get_sessions, self.root = service, get_manifest, get_sessions, root
         self.connections = {}
-        self.lock = asyncio.Lock()
+        self.targets = {}
+        self.runners = {}
+        self.cleanups = set()
+        self.sequence = 0
+        self.applied = 0
         self.task = None
         self.stopping = False
 
     def diagnostic(self, pid, message):
         from packages.automation.events import now
         self.service.bus.diagnostics.append({'plugin': pid, 'error': message[:1000], 'at': now()})
+
+    def cleanup_done(self, task):
+        self.cleanups.discard(task)
+        if not task.cancelled() and (exc := task.exception()) is not None:
+            self.diagnostic('runtime', 'cleanup: ' + str(exc))
 
     def desired(self):
         catalog = Catalog(self.get_manifest())
@@ -242,44 +305,105 @@ class EventRuntime:
                     members.setdefault(pid, {})[session.id] = session.adapter_config.get('plugin_selection_revision', 0)
         return catalog, members
 
+    @staticmethod
+    def revision(plugin, catalog):
+        return digest([plugin.events, catalog.servers[plugin.events['provider']['command_ref']], plugin.data_version])
+
+    def current(self, connection):
+        return not self.stopping and not connection.closed and self.connections.get(connection.plugin.id) is connection
+
     async def eligible(self, connection):
-        if self.stopping or self.connections.get(connection.plugin.id) is not connection:
+        if not self.current(connection):
             return False
         catalog, members = await io(self.desired)
+        if not self.current(connection):
+            return False
         pid = connection.plugin.id
-        plugin = catalog.get(pid)
-        revision = digest([plugin.events, catalog.servers[plugin.events['provider']['command_ref']], plugin.data_version]) if plugin.events else None
-        # Keep a connection only while at least one original member still owns it.
+        plugin = catalog.plugins.get(pid)
+        revision = self.revision(plugin, catalog) if plugin and plugin.events else None
         return revision == connection.revision and any(
             sid in members.get(pid, {}) and members[pid][sid] == rev for sid, rev in connection.members.items())
 
     async def reconcile(self):
-        async with self.lock:
-            if self.stopping:
-                return
-            catalog, members = await io(self.desired)
-            for pid, connection in list(self.connections.items()):
-                if not connection.ready or not await self.eligible(connection):
-                    del self.connections[pid]
-                    await connection.close()
-            for pid, owners in members.items():
-                if pid in self.connections:
-                    self.connections[pid].members = owners
+        if self.stopping:
+            return
+        self.sequence += 1
+        ticket = self.sequence
+        catalog, members = await io(self.desired)
+        # A stale filesystem snapshot cannot overtake a newer reconciliation or
+        # reopen a runtime which closed while its off-loop read was in flight.
+        if self.stopping or ticket < self.applied:
+            return
+        self.applied = ticket
+        self.targets = {pid: (catalog.get(pid), catalog, owners, self.revision(catalog.get(pid), catalog))
+                        for pid, owners in members.items()}
+        revoke = []
+        for pid, c in list(self.connections.items()):
+            target = self.targets.get(pid)
+            shared = target and any(sid in target[2] and target[2][sid] == rev for sid, rev in c.members.items())
+            if c.closed or not target or target[3] != c.revision or not shared:
+                c.invalidate()  # immediate publish/deliver fence, no await
+                revoke.append(c)
+            else:
+                c.members = target[2]
+        for pid in self.targets.keys() | self.connections.keys():
+            if pid not in self.runners:
+                self.runners[pid] = asyncio.create_task(self.drive(pid), name=f'events-lifecycle-{pid}')
+        # Complete trusted Bus revocation before returning a binding mutation.
+        # Subscriber cancellation is local; all external start/close waits live
+        # solely in per-plugin drive/cleanup tasks, never in this request path.
+        await asyncio.gather(*(c.revoke() for c in revoke))
+
+    async def drive(self, pid):
+        try:
+            while True:
+                c = self.connections.get(pid)
+                target = self.targets.get(pid) if not self.stopping else None
+                if c and (c.closed or not target):
+                    await c.close()
+                    if self.connections.get(pid) is c:
+                        del self.connections[pid]
                     continue
-                plugin = catalog.get(pid)
-                revision = digest([plugin.events, catalog.servers[plugin.events['provider']['command_ref']], plugin.data_version])
-                connection = EventConnection(self, plugin, catalog, owners, revision)
-                self.connections[pid] = connection
+                if not target or self.stopping:
+                    return
+                if c is not None:
+                    return
+                plugin, catalog, members, revision = target
+                c = EventConnection(self, plugin, catalog, members, revision)
+                self.connections[pid] = c
+                c.startup = asyncio.create_task(c.start(), name=f'events-start-{pid}')
                 try:
-                    await connection.start()
+                    await c.startup
+                except asyncio.CancelledError:
+                    # Only this connection's startup is cancelled, not the
+                    # lifecycle owner. Finish its cleanup before any replacement.
+                    c.invalidate()
+                    if c.failed:
+                        await c.close()
+                        if self.connections.get(pid) is c:
+                            del self.connections[pid]
+                        return  # failed handshake/EOF waits for the watcher
                 except Exception as exc:
-                    self.diagnostic(pid, 'startup: ' + str(exc))
-                    del self.connections[pid]
-                    await connection.close()
+                    self.diagnostic(pid, 'startup: ' + (str(exc) or type(exc).__name__))
+                    c.invalidate()
+                    await c.close()
+                    if self.connections.get(pid) is c:
+                        del self.connections[pid]
+                    return  # retry only on a later real reconciliation
+                # Re-read coalesced intent after every external await.
+        except Exception as exc:
+            self.diagnostic(pid, 'lifecycle: ' + (str(exc) or type(exc).__name__))
+        finally:
+            self.runners.pop(pid, None)
+
+    async def settle(self):
+        """Explicit observer for tests/admin callers; request paths never join peers."""
+        await asyncio.gather(*tuple(self.runners.values()))
 
     async def start(self):
         await self.reconcile()
-        self.task = asyncio.create_task(self.watch(), name='pan-plugin-events')
+        if not self.stopping:
+            self.task = asyncio.create_task(self.watch(), name='pan-plugin-events')
 
     async def watch(self):
         while True:
@@ -290,10 +414,19 @@ class EventRuntime:
                 self.diagnostic('runtime', str(exc))
 
     async def close(self):
+        # The terminal latch and all connection fences are set before any await.
         self.stopping = True
+        self.targets = {}
+        connections = tuple(self.connections.values())
+        for c in connections:
+            c.retire()
         if self.task:
             self.task.cancel()
+        await asyncio.gather(*(c.revoke() for c in connections))
+        if self.task:
             await asyncio.gather(self.task, return_exceptions=True)
-        async with self.lock:
-            await asyncio.gather(*(c.close() for c in self.connections.values()))
-            self.connections.clear()
+        await asyncio.gather(*tuple(self.runners.values()))
+        await asyncio.gather(*(c.close() for c in connections))
+        if self.cleanups:
+            await asyncio.gather(*tuple(self.cleanups))
+        self.connections.clear()

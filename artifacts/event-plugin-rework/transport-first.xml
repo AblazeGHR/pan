@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="23" time="12.312" timestamp="2026-10-22T03:25:47.390359+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_event_lifecycle" name="test_hung_start_does_not_block_other_lifecycles_or_http[register]" time="0.047" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_hung_start_does_not_block_other_lifecycles_or_http[revoke]" time="0.054" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_hung_start_does_not_block_other_lifecycles_or_http[session_write]" time="0.222" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_hung_peer_close_does_not_block_other_peer_close" time="0.070" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_fences_inflight_reconcile_snapshot" time="0.063" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_failed_reader_retires_real_process_without_watcher" time="0.276" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_intersects_real_start_without_ready_or_process_leak[spawn]" time="0.073" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_intersects_real_start_without_ready_or_process_leak[provider.initialize]" time="0.076" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_intersects_real_start_without_ready_or_process_leak[events.initialize]" time="0.235" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_intersects_real_start_without_ready_or_process_leak[plugin_ready]" time="0.252" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_close_intersects_real_start_without_ready_or_process_leak[events.ready]" time="0.236" /><testcase classname="tests.test_plugin_event_lifecycle" name="test_real_hung_node_handshake_allows_other_registration_and_revocation" time="0.215" /><testcase classname="tests.test_plugin_events" name="test_catalog_event_contract_and_legacy" time="0.005" /><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[standalone]" time="0.225"><failure message="AssertionError: assert 2 == 3&#10; +  where 2 = len({'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB2F0&gt;, 'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB200&gt;})&#10; +    where {'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB2F0&gt;, 'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB200&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A4866D0&gt;.connections">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3543/test_real_external_fanout_acti0')
+mode = 'standalone'
+
+    @pytest.mark.parametrize('mode', ['standalone', 'pan_native', 'gateway'])
+    def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                        'b': session('b', ['producer'], mode)}
+            svc, manager, calls = await setup(tmp_path, sessions, manifest())
+            owned = []
+            try:
+                await manager.start()
+                await manager.settle()
+                assert len(manager.connections) == 3
+                assert all(c.ready for c in manager.connections.values()), list(svc.bus.diagnostics)
+                for c in manager.connections.values():
+                    owned.extend((p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)])
+                old = manager.connections['producer']
+                assert set(old.members) == {'a', 'b'}
+                # No directory/list/tool request was made: events are already alive.
+                publish(tmp_path, type='producer.ping', payload={'value': 7}, event_id='owned-event')
+                await until(lambda: calls == ['selected'])
+                await until(lambda: all(any(r['kind'] == 'delivery' and r['event']['id'] == 'owned-event' for r in records(tmp_path, pid)) for pid in ('observer', 'other')))
+                row = next(iter(svc.ledger.read()['runs'].values()))
+                await until(lambda: svc.ledger.read()['runs'][row['id']]['status'] == 'succeeded')
+                assert row['event']['source'] == {'type': 'plugin', 'id': 'producer'}
+                assert svc.bus.definitions['producer.ping']['description'] == 'Owned external fact'
+                sessions['a'].adapter_config['plugin_bindings'] = []
+                sessions['a'].adapter_config['plugin_selection_revision'] = 1
+                await manager.reconcile()
+                await manager.settle()
+                assert manager.connections['producer'] is old and old.ready
+                assert 'observer' not in manager.connections
+                sessions['b'].adapter_config['plugin_bindings'] = []
+                sessions['b'].adapter_config['plugin_selection_revision'] = 1
+                # Check at admission even before the watch/reconciliation fires.
+                assert not await manager.eligible(old)
+                await manager.reconcile()
+                await manager.settle()
+                assert not svc.bus.available('producer.ping') and not manager.connections
+                with pytest.raises(ValueError):
+                    svc.bus.publish(old.handle, 'producer.ping', {'value': 8})
+                sessions['b'] = session('b', ['producer'], mode)
+                sessions['b'].adapter_config['plugin_selection_revision'] = 2
+                await manager.reconcile()
+                await manager.settle()
+                new = manager.connections['producer']
+                assert new.ready and new.generation != old.generation
+                assert svc.ledger.read()['triggers']['t']['enabled']
+                publish(tmp_path, type='producer.ping', payload={'value': 8}, event_id='after-enable')
+                await until(lambda: len(calls) == 2)
+                evidence = {'mode': mode, 'runs': svc.ledger.read()['runs'], 'oldGeneration': old.generation,
+                            'newGeneration': new.generation, 'records': {pid: records(tmp_path, pid) for pid in ('producer', 'observer', 'other')}}
+                out = Path('artifacts/event-plugin-adapter')
+                out.mkdir(parents=True, exist_ok=True)
+                (out / f'{mode}-transport.json').write_text(json.dumps(evidence, indent=2))
+            finally:
+                await manager.close()
+                await svc.close()
+                assert not manager.connections and not svc.bus.handles and not svc.engine.tasks
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+&gt;       asyncio.run(run())
+
+tests\test_plugin_events.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                    'b': session('b', ['producer'], mode)}
+        svc, manager, calls = await setup(tmp_path, sessions, manifest())
+        owned = []
+        try:
+            await manager.start()
+            await manager.settle()
+&gt;           assert len(manager.connections) == 3
+E           AssertionError: assert 2 == 3
+E            +  where 2 = len({'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB2F0&gt;, 'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB200&gt;})
+E            +    where {'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB2F0&gt;, 'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8CECB200&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A4866D0&gt;.connections
+
+tests\test_plugin_events.py:107: AssertionError</failure></testcase><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[pan_native]" time="0.228"><failure message="AssertionError: assert 1 == 3&#10; +  where 1 = len({'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8D5BB2F0&gt;})&#10; +    where {'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8D5BB2F0&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A486970&gt;.connections">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3543/test_real_external_fanout_acti1')
+mode = 'pan_native'
+
+    @pytest.mark.parametrize('mode', ['standalone', 'pan_native', 'gateway'])
+    def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                        'b': session('b', ['producer'], mode)}
+            svc, manager, calls = await setup(tmp_path, sessions, manifest())
+            owned = []
+            try:
+                await manager.start()
+                await manager.settle()
+                assert len(manager.connections) == 3
+                assert all(c.ready for c in manager.connections.values()), list(svc.bus.diagnostics)
+                for c in manager.connections.values():
+                    owned.extend((p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)])
+                old = manager.connections['producer']
+                assert set(old.members) == {'a', 'b'}
+                # No directory/list/tool request was made: events are already alive.
+                publish(tmp_path, type='producer.ping', payload={'value': 7}, event_id='owned-event')
+                await until(lambda: calls == ['selected'])
+                await until(lambda: all(any(r['kind'] == 'delivery' and r['event']['id'] == 'owned-event' for r in records(tmp_path, pid)) for pid in ('observer', 'other')))
+                row = next(iter(svc.ledger.read()['runs'].values()))
+                await until(lambda: svc.ledger.read()['runs'][row['id']]['status'] == 'succeeded')
+                assert row['event']['source'] == {'type': 'plugin', 'id': 'producer'}
+                assert svc.bus.definitions['producer.ping']['description'] == 'Owned external fact'
+                sessions['a'].adapter_config['plugin_bindings'] = []
+                sessions['a'].adapter_config['plugin_selection_revision'] = 1
+                await manager.reconcile()
+                await manager.settle()
+                assert manager.connections['producer'] is old and old.ready
+                assert 'observer' not in manager.connections
+                sessions['b'].adapter_config['plugin_bindings'] = []
+                sessions['b'].adapter_config['plugin_selection_revision'] = 1
+                # Check at admission even before the watch/reconciliation fires.
+                assert not await manager.eligible(old)
+                await manager.reconcile()
+                await manager.settle()
+                assert not svc.bus.available('producer.ping') and not manager.connections
+                with pytest.raises(ValueError):
+                    svc.bus.publish(old.handle, 'producer.ping', {'value': 8})
+                sessions['b'] = session('b', ['producer'], mode)
+                sessions['b'].adapter_config['plugin_selection_revision'] = 2
+                await manager.reconcile()
+                await manager.settle()
+                new = manager.connections['producer']
+                assert new.ready and new.generation != old.generation
+                assert svc.ledger.read()['triggers']['t']['enabled']
+                publish(tmp_path, type='producer.ping', payload={'value': 8}, event_id='after-enable')
+                await until(lambda: len(calls) == 2)
+                evidence = {'mode': mode, 'runs': svc.ledger.read()['runs'], 'oldGeneration': old.generation,
+                            'newGeneration': new.generation, 'records': {pid: records(tmp_path, pid) for pid in ('producer', 'observer', 'other')}}
+                out = Path('artifacts/event-plugin-adapter')
+                out.mkdir(parents=True, exist_ok=True)
+                (out / f'{mode}-transport.json').write_text(json.dumps(evidence, indent=2))
+            finally:
+                await manager.close()
+                await svc.close()
+                assert not manager.connections and not svc.bus.handles and not svc.engine.tasks
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+&gt;       asyncio.run(run())
+
+tests\test_plugin_events.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                    'b': session('b', ['producer'], mode)}
+        svc, manager, calls = await setup(tmp_path, sessions, manifest())
+        owned = []
+        try:
+            await manager.start()
+            await manager.settle()
+&gt;           assert len(manager.connections) == 3
+E           AssertionError: assert 1 == 3
+E            +  where 1 = len({'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8D5BB2F0&gt;})
+E            +    where {'other': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8D5BB2F0&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A486970&gt;.connections
+
+tests\test_plugin_events.py:107: AssertionError</failure></testcase><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[gateway]" time="0.232"><failure message="AssertionError: assert 2 == 3&#10; +  where 2 = len({'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD400&gt;, 'producer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD310&gt;})&#10; +    where {'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD400&gt;, 'producer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD310&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A4B5710&gt;.connections">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3543/test_real_external_fanout_acti2')
+mode = 'gateway'
+
+    @pytest.mark.parametrize('mode', ['standalone', 'pan_native', 'gateway'])
+    def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                        'b': session('b', ['producer'], mode)}
+            svc, manager, calls = await setup(tmp_path, sessions, manifest())
+            owned = []
+            try:
+                await manager.start()
+                await manager.settle()
+                assert len(manager.connections) == 3
+                assert all(c.ready for c in manager.connections.values()), list(svc.bus.diagnostics)
+                for c in manager.connections.values():
+                    owned.extend((p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)])
+                old = manager.connections['producer']
+                assert set(old.members) == {'a', 'b'}
+                # No directory/list/tool request was made: events are already alive.
+                publish(tmp_path, type='producer.ping', payload={'value': 7}, event_id='owned-event')
+                await until(lambda: calls == ['selected'])
+                await until(lambda: all(any(r['kind'] == 'delivery' and r['event']['id'] == 'owned-event' for r in records(tmp_path, pid)) for pid in ('observer', 'other')))
+                row = next(iter(svc.ledger.read()['runs'].values()))
+                await until(lambda: svc.ledger.read()['runs'][row['id']]['status'] == 'succeeded')
+                assert row['event']['source'] == {'type': 'plugin', 'id': 'producer'}
+                assert svc.bus.definitions['producer.ping']['description'] == 'Owned external fact'
+                sessions['a'].adapter_config['plugin_bindings'] = []
+                sessions['a'].adapter_config['plugin_selection_revision'] = 1
+                await manager.reconcile()
+                await manager.settle()
+                assert manager.connections['producer'] is old and old.ready
+                assert 'observer' not in manager.connections
+                sessions['b'].adapter_config['plugin_bindings'] = []
+                sessions['b'].adapter_config['plugin_selection_revision'] = 1
+                # Check at admission even before the watch/reconciliation fires.
+                assert not await manager.eligible(old)
+                await manager.reconcile()
+                await manager.settle()
+                assert not svc.bus.available('producer.ping') and not manager.connections
+                with pytest.raises(ValueError):
+                    svc.bus.publish(old.handle, 'producer.ping', {'value': 8})
+                sessions['b'] = session('b', ['producer'], mode)
+                sessions['b'].adapter_config['plugin_selection_revision'] = 2
+                await manager.reconcile()
+                await manager.settle()
+                new = manager.connections['producer']
+                assert new.ready and new.generation != old.generation
+                assert svc.ledger.read()['triggers']['t']['enabled']
+                publish(tmp_path, type='producer.ping', payload={'value': 8}, event_id='after-enable')
+                await until(lambda: len(calls) == 2)
+                evidence = {'mode': mode, 'runs': svc.ledger.read()['runs'], 'oldGeneration': old.generation,
+                            'newGeneration': new.generation, 'records': {pid: records(tmp_path, pid) for pid in ('producer', 'observer', 'other')}}
+                out = Path('artifacts/event-plugin-adapter')
+                out.mkdir(parents=True, exist_ok=True)
+                (out / f'{mode}-transport.json').write_text(json.dumps(evidence, indent=2))
+            finally:
+                await manager.close()
+                await svc.close()
+                assert not manager.connections and not svc.bus.handles and not svc.engine.tasks
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+&gt;       asyncio.run(run())
+
+tests\test_plugin_events.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        sessions = {'a': session('a', ['observer', 'other', 'producer'], mode),
+                    'b': session('b', ['producer'], mode)}
+        svc, manager, calls = await setup(tmp_path, sessions, manifest())
+        owned = []
+        try:
+            await manager.start()
+            await manager.settle()
+&gt;           assert len(manager.connections) == 3
+E           AssertionError: assert 2 == 3
+E            +  where 2 = len({'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD400&gt;, 'producer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD310&gt;})
+E            +    where {'observer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD400&gt;, 'producer': &lt;packages.plugins.event_adapter.EventConnection object at 0x0000013D8A4BD310&gt;} = &lt;packages.plugins.event_adapter.EventRuntime object at 0x0000013D8A4B5710&gt;.connections
+
+tests\test_plugin_events.py:107: AssertionError</failure></testcase><testcase classname="tests.test_plugin_events" name="test_external_rejections_disconnect_and_queue_restore" time="0.996" /><testcase classname="tests.test_plugin_events" name="test_slow_external_subscriber_isolated_and_bounded" time="0.233"><failure message="FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3543\\test_slow_external_subscriber_0\\plugins\\producer\\publish.tmp'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3543/test_slow_external_subscriber_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000013D8A47D950&gt;
+
+    def test_slow_external_subscriber_isolated_and_bounded(tmp_path, monkeypatch):
+        async def run():
+            from packages.plugins import event_adapter
+            sessions = {'a': session('a', ['observer', 'other', 'producer'])}
+            svc, manager, calls = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await manager.settle()
+                monkeypatch.setattr(event_adapter, 'TIMEOUT', .3)
+                (tmp_path / 'plugins/observer/stall').touch()
+                publish(tmp_path, type='producer.ping', payload={'value': 1})
+                await until(lambda: calls and any(r['kind'] == 'delivery' for r in records(tmp_path, 'other')))
+                await until(lambda: not manager.connections['observer'].ready)
+                assert manager.connections['other'].ready and manager.connections['producer'].ready
+                await until(lambda: 'plugin.observer' not in svc.bus.subscribers)
+                assert any('delivery' in d['error'] for d in svc.bus.diagnostics)
+                # Queue-full admission is visible and cannot grow the per-peer queue.
+                slow = manager.connections['other']
+                (tmp_path / 'plugins/other/stall').touch()
+                for i in range(200):
+                    result = svc.bus.publish(manager.connections['producer'].handle, 'producer.ping', {'value': i})
+                assert 'plugin.other' in result['rejected']
+                assert svc.bus.subscribers['plugin.other'][1].qsize() == svc.bus.capacity
+            finally:
+                await manager.close()
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_plugin_events.py:233: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:217: in run
+    publish(tmp_path, type='producer.ping', payload={'value': 1})
+tests\test_plugin_events.py:60: in publish
+    temporary.write_text(json.dumps(fields))
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:809: in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3543/test_slow_external_subscriber_0/plugins/producer/publish.tmp')
+mode = 'w', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+&gt;       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3543\\test_slow_external_subscriber_0\\plugins\\producer\\publish.tmp'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:771: FileNotFoundError</failure></testcase><testcase classname="tests.test_plugin_events" name="test_service_restart_restores_queued_only_after_actual_plugin_ready" time="0.266" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]" time="0.932" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]" time="0.977" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]" time="0.921" /><testcase classname="tests.test_plugin_events_http" name="test_real_http_plugin_lifecycle_and_restart" time="4.275" /></testsuite></testsuites>

@@ -13,3 +13,7 @@ Session 选择器 v0.1 支持 explicit/event，query 本版不做但明确列为
 连接/generation 绑定身份，禁止 payload 指定 source；最后一个启用成员撤销或断连即撤销 handle、订阅并标 definitions unavailable。重启/重启用实际注册 ready 后由原 Service.plugin_ready 唤醒 queued，不改 Engine/Store/Bus。仅实时扇出、不补投；每订阅者独立有界队列，128 KiB 帧、64 KiB payload、5 秒应答/写入超时；慢消费者失败可见并独立断连。Action Group release/pin 和原三模式业务权限保持原有契约。
 
 本候选已按 MA 指令纳入核心并发修复 `f8bcf34c`（本分支 cherry-pick 为 `d0f93baa`），插件实现不自行修改 engine.py/store.py/events.py。验证分为真实 Node stdio→Service→TriggerRun→Action、真实三模式 MCP/IPC/Node 工具共存、以及自有 HTTP/fakeCLI 服务启动/停用/重启；真人浏览器/实际收费 provider 留待独立验收。
+
+### 生命周期隔离返工
+
+MA 审阅指出全局 reconcile 锁跨外部握手/关闭会阻塞无关 Session 写响应。返工以确定性屏障先复现，再改为短登记及每 plugin 独立任务；请求仅等待本地 Bus 撤权，外部握手/关闭不在请求等待链中。同 plugin 的替换仍等待旧实例收尾，防止重复 owner；其他 plugin 并行推进。close 先设置终态与全部连接 fence，旧快照和在途启动不得重新 ready。EOF、reader 取消及慢消费者失败由连接自行触发有界进程/pipe 收尾，不等 watcher。Windows 并行建 data 目录时先稳定共享父目录，再执行原有路径归属检查，不放宽 fencing。

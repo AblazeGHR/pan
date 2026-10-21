@@ -1,0 +1,882 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-plugin-adapter-20261022
+FFFFFF                                                                   [100%]
+================================== FAILURES ===================================
+______ test_hung_start_does_not_block_other_lifecycles_or_http[register] ______
+
+fut = <coroutine object Event.wait at 0x00000292BA03F680>, timeout = 0.5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <asyncio.locks.Event object at 0x00000292B9FF6FD0 [set]>
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+>           await fut
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_hung_start_does_not_block0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000292B9FF5E00>
+operation = 'register'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert old.handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:47: in run
+    await within(b_started)
+tests\test_plugin_event_lifecycle.py:14: in within
+    await asyncio.wait_for(event.wait(), .5)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x00000292BA0DED40>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+_______ test_hung_start_does_not_block_other_lifecycles_or_http[revoke] _______
+
+fut = <Future cancelled>, timeout = 0.5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_hung_start_does_not_block1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000292B9FF7CE0>
+operation = 'revoke'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert old.handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:52: in run
+    await asyncio.wait_for(asyncio.shield(pending), .5)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x00000292BA630DC0>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+___ test_hung_start_does_not_block_other_lifecycles_or_http[session_write] ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_hung_start_does_not_block2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000292BA0031D0>
+operation = 'session_write'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert old.handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:65: in run
+    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\web\server.py:386: in _reconcile_plugin_event_bindings
+    if events and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.url.path.startswith('/api/sessions'):
+                                                                           ^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\requests.py:112: in url
+    self._url = URL(scope=self.scope)
+                ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[AttributeError("'URL' object has no attribute '_url'") raised in repr()] URL object at 0x292ba92a660>
+url = ''
+scope = {'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'}
+components = {}
+
+    def __init__(
+        self,
+        url: str = "",
+        scope: Scope | None = None,
+        **components: Any,
+    ) -> None:
+        if scope is not None:
+            assert not url, 'Cannot set both "url" and "scope".'
+            assert not components, 'Cannot set both "scope" and "**components".'
+            scheme = scope.get("scheme", "http")
+            server = scope.get("server", None)
+            path = scope["path"]
+            query_string = scope.get("query_string", b"")
+    
+            host_header = None
+>           for key, value in scope["headers"]:
+                              ^^^^^^^^^^^^^^^^
+E           KeyError: 'headers'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\datastructures.py:44: KeyError
+____________ test_hung_peer_close_does_not_block_other_peer_close _____________
+
+fut = <coroutine object Event.wait at 0x00000292B7854660>, timeout = 0.5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <asyncio.locks.Event object at 0x00000292BAEC73E0 [set]>
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+>           await fut
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_hung_peer_close_does_not_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000292BA9716A0>
+
+    def test_hung_peer_close_does_not_block_other_peer_close(tmp_path, monkeypatch):
+        async def run():
+            sessions = {'a': session('a', ['producer', 'observer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(c):
+                c.ready = True
+            original = adapter.EventConnection.close
+            async def close(c):
+                if c.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                await original(c)
+                if c.plugin.id == 'observer':
+                    b_closed.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            monkeypatch.setattr(adapter.EventConnection, 'close', close)
+            pending = None
+            try:
+                await manager.reconcile()
+                await until(lambda: len(manager.connections) == 2)
+                sessions.clear()
+                pending = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                await within(b_closed)
+                assert not release.is_set()
+            finally:
+                release.set()
+                if pending:
+                    await pending
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:100: in run
+    await within(b_closed)
+tests\test_plugin_event_lifecycle.py:14: in within
+    await asyncio.wait_for(event.wait(), .5)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x00000292B77EC600>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+________________ test_close_fences_inflight_reconcile_snapshot ________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_close_fences_inflight_rec0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000292BA972470>
+
+    def test_close_fences_inflight_reconcile_snapshot(tmp_path, monkeypatch):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            starts = []
+            original = adapter.io
+            async def io(fn, *args):
+                if fn == manager.desired:
+                    snapshot = fn()
+                    entered.set()
+                    await release.wait()
+                    return snapshot
+                return await original(fn, *args)
+            async def start(c):
+                starts.append(c.generation)
+                c.ready = True
+            monkeypatch.setattr(adapter, 'io', io)
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            pending = asyncio.create_task(manager.reconcile())
+            await within(entered)
+            closing = asyncio.create_task(manager.close())
+            await until(lambda: manager.stopping)
+            release.set()
+            try:
+                await asyncio.gather(pending, closing)
+                assert starts == []
+                assert not manager.connections
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:142: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        sessions = {'a': session('a', ['producer'])}
+        svc, manager, _ = await setup(tmp_path, sessions, manifest())
+        entered, release = asyncio.Event(), asyncio.Event()
+        starts = []
+        original = adapter.io
+        async def io(fn, *args):
+            if fn == manager.desired:
+                snapshot = fn()
+                entered.set()
+                await release.wait()
+                return snapshot
+            return await original(fn, *args)
+        async def start(c):
+            starts.append(c.generation)
+            c.ready = True
+        monkeypatch.setattr(adapter, 'io', io)
+        monkeypatch.setattr(adapter.EventConnection, 'start', start)
+        pending = asyncio.create_task(manager.reconcile())
+        await within(entered)
+        closing = asyncio.create_task(manager.close())
+        await until(lambda: manager.stopping)
+        release.set()
+        try:
+            await asyncio.gather(pending, closing)
+>           assert starts == []
+E           AssertionError: assert ['bcf6e3c64e3...b9a3225b0552'] == []
+E             
+E             Left contains one more item: 'bcf6e3c64e3841e6b7f1b9a3225b0552'
+E             Use -v to get more diff
+
+tests\test_plugin_event_lifecycle.py:137: AssertionError
+___________ test_failed_reader_retires_real_process_without_watcher ___________
+
+fut = <coroutine object Process.wait at 0x00000292BA937ED0>, timeout = 0.5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\subprocess.py:137: in wait
+    return await self._transport._wait()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <_WindowsSubprocessTransport closed pid=42380 returncode=1 stdin=<_ProactorWritePipeTransport closed> stdout=<_ProactorReadPipeTransport closed> stderr=<_ProactorReadPipeTransport closed>>
+
+    async def _wait(self):
+        """Wait until the process exit and return the process return code.
+    
+        This method is a coroutine."""
+        if self._returncode is not None:
+            return self._returncode
+    
+        waiter = self._loop.create_future()
+        self._exit_waiters.append(waiter)
+>       return await waiter
+               ^^^^^^^^^^^^
+E       asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_subprocess.py:255: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3539/test_failed_reader_retires_rea0')
+
+    def test_failed_reader_retires_real_process_without_watcher(tmp_path):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await until(lambda: manager.connections.get('producer') and manager.connections['producer'].ready)
+                c = manager.connections['producer']
+                publish(tmp_path, type='producer.ping', payload={'value': 'x' * 150000})
+                await asyncio.wait_for(asyncio.shield(c.reader), 1)
+                # No watcher was started. Reader failure must own teardown itself.
+                await asyncio.wait_for(c.process.wait(), .5)
+                assert not c.ready and c.handle not in svc.bus.handles
+                assert c.stderr.done()
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:156: in run
+    await asyncio.wait_for(c.process.wait(), .5)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x00000292B787AB40>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[register]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[revoke]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[session_write]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_peer_close_does_not_block_other_peer_close
+FAILED tests/test_plugin_event_lifecycle.py::test_close_fences_inflight_reconcile_snapshot
+FAILED tests/test_plugin_event_lifecycle.py::test_failed_reader_retires_real_process_without_watcher
+6 failed, 1 warning in 4.32s

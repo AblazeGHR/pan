@@ -60,7 +60,13 @@ retires the owned process tree, and marks definitions unavailable. Replacing the
 last membership or changing the event declaration/command creates a new generation.
 An unrelated selection edit may conservatively reconnect a sole member.
 
-Web Session mutations reconcile before their response is returned. Publication
+Web Session mutations reconcile binding intent and complete trusted Bus revocation
+before their response is returned. Reconciliation does not await external startup,
+handshakes, process exit, or stderr. One independent lifecycle task per plugin
+coalesces its latest intent; no global lock spans peer work. Selection responses
+therefore do not imply that a new external peer is already ready. Observe the
+Automation definitions/diagnostics or the example's ready record for readiness.
+Publication
 and delivery recheck current bindings/revisions/command digest at admission, so a
 connection cannot publish during the reconciliation delay. Other internal binding
 changes and external manifest edits converge through the generic plugin event
@@ -70,8 +76,19 @@ intermediate disabled snapshot. Editing configuration files outside Pan without
 updating revisions or observing the intermediate state has no transactional
 disable/enable guarantee.
 
-EOF, malformed transport, failed handshake, and delivery timeout revoke the old
-handle. Still-enabled peers reconnect on the next lifecycle reconciliation. Full
+An invalidated connection is fenced synchronously, and binding reconciliation
+joins only local Bus revocation before returning. Publish/deliver also recheck
+identity after their off-loop snapshot read. Stale snapshots cannot overtake a
+newer reconciliation, and the runtime's terminal latch blocks all later startup
+and readiness. A per-plugin replacement waits for that plugin's old cleanup;
+unrelated plugins continue independently.
+
+EOF, malformed transport, reader cancellation, failed handshake, and delivery
+timeout start the connection's own cleanup immediately, without waiting for the
+2-second watcher. Cleanup kills the owned tree, revokes the old handle, joins
+cancelled startup (retaining any process handle created during cancellation),
+and cancels/joins pipe tasks with a bounded deadline. Still-enabled peers reconnect
+on the next lifecycle reconciliation. Full
 Pan startup restores event peers from actual persisted bindings; shutdown closes
 peers before Automation Service. Windows uses a kill-on-close Job established by
 an owned stdio helper before external code starts; POSIX uses an owned process

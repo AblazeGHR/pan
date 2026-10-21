@@ -103,7 +103,8 @@ def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode)
         owned = []
         try:
             await manager.start()
-            assert len(manager.connections) == 3
+            await manager.settle()
+            assert len(manager.connections) == 3, list(svc.bus.diagnostics)
             assert all(c.ready for c in manager.connections.values()), list(svc.bus.diagnostics)
             for c in manager.connections.values():
                 owned.extend((p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)])
@@ -120,6 +121,7 @@ def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode)
             sessions['a'].adapter_config['plugin_bindings'] = []
             sessions['a'].adapter_config['plugin_selection_revision'] = 1
             await manager.reconcile()
+            await manager.settle()
             assert manager.connections['producer'] is old and old.ready
             assert 'observer' not in manager.connections
             sessions['b'].adapter_config['plugin_bindings'] = []
@@ -127,17 +129,20 @@ def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode)
             # Check at admission even before the watch/reconciliation fires.
             assert not await manager.eligible(old)
             await manager.reconcile()
+            await manager.settle()
             assert not svc.bus.available('producer.ping') and not manager.connections
             with pytest.raises(ValueError):
                 svc.bus.publish(old.handle, 'producer.ping', {'value': 8})
             sessions['b'] = session('b', ['producer'], mode)
             sessions['b'].adapter_config['plugin_selection_revision'] = 2
             await manager.reconcile()
+            await manager.settle()
             new = manager.connections['producer']
             assert new.ready and new.generation != old.generation
             assert svc.ledger.read()['triggers']['t']['enabled']
             publish(tmp_path, type='producer.ping', payload={'value': 8}, event_id='after-enable')
             await until(lambda: len(calls) == 2)
+            await until(lambda: len([r for r in svc.ledger.read()['runs'].values() if r['status'] == 'succeeded']) == 2)
             evidence = {'mode': mode, 'runs': svc.ledger.read()['runs'], 'oldGeneration': old.generation,
                         'newGeneration': new.generation, 'records': {pid: records(tmp_path, pid) for pid in ('producer', 'observer', 'other')}}
             out = Path('artifacts/event-plugin-adapter')
@@ -157,6 +162,7 @@ def test_external_rejections_disconnect_and_queue_restore(tmp_path):
         svc, manager, calls = await setup(tmp_path, sessions, manifest())
         try:
             await manager.reconcile()
+            await manager.settle()
             for fields in (
                 {'source': {'type': 'core', 'id': 'workers'}, 'type': 'producer.ping', 'payload': {'value': 1}},
                 {'type': 'workers.all_idle', 'payload': {'runningCount': 0}},
@@ -173,6 +179,7 @@ def test_external_rejections_disconnect_and_queue_restore(tmp_path):
             await until(lambda: not svc.bus.available('producer.ping'))
             assert any('limit' in d['error'].lower() for d in svc.bus.diagnostics)
             await manager.reconcile()
+            await manager.settle()
             assert manager.connections['producer'].ready
             # External EOF revokes the actual handle, not a payload credential.
             connection = manager.connections['producer']
@@ -188,6 +195,7 @@ def test_external_rejections_disconnect_and_queue_restore(tmp_path):
             await svc.engine.kick()
             assert svc.ledger.read()['runs']['waiting']['status'] == 'queued'
             await manager.reconcile()
+            await manager.settle()
             await until(lambda: svc.ledger.read()['runs']['waiting']['status'] == 'succeeded')
             assert calls == ['selected']
             assert list(svc.bus.diagnostics)
@@ -204,6 +212,8 @@ def test_slow_external_subscriber_isolated_and_bounded(tmp_path, monkeypatch):
         svc, manager, calls = await setup(tmp_path, sessions, manifest())
         try:
             await manager.reconcile()
+            await manager.settle()
+            assert 'producer' in manager.connections, list(svc.bus.diagnostics)
             monkeypatch.setattr(event_adapter, 'TIMEOUT', .3)
             (tmp_path / 'plugins/observer/stall').touch()
             publish(tmp_path, type='producer.ping', payload={'value': 1})
@@ -247,6 +257,7 @@ def test_service_restart_restores_queued_only_after_actual_plugin_ready(tmp_path
             assert restored.ledger.read()['runs']['persisted']['status'] == 'queued' and not calls
             sessions['a'] = session('a', ['producer'])
             await events.reconcile()
+            await events.settle()
             await until(lambda: restored.ledger.read()['runs']['persisted']['status'] == 'succeeded')
             assert calls == ['selected']
         finally:
@@ -269,6 +280,7 @@ def test_example_real_mcp_projection_and_events_share_lifecycle(tmp_path, mode, 
         bridge = Bridge(runtime, tmp_path)
         try:
             await runtime.bind_events(svc, lambda: list(sessions.values()))
+            await runtime.events.settle()
             connection = runtime.events.connections['producer']
             assert connection.ready
             async with stdio_client(StdioServerParameters(command=sys.executable,
