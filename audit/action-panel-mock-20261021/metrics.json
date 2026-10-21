@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-10-21T07:18:10.047Z",
+  "browser": "Chromium 153.0.8010.12",
+  "source": "local fixture preview.html (file://)",
+  "preview": "preview/preview.html",
+  "screenshots": [
+    "01-actions-desktop.png",
+    "02-groups-desktop.png",
+    "03-action-editor.png",
+    "04-group-editor.png",
+    "05-use-in-session.png",
+    "05b-use-in-session-top.png",
+    "06-new-action.png",
+    "07-dirty-guard.png",
+    "08-state-loading.png",
+    "09-state-error.png",
+    "10-state-empty.png",
+    "11-state-stale.png",
+    "12-light-theme.png",
+    "19-preview-controls.png",
+    "19b-preview-controls-320.png",
+    "13-actions-390.png",
+    "14-groups-390.png",
+    "13b-sidebar-390.png",
+    "15-actions-320.png",
+    "15b-groups-320.png",
+    "16-action-editor-320.png",
+    "17-group-editor-320.png",
+    "18-use-390.png",
+    "18c-use-modes-390.png",
+    "18b-use-320.png",
+    "18d-use-modes-320.png",
+    "20-group-built.png"
+  ],
+  "viewportChecks": [
+    {
+      "view": "actions",
+      "width": 1440,
+      "document": 1440,
+      "body": 1440,
+      "client": 1440,
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 1440,
+      "document": 1440,
+      "body": 1440,
+      "client": 1440,
+      "ok": true
+    },
+    {
+      "view": "action-editor",
+      "width": 1440,
+      "document": 1440,
+      "body": 1440,
+      "client": 1440,
+      "ok": true
+    },
+    {
+      "view": "group-editor",
+      "width": 1440,
+      "document": 1440,
+      "body": 1440,
+      "client": 1440,
+      "ok": true
+    },
+    {
+      "view": "preview-controls",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 390,
+      "document": 390,
+      "body": 390,
+      "client": 390,
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 390,
+      "document": 390,
+      "body": 390,
+      "client": 390,
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "action-editor",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "group-editor",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "use-in-session",
+      "width": 390,
+      "document": 390,
+      "body": 390,
+      "client": 390,
+      "ok": true
+    },
+    {
+      "view": "use-in-session",
+      "width": 320,
+      "document": 320,
+      "body": 320,
+      "client": 320,
+      "ok": true
+    },
+    {
+      "view": "actions",
+      "width": 768,
+      "document": 768,
+      "body": 768,
+      "client": 768,
+      "ok": true
+    },
+    {
+      "view": "groups",
+      "width": 768,
+      "document": 768,
+      "body": 768,
+      "client": 768,
+      "ok": true
+    }
+  ],
+  "interactions": {
+    "searchEchoRows": 1,
+    "groupRows": 6,
+    "unbuildDisabledOnNativeQa": true,
+    "modeCards": 3,
+    "selectedMode": true,
+    "dirtyDialog": true,
+    "dirtyDialogText": "Discard unsaved changes? ",
+    "keyboardEscapeDialog": true,
+    "keyboardSaveClosedEditor": true,
+    "keyboardSaveRow": 1,
+    "focusTrapInsideDialog": true,
+    "emptyCountText": "0 of 0 Actions",
+    "mobileDrawerX": 0,
+    "mobileDrawerOpen": true,
+    "createdActionRow": 1,
+    "generatedActionId": "action_fcec9e868b3458cf51bb1542",
+    "generatedActionIdLength": 31,
+    "buildToast": "Group built\n\nWorkspace Utilities · action-group-group-workspace-utilities\n\nMock only — nothing was sent to Pan.",
+    "unbuildReason": "Unbuild is blocked by running Sessions."
+  },
+  "externalRequests": [],
+  "consoleErrors": [],
+  "note": "No Pan API, Session, Group, port 8767/8768 or user data was contacted. UI states are simulated for design review; these numbers are not upstream performance measurements."
+}
