@@ -27,6 +27,8 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
+**主服务用户 CLI（Windows）**：稳定安装可显式注册 `pan`，支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。最终用户 PATH 由 MA 验收后注册到稳定 practical，不指向 TA 树；用户级 skill 同步由 MA 处理。
+
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
 expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。

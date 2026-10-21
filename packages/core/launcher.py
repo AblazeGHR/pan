@@ -738,6 +738,9 @@ def _creation_flags(hidden: bool) -> int:
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
     if hidden:
         flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    else:
+        # Own a console; never borrow a CLI caller's shared terminal window.
+        flags |= getattr(subprocess, "CREATE_NEW_CONSOLE", 0x00000010)
     return flags
 
 
@@ -757,11 +760,13 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
     argv = [*python_argv, str(main_path), f"--pan-root-marker={root}", f"--pan-port-marker={port}"]
     stdout_handle = stderr_handle = None
     try:
-        if hidden:
+        if hidden or os.name == "nt":
             stdout_handle = _open_redirect(log_path.parent / "pan-console.out.log", "a")
             stderr_handle = _open_redirect(log_path.parent / "pan-console.err.log", "a")
         child_env = os.environ.copy()
-        if hidden:
+        if os.name == "nt":
+            child_env["PAN_MANAGED_CONSOLE"] = "1"
+        if hidden or os.name == "nt":
             # Text file handles do not transmit an encoding to child Python
             # interpreters. Pin main + inherited QQ/WeChat output explicitly.
             child_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
@@ -771,8 +776,8 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
         child_env["PAN_PORT"] = str(port)
         process = subprocess.Popen(
             argv, cwd=str(root), stdin=subprocess.DEVNULL if hidden else None,
-            stdout=stdout_handle if hidden else None,
-            stderr=stderr_handle if hidden else None,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
             close_fds=True, creationflags=_creation_flags(hidden),
             env=child_env,
         )

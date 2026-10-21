@@ -1,0 +1,41 @@
+{
+  "foreignListenerStart": {
+    "exitCode": 3,
+    "stdout": "",
+    "stderr": "pan: Pan port 53212 is already owned by an unverified process PID=34564; refusing to start\n"
+  },
+  "visibleFinalEncodingStart": {
+    "exitCode": 0,
+    "stdout": "[INFO] Pan Python source: config.json python\n[OK] Pan Core API ready on 127.0.0.1:53212, PID=33580\n",
+    "stderr": ""
+  },
+  "unicodeConsoleAndDurableLog": {
+    "pid": 33580,
+    "utf8": true,
+    "textPresent": true
+  },
+  "visibleExit": {
+    "exitCode": 0,
+    "stdout": "exit accepted; waiting for terminal state: job_0e77fcf44fe32424ff27c9ea\n{\"ok\": true, \"phase\": \"offline\", \"jobId\": \"job_0e77fcf44fe32424ff27c9ea\"}\n",
+    "stderr": ""
+  },
+  "sharedParentHide": {
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "pan: HTTP 409: {\"detail\":\"Foreground/shared console is unmanaged; refusing to alter the parent terminal\"}\n"
+  },
+  "sharedParentUnchanged": {
+    "hwnd": 10291514,
+    "visibleBefore": true,
+    "visibleAfter": true,
+    "debugPid": 36396,
+    "servicePid": 8624
+  },
+  "debugExit": {
+    "exitCode": 0,
+    "stdout": "exit accepted; waiting for terminal state: job_821563ae5b3e340daed3baea\n{\"ok\": true, \"phase\": \"offline\", \"jobId\": \"job_821563ae5b3e340daed3baea\"}\n",
+    "stderr": ""
+  },
+  "ok": true,
+  "remainingListener": null
+}

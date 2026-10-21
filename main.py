@@ -348,6 +348,8 @@ def _spawn_qq_bot() -> None:
 
 
 if __name__ == "__main__":
+    from packages.core.host_console import console as host_console
+    host_console.initialize()
     import uvicorn
     from packages.core.cli_diagnostics import log_cli_preflight
     from packages.core.config import load_config
@@ -397,9 +399,8 @@ if __name__ == "__main__":
     # coordination endpoint.  Uvicorn then runs the normal lifespan teardown,
     # which remains the sole graceful owner of Worker and QQ cleanup.
     app.state.pan_uvicorn_server = server
-    from packages.core.console_exit import start_console_exit
     from packages.web.server import _session_lifecycle_preferences
-    start_console_exit(port, lambda: _session_lifecycle_preferences()["exitStrategy"])
+    host_console.start_input(port, lambda: _session_lifecycle_preferences()["exitStrategy"])
     server.run()
 
     # uvicorn returns after a graceful shutdown (Ctrl+C / SIGTERM handled

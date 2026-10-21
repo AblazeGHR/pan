@@ -1,0 +1,9 @@
+{
+  "start": "[INFO] Pan Python source: config.json python\n[OK] Pan Core API ready on 127.0.0.1:53212, PID=35524\n",
+  "show": "{\"ok\": true, \"console\": {\"state\": \"visible\", \"hwnd\": 4524722, \"managed\": true, \"pid\": 35524, \"interactive\": true}}\n",
+  "pid": 35524,
+  "jobId": "job_53242c70c605265808fe0b24",
+  "phase": "offline",
+  "remainingListener": null,
+  "ok": true
+}

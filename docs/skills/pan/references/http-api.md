@@ -5,6 +5,12 @@ description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills
 
 # Pan HTTP API 速查（引用文档）
 
+## 主服务 CLI 身份与控制台
+
+- `GET /api/main/identity`：当前进程 `pid`、`createdAt`、`root`、运行 `version` 与 `console={state, hwnd, managed, pid, interactive}`；非 Windows console 为 unsupported。
+- `POST /api/main/console`：`{action:"show"|"hide", pid, createdAt}`，目标身份不符或共享/不可控窗口返回 409。只控制 Pan 自己的交互 console，不控制 Worker/Job 终端，不写启动配置。返回 `{ok:true, console:{...}}`；无法核验可见状态时拒绝。
+- 用户 CLI 对 `POST /api/main/exit|restart` 附带 `X-Pan-Expected-Pid` / `X-Pan-Expected-Created-At`，服务端拒绝查询后已更换的实例；未附 header 的现有 UI/console 调用契约不变。CLI 等持久 Job 终态及进程事实，不将 scheduled/accepted 当作完成。日常命令和注册详见 [Pan CLI](../../../PAN_CLI.md)。
+
 Action/Group 创建：`POST /api/actions/actions` 或 `/api/actions/groups`，body 为
 `{item: {...}, expectedRevision?: number}`。省略 `item.id` 时由服务端生成，返回 registry
 及 `item`（含权威 ID）；显式合法 ID 兼容，但创建不覆盖已有 ID。原 PUT 更新路径仍要求
