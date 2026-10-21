@@ -1,0 +1,11 @@
+{
+  "pid": 35544,
+  "creationTime": 1792564673.1629865,
+  "verifiedArgv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "evidence/native-picker-web-focus-20261021/web_probe.py",
+    "foreground-before"
+  ],
+  "ownedHarnessTerminated": true,
+  "reason": "earlier preparation failure left its own Uvicorn thread alive after port closure; no product helper had started"
+}

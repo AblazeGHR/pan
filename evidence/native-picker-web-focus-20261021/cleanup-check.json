@@ -1,0 +1,65 @@
+[
+  {
+    "run": "before",
+    "port": 63103,
+    "portClosed": true,
+    "recordedPid": 23716,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "foreground-before",
+    "port": 58760,
+    "portClosed": true,
+    "recordedPid": 35544,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-actual-before",
+    "port": 53285,
+    "portClosed": true,
+    "recordedPid": 5972,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-before",
+    "port": 59329,
+    "portClosed": true,
+    "recordedPid": 34644,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-final",
+    "port": 58346,
+    "portClosed": true,
+    "recordedPid": 13804,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-focused-before",
+    "port": 63457,
+    "portClosed": true,
+    "recordedPid": 23700,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-late-owner",
+    "port": 52462,
+    "portClosed": true,
+    "recordedPid": 36804,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-original",
+    "port": 55576,
+    "portClosed": true,
+    "recordedPid": 21216,
+    "ownedHarnessStillActive": false
+  },
+  {
+    "run": "mouse-trace",
+    "port": 58479,
+    "portClosed": true,
+    "recordedPid": 6964,
+    "ownedHarnessStillActive": false
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "checkout": "D:\\project\\pan-worktrees\\native-picker-popup-20261021",
+  "head": "8ddb45ed7ff07c94c6a8313f5c97ee23651da92b",
+  "pid": 34644,
+  "port": 59329,
+  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-picker-web-iohbv_59",
+  "sessionId": "ses_6ebd35b83645bbe6",
+  "lifespan": "off: full production app routes/static/WS, no service startup loops",
+  "events": [
+    {
+      "kind": "browser-ready",
+      "time": 1792564758.4268625,
+      "foreground": {
+        "hwnd": 394370,
+        "pid": 29716,
+        "thread": 3252,
+        "class": "Chrome_WidgetWin_1",
+        "visible": true,
+        "enabled": true,
+        "topmost": false,
+        "owner": 0,
+        "guiRead": true,
+        "keyboardFocusRoot": 394370
+      },
+      "browserProcesses": [
+        {
+          "pid": 21748,
+          "ppid": 6972,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 18932,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 17520,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 3296,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 22908,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 35660,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 11016,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        },
+        {
+          "pid": 27148,
+          "ppid": 21748,
+          "name": "msedge.exe"
+        }
+      ]
+    }
+  ],
+  "cases": [],
+  "error": "Traceback (most recent call last):\n  File \"D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\web_probe.py\", line 148, in <module>\n    asyncio.run(run());report['harnessPassed']=True\n    ~~~~~~~~~~~^^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py\", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\web_probe.py\", line 96, in run\n    event('test-browser-activation-mouse',action=action,mouse=win.show_owned_browser(browser_hwnd))\n                                                              ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^\n  File \"D:\\project\\pan-worktrees\\native-picker-popup-20261021\\evidence\\native-picker-web-focus-20261021\\win_facts.py\", line 96, in show_owned_browser\n    assert result.returncode==0,result.stderr\n           ^^^^^^^^^^^^^^^^^^^^\nAssertionError: b'\\xca\\xb9\\xd3\\xc3\\xa1\\xb00\\xa1\\xb1\\xb8\\xf6\\xb2\\xce\\xca\\xfd\\xb5\\xf7\\xd3\\xc3\\xa1\\xb0SetFocus\\xa1\\xb1\\xca\\xb1\\xb7\\xa2\\xc9\\xfa\\xd2\\xec\\xb3\\xa3:\\xa1\\xb0\\xc4\\xbf\\xb1\\xea\\xd4\\xaa\\xcb\\xd8\\xce\\xde\\xb7\\xa8\\xbd\\xd3\\xca\\xd5\\xbd\\xb9\\xb5\\xe3\\xa1\\xa3\\xa1\\xb1\\r\\n\\xcb\\xf9\\xd4\\xda\\xce\\xbb\\xd6\\xc3 \\xd0\\xd0:1 \\xd7\\xd6\\xb7\\xfb: 44\\r\\n+ ... tionClient; [Windows.Automation.AutomationElement]::FromHandle([Int\\r\\nPt ...\\r\\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\r\\n~~\\r\\n    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationExce \\r\\n   ption\\r\\n    + FullyQualifiedErrorId : InvalidOperationException\\r\\n \\r\\n'\n",
+  "cleanup": {
+    "hostStopped": true,
+    "helpersExited": true,
+    "portClosed": true
+  }
+}
