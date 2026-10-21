@@ -30,4 +30,4 @@ async def test_owned_ledger_growth_measurement(tmp_path):
         samples.append(dict(runs=size,bytes=ledger.path.stat().st_size,readMs=read_ms,atomicUpdateMs=write_ms))
     assert samples[0]['bytes']<samples[-1]['bytes']
     out=Path('artifacts/eta-final');out.mkdir(parents=True,exist_ok=True)
-    (out/'ledger-growth.json').write_text(json.dumps({'samples':samples,'retention':'indefinite; no paging or pruning; finite synthetic sample only'},indent=2))
+    (out/'ledger-growth.json').write_text(json.dumps({'samples':samples,'retention':'indefinite; no paging or pruning; finite synthetic sample only'},indent=2),encoding='utf-8')

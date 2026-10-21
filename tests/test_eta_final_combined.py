@@ -28,10 +28,10 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
     rt.data_root.mkdir()
     m = manifest()
     mf = tmp_path / 'plugins.json'
-    mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}))
-    (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}))
+    mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}),encoding='utf-8')
+    (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}),encoding='utf-8')
     evidence = {'port':h.PORT,'root':str(rt.data_root),'processes':[],
-                'testedSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+                'testedSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True,encoding='utf-8').strip(),
                 'buildIndexSha256':__import__('hashlib').sha256((h.ROOT/'packages/web/dist/index.html').read_bytes()).hexdigest()}
     def capture():
         if rt.process and rt.process.poll() is None:
@@ -56,7 +56,7 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         a = query_action(leaf('name','eq','combined-target'))
         a['name'] = 'Combined query pause'
         rt.request('POST','/api/actions/actions',json={'item':a})
-        token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text()})['token']
+        token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text(encoding='utf-8')})['token']
         t = {**trigger(),'eventTypes':['producer.ping']}
         rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers={'Authorization':'Bearer '+token})
         rt.request('PATCH',f"/api/sessions/{owner['id']}",json=binding(True))
@@ -76,10 +76,11 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         assert not h._received(rt,text='combined-blocked')
         OUT.mkdir(parents=True,exist_ok=True)
         browser_input=OUT/'browser-input.json'
-        browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}))
+        browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}),encoding='utf-8')
         browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())
-        (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr)
+        (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
         assert browser.returncode==0, browser.stderr
+        assert 'UTF-8 \U0001f9ea' in browser.stdout
         # Same shared server keeps delayed-restart MCP management gates intact.
         monkeypatch.setattr(mcp_server,'_pan_api_url',rt.base_url)
         monkeypatch.setattr(mcp_server,'_caller_identity',lambda:{'id':owner['id'],'managed':[],'panAccess':{'restrictToManaged':True}})
@@ -115,11 +116,11 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         # Stop own instance, then inject persisted crash fixtures into own ledger.
         capture();rt.stop();h._wait_for(stopped,label='first process cleanup')
         path=rt.data_root/'automation/registry.json'
-        state=json.loads(path.read_text())
+        state=json.loads(path.read_text(encoding='utf-8'))
         for rid,status in [('restart-queued','queued'),('restart-running','running')]:
             state['runs'][rid]={**run,'id':rid,'status':status,'revision':1,'event':{**run['event'],'id':rid}}
         state['runs']['restart-queued'].pop('targetIds',None)
-        path.write_text(json.dumps(state))
+        path.write_text(json.dumps(state),encoding='utf-8')
         rt.start();capture();h._wait_for(ready,label='restart Node admission')
         h._wait_for(lambda:view()['runs']['restart-queued']['status']=='succeeded',label='queued resumed once')
         state=view()
@@ -132,15 +133,16 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         assert len(view()['runs'])==3
         recovery_out=OUT/'recovery'
         recovery_out.mkdir(exist_ok=True)
-        browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id'],'uncertainId':'restart-running','queuedId':'restart-queued'}))
+        browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id'],'uncertainId':'restart-running','queuedId':'restart-queued'}),encoding='utf-8')
         browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(recovery_out.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())
-        (OUT/'browser-recovery.log').write_text(browser.stdout+'\n'+browser.stderr)
+        (OUT/'browser-recovery.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
         assert browser.returncode==0,browser.stderr
+        assert 'UTF-8 \U0001f9ea' in browser.stdout
         evidence.update(run=run,queue=queue,state=view(),delayed=delayed,denied=denied,records=records(rt.data_root,'producer'),fake=rt.fake_records())
     finally:
         capture();rt.stop();h._wait_for(stopped,label='final owned Node/CLI/server cleanup')
         evidence['ownedProcessesRemaining']=[]
         evidence['portReleased']=h._port_is_free(h.PORT)
         OUT.mkdir(parents=True,exist_ok=True)
-        (OUT/'combined-http.json').write_text(json.dumps(evidence,indent=2))
-        (OUT/'server.log').write_text((rt.data_root/'pan.log').read_text(encoding='utf-8',errors='replace'))
+        (OUT/'combined-http.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
+        (OUT/'server.log').write_text((rt.data_root/'pan.log').read_text(encoding='utf-8',errors='replace'),encoding='utf-8')

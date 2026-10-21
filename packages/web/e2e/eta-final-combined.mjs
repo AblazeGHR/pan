@@ -39,5 +39,6 @@ try {
   }
   await page.screenshot({path:out + '/production-run.png',fullPage:true});
   if (errors.length) throw new Error(JSON.stringify(errors));
-  await fs.writeFile(out + '/browser.json',JSON.stringify({ok:true,base,...data,errors,chromiumVersion:browser.version()},null,2));
+  await fs.writeFile(out + '/browser.json',JSON.stringify({ok:true,base,...data,errors,chromiumVersion:browser.version()},null,2),'utf8');
+  console.log('Production Chromium UTF-8 \u{1f9ea}');
 } finally { await browser.close(); }
