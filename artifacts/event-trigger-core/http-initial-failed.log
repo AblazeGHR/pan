@@ -1,0 +1,58 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________________ test_real_running_event_pause_blocks_queue __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3516/test_real_running_event_pause_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000021D34D7DF30>
+
+    def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
+        assert harness.PORT not in {8767, 8768}
+        launcher = Path(__file__).parent / 'support' / 'automation_http_server.py'
+        monkeypatch.setattr(harness, 'SERVER_LAUNCHER', launcher)
+        runtime = harness._PanRuntime(tmp_path / 'owned-profile')
+        runtime.data_root.mkdir(parents=True)
+        # Poisoned parent directories are represented by an owned sentinel only.
+        sentinel = tmp_path / 'simulated-practical' / 'sentinel'
+        sentinel.parent.mkdir()
+        sentinel.write_bytes(b'unchanged')
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(sentinel.parent))
+        # Explicitly override polluted application roots before launch; parent remains unchanged.
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(runtime.data_root / 'background_jobs'))
+        monkeypatch.setenv('PAN_TERMINALS_DIR', str(runtime.data_root / 'terminals'))
+        monkeypatch.setenv('PAN_SCHEDULER_DIR', str(runtime.data_root / 'scheduler'))
+        runtime.data_root.joinpath('config.json').write_text(json.dumps({'plugin_manifests': [], 'scheduler': {'enabled': False}}))
+        runtime.start()
+        evidence = dict(port=harness.PORT, dataRoot=str(runtime.data_root), pid=runtime.process.pid, createTime=psutil.Process(runtime.process.pid).create_time(), command=psutil.Process(runtime.process.pid).cmdline())
+        try:
+            target = harness._create(runtime, 'auto-target')
+            control = harness._create(runtime, 'auto-control')
+            source = harness._create(runtime, 'auto-source')
+            for session in (target, control, source):
+>               result = harness._spawn(runtime, session['id'])
+                                                 ^^^^^^^^^^^^^
+E               KeyError: 'id'
+
+tests\test_automation_http.py:36: KeyError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_automation_http.py::test_real_running_event_pause_blocks_queue
+1 failed, 4 warnings in 3.56s

@@ -204,6 +204,15 @@ class Worker:
 
     字段说明：
     """
+    def __setattr__(self, name, value):
+        previous = self.__dict__.get(name)
+        object.__setattr__(self, name, value)
+        if name == 'status' and previous != value:
+            observer = globals().get('_running_observer')
+            registry = globals().get('workers', {})
+            if observer is not None and registry.get(self.__dict__.get('worker_id')) is self:
+                _observe_running()
+
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
@@ -338,6 +347,23 @@ class Worker:
     _direct_steer_pending: bool = False
 
 
+_running_observer = None
+
+
+def set_running_observer(callback):
+    """One synchronous, nonblocking observer; status remains the sole authority."""
+    global _running_observer
+    _running_observer = callback
+
+
+def _observe_running():
+    if _running_observer is not None:
+        try:
+            _running_observer()
+        except Exception:
+            _log.exception('Worker running observer failed')
+
+
 workers: dict[str, Worker] = {}
 _delayed_restarts: dict[str, dict] = {}
 _delayed_restart_revision = 0
@@ -350,9 +376,11 @@ _worker_generations: dict[str, int] = {}
 
 def _register_worker(w: Worker) -> None:
     _workers_by_session[w.session_id] = w
+    _observe_running()
 
 
 def _unregister_worker(w: Worker) -> None:
+    _observe_running()
     _close_raw_capture(w)
     if _workers_by_session.get(w.session_id) is w:
         _workers_by_session.pop(w.session_id, None)

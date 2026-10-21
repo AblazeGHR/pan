@@ -20,7 +20,7 @@ RESULT_LIMIT = 1024 * 1024  # Leave JSON-RPC framing headroom below the generic 
 
 
 async def execute(action, arguments):
-    action = validate_action(action)
+    action = await asyncio.to_thread(validate_action, action, automation=False)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action is disabled or requires an approval policy')
     jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)

@@ -44,7 +44,7 @@ def identifier(value):
     return value
 
 
-def validate_action(raw):
+def validate_action(raw, automation=True):
     if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format'}:
         raise ValueError('Unknown Action fields')
     action = copy.deepcopy(raw)
@@ -115,8 +115,22 @@ def validate_action(raw):
                     raise ValueError('Command input placeholders must occupy a complete argv element and reference a scalar field')
                 if match[1] not in schema.get('required', []) and 'default' not in properties[match[1]]:
                     raise ValueError('Command placeholders require a required field or default')
+    elif ex.get('kind') == 'session_operation' and automation:
+        if set(ex) != {'kind', 'operation', 'selector'} or ex['operation'] != 'pause_everything' or action['effect'] != 'write_local':
+            raise ValueError('Invalid Session Operation')
+        selector = ex['selector']
+        if not isinstance(selector, dict):
+            raise ValueError('Invalid Session selector')
+        if selector.get('mode') == 'explicit':
+            if set(selector) != {'mode', 'ids'} or not isinstance(selector['ids'], list) or any(not isinstance(i, str) or not i for i in selector['ids']):
+                raise ValueError('Invalid explicit Session IDs')
+        elif selector.get('mode') == 'event':
+            if set(selector) != {'mode', 'path'} or not isinstance(selector['path'], str) or not selector['path']:
+                raise ValueError('Invalid Event selector path')
+        else:
+            raise ValueError('query selector reserved for required follow-up')
     else:
-        raise ValueError('Execution kind must be api or command')
+        raise ValueError('Execution kind must be api, command or session_operation')
     return action
 
 
@@ -192,7 +206,7 @@ class Store:
             group = state['groups'].get(gid)
             if not group:
                 raise ValueError('Group not found')
-            actions = [validate_action(state['actions'][i]) for i in group['action_ids']]
+            actions = [validate_action(state['actions'][i], automation=False) for i in group['action_ids']]
             if not actions or any(not a['enabled'] for a in actions):
                 raise ValueError('Build requires at least one Action and all selected Actions enabled')
             if any(a['effect'] == 'high_risk' for a in actions):

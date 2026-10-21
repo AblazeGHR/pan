@@ -1,0 +1,88 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________________ test_real_running_event_pause_blocks_queue __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3518/test_real_running_event_pause_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B376AD9BA0>
+
+    def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
+        assert harness.PORT not in {8767, 8768}
+        launcher = Path(__file__).parent / 'support' / 'automation_http_server.py'
+        monkeypatch.setattr(harness, 'SERVER_LAUNCHER', launcher)
+        runtime = harness._PanRuntime(tmp_path / 'owned-profile')
+        runtime.data_root.mkdir(parents=True)
+        # Poisoned parent directories are represented by an owned sentinel only.
+        sentinel = tmp_path / 'simulated-practical' / 'sentinel'
+        sentinel.parent.mkdir()
+        sentinel.write_bytes(b'unchanged')
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(sentinel.parent))
+        # Explicitly override polluted application roots before launch; parent remains unchanged.
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(runtime.data_root / 'background_jobs'))
+        monkeypatch.setenv('PAN_TERMINALS_DIR', str(runtime.data_root / 'terminals'))
+        monkeypatch.setenv('PAN_SCHEDULER_DIR', str(runtime.data_root / 'scheduler'))
+        runtime.data_root.joinpath('config.json').write_text(json.dumps({'plugin_manifests': [], 'scheduler': {'enabled': False}}))
+        runtime.start()
+        evidence = dict(port=harness.PORT, dataRoot=str(runtime.data_root), pid=runtime.process.pid, createTime=psutil.Process(runtime.process.pid).create_time(), command=psutil.Process(runtime.process.pid).cmdline())
+        try:
+            def create(name):
+                return runtime.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'permissionMode': 'bypassPermissions', 'outputMode': 'stream', 'mcpServers': []})
+            target = create('auto-target')
+            control = create('auto-control')
+            source = create('auto-source')
+            for session in (target, control, source):
+                assert 'id' in session, session
+                result = harness._spawn(runtime, session['id'])
+                assert 'error' not in result, result
+            a = action([target['id']])
+            runtime.request('POST', '/api/actions/actions', json={'item': a})
+            draft = {**trigger(), 'enabled': False}
+            runtime.request('POST', '/api/automation/triggers', json={'item': draft, 'expectedRevision': 0})
+            harness._enqueue(runtime, source['id'], 'default-off-probe', 'off')
+            harness._wait_for(lambda: harness._received(runtime, text='default-off-probe'), label='default off source handoff')
+>           harness._wait_for(lambda: all(s.get('workerStatus') != 'running' for s in runtime.request('GET', '/api/sessions')), label='source idle')
+
+tests\test_automation_http.py:47:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = <function test_real_running_event_pause_blocks_queue.<locals>.<lambda> at 0x000001B376D24D50>
+timeout = 15.0, label = 'source idle'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+>       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for source idle: AttributeError("'str' object has no attribute 'get'")
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_automation_http.py::test_real_running_event_pause_blocks_queue
+1 failed, 4 warnings in 17.95s

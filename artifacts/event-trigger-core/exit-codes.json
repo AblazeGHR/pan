@@ -1,0 +1,14 @@
+{
+  "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_automation_core.py tests/test_automation_http.py tests/test_action_groups.py tests/test_action_ids.py tests/test_session_queue_api.py -o addopts= -q --junitxml=artifacts/event-trigger-core/final.xml",
+  "compileExit": 0,
+  "testsExit": 0,
+  "diffCheckExit": 0,
+  "tests": 112,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "initialCoreExit": 1,
+  "initialHttpExit": 1,
+  "httpFixtureExit": 1,
+  "httpShapeExit": 1
+}

@@ -1,0 +1,218 @@
+{
+  "port": 64477,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile",
+  "pid": 9032,
+  "createTime": 1792608787.9364858,
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+    "--port",
+    "64477",
+    "--data-root",
+    "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile"
+  ],
+  "run": {
+    "id": "run_4a4137a4b51d46aca7b8b034754d8c5d",
+    "triggerId": "t",
+    "triggerRevision": 2,
+    "actionId": "pause",
+    "event": {
+      "id": "evt_d4c67bf1950a48acb89685ff20a2a7ff",
+      "type": "workers.all_idle",
+      "schemaVersion": 1,
+      "source": {
+        "type": "core",
+        "id": "workers"
+      },
+      "occurredAt": "2026-10-21T18:53:09.521890+00:00",
+      "payload": {
+        "runningCount": 0
+      }
+    },
+    "createdAt": "2026-10-21T18:53:09.522421+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {},
+    "revision": 7,
+    "startedAt": "2026-10-21T18:53:09.540847+00:00",
+    "actionDigest": "3584a5d61c70819549b3c5ab6d87ea5c2f121d78e3a98483556bebef95c79bb4",
+    "action": {
+      "id": "pause",
+      "name": "Pause selected",
+      "enabled": true,
+      "effect": "write_local",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "execution": {
+        "kind": "session_operation",
+        "operation": "pause_everything",
+        "selector": {
+          "mode": "explicit",
+          "ids": [
+            "ses_82c37608c645c4d6"
+          ]
+        }
+      },
+      "description": "Pause selected",
+      "output_format": "json"
+    },
+    "targetIds": [
+      "ses_82c37608c645c4d6"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_82c37608c645c4d6",
+        "ok": true,
+        "items": [
+          {
+            "id": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+            "queueItemId": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+            "kind": "task",
+            "text": "must-stay-queued",
+            "createdAt": 1792608789.430099,
+            "source": "user",
+            "meta": {
+              "seq": 1,
+              "taskId": null,
+              "revision": 1,
+              "dispatchState": "queued",
+              "locked": true,
+              "lockManual": true,
+              "lockSource": "manual",
+              "illegalBatchId": null,
+              "lockAutoReport": false,
+              "steerPending": false,
+              "steerError": null
+            }
+          }
+        ],
+        "queueRevision": 2,
+        "agentReportsPaused": false,
+        "queuePaused": true
+      }
+    ],
+    "result": {
+      "ok": true,
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0,
+      "targets": [
+        {
+          "sessionId": "ses_82c37608c645c4d6",
+          "ok": true,
+          "items": [
+            {
+              "id": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+              "queueItemId": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+              "kind": "task",
+              "text": "must-stay-queued",
+              "createdAt": 1792608789.430099,
+              "source": "user",
+              "meta": {
+                "seq": 1,
+                "taskId": null,
+                "revision": 1,
+                "dispatchState": "queued",
+                "locked": true,
+                "lockManual": true,
+                "lockSource": "manual",
+                "illegalBatchId": null,
+                "lockAutoReport": false,
+                "steerPending": false,
+                "steerError": null
+              }
+            }
+          ],
+          "queueRevision": 2,
+          "agentReportsPaused": false,
+          "queuePaused": true
+        }
+      ]
+    },
+    "finishedAt": "2026-10-21T18:53:09.560778+00:00"
+  },
+  "queue": {
+    "items": [
+      {
+        "id": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+        "queueItemId": "q_1fea0f8db84b4646b5fbef3b1503c78e",
+        "kind": "task",
+        "text": "must-stay-queued",
+        "createdAt": 1792608789.430099,
+        "source": "user",
+        "meta": {
+          "seq": 1,
+          "taskId": null,
+          "revision": 1,
+          "dispatchState": "queued",
+          "locked": false,
+          "lockManual": false,
+          "lockSource": null,
+          "illegalBatchId": null,
+          "lockAutoReport": false,
+          "steerPending": false,
+          "steerError": null
+        }
+      }
+    ],
+    "queueRevision": 3,
+    "agentReportsPaused": false,
+    "queuePaused": true
+  },
+  "targetId": "ses_82c37608c645c4d6",
+  "unselectedId": "ses_5024b352302822ed",
+  "sentinelUnchanged": true,
+  "fakeRecords": [
+    {
+      "kind": "init",
+      "pid": 14632,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-target",
+      "at": 1792608789.2476096,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    },
+    {
+      "kind": "init",
+      "pid": 33436,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-control",
+      "at": 1792608789.2965536,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    },
+    {
+      "kind": "init",
+      "pid": 41100,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-source",
+      "at": 1792608789.329791,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    },
+    {
+      "kind": "received",
+      "pid": 41100,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-source",
+      "text": "default-off-probe",
+      "at": 1792608789.364843
+    },
+    {
+      "kind": "received",
+      "pid": 41100,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-source",
+      "text": "enabled-source-probe",
+      "at": 1792608789.5202956
+    },
+    {
+      "kind": "received",
+      "pid": 33436,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3524\\test_real_running_event_pause_0\\owned-profile\\workdirs\\auto-control",
+      "text": "unselected-control-delivered",
+      "at": 1792608789.6016352
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

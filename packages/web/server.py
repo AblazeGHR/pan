@@ -300,12 +300,20 @@ async def lifespan(app: FastAPI):
                     await tailscale.operation(tailscale.startup)
                     lan = _lan_controller()
                     await lan.operation("startup")
+                    from packages.automation.service import Service as AutomationService
+                    automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
+                    app.state.automation = automation
                     try:
+                        await automation.start()
                         yield
                     finally:
-                        from packages.web.native_file_picker import native_file_picker
-                        native_file_picker.close()
-                        await lan.shutdown()
+                        try:
+                            await automation.close()
+                        finally:
+                            app.state.automation = None
+                            from packages.web.native_file_picker import native_file_picker
+                            native_file_picker.close()
+                            await lan.shutdown()
                 finally:
                     result = await tailscale.operation(tailscale.shutdown)
                     if not result["ok"]:
@@ -14629,6 +14637,8 @@ else:
 # ── Static files ──
 from packages.actions.api import install as _install_action_api
 _install_action_api(sys.modules[__name__])
+from packages.automation.api import install as _install_automation_api
+_install_automation_api(sys.modules[__name__])
 
 
 STATIC_DIR = _WEB_DIR / "static"
