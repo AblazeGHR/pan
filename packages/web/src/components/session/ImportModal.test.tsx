@@ -201,6 +201,17 @@ describe('ImportModal adapter availability', () => {
         codex: 'Codex import target',
       }[adapter];
       await waitFor(() => expect(screen.getByText(title)).toBeTruthy());
+      const search = screen.getByRole('searchbox', { name: 'Search loaded sessions' });
+      for (const query of [`  ${adapter}-native  `, 'NATIVE', title, 'project']) {
+        fireEvent.change(search, { target: { value: query } });
+        expect(screen.getByText(title)).toBeTruthy();
+      }
+      fireEvent.change(search, { target: { value: 'ses_pan-unrelated' } });
+      expect(screen.queryByText(title)).toBeNull();
+      expect(screen.getByText(/No sessions match/)).toBeTruthy();
+      fireEvent.change(search, { target: { value: '   ' } });
+      expect(screen.getByText(title)).toBeTruthy();
+      fireEvent.change(search, { target: { value: `${adapter}-native` } });
       fireEvent.click(screen.getByText(title));
 
       const importedId = `${adapter}-native`;
