@@ -1,0 +1,113 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________ test_node_query_pause_production_ui_restart_and_delay_mcp __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3574/test_node_query_pause_producti0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001940E269F30>
+
+    def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'combined-profile')
+        rt.data_root.mkdir()
+        m = manifest()
+        mf = tmp_path / 'plugins.json'
+        mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}))
+        (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}))
+        evidence = {'port':h.PORT,'root':str(rt.data_root),'processes':[]}
+        def capture():
+            if rt.process and rt.process.poll() is None:
+                for p in [psutil.Process(rt.process.pid), *psutil.Process(rt.process.pid).children(recursive=True)]:
+                    evidence['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline()})
+        def stopped():
+            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time()!=p['created'] for p in evidence['processes'])
+        def view():
+            return rt.request('GET','/api/automation')
+        def binding(enabled):
+            return {'pluginBindings':[{'plugin_id':'producer','enabled':enabled,'mode':'gateway'}]}
+        def ready():
+            return any(d['type']=='producer.ping' and d['available'] for d in view()['definitions'])
+        def create(name):
+            return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})
+        try:
+            rt.start()
+            target, control, owner = [create(n) for n in ('combined-target','combined-control','combined-owner')]
+            for s in (target,control):
+                assert 'error' not in h._spawn(rt,s['id'])
+            item = rt.request('POST',f"/api/sessions/{target['id']}/queue",json={'text':'combined-blocked','locked':True,'clientMessageId':'combined'})['item']
+            a = query_action(leaf('name','eq','combined-target'))
+            a['name'] = 'Combined query pause'
+            rt.request('POST','/api/actions/actions',json={'item':a})
+            token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text()})['token']
+            t = {**trigger(),'eventTypes':['producer.ping']}
+            rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers={'Authorization':'Bearer '+token})
+            rt.request('PATCH',f"/api/sessions/{owner['id']}",json=binding(True))
+            h._wait_for(ready,label='Node ready')
+            capture()
+            publish(rt.data_root,type='producer.ping',payload={'value':1},event_id='combined-event')
+            def done():
+                return next((r for r in view()['runs'].values() if r['event']['id']=='combined-event' and r['status']=='succeeded'),None)
+            run = h._wait_for(done,label='Node -> query -> Pause')
+            assert run['targetIds']==[target['id']] and run['selection']['matched']==1
+            assert run['event']['source']=={'type':'plugin','id':'producer'}
+            rt.request('PATCH',f"/api/sessions/{target['id']}/queue/{item['queueItemId']}/lock",json={'locked':False})
+            h._enqueue(rt,control['id'],'combined-control-delivered','control')
+            h._wait_for(lambda:h._received(rt,text='combined-control-delivered'),label='control actual CLI handoff')
+            queue=rt.request('GET',f"/api/sessions/{target['id']}/queue")
+            assert queue['queuePaused'] and any(i['queueItemId']==item['queueItemId'] for i in queue['items'])
+            assert not h._received(rt,text='combined-blocked')
+            OUT.mkdir(parents=True,exist_ok=True)
+            browser_input=OUT/'browser-input.json'
+            browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}))
+            browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,timeout=70,**command_window_options())
+>           (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: can only concatenate str (not "NoneType") to str
+
+tests\test_eta_final_combined.py:77: TypeError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests/test_eta_final_combined.py::test_node_query_pause_production_ui_restart_and_delay_mcp
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-2 (_readerthread)
+
+  Traceback (most recent call last):
+    File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+      self._context.run(self.run)
+      ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+    File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\threading.py", line 1024, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\subprocess.py", line 1614, in _readerthread
+      buffer.append(fh.read())
+                    ~~~~~~~^^
+  UnicodeDecodeError: 'gbk' codec can't decode byte 0xa3 in position 2342: illegal multibyte sequence
+
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_eta_final_combined.py::test_node_query_pause_production_ui_restart_and_delay_mcp
+1 failed, 6 warnings in 9.69s

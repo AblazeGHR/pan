@@ -1,0 +1,115 @@
+{
+  "calls": [
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 31,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 32,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 79,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 80,
+      "operation": "run",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 81,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 123,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 136,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 137,
+      "operation": "run",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 138,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 147,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 148,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 119,
+      "operation": "read_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 148,
+      "operation": "read_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 34,
+      "operation": "check_output",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_final_combined.py",
+      "line": 59,
+      "operation": "read_text",
+      "encoding": "utf-8"
+    },
+    {
+      "file": "tests/test_eta_ledger_growth.py",
+      "line": 33,
+      "operation": "write_text",
+      "encoding": "utf-8"
+    }
+  ],
+  "browserLogs": [
+    {
+      "file": "browser.log",
+      "utf8Decode": true,
+      "containsNonCp936Marker": true,
+      "bytes": 34
+    },
+    {
+      "file": "browser-recovery.log",
+      "utf8Decode": true,
+      "containsNonCp936Marker": true,
+      "bytes": 34
+    }
+  ],
+  "nodeReadWrite": "readFile utf8; writeFile utf8"
+}
