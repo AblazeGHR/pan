@@ -147,7 +147,7 @@ Session 行上的 **Pin** 快捷按钮用于置顶/取消置顶，右键菜单�
 report_subscribe → agent_assign → Worker 完成或报错 → manager queue_pending → 验收
 ```
 
-`agent_assign` 用于新任务，返回 `queued` 表示已接受，不表示已经完成。`agent_send` 将补充消息排队且不打断当前任务；`agent_send_force` 用于需要即时送达的紧急消息：按 adapter 能力 Steer 优先，无 Steer 能力才 restart+send，无 Worker 时持久入队；`agent_notify` 用于把后台命令或外部任务的事后结果持久通知给目标 Session。完成报告写入 manager 的 `queue_pending`，即使短暂掉线也可在之后读取。
+`agent_assign` 用于新任务，返回 `queued` 表示已接受，不表示已经完成。`agent_send` 用于明确留待当前任务结束后处理的独立后续事项；当前任务的补充、澄清、纠正和约束更新默认使用 `agent_send_force`，由 Pan 按能力选择送达方式。accepted 仅表示 CLI 接受，unknown 不得自动重发；`agent_notify` 用于把后台命令或外部任务的事后结果持久通知给目标 Session。完成报告写入 manager 的 `queue_pending`，即使短暂掉线也可在之后读取。
 
 用 Dashboard 时，在 manager 的 **Manage → Relationship → Manages** 中为目标点击 **Subscribe**。这和右键 **msgBridge** 中的 QQ 收件箱订阅不是同一功能。
 
