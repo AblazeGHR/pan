@@ -9337,13 +9337,6 @@ async def _update_session_settings(session_id: str, data: dict):
             raise
     else:
         await sess.save_async(s)
-    await broadcast({
-        "type": "session.updated",
-        "sessionId": s.id,
-        # Safe summary fields let connected routes update immediately; the
-        # debounced list refresh below remains the final reconciliation.
-        "session": _session_summary(s),
-    })
     result = _session_to_api(s)
     # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
     # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
@@ -9362,6 +9355,14 @@ async def _update_session_settings(session_id: str, data: dict):
         result["requireRestart"] = True
     if "pluginBindings" in data:
         result["pluginApplyStatus"] = "failed" if result.get("restartError") else "pending" if result.get("delayedRestart") else "next_start" if require_restart else "applied"
+    # Register retirement immediately after the durable commit, before an
+    # external notification can fail or be cancelled. The saved selection must
+    # never depend on successful WebSocket delivery to take effect in a Worker.
+    await broadcast({
+        "type": "session.updated",
+        "sessionId": s.id,
+        "session": _session_summary(s),
+    })
     return result
 
 

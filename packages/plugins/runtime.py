@@ -223,7 +223,7 @@ class Runtime:
         sid, op = request["session_id"], request["operation"]
         view, plugin = request.get("view", "gateway"), request.get("plugin")
         if op == "core_enabled":
-            _, _, bindings = self.context(sid)
+            _, _, bindings = await io(self.context, sid)
             return {"enabled": any(b["enabled"] and b["plugin_id"] == "pan" for b in bindings)}
         if op == "list":
             return {"tools": await self.directory(sid, view, plugin)}
@@ -286,7 +286,7 @@ class Runtime:
                 if self.closing:
                     break
                 try:
-                    bindings = self.context(sid)[2] if self.get_session(sid) is not None else []
+                    bindings = (await io(self.context, sid))[2] if self.get_session(sid) is not None else []
                     if any(b["enabled"] and b["plugin_id"] == pid for b in bindings):
                         await asyncio.wait_for(self.snapshot(sid, pid), 10)
                     elif not self.invocations:

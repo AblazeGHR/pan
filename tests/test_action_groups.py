@@ -3,6 +3,7 @@ import asyncio
 import copy
 import json
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -936,5 +937,127 @@ def test_session_branch_waits_for_unbuild_before_copying_plugin_settings(setup, 
             assert response.status_code == 200 and 'error' not in response.json(), response.text
             child = sess.get(response.json()['id'])
             assert child.adapter_config.get('plugin_bindings', []) == []
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('notification_failure', ['cancel', 'error'])
+def test_committed_group_settings_register_restart_before_notification(setup, monkeypatch, notification_failure):
+    async def run():
+        store, _ = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Committed-before-notify', adapter='codex')
+        monkeypatch.setattr(srv.worker, 'find_alive_worker_by_session', lambda sid: SimpleNamespace(status='running') if sid == owner.id else None)
+        monkeypatch.setattr(srv, '_session_summary', lambda s: {'id': s.id})
+        monkeypatch.setattr(srv, '_session_to_api', lambda s: {'id': s.id})
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        async def notify(event):
+            entered.set()
+            await proceed.wait()
+            raise OSError('notification unavailable')
+        monkeypatch.setattr(srv, 'broadcast', notify)
+        updating = asyncio.create_task(srv.api_update_session(owner.id, {'pluginBindings': [binding(release['plugin_id'])]}))
+        await asyncio.wait_for(entered.wait(), 3)
+        saved = json.loads((sess.SESSION_DIR / f'{owner.id}.json').read_text())
+        assert saved['adapter_config']['plugin_bindings'] == [binding(release['plugin_id'])]
+        try:
+            srv.worker.request_delayed_restart.assert_called_once_with(owner.id)
+        finally:
+            if notification_failure == 'cancel':
+                updating.cancel()
+            else:
+                proceed.set()
+            with pytest.raises(asyncio.CancelledError if notification_failure == 'cancel' else OSError):
+                await updating
+        assert not coordinator().active
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('entry', ['core_enabled', 'watch'])
+def test_core_enabled_slow_catalog_allows_event_loop_progress(setup, monkeypatch, entry):
+    async def run():
+        runtime = Runtime(lambda: None, lambda sid: object())
+        entered, proceed = threading.Event(), threading.Event()
+        def context(sid):
+            entered.set()
+            assert proceed.wait(3), 'catalog reader was not released'
+            return None, None, [{'plugin_id': 'pan', 'enabled': True}]
+        monkeypatch.setattr(runtime, 'context', context)
+        if entry == 'watch':
+            runtime.providers[('synthetic', 'pan')] = (None, SimpleNamespace(close=AsyncMock()))
+            monkeypatch.setattr(runtime, 'snapshot', AsyncMock())
+            runtime.start()
+            reading = runtime.watcher
+        else:
+            reading = asyncio.create_task(runtime.handle({'session_id': 'synthetic', 'operation': 'core_enabled'}))
+        try:
+            assert await asyncio.to_thread(entered.wait, 3)
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), 1)
+            assert not reading.done() and not proceed.is_set()
+        finally:
+            proceed.set()
+        if entry == 'core_enabled':
+            assert await reading == {'enabled': True}
+        await runtime.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('unbuild_first', [True, False])
+def test_native_admission_and_unbuild_share_actual_session_boundary(setup, monkeypatch, unbuild_first):
+    async def run():
+        from packages.core import worker
+        store, manifest = setup
+        store.put('actions', api_action())
+        release = group(store, ids=['list_sessions'])
+        owner = sess.create(name='Native-admission-owner', adapter='codex')
+        srv._set_plugin_config(owner.adapter_config, [binding(release['plugin_id'])])
+        sess.save(owner)
+        pin(owner, Catalog(manifest))
+        live = worker.Worker(worker_id='native-boundary', session_id=owner.id,
+            adapter=SimpleNamespace(name='codex'), status='idle',
+            process=SimpleNamespace(returncode=None, stdin=Mock()))
+        owner.cli_session_id = 'synthetic-thread'
+        live.native_control_mode, live.native_control_generation = 'native', 1
+        monkeypatch.setattr(worker, '_control_runtime_matches', lambda *args: True)
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', lambda sid: live if sid == owner.id else None)
+        monkeypatch.setattr(worker, '_record_legal_worker_state', AsyncMock())
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        original_commit = sess.commit_adapter_config_async
+        original_offline = worker._commit_offline
+        async def detach(*args, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return await original_commit(*args, **kwargs)
+        async def admit(*args, **kwargs):
+            entered.set()
+            await proceed.wait()
+            return await original_offline(*args, **kwargs)
+        monkeypatch.setattr(sess, 'commit_adapter_config_async', detach if unbuild_first else original_commit)
+        monkeypatch.setattr(worker, '_commit_offline', original_offline if unbuild_first else admit)
+        async def native():
+            return await worker._admit_native_turn(live, object(), request_id='native-request',
+                thread_id=owner.cli_session_id, control_generation=1)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=srv.app), base_url='http://isolated') as client:
+            async def unbuild():
+                return await client.post('/api/actions/groups/tools/unbuild', json={})
+            first = asyncio.create_task(unbuild() if unbuild_first else native())
+            await asyncio.wait_for(entered.wait(), 3)
+            second = asyncio.create_task(native() if unbuild_first else unbuild())
+            await asyncio.sleep(0)
+            assert not second.done() and live.status == 'idle'
+            proceed.set()
+            if unbuild_first:
+                assert (await first).status_code == 200
+                with pytest.raises(RuntimeError, match='detached'):
+                    await second
+                assert owner.task_seq == 0
+            else:
+                receipt = await first
+                assert receipt['requestId'] == 'native-request' and live.status == 'running'
+                assert (await second).status_code == 409
+                assert store.read()['groups']['tools']['build'] == release
         assert not coordinator().active
     asyncio.run(run())
