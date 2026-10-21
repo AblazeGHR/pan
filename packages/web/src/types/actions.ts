@@ -9,7 +9,8 @@ export type Action = {
   effect: 'read' | 'write_local' | 'write_external' | 'high_risk'; output_format: 'json' | 'text';
   input_schema: InputSchema;
   execution: { kind: 'api'; method: 'GET'; path: string } |
-    { kind: 'command'; executable: string; args: string[]; cwd: string; timeout_sec?: number };
+    { kind: 'command'; executable: string; args: string[]; cwd: string; timeout_sec?: number } |
+    { kind: 'session_operation'; operation: 'pause_everything'; selector: { mode: 'explicit'; ids: string[] } | { mode: 'event'; path: string } };
 };
 export type ActionGroup = {
   id: string; name: string; action_ids: string[];

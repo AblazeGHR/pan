@@ -11,6 +11,7 @@ const JobsView = lazy(() => import('./views/JobsView'));
 const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
+const AutomationView = lazy(() => import('./views/AutomationView'));
 
 function deferredRoute(view: React.ReactNode) {
   return <Suspense fallback={<div className="p-4 text-sm text-text-tertiary">Loading...</div>}>{view}</Suspense>;
@@ -26,6 +27,7 @@ export const router = createBrowserRouter(
       element: <App />,
       children: [
         { path: 'actions', element: deferredRoute(<ActionsView />) },
+        { path: 'automation', element: deferredRoute(<AutomationView />) },
         {
           index: true,
           element: <ChatRoute />,
