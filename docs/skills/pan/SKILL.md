@@ -5,7 +5,18 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）
 
-Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。你（meta-agent，MA）通过 Pan MCP 工具调度多个 task-agent（TA）会话（cbc / kimi / opencode / claude / codex 等多 adapter，持续增加中），每个会话拥有独立的记忆（workdir）；Worker 是实际运行这些会话的临时 CLI 进程实例。
+Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。本入口只维护各角色共用的概念、工具契约和操作说明；角色行为由专门文档维护。
+
+## 必读：先识别自己的角色
+
+**使用本 skill 的 Agent 必须先确认本次职责，并进一步阅读相应行为文档，不能只读本入口就开始工作。**
+
+- **MA（meta-agent）**：负责澄清需求、拆解派发、跟进、独立验收与整合。必须阅读 [MA 行为准则](references/ma.md)。
+- **TA（task-agent）**：负责已派发任务的实施、验证和交付。必须阅读 [TA 行为准则](references/ta.md)。
+- 一个 Session 可以在不同任务中承担不同角色；以用户或当前任务明确指定的职责为准，不根据 adapter、模型、Session 名称或是否拥有子 Session 猜测。需要兼任两种职责时两份都读；确实无法确定且影响工作方式时先向任务发起者澄清。
+- 角色文档不扩大用户授权。用户当前指令及任务边界优先于本 skill；只读讨论不能自动变成实现，TA 完成不等于 MA 验收通过。
+
+角色文档中的共用操作均引用本入口，避免复制工具参数与回执语义。以后调整 MA 的需求澄清、派发、等待、验收行为，直接修改 `references/ma.md`；调整 TA 的执行和交付行为，修改 `references/ta.md`。
 
 Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；聊天正文由服务端交接事件或确认 history 生成。队列 Steer 使用原 `queueItemId` 与 `expectedRevision`，由服务端读取全文和来源，遵守 Pause everything、readonly、锁及编辑 lease；仅支持 native Steer 的 adapter 提供按钮。回执不明的条目保持 `steerPending`，不得自动重发。接口与 provider 回执边界见 [HTTP API](references/http-api.md)。
 
@@ -15,9 +26,9 @@ Dashboard 队列的入队回执只证明持久化，不证明已交给 Worker；
 > - **进程（物理执行体）**：**Worker** 是临时 CLI 子进程，实际运行某个 MA 或 TA 的 Session——**既有 MA Worker 也有 TA Worker**；Worker 不承载身份（身份在 Session），可 kill / 回收 / 随时重建。
 > - **推荐关系**：用户 ↔ MA(Session/Worker) → `agent_assign` → TA(Session/Worker)；TA 完成报告经 `report_subscribe` → 落盘队列 `queue_pending` → MA 验收（§2 / §3）。
 
-> **这份 SKILL.md 是 Pan 编排知识的单一事实源**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——改内容先改主源，再复制到副本保持同步。MCP 工具 / HTTP API / workdir 约定变化时必须同步更新本文件。
+> **`docs/skills/pan/` 是 Pan skill 的版本控制主源目录**（立项 `docs/archive/Pan冷启动Agent编排skill立项.md`）。**主源**：`docs/skills/pan/SKILL.md`（git 版本控制）；`.codebuddy/skills/pan/SKILL.md` 是**同步副本**（CodeBuddy 编辑器加载 skill 用，不进 git）——先改主源；角色拆分后同步必须覆盖 SKILL.md 及其引用文件，不能只复制入口。用户要求暂缓同步时仅修改仓库主源。MCP 工具 / HTTP API / workdir 约定变化时更新对应共用说明。
 >
-> **技术细节引用子文档**：HTTP API 清单与字段映射 → [`references/http-api.md`](references/http-api.md)；/ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用）→ [`references/ws-protocol.md`](references/ws-protocol.md)。本文件保留编排流程主线，细节见子文档。
+> **技术细节引用子文档**：HTTP API 清单与字段映射 → [`references/http-api.md`](references/http-api.md)；/ws/agent 订阅协议与 monitor_workers.py 盯梢模板（测试/排障用）→ [`references/ws-protocol.md`](references/ws-protocol.md)。本文件保留共用操作，角色行为见 `references/ma.md` 与 `references/ta.md`。
 
 ### Illegal 与显式唤醒（2026-10-20）
 
@@ -27,7 +38,7 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
-**主服务用户 CLI（Windows）**：稳定安装可显式注册 `pan`，支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。最终用户 PATH 由 MA 验收后注册到稳定 practical，不指向 TA 树；用户级 skill 同步由 MA 处理。
+**主服务用户 CLI（Windows）**：稳定安装可显式注册 `pan`，支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。稳定安装的 PATH 不应指向临时 TA 树；注册与同步由任务授权决定。
 
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
@@ -50,8 +61,8 @@ executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝
    - **项目级 `.mcp.json` 发现路径**：工具是 deferred 的 → `ToolSearch`（查询词 `pan`/`mcp`）→ `DeferExecuteTool` 调用。
    - **拿手册**：MCP 工具 `pan_handbook()` 直接返回本文件全文（§5「其他」）——接线完成后若不清楚编排流程，先调它再动手。
    - 前置三对齐：MCP server 目标端口（`PAN_API_URL`，默认 8768）**必须**与 `PAN_AGENT_SESSION_ID` 所在服务同实例，否则 `report_subscribe` 失效（§3 / §10.2 G9）。
-2. 编排主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 收完成报告 → session_get 查结果 → session_delete 收尾`。
-3. **完成通知只有一条编排路径**：MCP `report_subscribe` → 报告落到自己的**落盘队列 `queue_pending`**（MA 内部订阅，§3）。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）仅**测试/排障/外部协调者**用，不是编排路径（§4）。
+2. MA 的任务派发、依赖与收尾流程见 [MA 行为准则](references/ma.md)。
+3. 完成报告经 `report_subscribe` 落入订阅者的持久队列 `queue_pending`（§3）；MA 如何等待与接收见角色文档。外部 WS 是测试/排障/外部协调者接口。
 4. 端口约定：代码默认/应用端口保持 **8768**；main/test 的测试或隔离运行使用 **8767 或 8765**，按运行实例配置。MCP server 默认连 `PAN_API_URL`（8768）。**关键**：MCP server 目标端口必须与 `PAN_AGENT_SESSION_ID` 所在服务**同实例**（§3 三对齐），否则 `report_subscribe` / `qq_bind` 失效（§10.2 G9）。端口不符时用 `PAN_API_URL` 覆盖。
 5. **长命令先判后台 Job（MA/TA 均适用，执行前自主判断）**：准备执行 OS 命令时，若**预计超过 3 分钟**（全量测试、build、长脚本等典型场景），默认直接用 `agent_background_start` 起持久后台 Job——这是执行者自己的判断，**不需要 MA 提醒，也不需要 MA 另行授权**（命令本身仍遵守既有权限/审批/安全/managed 隔离）。要点：`target_session_id` 用自己；`cwd` 与 argv（可执行文件/文件参数）用绝对路径；Windows 默认 `hide_window=True` 隐藏控制台；stdout/stderr 落持久日志，Registry 记终态。启动成功且无其它可独立推进的工作 → **立刻 final 结束回合进入 idle**；终态通知（`noticeKind=background_job_terminal` 入 `queue_pending`）唤醒后再核验状态/日志/exitcode，**不轮询**。例外：交互式命令（需 stdin/TTY）、或用户明确要实时观察 → 不走后台 Job。完整政策见 §5「持久后台 Job、通知与报告订阅」。
 
@@ -96,40 +107,17 @@ executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝
 - Worker 会被 watchdog 自动回收（空闲/静默超时），用前若 `workerStatus` 为 `null` 需重新 `agent_spawn`（或直接 `agent_assign` 自动 spawn）。
 - 握手前提：`PAN_API_URL`（HTTP）必须指向实际运行端口。
 
-## 2. 编排工作流（全景）
+## 2. Session 协作操作
 
-```
-session_create → report_subscribe → agent_assign → queue_pending 收报告 → 查结果 → 收尾
-```
+本节说明工具操作；MA 的派发、等待与验收职责见 [MA 行为准则](references/ma.md)。
 
 ### 2.1 并行 fan-out（推荐主流程：agent_assign + report_subscribe）
 
-```
-1. 为每个任务创建/复用 session（承载 TA 身份的编排对象）
-   session_create(name="fix-h1", adapter="cbc", model="hy3")
-   → 返回 id: "ses_abc123..."（后续请求体的 session_id / MCP 的 session_id 用它，字段映射见 references/http-api.md）
+MA 的并行派发、串行依赖及事件驱动等待规则必须阅读 [MA 行为准则](references/ma.md#派发与事件驱动等待)。本入口不规定 TA 的编排职责。
 
-2. 订阅完成报告（派发前或派发后均可；§3 前置条件见 §3）
-   report_subscribe(session_id="ses_a...")
-   → {"subscribed": true, "reportSubscriptions": [...]}
+### 2.2 串行依赖
 
-3. 异步分派（立即返回，不阻塞）
-   agent_assign(session_id="ses_a...", text="任务A")
-   agent_assign(session_id="ses_b...", text="任务B")
-   → 都返回 {"status": "queued", "workerId": "...", "sessionId": "..."}
-
-4. worker 完成（done/error）→ 完成报告自动入你的落盘队列 queue_pending（§3）
-
-5. 收到全部完成报告后，逐个 session_get 读最终结果汇总
-
-6. 收尾：session_delete / session_batch_delete 释放资源（§2.5 / §5）
-```
-
-**派发后的终止条件**：agent_assign 已确认入队、report_subscribe 可用、必要状态已记录，且没有可独立推进的工作时，立即发送简短最终回复并结束当前回合。完成报告或用户新消息再触发下一回合。不要用定时 sleep/wait、反复查询 Session/Worker/queue_pending、持续保持工具调用或重复进度消息来“等待”报告；这些同样占住 MA 回合。只有报告订阅确实不可用且任务必须主动确认结果时，才使用有界轮询兜底。agent_assign 之后 worker 会自动 spawn（如果该 Agent 无活 worker）。
-
-### 2.2 串行依赖步骤（worker_handoff 已移除）
-
-> `worker_handoff` 与 `POST /api/handoff` 已于 2026-08-26 **彻底移除并归档**（原为立项 4.7 弃用的阻塞原语）。串行依赖同样用 `agent_assign` + `report_subscribe`（§3）：派发后订阅完成报告，报告入你的落盘队列 `queue_pending` 即「串行下一步」的信号——"等"是 MA 的默认 idle 状态，而非阻塞调用。派发带 `task_id` 幂等（§7.4）。
+同样按 [MA 行为准则](references/ma.md#派发与事件驱动等待) 由完成通知推进；旧 `worker_handoff` 阻塞原语已移除。
 
 ### 2.3 在已有会话上继续对话（agent_assign / agent_send / agent_send_force）
 
@@ -178,7 +166,7 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
    - workerStatus 为 null（已回收/已死）→ 先 agent_spawn(session_id) 重建，再视情况 assign / send
 ```
 
-任务文本的写法（取决于 `cliSessionId` 有无上下文，见 §2.6）。
+MA 如何表达任务、澄清需求和补齐上下文，见 [MA 行为准则](references/ma.md#需求澄清与任务表达)。
 
 ### 2.4 检查状态
 
@@ -236,20 +224,11 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
    session_batch_delete(session_ids=["ses_a", "ses_b"])   # 批量（MCP 工具已覆盖，逐个过 managed 隔离检查）
 ```
 
-**及时清理**：不再需要的 session 用 delete 释放进程与磁盘；watchdog 只回收进程，不删 session。注意：delete 不删 workdir 磁盘目录（残留见 §7.1 G11）。
+删除会停止 Worker 并删除 Session 元数据；是否应清理由 MA 的验收与收尾规则及当前用户授权决定，任务 done 本身不是删除授权。watchdog 只回收进程，不删 Session。注意：delete 不删 workdir 磁盘目录（残留见 §7.1 G11）。
 
 ### 2.6 派发规范：worker 无记忆，session 有记忆
 
-**记忆模型**：Worker 是**临时进程**——每次 spawn 都是全新进程，**无记忆**；Session 是**持久化容器**——保存 `history` + `cliSessionId`。重新 spawn 时 adapter 检测到 `cliSessionId` 非空即传 `cbc --resume <cliSessionId>`（`packages/core/adapters/cbc/adapter.py` `resume_args`），cbc 从 transcript（JSONL）恢复**完整上下文**（原任务描述、进度、历史对话都在）。session 的记忆来自持久化，不来自 worker。
-
-**派发判定**：派发任务前先 `session_get(session_id)` 查 **`cliSessionId`** 字段：
-
-| `cliSessionId` | 含义 | 任务文本写法 |
-|----------------|------|-------------|
-| **非空** | worker 将 `--resume` 恢复已有完整上下文 | **一律用简短指令**（追加任务 / 恢复中断 / 串行下一步 / 追问修正）：指出现有上下文里要做什么即可，**不要重发完整任务描述**——上下文已有原任务与进度，重发浪费 token，且措辞差异可能让 worker 误判为新任务/新要求 |
-| **为空 / null** | 新 session 或 worker 从未建立，worker 无上下文 | **任务描述必须自包含**：背景 / 目标 / 涉及文件（相对 workdir）/ 边界 / 验收标准 |
-
-- 与 §2.3 的关系：§2.3 解决「找 session + 选择派活方式」，本小节解决「任务文本怎么写」——`cliSessionId` 非空的 session 追加/恢复任务时：`agent_spawn`（`workerStatus` 为 null 时）→ 简短指令。
+任务拆解、自包含派发与续作文本由 [MA 行为准则](references/ma.md#需求澄清与任务表达) 规定。Session 持久保存 history 与 cliSessionId，Worker 重建由 adapter 恢复可用上下文；不能把进程回收当作上下文丢失。
 
 ### 2.7 替身交接（session_handoff）：精简上下文 / 切换 adapter
 
@@ -275,26 +254,11 @@ session_handoff(session_id="ses_a...",
 
 ### 2.8 验收批次、任务卡与报告的可执行写法
 
-维护 `acceptance-batches`、`overview`、任务卡或 TA 报告时，验收入口和开发者动作必须让下一位 MA/TA 可以直接执行，不能写成没有出处和操作对象的“查看详情”。每一项动作至少写清：
-
-1. **动作对象**：要检查的报告文件、任务 ID、Session/worktree/commit、证据目录或明确的持久化链接；
-2. **操作步骤/检查项**：打开、运行、对比或核对什么，以及必要的范围；
-3. **预期结果**：什么结果才算通过，什么结果算失败；
-4. **回填位置**：把通过、失败或未验证状态写回哪个批次、任务卡、`overview` 字段或报告文件。
-
-验收清单的每个“通过 / 失败 / 未验证”都必须带可定位出处（例如报告文件、任务 ID、Session/worktree/commit、证据目录或持久化链接）。找不到出处时必须明确写 **“证据入口缺失”**，不得要求用户自行猜测。已验收批次在标题或状态字段中显式写 **“已验收”**；待处理批次显式写 **“待处理/未验收”**。批次/父任务与后续独立任务分开记录，不能用后续任务的待验收状态反推已验收批次未完成。
-
-开发者动作必须逐项说明如何：
-
-- 接受当前范围，并记录接受依据；
-- 记录失败（现象、出处和回填位置）；或
-- 另立验证/修复任务（新任务 ID、依赖和回填位置）。
-
-不得用一个总勾选覆盖多个仍“未验证”的项目。该规则同时适用于 TA 的完成报告和 MA 的整合/验收记录。验收动作本身不要求操作 8768，也不以启动服务作为默认前置；只做文档、报告、静态证据或已授权的目标验证即可。编写或回填时保留用户 dirty 文件，不覆盖、回滚或代替处理与当前验收无关的用户改动。
+MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA 的交付要求见 [TA 行为准则](references/ta.md#交付)。
 
 ## 3. 完成通知：report_subscribe → queue_pending（MA 内部订阅，唯一编排路径）
 
-MA 编排 TA（的 Session/Worker）时，完成通知**一律走内部订阅**：MCP `report_subscribe` 把目标 session 的完成报告（done/error）推送到你的**落盘队列** `queue_pending`，由 consumer 批量拼成一条消息唤醒你。主链路：`session_create → report_subscribe（订阅）→ agent_assign → queue_pending 等完成 → session_get → session_delete`（订阅在 assign 前或后均可）。
+完成报告的内部订阅机制是：MCP `report_subscribe` 把目标 session 的完成报告（done/error）推送到你的**落盘队列** `queue_pending`，由 consumer 批量拼成一条消息唤醒你。MA 的使用流程与等待边界见 [MA 行为准则](references/ma.md#派发与事件驱动等待)。
 
 > **为什么是唯一路径**：异步、落盘可恢复（跨服务重启不丢）、跨协调者、不依赖外部会话/WS。外部 WS 盯梢（`/ws/agent` / `monitor_workers.py`）不再作为编排路径——只供测试 / 排障 / 外部协调者使用（§4 → `references/ws-protocol.md`）。
 
@@ -530,11 +494,11 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 
 | status | 含义 | 操作 |
 |--------|------|------|
-| `"queued"` | 任务已入队 | 等待 5-10 秒后重查 |
+| `"queued"` | 任务已入队 | 不重复提交；使用已订阅的完成通知，兜底条件见 MA 文档 |
 | `"running"` | Worker 执行中 | 继续等，**不要重复提交** |
 | `"done"` | 任务完成 | 读 `result` 字段 |
 | `"error"` | 任务失败 | 读 `result` 字段取错误 |
-| `"pending"` | 同 task_id 的任务仍在进行中（assign 幂等返回） | 用同 task_id 重试或 session_get 补查 |
+| `"pending"` | 同 task_id 的任务仍在进行中（assign 幂等返回） | 保留原 task_id，等完成通知；不另建任务重复执行 |
 
 `session_list`（= `agent_list`）的 `workerStatus`：
 - `"queued"` / `"running"` / `"idle"`（可发任务）/ `"error"` / `"held"` / `"zombie"`（跳过回收）
@@ -616,22 +580,9 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 - **MCP deferred 判定**：工具搜不到 ≠ 未连接。`ToolSearch` 搜得到 = deferred（`.mcp.json` 路径）；搜不到 = 未连接（多半 `--mcp-config` 没传或 cwd 错）。`--mcp-config` 路径下工具应直接可见。
 - **带 character 的 session 首次任务**会被 memory 加载阻塞（embedding 首次加载 + 网络重试），可配 `memory.enabled: false` 或依赖 15s 超时降级（踩坑 #12）。
 
-## 8. 最佳实践
+## 8. 按角色执行
 
-1. **先查后做**：`session_list()` 了解当前状态再操作。
-2. **命名规范**：Session 名短横线连接、有语义（`fix-h1`、`debug-auth`）；同名不可重复。
-3. **并行 fan-out 用 `agent_assign` + `report_subscribe`**（§3）；串行依赖同样走 assign + report_subscribe（§2.2/§7.4）。
-4. **上下文过大 / 要切 adapter 用 `session_handoff`**（§2.7）：替身交接创建孪生 session B 接替 A，A 归档可读。
-5. **完成通知走 `report_subscribe` → `queue_pending`**（内部订阅，§3）；外部 WS 盯梢仅测试/排障用（§4）。
-6. **订阅即接管**：`report_subscribe` 后完成报告自动入队（并自动 claim 建立管理）；不想要完成报告推送时用 `report_unsubscribe` 退订（**保留管理**）——**不要**用 `session_unclaim`（那是解除整个管理关系，会连带退订，session 变无主，§5）。
-7. **一个 Session 一个任务**：避免混多个不相关任务（taskSeq/result 配对依赖此约束）。
-8. **长任务防误杀**：stream running 卡死判定基于任务运行时长（`worker.task_timeout_sec`，默认 1800s）——长思考/大文件读取不会被静默超时误杀；仍建议复杂任务拆小、读大文件分段。
-9. **及时清理**：`session_delete` / `session_batch_delete` 释放资源；watchdog 只回收进程不删 session。
-10. **不依赖长驻 Worker**：watchdog 自动回收空闲 worker，用完即走，下次调用自动重建。
-11. **workdir 用绝对路径指 Pan 外目录**：多 worker 共改一个项目时，让所有 session 指向同一 workdir。
-12. **错误重试**：返回 `error` 时先查原因（session_get 的 lastResult / queue_pending 里的 zombie 报告），修复后重发。
-13. **复用已删除的 session（session_import）**：Pan session 删除后其 CLI 会话仍保留，用 `session_import(list_projects → list_sessions → import)` 恢复完整上下文复用（§5 会话管理说明）——省去重建后重新探索/初始化，尤其适合「worker 完成但需继续排查/跟进」的场景。清理时 `session_batch_delete` 的 session 都走这条回收路径，不浪费上下文。
-14. **长命令默认走后台 Job（MA/TA 均适用）**：预计超过 3 分钟的全量测试/build/长脚本，执行前自主判断改用 `agent_background_start`（入口规则 §0 第 5 条，完整政策 §5「持久后台 Job、通知与报告订阅」）——不轮询，终态通知唤醒后核验；交互式命令或用户明确要实时观察的除外。
+MA 必须阅读 [MA 行为准则](references/ma.md)，TA 必须阅读 [TA 行为准则](references/ta.md)。共用操作以本文件为准，不从另一角色的行为要求推导自己的职责或授权。
 
 ## 9. 常见问题
 
@@ -656,57 +607,17 @@ A: 检查 §3 前置条件：目标 session 是否有 `managed_by`、是否已 `
 **Q: 想保留管理关系，但不想再收完成报告推送？**
 A: 用 `report_unsubscribe`（只关完成报告推送，**保留 managed**）。**不要**用 `session_unclaim`——那是解除整个管理关系（连带退订），session 会变无主（§3 / §5 四操作对比）。
 
-## 10. 冷启动实测记录与待补充清单（D5）
+## 10. 冷启动历史实测入口
 
-> 立项 D5 要求同时验证 **HTTP 路径** 与 **MCP 路径**。下表 G1–G7 为 `docs/archive/冷启动Agent编排实测报告.md` 中 HTTP 路径实测结果；**MCP 路径实测（2026-08-17）见下方「MCP 路径实测」小节**，并据此更新 G2/G5、新增 G8–G12。
+2026-08 HTTP/MCP 冷启动实测及 G1–G12 记录已移至 [历史实测](references/cold-start-history.md)。仅在诊断旧环境、接线与版本差异时阅读；其中旧推荐流程不覆盖当前角色准则。
 
-### 10.1 HTTP 路径实测缺口（原 D5）
+### 10.1 HTTP 历史缺口
 
-| # | 缺口 | 建议补充位置 | 状态 |
-|---|------|-------------|------|
-| G1 | `POST /api/sessions`、`POST /api/spawn`、`POST /api/assign`、`DELETE /api/sessions/{id}` 的**请求体字段未记录**（原 §5 只说"见 server.py"）——纯 HTTP 冷启动在第 1 步就需读代码 | references/http-api.md 补核心端点 body 表 | ✅ |
-| G2 | **MCP server 接线步骤缺失**：实测 ToolSearch 搜不到 `mcp__pan__` 工具时，手册无"如何启动/注入 MCP server 使工具可见"的动作序列 | §0.1/§5（MCP 路径实测） | ✅ §0.1/§5 |
-| G3 | **workdir 相对基准未明确**：默认落点实测为 Pan server 数据根 `D:\project\pan-test\data\workdirs\<name>`，非当前项目目录 | §7.1 | ✅ §7.1 |
-| G4 | **Windows curl 内联 UTF-8 JSON 报 body 解析错误**（实测 `{"detail":"There was an error parsing the body"}`）；应改用 `--data-binary @file` 或 urllib/requests | references/http-api.md | ✅ |
-| G5 | `report_subscribe` 前置 `PAN_AGENT_SESSION_ID` 的**来源/注入方式未说明**（谁注入、何时有） | §3 | ✅ MCP 路径实测 |
-| G6 | **字段映射未说明**：create 返回 `id`，spawn/assign 入参用 `sessionId`；`sessionId` vs `session_id` 命名不一致 | references/http-api.md | ✅ |
-| G7 | 轮询**放弃/超时策略缺失**（多久、几次轮询算失败） | references/http-api.md 轮询兜底策略 | ✅ |
+历史 G1–G7 见上述记录，当前请求体以 [HTTP API](references/http-api.md) 为准。
 
-### 10.2 MCP 路径实测（2026-08-17，MA `mcp__pan__` 直连）
+### 10.2 MCP 历史缺口
 
-**实测链路（一次走通）**：
-`session_create`(ses_d66c08611936941b) → `worker_assign`(queued/worker-2) → 轮询 `session_get`(limit=30) → `lastResult.status="done"`, `result="391"`（子 worker 算 `17×23`）→ `session_delete`(deleted)。
-**第二次**覆盖 `worker_spawn` 显式路径：create → `worker_spawn`(idle) → assign(queued) → 轮询 → `143÷11=13` done → delete。参数名、状态判断、轮询兜底均充分，**MCP 路径主链路顺畅**。
-
-**G2 / G5 处理结论（已覆盖，更新原描述）**：
-
-- **G2（MCP 接线）已解决且写入 §0/§5**：`mcp__pan__` 工具由 Pan adapter 在 spawn worker 时**自动注入**——通过 adapter 生成的 `data/mcp-configs/<session_id>.mcp.json`（含 `{"mcpServers":{"pan":{"command":"...python","args":["-m","packages.mcp.server"],"cwd":"...","type":"stdio"}}}`），经 `--mcp-config` 显式传入，**直接 connected 可见，无需 ToolSearch/DeferExecuteTool**。`ToolSearch`+`DeferExecuteTool` **仅**用于项目级 `.mcp.json` 路径发现的工具（见 §7.7）。手册原 §0/§5 "MCP 工具是 deferred 的"表述对 `--mcp-config` 路径不准确，已修正。
-
-- **G5（`PAN_AGENT_SESSION_ID` 来源）已查实（2026-08-17）**：该变量**由 Pan adapter 注入到 MCP server 进程环境**（写入上述 mcp-config 的 `env` 段：`PAN_AGENT_SESSION_ID=<manager session id>`、`PAN_AGENT_SESSION_TITLE=<title>`）。**来源**：manager（MA 自身）session 被创建并启用 MCP 时，adapter 生成 mcp-config 时填入；**何时**：MCP server 以 stdio 拉起的那一刻就带在环境里，对 MA 透明（其亲 shell `env` 里查不到这些变量，属正常）。
-
-- **G5 关键约束（新发现，致命）**：`report_subscribe` 要求 **manager session 与被管 session 同处一个 Pan 服务实例**。本实测中 MCP server 默认连 **8768**（见 §7.7/§0），而 `PAN_AGENT_SESSION_ID=ses_8f7825d50d340dad` 实际只存在于 **8767**（pan-test）。该环境变量值指向 8767，与 MCP server 的默认目标 8768 **跨端口**，导致 §3 内部报告路径在本布局下失效。**对齐前提**：`--mcp-config` 的 `cwd`/启动端口、`PAN_API_URL`、**与 `PAN_AGENT_SESSION_ID` 所在服务**必须三者一致。
-
-**MCP 路径新发现缺口（G8–G12；2026-08-27 核对：各项建议均已在主文对应位置补齐 ✅——G8 见 §5/§6、G9/G10 三对齐见 §0/§3、G11 见 §2.5/§7.1、G12 见 §7.1）**：
-
-| # | 缺口 / 现象 | 后果 | 建议补充位置 |
-|---|-------------|------|--------------|
-| G8 | `session_list` **无过滤参数**，默认把全部 session 的**完整 history** 序列化返回（实测 310KB / 265906 chars，触发工具输出 token 上限溢出） | 冷启动第一步"先查后做"反而撑爆上下文；必须先 `Read` 落盘文件分段看 | §5/§6：改用 `session_get(limit=)` + `worker_list` 代替全量 `session_list` |
-| G9 | **MCP server 默认端口（8768）与 `PAN_AGENT_SESSION_ID` 所在服务（8767）跨端口**（见 G5 约束） | `report_subscribe` 内部报告路径不可用 | §0/§3：明确"MCP 目标端口 = PAN_AGENT_SESSION_ID 所在端口"三对齐 |
-| G10 | **`report_subscribe` 在本布局返回 `404 "Not Found"`**：实测 8768(main) 服务 `server.py` 无 `report-subscribe` 路由（0 次命中），而本工作树 `server.py` 有（1 次）——即**运行中的服务落后于 MCP 工具版本**（版本 skew） | §3 内部报告走不通；只能退回 references/http-api.md 的轮询兜底 | §3：标注"需运行含 `report-subscribe` 的服务端（本分支 server.py 已含）"；否则用轮询兜底 |
-| G11 | `session_delete` **只 kill worker + 删 session 元数据，不删 workdir 磁盘目录**（实测删除后 `data/workdirs/mcp-cold-probe` 空目录残留） | 磁盘累积空目录，需另清理 | §2.5/§7.1：说明残留，通过 Data 孤立 workdir 候选手动清理 |
-| G12 | workdir 默认基准 = **服务进程的数据根**，非固定 pan-test。本实测（8768 服务 cwd=`D:\project\Pan`）落点为 `D:\project\Pan\data/workdirs/<name>`，与 G3 记的 `D:\project\pan-test\...` 不同 | §7.1 的"Pan server 数据根"需指明是**实际运行实例的**数据根，可经 create 返回的 `workdir` 字段确证 | §7.1 |
-
-**MCP 路径推荐操作顺序（据实测固化）**：
-1. 确认 MCP server 目标端口 = `PAN_AGENT_SESSION_ID` 所在端口（否则 G9/G10 命中，退回 references/http-api.md 的轮询兜底）。
-2. `session_create(name, adapter="cbc", model="hy3")` → 记下返回 `id`（= 后续 `session_id` 入参）。
-3. `report_subscribe(session_id)`（§3；若可用）。
-4. `agent_assign(session_id, text)` 立即返回 `queued`（自动 spawn，无需手动 `agent_spawn`；§2.1）。
-5. 等 `queue_pending` 完成报告（兜底：轮询 `session_get(session_id, limit=15)` 直到 `lastResult.status=="done"`，≤30s 内完成，按 §6 不重发）。
-6. 读 `lastResult.result`。
-7. `session_delete(session_id)` 收尾（注意 §7.1 G11 workdir 残留）。
-8. **避免**全量 `session_list`（G8）；状态巡检用 `agent_list` + 定向 `session_get`。
-
----
+历史 G8–G12 见上述记录。当前仍须核实 MCP 目标实例与自身 Session 对齐，区分订阅和管理；Session 删除不删除 workdir。
 
 ## 11. skill 维护规范
 
@@ -723,13 +634,13 @@ A: 用 `report_unsubscribe`（只关完成报告推送，**保留 managed**）�
 - 手册内容禁止只引用代码文件而不给关键结论（参数表 / 返回格式 / 状态语义必须落字）。
 - 验证闭环作为变更验收项：冷启动 agent 测试（仅 MCP + skill、无上下文完成一次编排，立项 §二·5「验证」）。
 
-### 11.2 SKILL.md 双份管理
+### 11.2 skill 主源与同步副本
 
-- **主源**：`docs/skills/pan/SKILL.md`（**git 版本控制**，随代码变更走 PR/提交）。
+- **主源**：`docs/skills/pan/`（**git 版本控制**）；入口 `SKILL.md` 维护共用操作，`references/ma.md` 与 `references/ta.md` 分别维护角色行为。
 - **同步副本**：`.codebuddy/skills/pan/SKILL.md`（CodeBuddy 编辑器加载 skill 用，**不进 git**）。
 - **技术细节子文档**：`docs/skills/pan/references/http-api.md`、`references/ws-protocol.md`（与主源同目录，相对链接引用）。
-- **改内容先改主源，再复制到副本保持同步**——只改副本会让主源落后，下次 checkout/合并会把改动冲掉。
-- 内容变化触发同步：MCP 工具 / HTTP API / workdir 约定 / 编排流程变更时，两处一并更新（本文件 §0 头注）。
+- **先改仓库主源，同步时包含所有变动的引用文档**；只同步入口会导致角色必读链接缺失。用户明确要求暂缓用户级或其他副本同步时遵守该范围，不因维护规则自行复制。
+- MCP 工具 / HTTP API / workdir / 角色规则变化时，记录副本同步需求；按本次用户授权执行同步，不以此隐含授权修改外部 skill 目录。
 
 ---
 
