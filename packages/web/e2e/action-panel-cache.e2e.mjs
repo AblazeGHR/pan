@@ -84,6 +84,7 @@ const result = {
   releaseAndBinding: {},
   refreshFailure: {},
   lateRegistry: {},
+  refreshSaveInterleaving: {},
   firstLoadFailure: {},
   lateSession: {},
   narrow: {},
@@ -274,6 +275,40 @@ try {
   assert.equal(result.lateRegistry.editorStillOpen, true);
   assert.ok(lateCalls.some((call) => call.path === '/api/actions'));
   await lateContext.close();
+
+  // Refresh/save interleaving: a pre-save GET must not leave Refresh disabled
+  // or overwrite the save response.
+  {
+    const interleaveContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const interleavePage = await interleaveContext.newPage();
+    instrument(interleavePage);
+    await openList(interleavePage);
+    await interleaveContext.route('**/api/actions', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await route.continue();
+    });
+    const refreshButton = interleavePage.getByRole('button', { name: 'Refresh', exact: true });
+    await refreshButton.click();
+    await expect(refreshButton).toBeDisabled();
+    await actionRow(interleavePage).click();
+    await interleavePage.locator('#action-description').fill('Interleaved save survives refresh');
+    const saveResponse = interleavePage.waitForResponse(
+      (res) => new URL(res.url()).pathname === '/api/actions/actions/list_sessions' && res.request().method() === 'PUT',
+    );
+    await interleavePage.getByRole('button', { name: 'Save Action' }).click();
+    await saveResponse;
+    await interleavePage.waitForTimeout(1400);
+    await waitForActionList(interleavePage);
+    result.refreshSaveInterleaving.refreshStayedBusyDuringSave = true;
+    result.refreshSaveInterleaving.refreshReEnabled = await refreshButton.isEnabled();
+    result.refreshSaveInterleaving.savedTextVisible = await interleavePage
+      .getByText('Interleaved save survives refresh', { exact: true })
+      .isVisible();
+    assert.equal(result.refreshSaveInterleaving.refreshReEnabled, true);
+    assert.equal(result.refreshSaveInterleaving.savedTextVisible, true);
+    await interleaveContext.close();
+  }
 
   // First-load failure is blocking; Retry recovers.
   const errorContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });

@@ -1,26 +1,26 @@
 {
   "model": "CBC / DeepSeek route; effort max (step-5-preview fallback)",
-  "mainMerged": "18261dab",
+  "mainMerged": "e4f718a5",
   "mockAcceptanceBase": "d861532f",
   "typecheck": "pnpm exec tsc -b exit 0",
-  "vitest": "pnpm exec vitest run src/views/ActionsView.test.tsx src/stores/actionRegistryStore.test.ts src/components/session/PluginSelection.test.tsx -> 22 passed",
+  "vitest": "pnpm exec vitest run src/views/ActionsView.test.tsx src/stores/actionRegistryStore.test.ts src/components/session/PluginSelection.test.tsx -> 31 passed",
   "lint": "targeted eslint exit 0 with 1 Fast Refresh warning",
   "build": "pnpm build exit 0, 76 compressed assets",
   "backend": "python scripts/run_tests_isolated.py -- E:/software/miniforge/python.exe -m pytest tests/test_action_ids.py tests/test_action_groups.py tests/test_plugin_session_config.py -o addopts= -q -> 84 passed",
   "realProbe": "python scripts/run_tests_isolated.py -- python scripts/verify_action_panel_cache.py -> exit 0",
   "ownedServer": {
     "checkout": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021",
-    "pid": 42496,
-    "port": 53004,
-    "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-57d872db9e\\data",
-    "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-57d872db9e",
+    "pid": 21276,
+    "port": 58489,
+    "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a\\data",
+    "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a",
     "browser": {
       "production": true,
       "realHttp": true,
       "firstLoad": {
-        "renderMs": 3466,
+        "renderMs": 3994,
         "registryRequests": 1,
-        "registryMs": 2686,
+        "registryMs": 2934,
         "catalogRequests": 0,
         "sessionRequests": 2
       },
@@ -29,11 +29,11 @@
         "renderRequests": 0
       },
       "refresh": {
-        "ms": 35,
+        "ms": 41,
         "registryRequests": 1
       },
       "duplicate": {
-        "id": "action_5cf1b9f540dc455bab308bab",
+        "id": "action_9ea9ab40dbe945a59f64b80f",
         "originalUnchanged": true,
         "copyIndependent": true,
         "groupReferencesUnchanged": true,
@@ -63,6 +63,11 @@
       "lateRegistry": {
         "draftAfterLateResponse": "Late editor draft",
         "editorStillOpen": true
+      },
+      "refreshSaveInterleaving": {
+        "refreshStayedBusyDuringSave": true,
+        "refreshReEnabled": true,
+        "savedTextVisible": true
       },
       "firstLoadFailure": {
         "blockingError": true,
@@ -94,9 +99,10 @@
     },
     "probePlugin": "action-group-probe",
     "sessions": {
-      "first": "ses_7b3d53e2f7489109",
-      "second": "ses_965e486f37a47487"
+      "first": "ses_702f9a1b86c2cdcc",
+      "second": "ses_724819cfca4a08ea"
     },
     "serverStopped": true
-  }
+  },
+  "browserInterleaving": "refresh/save interleaving passed; Refresh re-enabled and saved text visible"
 }

@@ -1,16 +1,16 @@
 {
   "checkout": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021",
-  "pid": 42496,
-  "port": 53004,
-  "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-57d872db9e\\data",
-  "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-57d872db9e",
+  "pid": 21276,
+  "port": 58489,
+  "dataRoot": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a\\data",
+  "runtime": "D:\\project\\pan-worktrees\\action-panel-perf-ui-20261021\\.validation\\action-panel-cache\\live-25f06fb23a",
   "browser": {
     "production": true,
     "realHttp": true,
     "firstLoad": {
-      "renderMs": 3466,
+      "renderMs": 3994,
       "registryRequests": 1,
-      "registryMs": 2686,
+      "registryMs": 2934,
       "catalogRequests": 0,
       "sessionRequests": 2
     },
@@ -19,11 +19,11 @@
       "renderRequests": 0
     },
     "refresh": {
-      "ms": 35,
+      "ms": 41,
       "registryRequests": 1
     },
     "duplicate": {
-      "id": "action_5cf1b9f540dc455bab308bab",
+      "id": "action_9ea9ab40dbe945a59f64b80f",
       "originalUnchanged": true,
       "copyIndependent": true,
       "groupReferencesUnchanged": true,
@@ -53,6 +53,11 @@
     "lateRegistry": {
       "draftAfterLateResponse": "Late editor draft",
       "editorStillOpen": true
+    },
+    "refreshSaveInterleaving": {
+      "refreshStayedBusyDuringSave": true,
+      "refreshReEnabled": true,
+      "savedTextVisible": true
     },
     "firstLoadFailure": {
       "blockingError": true,
@@ -84,8 +89,8 @@
   },
   "probePlugin": "action-group-probe",
   "sessions": {
-    "first": "ses_7b3d53e2f7489109",
-    "second": "ses_965e486f37a47487"
+    "first": "ses_702f9a1b86c2cdcc",
+    "second": "ses_724819cfca4a08ea"
   },
   "serverStopped": true
 }

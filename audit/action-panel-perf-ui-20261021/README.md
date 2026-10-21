@@ -4,8 +4,9 @@
 ref was moved, nothing was pushed, no existing service/port was operated, and no
 model/Job was executed. The worktree branch is
 `feature/action-panel-perf-ui-20261021`. The current baseline `main`
-`18261dab` was merged into the branch as `28c9f249`; `main` is an ancestor of
-this candidate. The approved interactive mock remains at
+`e4f718a5` was merged into the branch as `5472f97d`; the role-guidance docs
+`docs/skills/pan/references/{ta,ma}.md` and the updated Pan skill were retained.
+`main` is an ancestor of the tested candidate. The approved interactive mock remains at
 `audit/action-panel-mock-20261021/`; this directory records the real product
 implementation evidence.
 
@@ -44,11 +45,11 @@ Workers, uses production assets and a real browser, then retires the server.
 | --- | --- |
 | First `/react/actions` registry requests | **1** `GET /api/actions` |
 | First load catalog requests | **0** `GET /api/mcp/servers` |
-| First load registry latency | **2686 ms** (cold isolated server, browser observed) |
-| First load to Action list visible | **3466 ms** |
+| First load registry latency | **2934 ms** (cold isolated server, browser observed) |
+| First load to Action list visible | **3994 ms** |
 | Client-side re-entry registry requests | **0** (fresh cache) |
-| Manual Refresh | **1** `GET /api/actions`, **35 ms** |
-| Duplicate Action | **1** `POST /api/actions/actions`, no `item.id`; original unchanged, Group refs unchanged, copy ID `action_5cf1b9f540dc455bab308bab` |
+| Manual Refresh | **1** `GET /api/actions`, **41 ms** |
+| Duplicate Action | **1** `POST /api/actions/actions`, no `item.id`; original unchanged, Group refs unchanged, copy ID `action_9ea9ab40dbe945a59f64b80f` |
 | Action save | **1** `PUT`; **0** secondary registry/catalog/session GETs |
 | Group build | **1** `POST .../build`; **0** eager catalog GETs |
 | Use in Session | catalog and sessions fetched lazily when modal opens; **1** `PATCH`, **1** background `GET /api/actions` for blockers |
@@ -56,6 +57,7 @@ Workers, uses production assets and a real browser, then retires the server.
 | Refresh failure | cached list and duplicate copy remain visible; **0** duplicate POSTs |
 | First-load failure | blocking error + Retry recovery |
 | Late registry response | editor draft `Late editor draft` preserved |
+| Refresh/save interleaving | a delayed pre-save `GET /api/actions` ends after Save; saved text remains, Refresh re-enables |
 | Late Session detail response | selected Session not replaced; PATCH uses the selected Session revision |
 | Narrow layout | 390 and 320 document/panel `scrollWidth == clientWidth` |
 | Page errors | **0** |
@@ -71,10 +73,13 @@ request on re-entry.
 - Frontend: `pnpm exec tsc -b` exit 0.
 - Frontend tests: `pnpm exec vitest run src/views/ActionsView.test.tsx
   src/stores/actionRegistryStore.test.ts
-  src/components/session/PluginSelection.test.tsx` -> **22 passed**.
+  src/components/session/PluginSelection.test.tsx` -> **31 passed**.
   New coverage includes registry dedupe/TTL/stale/late GET/mutation
-  serialization, lazy catalog/sessions, Session detail cache, duplicate
-  behavior, build/unbuild, three-mode binding preservation and dirty guards.
+  serialization, load-owner busy convergence, refresh→mutation→old-GET,
+  applyBinding interleaving, lower-revision responses, catalog/Session request
+  generations and invalidation/reset races, Session-detail reset epoch,
+  duplicate behavior, build/unbuild, three-mode binding preservation and dirty
+  guards.
 - Lint: targeted ESLint exit 0; one Fast Refresh warning in the shared actions
   UI module.
 - Build: `pnpm build` exit 0, 76 compressed assets.
@@ -95,7 +100,7 @@ request on re-entry.
 - `screenshots/` — desktop lists, duplicate editor, Group/binding modal, refresh
   failure, 390/320 Actions/Groups and Action editor.
 - `source-diff-name-status.txt`, `source-diff-stat.txt` — source delta since
-  `18261dab`.
+  `e4f718a5`.
 
 ## Boundaries
 

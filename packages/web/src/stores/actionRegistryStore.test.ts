@@ -3,6 +3,7 @@ import { actionRequest } from '@/services/api';
 import {
   ACTION_REGISTRY_TTL_MS,
   resetActionCachesForTests,
+  useActionCatalogStore,
   useActionRegistryStore,
   useActionSessionDetailStore,
   useActionSessionsStore,
@@ -124,6 +125,122 @@ describe('action registry cache', () => {
   });
 });
 
+describe('registry busy convergence and stale responses', () => {
+  it('ends refreshing when a cached refresh is invalidated by a later mutation', async () => {
+    invoke.mockResolvedValueOnce(registry(1));
+    await useActionRegistryStore.getState().ensureRegistry();
+
+    let releaseOld: (value: ActionRegistry) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<ActionRegistry>((done) => { releaseOld = done; }),
+    );
+    const refresh = useActionRegistryStore.getState().ensureRegistry({ force: true });
+    await Promise.resolve();
+    expect(useActionRegistryStore.getState().refreshing).toBe(true);
+
+    await useActionRegistryStore.getState().runMutation(async () => registry(2));
+    releaseOld(registry(1));
+    await refresh;
+
+    const state = useActionRegistryStore.getState();
+    expect(state.registry.revision).toBe(2);
+    expect(state.refreshing).toBe(false);
+    expect(state.status).toBe('ready');
+    expect(state.refreshError).toBeNull();
+
+    invoke.mockResolvedValueOnce(registry(3));
+    await useActionRegistryStore.getState().refreshRegistry();
+    expect(useActionRegistryStore.getState().registry.revision).toBe(3);
+  });
+
+  it('keeps a binding applied during an in-flight refresh', async () => {
+    invoke.mockResolvedValueOnce({
+      revision: 1,
+      actions: [structuredClone(action)],
+      groups: [
+        {
+          id: 'tools',
+          name: 'Tools',
+          action_ids: ['list_sessions'],
+          build: { plugin_id: 'action-group-tools', version: 'v1', action_ids: ['list_sessions'] },
+          blockers: [],
+          sessions: [],
+        },
+      ],
+    });
+    await useActionRegistryStore.getState().ensureRegistry();
+
+    let releaseOld: (value: ActionRegistry) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<ActionRegistry>((done) => { releaseOld = done; }),
+    );
+    const refresh = useActionRegistryStore.getState().ensureRegistry({ force: true });
+    await Promise.resolve();
+
+    useActionRegistryStore.getState().applyBinding(
+      'action-group-tools',
+      session('s1', 'First'),
+      { plugin_id: 'action-group-tools', enabled: true, mode: 'gateway' },
+    );
+    releaseOld(registry(1));
+    await refresh;
+
+    const group = useActionRegistryStore.getState().registry.groups[0]!;
+    expect(group.sessions).toEqual([
+      {
+        id: 's1',
+        name: 'First',
+        loadedVersion: null,
+        plugin_id: 'action-group-tools',
+        enabled: true,
+        mode: 'gateway',
+      },
+    ]);
+    expect(useActionRegistryStore.getState().refreshing).toBe(false);
+  });
+
+  it('does not regress on a lower-revision response and allows another Refresh', async () => {
+    invoke.mockResolvedValueOnce(registry(5));
+    await useActionRegistryStore.getState().ensureRegistry();
+
+    invoke.mockResolvedValueOnce(registry(4));
+    await useActionRegistryStore.getState().refreshRegistry();
+    expect(useActionRegistryStore.getState().registry.revision).toBe(5);
+    expect(useActionRegistryStore.getState().refreshing).toBe(false);
+
+    invoke.mockResolvedValueOnce(registry(6));
+    await useActionRegistryStore.getState().refreshRegistry();
+    expect(useActionRegistryStore.getState().registry.revision).toBe(6);
+  });
+
+  it('does not let an older refresh clear a newer refresh busy state', async () => {
+    invoke.mockResolvedValueOnce(registry(1));
+    await useActionRegistryStore.getState().ensureRegistry();
+
+    let releaseFirst: (value: ActionRegistry) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<ActionRegistry>((done) => { releaseFirst = done; }),
+    );
+    const first = useActionRegistryStore.getState().ensureRegistry({ force: true });
+    await Promise.resolve();
+    let releaseSecond: (value: ActionRegistry) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<ActionRegistry>((done) => { releaseSecond = done; }),
+    );
+    const second = useActionRegistryStore.getState().ensureRegistry({ force: true });
+    await Promise.resolve();
+
+    releaseFirst(registry(1));
+    await first;
+    expect(useActionRegistryStore.getState().refreshing).toBe(true);
+
+    releaseSecond(registry(2));
+    await second;
+    expect(useActionRegistryStore.getState().registry.revision).toBe(2);
+    expect(useActionRegistryStore.getState().refreshing).toBe(false);
+  });
+});
+
 describe('auxiliary caches', () => {
   it('loads Sessions lazily and keeps cached rows on failure', async () => {
     invoke.mockResolvedValueOnce({ sessions: [session('s1')] });
@@ -148,5 +265,107 @@ describe('auxiliary caches', () => {
     const entries = useActionSessionDetailStore.getState().entries;
     expect(entries.s2?.data?.id).toBe('s2');
     expect(entries.s1?.data?.id).toBe('s1');
+  });
+
+  it('drops an in-flight Session detail response after cache reset', async () => {
+    let releaseOld: (value: Session) => void = () => {};
+    invoke.mockImplementationOnce(() => new Promise<Session>((done) => { releaseOld = done; }));
+    const load = useActionSessionDetailStore.getState().loadSession('s1');
+    await Promise.resolve();
+    resetActionCachesForTests();
+    releaseOld(session('s1'));
+    await load;
+    expect(useActionSessionDetailStore.getState().entries).toEqual({});
+  });
+
+  it('drops a late catalog response after a force refresh', async () => {
+    invoke.mockResolvedValueOnce({ servers: [{ name: 'initial' }] });
+    await useActionCatalogStore.getState().ensureCatalog();
+
+    let releaseOld: (value: { servers: { name: string }[] }) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<{ servers: { name: string }[] }>((done) => { releaseOld = done; }),
+    );
+    const oldEnsure = useActionCatalogStore.getState().ensureCatalog({ force: true });
+    await Promise.resolve();
+    invoke.mockResolvedValueOnce({ servers: [{ name: 'new' }] });
+    const forceEnsure = useActionCatalogStore.getState().ensureCatalog({ force: true });
+    await Promise.resolve();
+
+    releaseOld({ servers: [{ name: 'old' }] });
+    await oldEnsure;
+    await forceEnsure;
+
+    const state = useActionCatalogStore.getState();
+    expect(state.servers).toEqual([{ name: 'new' }]);
+    expect(state.refreshing).toBe(false);
+    expect(state.lastLoadedAt).not.toBeNull();
+  });
+
+  it('drops a build-time catalog invalidation response and still accepts the next force load', async () => {
+    invoke.mockResolvedValueOnce({ servers: [{ name: 'fresh' }] });
+    await useActionCatalogStore.getState().ensureCatalog();
+
+    let releaseOld: (value: { servers: { name: string }[] }) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<{ servers: { name: string }[] }>((done) => { releaseOld = done; }),
+    );
+    useActionCatalogStore.getState().invalidateCatalog();
+    const oldEnsure = useActionCatalogStore.getState().ensureCatalog();
+    await Promise.resolve();
+    useActionCatalogStore.getState().invalidateCatalog();
+    releaseOld({ servers: [{ name: 'old' }] });
+    await oldEnsure;
+
+    const invalidated = useActionCatalogStore.getState();
+    expect(invalidated.servers).toEqual([{ name: 'fresh' }]);
+    expect(invalidated.lastLoadedAt).toBeNull();
+    expect(invalidated.refreshing).toBe(false);
+
+    invoke.mockResolvedValueOnce({ servers: [{ name: 'rebuilt' }] });
+    await useActionCatalogStore.getState().ensureCatalog({ force: true });
+    const reloaded = useActionCatalogStore.getState();
+    expect(reloaded.servers).toEqual([{ name: 'rebuilt' }]);
+    expect(reloaded.lastLoadedAt).not.toBeNull();
+  });
+
+  it('drops a late Session list response after a force refresh', async () => {
+    invoke.mockResolvedValueOnce({ sessions: [session('initial')] });
+    await useActionSessionsStore.getState().ensureSessions();
+
+    let releaseOld: (value: { sessions: Session[] }) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<{ sessions: Session[] }>((done) => { releaseOld = done; }),
+    );
+    const oldEnsure = useActionSessionsStore.getState().ensureSessions({ force: true });
+    await Promise.resolve();
+    invoke.mockResolvedValueOnce({ sessions: [session('new')] });
+    const forceEnsure = useActionSessionsStore.getState().ensureSessions({ force: true });
+    await Promise.resolve();
+
+    releaseOld({ sessions: [session('old')] });
+    await oldEnsure;
+    await forceEnsure;
+
+    const state = useActionSessionsStore.getState();
+    expect(state.sessions.map((item) => item.id)).toEqual(['new']);
+    expect(state.refreshing).toBe(false);
+    expect(state.lastLoadedAt).not.toBeNull();
+  });
+
+  it('drops an in-flight Session list response after cache reset', async () => {
+    let releaseOld: (value: { sessions: Session[] }) => void = () => {};
+    invoke.mockImplementationOnce(
+      () => new Promise<{ sessions: Session[] }>((done) => { releaseOld = done; }),
+    );
+    const load = useActionSessionsStore.getState().ensureSessions();
+    await Promise.resolve();
+    resetActionCachesForTests();
+    releaseOld({ sessions: [session('s1')] });
+    await load;
+    const state = useActionSessionsStore.getState();
+    expect(state.sessions).toEqual([]);
+    expect(state.status).toBe('idle');
+    expect(state.refreshing).toBe(false);
   });
 });

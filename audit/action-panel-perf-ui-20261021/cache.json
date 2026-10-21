@@ -2,9 +2,9 @@
   "production": true,
   "realHttp": true,
   "firstLoad": {
-    "renderMs": 3466,
+    "renderMs": 3994,
     "registryRequests": 1,
-    "registryMs": 2686,
+    "registryMs": 2934,
     "catalogRequests": 0,
     "sessionRequests": 2
   },
@@ -13,11 +13,11 @@
     "renderRequests": 0
   },
   "refresh": {
-    "ms": 35,
+    "ms": 41,
     "registryRequests": 1
   },
   "duplicate": {
-    "id": "action_5cf1b9f540dc455bab308bab",
+    "id": "action_9ea9ab40dbe945a59f64b80f",
     "originalUnchanged": true,
     "copyIndependent": true,
     "groupReferencesUnchanged": true,
@@ -47,6 +47,11 @@
   "lateRegistry": {
     "draftAfterLateResponse": "Late editor draft",
     "editorStillOpen": true
+  },
+  "refreshSaveInterleaving": {
+    "refreshStayedBusyDuringSave": true,
+    "refreshReEnabled": true,
+    "savedTextVisible": true
   },
   "firstLoadFailure": {
     "blockingError": true,

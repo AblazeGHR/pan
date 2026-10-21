@@ -95,10 +95,18 @@ export const useActionRegistryStore = create<ActionRegistryStore>((set, get) => 
       try {
         const next = await actionRequest<ActionRegistry>('actions');
         const current = get();
-        // A newer load, a local mutation or a binding update invalidates this
-        // snapshot. Drop it rather than rendering older Session/Group state.
-        if (current.loadSeq !== loadSeq || current.mutationSeq !== mutationSeq) return;
-        if (next.revision < current.registry.revision) return;
+        // A newer load owns the busy state; an older request must never clear
+        // it. If this request is still the load owner, every terminal path
+        // below converges refreshing even when the snapshot is dropped.
+        if (current.loadSeq !== loadSeq) return;
+        if (current.mutationSeq !== mutationSeq) {
+          set({ refreshing: false });
+          return;
+        }
+        if (next.revision < current.registry.revision) {
+          set({ refreshing: false });
+          return;
+        }
         set({
           registry: next,
           hasLoaded: true,
@@ -111,6 +119,10 @@ export const useActionRegistryStore = create<ActionRegistryStore>((set, get) => 
       } catch (error) {
         const current = get();
         if (current.loadSeq !== loadSeq) return;
+        if (current.mutationSeq !== mutationSeq) {
+          set({ refreshing: false });
+          return;
+        }
         if (current.hasLoaded) {
           set({ refreshing: false, refreshError: messageOf(error) });
         } else {
@@ -223,6 +235,9 @@ interface ActionCatalogStore {
   status: LoadStatus;
   error: string | null;
   lastLoadedAt: number | null;
+  refreshing: boolean;
+  loadSeq: number;
+  invalidationSeq: number;
   ensureCatalog: (options?: { force?: boolean }) => Promise<void>;
   invalidateCatalog: () => void;
   reset: () => void;
@@ -235,6 +250,9 @@ export const useActionCatalogStore = create<ActionCatalogStore>((set, get) => ({
   status: 'idle',
   error: null,
   lastLoadedAt: null,
+  refreshing: false,
+  loadSeq: 0,
+  invalidationSeq: 0,
 
   ensureCatalog: async (options = {}) => {
     const force = Boolean(options.force);
@@ -251,20 +269,47 @@ export const useActionCatalogStore = create<ActionCatalogStore>((set, get) => ({
       await catalogInflight;
       return;
     }
-    set({ status: state.servers.length ? 'ready' : 'loading', error: null });
+
+    const loadSeq = state.loadSeq + 1;
+    const invalidationSeq = state.invalidationSeq;
+    set({
+      loadSeq,
+      refreshing: true,
+      status: state.servers.length ? 'ready' : 'loading',
+      error: null,
+    });
     const task = (async () => {
       try {
         const data = await actionRequest<{ servers: McpServerInfo[] }>('mcp/servers');
+        const current = get();
+        // A newer force request or an invalidation makes this response stale;
+        // it may neither write old servers nor mark the cache fresh.
+        if (current.loadSeq !== loadSeq) return;
+        if (current.invalidationSeq !== invalidationSeq) {
+          set({ refreshing: false });
+          return;
+        }
         set({
           servers: data.servers ?? [],
           status: 'ready',
           error: null,
           lastLoadedAt: Date.now(),
+          refreshing: false,
         });
       } catch (error) {
+        const current = get();
+        if (current.loadSeq !== loadSeq) return;
+        if (current.invalidationSeq !== invalidationSeq) {
+          set({ refreshing: false });
+          return;
+        }
         // Keep a previously loaded catalog; the picker can show a warning and
         // retry without discarding mode information.
-        set({ status: get().servers.length ? 'ready' : 'error', error: messageOf(error) });
+        set({
+          status: get().servers.length ? 'ready' : 'error',
+          error: messageOf(error),
+          refreshing: false,
+        });
       }
     })();
     catalogInflight = task;
@@ -275,10 +320,23 @@ export const useActionCatalogStore = create<ActionCatalogStore>((set, get) => ({
     }
   },
 
-  invalidateCatalog: () => set({ lastLoadedAt: null }),
+  invalidateCatalog: () =>
+    set((state) => ({
+      lastLoadedAt: null,
+      invalidationSeq: state.invalidationSeq + 1,
+    })),
   reset: () => {
     catalogInflight = null;
-    set({ servers: [], status: 'idle', error: null, lastLoadedAt: null });
+    set((state) => ({
+      servers: [],
+      status: 'idle',
+      error: null,
+      lastLoadedAt: null,
+      refreshing: false,
+      // Invalidate any request already in flight.
+      loadSeq: state.loadSeq + 1,
+      invalidationSeq: state.invalidationSeq + 1,
+    }));
   },
 }));
 
@@ -289,6 +347,9 @@ interface ActionSessionsStore {
   status: LoadStatus;
   error: string | null;
   lastLoadedAt: number | null;
+  refreshing: boolean;
+  loadSeq: number;
+  invalidationSeq: number;
   ensureSessions: (options?: { force?: boolean }) => Promise<void>;
   refreshSessions: () => Promise<boolean>;
   reset: () => void;
@@ -301,6 +362,9 @@ export const useActionSessionsStore = create<ActionSessionsStore>((set, get) => 
   status: 'idle',
   error: null,
   lastLoadedAt: null,
+  refreshing: false,
+  loadSeq: 0,
+  invalidationSeq: 0,
 
   ensureSessions: async (options = {}) => {
     const force = Boolean(options.force);
@@ -317,18 +381,43 @@ export const useActionSessionsStore = create<ActionSessionsStore>((set, get) => 
       await sessionsInflight;
       return;
     }
-    set({ status: state.sessions.length ? 'ready' : 'loading', error: null });
+
+    const loadSeq = state.loadSeq + 1;
+    const invalidationSeq = state.invalidationSeq;
+    set({
+      loadSeq,
+      refreshing: true,
+      status: state.sessions.length ? 'ready' : 'loading',
+      error: null,
+    });
     const task = (async () => {
       try {
         const data = await actionRequest<{ sessions: Session[] }>('sessions');
+        const current = get();
+        if (current.loadSeq !== loadSeq) return;
+        if (current.invalidationSeq !== invalidationSeq) {
+          set({ refreshing: false });
+          return;
+        }
         set({
           sessions: data.sessions ?? [],
           status: 'ready',
           error: null,
           lastLoadedAt: Date.now(),
+          refreshing: false,
         });
       } catch (error) {
-        set({ status: get().sessions.length ? 'ready' : 'error', error: messageOf(error) });
+        const current = get();
+        if (current.loadSeq !== loadSeq) return;
+        if (current.invalidationSeq !== invalidationSeq) {
+          set({ refreshing: false });
+          return;
+        }
+        set({
+          status: get().sessions.length ? 'ready' : 'error',
+          error: messageOf(error),
+          refreshing: false,
+        });
       }
     })();
     sessionsInflight = task;
@@ -346,7 +435,16 @@ export const useActionSessionsStore = create<ActionSessionsStore>((set, get) => 
 
   reset: () => {
     sessionsInflight = null;
-    set({ sessions: [], status: 'idle', error: null, lastLoadedAt: null });
+    set((state) => ({
+      sessions: [],
+      status: 'idle',
+      error: null,
+      lastLoadedAt: null,
+      refreshing: false,
+      // Invalidate any request already in flight.
+      loadSeq: state.loadSeq + 1,
+      invalidationSeq: state.invalidationSeq + 1,
+    }));
   },
 }));
 
@@ -369,6 +467,9 @@ interface ActionSessionDetailStore {
 
 const detailInflight = new Map<string, Promise<Session | null>>();
 const detailSeq = new Map<string, number>();
+// Reset may clear per-id sequences back to zero; the epoch keeps an in-flight
+// response from a previous cache generation from reusing a matching sequence.
+let detailEpoch = 0;
 
 const idleEntry = (): SessionDetailEntry => ({
   data: null,
@@ -394,6 +495,7 @@ export const useActionSessionDetailStore = create<ActionSessionDetailStore>((set
     const pending = detailInflight.get(id);
     if (pending && !force) return pending;
 
+    const epoch = detailEpoch;
     const seq = (detailSeq.get(id) ?? 0) + 1;
     detailSeq.set(id, seq);
     set((state) => ({
@@ -413,7 +515,7 @@ export const useActionSessionDetailStore = create<ActionSessionDetailStore>((set
         if (data && 'error' in data && (data as Session & { error?: string }).error) {
           throw new Error((data as Session & { error?: string }).error);
         }
-        if (detailSeq.get(id) === seq) {
+        if (detailEpoch === epoch && detailSeq.get(id) === seq) {
           set((state) => ({
             entries: {
               ...state.entries,
@@ -423,7 +525,7 @@ export const useActionSessionDetailStore = create<ActionSessionDetailStore>((set
         }
         return data;
       } catch (error) {
-        if (detailSeq.get(id) === seq) {
+        if (detailEpoch === epoch && detailSeq.get(id) === seq) {
           set((state) => ({
             entries: {
               ...state.entries,
@@ -472,6 +574,7 @@ export const useActionSessionDetailStore = create<ActionSessionDetailStore>((set
   reset: () => {
     detailInflight.clear();
     detailSeq.clear();
+    detailEpoch += 1;
     set({ entries: {} });
   },
 }));
