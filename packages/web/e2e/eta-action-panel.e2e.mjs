@@ -1,4 +1,4 @@
-/* global process, console, fetch */
+/* global process, console, fetch, URL */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
@@ -87,7 +87,16 @@ try {
   });
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('request', (r) => { if (r.url().includes('/api/')) requests.push({ path: new URL(r.url()).pathname, method: r.method(), body: r.method() === 'GET' ? undefined : r.postDataJSON() }); });
+  page.on('request', (r) => { const pathname = new URL(r.url()).pathname;
+    if (pathname.startsWith('/api/')) requests.push({ path: pathname, method: r.method(), body: r.method() === 'GET' || pathname.endsWith('/login') || pathname.endsWith('/logout') ? undefined : r.postDataJSON() });
+  });
+  async function dismissToasts() {
+    // Screenshot cleanup only: invoke each existing dismiss handler together.
+    // Per-index actionability waits can chase a different toast as animated
+    // siblings retire. Product workflow interactions below still use real clicks.
+    await page.getByRole('button', { name: 'Dismiss toast', exact: true }).evaluateAll((buttons) => buttons.forEach((button) => button.click()));
+    await expect(page.getByRole('button', { name: 'Dismiss toast', exact: true })).toHaveCount(0);
+  }
   const count = (method = 'GET', suffix = '/api/actions') => requests.filter((r) => r.method === method && r.path === suffix).length;
   async function goAutomation() {
     await page.getByRole('navigation', { name: '界面入口' }).getByRole('link', { name: 'Automation', exact: true }).click();
@@ -132,15 +141,15 @@ try {
   });
   await check('new full-panel Session Operation creation and Group build rejection coexist with legacy build', async () => {
     await page.getByRole('button', { name: 'New Action', exact: true }).click();
-    await page.getByLabel('Name', { exact: true }).fill('Created in full panel');
-    await page.getByLabel('Description', { exact: true }).fill('Pause selected Sessions');
+    await page.getByLabel(/^Name/).fill('Created in full panel');
+    await page.getByLabel(/^Description/).fill('Pause selected Sessions');
     await page.getByRole('button', { name: 'Session Operation', exact: true }).click();
     await page.getByRole('group', { name: 'Target Sessions' }).getByText('Selected target').click();
     await page.getByRole('button', { name: 'Create Action', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit Created in full panel', exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Groups/ }).click();
     await page.getByRole('button', { name: 'New Group', exact: true }).click();
-    await page.getByLabel('Name', { exact: true }).fill('Automation only blocked');
+    await page.getByLabel(/^Group name/).fill('Automation only blocked');
     await page.getByText('Created in full panel', { exact: true }).click();
     await page.getByRole('button', { name: 'Create Group', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit Automation only blocked', exact: true })).toBeVisible();
@@ -158,9 +167,10 @@ try {
     const gets = count(); const ledgerReads = requests.filter((r) => r.method === 'GET' && r.path === '/api/automation').length;
     await page.getByRole('button', { name: 'Pause Everything template', exact: true }).click();
     await page.getByLabel('Action name', { exact: true }).fill('Shared template');
+    await page.getByLabel('Target source').selectOption('explicit');
     await page.getByRole('group', { name: 'Target Sessions' }).getByText('Selected target').click();
     await page.getByRole('button', { name: 'Create Session Operation Action', exact: true }).click();
-    await expect(page.getByText(/Action created:/)).toBeVisible();
+    await expect(page.getByText(/Disabled Action created:/)).toBeVisible();
     assert.equal(count(), gets); assert.equal(requests.filter((r) => r.method === 'GET' && r.path === '/api/automation').length, ledgerReads);
     await page.getByRole('button', { name: 'Close template', exact: true }).click();
     await page.getByRole('button', { name: 'New Trigger', exact: true }).click();
@@ -181,13 +191,119 @@ try {
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Edit Fixture pause copy', exact: true }).click();
     await expect(page.getByText(/Not in current Session list · ses_missing_preserved/)).toBeVisible();
-    for (const width of [390, 320]) { await page.setViewportSize({ width, height: 1000 }); assert.ok(await page.locator('.actions-panel').evaluate((e) => e.scrollWidth <= e.clientWidth + 1)); await page.screenshot({ path: path.join(out, `session-operation-${width}.png`) }); }
+    await dismissToasts();
+    for (const width of [390, 320]) { await page.setViewportSize({ width, height: 1000 }); await expect.poll(() => page.locator('main').last().evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1); await page.screenshot({ path: path.join(out, `session-operation-${width}.png`) }); }
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
     const gets = count(); await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled(); assert.equal(count(), gets + 1);
     const current = await api('/api/actions'); assert.ok(current.revision > readCaptured.revision);
     assert.ok(current.actions.find((a) => a.id === copyId).execution.selector.ids.includes('ses_missing_preserved'));
+  });
+
+  let queryAction;
+  await check('server-discovered query template is disabled; structured nested editor and raw errors remain safe', async () => {
+    await goAutomation();
+    await page.getByRole('button', { name: 'Pause Everything template', exact: true }).click();
+    await page.getByLabel('Action name', { exact: true }).fill('Query selected');
+    await expect(page.getByLabel('Target source')).toHaveValue('query');
+    await page.getByLabel('Query condition type').selectOption('and');
+    await page.getByLabel('Query text value').fill('Selected target');
+    await page.getByRole('button', { name: 'Add query condition', exact: true }).click();
+    await page.getByLabel('Query field').nth(1).selectOption('readonlySession');
+    await page.getByRole('button', { name: 'Advanced query JSON', exact: true }).click();
+    await page.getByLabel('Query JSON').fill('{unfinished');
+    await expect(page.getByRole('button', { name: 'Create Session Operation Action', exact: true })).toBeDisabled();
+    const query = { and: [{ field: 'name', op: 'eq', value: 'Selected target' }, { field: 'readonlySession', op: 'eq', value: false }, { not: { field: 'adapter', op: 'in', value: ['codex'] } }] };
+    await page.getByLabel('Query JSON').fill(JSON.stringify(query));
+    await page.getByRole('button', { name: 'Create Session Operation Action', exact: true }).click();
+    await expect(page.getByText(/Disabled Action created:/)).toBeVisible();
+    queryAction = (await api('/api/actions')).actions.find((a) => a.name === 'Query selected');
+    assert.equal(queryAction.enabled, false); assert.deepEqual(queryAction.execution.selector.query, query);
+    await page.getByRole('button', { name: 'Close template', exact: true }).click();
+    await page.getByRole('link', { name: 'Manage Actions' }).click();
+    await page.getByRole('button', { name: 'Edit Query selected', exact: true }).click();
+    await dismissToasts();
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect.poll(() => page.getByRole('main', { name: 'Actions Panel' }).evaluate((e) => Array.from(e.querySelectorAll('*')).filter((el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1 && ['DIV', 'SECTION', 'MAIN', 'FIELDSET'].includes(el.tagName) && !el.classList.contains('truncate')).map((el) => el.tagName + ':' + el.className))).toEqual([]);
+      await page.getByLabel('Query field').first().scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(out, `query-${width}.png`) });
+      const geometry = await page.locator('main').last().evaluate((e) => ({ width: e.clientWidth, scroll: e.scrollWidth, overflowing: Array.from(e.querySelectorAll('*')).filter((el) => el.getBoundingClientRect().right > e.getBoundingClientRect().right + 1).map((el) => ({ tag: el.tagName, class: el.className, width: el.getBoundingClientRect().width })).slice(0, 15) }));
+      assert.ok(geometry.scroll <= geometry.width + 1, JSON.stringify(geometry));
+      await page.getByRole('button', { name: 'Save Action', exact: true }).scrollIntoViewIfNeeded();
+      await expect(page.getByRole('button', { name: 'Save Action', exact: true })).toBeInViewport();
+      await page.screenshot({ path: path.join(out, `query-bottom-${width}.png`) });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('switch', { name: 'Enable for automation', exact: true }).click();
+    await page.getByRole('button', { name: 'Save Action', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Edit Query selected', exact: true })).toBeVisible();
+  });
+  await check('real HTTP and production UI query → frozen target → Pause Everything → Run selection diagnostics', async () => {
+    await goAutomation();
+    const key = (await fs.readFile(path.join(runtime, 'automation/user.key'), 'utf8')).trim();
+    await page.getByLabel('Local user key').fill(key); await page.getByRole('button', { name: 'Log in', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Log out', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'New Trigger', exact: true }).click();
+    await page.getByLabel('Trigger name').fill('Query trigger');
+    await page.getByLabel('workers.all_idle · Available', { exact: true }).check();
+    await page.getByLabel('Action reference').selectOption(queryAction.id);
+    await page.getByRole('button', { name: 'Review and enable', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Enable review' })).toContainText('Query selected');
+    await page.getByRole('button', { name: 'Confirm enable', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save enabled configuration', exact: true })).toBeVisible();
+    await api('/api/send', 'POST', { sessionId: fixtures['Event producer'], text: 'query-production-edge', source: 'user' });
+    const state = await poll(() => api('/api/automation'), (s) => Object.values(s.runs).some((r) => r.actionId === queryAction.id && r.status === 'succeeded'), 'query Run completed');
+    const run = Object.values(state.runs).find((r) => r.actionId === queryAction.id && r.status === 'succeeded');
+    assert.deepEqual(run.targetIds, [fixtures['Selected target']]); assert.equal(run.selection.matched, 1); assert.ok(run.selection.candidateCount >= 3); assert.equal(run.targetResults[0].ok, true);
+    assert.equal((await api(`/api/sessions/${fixtures['Selected target']}/queue`)).queuePaused, true);
+    assert.equal((await api(`/api/sessions/${fixtures['Control target']}/queue`)).queuePaused, false);
+    await api(`/api/sessions/${fixtures['Selected target']}`, 'PATCH', { name: 'Renamed after frozen query' });
+    await page.getByRole('button', { name: 'Runs', exact: true }).click(); await page.getByRole('button', { name: 'Refresh Runs', exact: true }).click();
+    const article = page.getByRole('article').filter({ hasText: run.id });
+    await expect(article).toContainText('Query selection: 1 matched');
+    await article.getByText('Fixed target IDs', { exact: true }).click(); await expect(article).toContainText(fixtures['Selected target']);
+    await article.getByText('Selection diagnostics', { exact: true }).click();
+    await dismissToasts();
+    await article.getByText('Selection diagnostics', { exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(out, 'query-run.png') });
+    assert.deepEqual((await api('/api/automation')).runs[run.id].targetIds, run.targetIds);
+  });
+  await check('zero-match query succeeds honestly; malformed predicates fail closed before creation', async () => {
+    const key = (await fs.readFile(path.join(runtime, 'automation/user.key'), 'utf8')).trim(); ({ token: bearer } = await api('/api/automation/login', 'POST', { key }));
+    let current = await api('/api/actions');
+    const empty = await api('/api/actions/actions', 'POST', { expectedRevision: current.revision, item: { ...queryAction, id: undefined, name: 'Empty query', enabled: true, execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'query', query: { field: 'name', op: 'contains', value: 'NoSuchSession_ExactCase' } } } } });
+    await api('/api/automation/triggers', 'POST', { expectedRevision: 0, item: { name: 'Empty query trigger', enabled: true, eventTypes: ['workers.all_idle'], actionId: empty.item.id } }, true);
+    await api('/api/send', 'POST', { sessionId: fixtures['Event producer'], text: 'empty-query-edge', source: 'user' });
+    const state = await poll(() => api('/api/automation'), (s) => Object.values(s.runs).some((r) => r.actionId === empty.item.id && r.status === 'succeeded'), 'zero-match Run');
+    const run = Object.values(state.runs).find((r) => r.actionId === empty.item.id && r.status === 'succeeded');
+    assert.deepEqual(run.targetIds, []); assert.equal(run.selection.matched, 0); assert.equal(run.result.matched, 0);
+    await page.getByRole('button', { name: 'Refresh Runs', exact: true }).click();
+    await expect(page.getByRole('article').filter({ hasText: run.id })).toContainText('Query selection: 0 matched');
+    current = await api('/api/actions'); await owned();
+    const invalid = await fetch(`${base}/api/actions/actions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: current.revision, item: { ...queryAction, id: undefined, name: 'Invalid query rejected', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'query', query: { field: 'pinned', op: 'eq', value: 'false' } } } } }) });
+    assert.equal(invalid.status, 400); assert.equal((await api('/api/actions')).revision, current.revision);
+  });
+
+  await check('query Duplicate retains nested typed predicates and creates an independent disabled-capable editor', async () => {
+    await page.getByRole('button', { name: 'Triggers', exact: true }).click();
+    await page.getByRole('link', { name: 'Manage Actions' }).click();
+    // The zero-match setup above deliberately wrote through a separate HTTP
+    // client. Explicit refresh reconciles that external registry revision.
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'More actions for Query selected', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Duplicate Action', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Query selected copy', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Query condition type').first()).toHaveValue('and');
+    await page.getByRole('switch', { name: 'Enable for automation', exact: true }).click();
+    await page.getByRole('button', { name: 'Save Action', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Edit Query selected copy', exact: true })).toBeVisible();
+    const registry = await api('/api/actions'); const copy = registry.actions.find((a) => a.name === 'Query selected copy');
+    assert.notEqual(copy.id, queryAction.id); assert.equal(copy.enabled, false);
+    assert.deepEqual(copy.execution.selector.query, registry.actions.find((a) => a.id === queryAction.id).execution.selector.query);
+    assert.equal(registry.actions.find((a) => a.id === queryAction.id).enabled, true);
   });
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(out, 'http-evidence.json'), JSON.stringify({ identity, requests, originalRelease: releaseBefore, finalRegistry: await api('/api/actions'), noPageErrors: true }, null, 2));

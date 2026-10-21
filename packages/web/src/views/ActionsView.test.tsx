@@ -6,6 +6,7 @@ import { actionRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
 import type { Session } from '@/types';
+import { useSessionOperationTemplateStore } from '@/stores/sessionOperationTemplateStore';
 
 vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 const invoke = vi.mocked(actionRequest);
@@ -52,8 +53,10 @@ beforeEach(() => {
   nextId = 1;
   invoke.mockReset();
   resetActionCachesForTests();
+  useSessionOperationTemplateStore.setState({ data: null, error: '' });
   invoke.mockImplementation(async (path, method = 'GET', body) => {
     if (path === 'actions' && method === 'GET') return structuredClone(registry);
+    if (path === 'actions/session-operation-template') return { item: {}, queryFields: {}, queryPredicateSchema: {}, limits: { depth: 8, nodes: 64, values: 128, textLength: 512, candidates: 2048, results: 256 } };
     if (path === 'mcp/servers') {
       return {
         servers: [
@@ -176,6 +179,31 @@ describe('Action Panel cache and lists', () => {
 });
 
 describe('Action create, edit and duplicate', () => {
+  it('edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query', async () => {
+    registry.actions[0] = { ...structuredClone(source), effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'query', query: { field: 'name', op: 'eq', value: 'Original' } } } };
+    await renderList(); fireEvent.click(screen.getByRole('button', { name: 'Edit List Sessions' }));
+    fireEvent.change(screen.getByLabelText('Query condition type'), { target: { value: 'and' } });
+    fireEvent.change(screen.getByLabelText('Query field'), { target: { value: 'readonlySession' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add query condition' }));
+    fireEvent.change(screen.getAllByLabelText('Query field')[1]!, { target: { value: 'workspaceIds' } });
+    fireEvent.change(screen.getAllByLabelText('Query operator')[1]!, { target: { value: 'contains' } });
+    fireEvent.change(screen.getByLabelText('Query text value'), { target: { value: 'ws_exact' } });
+    invoke.mockRejectedValueOnce(new Error('Action registry revision changed'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced query JSON' }));
+    fireEvent.change(screen.getByLabelText('Query JSON'), { target: { value: '{unfinished' } });
+    const count = invoke.mock.calls.filter(([, m]) => m === 'PUT').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    expect(invoke.mock.calls.filter(([, m]) => m === 'PUT')).toHaveLength(count);
+    await useActionRegistryStore.getState().ensureRegistry({ force: true });
+    expect((screen.getByLabelText('Query JSON') as HTMLTextAreaElement).value).toBe('{unfinished');
+    const query = { and: [{ field: 'readonlySession', op: 'eq', value: false }, { field: 'workspaceIds', op: 'contains', value: 'ws_exact' }] };
+    fireEvent.change(screen.getByLabelText('Query JSON'), { target: { value: JSON.stringify(query) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit List Sessions' });
+    expect(registry.actions[0]?.execution).toMatchObject({ selector: { mode: 'query', query } });
+  });
   it('edits, duplicates and saves a Session Operation without changing its original or Group release', async () => {
     const pause: Action = { ...structuredClone(source), id: 'pause', name: 'Pause selected', effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1', 'missing'] } } };
     registry.actions.push(pause);

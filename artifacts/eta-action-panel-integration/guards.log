@@ -1,0 +1,5 @@
+PASS deleting first condition keeps visible 22 equal to real POST and ledger value
+PASS cancelled New, Edit, Close and router departure retain unfinished JSON and validity
+PASS real 409 rebase preserves invalid JSON; load server replaces value and validity
+PASS accepted discard switches editor; condition structure replacement resets literal correctly
+PASS pending save blocks switching and duplicate submission; successful save closes without dirty prompt

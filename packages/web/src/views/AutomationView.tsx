@@ -45,7 +45,7 @@ export default function AutomationView() {
     <nav aria-label="Automation sections" className="flex flex-wrap gap-2">{(['Triggers', 'Runs', 'Diagnostics'] as const).map((name) => <Button key={name} aria-pressed={tab === name} variant={tab === name ? 'primary' : 'secondary'} onClick={() => setTab(name)}>{name}</Button>)}</nav>
     {data && <>
       {<section hidden={tab !== 'Triggers'} aria-label="Triggers" className="min-w-0 space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">Triggers</h2><div className="flex flex-wrap gap-2"><Button onClick={() => setTemplate(true)}>Pause Everything template</Button><Button disabled={editorBusy} variant="primary" onClick={() => openEditor(null)}>New Trigger</Button></div></div>
-        {template && <PauseTemplate data={data} onClose={() => setTemplate(false)} />}
+        {template && <PauseTemplate onClose={() => setTemplate(false)} />}
         {editor && <TriggerEditor key={editor.key} initial={editor.initial} data={data} leaveGuard={leaveGuard} onBusyChange={setEditorBusy} onClose={() => setEditor(null)} />}
         {!Object.keys(data.automation.triggers).length && <p className={cardClass}>No Triggers yet. Create a disabled draft, choose Events and reference an Action.</p>}
         <div className="grid min-w-0 gap-3 sm:grid-cols-2">{Object.values(data.automation.triggers).map((trigger) => { const dependency = data.automation.dependencies[trigger.id]; const action = data.actions.actions.find((a) => a.id === trigger.actionId); return <article key={trigger.id} className={`${cardClass} space-y-3`}>

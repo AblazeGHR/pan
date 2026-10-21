@@ -178,7 +178,7 @@ export default function ActionsView() {
   async function saveAction() {
     if (!editor || editor.kind !== 'action') return;
     const { draft, schemaError } = editor;
-    if (sessionOperationError(draft)) { setEditorError(sessionOperationError(draft)); return; }
+    if (editor.executionError || sessionOperationError(draft)) { setEditorError(editor.executionError || sessionOperationError(draft)); return; }
     if (!draft.name.trim() || !draft.description.trim() || schemaError) {
       setEditorError('Name, description and a valid input schema are required.');
       return;

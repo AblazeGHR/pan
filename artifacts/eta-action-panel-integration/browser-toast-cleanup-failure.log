@@ -1,0 +1,44 @@
+PASS compact Action list and Automation share one fresh registry read across routes
+PASS full panel edits Session Operation and commits mutation response without registry refetch
+PASS Duplicate preserves operation, independent targets and original immutable Group release
+PASS new full-panel Session Operation creation and Group build rejection coexist with legacy build
+PASS Automation Pause template mutates shared registry once with no ledger or registry read
+PASS late registry GET cannot replace edited targets or newer mutation; explicit Refresh converges
+PASS server-discovered query template is disabled; structured nested editor and raw errors remain safe
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: 'Dismiss toast', exact: true }).first()
+    - locator resolved to <button type="button" aria-label="Dismiss toast" class="opacity-70 hover:opacity-100 transition-opacity shrink-0">…</button>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is not stable
+    - retrying click action
+    - waiting 20ms
+    - waiting for element to be visible, enabled and stable
+    - element is not stable
+  - retrying click action
+    - waiting 100ms
+    - waiting for element to be visible, enabled and stable
+  - element was detached from the DOM, retrying
+
+    at dismissToasts (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\e2e\eta-action-panel.e2e.mjs:94:117)
+    at async file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:265:5
+    at async check (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\e2e\eta-action-panel.e2e.mjs:63:34)
+    at async file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:240:3 {
+  log: [
+    "  - waiting for getByRole('button', { name: 'Dismiss toast', exact: true }).first()",
+    '    - locator resolved to <button type="button" aria-label="Dismiss toast" class="opacity-70 hover:opacity-100 transition-opacity shrink-0">…</button>',
+    '  - attempting click action',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is not stable',
+    '    - retrying click action',
+    '    - waiting 20ms',
+    '    - waiting for element to be visible, enabled and stable',
+    '    - element is not stable',
+    '  - retrying click action',
+    '    - waiting 100ms',
+    '    - waiting for element to be visible, enabled and stable',
+    '  - element was detached from the DOM, retrying'
+  ],
+  name: 'TimeoutError'
+}

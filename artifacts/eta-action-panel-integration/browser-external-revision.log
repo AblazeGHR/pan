@@ -1,0 +1,169 @@
+PASS compact Action list and Automation share one fresh registry read across routes
+PASS full panel edits Session Operation and commits mutation response without registry refetch
+PASS Duplicate preserves operation, independent targets and original immutable Group release
+PASS new full-panel Session Operation creation and Group build rejection coexist with legacy build
+PASS Automation Pause template mutates shared registry once with no ledger or registry read
+PASS late registry GET cannot replace edited targets or newer mutation; explicit Refresh converges
+PASS server-discovered query template is disabled; structured nested editor and raw errors remain safe
+PASS real HTTP and production UI query → frozen target → Pause Everything → Run selection diagnostics
+PASS zero-match query succeeds honestly; malformed predicates fail closed before creation
+ExpectError: expect(locator).toBeVisible() failed
+
+Locator: getByRole('heading', { name: 'Query selected copy', exact: true })
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" getByRole('heading', { name: 'Query selected copy', exact: true }) with timeout 5000ms
+  - waiting for getByRole('heading', { name: 'Query selected copy', exact: true })
+
+    at captureRawStack (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+    at callMatcherAsStep (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+    at Object.toBeVisible (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+    at D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\e2e\eta-action-panel.e2e.mjs:279:91
+    at async check (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\e2e\eta-action-panel.e2e.mjs:63:34)
+    at async file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:274:3 {
+  matcherResult: {
+    message: 'expect(locator).toBeVisible() failed\n' +
+      '\n' +
+      "Locator: getByRole('heading', { name: 'Query selected copy', exact: true })\n" +
+      'Expected: visible\n' +
+      'Timeout: 5000ms\n' +
+      'Error: element(s) not found\n' +
+      '\n' +
+      'Call log:\n' +
+      `  - Expect "toBeVisible" getByRole('heading', { name: 'Query selected copy', exact: true }) with timeout 5000ms\n` +
+      "  - waiting for getByRole('heading', { name: 'Query selected copy', exact: true })\n",
+    pass: false,
+    actual: undefined,
+    name: 'toBeVisible',
+    expected: 'visible',
+    log: [
+      `  - Expect "toBeVisible" getByRole('heading', { name: 'Query selected copy', exact: true }) with timeout 5000ms`,
+      "  - waiting for getByRole('heading', { name: 'Query selected copy', exact: true })"
+    ],
+    timeout: 5000,
+    ariaSnapshot: '- complementary:\n' +
+      '  - heading "Pan" [level=1]\n' +
+      '  - button "App settings"\n' +
+      '  - button "Switch to light theme"\n' +
+      '  - button "Collapse sidebar"\n' +
+      '  - navigation "界面入口":\n' +
+      '    - button "上一组界面入口"\n' +
+      '    - link "Terminal":\n' +
+      '      - /url: /react/terminals\n' +
+      '    - link "Actions":\n' +
+      '      - /url: /react/actions\n' +
+      '    - link "Automation":\n' +
+      '      - /url: /react/automation\n' +
+      '    - button "下一组界面入口" [disabled]\n' +
+      '  - button "New"\n' +
+      '  - button "New with settings"\n' +
+      '  - button "Import"\n' +
+      '  - textbox "Search sessions":\n' +
+      '    - /placeholder: Filter...\n' +
+      '  - button "Special filters"\n' +
+      `  - 'button "Sort sessions: recent"': recent\n` +
+      '  - button "Collapse all groups"\n' +
+      '  - button "Drag Event producer"\n' +
+      '  - text: Event producer answer:empty-query-edge 8 deterministic-fixture …/test-results/eta-action-panel-1792612373898\n' +
+      '  - group "Session quick actions":\n' +
+      `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+      `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings → Notification"'\n` +
+      '  - img "2 unread done. Double-click to mark as read.": "2"\n' +
+      '  - img "Adapter cbc": cbc\n' +
+      '  - button "Session actions"\n' +
+      '  - button "Drag Control target"\n' +
+      '  - text: Control target 0 deterministic-fixture …/test-results/eta-action-panel-1792612373898\n' +
+      '  - group "Session quick actions":\n' +
+      `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+      `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings → Notification"'\n` +
+      '  - img "1 queued pending message(s), all locked. Read-only; it changes only with the real queue.": "1"\n' +
+      '  - img "Adapter cbc": cbc\n' +
+      '  - button "Session actions"\n' +
+      '  - button "Drag Selected target"\n' +
+      '  - text: Selected target 0 deterministic-fixture …/test-results/eta-action-panel-1792612373898\n' +
+      '  - group "Session quick actions":\n' +
+      `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+      `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings → Notification"'\n` +
+      '  - img "1 queued pending message(s), all locked. Read-only; it changes only with the real queue.": "1"\n' +
+      '  - img "Adapter cbc": cbc\n' +
+      '  - button "Session actions"\n' +
+      '- button "收起侧边栏"\n' +
+      '- button "全部"\n' +
+      '- main:\n' +
+      '  - main "Actions Panel":\n' +
+      '    - heading "Actions & Groups" [level=1]\n' +
+      '    - paragraph: Define an Action once. Share it across Groups, then build a Group to use it in a Session.\n' +
+      '    - text: Updated 03:53 revision 13\n' +
+      '    - button "Refresh"\n' +
+      '    - group "Registry view":\n' +
+      '      - button "Actions 6" [pressed]\n' +
+      '      - button "Groups 2"\n' +
+      '    - text: Actions are reusable definitions.\n' +
+      '    - button "New Action"\n' +
+      '    - textbox "Search Actions"\n' +
+      '    - group "Filter Actions":\n' +
+      '      - button "All" [pressed]\n' +
+      '      - button "Enabled"\n' +
+      '      - button "Draft"\n' +
+      '    - text: 6 of 6 Actions Name Type Effect Status Used in Actions\n' +
+      '    - list "Actions":\n' +
+      '      - listitem:\n' +
+      '        - button "Fixture pause"\n' +
+      '        - paragraph: Fixture pause\n' +
+      '        - paragraph: Session Operation\n' +
+      '        - paragraph: "Pause Everything · Event: payload.sessionIds"\n' +
+      '        - text: Write local Enabled —\n' +
+      '        - button "Edit Fixture pause"\n' +
+      '        - button "More actions for Fixture pause"\n' +
+      '      - listitem:\n' +
+      '        - button "Read control"\n' +
+      '        - paragraph: Read control\n' +
+      '        - paragraph: Internal API\n' +
+      '        - paragraph: GET /api/sessions\n' +
+      '        - text: Read Enabled 1 Group\n' +
+      '        - button "Edit Read control"\n' +
+      '        - button "More actions for Read control"\n' +
+      '      - listitem:\n' +
+      '        - button "Fixture pause copy"\n' +
+      '        - paragraph: Fixture pause\n' +
+      '        - paragraph: Session Operation\n' +
+      '        - paragraph: Pause Everything · 2 Sessions\n' +
+      '        - text: Write local Enabled —\n' +
+      '        - button "Edit Fixture pause copy"\n' +
+      '        - button "More actions for Fixture pause copy"\n' +
+      '      - listitem:\n' +
+      '        - button "Created in full panel"\n' +
+      '        - paragraph: Pause selected Sessions\n' +
+      '        - paragraph: Session Operation\n' +
+      '        - paragraph: Pause Everything · 1 Sessions\n' +
+      '        - text: Write local Draft 1 Group\n' +
+      '        - button "Edit Created in full panel"\n' +
+      '        - button "More actions for Created in full panel"\n' +
+      '      - listitem:\n' +
+      '        - button "Shared template"\n' +
+      '        - paragraph: Pause Everything for a frozen Session query result\n' +
+      '        - paragraph: Session Operation\n' +
+      '        - paragraph: Pause Everything · 1 Sessions\n' +
+      '        - text: Write local Draft —\n' +
+      '        - button "Edit Shared template"\n' +
+      '        - button "More actions for Shared template"\n' +
+      '      - listitem:\n' +
+      '        - button "Query selected"\n' +
+      '        - paragraph: Pause Everything for a frozen Session query result\n' +
+      '        - paragraph: Session Operation\n' +
+      '        - paragraph: Pause Everything · Session query\n' +
+      '        - text: Write local Enabled —\n' +
+      '        - button "Edit Query selected"\n' +
+      '        - button "More actions for Query selected"\n' +
+      '- complementary'
+  }
+}

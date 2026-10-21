@@ -265,7 +265,7 @@ export function ActionEditorPage({
 
   function submit() {
     setAttempted(true);
-    if (busy || !action.name.trim() || !action.description.trim() || schemaError || sessionOperationError(action)) return;
+    if (busy || !action.name.trim() || !action.description.trim() || schemaError || state.executionError || sessionOperationError(action)) return;
     onSave();
   }
 
@@ -610,7 +610,11 @@ export function ActionEditorPage({
                     </Field>
                   </div>
                 ) : action.execution.kind === 'session_operation' ? <>
-                  <SessionOperationFields value={action.execution} onChange={(execution) => patchDraft({ execution })} />
+                  <SessionOperationFields value={action.execution} rawText={state.executionText} rawError={state.executionError}
+                    onChange={(execution) => onChange({ ...state, executionText: undefined, executionError: undefined, draft: { ...action, execution } })}
+                    onRawChange={(executionText, executionError) => onChange({ ...state, executionText, executionError,
+                      draft: !executionError && action.execution.kind === 'session_operation' ? { ...action, execution: { ...action.execution, selector: { mode: 'query', query: JSON.parse(executionText) } } } : action })} />
+                  {state.executionError && <p role="alert" className="mt-2 text-xs text-danger">{state.executionError}</p>}
                   {operationError && <p role="alert" className="mt-2 text-xs text-danger">{operationError}</p>}
                 </> : (
                   <div className="space-y-4">
@@ -870,7 +874,7 @@ export function GroupEditorPage({
               {error}
             </div>
           )}
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-4">
               <Section
                 title="Group identity"

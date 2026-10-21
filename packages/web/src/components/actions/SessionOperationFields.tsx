@@ -3,14 +3,19 @@ import { Button } from '@/components/ui/Button';
 import { useActionSessionsStore } from '@/stores/actionRegistryStore';
 import type { Action } from '@/types/actions';
 import { Field, inputClass, Select } from './ActionsUi';
+import { SessionQueryEditor } from './SessionQueryEditor';
+import { defaultQuery } from './sessionQueryModel';
+import { useSessionOperationTemplateStore } from '@/stores/sessionOperationTemplateStore';
 
 type Operation = Extract<Action['execution'], { kind: 'session_operation' }>;
 
 /** Uses the shared lazy Session cache. Selected missing IDs remain editable. */
-export function SessionOperationFields({ value, onChange }: { value: Operation; onChange: (next: Operation) => void }) {
+export function SessionOperationFields({ value, onChange, rawText, rawError, onRawChange }: { value: Operation; onChange: (next: Operation) => void; rawText?: string; rawError?: string; onRawChange?: (text: string, error: string) => void }) {
   const { sessions, status, error, refreshing } = useActionSessionsStore();
+  const template = useSessionOperationTemplateStore();
   const [id, setId] = useState('');
-  useEffect(() => { void useActionSessionsStore.getState().ensureSessions(); }, []);
+  useEffect(() => { void useSessionOperationTemplateStore.getState().load(); }, []);
+  useEffect(() => { if (value.selector.mode === 'explicit') void useActionSessionsStore.getState().ensureSessions(); }, [value.selector.mode]);
   const selector = value.selector;
   const ids = selector.mode === 'explicit' ? selector.ids : [];
   const choices = [...sessions.map((s) => ({ id: s.id, name: s.name })), ...ids.filter((selected) => !sessions.some((s) => s.id === selected)).map((selected) => ({ id: selected, name: 'Not in current Session list' }))];
@@ -18,11 +23,11 @@ export function SessionOperationFields({ value, onChange }: { value: Operation; 
   return <div className="min-w-0 space-y-4">
     <p className="text-xs text-text-secondary">Pause Everything uses the existing Session operation. Targets are fixed at execution start; creating or saving this Action does not execute it.</p>
     <Field label="Target source" htmlFor="operation-target-source">
-      <Select id="operation-target-source" label="Target source" value={selector.mode} onChange={(mode) => onChange({ ...value, selector: mode === 'event' ? { mode, path: 'payload.sessionIds' } : { mode: 'explicit', ids: [] } })}>
-        <option value="explicit">Select Sessions</option><option value="event">Event field</option>
+      <Select id="operation-target-source" label="Target source" value={selector.mode} onChange={(mode) => { if (mode === 'explicit') void useActionSessionsStore.getState().ensureSessions(); onChange({ ...value, selector: mode === 'query' ? { mode, query: defaultQuery() } : mode === 'event' ? { mode, path: 'payload.sessionIds' } : { mode: 'explicit', ids: [] } }); }}>
+        <option value="explicit">Select Sessions</option><option value="event">Event field</option><option value="query">Query Sessions</option>
       </Select>
     </Field>
-    {selector.mode === 'event' ? <Field label="Target Event path" htmlFor="operation-event-path" hint="Dictionary path to one Session ID or an array of IDs. No scripts.">
+    {selector.mode === 'query' ? <SessionQueryEditor value={selector.query} onChange={(query) => onChange({ ...value, selector: { mode: 'query', query } })} rawText={rawText} rawError={rawError} onRawChange={onRawChange} /> : selector.mode === 'event' ? <Field label="Target Event path" htmlFor="operation-event-path" hint="Dictionary path to one Session ID or an array of IDs. No scripts.">
       <input id="operation-event-path" className={inputClass} value={selector.path} onChange={(e) => onChange({ ...value, selector: { mode: 'event', path: e.target.value } })} />
     </Field> : <>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-text-secondary">{ids.length} selected · Empty selection matches zero targets.</p><Button type="button" size="sm" disabled={refreshing} onClick={() => void useActionSessionsStore.getState().refreshSessions()}>Refresh Sessions</Button></div>
@@ -34,6 +39,6 @@ export function SessionOperationFields({ value, onChange }: { value: Operation; 
       </div>
       <Field label="Session ID to add" htmlFor="operation-new-id" hint="Explicit IDs are retained even if the Session is unavailable."><div className="flex min-w-0 flex-wrap gap-2"><input id="operation-new-id" className={`${inputClass} min-w-0 flex-1 basis-40`} value={id} onChange={(e) => setId(e.target.value)} /><Button type="button" size="sm" disabled={!id.trim() || ids.includes(id.trim())} onClick={() => { select([...ids, id.trim()]); setId(''); }}>Add Session ID</Button></div></Field>
     </>}
-    <p className="text-xs text-text-tertiary">Query selection is not implemented. Its contract is reserved for a separate follow-up.</p>
+    {selector.mode === 'query' && <div className="space-y-2 text-xs text-text-tertiary"><p>Selection is not authorization. At execution start, matching IDs are frozen once. Later renames, pin changes or new Sessions do not recompute that Run. Zero matches succeed without effects.</p><p>Limits: depth 8 · nodes 64 · operand values 128 · text 512 Unicode code points · candidates 2048 · targets 256. Overflow fails the entire selection; no truncation or match-all fallback.</p>{template.error && <p role="alert">Template contract unavailable: {template.error} <Button type="button" size="sm" onClick={() => void template.load()}>Retry template</Button></p>}{template.data && <details><summary>Server query schema and limits</summary><pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-all">{JSON.stringify({ fields: template.data.queryFields, limits: template.data.limits, schema: template.data.queryPredicateSchema }, null, 2)}</pre></details>}</div>}
   </div>;
 }

@@ -12,6 +12,7 @@ import { automationLogin, automationRequest, createAutomationAction, useAutomati
 import type { AutomationSnapshot, Trigger } from '@/types/automation';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import { actionRequest } from '@/services/api';
+import { useSessionOperationTemplateStore } from '@/stores/sessionOperationTemplateStore';
 vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 
 let snapshot: AutomationSnapshot;
@@ -28,6 +29,7 @@ beforeEach(async () => {
   useAutomationStore.setState({ data: null, updatedAt: 0, error: '' });
   fetcher.mockReset();
   resetActionCachesForTests();
+  useSessionOperationTemplateStore.setState({ data: null, error: '' });
   vi.mocked(actionRequest).mockImplementation(async (path) => {
     const result = await fetcher(`/api/${path}`);
     return result.json();
@@ -36,6 +38,7 @@ beforeEach(async () => {
     if (!init.method || init.method === 'GET') {
       if (url === '/api/automation') return response(snapshot);
       if (url === '/api/actions') return response({ revision: 3, actions: [action], groups: [] });
+      if (url === '/api/actions/session-operation-template') return response({ item: { ...action, id: undefined, enabled: false, execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'query', query: { field: 'name', op: 'eq', value: 'Choose a Session name' } } } }, queryFields: {}, queryPredicateSchema: {}, limits: { depth: 8, nodes: 64, values: 128, textLength: 512, candidates: 2048, results: 256 } });
       return response({ sessions: [{ id: 's1', name: 'First Session' }] });
     }
     const body = JSON.parse(init.body as string || '{}') as Record<string, unknown>;
@@ -152,13 +155,13 @@ it('preserves Event field parameters and nested OR/NOT conditions in the request
 it('creates the Event target template as a normal Action using the registry revision', async () => {
   render(<TestRouter><AutomationView /></TestRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Pause Everything template' }));
-  fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
+  fireEvent.change(await screen.findByLabelText('Target source'), { target: { value: 'event' } });
   fireEvent.change(screen.getByLabelText(/Target Event path/), { target: { value: 'payload.targets' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create Session Operation Action' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.url).toBe('/api/actions/actions');
   expect(writes[0]!.body).toMatchObject({ expectedRevision: 3, item: { execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'event', path: 'payload.targets' } } } });
-  expect(screen.getByText(/Query selection is not implemented/)).toBeTruthy();
+  expect(writes[0]!.body).toMatchObject({ item: { enabled: false } });
 });
 it('a late unauthorized response cannot clear a newer login', async () => {
   await automationLogin('first');
