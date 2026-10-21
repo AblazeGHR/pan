@@ -58,6 +58,8 @@ def create_app(config):
     os.environ.pop("PAN_AGENT_SESSION_TITLE", None)
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(root))
+    # Single source of truth: serve the checkout's stdio FastMCP registry.
+    # Never define remote-only tools, schemas or docstrings in this module.
     from packages.mcp.server import mcp
     from mcp.server.transport_security import TransportSecuritySettings
     mcp.settings.stateless_http = True

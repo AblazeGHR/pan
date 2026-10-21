@@ -43,3 +43,30 @@ def test_start_is_idempotent_for_owned_pair(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "_identity", lambda *a: {"ok": True})
     monkeypatch.setattr(runtime, "_spawn", lambda *a: pytest.fail("must not spawn"))
     assert runtime.control(tmp_path, "start") == {"ok": True}
+
+
+def test_start_binds_gateway_to_checkout_and_pan_api(tmp_path, monkeypatch):
+    """The owned gateway must load Pan's stdio registry from this checkout."""
+    settings(tmp_path)
+    spawned = []
+    monkeypatch.setattr(launcher, "_cloudflared_binary", lambda c: "cloudflared")
+    monkeypatch.setattr(launcher, "listener_owner", lambda p: None)
+    monkeypatch.setattr(launcher, "resolve_python_argv",
+                        lambda root, **kwargs: (["test-python"], "test"))
+    monkeypatch.setattr(runtime, "_identity", lambda root, record: {"ok": bool(record)})
+
+    def fake_spawn(root, state, name, argv, marker, process_type, entry):
+        spawned.append((name, argv))
+        state[name] = {"pid": 1}
+
+    monkeypatch.setattr(runtime, "_spawn", fake_spawn)
+    assert runtime.control(tmp_path, "start") == {"ok": True}
+
+    gateway = next(argv for name, argv in spawned if name == "gateway")
+    runtime_file = tmp_path / "data" / "mcp_remote" / "gateway.json"
+    assert gateway == ["test-python", "-B", "-m", "packages.remote.mcp_gateway",
+                       str(runtime_file)]
+    data = json.loads(runtime_file.read_text(encoding="utf-8"))
+    assert data["pan_project_root"] == str(tmp_path.resolve())
+    assert data["pan_api_url"] == "http://127.0.0.1:8768"
+    assert data["public_hostname"] == "mcp.example.com"
