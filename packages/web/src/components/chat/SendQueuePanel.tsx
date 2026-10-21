@@ -10,6 +10,7 @@ import { steerSessionQueueItem } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
+import { QueueSourceSession } from '@/components/chat/QueueSourceSession';
 import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
@@ -59,6 +60,9 @@ function QueueMessagePreview({ item, canEdit, onEdit, onClose }: {
         <span className="self-start rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary">
           {label(item)} {item.kind}
         </span>
+        {/* Structured origin only: agent/report items carry meta.sourceSessionId
+            from the server. Other sources render nothing. */}
+        <QueueSourceSession item={item} onClose={onClose} />
         <div
           tabIndex={0}
           role="region"
@@ -332,6 +336,12 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
                   const editable = item.meta?.dispatchState === 'queued';
                   const locked = item.meta?.locked === true;
                   const illegalLock = locked && item.meta?.lockSource === 'illegal';
+                  // Report-policy lock materialized by Pause reports; identified by
+                  // the structured queueLockAutoReport flag, never by body text.
+                  const reportLock = locked && !illegalLock && item.meta?.lockAutoReport === true;
+                  // Pause everything hold is display-only on this button: the row
+                  // itself stays unlocked and the P glyph never implies a lock.
+                  const pauseHold = !locked && queuePaused;
                   const steerReason = readonlySession ? 'Session 为只读'
                     : queuePaused ? 'Pause everything 阻止队列 Steer'
                     : !queuePauseLoaded || queuePauseUpdating ? '正在确认服务端队列状态'
@@ -376,6 +386,13 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
                             <span className="absolute -top-0.5 left-0 text-[13px] font-bold italic leading-none">i</span>
                             <Lock size={8} className="absolute -bottom-0.5 -right-0.5" strokeWidth={2.5} />
                           </span>
+                        ) : reportLock ? (
+                          <span className="relative block h-3.5 w-4 text-danger" aria-hidden="true">
+                            <span className="absolute -top-0.5 left-0 text-[11px] font-bold italic leading-none">Re</span>
+                            <Lock size={8} className="absolute -bottom-0.5 -right-0.5" strokeWidth={2.5} />
+                          </span>
+                        ) : pauseHold ? (
+                          <span className="block h-3 w-3 text-center text-[12px] font-bold leading-3 text-danger" aria-hidden="true">P</span>
                         ) : locked ? <Lock size={12} aria-hidden="true" /> : <Unlock size={12} aria-hidden="true" />}
                       </button>
                     </div>
@@ -398,6 +415,7 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
       </Modal>
       {preview && (
         <QueueMessagePreview
+          key={preview.id}
           item={preview}
           canEdit={!!sessionId && !edit && !readonlySession && preview.meta?.dispatchState === 'queued'}
           onEdit={(item) => {

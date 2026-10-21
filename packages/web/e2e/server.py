@@ -280,19 +280,28 @@ def main() -> None:
         return {"ok": True, "lastLegalWorkerState": target.last_legal_worker_state}
 
     RUNTIME.mkdir(parents=True, exist_ok=True)
+    # Identity of THIS process, published both on disk and over the port it
+    # owns. Browser checks must prove they are about to mutate the isolated
+    # fixture (and that any auto-spawned worker runs the deterministic stub)
+    # instead of trusting caller-declared flags.
+    identity = {
+        "pid": os.getpid(),
+        "port": PORT,
+        "checkout": str(PROJECT_ROOT),
+        "runtime": str(RUNTIME),
+        "sessionDir": str(SESSION_DIR),
+        "fakeCli": str(Path(fake_cli).resolve()) if fake_cli else None,
+    }
     (RUNTIME / "server-identity.json").write_text(
-        json.dumps(
-            {
-                "pid": os.getpid(),
-                "port": PORT,
-                "checkout": str(PROJECT_ROOT),
-                "runtime": str(RUNTIME),
-                "sessionDir": str(SESSION_DIR),
-            },
-            indent=2,
-        ),
+        json.dumps(identity, indent=2),
         encoding="utf-8",
     )
+
+    @server_module.app.get("/__e2e/identity")
+    async def e2e_identity():
+        """Read-only identity probe: no mutation, no provider, no Worker."""
+        return identity
+
     config = uvicorn.Config(server_module.app, host="127.0.0.1", port=PORT, log_level="info", access_log=True)
     uvicorn.Server(config).run()
 

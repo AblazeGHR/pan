@@ -694,4 +694,25 @@ describe('openSessionFromNotification workspace sync', () => {
     expect(useUIStore.getState().activeWorkspaceId).toBe('all');
     expect(toastMessages()).toContain(MISSING);
   });
+
+  it('callers may supply their own feedback wording without changing the jump', async () => {
+    useSessionStore.setState({
+      sessions: [mkSession('A', { workspaceIds: ['ws1'] }), mkSession('C', { workspaceIds: ['ws1'] })],
+    });
+    useWorkspaceStore.setState({ workspaces: [mkWorkspace('ws1')], loaded: true, loading: false, error: null });
+    useUIStore.setState({ activeWorkspaceId: 'all' });
+
+    const ok = await openSessionFromNotification('C', { missing: 'Custom missing copy' });
+
+    // Overriding the wording must not change the routing result.
+    expect(ok).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBe('C');
+    expect(useUIStore.getState().activeWorkspaceId).toBe('ws1');
+
+    useSessionStore.setState({ sessions: [], sessionsLoading: false, _loadSeq: 1 });
+    apiMock.fetchSessions.mockResolvedValue([mkSession('A')]);
+    expect(await openSessionFromNotification('gone', { missing: 'Custom missing copy' })).toBe(false);
+    expect(toastMessages()).toContain('Custom missing copy');
+    expect(toastMessages()).not.toContain(MISSING);
+  });
 });
