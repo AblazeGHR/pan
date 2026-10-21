@@ -74,3 +74,11 @@ fake CLI 仅本地 stdin/stdout，不调用收费模型。Force 验证的是 cap
 - 扩展来源集合出现 **95 passed / 1 failed**：[JUnit](../../evidence/session-summary-regression-20261021/source-expanded.xml)。失败 `tests/test_source_metadata.py::test_send_session_accepts_future_external_sources`，期望 `meta-agent`，实际归一化为 `agent`；[独立复跑](../../evidence/session-summary-regression-20261021/existing-source-failure.txt) 同样失败。相关 backend 产品与该测试都未改，工作区 blob 与基线相同：worker `d992589560d34e6cd6163dae04d78a8b3c5d24f0`，test_source_metadata `195a464f793801ddab25d103f16fc16d8687994c`。没有改断言、skip 或扩大修复范围掩盖此项。
 - 未跑全量前后端测试，未访问/修改用户实际数据和已有服务，未验证真实 CLI/provider、native TUI 的真实模型输出、移动端或其他浏览器。
 - Typecheck/build、隔离 HTTP/WS、真实 Chromium、MA 独立验收和实用服务发布是不同层次。本候选等待 MA 验收与快进，不代表用户运行中的服务已更新。
+
+## MA 独立验收（2026-10-21）：已验收
+
+整合当前 main 7e30d649，无冲突。独立审阅 sessionStore 摘要合并、加载窗口、乐观队列及同 execution 晚交接保护；后端 history replace 保持 revision 递增。
+独立复验上述 15 文件 Vitest：314 passed；summary/history/replay pytest：61 passed，均 exit 0，无 skip。
+整合树 pnpm build exit 0，74 个压缩资源通过。独立运行生产 Chromium HTTP/WS harness exit 0，运行目录 packages/web/test-results/summary-1792587628166，隔离端口 51596；旧 MA patch、新 HTTP、旧 history 回包、Send/Force、重连、切换和冷刷新全部通过。未使用真实模型，未访问既有服务。
+TA 记录的 meta-agent 来源兼容失败保留为既有独立问题，本次未改变该归一化契约。
+验收仅覆盖本报告列明范围；用户级 skill 按当前指令未同步，现有服务未重启。
