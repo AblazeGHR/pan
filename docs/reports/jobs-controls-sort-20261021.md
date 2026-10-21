@@ -72,7 +72,36 @@ Post-merge targeted coexistence validation:
 - `python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_groups.py tests/test_background_job_api.py tests/test_jobs_api.py -o addopts= -q`: **141 passed**; JUnit/log `coexistence.*`.
 - Report subscription/agent subscription: **41 passed**; `task-a-coexistence.*`.
 - `tests/test_report_reads.py`: passed; exact counts in `task-a-reads.*`.
-- Build (includes TypeScript) and 72 compressed-asset validation: passed; `coexistence-build.log`. Existing bundle warnings remain.
+- Build (includes TypeScript) and **74** compressed-asset validation: passed; `coexistence-build.log`. The previous report said 72; that was a summary error. The committed log contains ActionsView and reports 74. Existing bundle warnings remain.
 - Scoped ESLint on JobsView, ActionsView, shared API and JobDetailDrawer: passed.
 - Final production Jobs browser: passed again at owned ephemeral port **51977**, zero page errors, Cancel POSTs 2, DELETEs 0, desktop/mobile layouts and live updates verified. Fixture server/browser closed. Action browser against a real HTTP instance was not rerun in this follow-up; Action coexistence is covered by targeted backend/UI tests and build.
 - No main/practical update, push, release, protected-service operation, full suite or subdelegation. No naming behavior was silently reversed.
+
+
+## Final integration: report_consume baseline f576d1b7
+
+User/MA has now accepted the naming policy: frontend Name remains optional with existing automatic naming; MCP background start requires name; label remains optional. No reverse naming change is requested or made. Earlier wording that naming awaited reconciliation is historical and superseded by this confirmation. Candidate acceptance remains MA's separate decision.
+
+`f576d1b74b566f2d78531207cadc8b7542004a25` was merged into this isolated branch as `2d72718b` without conflicts. Auto-merged shared files were the Pan skill, HTTP reference, MCP server and web server. Review confirms:
+
+- MCP `report_consume` and HTTP report-consume are present, report_next is removed as a callable tool/operation, and report bodies are withheld from self_queue_read/consume responses until the actual CLI handoff path. References to report_next only describe its removal.
+- Action admission/batch ownership fences from the new baseline remain intact. Jobs creation/cancellation/sorting/label code is unchanged. Background process creation, retry and registry sources are byte-identical to the preceding candidate; shared MCP/web-server changes are limited to report handling and preserve name forwarding.
+- Skill content contains Action/Group management, the new report_consume and metadata-only privacy rules, and required MCP background name/optional frontend name and label guidance. No side's skill content was discarded.
+- New report tests explicitly include a `background_job_terminal` notice alongside reports; Job/notice/channel items are excluded from report batches and retain their non-report behavior. No Job creation path calls report_consume. Real HTTP/MCP tests exercise the newly registered interface and removed old interface.
+
+Current targeted validation, **not the historical 23-test report reads evidence**:
+
+```text
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_report_reads.py tests/test_report_action_coexistence.py tests/test_self_queue.py tests/test_background_job_api.py tests/test_jobs_api.py -o addopts= -q --junitxml=evidence/jobs-controls-sort/consume-final.xml
+175 passed; no skipped tests
+pnpm exec tsc -b --noEmit   (packages/web)
+passed
+node e2e/verify-precompressed-assets.mjs   (packages/web)
+Verified 74 compressed production assets
+```
+
+Build provenance correction and rebuild decision: initial pre-Action Jobs build correctly had 72 variants. The **post-69ca7574 build log already reports 74**, including `ActionsView-Dsc_BOkL.js`; the previous summary incorrectly carried forward 72. The final report-consume merge changes no frontend/build inputs. Git object IDs of `packages/web/src`, vite.config.ts, package.json, lockfile and tsconfigs were compared against 31dcf17e and match. Current dist's complete 49-file JS/CSS set equals the post-Action log; 37 files are at least 1024 bytes, each with Brotli and gzip, giving 74 checked variants. Every compressed variant was decompressed and compared with the actual plain output by the verifier. Actions route `/actions` and builtin entry exist in source and the Actions chunk exists in dist. `dist-provenance.json` records input Git objects and SHA256 of all current JS/CSS outputs.
+
+This round **did not produce a new build or rerun unchanged frontend/browser layers**. It verifies that the existing post-Action build has identical frontend inputs to the final integration; it does not mislabel the original pre-Action 72-variant dist as a final fresh build. New behavior evidence is the 175-case current backend suite, not the earlier report-read result. Existing pytest timeout/Pydantic/Starlette and record_property warnings are recorded in consume-final.log.
+
+No main/practical movement, push, release, existing-service operation, protected-port access, paid model, full suite or subdelegation. User-level skill copies remain an MA sync item after candidate acceptance.
