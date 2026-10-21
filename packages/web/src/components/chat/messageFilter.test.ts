@@ -6,6 +6,7 @@ import {
   getQuickJumpKind,
   getQuickJumpMessages,
   getQuickJumpPreview,
+  getMessageSourceTag,
 } from './messageFilter';
 import type { MessageVisibilitySettings } from './messageFilter';
 import type { Message } from '@/types';
@@ -19,6 +20,15 @@ const ALL_SHOWN: MessageVisibilitySettings = {
 };
 
 describe('filterVisibleMessages', () => {
+  it('uses structured Report provenance for explicit upstream messages and keeps MA visibility independent', () => {
+    for (const content of ['body without header', '////by agent : child | Child\nbody']) {
+      const message: Message = { role: 'user', content, source: 'report' };
+      expect(getQuickJumpKind(message)).toBe('worker');
+      expect(getMessageSourceTag(message)).toBe('ta-report');
+      expect(filterVisibleMessages([message], { ...ALL_SHOWN, showTaskAgent: false })).toEqual([]);
+      expect(filterVisibleMessages([message], { ...ALL_SHOWN, showMetaAgent: false })).toEqual([message]);
+    }
+  });
   it('keeps every message when all toggles are on', () => {
     const msgs = [
       mk('////by agent : ses_1 | T'),

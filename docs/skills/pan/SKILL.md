@@ -145,6 +145,8 @@ session_create → report_subscribe → agent_assign → queue_pending 收报告
 
 上述默认 Force 规则不覆盖 Illegal 保护：Illegal Session 的当前任务补充同样持久入队并锁定，Force 不等同于取消 Illegal。只有显式 Wake（原子发消息、解自己的 Illegal 锁、置队首）、手动解锁或 Start/Restart 才可按有效 ready 条件恢复；保留 owner/unknown、Pause、Manual、报告策略和 lease 的原作用范围。
 
+发送来源由可信发送 Session 与 managedBy 祖先链分类：发往自己的 MA 或更高祖先标为 Report，其余保持 MA；不按正文前缀猜身份，不改变访问/claim/订阅。显式上行仍保留原 task 信封、附件和幂等/force 回执，并遵守 Stop reports。Behavior → Auto report 只控制回答的自动汇报：MA 默认开，System/真用户默认关；插件按注册声明默认（未声明 false），各插件独立覆盖。执行入场持久快照决定本轮行为；Report 输入回答不会再次自动汇报，避免回流循环。契约与恢复/混合批次规则见 [source-aware-auto-report](../../source-aware-auto-report.md)。
+
 force 返回 queued/accepted/rejected/unknown；accepted 仅为 CLI admission，
 不是模型已消费。unknown 保留原事务，禁止自动重发或降级 restart；明确拒绝后
 可显式重试原 item。delayed restart 优先，锁、Pause everything、Stop reports

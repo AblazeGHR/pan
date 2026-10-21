@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="6.927" timestamp="2026-10-19T21:02:05.035659+08:00" hostname="ablaze"><testcase classname="tests.test_source_aware_auto_report_real" name="test_source_policy_real_http_ws_browser" time="6.804" /></testsuite></testsuites>

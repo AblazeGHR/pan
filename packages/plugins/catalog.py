@@ -35,6 +35,8 @@ class Plugin:
     data_version: int = 1
     agent_capabilities: tuple[str, ...] | None = None
 
+    message_source: dict | None = None
+
     def public(self) -> dict:
         return {"id": self.id, "name": self.id, "displayName": self.display_name,
                 "aliases": list(self.aliases), "supportedModes": list(self.supported_modes),
@@ -96,6 +98,15 @@ class Catalog:
             if not isinstance(aliases, list) or any(not isinstance(a, str) or not a for a in aliases):
                 raise ValueError(f"Plugin {pid}: aliases must be non-empty strings")
             panels = raw.get("panels", [])
+            message_source = raw.get("message_source")
+            if message_source is not None:
+                reserved_origins = {"user", "agent", "meta-agent", "system", "automation",
+                                    "report", "zombie", "task", "notice", "native-tui", "system_prompt"}
+                aliases_source = set(message_source.get("legacy_sources", []))
+                claimed = {alias for p in self.plugins.values() if p.message_source is not None
+                           for alias in p.message_source.get("legacy_sources", [])}
+                if aliases_source & (reserved_origins | claimed):
+                    raise ValueError("Plugin message source aliases must be unique and cannot shadow Core origins")
             agent_capabilities = raw.get("agent_capabilities")
             if agent_capabilities is not None:
                 if source['kind'] != 'pan_api' or any(cap not in {c['id'] for c in document['capabilities']} for cap in agent_capabilities):
@@ -112,6 +123,7 @@ class Catalog:
                     raise ValueError('Panel action capability is not declared')
             self._add(Plugin(pid, raw.get("display_name") or pid, source, tuple(aliases),
                              modes, default, dict(exports), raw.get("version", "1.0.0"),
+                             message_source=copy.deepcopy(raw.get("message_source")),
                              panels=tuple(copy.deepcopy(panels)), data_version=raw.get("data", {}).get("version", 1),
                              agent_capabilities=tuple(agent_capabilities) if agent_capabilities is not None else None))
         for name in self.servers:
@@ -121,7 +133,8 @@ class Catalog:
                 raise ValueError("pan-tools is reserved for generated plugin access")
             if name in {"pan-qq", "qq"} and "qq" not in self.plugins:
                 self._add(Plugin("qq", "QQ", {"kind": "mcp", "server_ref": name},
-                                 aliases=("pan-qq",), legacy=True, tool_exports={
+                                 aliases=("pan-qq",), legacy=True,
+                                 message_source={"auto_report_default": True, "legacy_sources": ["qq"]}, tool_exports={
                                      "qq_" + export: export for export in ("send_message", "send_file",
                                      "read_conversation", "list_contacts", "read_inbox", "bind", "unbind")}))
                 continue

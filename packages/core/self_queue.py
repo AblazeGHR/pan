@@ -215,6 +215,12 @@ async def _report_consume(session_id: str) -> dict:
             if (worker._is_pauseable_agent_report(row) and isinstance(identity, str) and identity
                     and not row.get("selfConsumeRequested")
                     and _eligible(s, dict(row, queueItemId=identity))):
+                # Explicit Report tasks carry text/parts/formal task identity.
+                # They are single units; never format them as result envelopes.
+                if worker._queue_item_kind(row) == "task":
+                    if not selected:
+                        selected.append(row)
+                    break
                 selected.append(row)
         ids = [row.get("queueItemId") or row["id"] for row in selected]
         if not ids or len(ids) != len(set(ids)):

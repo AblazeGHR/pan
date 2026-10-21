@@ -3311,6 +3311,22 @@ def _plugin_manifest():
     return _character_manager._manifest_config
 
 
+@app.get("/api/plugins/message-sources")
+async def api_plugin_message_sources():
+    from packages.core import auto_report
+    overrides = auto_report.normalize((load_config().get("ui") or {}).get("autoReport"))["plugins"]
+    return {"sources": [{**p, "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"])}
+                        for p in (await auto_report.context())[1]]}
+
+
+@app.post("/api/plugins/{plugin_id}/messages")
+async def api_plugin_message(plugin_id: str, data: dict):
+    # This local plugin ingress has the same access boundary as /api/send.
+    # It cannot impersonate agent/user/system origins; registration alone is insufficient.
+    return await worker.enqueue_plugin_message(plugin_id, data.get("sessionId"),
+        data.get("text"), client_message_id=data.get("clientMessageId"))
+
+
 @app.get("/api/plugins/panels")
 async def api_plugin_panels():
     from packages.plugins.panels import PanelHost
@@ -10970,7 +10986,10 @@ async def api_get_settings_ui():
     single source of truth for these display-level settings, shared across
     browsers/sessions (previously they lived in browser localStorage).
     """
-    return load_config().get("ui") or {}
+    from packages.core import auto_report
+    ui = dict(load_config().get("ui") or {})
+    ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    return ui
 
 
 @app.get("/api/data/catalog")
@@ -11060,6 +11079,12 @@ async def api_put_settings_ui(data: dict):
     over the ``settings.uiUpdated`` broadcast, and a failed config write
     changes nothing (the previous policy stays active).
     """
+    from packages.core import auto_report
+    if "autoReport" in data:
+        try:
+            data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
     ui = dict(load_config().get("ui") or {})
     if "autoForceSend" in data:
         # Strict shape: the three automatic Force sources are independent

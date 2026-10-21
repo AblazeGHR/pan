@@ -226,6 +226,7 @@ DEFAULT_CONFIG: dict = {
         # Force send 能力路由（system=Job 终态、ma=MA/管理器消息、
         # report=完成报告）。缺省三项全部关闭，保持既有排队行为。
         "autoForceSend": {"system": False, "ma": False, "report": False},
+        "autoReport": {"system": False, "ma": True, "user": False, "plugins": {}},
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,
