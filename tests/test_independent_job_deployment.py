@@ -139,7 +139,7 @@ def test_external_user_host_survives_real_pan_graceful_and_job_tree_exit(tmp_pat
             marker = tmp_path / (mode + ".done")
             command = "import time; from pathlib import Path; time.sleep(5); Path(" + repr(str(marker)) + ").write_text('done')"
             created = http(pan_endpoint, "/api/jobs", {"kind": "background-process", "target": {"sessionId": session_id},
-                "argv": [sys.executable, "-c", command], "cwd": str(tmp_path)})
+                "name": "Validate independent deployment", "argv": [sys.executable, "-c", command], "cwd": str(tmp_path)})
             assert created["ok"] is True
             job = created["job"]
             assert job["executionOwner"] == "independent-job-service"

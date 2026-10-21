@@ -67,7 +67,7 @@ def _stop(server, thread):
 
 
 def _request(argv, **more):
-    return {"argv": argv, "cwd": os.getcwd(), "targetSessionId": "session_test", **more}
+    return {"name": "Validate independent lifecycle", "argv": argv, "cwd": os.getcwd(), "targetSessionId": "session_test", **more}
 
 
 def _wait(client, job_id, terminal=("completed", "failed", "cancelled", "UNKNOWN"), timeout=8):
@@ -287,3 +287,25 @@ def test_unknown_jobs_are_not_retryable(tmp_path):
         assert _wait(client, job["jobId"])["status"] == "completed"
     finally:
         _stop(server, thread)
+
+
+@pytest.mark.parametrize("name", [None, "", "   ", "x" * 201])
+def test_new_process_requires_name_without_spawning(tmp_path, monkeypatch, name):
+    from packages.jobs.independent_service import ServiceError
+    store = JobStore(str(tmp_path / "owned-name"))
+    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", lambda *a, **k: pytest.fail("must not spawn"))
+    with pytest.raises(ServiceError, match="name"):
+        store.create(_request([sys.executable], name=name))
+
+
+def test_name_is_trimmed_label_optional_and_legacy_read_unchanged(tmp_path, monkeypatch):
+    store = JobStore(str(tmp_path / "owned-name"))
+    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", lambda *a, **k: None)
+    job = store.create(_request([sys.executable], name="  Validate logs  "))
+    assert job["name"] == "Validate logs" and job["label"] is None
+    with store.connect() as db:
+        row = db.execute("SELECT payload FROM jobs WHERE id=?", (job["jobId"],)).fetchone()
+        payload = json.loads(row["payload"])
+        payload["name"] = "Historical name " + "x" * 250
+        db.execute("UPDATE jobs SET payload=? WHERE id=?", (json.dumps(payload), job["jobId"]))
+    assert store.get(job["jobId"])["name"] == payload["name"]

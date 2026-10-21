@@ -87,7 +87,7 @@ CBC native TUI 与 Oneshot 不因此获得 stream 控制协议能力，不能盲
 | `POST` | `/api/sessions/{id}/reminders` | `{"dueAt":"<absolute ISO-8601>", "title":"...", "body":"..."}` | 注册一次性持久提醒；MCP `reminder_register` 使用 |
 | `GET` | `/api/sessions/{id}/reminders` | — | 列出该 session 的待处理提醒；MCP `reminder_list` 使用 |
 | `DELETE` | `/api/sessions/{id}/reminders/{reminderId}` | — | 取消该 session 的待处理提醒；MCP `reminder_cancel` 使用 |
-| `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "label"?:"...", "creatorSessionId"?:"...", "hideWindow"?:true}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，cwd 可为任意已存在目录（建议绝对路径）；creator 与接收 target 分开持久化；Windows 默认隐藏命令窗口，显式 `hideWindow:false` 显示，必须是真布尔值 |
+| `POST` | `/api/background-jobs` | `{"targetSessionId":"...", "argv":[...], "cwd":"...", "name":"Meaningful task name", "label"?:"...", "creatorSessionId"?:"...", "hideWindow"?:true}` | 创建脱离 Worker 生命周期的持久后台 Job；argv 不经 shell，cwd 可为任意已存在目录（建议绝对路径）；creator 与接收 target 分开持久化；Windows 默认隐藏命令窗口，显式 `hideWindow:false` 显示，必须是真布尔值 |
 | `GET` | `/api/background-jobs[?targetSessionId=...]` | — | 列出 Job Registry 记录 |
 | `GET` | `/api/background-jobs/{jobId}` | — | 查询 Job 事实、PID、日志和通知状态 |
 | `POST` | `/api/session-message-jobs` | `{"targetSessionId":"...", "creatorSessionId"?:"..."}` 或 `{"targetSessionIds":["..."], "text":"...", "schedule":{...}, "description"?:"...", "sourceSessionId"?:"...", "creatorSessionId"?:"..."}` | 创建单目标 Session 时间消息或定时群发 Job；creator 与接收 target 分开持久化，群发目标去重且保持输入顺序；单目标消息沿用 agent send 语义，保留 `sourceSessionId` 与 `////by agent : <creatorSessionId> | <title>`；`text` 只作为消息发送，不执行 shell |

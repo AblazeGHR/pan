@@ -80,7 +80,7 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
  monkeypatch.setattr(subprocess,'Popen',spawn)
  argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
  store=JobStore(root) if kind=='independent' else None
- job=store.create({'argv':argv,'cwd':str(tmp_path),'targetSessionId':'owned'}) if store else legacy.start('owned',argv,str(tmp_path))
+ job=store.create({'name':'Validate owned lifecycle','argv':argv,'cwd':str(tmp_path),'targetSessionId':'owned'}) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
  child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
  try:
   assert until(gate.exists)
@@ -152,8 +152,8 @@ def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monke
     monkeypatch.setattr(subprocess, 'Popen', spawn)
     argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
     store = JobStore(root) if kind == 'independent' else None
-    job = (store.create({'argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned'})
-           if store else legacy.start('owned', argv, str(tmp_path)))
+    job = (store.create({'name':'Validate owned lifecycle','argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned'})
+           if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
     runner = runners[0]
     runner_ft = read_creation_filetime(int(runner._handle))
     handles = []

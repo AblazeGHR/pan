@@ -136,8 +136,7 @@ class JobStore:
             raise ServiceError(400, "creatorSessionId must be a string")
         if label is not None and not isinstance(label, str):
             raise ServiceError(400, "label must be a string")
-        if name is not None and not isinstance(name, str):
-            raise ServiceError(400, "name must be a string")
+        name = name.strip() if isinstance(name, str) else name
         if description is not None and not isinstance(description, str):
             raise ServiceError(400, "description must be a string")
         if idem is not None and (not isinstance(idem, str) or not idem or len(idem) > 256):
@@ -160,6 +159,8 @@ class JobStore:
                     if row["payload_hash"] != payload_hash and previous != payload:
                         raise ServiceError(409, "idempotencyKey already used with a different payload")
                     return self.get(row["id"])
+            if not isinstance(name, str) or not name or len(name) > 200:
+                raise ServiceError(400, "name must contain 1 to 200 characters")
             db.execute("INSERT INTO jobs(id,payload,status,created,updated,log_path,idempotency_key,payload_hash) VALUES(?,?,?,?,?,?,?,?)",
                        (job_id, payload_json, "starting", now, now, log_path, idem, payload_hash))
             db.execute("COMMIT")
@@ -230,6 +231,7 @@ class JobStore:
         if original["status"] not in ("failed", "cancelled"):
             raise ServiceError(409, "only failed or cancelled jobs may be retried")
         req = {k: original.get(k) for k in ("argv", "cwd", "targetSessionId", "creatorSessionId", "label", "name", "description", "hideWindow")}
+        req["name"] = (req.get("name") or "Retry background process").strip()[:200] or "Retry background process"
         return self.create(req)
 
     def events(self):

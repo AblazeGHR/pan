@@ -24,6 +24,7 @@ import { useJobStore } from '@/stores/jobStore';
 import { wsClient } from '@/services/ws';
 import { scheduleEntries } from '@/types/jobs';
 import {
+  cancelJob,
   createJob,
   deleteJob as deleteJobApi,
   fetchJob,
@@ -42,6 +43,14 @@ import type {
   JobRunRecord,
   JobStatus,
 } from '@/types/jobs';
+
+function canCancelJob(job: Job): boolean {
+  return job.kind !== 'scheduled-task' && ['pending', 'scheduled', 'starting', 'running'].includes(job.status);
+}
+function timestampMs(value: unknown): number | null {
+  const result = typeof value === 'number' ? value * 1000 : typeof value === 'string' && value.trim() ? Date.parse(value) : NaN;
+  return Number.isFinite(result) ? result : null;
+}
 
 type Tab = 'list' | 'create' | 'settings';
 
@@ -164,8 +173,7 @@ function activeRank(status: JobStatus): number {
 }
 
 function updatedAtMs(job: Job): number {
-  const v = job.updatedAt;
-  return typeof v === 'number' ? v * 1000 : Date.parse(v) || 0;
+  return timestampMs(job.updatedAt) ?? 0;
 }
 
 /** 置顶优先；每组保留活跃优先和 updatedAt 倒序（新在前）。 */
@@ -220,6 +228,8 @@ function JobRow({
   onTogglePinned,
   onTogglePaused,
   onDelete,
+  onCancel,
+  cancelling,
   selectionMode,
   selected,
   selectionDisabled,
@@ -235,6 +245,8 @@ function JobRow({
   onTogglePinned: () => void;
   onTogglePaused: () => void;
   onDelete: () => void;
+  onCancel: () => void;
+  cancelling: boolean;
   selectionMode: boolean;
   selected: boolean;
   selectionDisabled: boolean;
@@ -270,17 +282,11 @@ function JobRow({
             />
           </label>
         )}
-        <span
-          className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusColor(job.status)}`}
-        >
-          {job.status}
-        </span>
-        <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
-          {kindLabel}
-        </span>
         <div className="min-w-0 flex-1 truncate text-sm text-text-primary" title={job.name}>
           {job.name}
         </div>
+        {job.label && <span title={job.label} className="min-w-0 max-w-[28%] truncate rounded border border-accent/50 bg-accent/10 px-1.5 py-px text-[11px] font-medium text-accent">{job.label}</span>}
+        {canCancelJob(job) && <button type="button" disabled={cancelling || selectionDisabled} onClick={(e) => { e.stopPropagation(); onCancel(); }} className="shrink-0 rounded border border-warning/50 px-1.5 py-1 text-[11px] text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
         {!pinUnavailable && job.pinned && <span title="Pinned" aria-label="Pinned" className="shrink-0 text-accent"><Pin size={14} /></span>}
         {job.paused && (
           <span className="shrink-0 rounded border border-warning/50 bg-warning/10 px-1 py-px text-[10px] text-warning">
@@ -375,6 +381,15 @@ function JobRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-tertiary">
+        <span
+          className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-medium ${statusColor(job.status)}`}
+        >
+          {job.status}
+        </span>
+        <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
+          {kindLabel}
+        </span>
+
         <span>
           {sourceSummary(job)} → {targetSummary(job)}
         </span>
@@ -418,6 +433,15 @@ export default function JobsView() {
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
 
+  const [sort, setSort] = useState(() => {
+    try { const value = JSON.parse(localStorage.getItem('pan:jobsSort') || 'null');
+      if (['active', 'updated', 'created', 'kind'].includes(value?.key) && ['asc', 'desc'].includes(value?.direction)) return value as { key: string; direction: string };
+    } catch { /* storage unavailable */ }
+    return { key: 'active', direction: 'desc' };
+  });
+  useEffect(() => { try { localStorage.setItem('pan:jobsSort', JSON.stringify(sort)); } catch { /* storage unavailable */ } }, [sort]);
+  const cancelRequests = useRef(new Set<string>());
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('list');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
@@ -431,6 +455,14 @@ export default function JobsView() {
   const loadJobs = useJobStore((s) => s.loadJobs);
   const upsertJob = useJobStore((s) => s.upsertJob);
   const removeJob = useJobStore((s) => s.removeJob);
+  useEffect(() => {
+    let changed = false;
+    for (const id of cancelRequests.current) {
+      const current = jobs.find((job) => job.jobId === id);
+      if (!current || !canCancelJob(current)) { cancelRequests.current.delete(id); changed = true; }
+    }
+    if (changed) setCancellingIds(new Set(cancelRequests.current));
+  }, [jobs]);
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -586,8 +618,16 @@ export default function JobsView() {
             .toLowerCase()
             .includes(query),
       )
-      .sort((a, b) => compareJobs(a, b, !pinUnavailable));
-  }, [jobs, statusFilter, kindFilter, searchQuery, pinUnavailable]);
+      .sort((a, b) => {
+        if (sort.key === 'active') return compareJobs(a, b, !pinUnavailable) || a.jobId.localeCompare(b.jobId);
+        if (!pinUnavailable && !!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+        const av = sort.key === 'kind' ? a.kind || null : timestampMs(sort.key === 'created' ? a.createdAt : a.updatedAt);
+        const bv = sort.key === 'kind' ? b.kind || null : timestampMs(sort.key === 'created' ? b.createdAt : b.updatedAt);
+        if (av === null || bv === null) return av === bv ? a.jobId.localeCompare(b.jobId) : av === null ? 1 : -1;
+        const result = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : Number(av) - Number(bv);
+        return result * (sort.direction === 'asc' ? 1 : -1) || a.jobId.localeCompare(b.jobId);
+      });
+  }, [jobs, statusFilter, kindFilter, searchQuery, pinUnavailable, sort]);
 
   const visibleJobIds = useMemo(() => visibleJobs.map((job) => job.jobId), [visibleJobs]);
   const selectedVisibleJobs = useMemo(
@@ -846,6 +886,21 @@ export default function JobsView() {
     }
   };
 
+  const handleCancel = async (job: Job) => {
+    if (!canCancelJob(job) || cancelRequests.current.has(job.jobId)) return;
+    cancelRequests.current.add(job.jobId);
+    setCancellingIds(new Set(cancelRequests.current));
+    let accepted = false;
+    try {
+      await cancelJob(job.jobId);
+      accepted = true;
+      showToast('Cancellation requested');
+      try { upsertJob(await fetchJob(job.jobId)); }
+      catch { showToast('Cancellation accepted; current status unavailable. Refresh to confirm.', 'warning'); }
+    } catch (e) { showToast(errMsg(e), 'error'); }
+    finally { if (!accepted) { cancelRequests.current.delete(job.jobId); setCancellingIds(new Set(cancelRequests.current)); } }
+  };
+
   const handleDelete = async () => {
     if (!deleteJob || bulkActionRef.current) return;
     try {
@@ -1013,6 +1068,13 @@ export default function JobsView() {
                 </label>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <label>Sort by <select aria-label="Sort jobs" value={sort.key} disabled={bulkAction !== null} onChange={(e) => setSort({ ...sort, key: e.target.value })} className="rounded border border-border-default bg-bg-tertiary p-1.5">
+                  <option value="active">Active first</option><option value="updated">Updated time</option><option value="created">Created time</option><option value="kind">Kind</option>
+                </select></label>
+                <button type="button" disabled={sort.key === 'active' || bulkAction !== null} onClick={() => setSort({ ...sort, direction: sort.direction === 'asc' ? 'desc' : 'asc' })} className="rounded border border-border-default px-2 py-1.5 disabled:opacity-50">{sort.direction === 'asc' ? 'Ascending' : 'Descending'}</button>
+                <span className="text-[11px] text-text-tertiary">Pinned jobs first</span>
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-text-tertiary">
                 <span aria-live="polite">
                   {visibleJobs.length} of {jobs.length} jobs
@@ -1159,6 +1221,8 @@ export default function JobsView() {
                       pinUnavailable={pinUnavailable}
                       onTogglePinned={() => void handleTogglePinned(job)}
                       onTogglePaused={() => void handleTogglePaused(job)}
+                      onCancel={() => void handleCancel(job)}
+                      cancelling={cancellingIds.has(job.jobId)}
                       onDelete={() => setDeleteJobId(job.jobId)}
                       selectionMode={selectionMode}
                       selected={selectedJobIds.has(job.jobId)}
@@ -1203,6 +1267,8 @@ export default function JobsView() {
           onClose={() => setSelectedJobId(null)}
           onRunNow={() => void handleRunNow(selectedJob)}
           onTogglePaused={() => void handleTogglePaused(selectedJob)}
+          onCancel={() => void handleCancel(selectedJob)}
+          cancelling={cancellingIds.has(selectedJob.jobId)}
           onDelete={() => setDeleteJobId(selectedJob.jobId)}
           onChangeTarget={() => openChangeTarget(selectedJob)}
           onEdit={() => setEditJobId(selectedJob.jobId)}

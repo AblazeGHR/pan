@@ -2598,3 +2598,9 @@ export async function wakeSessions(sessionIds: string[], clientMessageId: string
   if (!data.ok) throw new Error(data.results.filter(row => row.status !== 'queued')
     .map(row => `${row.sessionId}: ${row.result || row.error?.message || 'Wake failed'}`).join('; '));
 }
+
+/** Request cancellation through the existing process/message lifecycle, never DELETE. */
+export async function cancelJob(jobId: string): Promise<void> {
+  const data = await request<{ error?: { code: string; message: string } }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+  if (data.error) throwSchedulerError(data.error);
+}

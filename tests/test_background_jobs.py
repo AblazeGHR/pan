@@ -35,7 +35,7 @@ def _session(tmp_path, sid="ses_target"):
 def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):
     _session(tmp_path)
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
     jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
                               "runnerPid": 456, "runnerProcessCreatedAt": 1})
     monkeypatch.setattr(jobs, "_owns_process", lambda fact: Mock(pid=fact["pid"]))
@@ -51,7 +51,7 @@ def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):
 def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tmp_path):
     _session(tmp_path)
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
     jobs._update(job["jobId"], {"status": "running", "cancelRequestedAt": 1})
     result = jobs.runner_update(job["jobId"], status="completed", exitCode=0)
     assert result["status"] == "cancelled" and result["exitCode"] is None
@@ -62,7 +62,7 @@ def test_cancel_survives_runner_disappearing_during_tree_lookup(monkeypatch, tmp
 
     _session(tmp_path)
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path))
+    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
     jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
                               "runnerPid": 456, "runnerProcessCreatedAt": 1})
     task, runner = Mock(pid=123), Mock(pid=456)
@@ -94,6 +94,7 @@ def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
     result = jobs.start(
         "ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path),
         creator_session_id="ses_creator",
+        name="Validate background jobs",
     )
     assert result["status"] == "running"
     assert result["pid"] is None
@@ -108,7 +109,7 @@ def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
 def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):
     _session(tmp_path)
     with pytest.raises(ValueError):
-        jobs.start("ses_target", argv, cwd)
+        jobs.start("ses_target", argv, cwd, name="Validate background jobs")
 
 
 def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):
@@ -124,7 +125,7 @@ def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypa
     # its command subprocess is real, while no deployed service is touched.
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
     job = jobs.start("ses_target", [sys.executable, "-c",
-        "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"], str(external))
+        "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"], str(external), name="Validate background jobs")
     monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
     assert background_runner.main() == 0
     result = jobs.get(job["jobId"])
@@ -320,7 +321,8 @@ def test_retry_inherits_creator_and_target(monkeypatch, tmp_path):
     })
     calls = []
 
-    def fake_start(target, argv, cwd, *, label=None, creator_session_id=None, hide_window=True):
+    def fake_start(target, argv, cwd, *, name, label=None, creator_session_id=None, hide_window=True):
+        assert name == jobs.get("job_finished")["name"]
         assert hide_window is True
         calls.append((target, argv, cwd, label, creator_session_id))
         retry = {"jobId": "job_retry", "targetSessionId": target,
@@ -512,7 +514,7 @@ def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
     events = []
     monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
     monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
     from packages.core import background_runner
     assert background_runner.main() == 0
@@ -552,7 +554,7 @@ def test_terminal_broadcast_retries_after_channel_failure(monkeypatch, tmp_path)
 
     monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", raising_hook)
     monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
     monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
     from packages.core import background_runner
     assert background_runner.main() == 0
@@ -589,7 +591,7 @@ def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
         return {"ok": True}
 
     monkeypatch.setattr(worker, "enqueue_notice", notify)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path))
+    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
     jobs.runner_update(job["jobId"], status="completed", exitCode=0,
                        scheduledParentJobId="sch_parent")
     assert events[0]["type"] == "job.created"
@@ -684,7 +686,7 @@ def test_hidden_runner_claim_is_once_and_refuses_unknown(monkeypatch, tmp_path):
     from packages.core.terminal.identity import probe_process
     _session(tmp_path)
     monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
-    job = jobs.start('ses_target', ['owned-command'], str(tmp_path))
+    job = jobs.start('ses_target', ['owned-command'], str(tmp_path), name="Validate background jobs")
     assert jobs.claim_hidden_runner(job['jobId']) is True
     fact = jobs.get(job['jobId'])
     assert fact['runnerPid'] == os.getpid()
@@ -700,7 +702,7 @@ def test_hidden_runner_claim_is_once_and_refuses_unknown(monkeypatch, tmp_path):
 def test_hidden_runner_claim_finishes_already_accepted_cancel(monkeypatch, tmp_path):
     _session(tmp_path)
     monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
-    job = jobs.start('ses_target', ['owned-command'], str(tmp_path))
+    job = jobs.start('ses_target', ['owned-command'], str(tmp_path), name="Validate background jobs")
     jobs._update(job['jobId'], {'cancelRequestedAt': 1})
     assert jobs.claim_hidden_runner(job['jobId']) is False
     result = jobs.get(job['jobId'])
@@ -746,3 +748,10 @@ def test_failed_job_commit_does_not_publish_live_state(monkeypatch, tmp_path):
     with pytest.raises(OSError):
         jobs._write_job(tmp_path / "job_owned.json", {"jobId": "job_owned"})
     assert events == []
+
+
+@pytest.mark.parametrize("name", [None, "", "   ", "x" * 201])
+def test_process_creation_requires_explicit_bounded_name(tmp_path, monkeypatch, name):
+    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda *a, **k: pytest.fail("must not spawn"))
+    with pytest.raises(ValueError, match="name"):
+        jobs.start("ses_target", ["owned-command"], str(tmp_path), name=name)

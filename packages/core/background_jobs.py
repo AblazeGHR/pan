@@ -289,7 +289,8 @@ def get(job_id: str, registry_root: str | Path | None = None) -> dict | None:
 
 # ── name / description 规范（所有 kind 统一；2026-09-25 用户拍板）──
 #
-# - name 必填：strip 后为空（含 None/纯空白）→ 默认名 `job-N`，绝不拒绝创建；
+# - OS process start requires explicit name (1-200 trimmed characters).
+# - Web /api/jobs and schedule/message creation retain optional automatic `job-N` names;
 # - 默认名 = **存量最小空缺**序号（删了 job-3 → 新建可复用 job-3）；
 #   允许极端条件（并发创建）下重名——name 纯展示，唯一标识是 jobId；
 # - name 是普通可编辑字段，无 nameIsAuto 标记位；
@@ -787,6 +788,11 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
           registry_root: str | Path | None = None) -> dict:
     from packages.jobs.window import validate_hide_window
     validate_hide_window(hide_window)
+    name = normalize_name(name)
+    if name is None:
+        raise ValueError("name is required")
+    if len(name) > 200:
+        raise ValueError("name must be at most 200 characters")
     if not _sessions.get(target_session_id):
         raise ValueError("target session does not exist")
     creator_sid, creator_error = _worker._normalize_source_session_id(creator_session_id)
@@ -2977,6 +2983,7 @@ def retry(job_id: str) -> dict:
         raise ValueError("job is not retryable")
     new_job = start(
         old["targetSessionId"], old["argv"], old["cwd"], label=old.get("label"),
+        name=(normalize_name(old.get("name")) or "Retry background process")[:200],
         hide_window=old.get("hideWindow", True),
         creator_session_id=old.get("creatorSessionId"),
     )
@@ -3044,7 +3051,7 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     registry_path = str(_root(registry_root))
     job = {
         "jobId": job_id, "kind": SERVICE_LIFECYCLE_KIND, "operation": operation,
-        "name": default_job_name(registry_path),
+        "name": f"{operation} Pan service on port {port}",
         "description": "",
         "options": frozen_options,
         "requestId": request_id, "phase": "requested", "status": "pending",

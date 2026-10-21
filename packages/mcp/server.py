@@ -1985,8 +1985,10 @@ def reminder_cancel(reminder_id: str, session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def agent_background_start(argv: list[str], cwd: str, target_session_id: str | None = None,
-                           label: str | None = None, hide_window: bool = True) -> dict:
-    """Start a durable background process; target defaults to this Agent Session.
+                           label: str | None = None, hide_window: bool = True, *, name: str) -> dict:
+    """Start a durable background process; name is required (1-200 nonblank characters).
+
+    label is optional presentation metadata; target defaults to this Agent Session.
 
     ``creatorSessionId`` is recorded from the calling Agent Session, while
     ``targetSessionId`` is the only Session that receives the terminal Job
@@ -2007,6 +2009,8 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
 
     完整编排流程见 /pan skill。
     """
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 200:
+        return {"ok": False, "error": {"code": "invalid_job", "message": "name must contain 1 to 200 characters"}}
     caller = _caller_identity()
     creator = (caller or {}).get("id")
     target = target_session_id or creator
@@ -2016,7 +2020,7 @@ def agent_background_start(argv: list[str], cwd: str, target_session_id: str | N
     if denied:
         return denied
     body = {
-        "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label,
+        "targetSessionId": target, "argv": argv, "cwd": cwd, "label": label, "name": name.strip(),
         "hideWindow": hide_window,
     }
     if creator:

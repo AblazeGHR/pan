@@ -302,6 +302,7 @@ export function NewJobForm({
 
   const handleCreate = () => {
     setFormError('');
+    if (name.trim().length > 200) { setNameError('Name must be at most 200 characters'); return; }
     const common = {
       name: name.trim() || undefined,
       description: description.trim(),

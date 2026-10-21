@@ -67,9 +67,9 @@ def isolated_registry(tmp_path, monkeypatch):
 def launch(kind, root, argv, cwd):
     if kind == "independent":
         store = JobStore(str(root))
-        job = store.create({"argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+        job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
         return job, lambda: store.get(job["jobId"]), lambda: store.request_cancel(job["jobId"]), store
-    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root)
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
     return job, lambda: legacy.get(job["jobId"], root), lambda: legacy.cancel(job["jobId"]), None
 
 

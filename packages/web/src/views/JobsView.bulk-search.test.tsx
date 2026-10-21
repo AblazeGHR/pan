@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   pinJob: vi.fn(),
   patchJob: vi.fn(),
   deleteJob: vi.fn(),
+  cancelJob: vi.fn(),
 }));
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
@@ -29,6 +30,7 @@ vi.mock('@/services/api', () => ({
   pinJob: api.pinJob,
   patchJob: api.patchJob,
   deleteJob: api.deleteJob,
+  cancelJob: api.cancelJob,
   createJob: vi.fn(),
   runJobNow: vi.fn(),
 }));
@@ -657,4 +659,68 @@ describe('JobsView search, status filters, and bulk actions', () => {
     });
     expect(screen.getByText('Lifecycle B')).toBeTruthy();
   });
+});
+
+
+describe('Job cancellation and ordering', () => {
+  beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); useJobStore.setState({ jobs: [], loading: false, error: null }); api.fetchJobKinds.mockResolvedValue([]); api.fetchJobs.mockResolvedValue([]); api.fetchJobRuns.mockResolvedValue([]); });
+  afterEach(cleanup);
+  it('retains a failed cancellation and prevents duplicate requests', async () => {
+    api.fetchJobs.mockResolvedValue([job({ status: 'running', label: 'Build validation' })]);
+    let reject!: (error: Error) => void;
+    api.cancelJob.mockImplementation(() => new Promise((_, r) => { reject = r; }));
+    renderView();
+    const button = await screen.findByRole('button', { name: 'Cancel job' });
+    fireEvent.click(button); fireEvent.click(button);
+    expect(api.cancelJob).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('button', { name: 'Cancelling…' }).every(e => (e as HTMLButtonElement).disabled)).toBe(true);
+    await act(async () => reject(new Error('Cancellation refused')));
+    expect((await screen.findAllByRole('button', { name: 'Cancel job' })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Reminder').length).toBeGreaterThan(0);
+    expect(api.deleteJob).not.toHaveBeenCalled();
+  });
+  it('sorts equal timestamps by ID and persists direction while live updates reorder', async () => {
+    api.fetchJobs.mockResolvedValue([job({ jobId: 'b', name: 'Second', updatedAt: 2 }), job({ jobId: 'a', name: 'First', updatedAt: 2 })]);
+    renderView(); await screen.findByText('First');
+    fireEvent.change(screen.getByLabelText('Sort jobs'), { target: { value: 'updated' } });
+    expect(screen.getAllByText(/First|Second/).map(e => e.textContent)).toEqual(['First', 'Second']);
+    act(() => useJobStore.getState().upsertJob(job({ jobId: 'b', name: 'Second', updatedAt: 3 })));
+    expect(screen.getAllByText(/First|Second/).map(e => e.textContent)).toEqual(['Second', 'First']);
+    fireEvent.click(screen.getByRole('button', { name: 'Descending' }));
+    expect(JSON.parse(localStorage.getItem('pan:jobsSort')!).direction).toBe('asc');
+  });
+});
+
+
+it('sorts created time and actual kind safely with missing legacy times last', async () => {
+  localStorage.clear();
+  api.fetchJobKinds.mockResolvedValue([]);
+  api.fetchJobs.mockResolvedValue([
+    job({ jobId: 'b', name: 'Beta', kind: 'session-message', createdAt: '2026-01-02T00:00:00Z' }),
+    job({ jobId: 'a', name: 'Alpha', kind: 'background-process', createdAt: 1 }),
+    job({ jobId: 'c', name: 'Legacy', createdAt: 'invalid' }),
+  ]);
+  renderView(); await screen.findByText('Alpha');
+  const names = () => screen.getAllByText(/^(Alpha|Beta|Legacy)$/).map(e => e.textContent);
+  fireEvent.change(screen.getByLabelText('Sort jobs'), { target: { value: 'created' } });
+  expect(names()).toEqual(['Beta', 'Alpha', 'Legacy']);
+  fireEvent.click(screen.getByRole('button', { name: 'Descending' }));
+  expect(names()).toEqual(['Alpha', 'Beta', 'Legacy']);
+  fireEvent.change(screen.getByLabelText('Sort jobs'), { target: { value: 'kind' } });
+  expect(names()).toEqual(['Alpha', 'Beta', 'Legacy']);
+  cleanup();
+});
+
+
+it('keeps accepted asynchronous cancellation disabled until the live terminal event', async () => {
+  localStorage.clear();
+  const running = job({ jobId: 'async-cancel', status: 'running' });
+  api.fetchJobs.mockResolvedValue([running]); api.fetchJobKinds.mockResolvedValue([]);
+  api.cancelJob.mockResolvedValue(undefined); api.fetchJob.mockResolvedValue(running);
+  renderView(); fireEvent.click(await screen.findByRole('button', { name: 'Cancel job' }));
+  await waitFor(() => expect(api.fetchJob).toHaveBeenCalledWith('async-cancel'));
+  expect((screen.getByRole('button', { name: 'Cancelling…' }) as HTMLButtonElement).disabled).toBe(true);
+  act(() => useJobStore.getState().upsertJob({ ...running, status: 'cancelled', updatedAt: 2 }));
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Cancelling…' })).toBeNull());
+  cleanup();
 });

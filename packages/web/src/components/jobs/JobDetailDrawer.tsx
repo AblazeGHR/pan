@@ -169,6 +169,8 @@ export function JobDetailDrawer({
   onRunNow,
   onTogglePaused,
   onDelete,
+  onCancel,
+  cancelling,
   onChangeTarget,
   onEdit,
   onToggleEntryEnabled,
@@ -182,6 +184,8 @@ export function JobDetailDrawer({
   onRunNow: () => void;
   onTogglePaused: () => void;
   onDelete: () => void;
+  onCancel?: () => void;
+  cancelling?: boolean;
   onChangeTarget: () => void;
   onEdit: () => void;
   onToggleEntryEnabled: (entryId: string) => void;
@@ -251,6 +255,7 @@ export function JobDetailDrawer({
             <h2 className="min-w-0 truncate text-sm font-semibold text-text-primary">
               {job.name}
             </h2>
+            {job.label && <span title={job.label} className="min-w-0 max-w-[35%] truncate rounded border border-accent/50 bg-accent/10 px-1.5 py-px text-[11px] font-medium text-accent">{job.label}</span>}
             <StatusBadge status={job.status} />
           </div>
           <button
@@ -276,6 +281,7 @@ export function JobDetailDrawer({
 
             {/* Action group */}
             <div className="flex flex-wrap items-center gap-1.5">
+              {onCancel && job.kind !== 'scheduled-task' && ['pending', 'scheduled', 'starting', 'running'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
               {isScheduledTask && (
                 <button
                   type="button"

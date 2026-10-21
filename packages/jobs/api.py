@@ -309,6 +309,8 @@ def _unknown_fields(value: dict, allowed: set[str], scope: str) -> str | None:
 def _name_description_error(data: dict) -> str | None:
     if "name" in data and not isinstance(data["name"], str):
         return "name must be a string"
+    if isinstance(data.get("name"), str) and len(data["name"].strip()) > 200:
+        return "name must be at most 200 characters"
     if "description" in data and not isinstance(data["description"], str):
         return "description must be a string"
     return None
@@ -624,7 +626,7 @@ async def create_job(data: dict):
                 sid, data.get("argv"), data.get("cwd"),
                 label=data.get("label"),
                 hide_window=data.get("hideWindow", True),
-                name=data.get("name"),
+                name=background_jobs.normalize_name(data.get("name")) or background_jobs.default_job_name(root),
                 description=data.get("description"),
                 creator_session_id=None,
                 registry_root=None if pan_bridge.configured_client() is not None else root,

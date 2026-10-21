@@ -10397,7 +10397,7 @@ async def api_background_job_start(data: dict):
     cwd = data.get("cwd")
     try:
         return background_jobs.start(
-            target, argv, cwd, label=data.get("label"),
+            target, argv, cwd, label=data.get("label"), name=data.get("name"),
             hide_window=data.get("hideWindow", True),
             creator_session_id=data.get("creatorSessionId"),
         )

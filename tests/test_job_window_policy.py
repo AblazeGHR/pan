@@ -81,7 +81,7 @@ def test_mcp_and_http_forward_explicit_visible_option(monkeypatch):
     monkeypatch.setattr(mcp, "_caller_identity", lambda: {"id": "ses_self"})
     monkeypatch.setattr(mcp, "_check_access", lambda *args, **kwargs: None)
     monkeypatch.setattr(mcp, "_api", lambda method, path, body: calls.append(body) or body)
-    assert mcp.agent_background_start(["python"], ".", hide_window=False)["hideWindow"] is False
+    assert mcp.agent_background_start(["python"], ".", hide_window=False, name="Validate window policy")["hideWindow"] is False
     monkeypatch.setattr(web.background_jobs, "start", lambda *args, **kwargs: kwargs)
     assert asyncio.run(web.api_background_job_start({"hideWindow": False}))["hide_window"] is False
     assert asyncio.run(web.api_background_job_start({}))["hide_window"] is True
@@ -91,7 +91,7 @@ def test_independent_service_persists_and_retries_visible_policy(tmp_path, monke
     from packages.jobs.independent_service import JobStore, ServiceError
     store = JobStore(str(tmp_path / "owned"))
     monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
-    request = {"argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self"}
+    request = {"name": "Validate window policy", "argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self"}
     default = store.create(request)
     visible = store.create({**request, "hideWindow": False})
     assert default["hideWindow"] is True
@@ -107,7 +107,7 @@ def test_independent_old_payload_idempotency_does_not_break(tmp_path, monkeypatc
     from packages.jobs.independent_service import JobStore
     store = JobStore(str(tmp_path / "owned"))
     monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
-    request = {"argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self", "idempotencyKey": "old"}
+    request = {"name": "Validate window policy", "argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self", "idempotencyKey": "old"}
     job = store.create(request)
     with store.connect() as db:
         row = db.execute("SELECT payload FROM jobs WHERE id=?", (job["jobId"],)).fetchone()

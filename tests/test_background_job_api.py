@@ -40,7 +40,7 @@ def test_http_start_forwards_creator_and_target_separately(monkeypatch):
     assert result["targetSessionId"] == "ses_b"
     assert result["creatorSessionId"] == "ses_a"
     assert calls == [(('ses_b', ['python'], 'C:\\Pan'),
-                      {"label": None, "creator_session_id": "ses_a", "hide_window": True})]
+                      {"label": None, "name": None, "creator_session_id": "ses_a", "hide_window": True})]
 
 
 def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
@@ -49,7 +49,7 @@ def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
     monkeypatch.setattr(mcp_server, "_check_access", lambda target, claim=False: None)
     monkeypatch.setattr(mcp_server, "_api", lambda method, path, body=None, timeout=30.0:
                         calls.append((method, path, body)) or {"jobId": "job_1"})
-    result = mcp_server.agent_background_start(["python", "train.py"], "C:\\Pan")
+    result = mcp_server.agent_background_start(["python", "train.py"], "C:\\Pan", name="Validate background task")
     assert result["jobId"] == "job_1"
     assert calls[0][2]["targetSessionId"] == "ses_self"
     assert calls[0][2]["creatorSessionId"] == "ses_self"
@@ -63,7 +63,7 @@ def test_mcp_start_records_creator_when_target_is_managed(monkeypatch):
                         calls.append((method, path, body)) or {"jobId": "job_t046"})
 
     result = mcp_server.agent_background_start(
-        ["python", "job.py"], "C:\\Pan", target_session_id="ses_b")
+        ["python", "job.py"], "C:\\Pan", target_session_id="ses_b", name="Validate managed task")
     assert result["jobId"] == "job_t046"
     assert calls[0][2]["creatorSessionId"] == "ses_a"
     assert calls[0][2]["targetSessionId"] == "ses_b"
@@ -75,7 +75,7 @@ def test_mcp_start_denies_unmanaged_target(monkeypatch):
                         {"ok": False, "error": {"code": "permission_denied"}})
     called = []
     monkeypatch.setattr(mcp_server, "_api", lambda *args, **kwargs: called.append(args))
-    result = mcp_server.agent_background_start(["python"], "C:\\Pan", "ses_other")
+    result = mcp_server.agent_background_start(["python"], "C:\\Pan", "ses_other", name="Validate access")
     assert result["error"]["code"] == "permission_denied"
     assert called == []
 
@@ -253,3 +253,37 @@ def test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target(monkeypa
         target_session_ids=["ses_a", "ses_denied"])
     assert denied["error"]["code"] == "permission_denied"
     assert calls == []
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 201, None])
+def test_mcp_background_name_invalid(monkeypatch, name):
+    monkeypatch.setattr(mcp_server, "_api", lambda *a, **k: pytest.fail("must not create"))
+    assert mcp_server.agent_background_start(["python"], ".", name=name)["error"]["code"] == "invalid_job"
+
+
+def test_mcp_background_name_required():
+    import inspect
+    assert inspect.signature(mcp_server.agent_background_start).parameters["name"].default is inspect.Parameter.empty
+
+
+def test_mcp_background_name_and_optional_label(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_caller_identity", lambda: {"id": "ses_self"})
+    monkeypatch.setattr(mcp_server, "_check_access", lambda *a, **k: None)
+    monkeypatch.setattr(mcp_server, "_api", lambda method, path, body: body)
+    result = mcp_server.agent_background_start(["python"], ".", name="  Validate cancellation  ")
+    assert result["name"] == "Validate cancellation"
+    assert result["label"] is None
+
+
+@pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+def test_http_process_name_required_before_spawn(payload):
+    result = asyncio.run(web_server.api_background_job_start({"targetSessionId": "owned", "argv": ["python"], "cwd": ".", **payload}))
+    assert result["error"]["code"] == "invalid_job"
+    assert "name" in result["error"]["message"]
+
+
+def test_public_background_tool_schema_requires_name_only():
+    tools = asyncio.run(mcp_server.mcp.list_tools())
+    tool = next(tool for tool in tools if tool.name == "agent_background_start")
+    assert "name" in tool.inputSchema["required"]
+    assert "label" not in tool.inputSchema["required"]

@@ -17,7 +17,7 @@ if sys.argv[1] == 'start':
     session.SESSION_DIR = runtime / 'sessions'
     target = session.create('Isolated navigation validation', adapter='codex', workdir=str(runtime))
     from packages.core import background_jobs
-    job = background_jobs.start(target.id, sys.argv[2:], str(ROOT), registry_root=runtime / 'jobs', label='navigation-validation')
+    job = background_jobs.start(target.id, sys.argv[2:], str(ROOT), registry_root=runtime / 'jobs', label='navigation-validation', name='Validate browser navigation')
     print(json.dumps({'runtime': str(runtime), 'job': job}, ensure_ascii=False))
 else:
     os.environ['PAN_BACKGROUND_JOBS_DIR'] = sys.argv[2]

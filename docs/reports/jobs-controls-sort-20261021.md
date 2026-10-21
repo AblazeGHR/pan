@@ -1,0 +1,60 @@
+# Job controls, sorting, labels and explicit background names
+
+Candidate for MA acceptance; not merged, pushed or deployed.
+
+- Worktree: `D:/project/pan-worktrees/jobs-controls-sort-20261021`
+- Branch: `feature/jobs-controls-sort-20261021`; base `1e74c3742561ce28b5b2385d4a94bcc430bf988b`.
+- Initial worktree was clean. Existing protected listener: 8768 / PID 33556 / Python314 python.exe; no 8767 listener. Neither was operated. No subdelegation or paid model invocation.
+
+Source facts and resulting behavior:
+
+- Before this change, `JobsView` row actions and `JobDetailDrawer` exposed Delete but no Job cancellation. Dialog dismissal buttons called Cancel, but did not cancel Jobs. Cancellation already exists at `POST /api/background-jobs/{id}/cancel`; the new frontend API calls that endpoint, then reads the unified Job view. DELETE remains independent.
+- Pending, scheduled, starting and running non-`scheduled-task` Jobs expose a visible **Cancel job** button in the row and drawer. Terminal Jobs do not. Scheduled task definitions retain Pause/Resume; their actual process executions are separate background-process Jobs. Request failures retain the Job and report the backend error. In-flight and accepted asynchronous cancellation remain disabled until a terminal live update; no polling was added. An accepted cancel followed by a failed status read reports the uncertainty explicitly.
+- Sort choices are Active first (previous default), Updated time, Created time and Kind. The last three support ascending/descending. Pin priority remains first; explicit sorts do not keep the active-status ranking ahead of the selected key. Equal values use Job ID, independent of incoming list/event order. Invalid/missing timestamps stay last in either direction; numeric epoch seconds and ISO strings are supported. `pan:jobsSort` uses guarded localStorage reads/writes, consistent with existing UI settings conventions.
+- `kind` is the actual Job classification. `source.type` describes the creator and is not used as Job type. No invented type field or classification was introduced.
+- Optional label is a distinct accent badge immediately to the right of the title in list and drawer. It shrinks/truncates with a native title tooltip. Status/kind moved to the secondary row to preserve title, label and action space on mobile. Missing label renders no badge. Existing search, filters, selection, runs pagination and unified live store paths remain in place.
+
+Naming contract and audited boundaries:
+
+- Latest user instruction takes precedence: the frontend **may leave Name blank**. `/api/jobs` retains the existing automatic `job-N` algorithm before invoking process creation. The existing NewJobForm Name entry remains optional; explicit names over 200 trimmed characters are rejected.
+- `agent_background_start` now has required keyword `name`, optional `label`; its actual MCP tool schema is tested. Name must be a nonblank string of at most 200 trimmed characters. It forwards to `/api/background-jobs`, which now forwards name to the process registry. The core process start and independent service reject missing/blank/overlong new names before spawning. Label remains optional.
+- Production process callers audited: unified Job API, legacy background HTTP API, core retry, scheduled-shell child creation, service lifecycle creation, MCP start and the navigation fixture. Retry explicitly preserves the previous displayed name (bounded for the new record); old independent payload replay is checked before validating a new insertion. New lifecycle Jobs use operation/port names. Scheduled-shell children already have parent-derived meaningful names.
+- Session-message/broadcast scheduling APIs, scheduler task definitions and templates are a separate scheduling boundary: their existing optional/automatic names and signatures are retained. They are not routed through the ordinary process start contract. No broad removal of automatic names was made. Existing persisted Job reads and names are unchanged, including overlong historical names; no migration or registry rewrite was added.
+- Repository skill source and HTTP reference are updated. **MA sync item:** copy the reviewed source changes to the user-level `C:/Users/14709/.agents/skills/pan/` installation and any configured skill copies after acceptance. This candidate does not mutate those external copies.
+
+Validation (all commands run in this worktree; frontend commands use `packages/web`):
+
+```text
+pnpm exec vitest run src/views/JobsView.bulk-search.test.tsx src/views/JobsView.schedule-shapes.test.tsx src/components/jobs/JobDetailDrawer.test.tsx src/components/jobs/NewJobForm.window.test.tsx src/stores/jobStore.test.ts
+58 passed (5 files)
+
+pnpm exec tsc -b
+passed
+
+pnpm exec eslint src/views/JobsView.tsx src/views/JobsView.bulk-search.test.tsx src/components/jobs/JobDetailDrawer.tsx src/components/jobs/NewJobForm.tsx src/components/jobs/NewJobForm.window.test.tsx src/services/api.ts
+passed, no warnings
+
+pnpm build
+passed; 72 compressed production assets verified
+
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_background_job_api.py tests/test_background_jobs.py tests/test_independent_job_service.py tests/test_independent_job_bridge.py tests/test_jobs_api.py tests/test_independent_job_deployment.py tests/test_job_runner_venv.py tests/test_job_window_policy.py tests/test_job_lifecycle_prevention.py -o addopts= -q --junitxml=evidence/jobs-controls-sort/backend-final.xml
+231 passed, 1 skipped
+
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_hidden_production.py tests/test_job_cleanup_failures.py -o addopts= -q --junitxml=evidence/jobs-controls-sort/cleanup-final.xml
+27 passed
+
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_background_job_api.py -o addopts= -q --junitxml=evidence/jobs-controls-sort/schema-final.xml
+25 passed (includes final actual public-schema regression; overlaps the main run)
+
+node packages/web/e2e/jobs-controls-production.e2e.mjs
+passed against final dist; owned ephemeral HTTP port 63455; server/browser closed
+
+git diff --check
+passed
+```
+
+Evidence is in `evidence/jobs-controls-sort/`: final logs/JUnit, browser-result.json and four screenshots. Production Chromium loads the real built app with isolated HTTP and WebSocket fixtures: cancellation failure/success/in-flight feedback, zero DELETEs, terminal entry removal, updated sort/direction persistence, live event reorder, and same-row long-label truncation/no horizontal overflow at 1280/375/320 pixels. A running Job at 320 pixels is also captured. No page errors occurred.
+
+Real process evidence is separate from browser fixtures: `test_cancel_proves_and_terminates_the_owned_process_tree` creates and cancels its own temporary independent Job via the real HTTP service, with process-tree termination checks; lifecycle/launcher tests likewise own their temporary roots and processes. No real user Job was cancelled. The browser fixture is not an end-to-end cancellation against a running full Pan instance.
+
+Limits: no full suite, protected service, release, push, merge or interactive human acceptance. One existing test is skipped because registering a temporary Windows task requires explicit opt-in (`test_external_user_host_survives_real_pan_graceful_and_job_tree_exit`). Pytest reports existing timeout-plugin, Pydantic forward-reference and Starlette/httpx warnings. Build retains existing dynamic-import/chunk-size warnings. Dependencies were reused through a local node_modules junction; no dependency installation or lockfile update was performed.

@@ -27,6 +27,6 @@ if len(sys.argv)>5 and sys.argv[5]=='post-spawn':
 argv=[runtime,tree,destination,'2']
 if len(sys.argv)>5 and sys.argv[5]=='post-spawn':argv.append('--runner-ancestry')
 store=JobStore(root) if kind=='independent' else None
-job=store.create({'argv':argv,'cwd':destination,'targetSessionId':'owned'}) if store else jobs.start('owned',argv,destination)
+job=store.create({'name':'Validate owned lifecycle','argv':argv,'cwd':destination,'targetSessionId':'owned'}) if store else jobs.start('owned',argv,destination, name='Validate controller recovery')
 (Path(destination)/'job.json').write_text(json.dumps(job))
 time.sleep(30)

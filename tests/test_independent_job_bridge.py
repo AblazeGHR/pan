@@ -106,7 +106,7 @@ def test_core_routes_only_new_generic_jobs_and_never_reconciles_remote(monkeypat
         calls.append(method)
         return {"jobs": [remote]} if method == "list" else remote
     monkeypatch.setattr(bridge, "request", request)
-    result = jobs.start("ses_1", ["python", "owned.py"], str(tmp_path))
+    result = jobs.start("ses_1", ["python", "owned.py"], str(tmp_path), name="Validate independent job bridge")
     assert result["executionOwner"] == "independent-job-service"
     assert list((tmp_path / "local" / "jobs").glob("*.json")) == []
     assert jobs.reconcile_running() == 0
@@ -216,7 +216,7 @@ def test_duplicate_runner_claim_launches_command_only_once(monkeypatch, tmp_path
     marker = tmp_path / "once.txt"
     with monkeypatch.context() as patch:
         patch.setattr(service.subprocess, "Popen", lambda *a, **k: None)
-        job = store.create({"argv": [sys.executable, "-c",
+        job = store.create({"name": "Validate concurrent runner", "argv": [sys.executable, "-c",
             "from pathlib import Path; p=Path(" + repr(str(marker)) + "); p.write_text('once')"],
             "cwd": str(tmp_path), "targetSessionId": "owned-test"})
     results = []

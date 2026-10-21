@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/jobs-controls-sort-20261021/packages/web/src
+
+ ✓ stores/jobStore.test.ts (26 tests) 7ms
+ ✓ components/jobs/JobDetailDrawer.test.tsx (3 tests) 91ms
+ ✓ components/jobs/NewJobForm.window.test.tsx (1 test) 124ms
+ ✓ views/JobsView.schedule-shapes.test.tsx (5 tests) 446ms
+ ✓ views/JobsView.bulk-search.test.tsx (23 tests) 1770ms
+
+ Test Files  5 passed (5)
+      Tests  58 passed (58)
+   Start at  10:54:21
+   Duration  3.98s (transform 406ms, setup 81ms, collect 1.90s, tests 2.44s, environment 3.07s, prepare 710ms)

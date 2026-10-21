@@ -84,12 +84,12 @@ def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, re
             assert response.status_code == 200
             return response.json()
         monkeypatch.setattr(mcp, '_api', api)
-        job = mcp.agent_background_start(argv, str(tmp_path), hide_window=hidden)
+        job = mcp.agent_background_start(argv, str(tmp_path), hide_window=hidden, name="Validate runner window")
         get = lambda: jobs.get(job['jobId'])
     elif entry == 'independent':
         monkeypatch.setattr(independent_service, 'sys', SimpleNamespace(executable=python))
         store = JobStore(str(root))
-        job = store.create({'argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned-session'})
+        job = store.create({'name':'Validate owned lifecycle','argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned-session'})
         get = lambda: store.get(job['jobId'])
     else:
         import subprocess

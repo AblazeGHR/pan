@@ -1,0 +1,13 @@
+{
+  "production": true,
+  "fixtureNetwork": true,
+  "port": 63455,
+  "cancelCalls": 2,
+  "deleteCalls": 0,
+  "widths": [
+    1280,
+    375,
+    320
+  ],
+  "errors": []
+}

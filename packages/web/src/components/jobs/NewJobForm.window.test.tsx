@@ -16,6 +16,7 @@ it('defaults shell Jobs to hidden windows and allows an explicit visible window'
   fireEvent.change(screen.getByLabelText('Working directory'), { target: { value: 'D:/owned' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create job' }));
   expect(onCreate).toHaveBeenLastCalledWith(expect.objectContaining({ action: { api: 'shell', args: { command: 'echo owned', cwd: 'D:/owned', hideWindow: true } } }));
+  expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ name: undefined }));
   fireEvent.click(hide);
   fireEvent.click(screen.getByRole('button', { name: 'Create job' }));
   expect(onCreate).toHaveBeenLastCalledWith(expect.objectContaining({ action: { api: 'shell', args: { command: 'echo owned', cwd: 'D:/owned', hideWindow: false } } }));
