@@ -31,6 +31,77 @@
       },
       "additionalProperties": false
     },
+    "events": {
+      "type": "object",
+      "required": [
+        "provider",
+        "definitions",
+        "subscriptions"
+      ],
+      "properties": {
+        "provider": {
+          "type": "object",
+          "required": [
+            "transport",
+            "command_ref"
+          ],
+          "properties": {
+            "transport": {
+              "const": "stdio_jsonrpc"
+            },
+            "command_ref": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "definitions": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "required": [
+              "type",
+              "schema",
+              "schemaVersion",
+              "description"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 128
+              },
+              "schema": {
+                "type": "object"
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "subscriptions": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "message_source": {
       "type": "object",
       "properties": {

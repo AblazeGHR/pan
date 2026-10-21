@@ -1,0 +1,994 @@
+{
+  "port": 64219,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3545\\test_real_http_plugin_lifecycl0\\owned-data",
+  "processes": [
+    {
+      "pid": 40864,
+      "createTime": 1792610866.514302,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "64219",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3545\\test_real_http_plugin_lifecycl0\\owned-data"
+      ]
+    },
+    {
+      "pid": 45256,
+      "createTime": 1792610866.5192091,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49800,
+      "createTime": 1792610867.9169908,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47832,
+      "createTime": 1792610867.9269824,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 20268,
+      "createTime": 1792610867.9419556,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47956,
+      "createTime": 1792610867.93251,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45524,
+      "createTime": 1792610867.9273877,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40864,
+      "createTime": 1792610866.514302,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "64219",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3545\\test_real_http_plugin_lifecycl0\\owned-data"
+      ]
+    },
+    {
+      "pid": 45256,
+      "createTime": 1792610866.5192091,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49800,
+      "createTime": 1792610867.9169908,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47832,
+      "createTime": 1792610867.9269824,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 44288,
+      "createTime": 1792610868.3886156,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 49432,
+      "createTime": 1792610868.3939288,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49880,
+      "createTime": 1792610868.4727306,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 35572,
+      "createTime": 1792610868.4938715,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 47956,
+      "createTime": 1792610867.93251,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 688,
+      "createTime": 1792610868.0290847,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47380,
+      "createTime": 1792610868.0623176,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45524,
+      "createTime": 1792610867.9273877,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 43568,
+      "createTime": 1792610868.029087,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 45224,
+      "createTime": 1792610868.0593305,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 42524,
+      "createTime": 1792610869.0179825,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "64219",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3545\\test_real_http_plugin_lifecycl0\\owned-data"
+      ]
+    },
+    {
+      "pid": 9852,
+      "createTime": 1792610869.0282533,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 47448,
+      "createTime": 1792610869.8738663,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 49416,
+      "createTime": 1792610869.8834448,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 44360,
+      "createTime": 1792610869.8881857,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 44868,
+      "createTime": 1792610869.8936472,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 36868,
+      "createTime": 1792610869.982782,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40036,
+      "createTime": 1792610870.025063,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49104,
+      "createTime": 1792610869.8895984,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 48012,
+      "createTime": 1792610869.9801707,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40152,
+      "createTime": 1792610870.0284579,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45724,
+      "createTime": 1792610869.884197,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46620,
+      "createTime": 1792610869.9801693,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 48288,
+      "createTime": 1792610870.0194175,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 42524,
+      "createTime": 1792610869.0179825,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "64219",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3545\\test_real_http_plugin_lifecycl0\\owned-data"
+      ]
+    },
+    {
+      "pid": 9852,
+      "createTime": 1792610869.0282533,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 47448,
+      "createTime": 1792610869.8738663,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 49416,
+      "createTime": 1792610869.8834448,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 44360,
+      "createTime": 1792610869.8881857,
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 44868,
+      "createTime": 1792610869.8936472,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 36868,
+      "createTime": 1792610869.982782,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40036,
+      "createTime": 1792610870.025063,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49104,
+      "createTime": 1792610869.8895984,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 48012,
+      "createTime": 1792610869.9801707,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40152,
+      "createTime": 1792610870.0284579,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45724,
+      "createTime": 1792610869.884197,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46620,
+      "createTime": 1792610869.9801693,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-plugin-adapter-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 48288,
+      "createTime": 1792610870.0194175,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    }
+  ],
+  "state": {
+    "revision": 17,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": true,
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-21T19:27:47.864487+00:00",
+        "updatedAt": "2026-10-21T19:27:47.864493+00:00"
+      }
+    },
+    "runs": {
+      "run_964cc15a7c264d3395fdf6ace9c4e9c5": {
+        "id": "run_964cc15a7c264d3395fdf6ace9c4e9c5",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "http-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:48.210180+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-21T19:27:48.212492+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 7,
+        "startedAt": "2026-10-21T19:27:48.221567+00:00",
+        "actionDigest": "1784f96aae877de4afa193067c9914e3def8b19b7576109b3d9cd9aa67dcd842",
+        "action": {
+          "id": "pause",
+          "name": "Pause selected",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_afc87dff0583b3f1"
+              ]
+            }
+          },
+          "description": "Pause selected",
+          "output_format": "json"
+        },
+        "targetIds": [
+          "ses_afc87dff0583b3f1"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_afc87dff0583b3f1",
+            "ok": true,
+            "items": [],
+            "queueRevision": 1,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_afc87dff0583b3f1",
+              "ok": true,
+              "items": [],
+              "queueRevision": 1,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-21T19:27:48.240515+00:00"
+      },
+      "run_f6eabfbda50548029aa60e1d3dd971ce": {
+        "id": "run_f6eabfbda50548029aa60e1d3dd971ce",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "after-server-restart",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:50.228998+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-21T19:27:50.231772+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 7,
+        "startedAt": "2026-10-21T19:27:50.242437+00:00",
+        "actionDigest": "1784f96aae877de4afa193067c9914e3def8b19b7576109b3d9cd9aa67dcd842",
+        "action": {
+          "id": "pause",
+          "name": "Pause selected",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "explicit",
+              "ids": [
+                "ses_afc87dff0583b3f1"
+              ]
+            }
+          },
+          "description": "Pause selected",
+          "output_format": "json"
+        },
+        "targetIds": [
+          "ses_afc87dff0583b3f1"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_afc87dff0583b3f1",
+            "ok": true,
+            "items": [],
+            "queueRevision": 1,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_afc87dff0583b3f1",
+              "ok": true,
+              "items": [],
+              "queueRevision": 1,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-21T19:27:50.260563+00:00"
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "records": {
+    "producer": [
+      {
+        "kind": "started",
+        "pid": 44584,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "producer",
+        "generation": "8232356501264480b5d86d405f2e6fbc",
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "Owned external fact",
+            "schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      },
+      {
+        "kind": "ready",
+        "generation": "8232356501264480b5d86d405f2e6fbc"
+      },
+      {
+        "kind": "publication",
+        "jsonrpc": "2.0",
+        "id": "plugin-1",
+        "result": {
+          "event": {
+            "id": "http-event",
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "source": {
+              "type": "plugin",
+              "id": "producer"
+            },
+            "occurredAt": "2026-10-21T19:27:48.210180+00:00",
+            "payload": {
+              "value": 1
+            }
+          },
+          "rejected": [],
+          "accepted": true
+        }
+      },
+      {
+        "kind": "started",
+        "pid": 49880,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "producer",
+        "generation": "f1d296f3bfda4660a8f2fc59680ad4d6",
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "Owned external fact",
+            "schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      },
+      {
+        "kind": "ready",
+        "generation": "f1d296f3bfda4660a8f2fc59680ad4d6"
+      },
+      {
+        "kind": "started",
+        "pid": 48012,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "producer",
+        "generation": "ecc29da3cc93493c8580ea3c12112e38",
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "Owned external fact",
+            "schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      },
+      {
+        "kind": "ready",
+        "generation": "ecc29da3cc93493c8580ea3c12112e38"
+      },
+      {
+        "kind": "publication",
+        "jsonrpc": "2.0",
+        "id": "plugin-1",
+        "result": {
+          "event": {
+            "id": "after-server-restart",
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "source": {
+              "type": "plugin",
+              "id": "producer"
+            },
+            "occurredAt": "2026-10-21T19:27:50.228998+00:00",
+            "payload": {
+              "value": 2
+            }
+          },
+          "rejected": [],
+          "accepted": true
+        }
+      }
+    ],
+    "observer": [
+      {
+        "kind": "started",
+        "pid": 43568,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "observer",
+        "generation": "f040382b71ac4bde817d8aeee1db29c9",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "f040382b71ac4bde817d8aeee1db29c9"
+      },
+      {
+        "kind": "delivery",
+        "generation": "f040382b71ac4bde817d8aeee1db29c9",
+        "event": {
+          "id": "http-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:48.210180+00:00",
+          "payload": {
+            "value": 1
+          }
+        }
+      },
+      {
+        "kind": "started",
+        "pid": 36868,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "observer",
+        "generation": "4633945bc49f46f28d49c83881d164e0",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "4633945bc49f46f28d49c83881d164e0"
+      },
+      {
+        "kind": "delivery",
+        "generation": "4633945bc49f46f28d49c83881d164e0",
+        "event": {
+          "id": "after-server-restart",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:50.228998+00:00",
+          "payload": {
+            "value": 2
+          }
+        }
+      }
+    ],
+    "other": [
+      {
+        "kind": "started",
+        "pid": 688,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "other",
+        "generation": "dea0090126754e81b7ae2525bfc28723",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "dea0090126754e81b7ae2525bfc28723"
+      },
+      {
+        "kind": "delivery",
+        "generation": "dea0090126754e81b7ae2525bfc28723",
+        "event": {
+          "id": "http-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:48.210180+00:00",
+          "payload": {
+            "value": 1
+          }
+        }
+      },
+      {
+        "kind": "started",
+        "pid": 46620,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "other",
+        "generation": "8a0cb8c07b474c68be3e191b51a02d6b",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "8a0cb8c07b474c68be3e191b51a02d6b"
+      },
+      {
+        "kind": "delivery",
+        "generation": "8a0cb8c07b474c68be3e191b51a02d6b",
+        "event": {
+          "id": "after-server-restart",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:27:50.228998+00:00",
+          "payload": {
+            "value": 2
+          }
+        }
+      }
+    ]
+  },
+  "sentinelUnchanged": true,
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

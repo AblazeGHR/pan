@@ -1,0 +1,127 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-plugin-adapter-20261022
+..F...                                                                   [100%]
+================================== FAILURES ===================================
+___ test_hung_start_does_not_block_other_lifecycles_or_http[session_write] ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3540/test_hung_start_does_not_block2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002A4AEEAA450>
+operation = 'session_write'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert old.handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:65: in run
+    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+packages\web\server.py:386: in _reconcile_plugin_event_bindings
+    if events and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.url.path.startswith('/api/sessions'):
+                                                                           ^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\requests.py:112: in url
+    self._url = URL(scope=self.scope)
+                ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <[AttributeError("'URL' object has no attribute '_url'") raised in repr()] URL object at 0x2a4af72e120>
+url = ''
+scope = {'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated'}
+components = {}
+
+    def __init__(
+        self,
+        url: str = "",
+        scope: Scope | None = None,
+        **components: Any,
+    ) -> None:
+        if scope is not None:
+            assert not url, 'Cannot set both "url" and "scope".'
+            assert not components, 'Cannot set both "scope" and "**components".'
+            scheme = scope.get("scheme", "http")
+            server = scope.get("server", None)
+            path = scope["path"]
+            query_string = scope.get("query_string", b"")
+    
+            host_header = None
+>           for key, value in scope["headers"]:
+                              ^^^^^^^^^^^^^^^^
+E           KeyError: 'headers'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\datastructures.py:44: KeyError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[session_write]
+1 failed, 5 passed, 1 warning in 1.98s

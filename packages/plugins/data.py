@@ -8,7 +8,12 @@ def plugin_data_dir(data_root, plugin_id, version=1):
     if not re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", plugin_id):
         raise ValueError("Invalid plugin data owner")
     base = Path(data_root).resolve()
-    root = (base / "plugins").resolve()
+    # Stabilize the shared parent before resolving per-plugin children. On
+    # Windows resolving a nonexistent parent concurrently with its creation
+    # can produce a different canonical prefix within the same path check.
+    candidate = base / 'plugins'
+    candidate.mkdir(parents=True, exist_ok=True)
+    root = candidate.resolve()
     if root.parent != base:
         raise ValueError("Plugin data root escapes the Pan data directory")
     target = (root / plugin_id).resolve()

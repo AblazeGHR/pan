@@ -80,6 +80,19 @@ class Runtime:
         self.watcher = None
         self.data_root = data_root
         self.audience = audience
+        self.events = None
+
+    async def bind_events(self, service, get_sessions):
+        if self.events is not None:
+            raise RuntimeError('Event lifecycle is already bound')
+        from .event_adapter import EventRuntime
+        self.events = EventRuntime(service, self.get_manifest, get_sessions, self.data_root)
+        await self.events.start()
+
+    async def unbind_events(self):
+        if self.events:
+            await self.events.close()
+            self.events = None
 
     def context(self, sid):
         session = self.get_session(sid)
@@ -300,6 +313,7 @@ class Runtime:
 
     async def close(self):
         self.closing = True
+        await self.unbind_events()
         if self.watcher:
             self.watcher.cancel()
             await asyncio.gather(self.watcher, return_exceptions=True)

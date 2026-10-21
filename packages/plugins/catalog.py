@@ -36,6 +36,7 @@ class Plugin:
     agent_capabilities: tuple[str, ...] | None = None
 
     message_source: dict | None = None
+    events: dict | None = None
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.id, "displayName": self.display_name,
@@ -98,6 +99,11 @@ class Catalog:
             if not isinstance(aliases, list) or any(not isinstance(a, str) or not a for a in aliases):
                 raise ValueError(f"Plugin {pid}: aliases must be non-empty strings")
             panels = raw.get("panels", [])
+            events = raw.get("events")
+            if events is not None:
+                from .event_adapter import validate_events
+                validate_events(pid, events, self.servers)
+                declared_refs.add(events['provider']['command_ref'])
             message_source = raw.get("message_source")
             if message_source is not None:
                 reserved_origins = {"user", "agent", "meta-agent", "system", "automation",
@@ -124,6 +130,7 @@ class Catalog:
             self._add(Plugin(pid, raw.get("display_name") or pid, source, tuple(aliases),
                              modes, default, dict(exports), raw.get("version", "1.0.0"),
                              message_source=copy.deepcopy(raw.get("message_source")),
+                             events=copy.deepcopy(events),
                              panels=tuple(copy.deepcopy(panels)), data_version=raw.get("data", {}).get("version", 1),
                              agent_capabilities=tuple(agent_capabilities) if agent_capabilities is not None else None))
         for name in self.servers:
