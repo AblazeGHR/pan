@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.431" timestamp="2026-10-22T16:12:50.678963+08:00" hostname="ablaze"><testcase classname="tests.test_quota_policy" name="test_close_during_policy_query_stops_new_effects" time="0.034"><failure message="AssertionError: assert not [{'id': '7864f76bad47ea8255dffcaa85d85a0a838eba3d763d96d4f42ffc70a10617a3', 'caseId': 'f9a723c085129f7ba5e2b755268b48eebe1c21d9275e01710469ea83feb659a4', 'epoch': 1, 'operation': 'switch_account', ...}]&#10; +  where [{'id': '7864f76bad47ea8255dffcaa85d85a0a838eba3d763d96d4f42ffc70a10617a3', 'caseId': 'f9a723c085129f7ba5e2b755268b48eebe1c21d9275e01710469ea83feb659a4', 'epoch': 1, 'operation': 'switch_account', ...}] = &lt;test_quota_policy.Fake object at 0x000001DF5358E7B0&gt;.effects">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3644/test_close_during_policy_query0')
+
+    @async_test
+    async def test_close_during_policy_query_stops_new_effects(tmp_path):
+        rt,f=await setup(tmp_path);entered=asyncio.Event();release=asyncio.Event();query=f.query
+        async def waiting():
+            entered.set();await release.wait();return await query()
+        f.query=waiting
+        rt.observe({'issue':issue('codex_quota_exhausted')})
+        task=asyncio.create_task(rt.tick());await entered.wait()
+        rt.closed=True  # Service.close sets this before awaiting runtime shutdown.
+        release.set();await task
+&gt;       assert not f.effects
+E       AssertionError: assert not [{'id': '7864f76bad47ea8255dffcaa85d85a0a838eba3d763d96d4f42ffc70a10617a3', 'caseId': 'f9a723c085129f7ba5e2b755268b48eebe1c21d9275e01710469ea83feb659a4', 'epoch': 1, 'operation': 'switch_account', ...}]
+E        +  where [{'id': '7864f76bad47ea8255dffcaa85d85a0a838eba3d763d96d4f42ffc70a10617a3', 'caseId': 'f9a723c085129f7ba5e2b755268b48eebe1c21d9275e01710469ea83feb659a4', 'epoch': 1, 'operation': 'switch_account', ...}] = &lt;test_quota_policy.Fake object at 0x000001DF5358E7B0&gt;.effects
+
+tests\test_quota_policy.py:300: AssertionError</failure></testcase></testsuite></testsuites>

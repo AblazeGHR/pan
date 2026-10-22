@@ -1,0 +1,58 @@
+{
+  "earlyUnfrozen": [
+    {
+      "junit": "first.xml",
+      "exitCode": 1,
+      "tests": 19,
+      "failures": 2,
+      "cause": "quota Job factory omitted _misfire; fixed factory arguments",
+      "exactArgvRetained": false
+    },
+    {
+      "junit": "http-first.xml",
+      "exitCode": 1,
+      "tests": 1,
+      "failures": 1,
+      "cause": "no-op policy mutations advanced revision, racing expectedRevision; fixed no-op writes",
+      "exactArgvRetained": false
+    },
+    {
+      "junit": "observer-preflight.xml",
+      "exitCode": 1,
+      "tests": 16,
+      "failures": 1,
+      "cause": "new test harness omitted required terminal argument; corrected harness without weakening assertions",
+      "exactArgvRetained": true,
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_policy.py",
+        "-q",
+        "--junitxml=artifacts/quota-policy/observer-preflight.xml"
+      ]
+    }
+  ],
+  "shutdownReproduction": {
+    "sourceSha": "0d77f414c7625faa3bad0bd35ac4b2139e0d6e82",
+    "sourceChanges": "only new deterministic close-during-query regression test added to reproduce",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_quota_policy.py::test_close_during_policy_query_stops_new_effects",
+      "-q",
+      "--junitxml=artifacts/quota-policy/close-before-fix.xml"
+    ],
+    "exitCode": 1,
+    "junit": "close-before-fix.xml",
+    "cause": "late query admitted and dispatched switch after closed flag; fixed admission/dispatch checks and settling before profile-owner release"
+  },
+  "finalVerification": "verification.json"
+}

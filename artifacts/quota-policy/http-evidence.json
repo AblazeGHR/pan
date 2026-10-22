@@ -1,0 +1,91 @@
+{
+  "port": 64801,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3648\\test_quota_policy_owned_http_d0\\owned-quota-http",
+  "providerCalls": 0,
+  "switches": 0,
+  "restarts": 0,
+  "serverPid": 2672,
+  "job": {
+    "jobId": "job_7d798db7e02206974f1581d2",
+    "kind": "scheduled-task",
+    "taskId": "sch_a99ba5dcd444",
+    "name": "Quota once",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "quota_query"
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_c0b59a85",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": null,
+        "lastFireAt": null,
+        "kind": "once",
+        "at": "2026-10-22T16:14:06"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": null,
+    "lastFireAt": null,
+    "lastStatus": null,
+    "lastError": null,
+    "runCount": 0,
+    "maxRuns": null,
+    "status": "completed",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792656845.0,
+    "updatedAt": 1792656846.3258276,
+    "quotaPolicy": {
+      "epoch": 1,
+      "purpose": "once",
+      "maSessionId": "owned-ma",
+      "expectedAccountId": null
+    },
+    "quotaResult": {
+      "status": "unknown",
+      "thresholdReached": false
+    },
+    "operation": "run",
+    "target": {
+      "sessionId": null
+    },
+    "pinned": false,
+    "pinMetadataStatus": "available"
+  },
+  "policy": {
+    "version": 1,
+    "revision": 5,
+    "epoch": 2,
+    "mode": "manual",
+    "maSessionId": "owned-ma",
+    "seen": {},
+    "cases": {},
+    "excluded": [],
+    "capacityRetried": [],
+    "commands": {},
+    "quota": {
+      "status": "unknown",
+      "observedAt": 1792656846.3603053,
+      "currentAccountId": null,
+      "accounts": []
+    },
+    "jobs": {
+      "once": "job_7d798db7e02206974f1581d2"
+    },
+    "rankedAccounts": [],
+    "adapter": "unavailable",
+    "diagnostics": []
+  },
+  "portReleased": true,
+  "ownedServerStopped": true
+}
