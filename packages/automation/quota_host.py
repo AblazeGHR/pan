@@ -175,6 +175,8 @@ class Bindings:
         for frozen in scope:
             expected=identity.current(inventory,frozen)
             if expected is None:raise Unavailable('frozen_scope_not_in_inventory')
+            if expected['role']!=frozen['role'] or expected['task']!=frozen['task']:
+                raise Unavailable('frozen_task_or_role_changed')
             w=self.worker.workers.get(frozen['workerId']);s=self.session(frozen['sessionId'])
             if w is None or s is None:raise Unavailable('worker_offline')
             current=self.row(w,s,roles,accounts,self.probe(w.process))

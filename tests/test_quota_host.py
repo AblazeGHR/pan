@@ -313,3 +313,18 @@ async def test_injected_switch_restart_idle_continue_chain(tmp_path):
     assert effects==['switch_account','restart_worker','wake_ta']
     await rt.recover();await rt.progress_restarts();await rt.dispatch()
     assert effects.count('wake_ta')==1
+
+
+@async_test
+async def test_switch_cannot_adopt_completed_or_replaced_frozen_task(tmp_path):
+    effects=[]
+    rt,a,module,w,s,source,event=await setup(tmp_path)
+    async def port(command,key,ticket):
+        return ticket.commit(lambda:effects.append(key) or {'key':key,'status':'confirmed'})
+    a.ports={'switch_account':port};event['classification']='codex_quota_exhausted'
+    await rt.consume(event)
+    # Completed before perform's fresh inventory: the new inventory must not
+    # silently replace the command's frozen task with its now-empty evidence.
+    s.active_task_id=None;w.status='idle'
+    await rt.dispatch()
+    assert not effects
