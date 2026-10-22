@@ -33,6 +33,7 @@ describe('dynamic panel shortcut registry', () => {
       'builtin:terminals',
       'builtin:locker',
       'builtin:actions',
+      'builtin:automation',
       'plugin:alpha/one',
       'plugin:beta/two',
     ]);
@@ -64,7 +65,7 @@ describe('dynamic panel shortcut registry', () => {
       { pluginId: 'bad', id: 'no-path' } as never,
       null as never,
     ]);
-    expect(merged).toHaveLength(7);
+    expect(merged).toHaveLength(8);
     expect(merged.filter((entry) => entry.id === 'plugin:alpha/one')).toHaveLength(1);
   });
 

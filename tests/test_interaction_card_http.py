@@ -121,7 +121,15 @@ def run_http_mcp(tmp_path,*,browser=False):
                 proc.wait(timeout=10)
         log.close()
     assert proc.returncode==0,(tmp_path/'server.log').read_text(encoding='utf-8')
-    assert not actual.is_running()
+    # On Windows psutil can retain a terminated process handle and report
+    # ``is_running()`` until the handle is reaped.  Treat only the explicit
+    # terminal states as stopped; a live/running process still fails this
+    # assertion and remains a cleanup defect.
+    try:
+        status = actual.status()
+    except psutil.NoSuchProcess:
+        status = psutil.STATUS_DEAD
+    assert not actual.is_running() or status in {psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD, 'terminated'}
     with socket.socket() as probe:
         assert probe.connect_ex(('127.0.0.1',port))!=0
     (tmp_path/'cleanup.json').write_text(json.dumps({'port':port,'serverExited':True,'listenerClosed':True}),encoding='utf-8')
