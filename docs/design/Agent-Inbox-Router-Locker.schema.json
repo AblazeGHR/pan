@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pan:agent-inbox:v1",
+  "title": "Pan Agent Inbox stable frontend contract v1",
+  "$defs": {
+    "Source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["pluginId", "instanceId", "botId", "scope", "peerId"],
+      "properties": {"pluginId": {"type": "string", "minLength": 1}, "instanceId": {"type": "string", "minLength": 1}, "botId": {"type": "string"}, "scope": {"type": "string", "minLength": 1}, "peerId": {"type": "string", "minLength": 1}}
+    },
+    "Locker": {
+      "type": "object", "required": ["id", "kind", "source", "available", "pendingCount"],
+      "properties": {"id": {"type": "string", "pattern": "^locker_[a-f0-9]{64}$"}, "kind": {"const": "agent_inbox"}, "source": {"$ref": "#/$defs/Source"}, "available": {"type": "boolean"}, "pendingCount": {"type": "integer", "minimum": 0}}
+    },
+    "Delivery": {
+      "type": "object", "required": ["sessionId", "notification", "queueItemId", "status"],
+      "properties": {"sessionId": {"type": "string"}, "notification": {"type": "boolean"}, "queueItemId": {"type": "string"}, "status": {"enum": ["ready", "in_flight", "accepted", "failed", "unknown"]}}
+    },
+    "Message": {
+      "type": "object", "required": ["id", "lockerId", "sequence", "sourceMessageId", "identityKind", "content", "consumed", "claimed", "deliveries"],
+      "properties": {"id": {"type": "string", "pattern": "^message_[a-f0-9]{64}$"}, "lockerId": {"type": "string"}, "sequence": {"type": "integer", "minimum": 1}, "sourceMessageId": {"type": "string", "minLength": 1}, "identityKind": {"enum": ["native", "legacy"]}, "content": {"type": "object", "properties": {"text": {"type": "string"}, "parts": {"type": "array", "items": {"type": "object"}}, "attachments": {"type": "array", "items": {"type": "object"}}, "envelope": {"type": "object"}}}, "consumed": {"type": "boolean"}, "claimed": {"type": "boolean"}, "deliveries": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Delivery"}}}
+    },
+    "Subscription": {
+      "type": "object", "required": ["locker", "session", "mode", "boundary"],
+      "properties": {"locker": {"type": "string"}, "session": {"type": "string"}, "mode": {"enum": ["silent", "notification", "full"]}, "boundary": {"type": "integer", "minimum": 0}}
+    }
+  },
+  "type": "object", "required": ["schemaVersion", "lockers"],
+  "properties": {"schemaVersion": {"const": 1}, "lockers": {"type": "array", "items": {"$ref": "#/$defs/Locker"}}}
+}

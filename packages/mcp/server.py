@@ -33,6 +33,7 @@ Tools exposed:
     - agent_send_force: Urgent delivery (capability-routed Steer first, otherwise restart; no worker → queue)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
+    - agent_inbox: Shared Locker list/read/consume and subscription/mode/backlog/recovery
     - notification_send: Send a Pan system notification to self or managed session
     - reminder_register/list/cancel: Manage durable one-shot reminders
     - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
@@ -1927,6 +1928,29 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
         body["source"] = "agent"
         body["sourceSessionId"] = caller["id"]
     return _api("POST", "/api/notify", body)
+
+
+@mcp.tool()
+def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[str] | None = None,
+                session_id: str | None = None, mode: str = "silent", limit: int = 100) -> dict:
+    """Shared Agent Inbox: list/read/consume/subscriptions/subscribe/mode/backlog/recover.
+
+    Full mode consumes after durable Session Queue acceptance. Subscriptions start
+    at new messages. backlog explicitly forwards old pending messages to the
+    fixed matching full subscribers. Notification never contains message bodies.
+    """
+    if operation not in {"list", "read", "consume", "subscriptions", "subscribe", "mode", "backlog", "recover"}:
+        return {"error": "unsupported inbox operation"}
+    caller, error = _require_caller()
+    if error:
+        return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied:
+        return denied
+    return _api("POST", "/api/agent-inbox/" + operation, {
+        "lockerId": locker_id, "messageIds": message_ids or [], "sessionId": target,
+        "mode": mode, "limit": limit})
 
 
 @mcp.tool()

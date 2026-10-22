@@ -51,6 +51,14 @@ class QQMessage:
     at_bot: bool = True
     bot_uin: str = ""
     raw: dict | None = None
+    message_id: str = ""  # native OneBot ID; empty is rejected by selective ingress
+    instance_id: str = "qq"
+
+    def inbox_message_id(self) -> str:
+        value = self.message_id or (self.raw or {}).get("message_id")
+        if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
+            raise ChannelError("OneBot message_id required for new QQ inbox messages")
+        return str(value)
 
     def target_type(self) -> str:
         """映射为 api_send 用的 target_type：user→private，group→group。"""

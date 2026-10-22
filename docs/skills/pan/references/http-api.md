@@ -349,3 +349,21 @@ Native rejected receipts retain the original queued batch; a subsequent ordinary
 Consumption can hydrate the existing own Session history before taking row references, because native runtime validation and the Worker lifecycle use the full canonical Session. This is not a bounded-memory history read operation; responses remain metadata-only. Structured report parts that the native Steer contract cannot preserve are skipped on that route.
 
 No response contains report result/body/snippet/parts/attachment text. `self_queue_read` now projects TA reports as identity/type/source only; non-report messages retain existing read behavior. Use consume first, then real handoff/history to determine when report text entered agent context. No ack, parallel inbox, polling, queue deletion/unlock or history rewrite is added.
+
+
+## Agent Inbox / Router / Locker v1
+
+共享 Agent Inbox 与 Session Queue 是不同容器。HTTP `/api/agent-inbox` 列出
+Locker；`POST /api/agent-inbox/{list|read|consume|subscriptions|subscribe|mode|backlog|recover}`
+提供共享读取、原子消费与订阅。`POST /api/plugins/{plugin_id}/route` 提供固定内部
+目标 agent_inbox / session_queue；user_inbox 尚未实现，明确拒绝。
+MCP `agent_inbox` 复用 caller self/managed 权限，不提供用户审批或任意执行目标。
+
+全文入目标 Queue 落盘即完成目标接纳，全部固定目标接纳才完成共享消费，不等待 CLI。
+Notification 不携正文、不消费；开订阅及变更模式默认只收新消息，backlog 是显式转发
+操作。逐目标 unknown 必须核对原 QueueID，不得盲目重投。QQ 旧订阅保留并映射全文，
+历史积压不自动回放，QQ history 独立保留。
+
+参数、响应、迁移及恢复边界见
+[Agent Inbox API 与冻结设计](../../../design/Agent-Inbox-Router-Locker.md)，前端结构见
+[JSON Schema](../../../design/Agent-Inbox-Router-Locker.schema.json)。

@@ -1,0 +1,43 @@
+"""Owned full-lifespan test launcher; never starts a QQ gateway."""
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+from tests.support import isolated_http_server
+
+root = Path(sys.argv[sys.argv.index("--data-root") + 1]).resolve()
+port = int(sys.argv[sys.argv.index("--port") + 1])
+assert port not in {8767, 8768} and root.name == "data"
+root.mkdir(parents=True, exist_ok=True)
+from packages.qq import gateway_plugins
+# The empty local manifest makes auto_start a no-op, with no real gateway reads.
+gateway_plugins.ROOT = root.parent
+gateway_plugins.MANIFEST = root / "qq_plugins" / "manifest.json"
+gateway_plugins.MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+gateway_plugins.MANIFEST.write_text('{"plugins":[]}', encoding="utf-8")
+import packages.web.server as server
+server._PROJECT_DIR = root.parent
+
+@server.app.get("/__test/inbox-identity")
+async def identity():
+    from packages.core import session, config, background_jobs
+    from packages.scheduler import store
+    from packages.core.terminal import registry
+    from packages.core.inbox_service import get_inbox
+    return {"pid": os.getpid(), "port": port, "cwd": str(Path.cwd()), "roots": {
+        "data": str(server.DATA_DIR), "sessions": str(session.SESSION_DIR),
+        "config": str(config.CONFIG_FILE), "jobs": str(background_jobs.DEFAULT_ROOT),
+        "scheduler": str(store.DEFAULT_ROOT), "terminal": str(registry.DEFAULT_REGISTRY_ROOT),
+        "gateway": str(gateway_plugins.MANIFEST), "inbox": str(get_inbox().path),
+        "attachments": str(server.ATTACHMENTS_DIR), "workdirs": str(server.WORKDIRS_DIR),
+        "errorLog": os.environ["PAN_SESSION_ERROR_LOG_PATH"],
+        "mcpConfigs": str(__import__("packages.core.adapters.cbc.adapter", fromlist=["MCP_CONFIG_DIR"]).MCP_CONFIG_DIR)},
+        "fakeCLI": os.environ["PAN_E2E_FAKE_CLI"], "nonce": os.environ["PAN_TEST_INBOX_NONCE"]}
+
+@server.app.post("/__test/inbox-exit")
+async def stop():
+    asyncio.get_running_loop().call_later(.1, setattr, server.app.state.pan_uvicorn_server, "should_exit", True)
+    return {"ok": True}
+
+isolated_http_server.main()
