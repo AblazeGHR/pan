@@ -65,7 +65,7 @@ try {
       unreadDoneCount: 3,
       msgBridgeEnabled: false,
       // a and c carry a live worker; b has none (Kill/Delayed restart boundaries).
-      ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle' }),
+      ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle', workerGeneration: 1 }),
     }));
     page.on('pageerror', (error) => evidence.errors.push(error.message));
     await page.route('**/*', async (route) => {
@@ -118,9 +118,15 @@ try {
         if (holdRestart && restartGate) await restartGate;
         sessions = sessions.map((session) =>
           session.id === id
-            ? { ...session, workerId: `worker-${id}-new`, workerStatus: 'idle' }
+            ? { ...session, workerId: `worker-${id}-new`, workerStatus: 'idle', workerGeneration: (session.workerGeneration ?? 0) + 1 }
             : session,
         );
+        // Real restart emits the generation-bearing runtime event. Model it
+        // before the HTTP response so both stores know the replacement owner.
+        const replacement = sessions.find((session) => session.id === id);
+        await page.evaluate(({ id, workerId, workerGeneration }) => {
+          window.setWorker(id, workerId, 'idle', workerGeneration);
+        }, replacement);
         return reply({ workerId: `worker-${id}-new`, sessionId: id, status: 'idle' });
       }
       if (url.pathname.endsWith('/worker/kill')) {
