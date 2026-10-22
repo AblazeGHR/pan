@@ -66,7 +66,8 @@ async def setup(root, sessions, m):
     async def pause(sid, args):
         calls.append(sid)
         return {'ok': True}
-    workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None)
+    workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None,
+        _sess=SimpleNamespace(SESSION_DIR=root/'sessions'))
     svc = Service(root / 'automation', workers, pause)
     svc.engine.actions = Store(root / 'actions')
     svc.engine.actions.put('actions', action())

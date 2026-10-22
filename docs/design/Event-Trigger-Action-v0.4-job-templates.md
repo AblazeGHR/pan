@@ -1,8 +1,10 @@
 # Job Action references, complete Job Templates and temporary execution snapshots
 
-Backend batch based on accepted integration36b3a9be. Existing background-process,
-message, broadcast, shell, schedule presets, Group releases/pins and high-risk gates
-stay intact. No React changes or second Job registry/scheduler/notification loop.
+Original backend batch based on accepted integration36b3a9be, followed by the
+complete unified Job implementation below. Existing background-process, message,
+broadcast, shell, schedule presets, Group releases/pins and high-risk gates remain
+compatible. React now edits unified configs/Templates. There is no second Job
+registry, scheduler or notification loop.
 
 ## API/data contract recorded before implementation
 
@@ -235,6 +237,16 @@ supervisor authenticates/adopts its own lifecycle intent and admits the same
 Run/Attempt/snapshot lifecycle before effects; exposing its definition does not
 delegate service restart authority. Lifecycle options/identity have a private
 snapshot context and only its digest remains in terminal audit.
+
+The existing optional independent Job service retains its SQLite store and
+stdlib-only host. Its compatibility process admission uses the same product
+definition/snapshot/audit functions, after its existing strict typed process
+validation. An additive `execution_audit` column is committed in the same SQLite
+transaction as starting admission; public results hide the executable snapshot.
+The runner executes its fixed arguments and commits terminal status, snapshot
+removal, Attempt audit and existing notification outbox atomically. UNKNOWN
+reconciliation also removes the snapshot without replay. Existing rows migrate
+with empty audit, not invented historic Attempts or new recovery eligibility.
 
 Legacy endpoints and records are retained during this compatibility window (no
 removal date or destructive migration in this candidate). Their actual effects

@@ -94,17 +94,18 @@ def arguments(job):
     return {}
 
 
-def prepare(job, dispatch_key):
+def prepare(job, dispatch_key, *, prevalidated=False):
     """Mutate the caller's locked Job image before its atomic admission write.
 
     Compatibility execution uses the same Job record, not another Job/registry.
     The private snapshot is removed in the same atomic write as terminal audit.
     A failed write therefore cannot publish a false cleaned terminal state.
     """
-    import jsonschema
     action = definition(job['kind'])
     params = arguments(job)
-    jsonschema.Draft202012Validator(action['input_schema']).validate(params)
+    if not prevalidated:
+        import jsonschema
+        jsonschema.Draft202012Validator(action['input_schema']).validate(params)
     prior = job.get('attemptSnapshot')
     if prior:
         raise ValueError('Previous system Action execution still running or cleaning; never replay an unknown receipt')

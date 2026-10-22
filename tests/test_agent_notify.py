@@ -84,10 +84,12 @@ def test_notice_to_self_enqueued(monkeypatch):
     s = _setup_session("ses_self")
     saves = []
 
-    async def fake_save_async(target):
+    original_save_body = _sess._save_body
+    def record_save_body(target, *args, **kwargs):
         saves.append(target.id)
+        return original_save_body(target, *args, **kwargs)
 
-    monkeypatch.setattr(_sess, "save_async", fake_save_async)
+    monkeypatch.setattr(_sess, "_save_body", record_save_body)
     spawned = []
 
     async def fake_create(session_id):
@@ -102,7 +104,7 @@ def test_notice_to_self_enqueued(monkeypatch):
     assert r["ok"] is True
     assert r["sessionId"] == "ses_self"
     assert r["pending"] == 1
-    assert saves == ["ses_self"], "投递后必须 save_async 落盘"
+    assert saves == ["ses_self"], "投递后必须通过当前有序 writer 落盘"
     assert len(s.queue_pending) == 1
     item = s.queue_pending[0]
     assert item["type"] == "notice"

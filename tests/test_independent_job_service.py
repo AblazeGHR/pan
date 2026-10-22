@@ -48,6 +48,30 @@ def test_owned_job_query_failure_does_not_confirm_empty():
     assert runner._owned_job_empty(Guard()) is False
 
 
+def test_system_action_admission_sql_failure_and_unknown_cleanup(tmp_path,monkeypatch):
+    store=JobStore(str(tmp_path/'owned'))
+    spawned=[]
+    monkeypatch.setattr(subprocess,'Popen',lambda *a,**k:spawned.append(a))
+    with store.connect() as db:
+        db.execute("CREATE TRIGGER reject_admission BEFORE INSERT ON jobs BEGIN SELECT RAISE(ABORT,'owned admission failure'); END")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.create(_request([sys.executable,'-c','print(1)']))
+    assert not spawned and not store.list()['jobs']
+    with store.connect() as db:db.execute('DROP TRIGGER reject_admission')
+    job=store.create(_request([sys.executable,'-c','print(1)']))
+    assert len(spawned)==1 and job['attempts'][0]['actionId']=='system_background_process'
+    assert 'attemptSnapshot' not in job and job['unified']['config']['recovery']['enabled'] is False
+    with store.connect() as db:
+        private=json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
+        assert private['attemptSnapshot']['arguments']['argv']==[sys.executable,'-c','print(1)']
+    store.set_unknown(job['jobId'])
+    terminal=store.get(job['jobId'])
+    assert terminal['status']=='UNKNOWN' and terminal['snapshotCleanup']=='cleaned'
+    assert terminal['attempts'][0]['status']=='uncertain'
+    with store.connect() as db:
+        assert 'attemptSnapshot' not in json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
+
+
 def _service(root):
     store = JobStore(str(root))
     store.recover()
@@ -102,6 +126,10 @@ def test_immediate_completion_and_outbox_ack_are_durable_and_idempotent(tmp_path
         job = client.start(_request([sys.executable, "-c", "pass"]))
         terminal = _wait(client, job["jobId"])
         assert terminal["status"] == "completed"
+        assert terminal['snapshotCleanup']=='cleaned'
+        assert terminal['attempts'][0]['status']=='completed'
+        assert terminal['attempts'][0]['snapshotCleanup']=='cleaned'
+        assert 'attemptSnapshot' not in terminal
         events = client.events()["events"]
         assert len(events) == 1
         event = events[0]
@@ -166,6 +194,8 @@ def test_cancel_proves_and_terminates_the_owned_process_tree(tmp_path):
         client.cancel(job["jobId"])
         cancelled = _wait(client, job["jobId"], timeout=8)
         assert cancelled["status"] == "cancelled"
+        assert cancelled['snapshotCleanup']=='cleaned'
+        assert cancelled['attempts'][0]['status']=='cancelled'
         assert any(e["eventId"] == job["jobId"] + ":terminal" and e["status"] == "cancelled"
                    for e in client.events()["events"])
     finally:
