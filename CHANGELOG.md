@@ -7,6 +7,31 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-22
+
+### Added
+
+- 共享 Action/Group 定义、稳定 ID、Action 复制与缓存列表；Group build 通过既有插件运行时生成不可变 release，Worker 启动时固定版本。
+- Pan CLI 的启动、退出、重启、状态、诊断、日志与控制台显示控制；生命周期写入校验目标实例身份。
+- MCP 增加模型缓存目录、历史筛选/搜索/单消息读取、报告订阅状态、原报告批次消费，以及现有 Worker 的延迟重启和只读状态接口。
+- 持久 Jobs 增加取消控制、排序、标签与进程命名；导入列表支持原生 CLI Session ID 搜索，CBC 模型选择器显示按模型配置的倍率。
+- 原生附件选择器、替身交接提示词覆盖与快捷键录制反馈。
+
+### Changed
+
+- Illegal 状态下的新消息保持锁定，显式 Wake 或有效恢复动作才允许继任；保留 Pause、Manual、lease 和 owner 等独立门禁，退役 Oneshot 入口。
+- 自动汇报与 Force 按结构化消息来源配置，队列预览显示 Agent 来源与锁定原因；报告读取保持正文私有，原报告批次通过实际 CLI 交接进入上下文。
+
+### Fixed
+
+- 跨 Session 并发启动及 branch 不再覆盖 Worker 注册；成功 Kill 按服务 epoch、Worker ID、generation 清理两份前端投影，迟到回执保留后继 runtime，未知身份保守处理。
+- 未注册但仍存活或状态未知的 owner 导致 Kill 明确失败，继续保留 second-writer 门禁，避免把 idle 或 Kill 回执当作进程已退出。
+- 修复 Session 摘要水合、Codex branch 物理谱系、报告/队列投影与 Actions 缓存的异步所有权竞态。
+- CLI 实例 guard 使用直接 ASGI middleware，保留普通请求的任务身份与流式响应语义。
+- 对齐回归 fixture 的原子持久化、报告策略、Job 名称及 generation 契约；假 CLI 显式使用 UTF-8，进程/浏览器检查等待实际 handoff 与回执。
+
+本版本为第一检查点；不包含后续 ETA Event/Trigger/Action、持久 Event Store、query、serial/parallel、有限重试、Job Template 或自动换号。
+
 ## [0.3.4] - 2026-10-19
 
 ### Added
@@ -91,7 +116,8 @@
 - delivery 语义收敛：reports / tasks 改为 session 级投递（`51c6d6f`）
 - QQ bot 解释器路径收敛为 `config.json` 的 `qq.python` 单一事实源（`aa430a0`）
 
-[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/AblazeGHR/pan/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AblazeGHR/pan/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/AblazeGHR/pan/compare/v0.3.3...v0.3.4
 [0.3.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.3.0
 [0.1.0]: https://github.com/AblazeGHR/pan/releases/tag/v0.1.0
