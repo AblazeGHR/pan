@@ -41,6 +41,26 @@ LEGACY_ACTIONS={
     'main-lifecycle':'system_main_lifecycle',
 }
 
+# These are the fields understood by the legacy readers.  Everything else is
+# carried in the read-only compatibility projection so a migration review can
+# account for data without making it executable.  In particular, an unknown
+# ``enabled``-like field can never promote the projected Job: ``config.enabled``
+# is always forced false below.
+_LEGACY_PROJECTION_FIELDS = {
+    'id', 'jobId', 'kind', 'name', 'description', 'enabled', 'status',
+    'schedule', 'nextRunAt', 'maxRuns', 'misfirePolicy', 'lastExecution',
+    'targetSessionId', 'targetSessionIds', 'source', 'sourceSessionId',
+    'sourceStruct', 'targetStruct', 'text', 'message', 'content',
+    'arguments', 'params', 'action', 'config', 'run', 'createdAt',
+    'updatedAt', 'revision', 'owner', 'generation',
+}
+
+
+def _unknown_legacy_fields(job):
+    """Return unknown legacy data for audit without changing execution shape."""
+    return {key: copy.deepcopy(value) for key, value in job.items()
+            if key not in _LEGACY_PROJECTION_FIELDS}
+
 def project(job):
     """Return a read-only unified view without rewriting legacy storage."""
     if not isinstance(job,dict):raise ValueError('Job record must be an object')
@@ -59,6 +79,7 @@ def project(job):
     # An unconvertible schedule must remain invalid for new Job admission, even
     # if a client accidentally ignores review diagnostics. Never invent immediate.
     trigger={'kind':'schedule'} if schedule or issues else {'kind':'immediate'}
+    unknown_fields = _unknown_legacy_fields(job)
     return {'jobId':job.get('jobId') or job.get('id'),'legacyKind':kind,
             'action':{'api':'system_action','actionId':aid,'arguments':copy.deepcopy(params)},
             'config':{'name':job.get('name') or kind,'description':job.get('description',''),
@@ -70,4 +91,10 @@ def project(job):
                       'completion':{'kind':'ordinary'},'enabled':False,
                       'maxRuns':job.get('maxRuns'),'misfirePolicy':job.get('misfirePolicy','fire_now')},
             'run':{'status':job.get('status'),'runId':job.get('lastExecution',{}).get('runId') if isinstance(job.get('lastExecution'),dict) else None},
-            'compatibility':{'legacyKind':kind,'migration':'system-executor','reviewRequired':True,'migrationIssues':issues}}
+            'compatibility':{'legacyKind':kind,'migration':'system-executor','reviewRequired':True,
+                             'migrationIssues':issues,
+                             # Preserve unknown input for a human/explicit
+                             # migrator; never merge it into config or Action
+                             # arguments.  This is intentionally a view-only
+                             # audit channel and does not rewrite the source.
+                             'unknownFields':unknown_fields}}

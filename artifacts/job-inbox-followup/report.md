@@ -31,9 +31,16 @@ The merge preserved both HTTP guide additions. The test conflict in
 `test_agent_notify.py` preserved the real ordered-writer spy/assertion shared by
 both candidates. No product gate was removed to resolve a conflict.
 
+The read-only migration drill uses temporary copies for legacy Job projection,
+Action Template registry reads, Session Queue public projection, and QQ/Inbox
+SQLite import. Unknown fields/content remain visible in the compatibility or
+copied record, source JSON/registry bytes remain unchanged, and legacy
+`enabled:true` never promotes `unified.config.enabled`.
+
 ## Contract and migration notes
 
-`unified.compatibility` adds `reviewRequired:true` and `migrationIssues:string[]`.
+`unified.compatibility` adds `reviewRequired:true`, `migrationIssues:string[]`,
+and view-only `unknownFields` for legacy keys not understood by the converter.
 For legacy records `unified.config.enabled` is always false; actual execution
 state remains the original top-level Job enabled/status fields. This projection
 is an explicit review aid, not an executable automatic migration or a copied
@@ -46,6 +53,10 @@ Relative once uses persisted nextRunAt only; missing occurrence does not get a
 new current-time deadline. Protected main-lifecycle is not a generic Job migration.
 Unknown fields/shapes have diagnostics and cannot accidentally become immediate.
 Run identity projects lastExecution.runId rather than an Attempt execution ID.
+Unknown fields are retained only as compatibility/audit data; they are never
+merged into Action arguments, trigger policy, enabled state, or an executable
+snapshot. The migration drill does not rewrite the source profile, SQLite
+Inbox, Session Queue, or registry file.
 
 Job result metadata is **not** routed into Agent Inbox and does not change shared
 Locker consumption. Full Inbox mode still accepts on durable Queue commit, not
@@ -60,13 +71,13 @@ All Python commands run from the new worktree with existing
 is `packages/web`. Dependencies are reused through package junctions in an owned
 node_modules directory; writable Vite caches stay in this tree, no install/update.
 
-**327 Python passed, exit0; no failures/errors/skips.**
+**331 Python passed, exit0; no failures/errors/skips.**
 
 ```powershell
-E:/software/miniforge/python.exe scripts/run_tests_isolated.py -- E:/software/miniforge/python.exe -m pytest tests/test_job_inbox_boundaries.py tests/test_job_unified_contract.py tests/test_job_action_templates.py tests/test_job_system_actions.py tests/test_job_completion_recovery.py tests/test_job_overlap.py tests/test_job_mcp_config.py tests/test_jobs_api.py tests/test_session_message_jobs.py tests/test_agent_inbox.py tests/test_agent_notify.py tests/test_source_metadata.py tests/test_scheduler_dispatch.py tests/test_scheduler_mcp.py tests/test_action_groups.py -o addopts= -q --junitxml=artifacts/job-inbox-followup/python.xml
+E:/software/miniforge/python.exe scripts/run_tests_isolated.py -- E:/software/miniforge/python.exe -m pytest tests/test_job_inbox_migration_drill.py tests/test_job_inbox_boundaries.py tests/test_job_unified_contract.py tests/test_job_action_templates.py tests/test_job_system_actions.py tests/test_job_completion_recovery.py tests/test_job_overlap.py tests/test_job_mcp_config.py tests/test_jobs_api.py tests/test_session_message_jobs.py tests/test_agent_inbox.py tests/test_agent_notify.py tests/test_source_metadata.py tests/test_scheduler_dispatch.py tests/test_scheduler_mcp.py tests/test_action_groups.py -o addopts= -q --junitxml=artifacts/job-inbox-followup/python-final.xml
 ```
 
-[JUnit](python.xml), [log](python.log). One existing Pydantic incomplete-field
+[JUnit](python-final.xml), [previous combined log](python.log). One existing Pydantic incomplete-field
 warning remains and is not a skip or suppressed failure.
 
 **3 real isolated HTTP tests passed, exit0.**

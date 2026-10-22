@@ -17,3 +17,4 @@ tests/test_job_action_templates.py
 tests/test_job_inbox_boundaries.py
 tests/test_job_inbox_http.py
 tests/test_job_unified_contract.py
+tests/test_job_inbox_migration_drill.py
