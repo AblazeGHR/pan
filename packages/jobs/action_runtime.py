@@ -243,7 +243,7 @@ class Runtime:
                 job['runPolicy']={key:copy.deepcopy(config[key]) for key in ('recovery','completion','notification')}
                 job['recoveryFailures']=0
             policy=copy.deepcopy(job.get('runPolicy') or {key:config[key] for key in ('recovery','completion','notification')})
-            run_id=job['runId'] if recovering else 'run_'+uuid.uuid4().hex[:24]
+            run_id=confirmation['runId'] if confirmed else job['runId'] if recovering else 'run_'+uuid.uuid4().hex[:24]
             attempt_count=1+sum(a.get('runId')==run_id for a in job.get('attempts',[]))
             if len(job.get('attempts',[]))>=10000:raise Conflict('Attempt audit capacity reached')
             attempt_id='attempt_'+uuid.uuid4().hex[:24]

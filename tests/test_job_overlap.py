@@ -82,3 +82,20 @@ def test_reduce_parallel_limit_rechecks_claim_after_reference_validation(tmp_pat
     current=rt.get(job['jobId'])
     assert current['configRevision']==1 and len(rt.active(current))==3
     assert current['config']['overlap']['parallelLimit']==3
+
+
+def test_parallel_out_of_order_failure_confirmation_preserves_selected_run(tmp_path):
+    store=Store(tmp_path/'actions');store.put('actions',action())
+    rt=Runtime(tmp_path/'jobs',store,None)
+    cfg={'name':'ordered confirmation','actionId':'pause','arguments':{},'enabled':True,
+         'schedule':[{'kind':'interval','intervalSec':60}], 'overlap':{'mode':'parallel','parallelLimit':2}}
+    job=rt.create(cfg,True)
+    first=rt.claim(job['jobId'],'first',1)
+    second=rt.claim(job['jobId'],'second',1)
+    rt.finalize(job['jobId'],'second','completed')
+    rt.finalize(job['jobId'],'first','failed')
+    reservation=rt.reserve_recovery(job['jobId'],1,('failed',))
+    recovered=rt.claim(job['jobId'],'confirmed',reservation['configRevision'],confirmed=True)
+    assert recovered['execution']['runId']==first['execution']['runId']
+    assert recovered['execution']['runId']!=second['execution']['runId']
+    assert recovered['execution']['attemptCount']==2
