@@ -386,6 +386,19 @@ migration risks: `docs/design/Event-Trigger-Action-v0.2-event-store.md`.
 
 ## Automation scheduling and uncertainty recovery
 
+Complete Job Template backend routes are distinct from schedule presets:
+`GET /api/jobs/action-jobs/schema?actionId=...`, `GET/POST /api/jobs/action-jobs`,
+`PUT/DELETE /api/jobs/action-jobs/{id}`, revision-checked user `run-now`/`cancel`,
+`GET/POST /api/jobs/job-templates`, `PUT/DELETE /api/jobs/job-templates/{id}` and
+user-only `POST /api/jobs/job-templates/{id}/instantiate`. Instantiate accepts only
+`{expectedRevision,idempotencyKey,overrides?:{name?,description?}}`. Agent writes
+disabled complete drafts only; no arbitrary Action fields or API dispatch escape.
+Persist the idempotency key across an unknown response;503 pending includes jobId.
+GET `/api/jobs/action-references/{actionId}` gives deletion reference locations.
+Generic legacy mutations reject these protected Jobs. Full body/schema/default,
+snapshot cleanup and migration rules are in
+[`Event-Trigger-Action-v0.4-job-templates.md`](../../../design/Event-Trigger-Action-v0.4-job-templates.md).
+
 `GET /api/automation/schema` supplies the strict scheduling fragment and limits.
 Trigger writes accept `executionMode` (serial default/parallel), `maxConcurrency`
 (serial1; parallel default3/range1..32), `retry:{enabled:false,maxAttempts:3}`

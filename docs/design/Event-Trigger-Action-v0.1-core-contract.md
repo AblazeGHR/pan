@@ -1,5 +1,14 @@
 # Event–Trigger–Action core API and data contract (v0.1)
 
+The next backend batch adds [complete Job Templates, Action-reference Jobs and
+ephemeral execution snapshots](Event-Trigger-Action-v0.4-job-templates.md). That
+document defines the protected `/api/jobs/action-jobs` and `/api/jobs/job-templates`
+routes, revision/idempotency semantics, schema discovery, deletion integrity and
+cross-file recovery. Existing `/api/jobs/templates` remains schedule presets.
+`execution.kind:"job_template"` delegates only one complete template/revision;
+enabling requires user Bearer. Completion means Job creation, not Job execution.
+No React changes or new MCP tool family are part of this backend batch.
+
 This is the stable backend handoff contract. The integrated v0.1 candidate now
 includes the production Action/Automation/query UI and the local stdio external
 plugin adapter. The authoritative scope is Event-Trigger-Action-v0.1.md and its

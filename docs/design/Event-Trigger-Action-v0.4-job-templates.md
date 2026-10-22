@@ -24,6 +24,8 @@ interpolation language. Runtime context is host-derived, never caller-forged.
 | Route | Contract |
 |---|---|
 | GET `/api/jobs/action-jobs` | Action-reference Job configs and derived integrity |
+| GET `/api/jobs/action-jobs/schema?actionId=...` | Versioned config/template/instantiate JSON Schemas and limits; selected Action argument schema |
+| GET `/api/jobs/action-references/{actionId}` | Referencing Job/template IDs and exact reference positions |
 | POST `/api/jobs/action-jobs` | `{config}`; Agent creates disabled draft; user may confirm enabled config |
 | PUT `/api/jobs/action-jobs/{id}` | `{config,expectedRevision}`; user required for enabled writes, enable, or repairing/replacing references; replacement stays disabled |
 | POST `/api/jobs/action-jobs/{id}/run-now` | Bearer +`{expectedRevision}`; enabled complete config only |
@@ -126,3 +128,57 @@ missing references and restoration, cancel/exception/restart/cleanup failure,
 unrelated Session progress on slow storage, template Action delegation and legacy
 Group/process/message compatibility. Real isolated HTTP uses owned random ports,
 profiles and deterministic CLI only. UI and overall human acceptance remain pending.
+
+## Implemented recovery details and bounded storage
+
+The Actions profile uses a nonblocking lifetime ownership file lock, reusing the
+generic Job service lock implementation. Only one new Pan runtime may recover and
+execute that profile; duplicate startup cannot clean another owner's snapshots.
+The lock is released on close or OS process death. This is not a business resource
+lock or a mutex across Session effects. Existing independent background command
+runners are unaffected. Direct registry writers and mixed old/new Pan writers are
+outside this ownership protocol and must not run concurrently.
+
+Creation reserves a durable intent/receipt in the Actions registry, publishes the
+ordinary Job file, then removes the intent's copied configuration. Interrupted
+publication returns HTTP503 with `detail:{message,jobId,pending:true}`; retry
+instantiate with the same key. Recovery finishes admitted creation even if its
+source template was subsequently edited/deleted. An interrupted delegated Action
+is uncertain, never falsely failed while its admitted Job can still publish.
+Completed receipts retain fingerprints/IDs, not executable Action definitions.
+Deleted Jobs cannot be recreated by reusing their receipt keys.
+
+Reference replacement reserves the union of old and new references before the
+Job file CAS. Successful publication narrows the index; failed publication leaves
+conservative deletion protection. Initial owned recovery reconciles against actual
+Job files. No Action registry lock spans Job file I/O. This is a recovery protocol,
+not a cross-file atomic transaction. Configuration revision, integrity and execution
+status are separate; changing a running configuration does not replace its private
+execution snapshot. Action revision/deletion generation remain authoritative at
+snapshot admission.
+
+Snapshots contain definition, filled arguments, source/registry revision,
+definition/argument/context digests and host execution context. A template Action
+also freezes its admitted complete template configuration. Cleanup persists a Job
+`cleaning` intent before erasing the full snapshot and committing terminal audit.
+Orphan snapshots produce an uncertain run audit and are removed. Notification
+failures retain markers and use the existing scheduler tick to retry notifications,
+never effects. Disk failure can visibly retain `cleaning`; repair storage and resume
+the same profile to finish cleanup. There is no executable history fallback.
+
+Limits: 1 MiB per submitted document/execution snapshot, 256 live templates,
+10,000 distinct template revision tombstones, 10,000 instantiation receipts and
+128 live snapshots per Actions profile; schedule1..32/reference depth8. Capacity
+rejects visibly, never silently evicts idempotency tombstones. Receipt archival and
+operator reclamation are deferred; operators must monitor capacity before reaching
+the bound. New concurrent Action dispatches use the existing scheduler's
+`max_concurrent_dispatch` setting (default5, clamped1..32); legacy dispatch semantics
+are preserved. Scheduler-wide policy changes are outside this batch.
+
+Templates copy absolute once schedules without shifting their dates; an expired
+once schedule fails existing schedule validation on future instantiation.
+No Job retries, input interpolation, unfinished parameter templates, new MCP CRUD
+tools, React controls or automatic profile downgrade conversion are added here.
+Gateway/API discovery can use protected HTTP routes; Agent traffic has no privileged
+instantiate/repair shortcut. Production UI and overall human acceptance remain
+separate work.

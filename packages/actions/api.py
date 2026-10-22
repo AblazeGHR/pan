@@ -2,7 +2,7 @@
 import copy
 import shutil
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from packages.plugins.lifecycle import coordinator, io, pinned, settled
 from .store import Store
@@ -10,6 +10,10 @@ from .store import Store
 
 def install(server):
     router = APIRouter()
+
+    async def user(request):
+        svc = getattr(server.app.state, 'automation', None)
+        return bool(svc and await io(svc.auth.authorized, request.headers.get('authorization','')))
 
     async def sessions():
         return await io(server.sess.list_all, load_history=False)
@@ -52,38 +56,44 @@ def install(server):
         return await view()
 
     @router.post('/api/actions/{kind}')
-    async def create(kind: str, data: dict):
+    async def create(kind: str, data: dict, request: Request):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict):
             raise HTTPException(400, 'Request requires item and optional expectedRevision')
         try:
-            item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True)
+            item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True, authorized=await user(request))
             return {**await view(), 'item': item}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(401, str(exc)) from exc
 
     @router.put('/api/actions/{kind}/{item_id}')
-    async def put(kind: str, item_id: str, data: dict):
+    async def put(kind: str, item_id: str, data: dict, request: Request):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
             raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
         try:
-            await io(Store().put, kind, data['item'], data.get('expectedRevision'))
+            await io(Store().put, kind, data['item'], data.get('expectedRevision'), authorized=await user(request))
             return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(401, str(exc)) from exc
 
     @router.delete('/api/actions/{kind}/{item_id}')
-    async def delete(kind: str, item_id: str, expectedRevision: int | None = None):
+    async def delete(kind: str, item_id: str, request: Request, expectedRevision: int | None = None, confirmReferences: bool = False):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
-            await io(Store().delete, kind, item_id, expectedRevision)
+            await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
             return await view()
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(401, str(exc)) from exc
 
     @router.post('/api/actions/groups/{group_id}/{operation}')
     @settled
@@ -168,6 +178,8 @@ def install(server):
             else:
                 await io(Store().delete, kind, data.get('id'), data.get('expectedRevision'))
             return await view()
+        except PermissionError as exc:
+            raise HTTPException(401, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 

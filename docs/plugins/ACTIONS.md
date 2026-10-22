@@ -2,6 +2,17 @@
 
 ## Create and organize
 
+The separate backend Job Template batch adds fixed `job_template` execution
+references and protected Action-reference Jobs. See the
+[API/data and recovery contract](../design/Event-Trigger-Action-v0.4-job-templates.md).
+These controls are not yet implemented in the React Panel. Job fields must come
+from the Action schema, including zero-field Actions accepting only `{}`. User
+Bearer is required to enable a template capability, instantiate a template, repair
+a missing reference or confirm deletion of an Action referenced by Jobs/templates.
+An enabled capability keeps its fixed authority after Bearer expiry/logout; it
+cannot assemble arbitrary requests. Success means Job created. Immutable Group
+build/provider execution rejects this new kind and keeps its existing contract.
+
 The Panel shows compact **Actions** and **Groups** lists. **New Action** and
 **New Group** open a full-panel editor that replaces the list, with a back
 breadcrumb, dirty-draft guard and sticky Save/Cancel. **Groups** creates/edits

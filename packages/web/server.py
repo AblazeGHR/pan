@@ -10720,6 +10720,8 @@ app.include_router(scheduler_api.router)
 from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启动期循环
 
 jobs_api.bind(broadcast=broadcast)
+from packages.jobs.action_api import router as action_jobs_router
+app.include_router(action_jobs_router)
 app.include_router(jobs_api.router)
 
 # ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──

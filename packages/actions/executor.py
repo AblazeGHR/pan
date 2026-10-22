@@ -12,6 +12,16 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action disabled or requires approval policy')
     jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    if action['execution']['kind'] == 'job_template':
+        if arguments:
+            raise ValueError('Fixed Job Template Action accepts no fields')
+        instantiate = getattr(progress, 'instantiate_template', None)
+        if instantiate is None:
+            raise ValueError('Trusted Job Template capability unavailable')
+        checkpoint = getattr(progress, 'checkpoint', {})
+        if not checkpoint.get('id'):
+            raise ValueError('Host execution identity required for idempotent Job creation')
+        return await instantiate(action, checkpoint['id'])
     if action['execution']['kind'] != 'session_operation':
         return await execute(action, arguments)
     selector = action['execution']['selector']

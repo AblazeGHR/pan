@@ -1,0 +1,266 @@
+"""Complete Job configuration and reference transactions in the Action registry.
+
+No Job execution loop lives here. Cross-file creation uses durable intents.
+"""
+import copy
+import hashlib
+import json
+import uuid
+
+import jsonschema
+
+from packages.actions.store import validate_action
+
+MAX_TEMPLATES = 256
+MAX_RECEIPTS = 10000
+MAX_SNAPSHOTS = 128
+MAX_DOCUMENT_BYTES = 1024 * 1024
+
+
+class Conflict(ValueError):
+    pass
+
+
+class CreationPending(RuntimeError):
+    def __init__(self,job_id,error):
+        super().__init__('Job creation pending; reuse the same key: '+job_id+'; '+str(error))
+        self.job_id=job_id
+
+
+class ReferenceError(ValueError):
+    def __init__(self,action_id,position,message):
+        super().__init__(message)
+        self.action_id,self.position=action_id,position
+
+
+def digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode('utf-8')).hexdigest()
+
+
+def strict(value, fields, scope):
+    if not isinstance(value, dict) or set(value)-set(fields):
+        raise ValueError('Unknown or invalid '+scope+' fields')
+    if len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_DOCUMENT_BYTES:
+        raise ValueError(scope+' exceeds 1 MiB')
+
+
+def revision(actual, expected):
+    if type(expected) is not int or expected != actual:
+        raise Conflict('Revision changed; reload before confirming')
+
+
+def filled_arguments(action, value):
+    if not isinstance(value, dict) or set(value)-set(action['input_schema'].get('properties', {})):
+        raise ValueError('arguments contains undeclared Action fields')
+    result = copy.deepcopy(value)
+    for key, spec in action['input_schema'].get('properties', {}).items():
+        if key not in result and isinstance(spec, dict) and 'default' in spec:
+            result[key] = copy.deepcopy(spec['default'])
+    try:jsonschema.Draft202012Validator(action['input_schema']).validate(result)
+    except jsonschema.ValidationError as exc:raise ValueError('Invalid Action arguments: '+exc.message) from exc
+    return result
+
+
+def check_action_graph(state, action, seen=()):
+    aid = action['id']
+    if aid in seen or len(seen) >= 8:
+        raise ValueError('Job Template/Action reference cycle or depth exceeds 8')
+    if action['execution']['kind'] != 'job_template':
+        return
+    ex = action['execution']
+    template = state.get('jobTemplates', {}).get(ex['templateId'])
+    if not template or template['revision'] != ex['templateRevision']:
+        raise ReferenceError(aid,'/actions/'+aid+'/execution/templateId','Missing or changed fixed Job Template: '+ex['templateId'])
+    target = state['actions'].get(template['config']['actionId'])
+    if not target:
+        target_id=template['config']['actionId']
+        raise ReferenceError(target_id,'/jobTemplates/'+template['id']+'/config/actionId','Missing Action reference: '+target_id)
+    filled_arguments(validate_action(target), template['config']['arguments'])
+    check_action_graph(state, target, (*seen, aid))
+
+
+def config_value(raw, state):
+    strict(raw, {'name','description','actionId','arguments','schedule','enabled','maxRuns','misfirePolicy'}, 'Job config')
+    value = copy.deepcopy(raw)
+    if not isinstance(value.get('name'), str) or not value['name'].strip() or len(value['name']) > 200:
+        raise ValueError('Job name required (1..200 characters)')
+    value.setdefault('description', '')
+    value.setdefault('arguments', {})
+    value.setdefault('enabled', False)
+    value.setdefault('maxRuns', None)
+    value.setdefault('misfirePolicy', 'fire_now')
+    if not isinstance(value['description'], str) or type(value['enabled']) is not bool:
+        raise ValueError('Invalid Job description or enabled')
+    if value['maxRuns'] is not None and (type(value['maxRuns']) is not int or value['maxRuns'] < 1):
+        raise ValueError('maxRuns must be positive integer or null')
+    if value['misfirePolicy'] not in ('fire_now','skip'):
+        raise ValueError('Invalid misfirePolicy')
+    aid = value.get('actionId')
+    if not isinstance(aid, str) or aid not in state['actions']:
+        raise ValueError('Missing Action reference at /config/actionId: '+str(aid))
+    action = validate_action(state['actions'][aid])
+    value['arguments'] = filled_arguments(action, value['arguments'])
+    check_action_graph(state, action)
+    from packages.jobs.api import _validate_scheduled_specs
+    if not isinstance(value.get('schedule'), list) or not 1 <= len(value['schedule']) <= 32:
+        raise ValueError('schedule requires 1..32 complete specs')
+    error = _validate_scheduled_specs(value['schedule'])
+    if error:
+        raise ValueError(error)
+    return value
+
+
+def generation(state, aid):
+    return state.get('actionGenerations', {}).get(aid, 0)
+
+
+def integrity(state, config, approved_generation):
+    aid = config['actionId']
+    issues = []
+    try:
+        action = state['actions'].get(aid)
+        if not action:
+            raise ValueError('Missing Action reference: '+aid)
+        filled_arguments(validate_action(action), config['arguments'])
+        check_action_graph(state, action)
+    except (ValueError, jsonschema.ValidationError) as exc:
+        issues.append({'actionId':getattr(exc,'action_id',aid), 'position':getattr(exc,'position','/config/actionId'), 'error':str(exc)[:1000]})
+    return {'status':'incomplete' if issues else 'complete','issues':issues,
+            'approvalRequired':generation(state,aid) != approved_generation}
+
+
+def references(state, aid):
+    return ([{'jobId':jid, 'position':'/config/actionId'} for jid,r in state.get('jobReferences',{}).items() if aid in r.get('actionIds',[r['actionId']])]
+            + [{'templateId':t['id'],'position':'/config/actionId'} for t in state.get('jobTemplates',{}).values() if t['config']['actionId']==aid])
+
+
+class Templates:
+    def __init__(self, actions):
+        self.actions = actions
+
+    def transaction(self, change):
+        return self.actions.mutate(change, versioned=False)
+
+    def list(self):
+        state = self.actions.read()
+        return [self.view(t,state) for t in state.get('jobTemplates',{}).values()]
+
+    @staticmethod
+    def view(item,state):
+        result = copy.deepcopy(item)
+        result['integrity'] = integrity(state,item['config'],item['referenceGeneration'])
+        result['enabled'] = item['enabled'] and result['integrity']['status']=='complete' and not result['integrity']['approvalRequired']
+        return result
+
+    def put(self, raw, expected, authorized=False, item_id=None):
+        strict(raw, {'id','name','description','enabled','config'}, 'Job Template')
+        def change(state):
+            item = copy.deepcopy(raw)
+            tid = item.setdefault('id',item_id or 'jtpl_'+uuid.uuid4().hex[:24])
+            if not isinstance(tid,str) or not tid.startswith('jtpl_') or len(tid)>64 or (item_id and tid != item_id):
+                raise ValueError('Invalid Job Template ID')
+            items = state.setdefault('jobTemplates',{})
+            old = items.get(tid)
+            revision(old['revision'] if old else 0,expected)
+            if not old and len(items)>=MAX_TEMPLATES:
+                raise ValueError('Job Template capacity reached')
+            if not isinstance(item.get('name'),str) or not item['name'].strip():
+                raise ValueError('Template name required')
+            item.setdefault('description','');item.setdefault('enabled',False)
+            if not isinstance(item['description'],str) or type(item['enabled']) is not bool:
+                raise ValueError('Invalid Template metadata')
+            item['config'] = config_value(item.get('config'),state)
+            aid = item['config']['actionId'];gen = generation(state,aid)
+            repairing = old and (old['config']['actionId']!=aid or old['referenceGeneration']!=gen)
+            if not authorized and (item['enabled'] or (old and old['enabled']) or repairing):
+                raise PermissionError('User Bearer required for Template enable/edit/repair')
+            if repairing:item['enabled']=False
+            versions = state.setdefault('templateVersions',{})
+            if tid not in versions and len(versions)>=MAX_RECEIPTS:
+                raise ValueError('Job Template revision tombstone capacity reached')
+            item.update(revision=versions.get(tid,0)+1, referenceGeneration=gen)
+            versions[tid]=item['revision'];items[tid]=item
+            check_action_graph(state,state['actions'][aid])
+            return copy.deepcopy(item)
+        return self.transaction(change)
+
+    def delete(self, tid, expected):
+        def change(state):
+            item = state.get('jobTemplates',{}).get(tid)
+            if not item:raise KeyError(tid)
+            revision(item['revision'],expected)
+            del state['jobTemplates'][tid]
+            state.setdefault('templateVersions',{})[tid]=item['revision']+1
+        self.transaction(change)
+
+    def reserve(self, tid, expected, key, overrides=None, *, job_root, admitted_template=None):
+        if not isinstance(key,str) or not 1<=len(key)<=200:
+            raise ValueError('idempotencyKey requires 1..200 characters')
+        overrides = {} if overrides is None else overrides
+        strict(overrides,{'name','description'},'instantiate overrides')
+        if any(not isinstance(v,str) for v in overrides.values()) or ('name' in overrides and not overrides['name'].strip()):
+            raise ValueError('Invalid display overrides')
+        fingerprint = digest({'templateId':tid,'revision':expected,'overrides':overrides})
+        receipt_key = digest(key)
+        def change(state):
+            receipts = state.setdefault('jobInstantiations',{})
+            old = receipts.get(receipt_key)
+            if old:
+                if old['fingerprint']!=fingerprint:raise Conflict('Idempotency key belongs to another request')
+                return copy.deepcopy(old)
+            if len(receipts)>=MAX_RECEIPTS:raise ValueError('Instantiation receipt capacity reached')
+            item = admitted_template or state.get('jobTemplates',{}).get(tid)
+            if not item:raise KeyError(tid)
+            revision(item['revision'],expected)
+            view = self.view(item,state) if admitted_template is None else item
+            if not view['enabled']:raise Conflict('Template disabled, incomplete or requires user repair')
+            config = (config_value({**item['config'],**overrides},state) if admitted_template is None
+                      else copy.deepcopy({**item['config'],**overrides}))
+            job_id = 'job_'+digest('template-instance:'+key)[:24]
+            intent = dict(key=receipt_key,fingerprint=fingerprint,jobId=job_id,templateId=tid,templateRevision=expected,
+                          config=config,referenceGeneration=item['referenceGeneration'],jobRoot=job_root,phase='reserved')
+            receipts[receipt_key]=intent
+            state.setdefault('jobReferences',{})[job_id]={'actionId':config['actionId'],'position':'/config/actionId','jobRoot':job_root}
+            return copy.deepcopy(intent)
+        return self.transaction(change)
+
+    def complete_intent(self, key):
+        def change(state):
+            item = state['jobInstantiations'][key]
+            if item['phase']=='reserved':
+                item['configDigest']=digest(item.pop('config'));item['phase']='created'
+        self.transaction(change)
+
+    def snapshot(self, job, execution):
+        def change(state):
+            config=job['config'];aid=config['actionId']
+            status=integrity(state,config,job['referenceGeneration'])
+            if status['status']!='complete' or status['approvalRequired']:
+                raise Conflict('Action reference incomplete or requires user repair: '+aid)
+            action=validate_action(state['actions'][aid])
+            if not action['enabled'] or action['effect']=='high_risk':
+                raise ValueError('Action disabled or requires approval policy')
+            snapshots=state.setdefault('jobExecutions',{})
+            if len(snapshots)>=MAX_SNAPSHOTS:raise ValueError('Temporary snapshot capacity reached')
+            args=filled_arguments(action,config['arguments'])
+            snap=dict(definition=action,arguments=args,context=copy.deepcopy(execution['context']),
+                      actionId=aid,actionRevision=state.get('actionRevisions',{}).get(aid,0),
+                      registryRevision=state['revision'],contextDigest=digest(execution['context']),
+                      digest=digest(action),argumentsDigest=digest(args),checkpoint={},jobId=job['jobId'],taskId=job['taskId'],jobRoot=execution['jobRoot'])
+            if action['execution']['kind']=='job_template':
+                fixed=state['jobTemplates'][action['execution']['templateId']]
+                view=self.view(fixed,state)
+                if not view['enabled']:raise Conflict('Fixed Job Template unavailable')
+                snap['fixedTemplate']=copy.deepcopy(view)
+            strict(snap, set(snap), 'execution snapshot')
+            snapshots[execution['id']]=snap
+            return copy.deepcopy(snap)
+        return self.transaction(change)
+
+    def checkpoint(self,eid,fields):
+        def change(state):state['jobExecutions'][eid]['checkpoint'].update(copy.deepcopy(fields))
+        self.transaction(change)
+
+    def clear_snapshot(self,eid):
+        def change(state):state.setdefault('jobExecutions',{}).pop(eid,None)
+        self.transaction(change)

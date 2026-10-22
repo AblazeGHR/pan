@@ -198,6 +198,7 @@ class Ledger:
                 raise Conflict('Attempt no longer running')
             run.update(fields, status=status, finishedAt=now(), revision=run['revision']+1)
             self.sync_attempt(run)  # Finish history before changing logical Run to waiting.
+            run.pop('action', None)
             trigger = state['triggers'].get(run['triggerId'])
             if status == 'failed' and retryable and trigger and self.auto_retry_allowed(run, trigger):
                 run.update(status='retry_wait', retryAuthorized='automatic',
@@ -230,6 +231,7 @@ class Ledger:
             if run['status'] == 'running' and run.get('activeAttemptId') == attempt_id:
                 run.update(status='uncertain', error=error, finishedAt=now(), revision=run['revision']+1)
                 self.sync_attempt(run)
+                run.pop('action', None)
             return run
         return self.mutate(change)
 
@@ -303,6 +305,8 @@ class Ledger:
                         run['attemptCount'] = 1
                         run['activeAttemptId'] = run['attempts'][0]['id']
                 self.sync_attempt(run)
+                if run['status'] not in {'queued', 'running'}:
+                    run.pop('action', None)
         self.mutate(change)
 
 

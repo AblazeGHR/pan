@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="20" time="1.236" timestamp="2026-10-22T12:29:35.454924+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra0]" time="0.015" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra1]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra2]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra3]" time="0.010" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra4]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra5]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra6]" time="0.034" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra7]" time="0.008" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra8]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra9]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_complete_fields_defaults_and_template_revision" time="0.013" /><testcase classname="tests.test_job_action_templates" name="test_instantiate_copy_revision_display_only_and_idempotence" time="0.087" /><testcase classname="tests.test_job_action_templates" name="test_reserved_creation_recovers_after_template_delete_and_write_failure" time="0.034" /><testcase classname="tests.test_job_action_templates" name="test_template_edit_delete_while_job_write_blocked_uses_admitted_copy" time="0.035" /><testcase classname="tests.test_job_action_templates" name="test_delete_before_snapshot_atomic_admission_blocks_all_effects" time="0.051" /><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]" time="0.054"><failure message="packages.jobs.action_templates.Conflict: Job already admitted">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3606/test_running_snapshot_stable_t0')
+mutation = 'edit'
+
+    @pytest.mark.parametrize('mutation',['edit','delete'])
+    @async_test
+    async def test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore(tmp_path,mutation):
+        entered,release=asyncio.Event(),asyncio.Event();calls=[]
+        async def pause(sid,args):calls.append(sid);entered.set();await release.wait();return {'ok':True}
+        rt,_=await setup(tmp_path,pause);job=rt.create(config(),True)
+        try:
+            source_revision=rt.actions.read()['revision']
+            await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
+            snap=next(iter(rt.actions.read()['jobExecutions'].values()))
+            assert snap['definition']['execution']['selector']['ids']==['selected']
+            assert rt.actions.read()['revision']==source_revision
+            if mutation=='delete':rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
+            rt.actions.put('actions',action(['changed']))
+            release.set();done=await finished(rt,job['jobId'])
+            assert calls==['selected'] and not rt.actions.read().get('jobExecutions')
+            assert done['lastExecution']['digest']==snap['digest'] and 'definition' not in done['lastExecution']
+            if mutation=='delete':
+                view=rt.view(done);assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['enabled']
+                with pytest.raises(Conflict):await rt.launch(job['jobId'],1)
+                with pytest.raises(PermissionError):rt.update(job['jobId'],config(),1)
+                repaired=rt.update(job['jobId'],config(),1,True)
+                assert not repaired['enabled'] and repaired['configRevision']==2
+                rt.update(job['jobId'],config(),2,True)
+&gt;           await rt.launch(job['jobId'],rt.get(job['jobId'])['configRevision'])
+
+tests\test_job_action_templates.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.action_runtime.Runtime object at 0x00000259C2989BA0&gt;
+jid = 'job_6c672ff127224c62b0522e36', expected = 1, entry = None
+
+    async def launch(self,jid,expected=None,entry=None):
+        if self.closed:raise Conflict('Job runtime closed')
+        if jid in self.admissions or (jid in self.tasks and not self.tasks[jid].done()):
+&gt;           raise Conflict('Job already admitted')
+E           packages.jobs.action_templates.Conflict: Job already admitted
+
+packages\jobs\action_runtime.py:247: Conflict</failure></testcase><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]" time="0.076"><failure message="packages.jobs.action_templates.Conflict: Job already admitted">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3606/test_running_snapshot_stable_t1')
+mutation = 'delete'
+
+    @pytest.mark.parametrize('mutation',['edit','delete'])
+    @async_test
+    async def test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore(tmp_path,mutation):
+        entered,release=asyncio.Event(),asyncio.Event();calls=[]
+        async def pause(sid,args):calls.append(sid);entered.set();await release.wait();return {'ok':True}
+        rt,_=await setup(tmp_path,pause);job=rt.create(config(),True)
+        try:
+            source_revision=rt.actions.read()['revision']
+            await rt.launch(job['jobId'],1);await asyncio.wait_for(entered.wait(),2)
+            snap=next(iter(rt.actions.read()['jobExecutions'].values()))
+            assert snap['definition']['execution']['selector']['ids']==['selected']
+            assert rt.actions.read()['revision']==source_revision
+            if mutation=='delete':rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
+            rt.actions.put('actions',action(['changed']))
+            release.set();done=await finished(rt,job['jobId'])
+            assert calls==['selected'] and not rt.actions.read().get('jobExecutions')
+            assert done['lastExecution']['digest']==snap['digest'] and 'definition' not in done['lastExecution']
+            if mutation=='delete':
+                view=rt.view(done);assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['enabled']
+                with pytest.raises(Conflict):await rt.launch(job['jobId'],1)
+                with pytest.raises(PermissionError):rt.update(job['jobId'],config(),1)
+                repaired=rt.update(job['jobId'],config(),1,True)
+                assert not repaired['enabled'] and repaired['configRevision']==2
+                rt.update(job['jobId'],config(),2,True)
+&gt;           await rt.launch(job['jobId'],rt.get(job['jobId'])['configRevision'])
+
+tests\test_job_action_templates.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.action_runtime.Runtime object at 0x00000259C2C2C050&gt;
+jid = 'job_73a65d41a3ac444c90bb38e2', expected = 3, entry = None
+
+    async def launch(self,jid,expected=None,entry=None):
+        if self.closed:raise Conflict('Job runtime closed')
+        if jid in self.admissions or (jid in self.tasks and not self.tasks[jid].done()):
+&gt;           raise Conflict('Job already admitted')
+E           packages.jobs.action_templates.Conflict: Job already admitted
+
+packages\jobs\action_runtime.py:247: Conflict</failure></testcase><testcase classname="tests.test_job_action_templates" name="test_cancel_exception_shutdown_and_recovery_remove_snapshots" time="0.198" /><testcase classname="tests.test_job_action_templates" name="test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only" time="0.050" /><testcase classname="tests.test_job_action_templates" name="test_snapshot_io_does_not_hold_job_registry_or_block_event_loop" time="0.052"><failure message="ValueError: target session does not exist">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3606/test_snapshot_io_does_not_hold0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000259C2C5EFD0&gt;
+
+    @async_test
+    async def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(tmp_path,monkeypatch):
+        rt,calls=await setup(tmp_path);job=rt.create(config(),True)
+        entered,release=threading.Event(),threading.Event();original=rt.templates.snapshot
+        def blocked(*args):entered.set();assert release.wait(3);return original(*args)
+        monkeypatch.setattr(rt.templates,'snapshot',blocked)
+        try:
+            await rt.launch(job['jobId'],1);assert await asyncio.to_thread(entered.wait,2)
+            await asyncio.wait_for(asyncio.sleep(0),.1)
+&gt;           other=await asyncio.wait_for(asyncio.to_thread(jobs.start_message,'unrelated','hello',{'type':'once','delaySeconds':60},registry_root=rt.root),1)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_action_templates.py:221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+target_session_id = 'unrelated', text = 'hello'
+schedule = {'type': 'once', 'delaySeconds': 60}, name = None, description = None
+source = 'agent', source_session_id = None, creator_session_id = None
+registry_root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3606/test_snapshot_io_does_not_hold0/jobs')
+
+    def start_message(target_session_id: str, text: str, schedule: dict, *,
+                      name: str | None = None,
+                      description: str | None = None, source: str = "agent",
+                      source_session_id: str | None = None,
+                      creator_session_id: str | None = None,
+                      registry_root: str | Path | None = None) -&gt; dict:
+        """Create a durable one-target Session message schedule.
+    
+        ``text`` is always message text delivered through ``worker.send_session``;
+        it is never parsed as or executed through an operating-system shell.
+        """
+        if not isinstance(target_session_id, str) or not target_session_id:
+            raise ValueError("target session does not exist")
+        if not _sessions.get(target_session_id):
+&gt;           raise ValueError("target session does not exist")
+E           ValueError: target session does not exist
+
+packages\core\background_jobs.py:1097: ValueError</failure></testcase></testsuite></testsuites>

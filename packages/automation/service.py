@@ -33,6 +33,8 @@ class Service:
         self.stopping = False
         self.dispatcher = None
         self.ingester = None
+        self.job_runtime = None
+        self.engine_started = False
 
     def diagnostic(self, phase, error, event_id=None):
         self.bus.diagnostics.append(dict(phase=phase, error=str(error), eventId=event_id, at=now()))
@@ -127,11 +129,19 @@ class Service:
     async def start(self):
         if self.stopping:
             return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        if self.stopping:
+            return
         await self.engine.io(self.auth.key)
         await self.engine.io(self.events.initialize)
         if self.stopping:
             return
         await self.maintenance()
+        self.engine_started = True
         await self.engine.start()
         if self.stopping:
             return
@@ -141,8 +151,11 @@ class Service:
         self.worker.set_running_observer(self.observe)
 
     async def close(self):
-        self.worker.set_running_observer(None)
+        if self.started:
+            self.worker.set_running_observer(None)
         self.stopping = True
+        if self.job_runtime:
+            self.job_runtime.closed = True
         self.wake.set()
         # Settle accepted writes before returning; pending records survive close.
         tasks = [t for t in (self.ingester, self.dispatcher) if t]
@@ -152,7 +165,12 @@ class Service:
         async with self.admission:
             self.started = False
         await self.bus.close()
-        await self.engine.close()
+        if self.engine_started:
+            await self.engine.close()
+        else:
+            self.engine.closed = True
+        if self.job_runtime:
+            await self.job_runtime.close()
 
     async def replay(self, ids):
         async with self.engine.matching:

@@ -120,6 +120,13 @@ def validate_action(raw, automation=True):
                     raise ValueError('Command input placeholders must occupy a complete argv element and reference a scalar field')
                 if match[1] not in schema.get('required', []) and 'default' not in properties[match[1]]:
                     raise ValueError('Command placeholders require a required field or default')
+    elif ex.get('kind') == 'job_template' and automation:
+        if (set(ex) != {'kind', 'templateId', 'templateRevision'}
+                or not isinstance(ex['templateId'], str) or not ex['templateId'].startswith('jtpl_')
+                or type(ex['templateRevision']) is not int or ex['templateRevision'] < 1
+                or action['effect'] != 'write_local' or schema.get('properties', {})
+                or schema.get('required', [])):
+            raise ValueError('Job Template Action requires a fixed template/revision and no input fields')
     elif ex.get('kind') == 'session_operation' and automation:
         if set(ex) != {'kind', 'operation', 'selector'} or ex['operation'] != 'pause_everything' or action['effect'] != 'write_local':
             raise ValueError('Invalid Session Operation')
@@ -154,17 +161,18 @@ class Store:
             return {'revision': 0, 'actions': {}, 'groups': {}, 'retired_plugins': []}
         return json.loads(self.path.read_text(encoding='utf-8'))
 
-    def mutate(self, change, expected=None):
+    def mutate(self, change, expected=None, *, versioned=True):
         with _lock:
             state = self.read()
             if expected is not None and (type(expected) is not int or state['revision'] != expected):
                 raise ValueError('Action registry changed; reload before saving')
             result = change(state)
-            state['revision'] += 1
+            if versioned:
+                state['revision'] += 1
             atomic(self.path, state)
             return result
 
-    def put(self, kind, raw, expected=None, draft=False, create=False):
+    def put(self, kind, raw, expected=None, draft=False, create=False, authorized=False):
         def change(state):
             if kind == 'actions':
                 from .session_query import validate_action_query
@@ -187,7 +195,19 @@ class Store:
             item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
             if draft and kind == 'actions':
                 item['enabled'] = False
+            if kind == 'actions':
+                old = state['actions'].get(item['id'])
+                if (item['execution']['kind'] == 'job_template'
+                        or (old and old['execution']['kind'] == 'job_template')):
+                    if not authorized and (item['enabled'] or (old and old['enabled'])):
+                        raise PermissionError('User Bearer required for delegated template Action enable/edit')
             state[kind][item['id']] = item
+            if kind == 'actions':
+                from packages.jobs.action_templates import check_action_graph
+                # Only complete fixed capabilities can be persisted, including drafts.
+                check_action_graph(state, item)
+                revisions = state.setdefault('actionRevisions', {})
+                revisions[item['id']] = revisions.get(item['id'], 0)+1
             return copy.deepcopy(item)
         return self.mutate(change, expected)
 
@@ -202,13 +222,20 @@ class Store:
             raise ValueError('Group must reference unique existing Actions')
         return {**copy.deepcopy(raw), **{k: v for k, v in state['groups'].get(gid, {}).items() if k in {'build', 'last_build'}}}
 
-    def delete(self, kind, item_id, expected=None):
+    def delete(self, kind, item_id, expected=None, *, authorized=False, confirm_references=False):
         def change(state):
             item = state[kind].get(item_id)
             if not item:
                 raise ValueError('Item not found')
             if kind == 'actions' and any(item_id in g['action_ids'] for g in state['groups'].values()):
                 raise ValueError('Action is referenced by a Group; remove its references first')
+            if kind == 'actions':
+                from packages.jobs.action_templates import references
+                if references(state, item_id) and (not authorized or not confirm_references):
+                    raise PermissionError('User Bearer and confirmReferences required to delete referenced Action')
+                generations = state.setdefault('actionGenerations', {})
+                generations[item_id] = generations.get(item_id, 0)+1
+                state.setdefault('actionRevisions', {})[item_id] = state.get('actionRevisions', {}).get(item_id, 0)+1
             if kind == 'groups' and item.get('build'):
                 raise ValueError('Unbuild the Group before deleting it')
             del state[kind][item_id]

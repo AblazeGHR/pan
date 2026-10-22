@@ -1,0 +1,18 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "artifacts\\job-templates\\baseline_probe.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=artifacts/job-templates/baseline.xml"
+  ],
+  "exitCode": 1,
+  "baseline": "36b3a9bec4d905839cbabe8010efde6fab8dcb7f",
+  "source": "git show baseline:packages/actions/store.py; current unchanged validator dependencies"
+}

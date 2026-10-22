@@ -56,4 +56,16 @@ Parallel now uses bounded per-Trigger slots, default3/hard32, with serial defaul
 Automatic failed retry requires the original Action idempotent declaration and
 original/current enabled Trigger retry policy. Uncertain confirmation is a separate
 user Bearer/revision operation, not Event replay. UI, Job Template/Job snapshots
-and new Action snapshot mechanisms remain outside this batch.
+and new Action snapshot mechanisms remain outside that retry batch.
+
+### Subsequent complete Job Template backend batch
+
+The accepted retry integration36b3a9be is extended by
+[Job Template/Action reference/temporary snapshot](Event-Trigger-Action-v0.4-job-templates.md).
+It reuses generic scheduled-task records, schedule evaluation, run histories and
+notification callbacks. Complete templates copy configuration only; every execution
+validates its Action reference and records a private temporary executable snapshot.
+Terminal/recovery paths erase that snapshot before terminal publication. Cross-file
+creation/finalization use explicit durable intents, not claimed atomic transactions.
+UI, unfinished parameter templates, Job retry and mixed-version writer support stay
+outside this batch. Group immutable release/pin and business permission gates remain.

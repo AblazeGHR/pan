@@ -270,6 +270,8 @@ class Engine:
             # Operations use this durable checkpoint on later attempts, avoiding
             # query reevaluation or repeating confirmed successful targets.
             progress.checkpoint = copy.deepcopy(run)
+            if getattr(self, 'job_runtime', None):
+                progress.instantiate_template = self.job_runtime.instantiate_action
             result = await self.execute(action, run['arguments'], run['event'], progress)
             ok = not result.get('isError', False) and result.get('ok', True)
             try:

@@ -2102,6 +2102,8 @@ async def _run_job_action(job: dict, target: str | None,
     """
     action = job.get("action")
     api = str(action.get("api") or "assign") if isinstance(action, dict) else "assign"
+    if api == 'action_reference':
+        return {'status':'error','error':'Use protected Action Job runtime; no legacy assign fallback'}
     text = job.get("text") or ""
     if api == "send_qq":
         from packages.jobs.actions import normalize_scheduled_qq_action
@@ -2793,6 +2795,10 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
     root = _scheduled_task_root()
     if root is None:
         return 0
+    from packages.jobs.action_runtime import for_root, is_action_job
+    runtime = for_root(root)
+    if runtime is not None:
+        await runtime.tick(cfg)
     _reconcile_scheduled_processes(root)
     if not cfg.get("enabled", True):
         return 0
@@ -2804,6 +2810,8 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
     #    放回 scheduled。entry 触发点不动，错过点重新走 grace 判定；
     #    重投由 dispatch_key 幂等保证不双跑。
     for job in list_jobs(root):
+        if is_action_job(job):
+            continue
         if job.get("kind") != SCHEDULED_TASK_KIND or job.get("status") != "running":
             continue
         started = job.get("runStartedAt")
@@ -2819,6 +2827,8 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
     # 2) 维护 + 认领
     claimed: list[dict] = []
     for job in list_jobs(root):
+        if is_action_job(job):
+            continue
         if job.get("kind") != SCHEDULED_TASK_KIND:
             continue
         if job.get("status") not in {"pending", "scheduled"}:
