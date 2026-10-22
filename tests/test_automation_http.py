@@ -22,7 +22,7 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
     sentinel.write_bytes(b'unchanged')
     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(sentinel.parent))
     # Launcher must remove this poisoned parent setting before application import.
-    runtime.data_root.joinpath('config.json').write_text(json.dumps({'plugin_manifests': [], 'scheduler': {'enabled': False}}))
+    runtime.data_root.joinpath('config.json').write_text(json.dumps({'plugin_manifests': [], 'scheduler': {'enabled': False}}), encoding='utf-8')
     runtime.start()
     evidence = dict(port=harness.PORT, dataRoot=str(runtime.data_root), pid=runtime.process.pid, createTime=psutil.Process(runtime.process.pid).create_time(), command=psutil.Process(runtime.process.pid).cmdline())
     try:
@@ -64,7 +64,7 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
         assert runtime.request('GET', '/api/automation')['runs'] == {}
         assert not runtime.request('GET', f"/api/sessions/{target['id']}/queue")['queuePaused']
         item = runtime.request('POST', f"/api/sessions/{target['id']}/queue", json={'text': 'must-stay-queued', 'clientMessageId': 'blocked', 'locked': True})['item']
-        key = (runtime.data_root / 'automation' / 'user.key').read_text()
+        key = (runtime.data_root / 'automation' / 'user.key').read_text(encoding='utf-8')
         token = runtime.request('POST', '/api/automation/login', json={'key': key})['token']
         headers = {'Authorization': 'Bearer ' + token}
         runtime.request('POST', '/api/automation/triggers', json={'item': trigger(), 'expectedRevision': 1}, headers=headers)
@@ -76,6 +76,9 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
         automation = harness._wait_for(finished, label='durable automatic Pause')
         run = next(iter(automation['runs'].values()))
         assert run['event']['type'] == 'workers.all_idle' and run['event']['payload'] == {'runningCount': 0}
+        event_page = runtime.request('GET', '/api/automation/events')
+        assert any(e['event']['id'] == run['event']['id'] for e in event_page['events'])
+        assert run['attemptCount'] == 1 and run['attempts'][0]['status'] == 'succeeded'
         assert run['targetIds'] == [target['id']] and run['targetResults'][0]['ok']
         if selector_mode == 'query':
             assert run['selection']['candidateCount'] == 3 and run['selection']['matched'] == 1
@@ -89,10 +92,10 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
         queue = runtime.request('GET', f"/api/sessions/{target['id']}/queue")
         assert queue['queuePaused'] and any(i['queueItemId'] == item['queueItemId'] for i in queue['items'])
         assert not harness._received(runtime, text='must-stay-queued')
-        persisted = json.loads((runtime.data_root / 'automation' / 'registry.json').read_text())
+        persisted = json.loads((runtime.data_root / 'automation' / 'registry.json').read_text(encoding='utf-8'))
         assert persisted['runs'][run['id']]['status'] == 'succeeded'
-        assert json.loads((runtime.data_root / 'sessions' / (target['id'] + '.json')).read_text())['queue_paused'] is True
-        evidence.update(run=run, queue=queue, targetId=target['id'], unselectedId=control['id'], sentinelUnchanged=sentinel.read_bytes() == b'unchanged' and sorted(p.name for p in sentinel.parent.iterdir()) == ['sentinel'], fakeRecords=runtime.fake_records())
+        assert json.loads((runtime.data_root / 'sessions' / (target['id'] + '.json')).read_text(encoding='utf-8'))['queue_paused'] is True
+        evidence.update(run=run, eventPage=event_page, queue=queue, targetId=target['id'], unselectedId=control['id'], sentinelUnchanged=sentinel.read_bytes() == b'unchanged' and sorted(p.name for p in sentinel.parent.iterdir()) == ['sentinel'], fakeRecords=runtime.fake_records())
     finally:
         # Capture only this fixture's descendants, including CLIs spawned after readiness.
         if runtime.process and runtime.process.poll() is None:

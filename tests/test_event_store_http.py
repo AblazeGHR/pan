@@ -13,6 +13,11 @@ from tests.test_session_query import query_action, leaf
 from tests.test_automation_core import trigger
 
 
+def test_actual_running_event_persists_before_query_pause(tmp_path,monkeypatch):
+    from tests.test_automation_http import run_automation_http
+    run_automation_http(tmp_path,monkeypatch,selector_mode='query',output=Path('artifacts/event-store/core-running'))
+
+
 def test_node_durable_event_http_replay_restart_and_uncertain(tmp_path,monkeypatch):
     assert h.PORT not in {8767,8768}
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
