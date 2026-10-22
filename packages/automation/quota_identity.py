@@ -65,11 +65,44 @@ def current(inventory, target):
     return None
 
 
-def wake_eligible(original, successor):
-    return (frozen(original) is not None and frozen(successor) is not None
-            and all(original[k] == successor[k] for k in ('runtimeEpoch', 'sessionId', 'adapter'))
-            and successor['generation'] >= original['generation']
-            and original.get('role') in ('ta', 'ma') and successor.get('role') == original['role']
-            and original['status'] == successor['status'] == 'running'
-            and unfinished(original.get('task')) is not None
-            and unfinished(successor.get('task')) == unfinished(original['task']))
+def original_eligible(original):
+    """Eligibility at freeze time never includes idle or an inferred task."""
+    return (frozen(original) is not None and original.get('role') in ('ta', 'ma')
+            and original['status'] == 'running' and unfinished(original.get('task')) is not None)
+
+
+def _same_task(original, current):
+    return (all(original[k] == current[k] for k in ('runtimeEpoch', 'sessionId', 'adapter', 'role'))
+            and unfinished(current.get('task')) == unfinished(original['task']))
+
+
+def wake_eligible(original, current):
+    """No restart proof: only the same running process and unfinished execution."""
+    return (original_eligible(original) and frozen(current) is not None
+            and same_worker(original, current) and current['status'] == 'running'
+            and _same_task(original, current))
+
+
+def recovery_eligible(original, restart, current, expected_account):
+    """Allow idle only through a persisted confirmed restart's exact successor.
+
+    The caller resolves this record from its own ledger and checks policy epoch /
+    configuration revision. A running successor needs the same proof as an idle one.
+    """
+    if not original_eligible(original) or not isinstance(restart, dict) or frozen(current) is None:
+        return False
+    args = restart.get('arguments') or {}
+    previous, successor = args.get('worker'), restart.get('successor')
+    return (restart.get('contractVersion') == 2 and restart.get('status') == 'completed'
+            and identifier(restart.get('id'))
+            and restart.get('operation') == ('restart_worker' if original['role'] == 'ta' else 'restart_ma')
+            and frozen(previous) is not None and same_worker(original, previous)
+            and original_eligible(previous) and _same_task(original, previous)
+            and frozen(successor) is not None and _same_task(original, successor)
+            and successor['generation'] > original['generation']
+            and successor['processIdentity']['birthToken'] != original['processIdentity']['birthToken']
+            and args.get('runtimeEpoch') == original['runtimeEpoch']
+            and identifier(expected_account) and args.get('expectedAccountId') == expected_account
+            and successor['accountId'] == current['accountId'] == expected_account
+            and same_worker(successor, current) and _same_task(original, current)
+            and successor['status'] in ('running', 'idle') and current['status'] in ('running', 'idle'))

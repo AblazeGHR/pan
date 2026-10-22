@@ -61,11 +61,24 @@ An invalid/unknown successor is uncertain, not a reason to repeat restart.
 Only a frozen explicit TA that was running with a verified unfinished task can
 produce a wake command. The command carries its verified successor and the frozen
 task identity. Both planning and immediately-before-dispatch checks require the
-current successor to remain running, live and on that same unfinished task. Late
-completion, idle, offline, unknown identity or unexpected successor shrink the
+current successor to remain live and on that same unfinished task. A successor
+may be running **or idle waiting for its continue message**, but only through a
+persisted completed restart receipt, strictly newer generation, changed process
+birth identity and fresh inventory matching epoch/session/Worker/PID/birth/account.
+Late completion, offline, unknown identity or unexpected successor shrink the
 eligible set; missing frozen evidence blocks rather than inventing a task. MA
 targets require explicit MA role and configured Session ID as well. Role changes
 cannot silently promote a target into either role.
+
+`original_eligible` requires the frozen original to be running with a verified
+unfinished task. `wake_eligible` without restart proof is restricted to that same
+running process. `recovery_eligible` accepts a running/idle successor only with the
+exact confirmed restart command from this policy epoch/account configuration and
+the same original taskId/executionSeq. New TA wake commands carry
+`restartCommandId`; planning and dispatch both recheck that persisted receipt,
+including a new ledger read after the inventory await. Existing pending wake
+commands without that reference are blocked, not silently upgraded by searching
+for a convenient current Worker. No API can inject a restart receipt.
 
 Reminder query Jobs also freeze `quotaPolicy.wakeTarget` at creation. A fresh95%
 observation cannot adopt a new MA task. A new MA process is eligible only through
@@ -75,6 +88,9 @@ is blocked; a one-shot diagnostic query never wakes anyone. Account-bound monito
 creation requires current MA/task proof as well as known quota. Replacing an old
 monitor's target requires an explicit new policy epoch, not a repeat request that
 silently retargets the existing Job.
+The resolved MA successor is also linked by restartCommandId and rechecked at
+dispatch. An unrestarted idle MA cannot become a new original or receive a
+reminder by virtue of idle alone; neither TA nor MA recovery permits a new task.
 
 Commands carry contractVersion2, expected account configuration revision, runtime
 epoch and applicable frozen Worker/task preconditions. Legacy pending commands

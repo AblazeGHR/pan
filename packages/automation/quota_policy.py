@@ -271,6 +271,14 @@ class Runtime:
         except Exception:return None
         return value if identity.valid_inventory(value,self.clock()) else None
 
+    @staticmethod
+    def restart_proof(state,key):
+        receipt=state['commands'].get(key) if identity.identifier(key) else None
+        if (receipt and receipt.get('epoch')==state['epoch']
+                and receipt.get('accountConfigRevision')==state['accountConfigRevision']):
+            return receipt
+        return None
+
     async def preflight(self, command, state):
         """Read-only checks; the host must repeat CAS at actual effect admission."""
         if command.get('contractVersion')!=CONTRACT_VERSION:
@@ -282,7 +290,7 @@ class Runtime:
         if target in state['disabledAccountIds'] and op!='reset_wake_job':
             return 'blocked','account_disabled'
         if op in ('reset_wake_job','monitor95_job'):
-            if op=='monitor95_job' and not identity.wake_eligible(args.get('wakeTarget'),args.get('wakeTarget')):
+            if op=='monitor95_job' and not identity.original_eligible(args.get('wakeTarget')):
                 return 'blocked','frozen_ma_task_missing'
             return 'ok',''
         inventory=await self.inventory()
@@ -321,7 +329,18 @@ class Runtime:
             return 'blocked','explicit_ma_identity_missing'
         if op not in ('wake_ta','wake_ma','ma_resume_job','continue_once','cbc_next_model'):
             return 'blocked','unknown_operation'
-        if not identity.wake_eligible(original,current):return 'skipped','task_completed_idle_or_changed'
+        if op in ('wake_ta','wake_ma') and args.get('restartCommandId') is not None:
+            latest=await io(self.store.read)
+            receipt=self.restart_proof(latest,args['restartCommandId'])
+            if receipt is None:return 'blocked','restart_receipt_missing'
+            if op=='wake_ta' and receipt.get('caseId')!=command['caseId']:
+                return 'blocked','restart_case_mismatch'
+            if not (identity.recovery_eligible(original,receipt,frozen,args.get('expectedAccountId'))
+                    and identity.recovery_eligible(original,receipt,current,args.get('expectedAccountId'))):
+                return 'skipped','task_or_recovery_identity_changed'
+        else:
+            if op=='wake_ta':return 'blocked','restart_receipt_missing'
+            if not identity.wake_eligible(original,current):return 'skipped','task_completed_idle_or_changed'
         return 'ok',''
 
     def reject(self,key,status,reason):
@@ -380,7 +399,7 @@ class Runtime:
                 inventory=await self.inventory();old=command['arguments']['worker']
                 if (successor is None or inventory is None or successor['runtimeEpoch']!=old['runtimeEpoch']
                         or successor['sessionId']!=old['sessionId'] or successor['generation']<=old['generation']
-                        or successor['processIdentity']==old['processIdentity'] or successor['role']!=old['role']
+                        or successor['processIdentity']['birthToken']==old['processIdentity']['birthToken'] or successor['role']!=old['role']
                         or successor['adapter']!='codex' or successor['accountId']!=command['arguments']['expectedAccountId']
                         or identity.current(inventory,successor) is None):
                     await io(self.finish,key,'uncertain');continue
@@ -431,9 +450,10 @@ class Runtime:
                     peer=next((v for v in peers if v['arguments']['worker']['sessionId']==w['sessionId']),None)
                     target=peer.get('successor') if peer and peer['status']=='completed' else None
                     current=identity.current(inventory,target) if target else None
-                    if current is None or not identity.wake_eligible(w,current):
-                        outcomes[w['sessionId']]='skipped_completed_idle_offline_or_changed';continue
-                    self.command(s,cid,'wake_ta',worker=target,original=w,runtimeEpoch=args['runtimeEpoch'],expectedAccountId=args['expectedAccountId'])
+                    proof=self.restart_proof(s,peer['id']) if peer else None
+                    if not identity.recovery_eligible(w,proof,current,args['expectedAccountId']):
+                        outcomes[w['sessionId']]='skipped_task_or_recovery_identity_changed';continue
+                    self.command(s,cid,'wake_ta',worker=target,original=w,restartCommandId=peer['id'],runtimeEpoch=args['runtimeEpoch'],expectedAccountId=args['expectedAccountId'])
                     outcomes[w['sessionId']]='planned'
                 s['cases'][cid]['wakeOutcomes']=outcomes
                 ma=next((w for w in args['workers'] if w['sessionId']==args['maSessionId'] and w['role']=='ma'),None)
@@ -466,7 +486,7 @@ class Runtime:
             inventory=await self.inventory()
             wake_target=next((identity.worker(w,inventory['runtimeEpoch']) for w in inventory['workers']
                               if w.get('sessionId')==state['maSessionId'] and w.get('role')=='ma'),None) if inventory else None
-            if not identity.wake_eligible(wake_target,wake_target):raise ValueError('Cannot bind monitor: MA/unfinished task identity unknown')
+            if not identity.original_eligible(wake_target):raise ValueError('Cannot bind monitor: MA/unfinished task identity unknown')
         latest=await io(self.store.read)
         if self.closed or latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
             raise ValueError('Quota policy changed during query')
@@ -518,7 +538,7 @@ class Runtime:
         for job in await io(jobs.list_jobs,self.root):
             if not protected(job):continue
             policy=job['quotaPolicy']
-            if policy.get('contractVersion')!=CONTRACT_VERSION or (policy['purpose']!='once' and not identity.wake_eligible(policy.get('wakeTarget'),policy.get('wakeTarget'))):
+            if policy.get('contractVersion')!=CONTRACT_VERSION or (policy['purpose']!='once' and not identity.original_eligible(policy.get('wakeTarget'))):
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'blocked','quotaResult':{'status':'unknown','reason':'legacy_identity_missing'}},registry_root=self.root);continue
             if state['mode']!='automatic' or policy['epoch']!=state['epoch']:
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root);continue
@@ -544,21 +564,23 @@ class Runtime:
                     continue
             if trigger:
                 inventory=await self.inventory()
-                original=policy.get('wakeTarget');target=original
+                original=policy.get('wakeTarget');target=original;restart_id=None
                 ma=identity.current(inventory,target) if inventory and target else None
                 if inventory and original and ma is None:
                     # Only a persisted verified restart can transfer this exact task.
                     for c in latest['commands'].values():
-                        old=c['arguments'].get('worker');successor=c.get('successor')
-                        if (c['operation']=='restart_ma' and c['status']=='completed' and c.get('contractVersion')==CONTRACT_VERSION
-                                and identity.frozen(old) and identity.same_worker(old,original)
-                                and identity.wake_eligible(original,successor)):
-                            target=successor;ma=identity.current(inventory,target)
+                        successor=c.get('successor');current=identity.current(inventory,successor) if successor else None
+                        if identity.recovery_eligible(original,self.restart_proof(latest,c['id']),current,snapshot['currentAccountId']):
+                            target=successor;ma=current;restart_id=c['id']
                             break
                 def wake(s):
                     if s['mode']=='automatic' and s['epoch']==policy['epoch'] and snapshot['currentAccountId'] not in s['disabledAccountIds']:
-                        if ma and identity.wake_eligible(original,ma):
-                            self.command(s,job['jobId'],'wake_ma',worker=target,original=original,runtimeEpoch=inventory['runtimeEpoch'],reason=policy['purpose'],expectedAccountId=snapshot['currentAccountId'])
+                        proof=self.restart_proof(s,restart_id)
+                        eligible=(identity.recovery_eligible(original,proof,ma,snapshot['currentAccountId'])
+                                  if restart_id else identity.wake_eligible(original,ma))
+                        if eligible:
+                            recovery={'restartCommandId':restart_id} if restart_id else {}
+                            self.command(s,job['jobId'],'wake_ma',worker=target,original=original,**recovery,runtimeEpoch=inventory['runtimeEpoch'],reason=policy['purpose'],expectedAccountId=snapshot['currentAccountId'])
                         else:s['lastWakeDiagnostic']={'jobId':job['jobId'],'reason':'blocked_missing_current_unfinished_ma'}
                 await io(self.store.change,wake)
             next_fire=jobs._entry_next_fire(entry,datetime.now().replace(microsecond=0)) if entry['kind']!='once' else None

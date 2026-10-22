@@ -142,9 +142,14 @@ async def test_wake_rechecks_current_task_process_role_and_successor(tmp_path,ph
     elif change=='wrong_account':w['accountId']='not-the-selected-account'
     else:w['role']='ma'
     await rt.progress_restarts();await rt.dispatch()
-    assert not any(c['operation']=='wake_ta' for c in f.effects)
+    wakes=[c for c in f.effects if c['operation']=='wake_ta']
+    if change=='idle':
+        # Revised contract: this exact successor has a confirmed restart receipt.
+        assert len(wakes)==1 and wakes[0]['arguments']['original']['task']==w['task']
+    else:assert not wakes
     if phase=='before_send':
-        assert any(c['operation']=='wake_ta' and c['status']=='skipped' for c in rt.store.read()['commands'].values())
+        expected='completed' if change=='idle' else 'skipped'
+        assert any(c['operation']=='wake_ta' and c['status']==expected for c in rt.store.read()['commands'].values())
 
 
 @pytest.mark.parametrize('missing',['task','taskId','executionSeq','role'])
