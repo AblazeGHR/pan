@@ -77,7 +77,7 @@ node_modules directory; writable Vite caches stay in this tree, no install/updat
 E:/software/miniforge/python.exe scripts/run_tests_isolated.py -- E:/software/miniforge/python.exe -m pytest tests/test_job_inbox_migration_drill.py tests/test_job_inbox_boundaries.py tests/test_job_unified_contract.py tests/test_job_action_templates.py tests/test_job_system_actions.py tests/test_job_completion_recovery.py tests/test_job_overlap.py tests/test_job_mcp_config.py tests/test_jobs_api.py tests/test_session_message_jobs.py tests/test_agent_inbox.py tests/test_agent_notify.py tests/test_source_metadata.py tests/test_scheduler_dispatch.py tests/test_scheduler_mcp.py tests/test_action_groups.py -o addopts= -q --junitxml=artifacts/job-inbox-followup/python-final.xml
 ```
 
-[JUnit](python-final.xml), [previous combined log](python.log). One existing Pydantic incomplete-field
+[JUnit](python-final.xml), [log](python-final.log), [previous combined log](python.log). One existing Pydantic incomplete-field
 warning remains and is not a skip or suppressed failure.
 
 **3 real isolated HTTP tests passed, exit0.**
@@ -141,5 +141,5 @@ catalog with an explicitly empty gateway manifest, deterministic fake CLI, and
 records process/root identities. It reports zero owned processes remaining and
 released port. Chromium closes in finally. Test-generated legacy tracked evidence
 is copied here then restored. Original core tree remains at88684233 and clean. The follow-up tree is clean at
-5db562a2cf4bc76efa30efa9e04a3a74fa018c14.
+8e6f68a7be4c962ce7bbb09a156099c14492c45f.
 Overall human acceptance and MA independent review remain pending. Stop here.
