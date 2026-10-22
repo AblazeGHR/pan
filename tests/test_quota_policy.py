@@ -285,3 +285,32 @@ async def test_manual_change_during_monitor_query_cannot_create_or_wake(tmp_path
     await rt.cancel_obsolete_jobs();release.set()
     with pytest.raises(ValueError,match='changed during query'):await task
     assert not jobs.list_jobs(rt.root) and not f.effects
+
+
+@async_test
+async def test_close_during_policy_query_stops_new_effects(tmp_path):
+    rt,f=await setup(tmp_path);entered=asyncio.Event();release=asyncio.Event();query=f.query
+    async def waiting():
+        entered.set();await release.wait();return await query()
+    f.query=waiting
+    rt.observe({'issue':issue('codex_quota_exhausted')})
+    task=asyncio.create_task(rt.tick());await entered.wait()
+    rt.closed=True  # Service.close sets this before awaiting runtime shutdown.
+    release.set();await task
+    assert not f.effects
+    assert not rt.store.read()['commands']
+
+
+@async_test
+async def test_close_waits_for_inflight_receipt_and_preserves_result(tmp_path):
+    rt,f=await setup(tmp_path);entered=asyncio.Event();release=asyncio.Event();perform=f.perform
+    async def waiting(command,key):
+        entered.set();await release.wait();return await perform(command,key)
+    f.perform=waiting
+    rt.observe({'issue':issue()});tick=asyncio.create_task(rt.tick());await entered.wait()
+    closing=asyncio.create_task(rt.close());await asyncio.sleep(0)
+    assert not closing.done()
+    release.set();await tick;await closing
+    assert len(f.effects)==1
+    assert next(iter(rt.store.read()['commands'].values()))['status']=='completed'
+    await rt.tick();assert len(f.effects)==1

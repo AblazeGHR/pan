@@ -140,6 +140,7 @@ class Runtime:
     async def consume(self, issue):
         # Only native/adapter parser classifications enter this trusted method.
         kind=issue.get('classification');corr=issue.get('correlation') or {}
+        if self.closed:return {'status':'closed'}
         if kind not in KINDS or issue.get('confidence') not in ('structured','adapter_text'):return {'status':'ignored'}
         if not corr.get('sessionId') or not corr.get('workerId') or type(corr.get('generation')) is not int:
             return {'status':'unknown','reason':'missing runtime identity'}
@@ -157,6 +158,7 @@ class Runtime:
         if not self.matches(inventory,corr,kind):return {'status':'unknown','reason':'stale/unbound Worker generation or account'}
         snapshot=await self.query() if kind!='cbc_rate_limited' else None
         def admit(s):
+            if self.closed:return {'status':'closed'}
             if s['mode']!='automatic' or s['epoch']!=state['epoch']:return {'status':'manual'}
             if cid in s['seen']:return {'status':'duplicate','caseId':cid}
             # An unknown read is not remembered as actionable and can be explicitly refreshed.
@@ -191,7 +193,7 @@ class Runtime:
                             r['week']['resetsAt'] if r['week']['usedPercent']>=100 else self.clock()) for r in snapshot['accounts']]
                 future=[at for at in resets if at>self.clock()]
                 if future:
-                    self.command(s,cid,'reset_wake_job',sessionId=s['maSessionId'],at=min(future),expectedAccountId=account)
+                    self.command(s,cid,'reset_wake_job',sessionId=s['maSessionId'],at=min(future),expectedAccountId=account,blockedWorkers=self.workers(inventory))
                 else:s['cases'][cid]['status']='blocked_no_candidate'
                 return {'status':'waiting_reset' if future else 'blocked','caseId':cid}
             # One global switch at a time; no unrelated Session gate is held.
@@ -222,6 +224,7 @@ class Runtime:
             for w in inventory.get('workers',[]))
 
     async def dispatch(self):
+        if self.closed:return
         state=await io(self.store.read)
         if state['mode']!='automatic':return
         for key,command in state['commands'].items():
@@ -233,9 +236,11 @@ class Runtime:
                                                            and c['status']!='completed' for c in state['commands'].values()):continue
             def claim(s):
                 c=s['commands'][key]
-                if s['mode']!='automatic' or c['epoch']!=s['epoch'] or c['status']!='ready':return False
+                if self.closed or s['mode']!='automatic' or c['epoch']!=s['epoch'] or c['status']!='ready':return False
                 c['status']='dispatching';return True
             if not await io(self.store.change,claim):continue
+            if self.closed:
+                await io(self.finish,key,'cancelled');return
             try:
                 if command['operation']=='reset_wake_job':
                     job=await io(self.ensure_job,state,'reset',command['arguments']['at'])
@@ -298,6 +303,7 @@ class Runtime:
 
     async def create_monitor(self, kind='monitor95', expected=None):
         state=await io(self.store.read)
+        if self.closed:raise ValueError('Quota policy closed')
         if state['mode']!='automatic':raise ValueError('Automatic policy required')
         if expected is not None and (type(expected) is not int or expected!=state['revision']):raise ValueError('Quota policy revision changed')
         if kind not in ('monitor95','once'):raise ValueError('Unknown quota query Job kind')
@@ -307,7 +313,7 @@ class Runtime:
             if quota['status']!='known':raise ValueError('Cannot bind monitor: quota/current account unknown')
             account=quota['currentAccountId']
         latest=await io(self.store.read)
-        if latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
+        if self.closed or latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
             raise ValueError('Quota policy changed during query')
         return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account)
 
@@ -350,6 +356,7 @@ class Runtime:
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root)
 
     async def tick_jobs(self):
+        if self.closed:return
         from datetime import datetime
         state=await io(self.store.read)
         for job in await io(jobs.list_jobs,self.root):
@@ -366,6 +373,7 @@ class Runtime:
             await io(jobs._update,job['jobId'],{'status':'running'},registry_root=self.root)
             snapshot=await self.query()
             latest=await io(self.store.read)
+            if self.closed:return
             if latest['mode']!='automatic' or latest['epoch']!=policy['epoch']:
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root)
                 continue
@@ -392,10 +400,18 @@ class Runtime:
     async def tick(self):
         if self.closed or self.gate.locked():return
         async with self.gate:
-            while not self.pending.empty():
+            while not self.closed and not self.pending.empty():
                 issue=self.pending.get_nowait()
                 try:await self.consume(issue)
                 finally:self.pending.task_done()
             await self.tick_jobs()
             await self.progress_restarts()
             await self.dispatch()
+
+
+    async def close(self):
+        self.closed=True
+        # Settle the owned scheduler tick before releasing the profile owner.
+        # Adapter awaits are bounded; no global or unrelated Session gate is held.
+        async with self.gate:
+            pass

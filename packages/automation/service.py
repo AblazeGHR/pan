@@ -177,6 +177,8 @@ class Service:
             await self.engine.close()
         else:
             self.engine.closed = True
+        if getattr(self,'quota_policy',None):
+            await self.quota_policy.close()
         if self.job_runtime:
             await self.job_runtime.close()
         if getattr(self,'quota_policy',None):

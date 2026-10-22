@@ -144,3 +144,10 @@ by the scheduler before querying or waking. A command crash after `dispatching`
 remains uncertain rather than retrying a possibly completed effect. Generic Job
 retention remains the existing registry policy; this batch adds bounded policy
 ledgers, not a replacement Job archive/retention system.
+
+
+Shutdown fences admission and dispatch after every pending query/command claim.
+The owner waits for its current bounded scheduler tick before releasing the
+profile lock. An already dispatched operation can finish with a receipt; shutdown
+does not interpret it as undelivered or blindly repeat it. Reset-wake commands
+retain the frozen blocked Codex Worker identities for host recovery review.
