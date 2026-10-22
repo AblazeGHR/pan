@@ -2,7 +2,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { JobTemplateEditor } from './JobTemplateEditor';
-import { deleteCompleteJobTemplate, fetchCompleteJobTemplates, instantiateCompleteJobTemplate } from '@/services/api';
+import { deleteCompleteJobTemplate, fetchCompleteJobTemplates, instantiateCompleteJobTemplate, saveCompleteJobTemplate } from '@/services/api';
 
 vi.mock('@/services/api', async (original) => ({ ...await original<typeof import('@/services/api')>(),
   fetchCompleteJobTemplates: vi.fn(), instantiateCompleteJobTemplate: vi.fn(), deleteCompleteJobTemplate: vi.fn(), saveCompleteJobTemplate: vi.fn() }));
@@ -50,4 +50,21 @@ it('template deletion uses the selected revision only after explicit confirmatio
   fireEvent.click(screen.getByRole('button', { name: 'Delete complete Template' }));
   await waitFor(() => expect(deleteCompleteJobTemplate).toHaveBeenCalledWith(template));
   confirmation.mockRestore();
+});
+
+it('saves Template capability independently from disabled copied Job execution and rotates key only on confirmed revision', async () => {
+  await setup();
+  vi.mocked(instantiateCompleteJobTemplate).mockRejectedValue(new Error('unknown receipt'));
+  fireEvent.click(screen.getByRole('button', { name: 'Instantiate fixed Template' }));
+  await screen.findByText('unknown receipt');
+  const originalKey = vi.mocked(instantiateCompleteJobTemplate).mock.calls[0]?.[1];
+  fireEvent.change(screen.getByLabelText('Create'), { target: { value: 'template' } });
+  vi.mocked(saveCompleteJobTemplate).mockResolvedValue({ ...template, revision: 8 });
+  fireEvent.click(screen.getByRole('button', { name: 'Save complete Template' }));
+  await waitFor(() => expect(saveCompleteJobTemplate).toHaveBeenCalledOnce());
+  expect(vi.mocked(saveCompleteJobTemplate).mock.calls[0]?.[0]).toMatchObject({ enabled: true, config: { enabled: false } });
+  await waitFor(() => expect(screen.getByText(/Instantiate copies revision 8/)).toBeTruthy());
+  fireEvent.click(screen.getByRole('button', { name: 'Instantiate fixed Template' }));
+  await waitFor(() => expect(instantiateCompleteJobTemplate).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(instantiateCompleteJobTemplate).mock.calls[1]?.[1]).not.toBe(originalKey);
 });

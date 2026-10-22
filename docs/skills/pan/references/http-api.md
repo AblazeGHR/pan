@@ -509,6 +509,16 @@ launch-export endpoint is exposed in this batch.
 
 ## Agent Inbox / Router / Locker v1
 
+Unified Job compatibility keeps these containers separate: `/api/jobs/action-jobs`
+and `/job-templates` retain user-Bearer enable/instantiate/recovery; Agent Template
+drafts require both outer `enabled:false` and `config.enabled:false`. Inbox MCP
+self/managed access does not grant these operations. Job result notices use their
+existing per-Attempt queue event ID, never Locker shared consume/subscribe APIs.
+Legacy Job `unified.config` is a disabled review projection, with typed schedule
+and `compatibility:{reviewRequired:true,migrationIssues:[...]}`; top-level legacy
+Job fields remain actual execution state. Unknown/ambiguous schedule fields report
+diagnostics rather than recalculating a date or starting a migrated Job.
+
 共享 Agent Inbox 与 Session Queue 是不同容器。HTTP `/api/agent-inbox` 列出
 Locker；`POST /api/agent-inbox/{list|read|consume|subscriptions|subscribe|mode|backlog|recover}`
 提供共享读取、原子消费与订阅。`POST /api/plugins/{plugin_id}/route` 提供固定内部

@@ -255,7 +255,7 @@ class Templates:
             item['config'] = config_value(item.get('config'),state)
             aid = item['config']['actionId'];gen = generation(state,aid)
             repairing = old and (old['config']['actionId']!=aid or old['referenceGeneration']!=gen)
-            if not authorized and (item['enabled'] or (old and old['enabled']) or repairing):
+            if not authorized and (item['enabled'] or item['config']['enabled'] or (old and old['enabled']) or repairing):
                 raise PermissionError('User Bearer required for Template enable/edit/repair')
             if repairing:item['enabled']=False
             versions = state.setdefault('templateVersions',{})

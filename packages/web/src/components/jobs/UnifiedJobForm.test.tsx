@@ -16,6 +16,11 @@ function form(onSubmit = vi.fn()) {
 }
 
 describe('Unified Job configuration editor', () => {
+  it('preserves a missing Action ID and shows the exact repair location', () => {
+    render(<UnifiedJobForm actions={[action]} initial={{name:'repair',actionId:'deleted_action'}} onSubmit={vi.fn()} />);
+    expect((screen.getByLabelText('Action reference') as HTMLSelectElement).value).toBe('deleted_action');
+    expect(screen.getByRole('alert').textContent).toContain('/config/actionId');
+  });
   it('creates from Action reference with conservative explicit policies, without kind selector', async () => {
     const submit = form();
     expect(screen.queryByLabelText('Job kind')).toBeNull();

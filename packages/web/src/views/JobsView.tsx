@@ -503,6 +503,7 @@ export default function JobsView() {
   const [newTargetId, setNewTargetId] = useState('');
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [editJobId, setEditJobId] = useState<string | null>(null);
+  const [editSnapshot, setEditSnapshot] = useState<Job | null>(null);
 
   const [runs, setRuns] = useState<JobRunRecord[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
@@ -691,7 +692,9 @@ export default function JobsView() {
   const selectedJob = jobs.find((j) => j.jobId === selectedJobId) ?? null;
   const changeTargetJob = jobs.find((j) => j.jobId === changeTargetJobId) ?? null;
   const deleteJob = jobs.find((j) => j.jobId === deleteJobId) ?? null;
-  const editJob = jobs.find((j) => j.jobId === editJobId) ?? null;
+  // An open draft and its CAS revision are one snapshot. A WS refresh may update
+  // the list, but cannot promote the revision attached to unsaved input.
+  const editJob = editSnapshot?.jobId === editJobId ? editSnapshot : null;
   // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉。
   const dialogOpen =
     changeTargetJobId !== null ||
@@ -1326,7 +1329,7 @@ export default function JobsView() {
           cancelling={cancellingIds.has(selectedJob.jobId)}
           onDelete={() => setDeleteJobId(selectedJob.jobId)}
           onChangeTarget={() => openChangeTarget(selectedJob)}
-          onEdit={() => setEditJobId(selectedJob.jobId)}
+          onEdit={() => { setEditSnapshot(structuredClone(selectedJob)); setEditJobId(selectedJob.jobId); }}
           onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
           onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
           onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}

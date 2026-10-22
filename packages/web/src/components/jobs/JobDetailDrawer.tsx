@@ -346,6 +346,7 @@ export function JobDetailDrawer({
             </div>
 
             {job.unified && <Section title="Unified execution">
+              {job.unified.compatibility && <p className="text-xs text-warning">Legacy compatibility record: existing execution and editor are retained. The unified projection is disabled and requires explicit review before creating a separate Job. {job.unified.compatibility.migrationIssues?.join('; ')}</p>}
               <KV label="Action reference">{job.unified.config.actionId}</KV>
               <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
               <KV label="Snapshot cleanup">{job.snapshotCleanup ?? 'none'}</KV>

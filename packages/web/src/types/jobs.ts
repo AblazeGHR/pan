@@ -297,5 +297,5 @@ export interface UnifiedJobProjection {
   action: { api: 'action_reference' | 'system_action'; actionId: string; arguments: Record<string, unknown> };
   config: UnifiedJobConfig;
   legacyKind?: JobKind;
-  compatibility?: { legacyKind: string; migration: 'projection-only' | 'system-executor' };
+  compatibility?: { legacyKind: string; migration: 'projection-only' | 'system-executor'; reviewRequired?: boolean; migrationIssues?: string[] };
 }

@@ -54,7 +54,7 @@ def test_complete_fields_defaults_and_template_revision(tmp_path):
     a=action();a['input_schema']={'type':'object','properties':{'count':{'type':'integer'},'tag':{'type':'string','default':'fixed'}},'required':['count'],'additionalProperties':False}
     store.put('actions',a);templates=Templates(store)
     with pytest.raises(ValueError):templates.put({'name':'hole','config':config()},0)
-    t=templates.put({'name':'complete','config':{**config(),'arguments':{'count':2}}},0)
+    t=templates.put({'name':'complete','config':{**config(),'enabled':False,'arguments':{'count':2}}},0)
     assert not t['enabled'] and t['config']['arguments']=={'count':2,'tag':'fixed'}
     with pytest.raises(PermissionError):templates.put({k:v for k,v in {**t,'enabled':True}.items() if k in {'id','name','enabled','config'}},1)
     with pytest.raises(Conflict):templates.put({'id':t['id'],'name':'stale','config':t['config']},0,True)

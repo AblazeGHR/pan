@@ -336,3 +336,40 @@ Unknown historical kinds remain readable and never acquire recovery. No automati
 profile downgrade conversion, mixed-version writer support, production credential
 export/OAuth integration or real provider/account effects are included. Browser
 fixture validation is separate from overall human acceptance.
+
+## Job / Inbox composition follow-up (2026-10-23)
+
+An open unified Job editor freezes both input and its `configRevision`; WS/list
+refreshes never upgrade a dirty draft's CAS revision. Concurrent server edits
+return409 and retain inputs. Reopen deliberately to load a new revision. A missing
+Action ID remains visible with `/config/actionId`, not an empty select choice.
+
+Template `enabled` grants fixed instantiation; `config.enabled` controls whether
+copied Job instances start enabled. React edits these independently. Agent HTTP
+draft writes reject either flag being true. A successful Template revision save
+starts a new instantiate idempotency intent; an unknown instantiate response
+retains the original key. Template deletion does not promote a subsequent new
+configuration to an enabled capability.
+
+Legacy top-level Job fields/API remain authoritative for existing execution.
+Their `unified.config` is a **disabled review projection**, never an in-place
+migration or permission grant. Known message interval/weekly/absolute once shapes
+project to typed schedule specs. Relative once requires its persisted `nextRunAt`;
+no new date is calculated. Nonzero weekly seconds, unknown shapes/kinds and missing
+fields report `compatibility.migrationIssues`; all carry `reviewRequired:true`.
+Protected main-lifecycle cannot be converted into a generic executable Job.
+Existing legacy controls remain available; creation of a separate reference Job
+still goes through strict schema/user enable/repair checks. No profile rewrite,
+history resurrection, recovery enable or old Job duplication happens on read.
+
+Agent Inbox/Locker is not a new destination for Job result records. Job result
+notifications keep their stable per-Attempt event ID and existing durable Session
+Queue path; Locker plans keep original source message/Queue IDs and shared consume
+state. A Job result never consumes a Locker message. Locker notification carries
+identity only, while full mode carries body and consumes on durable acceptance.
+Pause/Illegal/readonly/lease/owner/generation and unknown receipt remain Queue/
+business handoff gates. Trusted system/channel ingress can persist while readonly;
+this does not grant CLI delivery or automatic Force. MCP Inbox access remains
+self/managed under the existing shared visibility contract; it cannot enable,
+instantiate or recover a Job without the separate user capability. Existing local
+HTTP Inbox trust boundaries are unchanged; this is not new global authentication.

@@ -26,18 +26,35 @@ try {
   };
   await fill('Unified production UI message');
   await page.getByRole('button',{name:'Save unified Job',exact:true}).click();
-  await expect(page.getByText('Unified production UI message',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true})).toBeVisible();
   await expect.poll(async () => {
     const data=await (await page.request.get(base+'/api/jobs')).json();
     return data.jobs.find(job=>job.name==='Unified production UI message')?.status;
   },{timeout:15000}).toBe('completed');
+  // A dirty editor must keep its opened CAS revision after a real WS update.
+  await page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true}).click();
+  await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.getByLabel('Name',{exact:true}).fill('Retained conflicting draft');
+  const existing=(await (await page.request.get(base+'/api/jobs')).json()).jobs.find(j=>j.name==='Unified production UI message');
+  const login=await (await page.request.post(base+'/api/automation/login',{data:{key:process.env.PAN_TEST_JOB_KEY}})).json();
+  const changed=await page.request.put(base+'/api/jobs/action-jobs/'+existing.jobId,{headers:{Authorization:'Bearer '+login.token},
+    data:{config:{...existing.unified.config,name:'Concurrent remote config'},expectedRevision:existing.configRevision}});
+  if (!changed.ok()) throw Error('Owned concurrent update rejected: '+changed.status());
+  await expect(page.getByText('Concurrent remote config',{exact:true}).first()).toBeVisible();
+  await page.getByRole('button',{name:'Save unified Job',exact:true}).click();
+  await expect(page.getByText('409: Revision changed. Reload before confirming. Draft kept.',{exact:true})).toBeVisible();
+  await expect(page.getByLabel('Name',{exact:true})).toHaveValue('Retained conflicting draft');
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.getByRole('button',{name:'New Job',exact:true}).click();
   await page.getByLabel('Create',{exact:true}).selectOption('template');
   await fill('Unified production complete Template');
+  await page.getByLabel('Enable Template instantiation capability',{exact:true}).check();
   await page.getByRole('button',{name:'Save complete Template',exact:true}).click();
   await expect(page.getByRole('button',{name:'Instantiate fixed Template',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Instantiate fixed Template',exact:true}).click();
-  await expect(page.getByText('Unified production complete Template',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production complete Template',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'New Job',exact:true}).click();
   await page.getByLabel('Action reference',{exact:true}).selectOption('system_background_process');
   await page.getByLabel('Completion',{exact:true}).selectOption('monitoring');
