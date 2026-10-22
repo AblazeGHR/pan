@@ -45,12 +45,16 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
                 value=client.get(url).json()
                 return value if value.get('hostObservation') else None
             state=h._wait_for(done,label='host read-only projection')
-            assert state['adapter']=='host-readonly' and state['quota']['status']=='unknown'
+            state=h._wait_for(lambda: (v if (v:=client.get(url).json())['quota']['status']=='known' else None),label='provider quota persisted')
+            assert state['adapter']=='host-readonly' and state['quota']['identityDomain']=='cc-switch-provider:codex'
+            assert state['quota']['currentAccountId']=='provider-a'
             assert state['hostObservation']['native']['status']=='known'
             assert state['hostObservation']['native']['windows']['week']['usedPercent']==70
             assert state['hostObservation']['binding']=='unknown' and not state['commands']
             trace=rt.data_root/'host-cli.jsonl';lines=trace.read_text(encoding='utf-8')
-            assert all(json.loads(line)==['auth','status','--json'] for line in lines.splitlines())
+            commands=[json.loads(line) for line in lines.splitlines()]
+            assert all(c==['auth','status','--json'] or (c[:3]==['--app','codex','provider'] and c[3] in ('list','quota')) for c in commands)
+            assert {c[4] for c in commands if c[3:4]==['quota']}=={'provider-a','provider-b'}
             body={'enabled':False,'sessionRoles':{'explicit-target':'ta'},'expectedRevision':state['revision']}
             # Wait for query bookkeeping before using its exact revision.
             def disable():
@@ -70,5 +74,5 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
         rt.stop()
         with socket.socket() as probe:probe.bind(('127.0.0.1',h.PORT));evidence['portReleased']=True
         evidence['ownedServerStopped']=rt.process is None or rt.process.poll() is not None
-        out=Path('artifacts/quota-host');out.mkdir(exist_ok=True,parents=True)
+        out=Path('artifacts/quota-provider');out.mkdir(exist_ok=True,parents=True)
         (out/'http-evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')

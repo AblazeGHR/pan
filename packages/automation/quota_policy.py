@@ -56,7 +56,10 @@ class Adapter:
 def normalize(snapshot, now):
     """Discard arbitrary adapter fields; do not promote stale/error quota to zero."""
     unknown = {'status':'unknown','observedAt':now,'currentAccountId':None,'accounts':[]}
+    if isinstance(snapshot,dict) and snapshot.get('identityDomain')=='cc-switch-provider:codex':
+        unknown['identityDomain']=snapshot['identityDomain']
     if not isinstance(snapshot,dict) or snapshot.get('status')!='known':return unknown
+    if 'identityDomain' in snapshot and snapshot['identityDomain']!='cc-switch-provider:codex':return unknown
     at=snapshot.get('observedAt')
     if type(at) not in (int,float) or not math.isfinite(at) or not 0<=now-at<=MAX_AGE:return unknown
     rows=snapshot.get('accounts');current=snapshot.get('currentAccountId')
@@ -76,7 +79,8 @@ def normalize(snapshot, now):
             result[name]={'usedPercent':used,'resetsAt':reset}
         accounts.append(result)
     if current not in ids:return unknown
-    return {'status':'known','observedAt':at,'currentAccountId':current,'accounts':accounts}
+    return {'status':'known','observedAt':at,'currentAccountId':current,'accounts':accounts,
+            **({'identityDomain':snapshot['identityDomain']} if 'identityDomain' in snapshot else {})}
 
 
 def rank(snapshot, excluded=(), disabled=()):

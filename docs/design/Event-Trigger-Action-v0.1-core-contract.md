@@ -1,5 +1,10 @@
 # Event–Trigger–Action core API and data contract (v0.1)
 
+Quota host source identity is defined by the
+[provider identity revision](quota-provider-identity-v0.3.md): official provider
+quota is independently queryable; native/managed metadata is not a prerequisite.
+No current global provider value establishes a historical Worker launch binding.
+
 The next backend batch adds [complete Job Templates, Action-reference Jobs and
 ephemeral execution snapshots](Event-Trigger-Action-v0.4-job-templates.md). That
 document defines the protected `/api/jobs/action-jobs` and `/api/jobs/job-templates`

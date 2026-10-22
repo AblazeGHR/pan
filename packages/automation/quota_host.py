@@ -37,17 +37,16 @@ class ReadSource:
         root=Path(root).resolve();directory=(root/'plugins'/'cc-switch-bridge').resolve()
         if directory.parent!=(root/'plugins').resolve():raise ValueError('Bridge data path escaped profile')
         self.bridge=bridge or Bridge(directory)
+        if not hasattr(self.bridge,'read_only'):self.bridge=Bridge(directory,runner=self.bridge.runner)
         self.resolve=profile_resolver or resolve_profile_identity
         self.store_factory=store_factory or CodexQuotaStore
         self.clock=clock
 
-    def read(self):
+    def _metadata(self,deadline):
         from packages.core.codex_quota import normalize_codex_rate_limits
         at=self.clock();managed={'status':'unknown','defaultAccountId':None,'accountIds':[]}
         try:
-            self.bridge._deadline=time.monotonic()+8
-            # Deliberately not provider quota, auth default, or guessed auth quota.
-            raw=self.bridge.runner(['auth','status','--json'])
+            raw=self.bridge.read_only('managed',{'app':'codex'},deadline=deadline)
             rows=raw.get('accounts')
             ids=[r.get('id') for r in rows] if isinstance(rows,list) else []
             if (0<len(ids)<=128 and all(identity.identifier(i) for i in ids) and len(set(ids))==len(ids)
@@ -91,9 +90,20 @@ class ReadSource:
                         'source':record.get('source') if record.get('source') in ('app-server-push','wham-usage') else 'cache',
                         'providerUpdatedAt':None,'timestampMeaning':'local Pan observation/receipt, not provider update'}
         except Exception:pass
-        return {'observedAt':at,'managed':managed,'native':native,'binding':'unknown',
-                'reason':'managed_native_binding_and_all_account_windows_unavailable',
-                'policySnapshot':{'status':'unknown'},'profileBindings':{}}
+        return {'observedAt':at,'managed':managed,'native':native}
+
+    def read(self,disabled=()):
+        from .quota_provider import sample
+        deadline=time.monotonic()+8
+        value=self._metadata(deadline)
+        provider,snapshot=sample(self.bridge,frozenset(disabled),self.clock,deadline)
+        return {**value,'observedAt':self.clock(),'provider':provider,'identityDomains':{
+                    'provider':'cc-switch-provider:codex','native':'codex-native','managed':'cc-switch-managed:codex'},
+                'binding':'unknown',
+                'reason':'worker_provider_launch_binding_unavailable',
+                'policySnapshot':snapshot,'profileBindings':{}}
+
+    def read_for_policy(self,disabled):return self.read(disabled)
 
     def current(self, observation):
         # No external write CAS/account binding in the existing production API.
@@ -229,11 +239,14 @@ class HostAdapter(Adapter):
         return state
 
     async def sample(self):
-        state=await self.enabled();observed=await io(self.source.read)
+        state=await self.enabled()
+        read=getattr(self.source,'read_for_policy',None)
+        observed=await io(read,state['disabledAccountIds']) if read else await io(self.source.read)
         def publish(s):
-            if s['host']!=state['host'] or s['epoch']!=state['epoch']:raise Unavailable('host_configuration_changed')
+            if (s['host']!=state['host'] or s['epoch']!=state['epoch']
+                    or s['accountConfigRevision']!=state['accountConfigRevision']):raise Unavailable('host_configuration_changed')
             # ReadSource returns only whitelisted non-secret fields. Custom sources are trusted host code.
-            s['hostObservation']={k:copy.deepcopy(observed[k]) for k in ('observedAt','managed','native','binding','reason') if k in observed}
+            s['hostObservation']={k:copy.deepcopy(observed[k]) for k in ('observedAt','managed','native','provider','identityDomains','binding','reason') if k in observed}
         await io(self.store.change,publish)
         self.observation=observed
         return observed

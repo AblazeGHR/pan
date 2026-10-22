@@ -459,11 +459,16 @@ At most256 explicit roles; no inference from Session names. Defaults are disable
 and empty roles. Invalid400/auth401/stale409/persistence503. Changing this config
 increments policy epoch and fences old recovery plans; it does not enable effects.
 GET policy includes `host`, adapter `unavailable` (disabled) / `host-readonly`, and
-the last `hostObservation`. Managed default/account IDs and native profile/windows
-are separate fields; absent canonical binding keeps policy quota/current account
-unknown. Native status requires fresh observedAt AND receivedAt and both valid
+the last `hostObservation`. Provider, managed default and native profile/windows
+are separate identity domains. Policy quota now uses official provider IDs and
+`identityDomain:"cc-switch-provider:codex"`; compatibility currentAccountId and
+accounts[].id refer to provider IDs, never auth status IDs. Unverified Worker
+provider identity remains unknown independently. Native status requires fresh observedAt AND receivedAt and both valid
 fiveHour/week windows with future reset. GET does not run a new query; use the
 existing once/monitor95 query Job API after opt-in. No CLI args, credentials,
 account binding, mutation port or effects-enable flag can be provided by clients.
 Production switch/model/restart/send effects remain unbound. See the exact
 [host adapter contract and remaining wiring](../../../design/quota-host-v0.3.md).
+The [provider source contract](../../../design/quota-provider-identity-v0.3.md)
+defines bounded all-official sampling, disabled exclusions, strict window/time
+validation, provider before/after checks and the pending explicit launch binding.

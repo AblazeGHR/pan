@@ -32,6 +32,41 @@ class Bridge:
         self.data_dir = Path(data_dir)
         self.runner = runner or self._run
 
+    def read_only(self, operation, arguments, *, deadline=None):
+        """Bounded policy reads: no bridge lock/cache write or mutation command.
+
+        Use a request-local CLI deadline; concurrent reads must not change another
+        operation's budget. Existing invoke/Panel write contracts stay unchanged.
+        """
+        if arguments.get('app') != 'codex' or operation not in ('list', 'quota', 'managed'):
+            raise ValueError('Unsupported read-only operation')
+        expected = {'app', 'id'} if operation == 'quota' else {'app'}
+        if set(arguments) != expected:raise ValueError('Unknown read-only arguments')
+        local = Bridge(self.data_dir, None if self.runner == self._run else self.runner)
+        local._deadline = min(time.monotonic()+8, deadline) if deadline is not None else time.monotonic()+8
+        if time.monotonic() >= local._deadline:raise ValueError('Read budget exhausted')
+        if operation == 'managed':
+            raw = local.runner(['auth', 'status', '--json'])
+            if (not isinstance(raw,dict) or not isinstance(raw.get('accounts'),list) or len(raw['accounts'])>128
+                    or any(not isinstance(r,dict) for r in raw['accounts'])):
+                raise ValueError('Invalid managed metadata')
+            return {'default_account_id':raw.get('default_account_id'),
+                    'accounts':[{'id':r.get('id')} for r in raw.get('accounts',[]) if isinstance(r,dict)]}
+        if operation == 'list':
+            raw = local.runner(['--app', 'codex', 'provider', 'list', '--json'])
+            if (not isinstance(raw, dict) or not isinstance(raw.get('providers'), list) or len(raw['providers']) > 128
+                    or any(not isinstance(p,dict) for p in raw['providers'])):
+                raise ValueError('Invalid or oversized provider list')
+            return {'currentProviderId': raw.get('currentProviderId'), 'providers': [
+                {'id': p.get('id'), 'category': p.get('category')} for p in raw['providers'] if isinstance(p, dict)]}
+        provider_id = arguments['id']
+        if not isinstance(provider_id,str) or not provider_id or provider_id.startswith('-') or len(provider_id)>256:
+            raise ValueError('Invalid provider ID')
+        raw = local.runner(['--app', 'codex', 'provider', 'quota', provider_id, '--json'])
+        if not isinstance(raw,dict) or raw.get('providerId') != provider_id or raw.get('app') != 'codex':
+            raise ValueError('Quota provider identity mismatch')
+        return {'id': provider_id, 'app': 'codex', 'quota': normalize_quota(raw, strict=True)}
+
     def _run(self, args, json_output=True):
         settings = self.data_dir / 'settings.json'
         configured = json.loads(settings.read_text(encoding='utf-8')) if settings.exists() else {}
@@ -207,9 +242,18 @@ class Bridge:
         raise ValueError('未知 bridge 操作')
 
 
-def normalize_quota(raw):
+def normalize_quota(raw, strict=False):
     result = raw.get('result') or {}
     value = result.get('quota') or {}
+    if strict:
+        rows = value.get('tiers') if isinstance(value,dict) else None
+        if (raw.get('status')!='ok' or raw.get('available') is not True or raw.get('error')
+                or result.get('type')!='subscription' or value.get('success') is not True or value.get('error')
+                or not isinstance(rows,list) or not 1<=len(rows)<=32
+                or any(not isinstance(r,dict) or type(r.get('utilization')) not in (int,float)
+                       or not math.isfinite(r['utilization']) or not 0<=r['utilization']<=100 for r in rows)):
+            return {'status':'unknown','available':False,'queriedAt':raw.get('queriedAt'),
+                    'tiers':[],'balances':[],'message':'Provider quota unavailable'}
     tiers = []
     if result.get('type') == 'subscription':
         for row in value.get('tiers', []):

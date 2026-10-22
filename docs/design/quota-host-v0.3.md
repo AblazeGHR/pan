@@ -3,6 +3,10 @@
 This batch binds the policy to the existing Pan owner/Worker/Session and local
 quota store plus cc-switch read interfaces. It does not authorize real effects.
 
+The [provider identity correction](quota-provider-identity-v0.3.md) supersedes
+this document's initial source assumption: provider IDs and their own query API
+are the policy domain; managed/native mapping is not needed for provider quotas.
+
 ## Actual interface audit
 
 The existing GUI CLI contract `pan-cc-switch-gui/v1` implements `auth status
@@ -12,10 +16,10 @@ account/profile identity or each managed account's five-hour/week limits.
 Provider quota is provider-scoped, not evidence of an arbitrary managed account.
 Never query guessed commands, read the GUI DB or introduce OAuth handling.
 
-The production source reads auth status and the existing CodexQuotaStore for the
-actual local Codex profile. It reports default managed ID and actual native
-profile separately. Until a verified canonical binding exists, policy quota and
-currentAccountId remain unknown even when the native profile windows are known.
+The production source reads all enabled official provider quotas and brackets
+them with provider list reads. Policy currentAccountId means provider ID in the
+explicit cc-switch-provider:codex domain. Auth status and CodexQuotaStore remain
+separate optional managed/native metadata. No cross-domain mapping is inferred.
 Only the latest raw snapshot is classified by actual duration using codex_quota;
 merged old windows must not acquire a new timestamp from a partial update.
 Preserve local observedAt/receivedAt, providerUpdatedAt (unavailable), source,
@@ -79,5 +83,5 @@ full chain can persist and prove the required receipts. Existing policy order,
 verified idle-successor rules, Pause/Illegal/leases and unknown non-replay remain.
 
 No production effects can be enabled by this batch's API/config. Next phase must
-add guarded seams to those existing business entries and expose verified managed
-account binding/windows through the existing cc-switch owner, then bind them.
+add guarded seams to those existing business entries and verified per-Worker
+provider launch evidence; provider quota reads already use the existing CLI.

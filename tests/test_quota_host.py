@@ -33,6 +33,7 @@ def source_fixture(tmp_path,monkeypatch):
     store=CodexQuotaStore(profile,root=tmp_path/'quota')
     store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
     trace=tmp_path/'cli.jsonl';monkeypatch.setenv('PAN_TEST_QUOTA_HOST_TRACE',str(trace))
+    monkeypatch.setenv('PAN_TEST_QUOTA_HOST_NOW',str(now))
     def runner(args):
         result=subprocess.run([sys.executable,'tests/fixtures/quota_host_cli.py',*args],
             capture_output=True,encoding='utf-8',errors='strict',timeout=5,stdin=subprocess.DEVNULL,
@@ -54,11 +55,16 @@ def test_owned_fake_cli_and_native_quota_keep_identity_and_time_sources(tmp_path
     assert value['native']['windows']['week']['resetsAt']==now+86400
     assert value['native']['observedAt']==value['native']['receivedAt']==now
     assert value['native']['providerUpdatedAt'] is None
-    assert value['policySnapshot']['status']=='unknown' and value['profileBindings']=={}
+    assert value['policySnapshot']['status']=='known' and value['profileBindings']=={}
+    assert value['policySnapshot']['currentAccountId']=='provider-a'  # distinct identity domain
     assert value['binding']=='unknown' and not source.current(value)
     assert 'fixture-secret' not in json.dumps(value) and 'private-label' not in json.dumps(value)
     assert before=={p.name:p.read_bytes() for p in store.path.parent.iterdir()}
-    assert json.loads(trace.read_text(encoding='utf-8'))==['auth','status','--json']
+    commands=[json.loads(line) for line in trace.read_text(encoding='utf-8').splitlines()]
+    assert commands==[['auth','status','--json'],['--app','codex','provider','list','--json'],
+                      ['--app','codex','provider','quota','provider-a','--json'],
+                      ['--app','codex','provider','quota','provider-b','--json'],
+                      ['--app','codex','provider','list','--json']]
 
 
 @pytest.mark.parametrize('bad',['partial','stale','stale_receipt','future','missing_reset','wrong_duration','profile_changed','missing_cache','query_failure'])
@@ -81,7 +87,8 @@ def test_read_source_partial_stale_failure_unknown_without_guess(tmp_path,monkey
     else:
         def failed(args):raise RuntimeError('credential fixture-secret')
         source.bridge.runner=failed
-    value=source.read();assert value['policySnapshot']['status']=='unknown'
+    value=source.read()
+    assert value['policySnapshot']['status']==('unknown' if bad in ('stale','future','query_failure') else 'known')
     if bad!='query_failure':assert value['native']['status']=='unknown'
     else:assert value['managed']['status']=='unknown'
     assert 'fixture-secret' not in json.dumps(value)
