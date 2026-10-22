@@ -1,0 +1,30 @@
+{
+  "sourceSHA": "4a55e6776ad0571772b1b98263e0bf7e4c382f92",
+  "checks": [
+    {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/automation",
+        "packages/plugins/event_adapter.py",
+        "tests/test_event_store.py",
+        "tests/test_event_store_http.py",
+        "tests/test_automation_http.py",
+        "tests/test_eta_ledger_growth.py"
+      ],
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "output": ""
+    }
+  ]
+}

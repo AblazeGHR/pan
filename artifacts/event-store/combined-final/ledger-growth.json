@@ -1,0 +1,23 @@
+{
+  "samples": [
+    {
+      "runs": 1,
+      "bytes": 1042,
+      "readMs": 0.2748000042629428,
+      "atomicUpdateMs": 3.411400000914
+    },
+    {
+      "runs": 100,
+      "bytes": 56554,
+      "readMs": 0.50560000090627,
+      "atomicUpdateMs": 5.483599998115096
+    },
+    {
+      "runs": 1000,
+      "bytes": 564154,
+      "readMs": 3.0306999979075044,
+      "atomicUpdateMs": 32.884400003240444
+    }
+  ],
+  "retention": "7-day terminal pruning with protected pending/uncertain records; finite synthetic sample only, not a capacity guarantee"
+}

@@ -1,0 +1,28 @@
+{
+  "sourceSHA": "c818b7f15c0afae37432813768e03c49409f46ff",
+  "checks": [
+    {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/automation",
+        "packages/plugins/event_adapter.py",
+        "tests/test_event_store.py",
+        "tests/test_event_store_http.py"
+      ],
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 2,
+      "output": "warning: in the working copy of 'artifacts/eta-final/browser.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'artifacts/eta-final/recovery/browser.json', LF will be replaced by CRLF the next time Git touches it\nartifacts/eta-final/browser-recovery.log:2: new blank line at EOF.\nartifacts/eta-final/browser.log:2: new blank line at EOF.\n"
+    }
+  ]
+}

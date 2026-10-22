@@ -1,0 +1,19 @@
+{
+  "sourceSHA": "c818b7f15c0afae37432813768e03c49409f46ff",
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_eta_final_combined.py",
+    "tests/test_eta_ledger_growth.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=artifacts/event-store/combined-final.xml"
+  ],
+  "exitCode": 0,
+  "seconds": 12.696712255477905
+}
