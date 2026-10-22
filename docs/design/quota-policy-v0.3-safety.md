@@ -67,6 +67,15 @@ eligible set; missing frozen evidence blocks rather than inventing a task. MA
 targets require explicit MA role and configured Session ID as well. Role changes
 cannot silently promote a target into either role.
 
+Reminder query Jobs also freeze `quotaPolicy.wakeTarget` at creation. A fresh95%
+observation cannot adopt a new MA task. A new MA process is eligible only through
+a persisted completed `restart_ma` receipt with a verified successor for the same
+frozen unfinished task, followed by a fresh inventory check. Missing Job identity
+is blocked; a one-shot diagnostic query never wakes anyone. Account-bound monitor
+creation requires current MA/task proof as well as known quota. Replacing an old
+monitor's target requires an explicit new policy epoch, not a repeat request that
+silently retargets the existing Job.
+
 Commands carry contractVersion2, expected account configuration revision, runtime
 epoch and applicable frozen Worker/task preconditions. Legacy pending commands
 without these identities become blocked; recovered dispatching remains uncertain.

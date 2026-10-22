@@ -125,7 +125,7 @@ async def test_switch_preflight_rechecks_disabled_and_fresh_quota(tmp_path):
 
 
 @pytest.mark.parametrize('phase',['before_plan','before_send'])
-@pytest.mark.parametrize('change',['completed','idle','offline','unknown_task','different_task','new_generation','new_process','role_changed','wrong_account'])
+@pytest.mark.parametrize('change',['completed','idle','offline','unknown_task','different_task','different_execution','new_generation','new_process','role_changed','wrong_account'])
 @async_test
 async def test_wake_rechecks_current_task_process_role_and_successor(tmp_path,phase,change):
     rt,f=await switched(tmp_path);await rt.dispatch()
@@ -136,6 +136,7 @@ async def test_wake_rechecks_current_task_process_role_and_successor(tmp_path,ph
     elif change=='offline':w.update(status='offline',alive=False)
     elif change=='unknown_task':w['task']=None
     elif change=='different_task':w['task']['taskId']='unrelated'
+    elif change=='different_execution':w['task']['executionSeq']+=1
     elif change=='new_generation':w['generation']+=1
     elif change=='new_process':w['processIdentity']['birthToken']='unrelated-process'
     elif change=='wrong_account':w['accountId']='not-the-selected-account'
@@ -271,6 +272,43 @@ async def test_concurrent_disabled_updates_require_one_current_revision(tmp_path
     assert sum(isinstance(result,Conflict) for result in results)==1
     assert rt.store.read()['disabledAccountIds'] in (['b'],['c'])
     assert rt.store.read()['accountConfigRevision']==1
+
+
+@async_test
+async def test_monitor_does_not_retarget_a_new_ma_task_after_creation(tmp_path):
+    rt,f=await setup(tmp_path);job=await rt.create_monitor()
+    ma=next(w for w in f.workers if w['role']=='ma')
+    ma['task']['taskId']='new-unrelated-ma-task'
+    f.accounts[0]['fiveHour']['usedPercent']=95
+    j=jobs.get(job['jobId'],rt.root);j['schedule'][0]['nextFireAt']='2000-01-01T00:00:00'
+    jobs._write_job(jobs._job_path(j['jobId'],rt.root),j)
+    await rt.tick_jobs();await rt.dispatch()
+    assert not any(c['operation']=='wake_ma' for c in f.effects)
+
+
+@async_test
+async def test_monitor_follows_only_verified_ma_successor_with_same_task(tmp_path):
+    rt,f=await switched(tmp_path);await rt.dispatch();await rt.progress_restarts()
+    for _ in range(4):await rt.dispatch()
+    assert any(c['operation']=='restart_ma' for c in f.effects)
+    monitor=next(j for j in jobs.list_jobs(rt.root) if j['quotaPolicy']['purpose']=='monitor95')
+    assert monitor['quotaPolicy']['wakeTarget']['generation']==4
+    next(r for r in f.accounts if r['id']==f.currentAccountId)['fiveHour']['usedPercent']=95
+    monitor['schedule'][0]['nextFireAt']='2000-01-01T00:00:00'
+    jobs._write_job(jobs._job_path(monitor['jobId'],rt.root),monitor)
+    await rt.tick_jobs();await rt.dispatch()
+    wake=next(c for c in f.effects if c['operation']=='wake_ma')
+    assert wake['arguments']['original']['generation']==4
+    assert wake['arguments']['worker']['generation']==5
+    assert wake['arguments']['worker']['task']==wake['arguments']['original']['task']
+
+
+@async_test
+async def test_monitor_missing_ma_task_cannot_create_implicit_wake(tmp_path):
+    rt,f=await setup(tmp_path)
+    next(w for w in f.workers if w['role']=='ma')['task']=None
+    with pytest.raises(ValueError,match='unfinished task identity unknown'):await rt.create_monitor()
+    assert not jobs.list_jobs(rt.root)
 
 
 def test_runtime_epoch_is_host_correlation_not_provider_assertion():

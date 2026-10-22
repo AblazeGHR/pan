@@ -282,6 +282,8 @@ class Runtime:
         if target in state['disabledAccountIds'] and op!='reset_wake_job':
             return 'blocked','account_disabled'
         if op in ('reset_wake_job','monitor95_job'):
+            if op=='monitor95_job' and not identity.wake_eligible(args.get('wakeTarget'),args.get('wakeTarget')):
+                return 'blocked','frozen_ma_task_missing'
             return 'ok',''
         inventory=await self.inventory()
         if inventory is None:return 'blocked','inventory_unknown'
@@ -356,10 +358,12 @@ class Runtime:
                 await io(self.finish,key,'cancelled');continue
             try:
                 if command['operation']=='reset_wake_job':
-                    job=await io(self.ensure_job,latest,'reset',command['arguments']['at'])
+                    args=command['arguments']
+                    ma=next((w for w in args['blockedWorkers'] if w['sessionId']==args['sessionId'] and w['role']=='ma'),None)
+                    job=await io(self.ensure_job,latest,'reset',args['at'],None,ma)
                     receipt={'key':key,'status':'confirmed','jobId':job['jobId']}
                 elif command['operation']=='monitor95_job':
-                    job=await io(self.ensure_job,latest,'monitor95',None,command['arguments']['expectedAccountId'])
+                    job=await io(self.ensure_job,latest,'monitor95',None,command['arguments']['expectedAccountId'],command['arguments']['wakeTarget'])
                     receipt={'key':key,'status':'confirmed','jobId':job['jobId']}
                 else:receipt=await asyncio.wait_for(self.adapter.perform(copy.deepcopy(command),key),10)
             except Unavailable:
@@ -437,7 +441,7 @@ class Runtime:
                 if current and identity.wake_eligible(ma,current):
                     self.command(s,cid,'ma_resume_job',worker=ma,runtimeEpoch=args['runtimeEpoch'],expectedAccountId=args['expectedAccountId'])
                 else:s['cases'][cid]['maRecovery']='blocked_missing_current_unfinished_ma'
-                self.command(s,cid,'monitor95_job',runtimeEpoch=args['runtimeEpoch'],expectedAccountId=args['expectedAccountId'])
+                self.command(s,cid,'monitor95_job',wakeTarget=ma,runtimeEpoch=args['runtimeEpoch'],expectedAccountId=args['expectedAccountId'])
         await io(self.store.change,update)
 
     async def recover(self):
@@ -454,29 +458,33 @@ class Runtime:
         if state['mode']!='automatic':raise ValueError('Automatic policy required')
         if expected is not None and (type(expected) is not int or expected!=state['revision']):raise ValueError('Quota policy revision changed')
         if kind not in ('monitor95','once'):raise ValueError('Unknown quota query Job kind')
-        account=None
+        account=None;wake_target=None
         if kind=='monitor95':
             quota=await self.query()
             if quota['status']!='known':raise ValueError('Cannot bind monitor: quota/current account unknown')
             account=quota['currentAccountId']
+            inventory=await self.inventory()
+            wake_target=next((identity.worker(w,inventory['runtimeEpoch']) for w in inventory['workers']
+                              if w.get('sessionId')==state['maSessionId'] and w.get('role')=='ma'),None) if inventory else None
+            if not identity.wake_eligible(wake_target,wake_target):raise ValueError('Cannot bind monitor: MA/unfinished task identity unknown')
         latest=await io(self.store.read)
         if self.closed or latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
             raise ValueError('Quota policy changed during query')
         if account in latest['disabledAccountIds']:raise ValueError('Cannot monitor disabled account')
-        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account)
+        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account,wake_target)
 
-    def ensure_job(self,state,purpose,at,account=None):
+    def ensure_job(self,state,purpose,at,account=None,wake_target=None):
         if purpose=='monitor95':
             # Profile-local query Job admission only; called off the event loop.
-            with self.monitor_lock:return self._ensure_job(state,purpose,at,account)
-        return self._ensure_job(state,purpose,at,account)
+            with self.monitor_lock:return self._ensure_job(state,purpose,at,account,wake_target)
+        return self._ensure_job(state,purpose,at,account,wake_target)
 
-    def _ensure_job(self,state,purpose,at,account=None):
+    def _ensure_job(self,state,purpose,at,account=None,wake_target=None):
         from packages.scheduler.store import _job_from_payload
         jid='job_'+fingerprint([str(self.root),state['epoch'],purpose,account])[:24]
         existing=jobs.get(jid,self.root)
         if existing:
-            if existing.get('quotaPolicy')!={'contractVersion':CONTRACT_VERSION,'epoch':state['epoch'],'purpose':purpose,'maSessionId':state['maSessionId'],'expectedAccountId':account}:
+            if existing.get('quotaPolicy')!={'contractVersion':CONTRACT_VERSION,'epoch':state['epoch'],'purpose':purpose,'maSessionId':state['maSessionId'],'expectedAccountId':account,'wakeTarget':wake_target}:
                 raise ValueError('Quota query Job identity conflict')
             self.store.change(lambda s:s['jobs'].update({purpose:jid}))
             return jobs.job_public_view(existing)
@@ -487,7 +495,7 @@ class Runtime:
         from datetime import datetime
         specs=[{'kind':'interval','intervalSec':60}] if at is None else [{'kind':'once','at':datetime.fromtimestamp(at).isoformat()}]
         job=_job_from_payload({'name':'Quota '+purpose,'enabled':True,'action':{'api':'quota_query'},'_schedule_specs':specs,'_misfire':'fire_now','_max_runs':None})
-        job.update(jobId=jid,quotaPolicy={'contractVersion':CONTRACT_VERSION,'epoch':state['epoch'],'purpose':purpose,'maSessionId':state['maSessionId'],'expectedAccountId':account})
+        job.update(jobId=jid,quotaPolicy={'contractVersion':CONTRACT_VERSION,'epoch':state['epoch'],'purpose':purpose,'maSessionId':state['maSessionId'],'expectedAccountId':account,'wakeTarget':wake_target})
         try:jobs._create(job,self.root)
         except ValueError:
             existing=jobs.get(jid,self.root)
@@ -510,7 +518,7 @@ class Runtime:
         for job in await io(jobs.list_jobs,self.root):
             if not protected(job):continue
             policy=job['quotaPolicy']
-            if policy.get('contractVersion')!=CONTRACT_VERSION:
+            if policy.get('contractVersion')!=CONTRACT_VERSION or (policy['purpose']!='once' and not identity.wake_eligible(policy.get('wakeTarget'),policy.get('wakeTarget'))):
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'blocked','quotaResult':{'status':'unknown','reason':'legacy_identity_missing'}},registry_root=self.root);continue
             if state['mode']!='automatic' or policy['epoch']!=state['epoch']:
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root);continue
@@ -536,13 +544,22 @@ class Runtime:
                     continue
             if trigger:
                 inventory=await self.inventory()
-                ma=next((identity.worker(w,inventory['runtimeEpoch']) for w in inventory['workers']
-                         if w.get('sessionId')==policy['maSessionId'] and w.get('role')=='ma'),None) if inventory else None
+                original=policy.get('wakeTarget');target=original
+                ma=identity.current(inventory,target) if inventory and target else None
+                if inventory and original and ma is None:
+                    # Only a persisted verified restart can transfer this exact task.
+                    for c in latest['commands'].values():
+                        old=c['arguments'].get('worker');successor=c.get('successor')
+                        if (c['operation']=='restart_ma' and c['status']=='completed' and c.get('contractVersion')==CONTRACT_VERSION
+                                and identity.frozen(old) and identity.same_worker(old,original)
+                                and identity.wake_eligible(original,successor)):
+                            target=successor;ma=identity.current(inventory,target)
+                            break
                 def wake(s):
                     if s['mode']=='automatic' and s['epoch']==policy['epoch'] and snapshot['currentAccountId'] not in s['disabledAccountIds']:
-                        if ma and identity.wake_eligible(ma,ma):
-                            self.command(s,job['jobId'],'wake_ma',worker=ma,runtimeEpoch=inventory['runtimeEpoch'],reason=policy['purpose'],expectedAccountId=snapshot['currentAccountId'])
-                        else:s['jobs']['wakeDiagnostic']='blocked_missing_current_unfinished_ma'
+                        if ma and identity.wake_eligible(original,ma):
+                            self.command(s,job['jobId'],'wake_ma',worker=target,original=original,runtimeEpoch=inventory['runtimeEpoch'],reason=policy['purpose'],expectedAccountId=snapshot['currentAccountId'])
+                        else:s['lastWakeDiagnostic']={'jobId':job['jobId'],'reason':'blocked_missing_current_unfinished_ma'}
                 await io(self.store.change,wake)
             next_fire=jobs._entry_next_fire(entry,datetime.now().replace(microsecond=0)) if entry['kind']!='once' else None
             await io(jobs._apply_entry_change,job['jobId'],entry['id'],{'nextFireAt':jobs._iso_local(next_fire)},

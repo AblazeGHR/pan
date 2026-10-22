@@ -67,6 +67,8 @@ def current(inventory, target):
 
 def wake_eligible(original, successor):
     return (frozen(original) is not None and frozen(successor) is not None
+            and all(original[k] == successor[k] for k in ('runtimeEpoch', 'sessionId', 'adapter'))
+            and successor['generation'] >= original['generation']
             and original.get('role') in ('ta', 'ma') and successor.get('role') == original['role']
             and original['status'] == successor['status'] == 'running'
             and unfinished(original.get('task')) is not None
