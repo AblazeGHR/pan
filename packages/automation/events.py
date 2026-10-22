@@ -14,8 +14,9 @@ def now():
 
 
 class Bus:
-    def __init__(self, capacity=128):
+    def __init__(self, capacity=128, durable=None):
         self.capacity = capacity
+        self.durable = durable
         self.definitions = {}
         self.handles = {}
         self.subscribers = {}
@@ -76,8 +77,8 @@ class Bus:
                     queue.task_done()
         self.subscribers[name] = (handle, queue, asyncio.create_task(consume()))
 
-    def publish(self, handle, event_type, payload, event_id=None):
-        if len(json.dumps(payload).encode('utf-8')) > 65536:
+    def prepare(self, handle, event_type, payload, event_id=None):
+        if len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')) > 65536:
             raise ValueError('Event payload exceeds 64 KiB')
         if event_id is not None and (not isinstance(event_id, str) or not event_id or len(event_id) > 128):
             raise ValueError('Invalid Event ID')
@@ -87,6 +88,21 @@ class Bus:
             raise ValueError('Runtime is not eligible to publish this Event')
         jsonschema.Draft202012Validator(definition['schema']).validate(payload)
         event = dict(id=event_id or 'evt_' + uuid.uuid4().hex, type=event_type, schemaVersion=definition['schemaVersion'], source=source.copy(), occurredAt=now(), payload=copy.deepcopy(payload))
+        return event
+
+    def publish(self, handle, event_type, payload, event_id=None):
+        if self.durable is not None:
+            raise ValueError('Durable runtime requires await bus.publish_async')
+        return self._fanout(self.prepare(handle, event_type, payload, event_id))
+
+    async def publish_async(self, handle, event_type, payload, event_id=None):
+        event = self.prepare(handle, event_type, payload, event_id)
+        if self.durable is None:
+            return self._fanout(event)
+        receipt = await self.durable(event, handle)
+        return {**receipt, 'persisted': True, 'accepted': True, 'rejected': []}
+
+    def _fanout(self, event):
         rejected = []
         for name, (_, queue, _) in self.subscribers.items():
             try:

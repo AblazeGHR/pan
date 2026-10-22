@@ -199,7 +199,7 @@ class EventConnection:
                             raise ValueError('Invalid Event publication fields; source is connection-bound')
                         if params.get('generation') != self.generation or not self.ready or not await self.manager.eligible(self):
                             raise ValueError('Event connection is no longer eligible')
-                        result = self.manager.service.bus.publish(self.handle, params['type'], params['payload'], params.get('event_id'))
+                        result = await self.manager.service.bus.publish_async(self.handle, params['type'], params['payload'], params.get('event_id'))
                         reply = {'result': result}
                     except Exception as exc:
                         self.manager.diagnostic(self.plugin.id, str(exc))

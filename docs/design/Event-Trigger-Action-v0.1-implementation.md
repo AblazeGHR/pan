@@ -33,3 +33,16 @@ workspaceIds 使用现有托管根 effective_workspace_ids，pinned 使用共享
 新增后端模板/语法发现支持，Agent 草稿仍关闭、Trigger 用户授权和旧 Group/provider
 安全门禁不变。完整字段/参数/边界以 core-contract 的 Session query 小节为准。
 本任务不改 React、外部插件适配或其他 TA 工作树，不移动 main/practical。
+
+
+## Next phase: durable Event Store foundation (2026-10-22)
+
+The separately authorized next phase supersedes the v0.1 volatile-event and
+indefinite-ledger limitations; its executable scope and migration boundaries are
+[Event Store foundation](Event-Trigger-Action-v0.2-event-store.md). Existing
+Trigger/State, dynamic Action, Session selector, plugin generation, Group release
+pin, Pause/Illegal and legacy admission contracts remain applicable. This phase
+does not implement Job Templates, new Action snapshots, retry policies, parallel
+execution modes, or durable plugin subscription transport. Older design sections
+that defer durable Event storage describe v0.1, not completion of those other
+future stages. Overall human acceptance remains separate from automated evidence.

@@ -1,0 +1,1755 @@
+{
+  "port": 55296,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile",
+  "processes": [
+    {
+      "pid": 22616,
+      "created": 1792637972.7051687,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 41088,
+      "created": 1792637972.7107675,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45676,
+      "created": 1792637972.7228875,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 38784,
+      "created": 1792637973.8599665,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 38108,
+      "created": 1792637973.904356,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 42428,
+      "created": 1792637974.019386,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 35676,
+      "created": 1792637974.0237703,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 36320,
+      "created": 1792637974.036527,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 43204,
+      "created": 1792637974.1043649,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40964,
+      "created": 1792637974.1256936,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 35856,
+      "created": 1792637973.9084136,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 44512,
+      "created": 1792637973.9233198,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 44780,
+      "created": 1792637973.8684044,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 35728,
+      "created": 1792637973.8824596,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 22616,
+      "created": 1792637972.7051687,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 41088,
+      "created": 1792637972.7107675,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45676,
+      "created": 1792637972.7228875,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 38784,
+      "created": 1792637973.8599665,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 35332,
+      "created": 1792637978.0167367,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}",
+        "--resume",
+        "fake-44512"
+      ]
+    },
+    {
+      "pid": 49288,
+      "created": 1792637978.217629,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 32568,
+      "created": 1792637978.223921,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 43372,
+      "created": 1792637978.2373345,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 20900,
+      "created": 1792637978.3063745,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 2784,
+      "created": 1792637978.3286057,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39400,
+      "created": 1792637978.0211267,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46632,
+      "created": 1792637978.03752,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}",
+        "--resume",
+        "fake-44512"
+      ]
+    },
+    {
+      "pid": 44780,
+      "created": 1792637973.8684044,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 35728,
+      "created": 1792637973.8824596,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 28200,
+      "created": 1792637978.861086,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 42604,
+      "created": 1792637978.8652437,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 8164,
+      "created": 1792637978.878221,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 30212,
+      "created": 1792637979.606569,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 39780,
+      "created": 1792637979.6145089,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10516,
+      "created": 1792637979.6278515,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 37012,
+      "created": 1792637979.6954565,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 17484,
+      "created": 1792637979.7192469,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 28200,
+      "created": 1792637978.861086,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 42604,
+      "created": 1792637978.8652437,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 8164,
+      "created": 1792637978.878221,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "55296",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile"
+      ]
+    },
+    {
+      "pid": 30212,
+      "created": 1792637979.606569,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 39780,
+      "created": 1792637979.6145089,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10516,
+      "created": 1792637979.6278515,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 37012,
+      "created": 1792637979.6954565,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 17484,
+      "created": 1792637979.7192469,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    }
+  ],
+  "testedSha": "4a55e6776ad0571772b1b98263e0bf7e4c382f92",
+  "buildIndexSha256": "df454b7c0cc700bd3c998e84512210b61cdeeef321729e8437f6dfb4719cb53c",
+  "run": {
+    "id": "run_5cf15b1b71a146ef86848d321f66a58f",
+    "triggerId": "t",
+    "triggerRevision": 1,
+    "actionId": "pause",
+    "event": {
+      "id": "combined-event",
+      "type": "producer.ping",
+      "schemaVersion": 1,
+      "source": {
+        "type": "plugin",
+        "id": "producer"
+      },
+      "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+      "payload": {
+        "value": 1
+      }
+    },
+    "createdAt": "2026-10-22T02:59:34.215896+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {},
+    "revision": 7,
+    "attempts": [
+      {
+        "id": "att_1123b60c270d439a817ff2cbdd186d07",
+        "number": 1,
+        "status": "succeeded",
+        "startedAt": "2026-10-22T02:59:34.225286+00:00",
+        "targetIds": [
+          "ses_0ab53bb8f44d8361"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_0ab53bb8f44d8361",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_873f4f703c9d441ea5bb554db995e875",
+                "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                "kind": "task",
+                "text": "combined-blocked",
+                "createdAt": 1792637973.9365976,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": true,
+                  "lockManual": true,
+                  "lockSource": "manual",
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 2,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "finishedAt": "2026-10-22T02:59:34.246238+00:00",
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_0ab53bb8f44d8361",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_873f4f703c9d441ea5bb554db995e875",
+                  "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                  "kind": "task",
+                  "text": "combined-blocked",
+                  "createdAt": 1792637973.9365976,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": true,
+                    "lockManual": true,
+                    "lockSource": "manual",
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 2,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        }
+      }
+    ],
+    "attemptCount": 1,
+    "startedAt": "2026-10-22T02:59:34.225286+00:00",
+    "activeAttemptId": "att_1123b60c270d439a817ff2cbdd186d07",
+    "actionDigest": "81f42c222867bf51ab03f508be23129869c40b31e2be77713de53d64ec7ca75d",
+    "action": {
+      "id": "pause",
+      "name": "Combined query pause",
+      "enabled": true,
+      "effect": "write_local",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "execution": {
+        "kind": "session_operation",
+        "operation": "pause_everything",
+        "selector": {
+          "mode": "query",
+          "query": {
+            "field": "name",
+            "op": "eq",
+            "value": "combined-target"
+          }
+        }
+      },
+      "description": "Combined query pause",
+      "output_format": "json"
+    },
+    "targetIds": [
+      "ses_0ab53bb8f44d8361"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_0ab53bb8f44d8361",
+        "ok": true,
+        "items": [
+          {
+            "id": "q_873f4f703c9d441ea5bb554db995e875",
+            "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+            "kind": "task",
+            "text": "combined-blocked",
+            "createdAt": 1792637973.9365976,
+            "source": "user",
+            "meta": {
+              "seq": 1,
+              "taskId": null,
+              "revision": 1,
+              "dispatchState": "queued",
+              "locked": true,
+              "lockManual": true,
+              "lockSource": "manual",
+              "illegalBatchId": null,
+              "lockAutoReport": false,
+              "steerPending": false,
+              "steerError": null
+            }
+          }
+        ],
+        "queueRevision": 2,
+        "agentReportsPaused": false,
+        "queuePaused": true
+      }
+    ],
+    "selection": {
+      "mode": "query",
+      "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+      "candidateCount": 3,
+      "matched": 1
+    },
+    "result": {
+      "ok": true,
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0,
+      "targets": [
+        {
+          "sessionId": "ses_0ab53bb8f44d8361",
+          "ok": true,
+          "items": [
+            {
+              "id": "q_873f4f703c9d441ea5bb554db995e875",
+              "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+              "kind": "task",
+              "text": "combined-blocked",
+              "createdAt": 1792637973.9365976,
+              "source": "user",
+              "meta": {
+                "seq": 1,
+                "taskId": null,
+                "revision": 1,
+                "dispatchState": "queued",
+                "locked": true,
+                "lockManual": true,
+                "lockSource": "manual",
+                "illegalBatchId": null,
+                "lockAutoReport": false,
+                "steerPending": false,
+                "steerError": null
+              }
+            }
+          ],
+          "queueRevision": 2,
+          "agentReportsPaused": false,
+          "queuePaused": true
+        }
+      ]
+    },
+    "finishedAt": "2026-10-22T02:59:34.246238+00:00"
+  },
+  "queue": {
+    "items": [
+      {
+        "id": "q_873f4f703c9d441ea5bb554db995e875",
+        "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+        "kind": "task",
+        "text": "combined-blocked",
+        "createdAt": 1792637973.9365976,
+        "source": "user",
+        "meta": {
+          "seq": 1,
+          "taskId": null,
+          "revision": 1,
+          "dispatchState": "queued",
+          "locked": false,
+          "lockManual": false,
+          "lockSource": null,
+          "illegalBatchId": null,
+          "lockAutoReport": false,
+          "steerPending": false,
+          "steerError": null
+        }
+      }
+    ],
+    "queueRevision": 3,
+    "agentReportsPaused": false,
+    "queuePaused": true
+  },
+  "state": {
+    "revision": 18,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": true,
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-22T02:59:33.998946+00:00",
+        "updatedAt": "2026-10-22T02:59:33.998952+00:00"
+      }
+    },
+    "runs": {
+      "run_5cf15b1b71a146ef86848d321f66a58f": {
+        "id": "run_5cf15b1b71a146ef86848d321f66a58f",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "combined-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T02:59:34.215896+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_1123b60c270d439a817ff2cbdd186d07",
+            "number": 1,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T02:59:34.225286+00:00",
+            "targetIds": [
+              "ses_0ab53bb8f44d8361"
+            ],
+            "targetResults": [
+              {
+                "sessionId": "ses_0ab53bb8f44d8361",
+                "ok": true,
+                "items": [
+                  {
+                    "id": "q_873f4f703c9d441ea5bb554db995e875",
+                    "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                    "kind": "task",
+                    "text": "combined-blocked",
+                    "createdAt": 1792637973.9365976,
+                    "source": "user",
+                    "meta": {
+                      "seq": 1,
+                      "taskId": null,
+                      "revision": 1,
+                      "dispatchState": "queued",
+                      "locked": true,
+                      "lockManual": true,
+                      "lockSource": "manual",
+                      "illegalBatchId": null,
+                      "lockAutoReport": false,
+                      "steerPending": false,
+                      "steerError": null
+                    }
+                  }
+                ],
+                "queueRevision": 2,
+                "agentReportsPaused": false,
+                "queuePaused": true
+              }
+            ],
+            "selection": {
+              "mode": "query",
+              "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+              "candidateCount": 3,
+              "matched": 1
+            },
+            "finishedAt": "2026-10-22T02:59:34.246238+00:00",
+            "result": {
+              "ok": true,
+              "matched": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "targets": [
+                {
+                  "sessionId": "ses_0ab53bb8f44d8361",
+                  "ok": true,
+                  "items": [
+                    {
+                      "id": "q_873f4f703c9d441ea5bb554db995e875",
+                      "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                      "kind": "task",
+                      "text": "combined-blocked",
+                      "createdAt": 1792637973.9365976,
+                      "source": "user",
+                      "meta": {
+                        "seq": 1,
+                        "taskId": null,
+                        "revision": 1,
+                        "dispatchState": "queued",
+                        "locked": true,
+                        "lockManual": true,
+                        "lockSource": "manual",
+                        "illegalBatchId": null,
+                        "lockAutoReport": false,
+                        "steerPending": false,
+                        "steerError": null
+                      }
+                    }
+                  ],
+                  "queueRevision": 2,
+                  "agentReportsPaused": false,
+                  "queuePaused": true
+                }
+              ]
+            }
+          }
+        ],
+        "attemptCount": 1,
+        "startedAt": "2026-10-22T02:59:34.225286+00:00",
+        "activeAttemptId": "att_1123b60c270d439a817ff2cbdd186d07",
+        "actionDigest": "81f42c222867bf51ab03f508be23129869c40b31e2be77713de53d64ec7ca75d",
+        "action": {
+          "id": "pause",
+          "name": "Combined query pause",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "field": "name",
+                "op": "eq",
+                "value": "combined-target"
+              }
+            }
+          },
+          "description": "Combined query pause",
+          "output_format": "json"
+        },
+        "targetIds": [
+          "ses_0ab53bb8f44d8361"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_0ab53bb8f44d8361",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_873f4f703c9d441ea5bb554db995e875",
+                "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                "kind": "task",
+                "text": "combined-blocked",
+                "createdAt": 1792637973.9365976,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": true,
+                  "lockManual": true,
+                  "lockSource": "manual",
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 2,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_0ab53bb8f44d8361",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_873f4f703c9d441ea5bb554db995e875",
+                  "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                  "kind": "task",
+                  "text": "combined-blocked",
+                  "createdAt": 1792637973.9365976,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": true,
+                    "lockManual": true,
+                    "lockSource": "manual",
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 2,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-22T02:59:34.246238+00:00"
+      },
+      "restart-queued": {
+        "id": "restart-queued",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "restart-queued",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T02:59:34.215896+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_1123b60c270d439a817ff2cbdd186d07",
+            "number": 1,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T02:59:39.768250+00:00",
+            "targetIds": [
+              "ses_0ab53bb8f44d8361"
+            ],
+            "targetResults": [
+              {
+                "sessionId": "ses_0ab53bb8f44d8361",
+                "ok": true,
+                "items": [
+                  {
+                    "id": "q_873f4f703c9d441ea5bb554db995e875",
+                    "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                    "kind": "task",
+                    "text": "combined-blocked",
+                    "createdAt": 1792637973.9365976,
+                    "source": "user",
+                    "meta": {
+                      "seq": 1,
+                      "taskId": null,
+                      "revision": 1,
+                      "dispatchState": "queued",
+                      "locked": false,
+                      "lockManual": false,
+                      "lockSource": null,
+                      "illegalBatchId": null,
+                      "lockAutoReport": false,
+                      "steerPending": false,
+                      "steerError": null
+                    }
+                  }
+                ],
+                "queueRevision": 3,
+                "agentReportsPaused": false,
+                "queuePaused": true
+              }
+            ],
+            "selection": {
+              "mode": "query",
+              "matchedAt": "2026-10-22T02:59:39.779024+00:00",
+              "candidateCount": 3,
+              "matched": 1
+            },
+            "finishedAt": "2026-10-22T02:59:39.788055+00:00",
+            "result": {
+              "ok": true,
+              "matched": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "targets": [
+                {
+                  "sessionId": "ses_0ab53bb8f44d8361",
+                  "ok": true,
+                  "items": [
+                    {
+                      "id": "q_873f4f703c9d441ea5bb554db995e875",
+                      "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                      "kind": "task",
+                      "text": "combined-blocked",
+                      "createdAt": 1792637973.9365976,
+                      "source": "user",
+                      "meta": {
+                        "seq": 1,
+                        "taskId": null,
+                        "revision": 1,
+                        "dispatchState": "queued",
+                        "locked": false,
+                        "lockManual": false,
+                        "lockSource": null,
+                        "illegalBatchId": null,
+                        "lockAutoReport": false,
+                        "steerPending": false,
+                        "steerError": null
+                      }
+                    }
+                  ],
+                  "queueRevision": 3,
+                  "agentReportsPaused": false,
+                  "queuePaused": true
+                }
+              ]
+            }
+          }
+        ],
+        "attemptCount": 1,
+        "startedAt": "2026-10-22T02:59:39.768250+00:00",
+        "activeAttemptId": "att_1123b60c270d439a817ff2cbdd186d07",
+        "actionDigest": "81f42c222867bf51ab03f508be23129869c40b31e2be77713de53d64ec7ca75d",
+        "action": {
+          "id": "pause",
+          "name": "Combined query pause",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "field": "name",
+                "op": "eq",
+                "value": "combined-target"
+              }
+            }
+          },
+          "description": "Combined query pause",
+          "output_format": "json"
+        },
+        "targetResults": [
+          {
+            "sessionId": "ses_0ab53bb8f44d8361",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_873f4f703c9d441ea5bb554db995e875",
+                "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                "kind": "task",
+                "text": "combined-blocked",
+                "createdAt": 1792637973.9365976,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": false,
+                  "lockManual": false,
+                  "lockSource": null,
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 3,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-22T02:59:39.779024+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_0ab53bb8f44d8361",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_873f4f703c9d441ea5bb554db995e875",
+                  "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                  "kind": "task",
+                  "text": "combined-blocked",
+                  "createdAt": 1792637973.9365976,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": false,
+                    "lockManual": false,
+                    "lockSource": null,
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 3,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-22T02:59:39.788055+00:00",
+        "targetIds": [
+          "ses_0ab53bb8f44d8361"
+        ]
+      },
+      "restart-running": {
+        "id": "restart-running",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "restart-running",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T02:59:34.215896+00:00",
+        "status": "uncertain",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 2,
+        "attempts": [
+          {
+            "id": "att_1123b60c270d439a817ff2cbdd186d07",
+            "number": 1,
+            "status": "uncertain",
+            "startedAt": "2026-10-22T02:59:34.225286+00:00",
+            "targetIds": [
+              "ses_0ab53bb8f44d8361"
+            ],
+            "targetResults": [
+              {
+                "sessionId": "ses_0ab53bb8f44d8361",
+                "ok": true,
+                "items": [
+                  {
+                    "id": "q_873f4f703c9d441ea5bb554db995e875",
+                    "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                    "kind": "task",
+                    "text": "combined-blocked",
+                    "createdAt": 1792637973.9365976,
+                    "source": "user",
+                    "meta": {
+                      "seq": 1,
+                      "taskId": null,
+                      "revision": 1,
+                      "dispatchState": "queued",
+                      "locked": true,
+                      "lockManual": true,
+                      "lockSource": "manual",
+                      "illegalBatchId": null,
+                      "lockAutoReport": false,
+                      "steerPending": false,
+                      "steerError": null
+                    }
+                  }
+                ],
+                "queueRevision": 2,
+                "agentReportsPaused": false,
+                "queuePaused": true
+              }
+            ],
+            "selection": {
+              "mode": "query",
+              "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+              "candidateCount": 3,
+              "matched": 1
+            },
+            "finishedAt": "2026-10-22T02:59:39.594513+00:00",
+            "result": {
+              "ok": true,
+              "matched": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "targets": [
+                {
+                  "sessionId": "ses_0ab53bb8f44d8361",
+                  "ok": true,
+                  "items": [
+                    {
+                      "id": "q_873f4f703c9d441ea5bb554db995e875",
+                      "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                      "kind": "task",
+                      "text": "combined-blocked",
+                      "createdAt": 1792637973.9365976,
+                      "source": "user",
+                      "meta": {
+                        "seq": 1,
+                        "taskId": null,
+                        "revision": 1,
+                        "dispatchState": "queued",
+                        "locked": true,
+                        "lockManual": true,
+                        "lockSource": "manual",
+                        "illegalBatchId": null,
+                        "lockAutoReport": false,
+                        "steerPending": false,
+                        "steerError": null
+                      }
+                    }
+                  ],
+                  "queueRevision": 2,
+                  "agentReportsPaused": false,
+                  "queuePaused": true
+                }
+              ]
+            },
+            "error": "Service interrupted; no automatic replay"
+          }
+        ],
+        "attemptCount": 1,
+        "startedAt": "2026-10-22T02:59:34.225286+00:00",
+        "activeAttemptId": "att_1123b60c270d439a817ff2cbdd186d07",
+        "actionDigest": "81f42c222867bf51ab03f508be23129869c40b31e2be77713de53d64ec7ca75d",
+        "action": {
+          "id": "pause",
+          "name": "Combined query pause",
+          "enabled": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "session_operation",
+            "operation": "pause_everything",
+            "selector": {
+              "mode": "query",
+              "query": {
+                "field": "name",
+                "op": "eq",
+                "value": "combined-target"
+              }
+            }
+          },
+          "description": "Combined query pause",
+          "output_format": "json"
+        },
+        "targetIds": [
+          "ses_0ab53bb8f44d8361"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_0ab53bb8f44d8361",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_873f4f703c9d441ea5bb554db995e875",
+                "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                "kind": "task",
+                "text": "combined-blocked",
+                "createdAt": 1792637973.9365976,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": true,
+                  "lockManual": true,
+                  "lockSource": "manual",
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 2,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-22T02:59:34.235850+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_0ab53bb8f44d8361",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_873f4f703c9d441ea5bb554db995e875",
+                  "queueItemId": "q_873f4f703c9d441ea5bb554db995e875",
+                  "kind": "task",
+                  "text": "combined-blocked",
+                  "createdAt": 1792637973.9365976,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": true,
+                    "lockManual": true,
+                    "lockSource": "manual",
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 2,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-22T02:59:39.594513+00:00",
+        "error": "Service interrupted; no automatic replay"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 2,
+        "bytes": 623,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 3,
+        "bytes": 12625,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "delayed": {
+    "delayedRestart": {
+      "sessionId": "ses_50f9bab99a790701",
+      "workerId": "worker-2",
+      "generation": 0,
+      "action": "restart",
+      "status": "restarting",
+      "error": null,
+      "revision": 2
+    },
+    "ok": true
+  },
+  "denied": {
+    "ok": false,
+    "error": {
+      "code": "permission_denied",
+      "message": "session ses_4be518a8631dc454 is restricted to its managed sessions; ses_0ab53bb8f44d8361 is not in its managed list"
+    }
+  },
+  "records": [
+    {
+      "kind": "started",
+      "pid": 43204,
+      "role": "events"
+    },
+    {
+      "kind": "registered",
+      "protocol_version": "pan-events/v1",
+      "plugin_id": "producer",
+      "generation": "4024a084bf3542f489ac8ad966b47bde",
+      "definitions": [
+        {
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "description": "Owned external fact",
+          "schema": {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ],
+      "subscriptions": []
+    },
+    {
+      "kind": "ready",
+      "generation": "4024a084bf3542f489ac8ad966b47bde"
+    },
+    {
+      "kind": "publication",
+      "jsonrpc": "2.0",
+      "id": "plugin-1",
+      "result": {
+        "event": {
+          "id": "combined-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "duplicate": false,
+        "persisted": true,
+        "accepted": true,
+        "rejected": []
+      }
+    },
+    {
+      "kind": "started",
+      "pid": 20900,
+      "role": "events"
+    },
+    {
+      "kind": "registered",
+      "protocol_version": "pan-events/v1",
+      "plugin_id": "producer",
+      "generation": "8cc44226373a4afe96032f80e97be5f1",
+      "definitions": [
+        {
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "description": "Owned external fact",
+          "schema": {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ],
+      "subscriptions": []
+    },
+    {
+      "kind": "ready",
+      "generation": "8cc44226373a4afe96032f80e97be5f1"
+    },
+    {
+      "kind": "publication",
+      "jsonrpc": "2.0",
+      "id": "plugin-1",
+      "error": {
+        "code": -32602,
+        "message": "Event connection is no longer eligible"
+      }
+    },
+    {
+      "kind": "started",
+      "pid": 37012,
+      "role": "events"
+    },
+    {
+      "kind": "registered",
+      "protocol_version": "pan-events/v1",
+      "plugin_id": "producer",
+      "generation": "d9a03f49dd3e4e579694c4372964e86b",
+      "definitions": [
+        {
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "description": "Owned external fact",
+          "schema": {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      ],
+      "subscriptions": []
+    },
+    {
+      "kind": "ready",
+      "generation": "d9a03f49dd3e4e579694c4372964e86b"
+    },
+    {
+      "kind": "publication",
+      "jsonrpc": "2.0",
+      "id": "plugin-1",
+      "result": {
+        "event": {
+          "id": "combined-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T02:59:34.206772+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "duplicate": true,
+        "persisted": true,
+        "accepted": true,
+        "rejected": []
+      }
+    }
+  ],
+  "fake": [
+    {
+      "kind": "init",
+      "pid": 35728,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile\\workdirs\\combined-target",
+      "at": 1792637973.9188266,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    },
+    {
+      "kind": "init",
+      "pid": 44512,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile\\workdirs\\combined-control",
+      "at": 1792637973.9579334,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    },
+    {
+      "kind": "received",
+      "pid": 44512,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile\\workdirs\\combined-control",
+      "text": "combined-control-delivered",
+      "at": 1792637974.3183975
+    },
+    {
+      "kind": "init",
+      "pid": 46632,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3592\\test_node_query_pause_producti0\\combined-profile\\workdirs\\combined-control",
+      "at": 1792637978.0774887,
+      "stdinEncoding": "gbk",
+      "stdoutEncoding": "gbk"
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

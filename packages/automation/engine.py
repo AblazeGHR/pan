@@ -81,23 +81,32 @@ class Engine:
         if not self.closed:
             await self.kick()
 
-    async def match(self, event):
+    async def match(self, event, targets=None, strict=False):
         # Only matching/append is serialized. Never wait for an Action here.
         async with self.matching:
             state = await self.io(self.ledger.read)
             pending = sum(r['status'] in {'queued', 'running'} for r in state['runs'].values())
             seen = {(r['event']['id'], r['triggerId']) for r in state['runs'].values()}
             persisted = []
-            for trigger in state['triggers'].values():
+            errors = []
+            for trigger in targets if targets is not None else state['triggers'].values():
                 if (event['id'], trigger['id']) in seen:
                     continue
-                if not trigger['enabled'] or event['type'] not in trigger['eventTypes'] or not self.available(trigger):
+                if not trigger['enabled'] or event['type'] not in trigger['eventTypes']:
+                    continue
+                current = state['triggers'].get(trigger['id'])
+                obsolete = not current or not current['enabled'] or current['revision'] != trigger['revision']
+                if not obsolete and not self.available(trigger):
+                    if strict:
+                        errors.append('Event dependency unavailable')
                     continue
                 run = dict(id='run_' + uuid.uuid4().hex, triggerId=trigger['id'], triggerRevision=trigger['revision'], actionId=trigger['actionId'], event=copy.deepcopy(event), createdAt=now(), status='queued', admitted=False, arguments={}, state={})
                 try:
-                    if pending >= self.max_pending:
+                    if obsolete:
+                        run.update(status='cancelled', finishedAt=now(), error='Trigger changed before event delivery')
+                    elif pending >= self.max_pending:
                         raise ValueError('Trigger backlog full')
-                    if not await evaluate(trigger.get('condition'), self.state_reader, run['state']):
+                    elif not await evaluate(trigger.get('condition'), self.state_reader, run['state']):
                         run.update(status='skipped', finishedAt=now())
                     else:
                         run['arguments'] = arguments(trigger.get('arguments', {}), event)
@@ -109,15 +118,19 @@ class Engine:
                         persisted.append(saved['id'])
                         pending += saved['status'] == 'queued'
                 except Exception as exc:
+                    errors.append(str(exc))
                     self.diagnostics.append(dict(eventId=event['id'], triggerId=trigger['id'], error=str(exc), phase='persist', at=now()))
             # Durable admission fence prevents existing runners/config kicks from
             # consuming partially matched events. Failure leaves them waiting.
             try:
-                if persisted:
+                if persisted or strict:
                     await self.io(self.ledger.release_event, event['id'])
             except Exception as exc:
+                errors.append(str(exc))
                 self.diagnostics.append(dict(eventId=event['id'], phase='admission', error=str(exc), at=now()))
             await self.kick()
+            if strict and errors:
+                raise PersistenceError('; '.join(errors))
             return persisted
 
     async def kick(self):

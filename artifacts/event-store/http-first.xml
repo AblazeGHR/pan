@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="8.720" timestamp="2026-10-22T10:43:51.428892+08:00" hostname="ablaze"><testcase classname="tests.test_event_store_http" name="test_node_durable_event_http_replay_restart_and_uncertain" time="8.293" /></testsuite></testsuites>

@@ -1,0 +1,20 @@
+[
+  {
+    "evidence": "http-evidence.json",
+    "port": 55296,
+    "bindRecheck": true,
+    "ownedProcessesRemaining": []
+  },
+  {
+    "evidence": "core-running/http-evidence.json",
+    "port": 55296,
+    "bindRecheck": true,
+    "ownedProcessesRemaining": []
+  },
+  {
+    "evidence": "combined-final/combined-http.json",
+    "port": 55296,
+    "bindRecheck": true,
+    "ownedProcessesRemaining": []
+  }
+]

@@ -60,6 +60,11 @@ workspaceIds.contains 为精确元素。深度/节点/候选/结果上限 8/64/2
 `GET /api/actions/session-operation-template` 返回 disabled 模板、谓词 schema
 及限制；`action_drafts` 可保存但不能启用/执行，旧 Group/provider 不接受该类型。
 参数完整定义见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
+持久事件阶段：生产插件 await `bus.publish_async`，成功回执 `persisted:true`
+只证明 Event 已落盘，不证明 Action 成功。默认保留7天，Event+Trigger 在保留期内
+去重；pending/uncertain 不自动丢弃，failed/uncertain Action 不自动重试。
+有界查询、Bearer 重放与容量状态见 [HTTP API](references/http-api.md) 和
+`docs/design/Event-Trigger-Action-v0.2-event-store.md`。
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
