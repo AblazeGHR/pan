@@ -158,7 +158,7 @@ class Bindings:
         except Exception:provider=None
         return {'runtimeEpoch':self.epoch,'sessionId':w.session_id,'workerId':w.worker_id,
                 'generation':w.generation,'adapter':getattr(w.adapter,'name',None),
-                'accountId':provider or accounts.get(getattr(w,'codex_profile_key',None)),
+                'accountId':provider,
                 'role':roles.get(w.session_id),'status':w.status,'alive':process is not None,
                 'processIdentity':process,'task':self.task(w,s)}
 

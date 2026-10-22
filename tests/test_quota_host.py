@@ -121,8 +121,16 @@ def objects():
 def probe(process):return {'pid':process.pid,'birthToken':process.birth} if process and process.alive else None
 
 
+class FixtureBindings(Bindings):
+    """Trusted fake identity for effect-CAS units; production never maps profiles."""
+    def row(self,w,s,roles,accounts,process):
+        row=super().row(w,s,roles,accounts,process)
+        row['accountId']=accounts.get(getattr(w,'codex_profile_key',None))
+        return row
+
+
 async def setup(tmp_path,port=None,enabled=True):
-    module,w,s=objects();source=Source(time.time);bindings=Bindings(module,probe=probe)
+    module,w,s=objects();source=Source(time.time);bindings=FixtureBindings(module,probe=probe)
     rt=Runtime(tmp_path/'automation',tmp_path/'jobs')
     rt.store.configure('automatic','ma',0)
     rt.store.set_host({'enabled':enabled,'sessionRoles':{'s':'ta'}},rt.store.read()['revision'])

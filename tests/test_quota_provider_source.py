@@ -177,6 +177,8 @@ async def test_global_current_never_backfills_existing_worker_and_sampling_persi
     rt.adapter=a;a.runtime=rt
     assert (await rt.query())['currentAccountId']=='p-a'
     inv=await a.inventory();assert inv['workers'][0]['accountId'] is None
+    raw=await Bindings(module,probe,clock=lambda:now).inventory({'s':'ta'},{'profile-a':'p-a'},'p-a')
+    assert raw['workers'][0]['accountId'] is None  # even a supplied old map cannot backfill
     rt.store.configure('automatic','ma',rt.store.read()['revision'])
     issue={'classification':'codex_quota_exhausted','issueId':'own','confidence':'structured',
            'correlation':{'runtimeEpoch':'owner','workerId':'w','sessionId':'s','generation':1,'taskSeq':1}}
