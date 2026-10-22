@@ -45,7 +45,7 @@ def identifier(value):
 
 
 def validate_action(raw, automation=True):
-    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format'}:
+    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent'}:
         raise ValueError('Unknown Action fields')
     from .session_query import validate_action_query
     validate_action_query(raw)
@@ -57,6 +57,9 @@ def validate_action(raw, automation=True):
     if not isinstance(action['description'], str) or not action['description'].strip():
         raise ValueError('Action description is required')
     action.setdefault('enabled', False)
+    action.setdefault('idempotent', False)
+    if type(action['idempotent']) is not bool:
+        raise ValueError('Action idempotent must be boolean')
     action.setdefault('effect', 'read')
     action.setdefault('output_format', 'json')
     if (type(action['enabled']) is not bool or not isinstance(action['effect'], str) or action['effect'] not in EFFECTS

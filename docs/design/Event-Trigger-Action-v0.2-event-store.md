@@ -5,6 +5,11 @@ implementation supplement and core contract still govern unchanged behavior.
 No Job Template, new Action snapshot mechanism, retry policy, parallel execution
 mode, React change or external transport extension is included.
 
+The later authorized [retry/scheduling contract](Event-Trigger-Action-v0.3-retry-scheduling.md)
+supersedes this phase's one-attempt/no-retry restriction. It preserves durable inbox
+and Event+Trigger dedup: Event replay never itself retries a Run. Other exclusions
+remain unchanged; retry_wait is a protected pending Run status.
+
 ## Admission and delivery
 
 Runtime identity and JSON Schema validation precede admission. Production callers

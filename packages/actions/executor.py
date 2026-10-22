@@ -15,7 +15,11 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     if action['execution']['kind'] != 'session_operation':
         return await execute(action, arguments)
     selector = action['execution']['selector']
-    if selector['mode'] == 'explicit':
+    checkpoint = getattr(progress, 'checkpoint', {})
+    query_info = checkpoint.get('selection')
+    if 'targetIds' in checkpoint:
+        ids = copy.deepcopy(checkpoint['targetIds'])
+    elif selector['mode'] == 'explicit':
         ids = copy.deepcopy(selector['ids'])
     elif selector['mode'] == 'event':
         from packages.automation.engine import field
@@ -33,14 +37,18 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     if not isinstance(ids, list) or any(not isinstance(i, str) or not i for i in ids):
         raise ValueError('Session selector must resolve to Session IDs')
     ids = list(dict.fromkeys(ids))
-    results = []
-    await progress(targetIds=ids, targetResults=results, **({'selection': query_info} if selector['mode'] == 'query' else {}))
+    confirmed = {r['sessionId']: copy.deepcopy(r) for r in checkpoint.get('targetResults', []) if r.get('ok') is True}
+    results = [confirmed[sid] for sid in ids if sid in confirmed]
+    await progress(targetIds=ids, targetResults=copy.deepcopy(results), **({'selection': query_info} if query_info is not None else {}))
     for sid in ids:
+        if sid in confirmed:
+            continue
         try:
             result = await pause(sid, {'paused': True})
         except Exception as exc:
             result = {'ok': False, 'error': str(exc)}
-        results.append({'sessionId': sid, **result})
+        confirmed[sid] = {'sessionId': sid, **result}
+        results = [confirmed[i] for i in ids if i in confirmed]
         await progress(targetResults=copy.deepcopy(results))
     succeeded = sum(r.get('ok') is True for r in results)
     return dict(ok=succeeded == len(ids), matched=len(ids), succeeded=succeeded, failed=len(ids)-succeeded, targets=results)

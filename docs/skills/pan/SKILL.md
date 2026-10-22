@@ -65,6 +65,11 @@ workspaceIds.contains 为精确元素。深度/节点/候选/结果上限 8/64/2
 去重；pending/uncertain 不自动丢弃，failed/uncertain Action 不自动重试。
 有界查询、Bearer 重放与容量状态见 [HTTP API](references/http-api.md) 和
 `docs/design/Event-Trigger-Action-v0.2-event-store.md`。
+有限重试/调度后端：Trigger 默认 serial；parallel 默认3、上限32，修改并发需用户
+Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允许 failed
+自动有限重试（默认总3次，退避落盘）；uncertain 不自动重试，独立用户确认入口
+`confirm-recovery` 需 Bearer、expectedRevision、confirm:true。Agent仍仅关闭草稿。
+后端 schema/字段及恢复风险见 `docs/design/Event-Trigger-Action-v0.3-retry-scheduling.md`。
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
