@@ -395,6 +395,7 @@ def test_real_report_auto_force_steers_manager_report(make_runtime):
         time.sleep(0.4)
         _enable(runtime, report=True)
 
+        runtime.request("PUT", "/api/settings/ui", json={"autoReport": {"ma": True, "user": True}})
         _spawn(runtime, child["id"])
         _send(runtime, child["id"], "child work")
         _wait_received(runtime, "child work")
@@ -478,6 +479,7 @@ def test_real_job_terminal_auto_force_steers_system_notice(make_runtime):
         _enable(runtime, system=True)
 
         job = runtime.request("POST", "/api/background-jobs", json={
+            "name": "Validate isolated terminal notice",
             "targetSessionId": manager["id"],
             "argv": [sys.executable, "-c", "print('job-ok')"],
             "cwd": manager["workdir"],

@@ -22,6 +22,8 @@ for line in sys.stdin:
     msg = json.loads(line)
     if msg.get("type") != "user":
         continue
+    with open(fast_marker + ".received", "w") as marker:
+        marker.write("received")
     if not os.path.exists(fast_marker):
         time.sleep(30)
     print(json.dumps({"type":"result", "result":"restarted task completed", "is_error":False}), flush=True)
@@ -63,6 +65,14 @@ def test_cbc_interrupt_kills_old_process_without_replaying_task(tmp_path, monkey
                     break
                 await asyncio.sleep(0.01)
             assert w.status == "running"
+            # running is published before stdin handoff; interrupt only after
+            # the CLI confirms reading the task and the durable receipt retires.
+            for _ in range(100):
+                if Path(str(fast_marker) + ".received").exists() and not s.queue_pending:
+                    break
+                await asyncio.sleep(0.01)
+            assert Path(str(fast_marker) + ".received").exists()
+            assert not s.queue_pending
             old_pid = w.process.pid
 
             fast_marker.write_text("1", encoding="ascii")

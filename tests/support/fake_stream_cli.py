@@ -72,6 +72,9 @@ def _gate_for(text: str) -> str | None:
 
 
 def main() -> None:
+    # The provider wire is UTF-8 regardless of Windows ANSI/pipe defaults.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
     pid = os.getpid()
     _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time(),
              "stdinEncoding": sys.stdin.encoding, "stdoutEncoding": sys.stdout.encoding})

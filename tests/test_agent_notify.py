@@ -84,10 +84,13 @@ def test_notice_to_self_enqueued(monkeypatch):
     s = _setup_session("ses_self")
     saves = []
 
-    async def fake_save_async(target):
-        saves.append(target.id)
+    original_save = _sess._save_body
 
-    monkeypatch.setattr(_sess, "save_async", fake_save_async)
+    def capture_commit(target, **kwargs):
+        saves.append(target.id)
+        return original_save(target, **kwargs)
+
+    monkeypatch.setattr(_sess, "_save_body", capture_commit)
     spawned = []
 
     async def fake_create(session_id):
@@ -102,7 +105,7 @@ def test_notice_to_self_enqueued(monkeypatch):
     assert r["ok"] is True
     assert r["sessionId"] == "ses_self"
     assert r["pending"] == 1
-    assert saves == ["ses_self"], "投递后必须 save_async 落盘"
+    assert saves == ["ses_self"], "通知必须通过有序 writer 原子落盘"
     assert len(s.queue_pending) == 1
     item = s.queue_pending[0]
     assert item["type"] == "notice"
@@ -218,14 +221,15 @@ def test_notice_save_failure_keeps_queued_item(monkeypatch):
     _cleanup()
     s = _setup_session("ses_save_fail")
 
-    async def fail_save(_session):
+    def fail_save(_session, **kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr(_sess, "save_async", fail_save)
+    monkeypatch.setattr(_sess, "_save_body", fail_save)
     with pytest.raises(OSError):
         asyncio.run(worker.enqueue_notice("ses_save_fail", "must retry"))
-    assert len(s.queue_pending) == 1
-    assert s.queue_pending[0]["deliveryState"] == "queued"
+    assert s.queue_pending == []  # Failed candidate never publishes an uncommitted notice.
+    assert s.queue_delivery_ledger == {}
+    assert not (_sess.SESSION_DIR / f"{s.id}.json").exists()
     _cleanup()
 
 

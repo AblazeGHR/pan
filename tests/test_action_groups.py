@@ -411,9 +411,11 @@ def test_command_timeout_retires_owned_descendants(tmp_path):
             asyncio.run(execute(action, {'value': 'safe'}))
         assert marker.is_file(), 'Owned command never launched its descendant'
         pid, created = json.loads(marker.read_text())
-        if psutil.pid_exists(pid):
+        try:
             process = psutil.Process(pid)
             assert process.create_time() != created or process.status() == psutil.STATUS_ZOMBIE
+        except psutil.NoSuchProcess:
+            pass  # Owned child disappeared between the PID/identity observations.
     finally:
         if marker.exists():
             pid, created = json.loads(marker.read_text())

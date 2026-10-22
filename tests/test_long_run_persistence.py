@@ -168,6 +168,14 @@ def test_same_client_message_and_task_id_concurrently_create_one_item(monkeypatc
     monkeypatch.setattr(_sess, "save_async", no_save)
     monkeypatch.setattr(worker, "_schedule_session_recovery", lambda *_args, **_kwargs: None)
 
+    async def persist_assign(index):
+        # _persist_task_item is the lock-held primitive used by assign/send.
+        async with worker.queue_lock(value.id):
+            return await worker._persist_task_item(
+                value, f"assign retry {index}", "agent", None,
+                "task-concurrent", None,
+            )
+
     async def scenario():
         browser_results = await asyncio.gather(*(
             worker.enqueue_user_message(
@@ -176,10 +184,7 @@ def test_same_client_message_and_task_id_concurrently_create_one_item(monkeypatc
             for index in range(20)
         ))
         task_results = await asyncio.gather(*(
-            worker._persist_task_item(
-                value, f"assign retry {index}", "agent", None,
-                "task-concurrent", None,
-            )
+            persist_assign(index)
             for index in range(20)
         ))
         return browser_results, task_results
@@ -200,13 +205,16 @@ def test_failed_receipt_save_rolls_back_index_and_allows_retry(monkeypatch):
     value = _session("ses-retry-index")
     calls = 0
 
-    async def fail_once(_value):
+    original_save = _sess._save_body
+
+    def fail_once(_value, **kwargs):
         nonlocal calls
         calls += 1
         if calls == 1:
             raise OSError("synthetic receipt write failure")
+        return original_save(_value, **kwargs)
 
-    monkeypatch.setattr(_sess, "save_async", fail_once)
+    monkeypatch.setattr(_sess, "_save_body", fail_once)
 
     async def scenario():
         first = await worker._persist_task_item(

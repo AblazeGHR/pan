@@ -2571,6 +2571,8 @@ def agent_restart_delayed(session_id: str) -> dict:
     The delayedRestart receipt is acceptance, not proof of completion: inspect
     agent_restart_delayed_status after an uncertain response rather than replay.
     Intent exists only within this Pan service process.
+
+    完整编排流程见 /pan skill。
     """
     denied = _check_access(session_id)
     if denied:
@@ -2591,6 +2593,8 @@ def agent_restart_delayed_status(session_id: str) -> dict:
     after the old Worker disappears, only within this Pan service process.
     Unknown Session returns an error. Uses the same self/managed access as the
     request tool, without claiming a Session or changing settings/model.
+
+    完整编排流程见 /pan skill。
     """
     denied = _check_access(session_id)
     if denied:

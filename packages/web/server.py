@@ -3731,19 +3731,29 @@ async def api_main_identity():
             "root": str(_PROJECT_DIR), "version": __version__, "console": console.snapshot()}
 
 
-@app.middleware("http")
-async def cli_instance_guard(request: Request, call_next):
-    # Bind CLI lifecycle writes to the instance checked before the HTTP call.
-    # Existing UI/console callers without these headers retain their API contract.
-    if request.method == "POST" and request.url.path in {"/api/main/exit", "/api/main/restart"}:
-        pid = request.headers.get("x-pan-expected-pid")
-        created = request.headers.get("x-pan-expected-created-at")
-        if pid is not None or created is not None:
-            if pid != str(os.getpid()) or created != str(launcher.process_create_time(os.getpid())):
-                return Response(content='{"error":"CLI instance identity mismatch"}',
-                                status_code=409, media_type="application/json")
-    return await call_next(request)
+class CLIInstanceGuardMiddleware:
+    """Fence lifecycle writes without task/stream relays on ordinary requests."""
 
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope["type"] == "http" and scope["method"] == "POST"
+                and scope["path"] in {"/api/main/exit", "/api/main/restart"}):
+            headers = dict(scope.get("headers", []))
+            pid = headers.get(b"x-pan-expected-pid")
+            created = headers.get(b"x-pan-expected-created-at")
+            if pid is not None or created is not None:
+                if (pid != str(os.getpid()).encode("ascii")
+                        or created != str(launcher.process_create_time(os.getpid())).encode("ascii")):
+                    response = Response(content='{"error":"CLI instance identity mismatch"}',
+                                        status_code=409, media_type="application/json")
+                    await response(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(CLIInstanceGuardMiddleware)
 
 @app.post("/api/main/console")
 async def api_main_console(payload: Annotated[dict, Body()]):
