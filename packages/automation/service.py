@@ -134,6 +134,12 @@ class Service:
         self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
         await self.job_runtime.start()
         self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        await self.quota_policy.recover()
+        self.job_runtime.quota_policy = self.quota_policy
+        from packages.core.runtime_issues import set_observer
+        set_observer(self.quota_policy.observe)
         if self.stopping:
             return
         await self.engine.io(self.auth.key)
@@ -154,6 +160,8 @@ class Service:
         if self.started:
             self.worker.set_running_observer(None)
         self.stopping = True
+        if getattr(self,'quota_policy',None):
+            self.quota_policy.closed = True
         if self.job_runtime:
             self.job_runtime.closed = True
         self.wake.set()
@@ -171,6 +179,10 @@ class Service:
             self.engine.closed = True
         if self.job_runtime:
             await self.job_runtime.close()
+        if getattr(self,'quota_policy',None):
+            self.quota_policy.closed = True
+            from packages.core.runtime_issues import set_observer
+            set_observer(None)
 
     async def replay(self, ids):
         async with self.engine.matching:

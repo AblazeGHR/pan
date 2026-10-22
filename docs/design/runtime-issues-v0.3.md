@@ -28,3 +28,12 @@ generation、task、execution、queue、Codex thread/turn 字段保持缺失，�
 最新外部 `data/logs/session-errors.jsonl` 未随本隔离树提供，故回归保留既有
 Codex wrapper 的真实 `codex.turn_error` 结构，并在交付报告标明该证据缺口，
 不伪称已验证该文件的具体文本。该投影不触发任何 retry/account/restart/recovery。
+
+## Follow-up: quota policy foundation and real evidence
+
+The previously missing source file is now explicitly supplied and read-only
+fixtures preserve real `usageLimitExceeded` and `serverOverloaded` envelopes.
+See [quota-policy-v0.3.md](quota-policy-v0.3.md) for original line hashes,
+conservative parsing, persistent quota query Jobs, policy receipts and the
+fail-closed production adapter boundary. This supersedes the earlier missing-file
+note; no synthetic fixture is presented as a real provider capture.

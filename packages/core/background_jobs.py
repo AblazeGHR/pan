@@ -2795,7 +2795,7 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
     root = _scheduled_task_root()
     if root is None:
         return 0
-    from packages.jobs.action_runtime import for_root, is_action_job
+    from packages.jobs.action_runtime import for_root, is_protected_job as is_action_job
     runtime = for_root(root)
     if runtime is not None:
         await runtime.tick(cfg)

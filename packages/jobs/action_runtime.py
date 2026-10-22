@@ -21,6 +21,11 @@ def is_action_job(job):
     return isinstance(job,dict) and isinstance(job.get('action'),dict) and job['action'].get('api')=='action_reference'
 
 
+def is_protected_job(job):
+    from packages.automation.quota_policy import protected
+    return is_action_job(job) or protected(job)
+
+
 def for_root(root):
     from pathlib import Path
     return RUNTIMES.get(str(Path(root).resolve()))
@@ -309,6 +314,10 @@ class Runtime:
 
     async def tick(self,cfg):
         if self.closed:return
+        policy=getattr(self,'quota_policy',None)
+        if policy is not None:
+            try:await policy.tick()
+            except Exception as exc:self.diagnostics.append({'phase':'quota-policy','error':type(exc).__name__})
         for jid,task in list(self.tasks.items()):
             if task.done():
                 await task;self.tasks.pop(jid,None)

@@ -16,6 +16,17 @@ from typing import Any
 SCHEMA_VERSION = 1
 MAX_TEXT = 2048
 MAX_RAW_KEYS = 32
+_OBSERVER = None
+
+
+def set_observer(callback):
+    global _OBSERVER
+    _OBSERVER = callback
+
+
+def observe(mapping):
+    if _OBSERVER is not None:
+        _OBSERVER(mapping)
 
 _SECRET = re.compile(r"(?i)(authorization|cookie|api[-_]?key|access[-_]?token|refresh[-_]?token|password|secret)")
 _CODEX_QUOTA_CODES = {"usage_limit_reached", "quota_exceeded", "quota_exhausted", "insufficient_quota"}
@@ -37,6 +48,8 @@ class RuntimeIssue:
 
 def _clip(value: Any, limit: int = MAX_TEXT) -> str:
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+    text = re.sub(r'(?i)(authorization\s*[:=]\s*bearer\s+|(?:api[_-]?key|access[_-]?token|password)\s*[:=]\s*)[^\s,;"\']+',r'\1[redacted]',text)
+    text = re.sub(r'\bsk-[A-Za-z0-9_-]{16,}\b','[redacted]',text)
     return text if len(text) <= limit else text[:limit] + "…"
 
 
@@ -72,24 +85,33 @@ def _get(raw: dict, *paths):
 
 
 def _metadata(raw: dict, supplied: dict | None) -> dict:
-    source = dict(supplied or {})
+    source = {}
+    supplied = supplied or {}
     aliases = {
         "sessionId": ("sessionId", "session_id"), "workerId": ("workerId", "worker_id"),
         "generation": ("generation", "generation_id"), "taskId": ("taskId", "task_id"),
         "executionId": ("executionId", "execution_id"), "queueItemId": ("queueItemId", "queue_item_id"),
         "threadId": ("threadId", "thread_id"), "turnId": ("turnId", "turn_id"),
+        "accountId": ("accountId", "account_id"), "taskSeq": ("taskSeq", "task_seq"),
+        "executionSeq": ("executionSeq", "execution_seq"),
     }
     for key, names in aliases.items():
         if key not in source:
             for name in names:
-                value = _get(raw, (name,), ("params", name), ("error", name))
+                value = supplied.get(name, _get(raw, (name,), ("params", name), ("error", name)))
                 if value is not None:
                     source[key] = value
                     break
-    return {key: _safe(value, 0) for key, value in source.items() if value is not None}
+    return {key: _safe(value, 0) for key, value in source.items()
+            if type(value) in (str, int) and (not isinstance(value,str) or len(value)<=256)}
 
 
 def _structured(adapter: str, raw: dict) -> tuple[str | None, str | None]:
+    native = _get(raw, ("error", "codexErrorInfo"), ("params", "error", "codexErrorInfo"))
+    if adapter == "codex" and native == "usageLimitExceeded":
+        return "codex_quota_exhausted", "structured"
+    if adapter == "codex" and native == "serverOverloaded":
+        return "codex_capacity", "structured"
     code = _get(raw, ("code",), ("error", "code"), ("error", "type"), ("error", "errorCode"),
                 ("params", "error", "code"), ("params", "error", "type"))
     status = _get(raw, ("status",), ("error", "status"), ("error", "statusCode"),
@@ -120,11 +142,11 @@ def _strict_text(adapter: str, text: str) -> str | None:
     if "429" in value or "http 429" in value:
         return None
     if adapter == "codex":
-        if re.search(r"\b(?:usage|plan)\s+limit\s+(?:has\s+been\s+)?(?:reached|exhausted)\b", value) or re.search(r"\bquota\s+(?:has\s+been\s+)?(?:exhausted|exceeded)\b", value):
+        if re.fullmatch(r"(?:usage|plan) limit (?:has been )?(?:reached|exhausted)[.!]?", value):
             return "codex_quota_exhausted"
-        if re.search(r"\b(?:model\s+)?capacity\s+(?:has\s+been\s+)?(?:reached|exceeded)\b", value):
+        if value == "selected model is at capacity. please try a different model.":
             return "codex_capacity"
-    if adapter == "cbc" and re.search(r"\b(?:rate\s+limit(?:ed)?|too\s+many\s+requests)\b", value):
+    if adapter == "cbc" and value in ('rate limited','too many requests'):
         return "cbc_rate_limited"
     return None
 
@@ -139,6 +161,8 @@ def map_runtime_issue(raw: dict, *, adapter: str | None = None, metadata: dict |
     if classification is None:
         classification = _strict_text(adapter, text) or "unknown"
         confidence = "adapter_text" if classification != "unknown" else "unknown"
+    if raw.get('type') == 'codex.item_error' or raw.get('kind') == 'tool_failure':
+        classification, confidence = 'unknown', 'unknown'
     correlation = _metadata(raw, metadata)
     token = json.dumps({"adapter": adapter, "raw": _safe(raw), "correlation": correlation}, sort_keys=True, ensure_ascii=False)
     issue_id = "ri_" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]

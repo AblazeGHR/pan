@@ -44,9 +44,47 @@ def install(server):
     @router.get('/api/automation/schema')
     async def schema():
         return {'version': 1, 'scheduling': SCHEDULING_SCHEMA,
+                'quotaPolicy':{'version':1,'defaultMode':'manual','modes':['manual','automatic'],
+                               'queryJobKinds':['monitor95','once'],'maxAgeSeconds':300,
+                               'thresholdPercent':95,'queryIntervalSeconds':60,
+                               'defaultAdapter':'unavailable','unknownReplayed':False},
                 'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
                 'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
                            'backoffSeconds': BACKOFF_SECONDS, 'backoffCapSeconds': BACKOFF_CAP_SECONDS}}
+
+    @router.get('/api/automation/quota-policy')
+    async def quota_view():
+        from .quota_policy import normalize, rank
+        policy=getattr(service(),'quota_policy',None)
+        if policy is None:raise HTTPException(503,'Quota policy unavailable')
+        state=await service().engine.io(policy.store.read)
+        snapshot=normalize(state['quota'],policy.clock())
+        return {**state,'quota':snapshot,'rankedAccounts':rank(snapshot,state['excluded']),
+                'adapter':'unavailable' if type(policy.adapter).__name__=='Adapter' else 'host-injected',
+                'diagnostics':policy.diagnostics}
+
+    @router.put('/api/automation/quota-policy')
+    async def quota_configure(data:dict,request:Request):
+        await require(request)
+        if set(data)!={'mode','maSessionId','expectedRevision'}:raise HTTPException(400,'Expected mode/maSessionId/expectedRevision')
+        policy=getattr(service(),'quota_policy',None)
+        if policy is None:raise HTTPException(503,'Quota policy unavailable')
+        try:
+            result=await service().engine.io(policy.store.configure,data['mode'],data['maSessionId'],data['expectedRevision'])
+            await policy.cancel_obsolete_jobs()
+            return result
+        except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+        except OSError as exc:raise HTTPException(503,'Quota policy persistence failed') from exc
+
+    @router.post('/api/automation/quota-policy/query-jobs')
+    async def quota_query_job(data:dict,request:Request):
+        await require(request)
+        if set(data)!={'kind','expectedRevision'}:raise HTTPException(400,'Expected kind/expectedRevision')
+        policy=getattr(service(),'quota_policy',None)
+        if policy is None:raise HTTPException(503,'Quota policy unavailable')
+        try:return {'job':await policy.create_monitor(data['kind'],data['expectedRevision'])}
+        except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+        except OSError as exc:raise HTTPException(503,'Quota Job persistence failed; reload before retry') from exc
 
     @router.post('/api/automation/triggers')
     async def put(data: dict, request: Request):

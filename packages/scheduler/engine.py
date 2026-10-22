@@ -178,7 +178,7 @@ async def run_now(task_id: str) -> dict:
     if job is None:
         return {"ok": False, "error": {"code": "not_found",
                                        "message": f"任务不存在：{task_id}"}}
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):
         return {'ok':False,'error':{'code':'user_confirmation_required','message':'Use protected Action Job runtime'}}
     now = datetime.now().replace(microsecond=0)

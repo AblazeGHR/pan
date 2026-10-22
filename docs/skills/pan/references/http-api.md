@@ -427,3 +427,13 @@ contract. Native/provider samples keep observation, classification and delivery
 outcomes separate. Codex quota exhausted, Codex capacity and CBC rate limiting are
 distinct; generic 429 and tool failures remain unknown. Mapping is diagnostic only
 and does not change retry, account, restart or recovery behavior.
+
+The v0.3 quota policy foundation provides user-Bearer management at
+`GET/PUT /api/automation/quota-policy` and protected query Job creation at
+`POST /api/automation/quota-policy/query-jobs`. PUT requires exactly
+`{mode:"manual"|"automatic",maSessionId,expectedRevision}`; query Job creation
+requires exactly `{kind:"monitor95"|"once",expectedRevision}`. Default mode is
+manual and the production adapter is unavailable. Unknown/stale account windows
+never trigger switching. No issue injection or arbitrary command endpoint exists.
+See `docs/design/quota-policy-v0.3.md` for the ledger/Job/receipt contract and
+remaining managed-account/provider integration boundary.

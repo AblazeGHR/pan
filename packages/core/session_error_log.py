@@ -352,7 +352,11 @@ async def record_session_error_async(**kwargs) -> str | None:
     except RuntimeError:
         return _write_prepared(prepared)
     try:
-        return await loop.run_in_executor(_WRITE_EXECUTOR, _write_prepared, prepared)
+        result = await loop.run_in_executor(_WRITE_EXECUTOR, _write_prepared, prepared)
+        if kwargs.get('runtime_issue') is not None:
+            from .runtime_issues import observe
+            observe(kwargs['runtime_issue'])
+        return result
     except Exception as exc:  # executor shutdown / cancellation of the submit
         _record_failure(exc)
         return None

@@ -833,7 +833,7 @@ async def patch_job(job_id: str, data: dict):
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
     job = _find_job(job_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
@@ -1080,7 +1080,7 @@ async def patch_job(job_id: str, data: dict):
 @router.delete("/{job_id}")
 async def delete_job(job_id: str):
     job = _find_job(job_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
@@ -1121,7 +1121,7 @@ async def job_runs(job_id: str, limit: int = 100):
 async def run_job_now(job_id: str):
     """手动触发一次：scheduled-task 走兼容层 run_now；message 类到点重投。"""
     job = _find_job(job_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:

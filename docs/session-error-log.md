@@ -303,3 +303,11 @@ Provider/native samples may include a three-layer `runtimeIssue` projection and
 Codex quota exhaustion, Codex capacity and CBC rate limiting are separate; generic
 429 and tool failures remain `unknown`. Read-only schema: `/api/diagnostics/runtime-issues/schema`.
 This projection does not trigger retry, account switch, restart or recovery.
+
+Actual Codex quota/capacity fixtures and source line hashes are now recorded in
+`tests/fixtures/runtime_issues/provenance.json`; the native provider enums are
+`usageLimitExceeded` and `serverOverloaded`. The policy observer only admits known
+classifications with current host Worker/account binding. Its pre-transaction
+queue is bounded and volatile; committed plans/receipts are durable. Diagnostic
+JSONL is evidence, not an automatic historical-replay source. Production policy
+adapter defaults unavailable and never guesses account/restart API behavior.

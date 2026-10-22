@@ -498,7 +498,7 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     :func:`replace_task_schedule`（/api/jobs PATCH 的底层）。
     """
     job = _job_for_task(task_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):raise ValueError('Use protected Action Job configuration API')
     if job is None:
         return None
@@ -623,7 +623,7 @@ def update_task(task_id: str, patch: dict) -> dict | None:
 
 def delete_task(task_id: str) -> bool:
     job = _job_for_task(task_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):raise ValueError('Use protected Action Job configuration API')
     if job is None:
         return False
@@ -645,7 +645,7 @@ def replace_task_schedule(task_id: str, specs,
         ValueError: specs 非法（空/非列表/单项校验失败）。
     """
     job = _job_for_task(task_id, registry_root)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):raise ValueError('Use protected Action Job configuration API')
     if job is None:
         return None
@@ -680,7 +680,7 @@ def set_task_misfire_policy(task_id: str, policy: str) -> dict | None:
     if policy not in MISFIRE_POLICIES:
         raise ValueError("misfire_policy 必须是 fire_now / skip")
     job = _job_for_task(task_id)
-    from packages.jobs.action_runtime import is_action_job
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
     if is_action_job(job):raise ValueError('Use protected Action Job configuration API')
     if job is None:
         return None
