@@ -1,0 +1,86 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_______________________ test_parallel_trigger_contract ________________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3594/test_parallel_trigger_contract0')
+
+    def test_parallel_trigger_contract(tmp_path):
+        ledger=Ledger(tmp_path)
+>       t=ledger.put(trigger(executionMode='parallel'),0,True)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_automation_retry_parallel.py:15:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\automation\store.py:76: in put
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\automation\store.py:34: in mutate
+    result = change(state)
+             ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+state = {'revision': 0, 'triggers': {}, 'runs': {}}
+
+    def change(state):
+        item = copy.deepcopy(raw)
+        allowed = {'id', 'name', 'description', 'eventTypes', 'condition', 'actionId', 'arguments', 'executionMode', 'enabled'}
+        if set(item) - allowed:
+            raise ValueError('Unknown Trigger fields')
+        tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
+        if not isinstance(tid, str) or not tid or len(tid) > 100:
+            raise ValueError('Invalid Trigger ID')
+        old = state['triggers'].get(tid)
+        if not old and len(state['triggers']) >= self.max_triggers:
+            raise ValueError('Trigger capacity reached')
+        if type(expected) is not int or expected != (old['revision'] if old else 0):
+            raise Conflict('Trigger revision changed')
+        if not isinstance(item.get('name'), str) or not item['name'].strip() or not isinstance(item.get('actionId'), str):
+            raise ValueError('Trigger name and actionId required')
+        events = item.get('eventTypes')
+        if not isinstance(events, list) or not events or any(not isinstance(e, str) for e in events):
+            raise ValueError('eventTypes must be nonempty strings')
+        if item.get('executionMode', 'serial') != 'serial' or not isinstance(item.get('arguments', {}), dict):
+>           raise ValueError('Only serial mode and argument object supported')
+E           ValueError: Only serial mode and argument object supported
+
+packages\automation\store.py:62: ValueError
+______________________ test_action_explicit_idempotence _______________________
+
+    def test_action_explicit_idempotence():
+>       assert validate_action({**action(),'idempotent':True})['idempotent'] is True
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_automation_retry_parallel.py:20:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+raw = {'id': 'pause', 'name': 'Pause selected', 'enabled': True, 'effect': 'write_local', ...}
+automation = True
+
+    def validate_action(raw, automation=True):
+        if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format'}:
+>           raise ValueError('Unknown Action fields')
+E           ValueError: Unknown Action fields
+
+packages\actions\store.py:49: ValueError
+____________ test_uncertain_confirmation_keeps_run_and_new_attempt ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3594/test_uncertain_confirmation_ke0')
+
+    def test_uncertain_confirmation_keeps_run_and_new_attempt(tmp_path):
+        ledger=Ledger(tmp_path)
+        ledger.put(trigger(),0,True)
+        ledger.append(dict(id='r',triggerId='t',triggerRevision=1,event=event(),status='queued'))
+        first=ledger.claim('r')
+        ledger.recover()
+        uncertain=ledger.read()['runs']['r']
+>       confirmed=ledger.confirm_uncertain('r',uncertain['revision'])
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Ledger' object has no attribute 'confirm_uncertain'
+
+tests\test_automation_retry_parallel.py:31: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/test_automation_retry_parallel.py::test_parallel_trigger_contract
+FAILED tests/test_automation_retry_parallel.py::test_action_explicit_idempotence
+FAILED tests/test_automation_retry_parallel.py::test_uncertain_confirmation_keeps_run_and_new_attempt
+3 failed in 0.47s

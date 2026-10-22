@@ -213,3 +213,15 @@ Sessions; interrupted running records recover uncertain without requery/replay.
 Zero results succeed with diagnostics. Per-target business checks and partial
 failures remain in force. This adds selection, not caller authority or an Agent
 permission bypass. Details: `docs/design/Event-Trigger-Action-v0.1-core-contract.md`.
+
+
+## Idempotent declaration and Automation retries
+
+Action accepts strict boolean `idempotent` (default false), including disabled
+Agent drafts. It is an explicit business declaration. It does not turn Group or
+legacy provider invocations into automatic retries and does not bypass enabled,
+high-risk, immutable release/pin or Session business gates. The Automation-only
+finite retry/scheduling contract is
+[Run retries](../design/Event-Trigger-Action-v0.3-retry-scheduling.md). It freezes
+retry eligibility at first start and refuses changed Action digests on later
+attempts; increasing a later declaration cannot promote an already-started Run.

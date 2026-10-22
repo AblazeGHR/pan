@@ -1,0 +1,17 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_automation_retry_parallel.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=artifacts/retry-parallel/before.xml"
+  ],
+  "exitCode": 1,
+  "baseline": "dc1a0edd56aab3da0f9478d4162213dcafb9c266"
+}

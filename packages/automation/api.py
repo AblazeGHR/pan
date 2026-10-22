@@ -1,6 +1,7 @@
 """Trigger management only. Event registration/publishing has no public route."""
 from fastapi import APIRouter, HTTPException, Request
 from .store import Conflict
+from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
 
 def install(server):
@@ -39,6 +40,13 @@ def install(server):
         svc = service()
         state = await svc.engine.io(svc.ledger.read)
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
+
+    @router.get('/api/automation/schema')
+    async def schema():
+        return {'version': 1, 'scheduling': SCHEDULING_SCHEMA,
+                'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
+                'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
+                           'backoffSeconds': BACKOFF_SECONDS, 'backoffCapSeconds': BACKOFF_CAP_SECONDS}}
 
     @router.post('/api/automation/triggers')
     async def put(data: dict, request: Request):
@@ -80,6 +88,21 @@ def install(server):
             raise HTTPException(400, 'Expected expectedRevision')
         try:
             return {'run': await service().engine.io(service().ledger.cancel, rid, data['expectedRevision'])}
+        except Conflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(404, 'Run not found') from exc
+
+    @router.post('/api/automation/runs/{rid}/confirm-recovery')
+    async def confirm_recovery(rid: str, data: dict, request: Request):
+        await require(request)
+        if set(data) != {'expectedRevision', 'confirm'} or data['confirm'] is not True:
+            raise HTTPException(400, 'Expected expectedRevision and confirm:true; uncertain effects may repeat')
+        try:
+            svc = service()
+            run = await svc.engine.io(svc.ledger.confirm_uncertain, rid, data['expectedRevision'], svc.engine.max_pending)
+            await svc.engine.kick()
+            return {'run': run}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:

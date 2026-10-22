@@ -1,6 +1,6 @@
 """Transport-neutral declarations for future adapters and UI clients.
 
-query is a bounded predicate tree; parallel remains a reserved extension value.
+query is a bounded predicate tree; retry/parallel are bounded backend policies.
 """
 from typing import Any, Literal, NotRequired, TypedDict
 
@@ -35,7 +35,23 @@ class SessionSelector(TypedDict):
 
 
 ExecutionMode = Literal['serial', 'parallel']
-RunStatus = Literal['queued', 'running', 'succeeded', 'failed', 'cancelled', 'uncertain', 'skipped']
+RunStatus = Literal['queued', 'retry_wait', 'running', 'succeeded', 'failed', 'cancelled', 'uncertain', 'skipped']
+
+
+class RetryPolicy(TypedDict, total=False):
+    enabled: bool
+    maxAttempts: int  # 1..10, includes initial attempt; default 3.
+
+
+class TriggerScheduling(TypedDict, total=False):
+    executionMode: ExecutionMode
+    maxConcurrency: int  # serial=1; parallel defaults 3, range 1..32.
+    retry: RetryPolicy
+
+
+class ConfirmRecovery(TypedDict):
+    expectedRevision: int
+    confirm: Literal[True]
 
 
 class EventReceipt(TypedDict):
@@ -53,6 +69,7 @@ class RunAttempt(TypedDict):
     startedAt: NotRequired[str]
     finishedAt: NotRequired[str]
     legacy: NotRequired[bool]
+    reason: NotRequired[Literal['automatic', 'user-confirmed']]
     error: NotRequired[str]
     result: NotRequired[Any]
     targetIds: NotRequired[list[str]]

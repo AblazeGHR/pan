@@ -1,0 +1,20 @@
+[
+  {
+    "evidence": "artifacts/retry-parallel/http-evidence.json",
+    "port": 53220,
+    "portBindRechecked": true,
+    "ownedProcessesRemaining": []
+  },
+  {
+    "evidence": "artifacts/retry-parallel/regression-snapshots/event-store/http-evidence.json",
+    "port": 53220,
+    "portBindRechecked": true,
+    "ownedProcessesRemaining": []
+  },
+  {
+    "evidence": "artifacts/retry-parallel/regression-snapshots/event-store/core-running/http-evidence.json",
+    "port": 53220,
+    "portBindRechecked": true,
+    "ownedProcessesRemaining": []
+  }
+]

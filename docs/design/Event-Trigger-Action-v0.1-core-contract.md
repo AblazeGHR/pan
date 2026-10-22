@@ -7,6 +7,13 @@ implementation supplement. See `artifacts/eta-final/DESIGN-MATRIX.md` for the
 implemented, verified, deferred and manual-acceptance boundaries; integration
 validation does not mean overall human acceptance.
 
+The accepted Event Store phase is extended by the authorized
+[retry and scheduling batch](Event-Trigger-Action-v0.3-retry-scheduling.md).
+That contract supersedes serial-only/no-retry statements below and defines the
+additive Trigger scheduling fields, Action idempotent declaration, retry_wait,
+per-attempt checkpoints and separate user uncertainty confirmation. No frontend
+change is included in this batch.
+
 ## Lifetime and storage
 
 `packages.automation.service.Service` is created/stopped by the web lifespan.
@@ -43,11 +50,14 @@ diagnostics are process-local; the durable guarantee starts at commit.
 | POST `/api/automation/events/maintenance` | Bearer | fixed retention cleanup counts; no arbitrary deletion |
 | POST `/api/automation/triggers` | `{item, expectedRevision, agentId?}` | `{item}`; create revision 0, updates exact Trigger revision |
 | DELETE `/api/automation/triggers/{id}?expectedRevision=N` | Bearer header | user token always required; disable before delete; history retained |
-| POST `/api/automation/runs/{id}/cancel` | `{expectedRevision:N}`, Bearer | queued only; conflict/start already occurred -> 409 |
+| POST `/api/automation/runs/{id}/cancel` | `{expectedRevision:N}`, Bearer | queued/retry_wait only; conflict/start already occurred ->409 |
+| POST `/api/automation/runs/{id}/confirm-recovery` | `{expectedRevision:N,confirm:true}`, Bearer | current uncertain only; same Run/new attempt, bounded; conflicts409 |
+| GET `/api/automation/schema` | none | strict scheduling schema fragment, Action idempotent property and hard limits |
 
 The Trigger item accepts `id?`, `name`, `description?`, `eventTypes`, `condition?`,
-`actionId`, `arguments?`, `executionMode?` and `enabled?`. New Trigger defaults to
-`enabled:false`; serial is the sole accepted mode. IDs are generated if omitted.
+`actionId`, `arguments?`, `executionMode?`, `maxConcurrency?`, `retry?` and `enabled?`. New Trigger defaults to
+`enabled:false`; serial is default. Parallel defaults to3, integer1..32; serial
+requires1. Retry defaults off with total maxAttempts3 (range1..10). IDs are generated if omitted.
 Missing/stale revisions are rejected (409). Authentication failures are 401.
 Ordinary unauthenticated callers can only maintain disabled drafts. They cannot
 enable, disable an enabled Trigger, edit any enabled Trigger, or delete one.
@@ -136,7 +146,7 @@ Runs store `id/revision/triggerId/triggerRevision/actionId/event/arguments/state
 `createdAt/startedAt?/finishedAt?`, `status/error?/result?`, `action/actionDigest?`,
 and Session Operation checkpoints `targetIds/targetResults`. The Event Store phase
 adds `attempts/attemptCount/activeAttemptId`; its first durable claim creates one
-attempt, with no automatic retry. Registry and every
+attempt; the scheduling batch defines subsequent authorized attempts. Registry and every
 object have independent increasing revisions. Event ID + Trigger ID deduplicates
 all statuses while retained. Runs are appended before effects and gated by durable
 `admitted:true` after all matching persistence attempts for that Event finish.
@@ -144,8 +154,9 @@ Partial persistence failures are diagnostic; successfully persisted matches can
 run once admission is durable. Admission failure keeps queued records waiting.
 Recovery makes persisted queued records admissible; interrupted running records
 become uncertain without replay. Disabled/deleted Trigger queues cancel, while
-unavailable plugin queues remain waiting. Same Trigger executes in ledger order;
-different Triggers have separate tasks. No ordinary failure retries occur.
+unavailable plugin queues remain waiting. Serial Triggers execute in admission order including retry backoff; parallel
+Triggers use bounded independent slots. Opt-in idempotent failed retries persist
+nextAttemptAt and retain distinct attempt history under the scheduling contract.
 
 Action definitions are read by ID at execution start; their full snapshot and
 SHA-256 digest are persisted before invocation. Deleted, disabled or newly
@@ -181,7 +192,7 @@ Session Operation is rejected by the legacy Group build/provider entry points,
 so their permission and execution semantics do not expand accidentally.
 
 `query` is implemented by the authorized Session query follow-up below.
-Parallel mode remains reserved. Production UI and the stdio external plugin
+Parallel mode is implemented by the separate bounded scheduling batch. Production UI and the stdio external plugin
 transport are integrated and have isolated combination evidence. Alternative
 remote transports and durable per-plugin consumer delivery remain deferred.
 The Event Store phase adds bounded retention, inbox paging and durable Trigger
@@ -283,4 +294,5 @@ Zero targets checkpoint an empty target set and successful matched=0 result with
 selection diagnostics. Cancellation/write failure/uncertain behavior is unchanged.
 Recovered running/uncertain Runs never requery or replay their target set. Queued
 Runs that have never started resolve once when they actually start after recovery.
-No target recomputation or generic retry API is introduced.
+The query follow-up itself introduced no generic retry API; the later scheduling
+batch reuses its fixed targets across authorized attempts.

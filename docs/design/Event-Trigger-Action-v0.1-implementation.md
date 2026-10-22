@@ -46,3 +46,14 @@ does not implement Job Templates, new Action snapshots, retry policies, parallel
 execution modes, or durable plugin subscription transport. Older design sections
 that defer durable Event storage describe v0.1, not completion of those other
 future stages. Overall human acceptance remains separate from automated evidence.
+
+
+## Next independent batch: finite retries and Trigger scheduling
+
+The accepted Event Store baseline dc1a0edd is extended by the explicitly authorized
+[finite retry and scheduling backend](Event-Trigger-Action-v0.3-retry-scheduling.md).
+Parallel now uses bounded per-Trigger slots, default3/hard32, with serial default.
+Automatic failed retry requires the original Action idempotent declaration and
+original/current enabled Trigger retry policy. Uncertain confirmation is a separate
+user Bearer/revision operation, not Event replay. UI, Job Template/Job snapshots
+and new Action snapshot mechanisms remain outside this batch.

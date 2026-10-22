@@ -382,3 +382,29 @@ acknowledgement; at-least-once covers Event-to-Trigger matching, with retained
 Event+Trigger dedup. Live plugin subscriptions remain best effort. Capacity blocks
 new admission rather than dropping pending facts/uncertain Runs. Details and
 migration risks: `docs/design/Event-Trigger-Action-v0.2-event-store.md`.
+
+
+## Automation scheduling and uncertainty recovery
+
+`GET /api/automation/schema` supplies the strict scheduling fragment and limits.
+Trigger writes accept `executionMode` (serial default/parallel), `maxConcurrency`
+(serial1; parallel default3/range1..32), `retry:{enabled:false,maxAttempts:3}`
+(total attempts1..10, including first). Unknown fields/types reject. Omitted additive
+fields preserve an existing policy for old clients. Changing concurrency requires
+user Bearer/revision even on disabled drafts; reducing below running count ->409.
+Action `idempotent` defaults false; Agent drafts remain disabled.
+
+Failed automatic retry requires frozen idempotent eligibility and original/current
+retry opt-in, persists retry_wait/nextAttemptAt, with1s exponential backoff capped60s.
+Run attempt IDs/history remain separate under one logical Run ID. Disable cancels
+queued/retry_wait, never replays history on reenable. Cancel API accepts retry_wait.
+
+`POST /api/automation/runs/{id}/confirm-recovery` requires user Bearer and exactly
+`{expectedRevision:N,confirm:true}`. Current uncertain revision only; returns `{run}`
+queued with same ID and a new attempt at claim. Authentication401, malformed400,
+missing404, stale/non-uncertain/disabled/capacity/budget409. Explicit confirmation
+accepts potential repetition of unknown effects even with automatic retry disabled;
+it never promotes eligibility. This is not an Agent tool. Query IDs and confirmed
+successful target results are reused. Token expiry/logout after admission does
+not revoke execution or bypass business gates. Full contract and migration caveats:
+`docs/design/Event-Trigger-Action-v0.3-retry-scheduling.md`.
