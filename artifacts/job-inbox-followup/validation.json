@@ -66,6 +66,5 @@
     "unknownFieldsRetained": true,
     "legacyEnabledForcedOff": true,
     "temporaryCopiesOnly": true
-  },
-  "candidateSha": "f393b05a43609dbd6f39c69d60283396280c5b32"
+  }
 }
