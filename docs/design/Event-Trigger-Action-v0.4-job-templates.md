@@ -168,6 +168,11 @@ failures retain markers and use the existing scheduler tick to retry notificatio
 never effects. Disk failure can visibly retain `cleaning`; repair storage and resume
 the same profile to finish cleanup. There is no executable history fallback.
 
+Registry replacement/read retries transient sharing denial off-loop with at most
+90ms additional wait. Persistent storage denial remains an error, never canonical
+file truncation or authorization success/failure; Action mutation APIs report503
+for this persistence failure and401 only for missing user capability.
+
 Limits: 1 MiB per submitted document/execution snapshot, 256 live templates,
 10,000 distinct template revision tombstones, 10,000 instantiation receipts and
 128 live snapshots per Actions profile; schedule1..32/reference depth8. Capacity

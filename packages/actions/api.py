@@ -5,7 +5,7 @@ import shutil
 from fastapi import APIRouter, HTTPException, Request
 
 from packages.plugins.lifecycle import coordinator, io, pinned, settled
-from .store import Store
+from .store import Store, PersistenceError
 
 
 def install(server):
@@ -68,6 +68,8 @@ def install(server):
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
+        except PersistenceError as exc:
+            raise HTTPException(503,str(exc)) from exc
 
     @router.put('/api/actions/{kind}/{item_id}')
     async def put(kind: str, item_id: str, data: dict, request: Request):
@@ -82,6 +84,8 @@ def install(server):
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
+        except PersistenceError as exc:
+            raise HTTPException(503,str(exc)) from exc
 
     @router.delete('/api/actions/{kind}/{item_id}')
     async def delete(kind: str, item_id: str, request: Request, expectedRevision: int | None = None, confirmReferences: bool = False):
@@ -94,6 +98,8 @@ def install(server):
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
+        except PersistenceError as exc:
+            raise HTTPException(503,str(exc)) from exc
 
     @router.post('/api/actions/groups/{group_id}/{operation}')
     @settled

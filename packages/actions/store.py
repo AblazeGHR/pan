@@ -9,6 +9,7 @@ import re
 import sys
 import tempfile
 import threading
+import time
 import uuid
 
 import jsonschema
@@ -19,12 +20,22 @@ API_ROUTES = {'/api/sessions', '/api/models', '/api/workspaces'}
 EFFECTS = {'read', 'write_local', 'write_external', 'high_risk'}
 
 
+class PersistenceError(OSError):
+    """Storage failure, distinct from user authorization PermissionError."""
+
+
 def root():
     from packages.core import session
     return session.SESSION_DIR.parent / 'actions'
 
 
 def atomic(path, value):
+    try:_atomic(path,value)
+    except OSError as exc:
+        raise PersistenceError('Action registry persistence failed: '+str(exc)) from exc
+
+
+def _atomic(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
     try:
@@ -32,7 +43,13 @@ def atomic(path, value):
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(name, path)
+        for attempt in range(10):
+            try:
+                os.replace(name, path)
+                break
+            except PermissionError:
+                if attempt == 9:raise
+                time.sleep(.01)  # Off-loop, bounded90ms; never truncate canonical state.
     finally:
         if os.path.exists(name):
             os.unlink(name)
@@ -169,7 +186,11 @@ class Store:
     def read(self):
         if not self.path.exists():
             return {'revision': 0, 'actions': {}, 'groups': {}, 'retired_plugins': []}
-        return json.loads(self.path.read_text(encoding='utf-8'))
+        for attempt in range(10):
+            try:return json.loads(self.path.read_text(encoding='utf-8'))
+            except PermissionError as exc:
+                if attempt==9:raise PersistenceError('Action registry read failed: '+str(exc)) from exc
+                time.sleep(.01)
 
     def mutate(self, change, expected=None, *, versioned=True):
         with _lock:
