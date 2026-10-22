@@ -1,15 +1,15 @@
 {
-  "sourceSha": "16429246ac1527ae89f3b6948407a527fd29f729",
+  "sourceSha": "5db562a2cf4bc76efa30efa9e04a3a74fa018c14",
   "jobBase": "886842338c623b73bac8f16a12f4675879664674",
   "inboxBase": "7446efcb55545be35e76b4845941991202b8cd93",
   "tests": {
     "python": {
-      "tests": 327,
+      "tests": 331,
       "failures": 0,
       "errors": 0,
       "skipped": 0,
       "exitCode": 0,
-      "junit": "artifacts/job-inbox-followup/python.xml"
+      "junit": "artifacts/job-inbox-followup/python-final.xml"
     },
     "ui": {
       "tests": 65,
@@ -57,5 +57,14 @@
   "cleanup": {
     "ownedProcessesRemaining": [],
     "portReleased": true
+  },
+  "migrationDrill": {
+    "tests": 4,
+    "exitCode": 0,
+    "junit": "artifacts/job-inbox-followup/python-final.xml",
+    "sourceBytesUnchanged": true,
+    "unknownFieldsRetained": true,
+    "legacyEnabledForcedOff": true,
+    "temporaryCopiesOnly": true
   }
 }
