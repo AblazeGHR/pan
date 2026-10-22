@@ -153,9 +153,12 @@ class Bindings:
         return None
 
     def row(self,w,s,roles,accounts,process):
+        from packages.core.adapters.codex.provider_launch import candidate
+        try:provider=candidate(w,s,self.epoch,process)
+        except Exception:provider=None
         return {'runtimeEpoch':self.epoch,'sessionId':w.session_id,'workerId':w.worker_id,
                 'generation':w.generation,'adapter':getattr(w.adapter,'name',None),
-                'accountId':accounts.get(getattr(w,'codex_profile_key',None)),
+                'accountId':provider or accounts.get(getattr(w,'codex_profile_key',None)),
                 'role':roles.get(w.session_id),'status':w.status,'alive':process is not None,
                 'processIdentity':process,'task':self.task(w,s)}
 

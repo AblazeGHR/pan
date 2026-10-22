@@ -1,5 +1,14 @@
 # Pan 测试隔离约定
 
+Codex fixed-provider launch tests additionally use an owned `CODEX_HOME`, local
+fake provider and app-server fixture; `PAN_CODEX_FIXED_PROVIDER_LAUNCH` defaults
+off and must never be applied to a real profile for these tests. The fixture
+asserts process `-c` provider overrides and thread receipts while retaining its
+own native-history sentinel. Offline CLI schema generation is not a paid turn or
+an account/config identity attestation. Test source injection cannot be replaced
+with a public verified flag. See `tests/test_provider_launch.py` and its owned HTTP
+launcher for process/ACL/Job cleanup assertions.
+
 ## 默认入口
 
 从 Job、Agent Worker 或已配置的 Pan 终端运行测试时，使用统一入口：

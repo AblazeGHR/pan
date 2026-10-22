@@ -273,6 +273,7 @@ class Worker:
     # persisted Worker identity. It is used only to route live updates to the
     # matching global quota store.
     codex_profile_key: str | None = None
+    _provider_launch_binding: dict | None = None  # only after durable trusted launch receipt
     # Current turn's native plan/diff snapshots for dashboard reconnect replay.
     native_plan: dict | None = None
     native_diff: dict | None = None
@@ -396,6 +397,7 @@ def _next_worker_generation(session_id: str) -> int:
 def _bump_worker_generation(w: Worker) -> None:
     _cancel_pending_restart(w)
     w.generation += 1
+    w._provider_launch_binding = None
     w.offline_token = uuid.uuid4().hex
     _worker_generations[w.session_id] = max(
         _worker_generations.get(w.session_id, -1), w.generation,
@@ -750,13 +752,32 @@ async def _claim_offline_owner(w: Worker) -> None:
     if s is None:
         return  # Cleanup of a deleted Session must not recreate its metadata.
     identity = _offline.owner(w)
+    pending = getattr(w.process, '_provider_launch', None)
+    launch = None
+    if pending and pending.receipt and pending.receipt['runtimeEpoch'] == _offline.SERVICE_ID:
+        launch = {**pending.receipt,
+                  'sessionId': w.session_id, 'workerId': w.worker_id, 'generation': w.generation}
     async with queue_lock(w.session_id):
         def claim(candidate):
             if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                     or w.generation != identity["generation"]):
                 raise RuntimeError("Runtime changed before owner registration")
             candidate.offline_owner = dict(identity)
+            if launch:
+                candidate.operation_revision += 1
+                candidate.execution_operations[launch['launchId']] = {
+                    **identity, 'id': launch['launchId'], 'kind': 'provider-launch',
+                    'executionSeq': 0,  # process proof is not a resumed task execution
+                    'state': 'completed', 'safeTerminal': True, 'providerLaunchBinding': launch,
+                    'admittedRevision': candidate.operation_revision, 'startedAt': launch['verifiedAt']}
         await _commit_offline(s, claim)
+        if (launch and workers.get(w.worker_id) is w and w.process is not None
+                and getattr(w.process, '_provider_launch', None) is pending
+                and launch['runtimeEpoch'] == _offline.SERVICE_ID
+                and w.generation == identity['generation'] and w.offline_token == identity['token']):
+            # Publication is in-owner and follows the ordered durable commit.
+            pending.owner = w
+            w._provider_launch_binding = launch
 
 
 async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
@@ -9007,14 +9028,49 @@ async def _spawn_process(session_id: str,
         args = await io(adapter.build_spawn_args, s, extra_args)
         _log_mcp_launch(worker_id=s.worker_id if hasattr(s, "worker_id") else session_id,
                         session=s, args=args)
-        return await asyncio.create_subprocess_exec(
+        from packages.core.adapters.codex import provider_launch
+        pending = None
+        if adapter.name == 'codex':
+            preparation = asyncio.create_task(io(provider_launch.prepare, adapter, s, _sess.SESSION_DIR.parent))
+            try:
+                pending = await asyncio.shield(preparation)
+            except asyncio.CancelledError:
+                # Retire the off-loop write before deleting its owned directory.
+                result = await preparation
+                if result:await io(result.close)
+                raise
+            except Exception:
+                return 'Fixed provider launch configuration unavailable'
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
             stdin=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
+            **({'env': pending.environment()} if pending else {}),
             **command_window_options(),
-        )
+            )
+            if pending:
+                proc._provider_launch = pending
+                await pending.accept(proc)
+                async def cleanup_launch():
+                    await proc.wait()
+                    await io(pending.close)
+                proc._provider_launch_cleanup = asyncio.create_task(cleanup_launch())
+            return proc
+        except BaseException as exc:
+            if proc:
+                if proc.stdin:proc.stdin.close()
+                if proc.returncode is None:
+                    try:proc.kill()
+                    except ProcessLookupError:pass
+                await proc.wait()
+            if pending:await io(pending.close)
+            if isinstance(exc,asyncio.CancelledError):raise
+            if pending:return 'Fixed provider launch was not confirmed'
+            raise
     except FileNotFoundError as e:
         return format_cli_spawn_error(adapter.name, e)
     except ValueError as e:
@@ -9398,7 +9454,13 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     workers[new_id] = new_w
     _register_worker(new_w)
     new_w._offline_predecessors = set(s.illegal_batches)
-    await _claim_offline_owner(new_w)
+    try:
+        await _claim_offline_owner(new_w)
+    except BaseException:
+        await _kill_process_tree(new_w)
+        workers.pop(new_id,None)
+        _unregister_worker(new_w)
+        raise
     new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
     new_w._consume_task = asyncio.create_task(_consumer(new_w))

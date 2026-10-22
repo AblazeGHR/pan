@@ -371,6 +371,9 @@ class AppServer:
         self._wait_response(initialize_id)
         self._send({"method": "initialized", "params": {}})
 
+        from packages.core.adapters.codex.provider_launch import attest
+        attest(self, _write_stdout)
+
         params = self._thread_params()
         if self._initial_thread_id:
             # ``threadSource`` and developer instructions are start-only
@@ -393,6 +396,8 @@ class AppServer:
         self.thread_id = thread.get("id") or self._initial_thread_id
         if not self.thread_id:
             raise RuntimeError(f"app-server returned no thread id: {response}")
+        from packages.core.adapters.codex.provider_launch import attest_thread
+        attest_thread(self, result)
         self._emit_thread_started(thread)
 
     @property
@@ -401,6 +406,8 @@ class AppServer:
 
     def _thread_params(self) -> dict[str, Any]:
         params: dict[str, Any] = {"cwd": self.cwd, "threadSource": "pan"}
+        from packages.core.adapters.codex.provider_launch import thread_params
+        thread_params(self, params)
         model = self.config.get("model")
         if model:
             params["model"] = str(model)
@@ -1453,6 +1460,8 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
 
 
 def main(argv: list[str] | None = None) -> int:
+    from packages.core.adapters.codex.provider_launch import bootstrap
+    bootstrap()
     parser = argparse.ArgumentParser(description="Pan bridge for Codex app-server")
     parser.add_argument("--codex-path", required=True)
     parser.add_argument("--node-path", default="node")
@@ -1469,6 +1478,9 @@ def main(argv: list[str] | None = None) -> int:
             extra = []
     except json.JSONDecodeError:
         extra = []
+
+    from packages.core.adapters.codex.provider_launch import options as fixed_provider_options
+    extra.extend(fixed_provider_options())
 
     system_prompt = args.system_prompt
     if args.system_prompt_file:

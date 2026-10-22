@@ -472,3 +472,12 @@ Production switch/model/restart/send effects remain unbound. See the exact
 The [provider source contract](../../../design/quota-provider-identity-v0.3.md)
 defines bounded all-official sampling, disabled exclusions, strict window/time
 validation, provider before/after checks and the pending explicit launch binding.
+
+Trusted fixed new-Worker binding is an internal opt-in lifecycle path, not an HTTP
+verified flag. See [launch binding](../../../design/provider-launch-binding-v0.3.md).
+Existing Session execution-operation persistence may include a completed safe
+provider-launch operation with providerLaunchBinding (domain/ID, digests, epoch,
+Worker/generation, process birth and thread receipt); no config body/capability.
+Host inventory consumes only its matching live owner. A copied historical record
+does not grant startup identity or unfinished-task eligibility. No new effect or
+launch-export endpoint is exposed in this batch.

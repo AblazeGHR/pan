@@ -97,6 +97,11 @@ persists in the existing policy ledger only; it is not another account registry.
 
 ## Minimal explicit launch-binding design (not implemented or fabricated)
 
+The [trusted new-Worker launch batch](provider-launch-binding-v0.3.md) now
+implements a credentialless fixed-configuration/receipt path over the existing
+spawn/operation lifecycle. The default production exporter remains unavailable;
+the conditional upstream/credential/native-version boundaries below still apply.
+
 Current Worker.create_worker records only codex_profile_key after spawning; fork
 copies it. This is neither provider ID nor proof of what a process loaded. CLI
 list/quota/switch has no launch receipt/config revision. Existing Workers therefore
