@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="33" time="22.874" timestamp="2026-10-22T20:55:37.619908+08:00" hostname="ablaze"><testcase classname="tests.test_quota_host" name="test_owned_fake_cli_and_native_quota_keep_identity_and_time_sources" time="0.069" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[partial]" time="0.058" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[stale]" time="0.054" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[missing_reset]" time="0.057" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[wrong_duration]" time="0.058" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[profile_changed]" time="0.057" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[missing_cache]" time="0.057" /><testcase classname="tests.test_quota_host" name="test_read_source_partial_stale_failure_unknown_without_guess[query_failure]" time="0.010" /><testcase classname="tests.test_quota_host" name="test_default_off_performs_no_source_or_process_io" time="0.016" /><testcase classname="tests.test_quota_host" name="test_real_projection_explicit_role_process_and_unfinished_task" time="0.039" /><testcase classname="tests.test_quota_host" name="test_probe_await_fences_replaced_worker" time="0.020" /><testcase classname="tests.test_quota_host" name="test_guarded_business_admission_positive_and_unknown_not_replayed" time="0.048" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[generation]" time="0.059" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[birth]" time="0.045" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[pid]" time="0.045" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[task]" time="0.044" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[execution]" time="0.045" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[completed]" time="0.069" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[owner]" time="0.044" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[account]" time="0.045" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[pause]" time="0.071" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[illegal]" time="0.046" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[lease]" time="0.063" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[readonly]" time="0.043" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[queue_lock]" time="0.045" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[disabled]" time="0.047" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[manual]" time="0.049" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[close]" time="0.047" /><testcase classname="tests.test_quota_host" name="test_terminal_admission_rechecks_after_business_entry_await[host_off]" time="0.047" /><testcase classname="tests.test_quota_host" name="test_unbound_production_operations_do_not_call_legacy_entries" time="0.042" /><testcase classname="tests.test_quota_host" name="test_unrelated_session_progresses_while_entry_waits" time="0.055" /><testcase classname="tests.test_quota_host" name="test_native_birth_probe_only_owned_retained_process" time="0.009" /><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart" time="20.437"><failure message="AssertionError: isolated server failed to start:&#10;^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py&quot;, line 232, in merged_lifespan&#10;    async with original_context(app) as maybe_original_state:&#10;               ~~~~~~~~~~~~~~~~^^^^^&#10;  File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py&quot;, line 214, in __aenter__&#10;    return await anext(self.gen)&#10;           ^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\server.py&quot;, line 307, in lifespan&#10;    await automation.start()&#10;  File &quot;D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\service.py&quot;, line 140, in start&#10;    self.quota_policy.adapter = production(self.quota_policy.store, self.worker, data_root())&#10;                                ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;  File &quot;D:\project\pan-worktrees\event-trigger-core-20261022\tests\support\quota_host_http_server.py&quot;, line 17, in owned&#10;    assert Path(root).resolve()==data&#10;           ^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;AssertionError&#10;&#10;ERROR:    Application startup failed. Exiting.&#10;[20:55:40] [Pan] Loaded 6 session templates from manifest">self = &lt;tests.test_real_queue_http_e2e._PanRuntime object at 0x000002C87EBA6CF0&gt;
+
+    def start(self):
+        assert _port_is_free(PORT), f"isolated port {PORT} is not free"
+        self.data_root.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
+        env.update({
+            "PAN_E2E_DATA_ROOT": str(self.data_root),
+            "PAN_E2E_FAKE_CLI": str(FAKE_CLI),
+            "PAN_E2E_FAKE_LOG": str(self.log_path),
+            "PAN_E2E_GATE_MAP": json.dumps({k: str(v) for k, v in self.gates.items()}),
+            "PAN_E2E_CAPTURE_MARKER": str(self.capture_marker),
+            # Avoid accidental provider/MCP work in this test process.
+            "PAN_AGENT_SESSION_ID": "",
+        })
+        log = open(self.data_root / "pan.log", "a", encoding="utf-8")
+        self.process = subprocess.Popen(
+            [sys.executable, str(SERVER_LAUNCHER), "--port", str(PORT),
+             "--data-root", str(self.data_root)],
+            cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT,
+            **command_window_options(),
+        )
+        self.pan_pids.append(self.process.pid)
+        try:
+&gt;           _wait_for(
+                lambda: self.process.poll() is None and self._health_ok(),
+                timeout=20,
+                label="isolated FastAPI readiness",
+            )
+
+tests\test_real_queue_http_e2e.py:172:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function _PanRuntime.start.&lt;locals&gt;.&lt;lambda&gt; at 0x000002C87ED70720&gt;
+timeout = 20, label = 'isolated FastAPI readiness'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for isolated FastAPI readiness: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3683/test_owned_host_configuration_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002C87ECC2820&gt;
+
+    def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypatch):
+        assert h.PORT not in (8767,8768)
+        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+        rt=h._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
+        now=float(int(time.time()))
+        profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
+        store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
+        store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
+        before=store.path.read_bytes();evidence={'port':h.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
+        try:
+&gt;           rt.start();evidence['serverPid']=rt.process.pid
+            ^^^^^^^^^^
+
+tests\test_quota_host_http.py:24:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;tests.test_real_queue_http_e2e._PanRuntime object at 0x000002C87EBA6CF0&gt;
+
+    def start(self):
+        assert _port_is_free(PORT), f"isolated port {PORT} is not free"
+        self.data_root.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
+        env.update({
+            "PAN_E2E_DATA_ROOT": str(self.data_root),
+            "PAN_E2E_FAKE_CLI": str(FAKE_CLI),
+            "PAN_E2E_FAKE_LOG": str(self.log_path),
+            "PAN_E2E_GATE_MAP": json.dumps({k: str(v) for k, v in self.gates.items()}),
+            "PAN_E2E_CAPTURE_MARKER": str(self.capture_marker),
+            # Avoid accidental provider/MCP work in this test process.
+            "PAN_AGENT_SESSION_ID": "",
+        })
+        log = open(self.data_root / "pan.log", "a", encoding="utf-8")
+        self.process = subprocess.Popen(
+            [sys.executable, str(SERVER_LAUNCHER), "--port", str(PORT),
+             "--data-root", str(self.data_root)],
+            cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT,
+            **command_window_options(),
+        )
+        self.pan_pids.append(self.process.pid)
+        try:
+            _wait_for(
+                lambda: self.process.poll() is None and self._health_ok(),
+                timeout=20,
+                label="isolated FastAPI readiness",
+            )
+        except Exception:
+            details = (self.data_root / "pan.log").read_text(encoding="utf-8", errors="replace")
+&gt;           raise AssertionError(f"isolated server failed to start:\n{details[-4000:]}")
+E           AssertionError: isolated server failed to start:
+E           ^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py", line 232, in merged_lifespan
+E               async with original_context(app) as maybe_original_state:
+E                          ~~~~~~~~~~~~~~~~^^^^^
+E             File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 214, in __aenter__
+E               return await anext(self.gen)
+E                      ^^^^^^^^^^^^^^^^^^^^^
+E             File "D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\server.py", line 307, in lifespan
+E               await automation.start()
+E             File "D:\project\pan-worktrees\event-trigger-core-20261022\packages\automation\service.py", line 140, in start
+E               self.quota_policy.adapter = production(self.quota_policy.store, self.worker, data_root())
+E                                           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E             File "D:\project\pan-worktrees\event-trigger-core-20261022\tests\support\quota_host_http_server.py", line 17, in owned
+E               assert Path(root).resolve()==data
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError
+E
+E           ERROR:    Application startup failed. Exiting.
+E           [20:55:40] [Pan] Loaded 6 session templates from manifest
+
+tests\test_real_queue_http_e2e.py:179: AssertionError</failure></testcase></testsuite></testsuites>

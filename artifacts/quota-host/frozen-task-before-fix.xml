@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.576" timestamp="2026-10-22T21:01:46.199601+08:00" hostname="ablaze"><testcase classname="tests.test_quota_host" name="test_switch_cannot_adopt_completed_or_replaced_frozen_task" time="0.077"><failure message="AssertionError: assert not ['166c0fced76ea7ed37daaee9d1da0abcd75cf2c64dba7cebadf1a1c2743f408f']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3693/test_switch_cannot_adopt_compl0')
+
+    @async_test
+    async def test_switch_cannot_adopt_completed_or_replaced_frozen_task(tmp_path):
+        effects=[]
+        rt,a,module,w,s,source,event=await setup(tmp_path)
+        async def port(command,key,ticket):
+            return ticket.commit(lambda:effects.append(key) or {'key':key,'status':'confirmed'})
+        a.ports={'switch_account':port};event['classification']='codex_quota_exhausted'
+        await rt.consume(event)
+        # Completed before perform's fresh inventory: the new inventory must not
+        # silently replace the command's frozen task with its now-empty evidence.
+        s.active_task_id=None;w.status='idle'
+        await rt.dispatch()
+&gt;       assert not effects
+E       AssertionError: assert not ['166c0fced76ea7ed37daaee9d1da0abcd75cf2c64dba7cebadf1a1c2743f408f']
+
+tests\test_quota_host.py:330: AssertionError</failure></testcase></testsuite></testsuites>

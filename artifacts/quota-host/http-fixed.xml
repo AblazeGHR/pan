@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="5.633" timestamp="2026-10-22T20:56:29.909799+08:00" hostname="ablaze"><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart" time="5.164" /></testsuite></testsuites>
