@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.289" timestamp="2026-10-22T22:20:16.952583+08:00" hostname="ablaze"><testcase classname="tests.test_provider_launch_real_codex" name="test_installed_cli_fixed_provider_start_resume_and_materialized_branch" time="0.886"><failure message="AssertionError: Fixed provider launch was not confirmed&#10;assert not True&#10; +  where True = isinstance('Fixed provider launch was not confirmed', str)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3743/test_installed_cli_fixed_provi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D02CD0E90&gt;
+responses = ('http://127.0.0.1:52019', [])
+
+    @async_test
+    async def test_installed_cli_fixed_provider_start_resume_and_materialized_branch(tmp_path,monkeypatch,responses):
+        url,hits=responses
+        # Do not inherit any user's auth, native home, proxy, MCP or config settings.
+        keep={'PATH','SYSTEMROOT','WINDIR','TEMP','TMP','PATHEXT','COMSPEC'}
+        for k in list(os.environ):
+            if k.upper() not in keep:monkeypatch.delenv(k,raising=False)
+        monkeypatch.setenv('USERPROFILE',str(tmp_path));monkeypatch.setenv('HOME',str(tmp_path))
+        monkeypatch.setenv('APPDATA',str(tmp_path/'appdata'));monkeypatch.setenv('LOCALAPPDATA',str(tmp_path/'localappdata'))
+        a,s,selected,root=setup(tmp_path,monkeypatch,url)
+        home=Path(os.environ['CODEX_HOME'])
+        config=home/'config.toml'
+        config.write_text('cli_auth_credentials_store="file"\ncheck_for_update_on_startup=false\n[analytics]\nenabled=false\n[feedback]\nenabled=false\n',encoding='utf-8')
+        sentinel=(home/'history-sentinel').read_bytes()
+        node=shutil.which('node');assert node and Path(CLI).is_file()
+        version=subprocess.run([node,CLI,'--version'],capture_output=True,timeout=15,**command_window_options())
+        assert version.returncode==0,version.stderr.decode('utf-8')
+        monkeypatch.setattr(a,'base_args',lambda:[sys.executable,'-u',str(Path('packages/core/adapters/codex/wrapper.py').resolve()),'--app-server','--node-path',node,'--codex-path',CLI])
+        monkeypatch.setattr(a,'model_args',lambda s:['--codex-extra-args',json.dumps(['-c','model="owned-model"','-c','approval_policy="never"','-c','sandbox_mode="read-only"'])])
+        evidence={'cliVersion':version.stdout.decode('utf-8').strip(),'cliPath':CLI,'actualNativeCLI':True,'receipts':[]}
+        accept=launch.Pending.accept
+        async def capture(pending,process):
+            stream=process.stdout
+            class Tap:
+                async def readline(self):
+                    line=await stream.readline()
+                    try:
+                        row=json.loads(line);row.pop('signature',None)
+                    except ValueError:row=line.decode('utf-8')
+                    evidence.setdefault('handshake',[]).append(row)
+                    return line
+            process.stdout=Tap()
+            try:return await accept(pending,process)
+            finally:process.stdout=stream
+        monkeypatch.setattr(launch.Pending,'accept',capture)
+        proc=None
+        try:
+&gt;           proc=await spawn(a,s)
+                 ^^^^^^^^^^^^^^^^
+
+tests\test_provider_launch_real_codex.py:113:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+a = &lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x0000026D02C7B750&gt;
+s = Session(id='ses_8e3a6fb722ae8c13', name='owned-launch', adapter='codex', model=None, permission_mode=None, pan_access=...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+    async def spawn(a,s):
+        proc=await worker._spawn_process(s.id,a)
+&gt;       assert not isinstance(proc,str),proc
+E       AssertionError: Fixed provider launch was not confirmed
+E       assert not True
+E        +  where True = isinstance('Fixed provider launch was not confirmed', str)
+
+tests\test_provider_launch.py:68: AssertionError</failure></testcase></testsuite></testsuites>

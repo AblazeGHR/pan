@@ -1,0 +1,280 @@
+{
+  "version": "codex-cli 0.163.0\n",
+  "versionExit": 0,
+  "configRead": {
+    "id": 2,
+    "result": {
+      "config": {
+        "model": "owned-model",
+        "review_model": null,
+        "model_context_window": null,
+        "model_auto_compact_token_limit": null,
+        "model_auto_compact_token_limit_scope": null,
+        "model_provider": "owned",
+        "approval_policy": null,
+        "approvals_reviewer": null,
+        "sandbox_mode": null,
+        "sandbox_workspace_write": null,
+        "forced_chatgpt_workspace_id": null,
+        "forced_login_method": null,
+        "web_search": null,
+        "tools": null,
+        "instructions": null,
+        "developer_instructions": null,
+        "compact_prompt": null,
+        "model_reasoning_effort": null,
+        "model_reasoning_summary": null,
+        "model_verbosity": null,
+        "service_tier": null,
+        "analytics": null,
+        "apps": null,
+        "browser_use": null,
+        "computer_use": null,
+        "desktop": null,
+        "default_permissions": null,
+        "mcp_servers": {},
+        "history": {
+          "persistence": "save-all",
+          "max_bytes": null
+        },
+        "audio": null,
+        "log_dir": null,
+        "project_doc_fallback_filenames": [],
+        "experimental_thread_store_endpoint": null,
+        "goals": null,
+        "notice": null,
+        "profiles": {},
+        "marketplaces": {},
+        "project_doc_max_bytes": 32768,
+        "experimental_realtime_webrtc_call_base_url": null,
+        "features": {
+          "api_key_cyber_access_programs": true,
+          "api_key_model_discovery": true,
+          "auth_elicitation": true,
+          "background_paginated_rollout_migration": false,
+          "codex_apps_mcp_2026_07_28": false,
+          "mcp_2026_07_28": false,
+          "memories": false,
+          "mentions_v2": true,
+          "remote_control": false,
+          "remote_plugin": true,
+          "tool_suggest": true,
+          "windows_sandbox_service": false
+        },
+        "auto_review": null,
+        "js_repl_node_module_dirs": null,
+        "shell_environment_policy": {
+          "inherit": null,
+          "ignore_default_excludes": null,
+          "exclude": null,
+          "set": null,
+          "include_only": null,
+          "filters": null,
+          "experimental_use_profile": null
+        },
+        "mcp_oauth_callback_port": null,
+        "tool_output_token_limit": null,
+        "model_instructions_file": null,
+        "file_opener": "vscode",
+        "model_catalog_json": null,
+        "model_post_turn_compact_threshold_percent": null,
+        "chatgpt_base_url": "https://chatgpt.com/backend-api/",
+        "experimental_realtime_ws_base_url": null,
+        "realtime": null,
+        "personality": null,
+        "apps_mcp_product_sku": null,
+        "cli_auth_credentials_store": "file",
+        "include_environment_context_time": true,
+        "profile": null,
+        "check_for_update_on_startup": null,
+        "memories": null,
+        "tui": null,
+        "experimental_realtime_ws_model": null,
+        "include_collaboration_mode_instructions": true,
+        "allow_symlinked_codex_home": null,
+        "model_providers": {
+          "owned": {
+            "name": "Owned",
+            "base_url": "http://127.0.0.1:1/v1",
+            "model_catalog_url": null,
+            "env_key": null,
+            "env_key_instructions": null,
+            "experimental_bearer_token": null,
+            "auth": null,
+            "gateway_oauth": null,
+            "aws": null,
+            "wire_api": "responses",
+            "capabilities": null,
+            "query_params": null,
+            "http_headers": null,
+            "env_http_headers": null,
+            "request_max_retries": null,
+            "stream_max_retries": null,
+            "stream_idle_timeout_ms": null,
+            "websocket_connect_timeout_ms": null,
+            "requires_openai_auth": false,
+            "supports_websockets": false,
+            "supports_standalone_web_search": false
+          }
+        },
+        "notify": null,
+        "disable_paste_burst": null,
+        "suppress_unstable_features_warning": null,
+        "experimental_thread_store": null,
+        "orchestrator": null,
+        "cloud": null,
+        "openai_base_url": null,
+        "experimental_realtime_start_instructions": null,
+        "project_root_markers": [
+          ".git"
+        ],
+        "windows": null,
+        "experimental_realtime_ws_startup_context": null,
+        "thread_unload_delay_secs": null,
+        "experimental_compact_prompt_file": null,
+        "feedback": null,
+        "permissions": null,
+        "include_permissions_instructions": true,
+        "mcp_optional_startup_grace_ms": null,
+        "mcp_enterprise_managed_auth": null,
+        "experimental_realtime_ws_backend_prompt": null,
+        "mcp_oauth_credentials_store": "auto",
+        "plan_mode_reasoning_effort": null,
+        "hooks": null,
+        "hide_agent_reasoning": false,
+        "plugins": {},
+        "ghost_snapshot": null,
+        "show_raw_agent_reasoning": null,
+        "background_terminal_max_timeout": 300000,
+        "agents": null,
+        "skills": null,
+        "experimental_use_unified_exec_tool": null,
+        "allow_login_shell": true,
+        "daybreak": null,
+        "otel": null,
+        "mcp_oauth_callback_url": null,
+        "tool_suggest": null,
+        "projects": null,
+        "responses_api_metadata": null,
+        "include_apps_instructions": true,
+        "sqlite_home": null,
+        "oss_provider": null,
+        "js_repl_node_path": null,
+        "include_environment_context": true
+      },
+      "origins": {
+        "model": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "model_providers.owned.wire_api": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "model_providers.owned.requires_openai_auth": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "model_providers.owned.name": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "model_providers.owned.base_url": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "model_provider": {
+          "name": {
+            "type": "sessionFlags"
+          },
+          "version": "sha256:727405a86c3b69273e970a0293e283f2d2af42ce3884aac0e9ad6d4f77032327"
+        },
+        "cli_auth_credentials_store": {
+          "name": {
+            "type": "user",
+            "file": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx\\codex\\config.toml",
+            "profile": null
+          },
+          "version": "sha256:45c050235f2790fbfee36c2b6448454a0ce2c5adf9a372f602e9e32eb5ad59fd"
+        }
+      }
+    }
+  },
+  "thread": {
+    "thread": {
+      "id": "01a163f9-881d-7930-8883-717edb7f5603",
+      "environments": [
+        {
+          "environmentId": "local",
+          "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx",
+          "runtimeWorkspaceRoots": [
+            "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx"
+          ]
+        }
+      ],
+      "extra": null,
+      "sessionId": "01a163f9-881d-7930-8883-717edb7f5603",
+      "forkedFromId": null,
+      "parentThreadId": null,
+      "preview": "",
+      "ephemeral": false,
+      "section": null,
+      "sectionEnteredAt": null,
+      "projectId": null,
+      "historyMode": "paginated",
+      "modelProvider": "owned",
+      "model": "owned-model",
+      "reasoningEffort": null,
+      "createdAt": 1792678660,
+      "updatedAt": 1792678660,
+      "recencyAt": 1792678660,
+      "status": {
+        "type": "idle"
+      },
+      "path": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx\\codex\\sessions\\2026\\10\\22\\rollout-2026-10-22T22-17-40-01a163f9-881d-7930-8883-717edb7f5603.jsonl",
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx",
+      "cliVersion": "0.163.0",
+      "originator": "pan",
+      "source": "vscode",
+      "canAcceptDirectInput": true,
+      "threadSource": "pan",
+      "agentNickname": null,
+      "agentRole": null,
+      "gitInfo": null,
+      "name": null,
+      "daybreakEnabled": null,
+      "turns": []
+    },
+    "model": "owned-model",
+    "modelProvider": "owned",
+    "serviceTier": null,
+    "disabledPluginIds": [],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx",
+    "runtimeWorkspaceRoots": [
+      "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-real-codex-b9ccz4zx"
+    ],
+    "instructionSources": [],
+    "approvalPolicy": "on-request",
+    "approvalsReviewer": "user",
+    "sandbox": {
+      "type": "readOnly",
+      "networkAccess": false
+    },
+    "activePermissionProfile": {
+      "id": ":read-only",
+      "extends": null
+    },
+    "reasoningEffort": null,
+    "multiAgentMode": "explicitRequestOnly"
+  }
+}
