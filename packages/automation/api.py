@@ -49,6 +49,7 @@ def install(server):
                                'thresholdPercent':95,'queryIntervalSeconds':60,
                                'disabledAccountIds':{'type':'array','maxItems':128,'default':[]},
                                'adapterContractVersion':2,'inventoryMaxAgeSeconds':5,
+                               'host':{'defaultEnabled':False,'productionEffects':'unbound','explicitRoles':['ma','ta']},
                                'defaultAdapter':'unavailable','unknownReplayed':False},
                 'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
                 'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
@@ -62,8 +63,25 @@ def install(server):
         state=await service().engine.io(policy.store.read)
         snapshot=normalize(state['quota'],policy.clock())
         return {**state,'quota':snapshot,'rankedAccounts':rank(snapshot,state['excluded'],state['disabledAccountIds']),
-                'adapter':'unavailable' if type(policy.adapter).__name__=='Adapter' else 'host-injected',
+                'adapter':('unavailable' if type(policy.adapter).__name__=='Adapter' or
+                            (type(policy.adapter).__name__=='HostAdapter' and not state['host']['enabled'])
+                           else 'host-readonly' if type(policy.adapter).__name__=='HostAdapter' else 'host-injected'),
                 'diagnostics':policy.diagnostics}
+
+    @router.put('/api/automation/quota-policy/host')
+    async def quota_host(data:dict,request:Request):
+        await require(request)
+        if set(data)!={'enabled','sessionRoles','expectedRevision'}:
+            raise HTTPException(400,'Expected enabled/sessionRoles/expectedRevision')
+        policy=service().quota_policy
+        try:
+            result=await service().engine.io(policy.store.set_host,
+                {'enabled':data['enabled'],'sessionRoles':data['sessionRoles']},data['expectedRevision'])
+            await policy.cancel_obsolete_jobs()
+            return result
+        except Conflict as exc:raise HTTPException(409,str(exc)) from exc
+        except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+        except OSError as exc:raise HTTPException(503,'Host configuration persistence failed') from exc
 
     @router.put('/api/automation/quota-policy/disabled-accounts')
     async def quota_disabled_accounts(data:dict,request:Request):

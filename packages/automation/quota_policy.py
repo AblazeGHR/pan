@@ -93,9 +93,12 @@ class Store:
             return {'version':2,'revision':0,'epoch':0,'mode':'manual','maSessionId':None,
                     'seen':{},'cases':{},'excluded':[],'capacityRetried':[], 'commands':{},
                     'quota':{'status':'unknown','accounts':[]},'jobs':{},
-                    'disabledAccountIds':[],'accountConfigRevision':0}
+                    'disabledAccountIds':[],'accountConfigRevision':0,
+                    'host':{'enabled':False,'sessionRoles':{}}}
         state=json.loads(self.path.read_text(encoding='utf-8'))
         state.setdefault('disabledAccountIds',[]);state.setdefault('accountConfigRevision',0)
+        state.setdefault('host',{'enabled':False,'sessionRoles':{}})
+        self.validate_host(state['host'])
         self.validate_disabled(state['disabledAccountIds'])
         if type(state['accountConfigRevision']) is not int or state['accountConfigRevision']<0:
             raise ValueError('Invalid account configuration revision')
@@ -125,11 +128,50 @@ class Store:
         with _LOCK:
             state=self.read();before=copy.deepcopy(state);result=fn(state)
             self.validate_disabled(state['disabledAccountIds'])
+            self.validate_host(state['host'])
             if any(len(state[k])>MAX_RECORDS for k in ('seen','cases','commands','excluded','capacityRetried')):
                 raise ValueError('Quota policy ledger capacity reached')
-            if state==before:return copy.deepcopy(result)
+            if state==before:
+                self._admission_state=state
+                return copy.deepcopy(result)
             state['revision']+=1;atomic(self.path,state)
+            self._admission_state=state
             return copy.deepcopy(result)
+
+    @staticmethod
+    def validate_host(host):
+        if (not isinstance(host,dict) or set(host)!={'enabled','sessionRoles'} or type(host['enabled']) is not bool
+                or not isinstance(host['sessionRoles'],dict) or len(host['sessionRoles'])>256
+                or any(not identity.identifier(k) or v not in ('ma','ta') for k,v in host['sessionRoles'].items())):
+            raise ValueError('Expected enabled boolean and explicit sessionRoles ma/ta, at most256')
+
+    def set_host(self, host, expected):
+        self.validate_host(host)
+        if type(expected) is not int:raise ValueError('Expected integer expectedRevision')
+        def update(s):
+            if expected!=s['revision']:raise Conflict('Quota policy revision changed')
+            if s['host']!=host:
+                s['host']=copy.deepcopy(host);s['epoch']+=1
+                for c in s['commands'].values():
+                    if c['status']=='ready':c['status']='cancelled'
+            return copy.deepcopy(s['host'])
+        return self.change(update)
+
+    def refresh_admission(self):
+        with _LOCK:
+            self._admission_state=self.read()
+            return copy.deepcopy(self._admission_state)
+
+    def admit_now(self, validate, effect):
+        # Only a nonblocking in-owner acceptance callback; never await or CLI I/O.
+        # A writer may hold the existing mutex during fsync: reject, do not wait.
+        if not _LOCK.acquire(blocking=False):raise Unavailable('policy_write_in_progress')
+        try:
+            state=getattr(self,'_admission_state',None)
+            if state is None:raise Unavailable('policy_snapshot_unknown')
+            validate(state)
+            return effect()
+        finally:_LOCK.release()
 
     def configure(self, mode, ma, expected):
         if mode not in ('manual','automatic') or not isinstance(ma,str) or not 1<=len(ma)<=128:

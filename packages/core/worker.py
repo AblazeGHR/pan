@@ -1692,7 +1692,7 @@ async def _record_terminal_error_sample(
         text, source = result_text, "pan.runtime"
     runtime_issue = map_runtime_issue(raw if isinstance(raw, dict) else {"message": text},
                                       adapter=getattr(getattr(w, "adapter", None), "name", None),
-                                      metadata=_error_log_identity(w, s),
+                                      metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
                                       delivery={"observed": True, "classified": True,
                                                 "persisted": False, "delivered": False,
                                                 "deduped": False})
@@ -1759,7 +1759,7 @@ async def _record_transient_error_sample(
             source = extracted_source or "cli.error"
     runtime_issue = map_runtime_issue(event,
                                       adapter=getattr(getattr(w, "adapter", None), "name", None),
-                                      metadata=_error_log_identity(w, s),
+                                      metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
                                       delivery={"observed": True, "classified": True,
                                                 "persisted": False, "delivered": False,
                                                 "deduped": False})

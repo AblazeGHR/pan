@@ -450,3 +450,20 @@ defaults contain no user IDs. Adapter/Worker command contract is v2; missing own
 process birth or unfinished-task evidence blocks recovery rather than guessing.
 See [quota policy safety](../../../design/quota-policy-v0.3-safety.md) for the exact
 inventory/receipt contract and production wiring boundary.
+
+### Default-off quota host projection
+
+`PUT /api/automation/quota-policy/host` requires user Bearer and exactly
+`{enabled:boolean,sessionRoles:{sessionId:"ma"|"ta"},expectedRevision:integer}`.
+At most256 explicit roles; no inference from Session names. Defaults are disabled
+and empty roles. Invalid400/auth401/stale409/persistence503. Changing this config
+increments policy epoch and fences old recovery plans; it does not enable effects.
+GET policy includes `host`, adapter `unavailable` (disabled) / `host-readonly`, and
+the last `hostObservation`. Managed default/account IDs and native profile/windows
+are separate fields; absent canonical binding keeps policy quota/current account
+unknown. Native status requires fresh observedAt AND receivedAt and both valid
+fiveHour/week windows with future reset. GET does not run a new query; use the
+existing once/monitor95 query Job API after opt-in. No CLI args, credentials,
+account binding, mutation port or effects-enable flag can be provided by clients.
+Production switch/model/restart/send effects remain unbound. See the exact
+[host adapter contract and remaining wiring](../../../design/quota-host-v0.3.md).

@@ -4,6 +4,11 @@ The [safety revision](quota-policy-v0.3-safety.md) supersedes the v1 Worker/comm
 contract below: persistent user-disabled accounts, fresh runtime/process/task
 identity, verified restart successors and guarded wakes are now required.
 
+The [default-off host projection](quota-host-v0.3.md) adds read-only cc-switch
+auth status / native quota cache projection and an explicit host role map.
+Production effects remain unbound; the earlier unavailable boundary below now
+means disabled by default, read-only only after user opt-in.
+
 This batch extends RuntimeIssue diagnostics with durable policy state and existing
 generic scheduled quota-query Jobs. Production starts **manual** with an unavailable
 adapter. No account scan, quota HTTP request, model request, switch, restart or send

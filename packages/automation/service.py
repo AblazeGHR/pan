@@ -136,6 +136,9 @@ class Service:
         self.engine.job_runtime = self.job_runtime
         from .quota_policy import Runtime as QuotaRuntime
         self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+        self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+        self.quota_policy.adapter.runtime = self.quota_policy
         await self.quota_policy.recover()
         self.job_runtime.quota_policy = self.quota_policy
         from packages.core.runtime_issues import set_observer
