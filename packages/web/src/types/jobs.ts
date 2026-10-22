@@ -119,6 +119,11 @@ export type ScheduledTaskAction =
 export type JobTimestamp = number | string;
 
 export interface Job {
+  configRevision?: number;
+  integrity?: { status: 'complete' | 'incomplete'; approvalRequired: boolean; issues: Array<{ actionId: string; position: string; error: string }> };
+  snapshotCleanup?: 'active' | 'pending' | 'cleaned';
+  templateId?: string;
+  templateRevision?: number;
   jobId: string;
   taskId?: string | null;
   kind: JobKind;
@@ -279,10 +284,10 @@ export interface UnifiedJobConfig {
   actionId: string;
   arguments: Record<string, unknown>;
   schedule: JobScheduleSpec[];
-  trigger?: { kind: UnifiedTriggerKind; query?: Record<string, unknown> };
+  trigger?: { kind: UnifiedTriggerKind; query?: Record<string, unknown>; eventTypes?: string[] };
   recovery?: { enabled: boolean; monitoring: boolean; maxAttempts: number; backoffSec: [number, number, number]; stableResetSec: number };
   overlap?: { mode: OverlapMode; parallelLimit: number };
-  notification?: { on: Array<'completed'|'failed'|'cancelled'|'unknown'|'uncertain'|'cleaning'>; target: 'job' };
+  notification?: { on: Array<'completed'|'failed'|'cancelled'|'unknown'|'uncertain'|'cleaning'>; target: 'job'; sessionIds?: string[] };
   completion?: { kind: 'ordinary'|'monitoring'; signalType?: string };
   enabled: boolean;
   maxRuns?: number | null;
@@ -292,5 +297,5 @@ export interface UnifiedJobProjection {
   action: { api: 'action_reference' | 'system_action'; actionId: string; arguments: Record<string, unknown> };
   config: UnifiedJobConfig;
   legacyKind?: JobKind;
-  compatibility?: { legacyKind: string; migration: 'projection-only' };
+  compatibility?: { legacyKind: string; migration: 'projection-only' | 'system-executor' };
 }

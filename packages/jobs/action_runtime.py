@@ -8,7 +8,7 @@ import uuid
 
 from packages.core import background_jobs as jobs
 from packages.plugins.lifecycle import io
-from .action_templates import Templates, Conflict, CreationPending, config_value, digest, generation, integrity, revision
+from .action_templates import Templates, Conflict, CreationPending, config_value, digest, generation, integrity, revision, conservative_config
 
 RUNTIMES = {}
 
@@ -19,6 +19,10 @@ class SnapshotPersistenceError(RuntimeError):
 
 class MonitoringIncomplete(RuntimeError):
     """A monitoring Action exited without its declared structured completion signal."""
+
+
+class RecoveryBlocked(RuntimeError):
+    pass
 
 
 def is_action_job(job):
@@ -37,10 +41,12 @@ def for_root(root):
 
 def config_job(root, intent):
     from packages.scheduler.store import _job_from_payload
-    cfg=intent['config']
+    cfg=conservative_config(intent['config'])
     job=_job_from_payload(dict(name=cfg['name'],description=cfg['description'],enabled=cfg['enabled'],
         action={'api':'action_reference','actionId':cfg['actionId'],'arguments':copy.deepcopy(cfg['arguments'])},
-        _schedule_specs=cfg['schedule'],_misfire=cfg['misfirePolicy'],_max_runs=cfg['maxRuns']))
+        _schedule_specs=cfg['schedule'] or [{'kind':'interval','intervalSec':3600}],_misfire=cfg['misfirePolicy'],_max_runs=cfg['maxRuns']))
+    if cfg.get('trigger',{}).get('kind') in ('immediate','event'):
+        job.update(schedule=[],nextFireAt=None)
     job.update(jobId=intent['jobId'],config=copy.deepcopy(cfg),configRevision=1,
                referenceGeneration=intent['referenceGeneration'],creationFingerprint=intent['fingerprint'],
                status='scheduled' if cfg['enabled'] else 'pending',creationEventPending=True)
@@ -56,6 +62,19 @@ class Runtime:
         from packages.jobs.independent_service import ServiceLock
         self.ownership=ServiceLock(self.actions.root/'job-runtime');self.owned=False;self.lifecycle=asyncio.Lock()
         self.tasks={};self.admissions={};self.closed=False;self.diagnostics=deque(maxlen=100);self.limit=5;self.cancelled=set()
+        self.task_jobs={};self.admission_jobs={}
+
+    @staticmethod
+    def active(job):
+        value=copy.deepcopy(job.get('activeExecutions',{}))
+        if job.get('execution'):value.setdefault(job['execution']['id'],copy.deepcopy(job['execution']))
+        return value
+
+    def live_for(self,jid):
+        return [key for key,task in self.tasks.items() if self.task_jobs.get(key,key)==jid and not task.done()]
+
+    def admitting(self,jid):
+        return any(owner==jid for owner in self.admission_jobs.values())
 
     async def start(self):
         async with self.lifecycle:
@@ -70,6 +89,8 @@ class Runtime:
             await io(self.ownership.release);self.owned=False;return
         RUNTIMES[str(self.root)]=self
         try:
+            from .system_actions import install
+            await io(install,self.actions)
             await io(self.recover)
             await self.publish_events()
         except BaseException:
@@ -81,6 +102,7 @@ class Runtime:
 
     def view(self, job, state=None):
         if not is_action_job(job):return jobs.job_public_view(job)
+        job=copy.deepcopy(job);job['config']=conservative_config(job['config'])
         state=self.actions.read() if state is None else state
         result=jobs.job_public_view(copy.deepcopy(job))
         result['integrity']=integrity(state,job['config'],job['referenceGeneration'])
@@ -95,6 +117,7 @@ class Runtime:
     def get(self,jid):
         job=jobs.get(jid,self.root)
         if not is_action_job(job):raise KeyError(jid)
+        job['config']=conservative_config(job['config'])
         return job
 
     def publish_intent(self,intent):
@@ -154,6 +177,10 @@ class Runtime:
         old=self.get(jid);revision(old['configRevision'],expected)
         def validate(state):
             cfg=config_value(raw,state);aid=cfg['actionId'];gen=generation(state,aid)
+            if cfg['overlap']!=old['config']['overlap'] and not authorized:
+                raise PermissionError('User Bearer required to change overlap policy')
+            maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
+            if len(self.active(old))>maximum:raise Conflict('Active execution count exceeds new overlap limit')
             repair=old['config']['actionId']!=aid or old['referenceGeneration']!=gen
             if not authorized and (cfg['enabled'] or old['enabled'] or repair):
                 raise PermissionError('User Bearer required for Job enable/edit/repair')
@@ -166,15 +193,18 @@ class Runtime:
         cfg,gen=self.templates.transaction(validate)
         with jobs._lock,jobs._job_lock(jid,self.root):
             old=self.get(jid);revision(old['configRevision'],expected)
+            maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
+            if len(self.active(old))>maximum:raise Conflict('Active execution count exceeds new overlap limit')
             intent={'jobId':jid,'config':cfg,'fingerprint':old['creationFingerprint'],'referenceGeneration':gen}
             replacement=config_job(self.root,intent)
-            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus'):
+            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible'):
                 if key in old:replacement[key]=copy.deepcopy(old[key])
             if cfg['schedule']==old['config']['schedule']:
                 replacement['schedule']=copy.deepcopy(old['schedule'])
                 replacement['nextFireAt']=old.get('nextFireAt')
             if old['status'] in {'running','cleaning'}:replacement['status']=old['status']
             replacement['configRevision']=expected+1
+            if not cfg['enabled']:replacement['pendingRuns']=[]
             jobs._write_job(jobs._job_path(jid,self.root),replacement)
         def narrow(state):
             ref=state['jobReferences'].get(jid,{})
@@ -183,68 +213,130 @@ class Runtime:
         self.templates.transaction(narrow)
         return self.view(replacement)
 
-    def claim(self,jid,eid,expected=None,entry=None):
+    def claim(self,jid,eid,expected=None,entry=None,queued=None,confirmed=False):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
             if expected is not None:revision(job['configRevision'],expected)
-            if job['status'] in {'running','cleaning'}:raise Conflict('Job already running or cleaning')
-            if not job['enabled']:raise Conflict('Job disabled')
+            active=self.active(job)
+            policy=job['config'].get('overlap',{})
+            maximum=policy.get('parallelLimit',3) if policy.get('mode')=='parallel' else 1
+            if len(active)>=maximum:raise Conflict('Job overlap capacity reached')
+            if not job['enabled'] and not confirmed:raise Conflict('Job disabled')
+            confirmation=job.get('recoveryConfirmation') if confirmed else None
+            if confirmed and (not confirmation or confirmation.get('status')!='reserved' or confirmation['configRevision']!=job['configRevision']):
+                raise Conflict('Explicit recovery confirmation no longer current')
+            if queued is not None:
+                waiting=next((r for r in job.get('pendingRuns',[]) if r['id']==queued),None)
+                if waiting is None:raise Conflict('Queued Run no longer current')
+                if waiting['configRevision']!=job['configRevision']:raise Conflict('Queued Run configuration changed')
+                job['pendingRuns']=[r for r in job.get('pendingRuns',[]) if r['id']!=queued]
             context={'id':eid,'type':'jobs.execute','payload':copy.deepcopy(job['config']['arguments']),
+                     'jobRoot':str(self.root),'jobName':job['name'],
                      'jobId':jid,'dispatchKey':eid,'fireAt':datetime.now().isoformat()}
+            if queued is not None and waiting.get('event'):
+                event=copy.deepcopy(waiting['event'])
+                context={**event,**context,'type':event['type'],'payload':event['payload'],'eventId':event['id']}
             config=job['config']
-            run_id=job.get('runId') or 'run_'+uuid.uuid4().hex[:24]
+            recovering=job.get('status')=='restarting' or confirmed
+            if recovering and not confirmed and job.get('runRecoveryEligible') is not True:raise Conflict('Original Run lacks frozen recovery eligibility')
+            if not recovering:
+                job['runPolicy']={key:copy.deepcopy(config[key]) for key in ('recovery','completion','notification')}
+                job['recoveryFailures']=0
+            policy=copy.deepcopy(job.get('runPolicy') or {key:config[key] for key in ('recovery','completion','notification')})
+            run_id=job['runId'] if recovering else 'run_'+uuid.uuid4().hex[:24]
+            attempt_count=1+sum(a.get('runId')==run_id for a in job.get('attempts',[]))
+            if len(job.get('attempts',[]))>=10000:raise Conflict('Attempt audit capacity reached')
             attempt_id='attempt_'+uuid.uuid4().hex[:24]
-            execution={'id':eid,'runId':run_id,'attemptId':attempt_id,'attemptCount':1,
+            execution={'id':eid,'runId':run_id,'attemptId':attempt_id,'attemptCount':attempt_count,
+                       'startedAt':time.time(),
+                       'policy':policy,
                        'jobRoot':str(self.root),'phase':'preparing','entryId':entry,'context':context,
                        'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
                        'templateRevision':job.get('templateRevision'),'backoffSec':0,
                        'receipt':None,'sideEffectUncertainty':False}
-            job.setdefault('attempts',[]).append({'id':attempt_id,'runId':run_id,'count':1,'status':'running',
+            if confirmed:
+                execution['recoveryCheckpoint']=copy.deepcopy(confirmation['checkpoint'])
+                job['recoveryConfirmation']={**confirmation,'status':'consumed','attemptId':attempt_id}
+            elif recovering:
+                execution['recoveryCheckpoint']=self.selection_audit(job.get('lastExecution',{}))
+            job.setdefault('attempts',[]).append({'id':attempt_id,'runId':run_id,'count':attempt_count,'status':'running',
                          'actionId':config['actionId'],'templateRevision':job.get('templateRevision'),
                          'backoffSec':0,'receipt':None,'sideEffectUncertainty':False})
             job['runId']=run_id
-            job.update(status='running',execution=execution,runStartedAt=time.time())
+            active[eid]=execution
+            job.update(status='running',activeExecutions=active,execution=next(iter(active.values())),runStartedAt=time.time())
             jobs._write_job(jobs._job_path(jid,self.root),job)
-            return copy.deepcopy(job)
+            result=copy.deepcopy(job);result['execution']=copy.deepcopy(execution)
+            result['config'].update(copy.deepcopy(policy))
+            return result
 
     def finalize(self,jid,eid,status,audit=None):
         # A durable finalization intent precedes destructive snapshot cleanup.
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
-            if job.get('execution',{}).get('id')!=eid:return
-            prior=job.get('executionFinalization')
+            active=self.active(job)
+            if eid not in active:return
+            execution=active[eid]
+            prior=job.get('executionFinalizations',{}).get(eid) or (job.get('executionFinalization') if job.get('execution',{}).get('id')==eid else None)
             outcome=prior or {'status':status,'audit':audit or {}}
-            attempt_id=job.get('execution',{}).get('attemptId')
+            attempt_id=execution.get('attemptId')
             for attempt in job.get('attempts',[]):
                 if attempt.get('id')==attempt_id:
-                    attempt.update(status=outcome['status'],receipt=(audit or {}).get('receipt'),
+                    attempt.update(status='cleaning',terminalStatus=outcome['status'],receipt=outcome.get('audit',{}).get('receipt'),
                                    sideEffectUncertainty=outcome['status'] in {'unknown','uncertain'})
                     break
-            job.update(status='cleaning',executionFinalization=outcome)
-            job['execution']['phase']='cleaning'
+            job.setdefault('executionFinalizations',{})[eid]=outcome
+            job.setdefault('terminalOutbox',{})['cleaning:'+eid]={'id':'cleaning:'+eid,'runId':execution.get('runId'),
+                'attemptId':attempt_id,'status':'cleaning','notificationPolicy':copy.deepcopy(execution.get('policy',{}).get('notification',{}))}
+            execution['phase']='cleaning';active[eid]=execution
+            job.update(status='cleaning',snapshotCleanup='pending',activeExecutions=active,execution=next(iter(active.values())))
+            if job['execution']['id']==eid:job['executionFinalization']=outcome
             jobs._write_job(jobs._job_path(jid,self.root),job)
         self.templates.clear_snapshot(eid)
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
-            if job.get('execution',{}).get('id')!=eid:return
-            execution_audit=copy.deepcopy(job.get('execution') or {})
+            active=self.active(job)
+            if eid not in active:return
+            execution_audit=active.pop(eid)
             job.pop('execution',None);job.pop('executionFinalization',None)
+            job.get('executionFinalizations',{}).pop(eid,None)
+            job['activeExecutions']=active
             summary={'id':eid,'runId':execution_audit.get('runId') or job.get('runId'),'attemptId':execution_audit.get('attemptId'),
-                     'status':outcome['status'],**outcome['audit']}
+                     'executionKind':execution_audit.get('executionKind'),'status':outcome['status'],'notificationPolicy':copy.deepcopy(execution_audit.get('policy',{}).get('notification',{})),**outcome['audit']}
+            event_id=execution_audit.get('context',{}).get('eventId')
+            if event_id:
+                summary['eventId']=event_id
+                job.setdefault('eventReceipts',{})[event_id]={'runId':summary['runId'],'status':outcome['status']}
+            for attempt in job.get('attempts',[]):
+                if attempt.get('id')==execution_audit.get('attemptId'):
+                    attempt.update(status=outcome['status'],snapshotCleanup='cleaned',finishedAt=time.time())
+            job['snapshotCleanup']='pending' if job.get('executionFinalizations') else 'active' if active else 'cleaned'
             job.update(lastExecution=summary,lastStatus=outcome['status'],runStartedAt=None,
-                       runCount=int(job.get('runCount',0))+1,terminalEventId=eid)
-            policy=job.get('config',{}).get('recovery',{})
+                       runCount=int(job.get('runCount',0))+(1 if execution_audit.get('attemptCount',1)==1 else 0),terminalEventId=eid)
+            policy=execution_audit.get('policy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
             if outcome['status']=='restarting' and policy.get('enabled'):
-                count=len(job.get('attempts',[]));backoff=policy.get('backoffSec',[5,15,60])[min(max(count-1,0),2)]
+                reset=policy.get('stableResetSec',300)
+                stable=reset>0 and time.time()-execution_audit.get('startedAt',time.time())>=reset
+                count=(0 if stable else job.get('recoveryFailures',0))+(0 if outcome.get('audit',{}).get('gateBlocked') else 1)
+                job['recoveryFailures']=count
+                backoff=policy.get('backoffSec',[5,15,60])[min(max(count-1,0),2)]
                 job['nextAttemptAt']=time.time()+backoff
+                for attempt in job.get('attempts',[]):
+                    if attempt.get('id')==execution_audit.get('attemptId'):
+                        attempt.update(backoffSec=backoff,nextAttemptAt=job['nextAttemptAt'])
             elif outcome['status']!='restarting':
                 job.pop('nextAttemptAt',None)
             cfg=job['config'];once=all(e['kind']=='once' and not e.get('enabled',True) for e in job['schedule'])
             # The claimed entry is consumed at dispatch admission, not recovery.
             exhausted=not any(e.get('enabled',True) and e.get('nextFireAt') for e in job['schedule'])
-            if outcome['status'] in {'uncertain','cancelled'} or exhausted or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']):
+            if outcome['status'] in {'uncertain','cancelled'} or (not job.get('pendingRuns') and outcome['status']!='restarting' and
+                    ((exhausted and cfg['trigger']['kind']!='event') or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']))):
                 job['enabled']=False;job['config']['enabled']=False
             job['status']=('restarting' if outcome['status']=='restarting' else ('scheduled' if job['enabled'] else outcome['status']))
+            if active:
+                job['execution']=next(iter(active.values()))
+                job['status']='running' if any(ex['phase']!='cleaning' for ex in active.values()) else 'cleaning'
+            job.setdefault('terminalOutbox',{})[eid]=copy.deepcopy(summary)
             record={'run_id':eid,'task_id':job['taskId'],'dispatch_key':eid,
                     'status':outcome['status'],'result':summary,'actual_at':datetime.now().isoformat()}
             jobs._append_run_record_once(record,registry_root=self.root)
@@ -256,25 +348,34 @@ class Runtime:
             if job.get('creationEventPending'):
                 if await jobs._scheduled_task_emit_strict({'type':'job.created','jobId':job['jobId'],'job':await io(self.view,job)}):
                     await io(jobs._update,job['jobId'],{'creationEventPending':False},registry_root=self.root)
-            if not job.get('lastExecution'):continue
-            eid=job['lastExecution']['id']
-            if job.get('terminalEventEmittedFor')==eid:continue
-            view=await io(self.view,job)
-            if not await jobs._scheduled_task_emit_strict({'type':'job.updated','jobId':job['jobId'],'job':view}):continue
-            if not await jobs._scheduled_task_emit_strict({'type':'scheduler.task.fired','taskId':job['taskId'],
-                    'dispatchKey':eid,'status':job['lastExecution']['status'],'terminal':True}):continue
-            configured=job.get('config',{}).get('notification',{})
-            if job['lastExecution']['status'] in configured.get('on',[]) and configured.get('target')=='job':
-                if not await jobs._scheduled_task_emit_strict({'type':'job.notification','jobId':job['jobId'],
-                        'runId':job['lastExecution'].get('runId'),'attemptId':job['lastExecution'].get('attemptId'),
-                        'status':job['lastExecution']['status']}):continue
-            def mark():
-                with jobs._lock,jobs._job_lock(job['jobId'],self.root):
-                    current=self.get(job['jobId'])
-                    if current.get('lastExecution',{}).get('id')==eid:
-                        current['terminalEventEmittedFor']=eid
+            outbox=job.get('terminalOutbox',{})
+            if not outbox and job.get('lastExecution') and job.get('terminalEventEmittedFor')!=job['lastExecution']['id']:
+                outbox={job['lastExecution']['id']:job['lastExecution']}
+            for eid,summary in outbox.items():
+                view=await io(self.view,await io(self.get,job['jobId']))
+                if not await jobs._scheduled_task_emit_strict({'type':'job.updated','jobId':job['jobId'],'job':view}):continue
+                if not await jobs._scheduled_task_emit_strict({'type':'scheduler.task.fired','taskId':job['taskId'],
+                        'dispatchKey':eid,'status':summary['status'],'terminal':True}):continue
+                configured=summary.get('notificationPolicy',job.get('config',{}).get('notification',{}))
+                if summary['status'] in configured.get('on',[]) and configured.get('target')=='job':
+                    if not await jobs._scheduled_task_emit_strict({'type':'job.notification','jobId':job['jobId'],
+                            'runId':summary.get('runId'),'attemptId':summary.get('attemptId'),
+                            'status':summary['status']}):continue
+                    delivered=True
+                    for sid in configured.get('sessionIds',[]):
+                        import json
+                        result=await jobs._worker.enqueue_notice(sid,json.dumps({'jobId':job['jobId'],'runId':summary.get('runId'),
+                            'attemptId':summary.get('attemptId'),'status':summary['status']}),source='automation',
+                            event_id='job-result:'+eid+':'+sid,notice_kind='job_result',job_id=job['jobId'],notice_status=summary['status'])
+                        if not result.get('ok'):delivered=False
+                    if not delivered:continue
+                def mark():
+                    with jobs._lock,jobs._job_lock(job['jobId'],self.root):
+                        current=self.get(job['jobId'])
+                        current.get('terminalOutbox',{}).pop(eid,None)
+                        if current.get('lastExecution',{}).get('id')==eid:current['terminalEventEmittedFor']=eid
                         jobs._write_job(jobs._job_path(job['jobId'],self.root),current)
-            await io(mark)
+                await io(mark)
 
     async def execute(self,job):
         from packages.actions.executor import execute_dynamic
@@ -282,31 +383,74 @@ class Runtime:
         try:
             snapshot=await io(self.templates.snapshot,job,job['execution'])
             audit={k:snapshot[k] for k in ('actionId','actionRevision','registryRevision','digest','argumentsDigest','contextDigest')}
+            audit['executionKind']=snapshot['definition']['execution']['kind']
+            await io(self.action_audit,job['jobId'],eid,audit,snapshot['definition'].get('recoverable') is True and job['config']['recovery']['enabled'])
             async def progress(**fields):
                 try:await io(self.templates.checkpoint,eid,fields)
                 except Exception as exc:raise SnapshotPersistenceError(str(exc)) from exc
-            progress.checkpoint={'id':eid}
+            progress.checkpoint={'id':job['execution']['runId'],**copy.deepcopy(job['execution'].get('recoveryCheckpoint',{}))}
             progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'))
+            from .system_actions import execute as execute_system
+            progress.execute_system=execute_system
+            if job['execution']['attemptCount']>1 and job['config']['recovery']['enabled']:
+                from .system_actions import recovery_ready
+                if not await io(recovery_ready,snapshot['definition'],snapshot['arguments']):raise RecoveryBlocked('Recovery paused by current business gates')
+            query=job['config'].get('trigger',{}).get('query')
+            if progress.checkpoint.get('triggerSelection') is not None:
+                snapshot['context']['jobSelection']=copy.deepcopy(progress.checkpoint['triggerSelection'])
+            elif query is not None and job['config']['trigger']['kind']=='event':
+                from packages.actions.session_query import resolve
+                selected=await resolve(query)
+                selection={'ids':selected['ids'],'candidateCount':selected['candidateCount']}
+                await progress(triggerTargetIds=selected['ids'],triggerSelection=selection)
+                snapshot['context']['jobSelection']=selection
             result=await execute_dynamic(snapshot['definition'],snapshot['arguments'],snapshot['context'],progress,self.pause)
+            checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
+            audit.update(self.selection_audit(checkpoint))
             completion=job.get('config',{}).get('completion',{})
-            if completion.get('kind')=='monitoring' and not result.get('completedSignal'):
-                raise MonitoringIncomplete('Monitoring Action exited without completion signal')
-            outcome='completed' if result.get('ok',True) and not result.get('isError',False) else 'failed'
+            signal=result.get('structuredContent',{}).get('panJobCompletion') if isinstance(result.get('structuredContent'),dict) else result.get('panJobCompletion')
+            if result.get('status') not in {'unknown','uncertain','unconfirmed'} and completion.get('kind')=='monitoring' and not (result.get('processTreeEnded') is True and isinstance(signal,dict) and set(signal)=={'type','completed'} and signal['completed'] is True and signal['type']==completion.get('signalType')):
+                raise MonitoringIncomplete('Monitoring Action exited without its structured completion signal')
+            outcome=('uncertain' if result.get('status') in {'unknown','uncertain','unconfirmed'} else
+                     'completed' if result.get('ok',True) and not result.get('isError',False) else 'failed')
             for key in ('jobId','matched','succeeded','failed'):
+                if key=='jobId' and snapshot['definition']['execution']['kind']!='job_template':continue
                 if key in result:audit[key if key!='jobId' else 'createdJobId']=result[key]
         except asyncio.CancelledError:
             outcome='cancelled' if eid in self.cancelled else 'uncertain'
         except MonitoringIncomplete as exc:
-            outcome='restarting';audit['error']=str(exc)
+            outcome='restarting' if job['config']['recovery']['enabled'] else 'failed';audit['error']=str(exc)
+        except RecoveryBlocked as exc:
+            outcome='restarting';audit.update(error=str(exc),gateBlocked=True)
         except Exception as exc:
             from packages.automation.engine import PersistenceError
             outcome='uncertain' if isinstance(exc,(SnapshotPersistenceError,PersistenceError,TimeoutError)) else 'failed';audit['error']=str(exc)[:1000]
         finally:
             try:
+                checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
+                audit.update(self.selection_audit(checkpoint))
                 await io(self.finalize,job['jobId'],eid,outcome,audit)
                 await self.publish_events()
             except Exception as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'cleanup','error':str(exc)})
             self.cancelled.discard(eid)
+
+    @staticmethod
+    def selection_audit(checkpoint):
+        safe={key:copy.deepcopy(checkpoint[key]) for key in ('targetIds','selection','processJobId','triggerTargetIds','triggerSelection') if key in checkpoint}
+        if 'targetResults' in checkpoint:
+            safe['targetResults']=[{key:row[key] for key in ('sessionId','ok','status','queueItemId','error') if key in row} for row in checkpoint['targetResults']]
+        return safe
+
+    def action_audit(self,jid,eid,audit,eligible):
+        with jobs._lock,jobs._job_lock(jid,self.root):
+            job=self.get(jid);active=self.active(job)
+            if eid not in active:raise SnapshotPersistenceError('Attempt admission changed')
+            active[eid].update(copy.deepcopy(audit))
+            for attempt in job.get('attempts',[]):
+                if attempt['id']==active[eid]['attemptId']:attempt.update(copy.deepcopy(audit))
+            if active[eid]['attemptCount']==1:job['runRecoveryEligible']=bool(eligible)
+            job['activeExecutions']=active;job['execution']=next(iter(active.values()))
+            jobs._write_job(jobs._job_path(jid,self.root),job)
 
     def consume_entry(self,job,entry_id):
         if entry_id is None:return job
@@ -324,32 +468,88 @@ class Runtime:
                 return job
         return patch()
 
-    async def launch(self,jid,expected=None,entry=None):
+    def enqueue(self,jid,expected=None,entry=None):
+        with jobs._lock,jobs._job_lock(jid,self.root):
+            job=self.get(jid)
+            if expected is not None:revision(job['configRevision'],expected)
+            if not job.get('enabled'):raise Conflict('Job disabled')
+            pending=job.setdefault('pendingRuns',[])
+            if len(pending)>=128:raise Conflict('Job queued Run capacity reached (128)')
+            pending.append({'id':'queued_'+uuid.uuid4().hex[:24],'configRevision':job['configRevision'],'entryId':entry,'createdAt':time.time()})
+            jobs._write_job(jobs._job_path(jid,self.root),job)
+            return job
+
+    def event_targets(self,event_type):
+        return [{'_job':True,'jobId':job['jobId'],'configRevision':job['configRevision']}
+                for job in self.list() if job['enabled'] and job['config']['trigger']['kind']=='event'
+                and event_type in job['config']['trigger']['eventTypes']
+                and getattr(self,'event_available',lambda _:True)(event_type)]
+
+    def queue_event(self,event,target):
+        jid=target['jobId']
+        with jobs._lock,jobs._job_lock(jid,self.root):
+            try:job=self.get(jid)
+            except KeyError:return
+            receipts=job.setdefault('eventReceipts',{})
+            if event['id'] in receipts:return
+            if len(receipts)>=10000:raise Conflict('Job Event dedup capacity reached (10000)')
+            eligible=job['enabled'] and job['configRevision']==target['configRevision']
+            if not eligible:
+                receipts[event['id']]={'status':'cancelled','reason':'Job disabled or configuration changed'}
+            elif job['config']['overlap']['mode']=='forbid' and (self.active(job) or job.get('pendingRuns') or job.get('status')=='restarting'):
+                receipts[event['id']]={'status':'skipped','reason':'Job overlap forbidden'}
+                self.diagnostics.append({'jobId':jid,'eventId':event['id'],'phase':'overlap','error':'Overlapping Event rejected'})
+            else:
+                pending=job.setdefault('pendingRuns',[])
+                if len(pending)>=128:raise Conflict('Job queued Run capacity reached (128)')
+                pending.append({'id':'queued_'+uuid.uuid4().hex[:24],'configRevision':job['configRevision'],
+                                'entryId':None,'createdAt':time.time(),'event':copy.deepcopy(event)})
+                receipts[event['id']]={'status':'queued'}
+            jobs._write_job(jobs._job_path(jid,self.root),job)
+
+    async def match_event(self,event,targets):
+        for target in targets:
+            await io(self.queue_event,event,target)
+        await self.tick({'enabled':True,'max_concurrent_dispatch':self.limit})
+
+    async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False):
         if self.closed:raise Conflict('Job runtime closed')
-        if jid in self.admissions or (jid in self.tasks and not self.tasks[jid].done()):
-            raise Conflict('Job already admitted')
         if len(self.admissions)+sum(not t.done() for t in self.tasks.values())>=self.limit:
             raise Conflict('Shared scheduler dispatch capacity reached')
-        self.admissions[jid]=asyncio.current_task()
         eid='jexec_'+uuid.uuid4().hex
+        self.admissions[eid]=asyncio.current_task();self.admission_jobs[eid]=jid
         try:
             before=await io(self.get,jid)
-            if not (await io(self.view,before))['enabled']:raise Conflict('Job disabled, incomplete or requires user repair')
-            job=await io(self.claim,jid,eid,expected,entry)
+            view=await io(self.view,before)
+            if not view['enabled'] and not (confirmed and view['integrity']['status']=='complete' and not view['integrity']['approvalRequired']):raise Conflict('Job disabled, incomplete or requires user repair')
+            if before['config']['trigger']['kind']=='event' and not all(getattr(self,'event_available',lambda _:True)(t) for t in before['config']['trigger']['eventTypes']):
+                raise Conflict('Event source unavailable; queued intent retained')
+            if before.get('status')=='restarting':
+                from .system_actions import recovery_ready
+                state=await io(self.actions.read)
+                if not await io(recovery_ready,state['actions'][before['config']['actionId']],before['config']['arguments']):raise Conflict('Recovery blocked by business gates; budget unchanged')
+            try:job=await io(self.claim,jid,eid,expected,entry,queued,confirmed)
+            except Conflict as exc:
+                if queued is None and before['config']['overlap']['mode']=='queue' and 'overlap capacity' in str(exc):
+                    waiting=await io(self.enqueue,jid,expected,entry)
+                    await io(self.consume_entry,waiting,entry)
+                    return await io(self.view,waiting)
+                raise
             job=await io(self.consume_entry,job,entry)
             public=await io(self.view,job)
             if self.closed or eid in self.cancelled:raise asyncio.CancelledError()
             task=asyncio.create_task(self.execute(job),name='job-action-'+eid)
-            self.tasks[jid]=task
+            key=jid+':'+eid if job['config']['overlap']['mode']=='parallel' else jid
+            self.tasks[key]=task;self.task_jobs[key]=jid
             return public
         except BaseException:
             current=await io(self.get,jid)
-            if current.get('execution',{}).get('id')==eid:
+            if eid in self.active(current):
                 await io(self.finalize,jid,eid,'cancelled' if eid in self.cancelled else 'uncertain')
             raise
         finally:
-            self.admissions.pop(jid,None)
-            if jid not in self.tasks:self.cancelled.discard(eid)
+            self.admissions.pop(eid,None);self.admission_jobs.pop(eid,None)
+            if not self.live_for(jid):self.cancelled.discard(eid)
 
     async def tick(self,cfg):
         if self.closed:return
@@ -359,28 +559,47 @@ class Runtime:
             except Exception as exc:self.diagnostics.append({'phase':'quota-policy','error':type(exc).__name__})
         for jid,task in list(self.tasks.items()):
             if task.done():
-                await task;self.tasks.pop(jid,None)
+                await task;self.tasks.pop(jid,None);self.task_jobs.pop(jid,None)
         # Reconcile cleanup failures without ever rerunning effects.
         try:
             await io(self.recover,False)
-            await self.publish_events()
         except Exception as exc:
             self.diagnostics.append({'phase':'recovery','error':str(exc)})
+            await self.publish_events()
             return  # This extension must not starve legacy scheduler/message Jobs.
+        await self.publish_events()
         if not cfg.get('enabled',True):return
         limit=max(1,min(32,int(cfg.get('max_concurrent_dispatch',5))));self.limit=limit
         for job in await io(jobs.list_jobs,self.root):
             if len(self.tasks)>=limit:break
-            if not is_action_job(job) or job['jobId'] in self.tasks or not job.get('enabled') or job.get('paused'):continue
-            if job['status'] in {'running','cleaning'}:continue
-            recovery=job.get('config',{}).get('recovery',{})
+            if not is_action_job(job) or not job.get('enabled') or job.get('paused'):continue
+            job=await io(self.view,job)
+            if not job['enabled']:continue
+            policy=job['config'].get('overlap',{})
+            maximum=policy.get('parallelLimit',3) if policy.get('mode')=='parallel' else 1
+            if (len(self.active(job))>=maximum and policy.get('mode')!='queue') or self.admitting(job['jobId']):continue
+            if job.get('pendingRuns') and len(self.active(job))<maximum and job.get('status')!='restarting':
+                pending=job['pendingRuns'][0]
+                if pending['configRevision']!=job['configRevision']:
+                    await io(jobs._update,job['jobId'],{'pendingRuns':[]},registry_root=self.root)
+                    self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':'Queued Run configuration changed; cancelled'})
+                    continue
+                try:await self.launch(job['jobId'],expected=job['configRevision'],queued=pending['id'])
+                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':str(exc)})
+                continue
+            recovery=job.get('runPolicy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
             if job.get('status')=='restarting':
-                if not recovery.get('enabled') or len(job.get('attempts',[]))>=recovery.get('maxAttempts',3):
-                    if len(job.get('attempts',[]))>=recovery.get('maxAttempts',3):
+                count=job.get('recoveryFailures',sum(a.get('runId')==job.get('runId') for a in job.get('attempts',[])))
+                if not recovery.get('enabled') or count>=recovery.get('maxAttempts',3):
+                    if count>=recovery.get('maxAttempts',3):
                         await io(self.finalize_recovery_exhausted,job)
                     continue
                 if job.get('nextAttemptAt',0)>time.time():continue
                 try:await self.launch(job['jobId'],expected=job.get('configRevision'))
+                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
+                continue
+            if job['config']['trigger']['kind']=='immediate' and not job.get('runCount'):
+                try:await self.launch(job['jobId'])
                 except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                 continue
             for entry in job.get('schedule',[]):
@@ -394,8 +613,14 @@ class Runtime:
     def finalize_recovery_exhausted(self,job):
         with jobs._lock,jobs._job_lock(job['jobId'],self.root):
             current=self.get(job['jobId'])
-            if current.get('status')=='restarting' and len(current.get('attempts',[]))>=current.get('config',{}).get('recovery',{}).get('maxAttempts',3):
+            if current.get('status')=='restarting' and current.get('recoveryFailures',sum(a.get('runId')==current.get('runId') for a in current.get('attempts',[])))>=current.get('runPolicy',{}).get('recovery',current.get('config',{}).get('recovery',{})).get('maxAttempts',3):
                 current['status']='failed';current['lastStatus']='failed';current['lastError']='Recovery attempts exhausted';current['enabled']=False;current['config']['enabled']=False
+                summary=copy.deepcopy(current.get('lastExecution',{}))
+                if summary:
+                    summary.update(id=summary['id']+':exhausted',status='failed',error='Recovery attempts exhausted')
+                    current['lastExecution']=summary;current.setdefault('terminalOutbox',{})[summary['id']]=summary
+                    for attempt in current.get('attempts',[]):
+                        if attempt['id']==summary.get('attemptId'):attempt.update(status='failed',terminalStatus='failed')
                 jobs._write_job(jobs._job_path(job['jobId'],self.root),current)
 
     def skip_misfire(self,job,entry,cfg):
@@ -425,14 +650,16 @@ class Runtime:
         for intent in state.get('jobInstantiations',{}).values():
             if intent.get('jobRoot')==str(self.root) and intent['phase']=='reserved':self.publish_intent(intent)
         for job in jobs.list_jobs(self.root):
-            if not is_action_job(job) or not job.get('execution') or job['jobId'] in self.tasks or job['jobId'] in self.admissions:continue
-            if job['status'] in {'running','cleaning'}:
-                eid=job['execution']['id'];snap=state.get('jobExecutions',{}).get(eid,{})
+            if not is_action_job(job):continue
+            if self.live_for(job['jobId']) or self.admitting(job['jobId']):continue
+            for eid,execution in self.active(job).items():
+                snap=state.get('jobExecutions',{}).get(eid,{})
                 audit={k:snap[k] for k in ('actionId','actionRevision','registryRevision','digest','argumentsDigest','contextDigest') if k in snap}
+                audit.update(self.selection_audit(snap.get('checkpoint',{})))
                 self.finalize(job['jobId'],eid,'uncertain',audit)
         state=self.actions.read()
         for eid,snap in state.get('jobExecutions',{}).items():
-            if snap.get('jobRoot')==str(self.root) and snap.get('jobId') not in self.tasks and snap.get('jobId') not in self.admissions:
+            if snap.get('jobRoot')==str(self.root) and not self.live_for(snap.get('jobId')) and not self.admitting(snap.get('jobId')):
                 audit={k:snap[k] for k in ('actionId','digest','argumentsDigest','contextDigest') if k in snap}
                 jobs._append_run_record_once({'run_id':eid,'task_id':snap.get('taskId',snap['jobId']),
                     'dispatch_key':eid,'status':'uncertain','result':audit},registry_root=self.root)
@@ -455,7 +682,7 @@ class Runtime:
     def delete(self,jid,expected):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid);revision(job['configRevision'],expected)
-            if job.get('execution') or jid in self.admissions:raise Conflict('Job running or cleaning')
+            if self.active(job) or self.admitting(jid):raise Conflict('Job running or cleaning')
             jobs._job_path(jid,self.root).unlink()
         def detach(state):state.setdefault('jobReferences',{}).pop(jid,None)
         self.templates.transaction(detach)
@@ -466,18 +693,48 @@ class Runtime:
             with jobs._lock,jobs._job_lock(jid,self.root):
                 job=self.get(jid);revision(job['configRevision'],expected)
                 job['enabled']=False;job['config']['enabled']=False;job['configRevision']+=1
+                job['pendingRuns']=[]
                 if not job.get('execution'):job['status']='cancelled'
                 jobs._write_job(jobs._job_path(jid,self.root),job)
                 return job
         job=await io(disable)
-        if job.get('execution'):self.cancelled.add(job['execution']['id'])
-        task=self.tasks.get(jid) or self.admissions.get(jid)
-        if task and task is not asyncio.current_task():
-            task.cancel();await asyncio.gather(task,return_exceptions=True)
-            self.tasks.pop(jid,None)
-        elif job.get('execution'):
-            await io(self.finalize,jid,job['execution']['id'],'cancelled')
+        for eid in self.active(job):self.cancelled.add(eid)
+        keys=[key for key in self.tasks if self.task_jobs.get(key,key)==jid]
+        pending=[self.tasks[key] for key in keys]+[task for key,task in self.admissions.items() if self.admission_jobs.get(key)==jid]
+        pending=[task for task in pending if task is not asyncio.current_task()]
+        for task in pending:task.cancel()
+        await asyncio.gather(*pending,return_exceptions=True)
+        for key in keys:self.tasks.pop(key,None);self.task_jobs.pop(key,None)
+        for eid in self.active(await io(self.get,jid)):
+            await io(self.finalize,jid,eid,'cancelled')
         return self.view(await io(self.get,jid))
+
+    def reserve_recovery(self,jid,expected,status):
+        state=self.actions.read()
+        with jobs._lock,jobs._job_lock(jid,self.root):
+            job=self.get(jid);revision(job['configRevision'],expected)
+            if self.active(job) or self.admitting(jid):raise Conflict('Attempt still running or cleaning')
+            last=job.get('lastExecution',{})
+            if last.get('status') not in status or not last.get('runId'):raise Conflict('No eligible terminal Run to confirm')
+            # A process receipt must have a known terminal child. Never spawn
+            # a second command while the original can still be alive.
+            action=state['actions'].get(job['config']['actionId'])
+            if not action:raise Conflict('Action reference missing')
+            if (last.get('executionKind') in (None,'command')) and last['status'] in ('unknown','uncertain'):
+                raise Conflict('Command process identity unavailable; reconcile it before recovery')
+            if last.get('processJobId'):
+                child=jobs.get(last['processJobId'],self.root)
+                if not child or child.get('status') not in ('completed','failed','cancelled'):
+                    raise Conflict('Original process has no trusted terminal receipt')
+            checkpoint={key:copy.deepcopy(last[key]) for key in ('targetIds','targetResults','selection','triggerTargetIds','triggerSelection') if key in last}
+            job['configRevision']+=1
+            job['recoveryConfirmation']={'status':'reserved','runId':last['runId'],'configRevision':job['configRevision'],'checkpoint':checkpoint}
+            jobs._write_job(jobs._job_path(jid,self.root),job)
+            return job
+
+    async def confirm_recovery(self,jid,expected,failed=False):
+        job=await io(self.reserve_recovery,jid,expected,('failed',) if failed else ('uncertain','unknown'))
+        return await self.launch(jid,job['configRevision'],confirmed=True)
 
     async def close(self):
         self.closed=True
@@ -494,6 +751,7 @@ class Runtime:
             for task in pending:task.cancel()
             await asyncio.gather(*pending,return_exceptions=True)
             self.tasks.clear()
+            self.task_jobs.clear()
             await io(self.recover)
         finally:
             await io(self.ownership.release)

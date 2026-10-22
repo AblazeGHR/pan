@@ -49,7 +49,8 @@ def main() -> int:
         current = jobs.get(args.job_id)
         if not current or current.get("status") != "cancelled":
             status = "completed" if return_code == 0 else "failed"
-            jobs.runner_update(args.job_id, status=status, exitCode=return_code)
+            jobs.runner_update(args.job_id, status=status, exitCode=return_code,
+                               processTreeEnded=bool(hidden_desktop))
         return return_code
     except Exception:
         jobs.runner_update(args.job_id, status="failed", error=traceback.format_exc())

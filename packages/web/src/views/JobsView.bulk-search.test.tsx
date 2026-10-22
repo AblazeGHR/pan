@@ -7,6 +7,7 @@ import { useJobStore } from '@/stores/jobStore';
 import type { Job, JobKind } from '@/types/jobs';
 
 const api = vi.hoisted(() => ({
+  fetchActionRegistry: vi.fn(), fetchCompleteJobTemplates: vi.fn(),
   fetchJobs: vi.fn(),
   fetchJob: vi.fn(),
   fetchJobKinds: vi.fn(),
@@ -21,6 +22,8 @@ const api = vi.hoisted(() => ({
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
 vi.mock('@/services/api', () => ({
+  fetchActionRegistry: api.fetchActionRegistry,
+  fetchCompleteJobTemplates: api.fetchCompleteJobTemplates,
   fetchJobs: api.fetchJobs,
   fetchJob: api.fetchJob,
   fetchJobKinds: api.fetchJobKinds,
@@ -149,6 +152,8 @@ function retentionResponse(
 describe('JobsView search, status filters, and bulk actions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    api.fetchActionRegistry.mockResolvedValue({ actions: [] });
+    api.fetchCompleteJobTemplates.mockResolvedValue([]);
     wsHandlers.clear();
     api.fetchJobs.mockResolvedValue([]);
     api.fetchJob.mockResolvedValue(undefined);
@@ -488,7 +493,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
       'true',
     );
     expect(screen.getByRole('textbox', { name: 'Name' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create job' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save unified Job' })).toBeTruthy();
   });
 
   it('selects and deselects visible results without opening a detail drawer; row menus stay isolated', async () => {

@@ -16,6 +16,18 @@ MAX_RECEIPTS = 10000
 MAX_SNAPSHOTS = 128
 MAX_DOCUMENT_BYTES = 1024 * 1024
 
+POLICY_DEFAULTS={'trigger':{'kind':'schedule'},
+    'recovery':{'enabled':False,'monitoring':False,'maxAttempts':3,'backoffSec':[5,15,60],'stableResetSec':300},
+    'overlap':{'mode':'forbid','parallelLimit':3},
+    'notification':{'on':['completed','failed','cancelled','unknown','uncertain','cleaning'],'target':'job'},
+    'completion':{'kind':'ordinary'}}
+
+
+def conservative_config(raw):
+    result=copy.deepcopy(raw)
+    for key,value in POLICY_DEFAULTS.items():result.setdefault(key,copy.deepcopy(value))
+    return result
+
 
 class Conflict(ValueError):
     pass
@@ -101,12 +113,17 @@ def config_value(raw, state):
     if value['misfirePolicy'] not in ('fire_now','skip'):
         raise ValueError('Invalid misfirePolicy')
     trigger=value['trigger']
-    if not isinstance(trigger,dict) or set(trigger)-{'kind','query'} or trigger.get('kind') not in ('immediate','once','interval','cron','event','schedule'):
+    if not isinstance(trigger,dict) or set(trigger)-{'kind','query','eventTypes'} or trigger.get('kind') not in ('immediate','once','interval','cron','event','schedule'):
         raise ValueError('Invalid Job trigger')
     if trigger['kind']=='event':
+        types=trigger.get('eventTypes')
+        if not isinstance(types,list) or not 1<=len(types)<=32 or any(not isinstance(t,str) or not t or len(t)>200 for t in types) or len(set(types))!=len(types):
+            raise ValueError('Event trigger requires 1..32 distinct eventTypes')
         if not isinstance(trigger.get('query'),dict):raise ValueError('Event trigger requires structured query')
         from packages.actions.session_query import validate_query
         validate_query(trigger['query'])
+    elif set(trigger)-{'kind'}:
+        raise ValueError('query/eventTypes are allowed only for event triggers')
     recovery=value['recovery']
     if (not isinstance(recovery,dict) or set(recovery)-{'enabled','monitoring','maxAttempts','backoffSec','stableResetSec'}
             or type(recovery.get('enabled')) is not bool or type(recovery.get('monitoring')) is not bool
@@ -120,6 +137,8 @@ def config_value(raw, state):
     completion=value['completion']
     if not isinstance(completion,dict) or set(completion)-{'kind','signalType'} or completion.get('kind') not in ('ordinary','monitoring'):
         raise ValueError('Invalid completion contract')
+    if ('signalType' in completion or completion['kind']=='monitoring') and (not isinstance(completion.get('signalType'),str) or not 1<=len(completion['signalType'])<=128):
+        raise ValueError('Completion signalType requires 1..128 characters')
     if completion['kind']=='monitoring' and not recovery['monitoring']:
         raise ValueError('Monitoring completion requires monitoring recovery declaration')
     overlap=value['overlap']
@@ -130,24 +149,41 @@ def config_value(raw, state):
     if overlap['mode']=='parallel' and recovery['monitoring']:
         raise ValueError('Monitoring Actions cannot use parallel overlap')
     notification=value['notification']
-    if (not isinstance(notification,dict) or set(notification)-{'on','target'}
-            or not isinstance(notification.get('on'),list) or not notification['on']
+    if (not isinstance(notification,dict) or set(notification)-{'on','target','sessionIds'}
+            or not isinstance(notification.get('on'),list)
             or any(v not in ('completed','failed','cancelled','unknown','uncertain','cleaning') for v in notification['on'])
             or notification.get('target')!='job'):
         raise ValueError('Invalid Job notification policy')
+    recipients=notification.get('sessionIds',[])
+    if not isinstance(recipients,list) or len(recipients)>128 or any(not isinstance(s,str) or not s for s in recipients) or len(set(recipients))!=len(recipients):
+        raise ValueError('Notification sessionIds requires at most128 distinct Session IDs')
     aid = value.get('actionId')
     if not isinstance(aid, str) or aid not in state['actions']:
         raise ValueError('Missing Action reference at /config/actionId: '+str(aid))
     action = validate_action(state['actions'][aid])
+    if action['execution']=={'kind':'system_job','operation':'main-lifecycle'}:
+        raise ValueError('Main lifecycle is available only through its protected supervisor entry point')
+    completion_policy(action,value)
     value['arguments'] = filled_arguments(action, value['arguments'])
     check_action_graph(state, action)
     from packages.jobs.api import _validate_scheduled_specs
+    if trigger['kind'] in ('immediate','event') and value.get('schedule') == []:
+        return value
     if not isinstance(value.get('schedule'), list) or not 1 <= len(value['schedule']) <= 32:
         raise ValueError('schedule requires 1..32 complete specs')
     error = _validate_scheduled_specs(value['schedule'])
     if error:
         raise ValueError(error)
+    if trigger['kind'] in ('once','interval','cron') and any(spec['kind'] != trigger['kind'] for spec in value['schedule']):
+        raise ValueError('Trigger kind must agree with every schedule spec')
     return value
+
+
+def completion_policy(action,config):
+    if config.get('completion',{}).get('kind')=='monitoring' and not action.get('monitoring'):
+        raise ValueError('Action does not declare monitoring capability')
+    if config.get('recovery',{}).get('enabled') and not action.get('recoverable'):
+        raise ValueError('Action does not declare recoverable capability')
 
 
 def generation(state, aid):
@@ -155,6 +191,7 @@ def generation(state, aid):
 
 
 def integrity(state, config, approved_generation):
+    config=conservative_config(config)
     aid = config['actionId']
     issues = []
     try:
@@ -162,6 +199,12 @@ def integrity(state, config, approved_generation):
         if not action:
             raise ValueError('Missing Action reference: '+aid)
         filled_arguments(validate_action(action), config['arguments'])
+        # Validate additive policies without rejecting a persisted, already-fired
+        # once date. No migration write, date shift, enable or recovery is implied.
+        from datetime import datetime,timedelta
+        kind=config['trigger'].get('kind') if isinstance(config.get('trigger'),dict) else None
+        spec={'kind':'once','at':(datetime.now()+timedelta(days=1)).isoformat()} if kind=='once' else {'kind':'cron','cron':'0 * * * *'} if kind=='cron' else {'kind':'interval','intervalSec':60}
+        config_value({**config,'schedule':[spec]},state)
         check_action_graph(state, action)
     except (ValueError, jsonschema.ValidationError) as exc:
         issues.append({'actionId':getattr(exc,'action_id',aid), 'position':getattr(exc,'position','/config/actionId'), 'error':str(exc)[:1000]})

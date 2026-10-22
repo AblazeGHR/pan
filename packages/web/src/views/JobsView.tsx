@@ -13,6 +13,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { NewJobForm } from '@/components/jobs/NewJobForm';
+import { UnifiedJobForm } from '@/components/jobs/UnifiedJobForm';
+import { JobTemplateEditor } from '@/components/jobs/JobTemplateEditor';
+import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { JobDetailDrawer } from '@/components/jobs/JobDetailDrawer';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import { entryToSpec } from '@/components/jobs/ScheduleListEditor';
@@ -25,7 +28,6 @@ import { wsClient } from '@/services/ws';
 import { scheduleEntries } from '@/types/jobs';
 import {
   cancelJob,
-  createJob,
   deleteJob as deleteJobApi,
   fetchJob,
   fetchJobKinds,
@@ -33,20 +35,25 @@ import {
   patchJob,
   pinJob,
   runJobNow,
+  createActionJob,
+  updateActionJob,
+  fetchActionRegistry,
+  mutateActionJob,
 } from '@/services/api';
 import type {
   Job,
-  JobCreateInput,
   JobKind,
   JobKindMeta,
   JobPatchInput,
   JobRunRecord,
   JobStatus,
 } from '@/types/jobs';
+import type { Action } from '@/types/actions';
 
 function canCancelJob(job: Job): boolean {
-  return job.kind !== 'scheduled-task' && ['pending', 'scheduled', 'starting', 'running'].includes(job.status);
+  return (isUnifiedJob(job) || job.kind !== 'scheduled-task') && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status);
 }
+function isUnifiedJob(job: Job): boolean { return Boolean(job.unified && !job.unified.compatibility); }
 function timestampMs(value: unknown): number | null {
   const result = typeof value === 'number' ? value * 1000 : typeof value === 'string' && value.trim() ? Date.parse(value) : NaN;
   return Number.isFinite(result) ? result : null;
@@ -89,6 +96,10 @@ function statusColor(status: string): string {
     case 'starting':
       return 'border-accent/50 bg-accent/10 text-accent';
     case 'scheduled':
+    case 'restarting':
+    case 'cleaning':
+    case 'unknown':
+    case 'uncertain':
       return 'border-warning/50 bg-warning/10 text-warning';
     case 'completed':
       return 'border-success/50 bg-success/10 text-success';
@@ -154,6 +165,8 @@ function activeRank(status: JobStatus): number {
     case 'running':
       return 0;
     case 'starting':
+    case 'cleaning':
+    case 'restarting':
       return 1;
     case 'scheduled':
       return 2;
@@ -257,6 +270,7 @@ function JobRow({
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
   const canRunNow = job.action?.api === 'shell'
+    || Boolean(isUnifiedJob(job) && job.enabled)
     || job.action?.api === 'resume_legal_running'
     || job.action?.api === 'send_qq'
     || hasTarget;
@@ -430,6 +444,7 @@ function JobRow({
 export default function JobsView() {
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
+  const toastRef = useRef(showToast); toastRef.current = showToast;
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
 
@@ -443,6 +458,12 @@ export default function JobsView() {
   const cancelRequests = useRef(new Set<string>());
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('list');
+  const dirtyEditor = useRef(false);
+  const editorDirtyChange = useCallback((dirty: boolean) => { dirtyEditor.current = dirty; }, []);
+  const requestTab = (next: Tab) => {
+    if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return;
+    dirtyEditor.current = false; setTab(next);
+  };
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -464,6 +485,7 @@ export default function JobsView() {
     if (changed) setCancellingIds(new Set(cancelRequests.current));
   }, [jobs]);
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(() => new Set());
@@ -498,6 +520,14 @@ export default function JobsView() {
       .then(setKindMetas)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'create' && editJobId === null) return;
+    let active = true;
+    void fetchActionRegistry().then((registry) => { if (active) setActions(registry.actions || []); })
+      .catch((e: unknown) => { if (active) toastRef.current(errMsg(e), 'error'); });
+    return () => { active = false; };
+  }, [tab, editJobId]);
 
   useEffect(() => {
     void loadSessions();
@@ -725,7 +755,9 @@ export default function JobsView() {
         succeeded += alreadyPaused.length;
         const toPause = candidates.filter((job) => !job.paused);
         const results = await Promise.allSettled(
-          toPause.map((job) => patchJob(job.jobId, { paused: true })),
+          toPause.map((job) => isUnifiedJob(job) && job.unified && job.configRevision != null
+            ? updateActionJob(job.jobId, { ...job.unified.config, enabled: false }, job.configRevision)
+            : patchJob(job.jobId, { paused: true })),
         );
         results.forEach((result, index) => {
           const job = toPause[index];
@@ -739,7 +771,7 @@ export default function JobsView() {
           }
         });
       } else {
-        const results = await Promise.allSettled(candidates.map((job) => deleteJobApi(job.jobId)));
+        const results = await Promise.allSettled(candidates.map((job) => isUnifiedJob(job) ? mutateActionJob(job, 'delete') : deleteJobApi(job.jobId)));
         results.forEach((result, index) => {
           const job = candidates[index];
           if (!job) return;
@@ -787,18 +819,16 @@ export default function JobsView() {
     [upsertJob],
   );
 
-  const handleCreate = async (input: JobCreateInput) => {
+  const handleUnifiedCreate = async (config: import('@/types/jobs').UnifiedJobConfig) => {
     setSubmitting(true);
     try {
-      const job = await createJob(input);
+      const job = await createActionJob(config);
       upsertJob(job);
+      dirtyEditor.current = false;
       setTab('list');
-      showToast(`Created job "${job.name}"`);
-    } catch (e) {
-      showToast(errMsg(e), 'error');
-    } finally {
-      setSubmitting(false);
-    }
+      showToast(`Created unified Job "${job.name}"`);
+    } catch (e) { showToast(errMsg(e), 'error'); throw e; }
+    finally { setSubmitting(false); }
   };
 
   const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
@@ -815,14 +845,32 @@ export default function JobsView() {
     }
   };
 
+  const handleUnifiedUpdate = async (job: Job, config: import('@/types/jobs').UnifiedJobConfig) => {
+    setSubmitting(true);
+    try {
+      if (job.configRevision == null) throw new Error('Configuration revision missing; reload before saving');
+      const revision = job.configRevision;
+      const updated = await updateActionJob(job.jobId, config, revision);
+      upsertJob(updated); dirtyEditor.current = false; setEditJobId(null); showToast(`Saved unified Job "${updated.name}"`);
+    } catch (e) { showToast(errMsg(e), 'error'); throw e; }
+    finally { setSubmitting(false); }
+  };
+
   const handleRunNow = async (job: Job) => {
     if (bulkActionRef.current) return;
     try {
-      upsertJob(await runJobNow(job.jobId));
+      if (isUnifiedJob(job)) { await mutateActionJob(job, 'run-now'); upsertJob(await fetchJob(job.jobId)); }
+      else upsertJob(await runJobNow(job.jobId));
       showToast(`Ran job "${job.name}"`);
     } catch (e) {
       showToast(errMsg(e), 'error');
     }
+  };
+
+  const handleAttemptRecovery = async (job: Job, operation: 'retry' | 'confirm-recovery') => {
+    if (!window.confirm('Confirm another Attempt of the same Run? Reconcile all possible prior effects first. Unknown process identity remains blocked.')) return;
+    try { await mutateActionJob(job, operation); upsertJob(await fetchJob(job.jobId)); }
+    catch (e) { showToast(errMsg(e), 'error'); }
   };
 
   const handleTogglePinned = async (job: Job) => {
@@ -839,6 +887,11 @@ export default function JobsView() {
     if (bulkActionRef.current) return;
     const next = !job.paused;
     try {
+      if (isUnifiedJob(job)) {
+        if (job.configRevision == null || !job.unified) throw new Error('Reload configuration revision before confirming');
+        upsertJob(await updateActionJob(job.jobId, { ...job.unified.config, enabled: !job.enabled }, job.configRevision));
+        return;
+      }
       upsertJob(await patchJob(job.jobId, { paused: next }));
       showToast(next ? `Paused job "${job.name}"` : `Resumed job "${job.name}"`);
     } catch (e) {
@@ -855,7 +908,10 @@ export default function JobsView() {
       return spec;
     });
     try {
-      upsertJob(await patchJob(job.jobId, { schedule: specs }));
+      if (job.unified && !job.unified.compatibility) {
+        if (job.configRevision == null) throw new Error('Reload configuration revision before confirming');
+        upsertJob(await updateActionJob(job.jobId, { ...job.unified.config, schedule: specs }, job.configRevision));
+      } else upsertJob(await patchJob(job.jobId, { schedule: specs }));
     } catch (e) {
       showToast(errMsg(e), 'error');
     }
@@ -892,7 +948,8 @@ export default function JobsView() {
     setCancellingIds(new Set(cancelRequests.current));
     let accepted = false;
     try {
-      await cancelJob(job.jobId);
+      if (isUnifiedJob(job)) await mutateActionJob(job, 'cancel');
+      else await cancelJob(job.jobId);
       accepted = true;
       showToast('Cancellation requested');
       try { upsertJob(await fetchJob(job.jobId)); }
@@ -904,7 +961,8 @@ export default function JobsView() {
   const handleDelete = async () => {
     if (!deleteJob || bulkActionRef.current) return;
     try {
-      await deleteJobApi(deleteJob.jobId);
+      if (isUnifiedJob(deleteJob)) await mutateActionJob(deleteJob, 'delete');
+      else await deleteJobApi(deleteJob.jobId);
       removeJob(deleteJob.jobId);
       if (selectedJobId === deleteJob.jobId) setSelectedJobId(null);
       setDeleteJobId(null);
@@ -937,7 +995,7 @@ export default function JobsView() {
           aria-pressed={tab === 'list'}
           disabled={bulkAction !== null}
           onClick={() => {
-            setTab('list');
+            requestTab('list');
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
@@ -955,7 +1013,7 @@ export default function JobsView() {
           aria-pressed={tab === 'create'}
           disabled={bulkAction !== null}
           onClick={() => {
-            setTab('create');
+            requestTab('create');
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
@@ -973,7 +1031,7 @@ export default function JobsView() {
           aria-pressed={tab === 'settings'}
           disabled={bulkAction !== null}
           onClick={() => {
-            setTab('settings');
+            requestTab('settings');
             setSelectionMode(false);
             clearSelectionForViewChange();
           }}
@@ -1242,11 +1300,8 @@ export default function JobsView() {
       ) : tab === 'create' ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <NewJobForm
-              kindMetas={kindMetas}
-              submitting={submitting}
-              onCreate={handleCreate}
-            />
+            <JobUserAuthorization />
+            <JobTemplateEditor actions={actions} submitting={submitting} onCreate={handleUnifiedCreate} onInstantiated={(job) => { dirtyEditor.current = false; upsertJob(job); setTab('list'); }} onDirtyChange={editorDirtyChange} />
           </div>
         </div>
       ) : (
@@ -1273,6 +1328,8 @@ export default function JobsView() {
           onChangeTarget={() => openChangeTarget(selectedJob)}
           onEdit={() => setEditJobId(selectedJob.jobId)}
           onToggleEntryEnabled={(entryId) => void handleToggleEntry(selectedJob, entryId)}
+          onRetry={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'retry') : undefined}
+          onConfirmRecovery={isUnifiedJob(selectedJob) ? () => void handleAttemptRecovery(selectedJob, 'confirm-recovery') : undefined}
         />
       )}
 
@@ -1375,20 +1432,27 @@ export default function JobsView() {
       {/* Edit job dialog */}
       <Modal
         open={editJobId !== null}
-        onClose={() => setEditJobId(null)}
+        onClose={() => { if (!dirtyEditor.current || window.confirm('Discard unsaved Job configuration?')) { dirtyEditor.current = false; setEditJobId(null); } }}
         title="Edit job"
         size="lg"
       >
-        {editJob && (
-          <NewJobForm
-            key={editJob.jobId}
-            mode="edit"
-            initialJob={editJob}
-            kindMetas={kindMetas}
-            submitting={submitting}
-            onSave={(patch) => void handleUpdate(editJob.jobId, patch)}
-          />
-        )}
+        <JobUserAuthorization />
+        {editJob && (editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
+          key={editJob.jobId}
+          initial={editJob.unified.config}
+          actions={actions}
+          expectedRevision={editJob.configRevision}
+          onDirtyChange={editorDirtyChange}
+          submitting={submitting}
+          onSubmit={(config) => handleUnifiedUpdate(editJob, config)}
+        /> : <NewJobForm
+          key={editJob.jobId}
+          mode="edit"
+          initialJob={editJob}
+          kindMetas={kindMetas}
+          submitting={submitting}
+          onSave={(patch) => void handleUpdate(editJob.jobId, patch)}
+        />)}
       </Modal>
     </div>
   );

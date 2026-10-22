@@ -27,7 +27,10 @@ async def setup(root, pause=None):
     async def effect(sid, args):
         calls.append(sid)
         return {'ok':True}
-    svc=Service(root, SimpleNamespace(workers={},set_running_observer=lambda cb:None), pause or effect)
+    # The current service host projects its disabled quota adapter from the
+    # worker's owned Session root. Keep that identity explicitly inside fixture.
+    svc=Service(root, SimpleNamespace(workers={},set_running_observer=lambda cb:None,
+        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')), pause or effect)
     svc.engine.actions=Store(root/'actions')
     svc.engine.actions.put('actions',action())
     svc.ledger.put(trigger(),0,True)
@@ -131,7 +134,8 @@ async def setup_existing(root,pause=None):
     calls=[]
     async def effect(sid,args):
         calls.append(sid);return {'ok':True}
-    svc=Service(root,SimpleNamespace(workers={},set_running_observer=lambda cb:None),pause or effect)
+    svc=Service(root,SimpleNamespace(workers={},set_running_observer=lambda cb:None,
+        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')),pause or effect)
     svc.engine.actions=Store(root/'actions')
     await svc.start()
     return svc,calls

@@ -95,6 +95,8 @@ def _write_job(path: Path, job: dict, *, created: bool = False) -> None:
     Detached runners have no event callback; their terminal recovery remains
     responsible for broadcasting after Pan observes the durable result.
     """
+    from packages.jobs.system_actions import sync
+    sync(job, created)
     _atomic_write(path, job)
     if (not job.get("scheduledParentJobId")
             and not (job.get("kind") == BACKGROUND_PROCESS_KIND
@@ -456,6 +458,7 @@ def job_public_view(job: dict | None) -> dict | None:
     if not isinstance(job, dict):
         return job
     view = dict(job)
+    view.pop('attemptSnapshot', None)
     identity = _structured_identity(job)
     view["source"] = identity["source"]
     view["target"] = identity["target"]
@@ -837,7 +840,8 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
 def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
                             fire_at: str | None = None,
                             entry_id: str | None = None,
-                            registry_root: str | Path | None = None) -> dict:
+                            registry_root: str | Path | None = None,
+                            admitted_execution: str | None = None) -> dict:
     """Start or recover the one process run for a scheduled shell dispatch key.
 
     The stable child ID makes scheduler stale-claim recovery at-most-once: after
@@ -860,7 +864,14 @@ def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
         if not parent or parent.get("kind") != SCHEDULED_TASK_KIND:
             raise ValueError("scheduled parent Job not found")
         action = parent.get("action")
-        if parent_job.get("action") != action:
+        if admitted_execution is not None:
+            admission = parent.get('activeExecutions', {}).get(admitted_execution, parent.get('execution', {}))
+            if (admission.get('id') != admitted_execution or dispatch_key != admitted_execution
+                    or admission.get('actionId') != 'system_scheduled_task'
+                    or parent.get('status') != 'running'):
+                raise ValueError('System Action admission no longer current')
+            action = parent_job.get('action')
+        elif parent_job.get("action") != action:
             raise ValueError("scheduled shell action changed before the dispatch started")
         args = action.get("args") if isinstance(action, dict) else None
         if not isinstance(action, dict) or action.get("api") != "shell" or not isinstance(args, dict):
@@ -1233,6 +1244,12 @@ async def run_due_message_jobs(now: float | None = None,
                 path = _job_path(candidate["jobId"], registry_root)
                 current = _load_path(path)
                 if current and current.get("status") == "running":
+                    if current.get('attemptSnapshot'):
+                        from packages.jobs.system_actions import finish
+                        finish(current, 'uncertain')
+                        current.update(status='uncertain', nextRunAt=None, lastError='Unconfirmed system Action delivery; explicit investigation required')
+                        _write_job(path, current)
+                        continue
                     current.update(status=("scheduled" if current.get("schedule", {}).get("type")
                                    in {"interval", "weekly"} else "pending"),
                                    # Keep the recovered occurrence due even
@@ -1275,6 +1292,19 @@ async def run_due_message_jobs(now: float | None = None,
         latest = get(job["jobId"], registry_root=registry_root)
         if not latest or latest.get("status") != "running":
             continue
+        # Freeze the current target at the same reservation boundary as legacy
+        # retarget semantics. Admission must persist before any queue handoff.
+        from packages.jobs.system_actions import prepare, finish
+        with _lock, _job_lock(job['jobId'], registry_root):
+            latest = _load_path(_job_path(job['jobId'], registry_root))
+            if not latest or latest.get('status') != 'running':
+                continue
+            snapshot = prepare(latest, job['jobId'] + ':' + str(job.get('nextRunAt')))
+            _write_job(_job_path(job['jobId'], registry_root), latest)
+            params = snapshot['arguments']
+            latest = {**latest, 'text': params['text']}
+            if 'sessionId' in params: latest['targetSessionId'] = params['sessionId']
+            if 'sessionIds' in params: latest['targetSessionIds'] = params['sessionIds']
         # Claiming an occurrence establishes that it is in flight, but
         # handoff may retarget it before this send boundary.  Read the target
         # from the current registry snapshot immediately before send_session;
@@ -1294,7 +1324,7 @@ async def run_due_message_jobs(now: float | None = None,
                 if not isinstance(result, dict):
                     result = {"status": "error", "result": "send returned an invalid result"}
             except Exception as exc:  # isolate one target and keep the fan-out alive
-                result = {"status": "error", "result": str(exc)}
+                result = {"status": "unknown", "result": str(exc)}
             item = dict(result)
             item["sessionId"] = target_id
             target_results.append(item)
@@ -1315,6 +1345,7 @@ async def run_due_message_jobs(now: float | None = None,
                     for item in failures
                 ]
         finished = time.time()
+        unknown=any(item.get('status') in {'unknown','uncertain','unconfirmed'} for item in target_results)
         recurring = job.get("schedule", {}).get("type") in {"interval", "weekly"}
         ok = isinstance(result, dict) and result.get("status") != "error"
         # 部分失败：即时 toast 事件（第八轮定论——completed + toast + runs 可查）。
@@ -1331,7 +1362,10 @@ async def run_due_message_jobs(now: float | None = None,
             "lastDelivery": result if isinstance(result, dict) else {"status": "error"},
             "updatedAt": finished,
         }
-        if ok:
+        if unknown:
+            changes.update(status='uncertain',nextRunAt=None,lastError='Unconfirmed message delivery; automatic replay blocked')
+            ok=False
+        elif ok:
             if recurring:
                 changes.update(status="scheduled",
                                nextRunAt=_iso_utc(_message_next_run(job["schedule"], finished)),
@@ -1359,6 +1393,7 @@ async def run_due_message_jobs(now: float | None = None,
             latest = _load_path(path)
             if latest and latest.get("status") == "running":
                 latest.update(changes)
+                finish(latest, 'uncertain' if unknown else 'completed' if ok else 'failed', {'status': result.get('status')})
                 _write_job(path, latest)
     return delivered
 
@@ -2090,6 +2125,17 @@ async def _run_job_action(job: dict, target: str | None,
                           fire_at: str | None = None,
                           entry_id: str | None = None,
                           registry_root: str | Path | None = None) -> dict:
+    from packages.jobs.system_actions import invoke
+    async def effect(frozen):
+        return await _execute_job_action(frozen, frozen.get('targetSessionId', target), dispatch_key,
+                                         fire_at, entry_id, registry_root)
+    return await invoke(job, dispatch_key, effect, registry_root)
+
+
+async def _execute_job_action(job: dict, target: str | None, dispatch_key: str,
+                              fire_at: str | None = None, entry_id: str | None = None,
+                              registry_root: str | Path | None = None,
+                              admitted_execution: str | None = None) -> dict:
     """执行 job 的 action 模板（PLAN §1/§2：动作 = API 调用模板）。
 
     Scheduled-task actions:
@@ -2160,7 +2206,7 @@ async def _run_job_action(job: dict, target: str | None,
     if api == "shell":
         child = start_scheduled_process(
             job, dispatch_key, fire_at=fire_at, entry_id=entry_id,
-            registry_root=registry_root)
+            registry_root=registry_root, **({'admitted_execution': admitted_execution} if admitted_execution else {}))
         child_status = child.get("status")
         if child_status in {"failed", "cancelled"}:
             result_status = "error"
@@ -2251,6 +2297,8 @@ def _iso_local(value: datetime | None) -> str | None:
 
 
 def _scheduled_task_emit(event: dict) -> None:
+    from packages.jobs.system_actions import notify
+    notify(event)
     callback = _scheduled_task_hooks.get("on_event")
     if callback is None:
         return
@@ -2427,6 +2475,10 @@ def _reconcile_scheduled_processes(registry_root: str | Path) -> int:
                         current["lastError"] = (
                             str(error) if delivery["status"] == "error" else None)
                     current["updatedAt"] = time.time()
+                    if current.get('attemptSnapshot', {}).get('dispatchKey') == dispatch_key:
+                        from packages.jobs.system_actions import finish
+                        finish(current, 'completed' if delivery['status'] == 'completed' else 'cancelled' if delivery['status'] == 'cancelled' else 'failed',
+                               {'status': delivery['status'], 'processJobId': child['jobId']})
                     _write_job(path, current)
                     _scheduled_task_emit({
                         "type": "job.updated",
@@ -2750,7 +2802,7 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
     max_runs = job.get("maxRuns")
     result_status = str(result.get("status") or "error")
     pending_process = result_status == "running"
-    succeeded = result_status not in {"error", "failed", "cancelled"}
+    succeeded = result_status not in {"error", "failed", "cancelled", "unknown", "uncertain", "unconfirmed"}
     run_status = "running" if pending_process else (
         "completed" if result_status == "completed" else
         "dispatched" if succeeded else "error"
@@ -2819,6 +2871,10 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
                 and now_ts - float(started) < _scheduled_task_requeue_after(job)):
             continue
         try:
+            if job.get('attemptSnapshot'):
+                _update(job['jobId'], {'status': 'uncertain', 'enabled': False,
+                                      'lastError': 'Unconfirmed system Action; automatic replay blocked'}, registry_root=root)
+                continue
             _update(job["jobId"], {"status": "scheduled", "runStartedAt": None,
                                    "updatedAt": now_ts}, registry_root=root)
         except ValueError:
@@ -2882,6 +2938,8 @@ async def run_due_scheduled_tasks(now: float | None = None) -> int:
         closing = {"status": "scheduled", "runStartedAt": None,
                    "updatedAt": time.time()}
         closing_job = get(job["jobId"], registry_root=root) or latest
+        if closing_job.get('status') in {'unknown','uncertain','cancelled','cleaning'}:
+            continue
         if not closing_job.get("enabled"):
             closing["status"] = "completed"
         try:
@@ -2918,15 +2976,15 @@ def _owns_process(job: dict) -> Any:
         return None
 
 
-def cancel(job_id: str) -> dict:
-    job = get(job_id)
+def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
+    job = get(job_id, registry_root)
     if not job:
         raise ValueError("job not found")
     if job.get("executionOwner") == "independent-job-service":
         from packages.jobs import pan_bridge
         return pan_bridge.public_job(pan_bridge.request("cancel", job_id))
     if job.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
-        return cancel_message(job_id)
+        return cancel_message(job_id, registry_root)
     if job.get("status") in {"completed", "failed", "cancelled"}:
         return job
     proc = _owns_process(job)
@@ -2938,25 +2996,25 @@ def cancel(job_id: str) -> dict:
         raise ValueError("cannot safely cancel: Runner PID identity is unavailable")
     # Publish accepted cancellation before killing. The runner can otherwise
     # observe the termination exit code and commit failed before cancel commits.
-    with _lock, _job_lock(job_id):
-        current = _load_path(_job_path(job_id))
+    with _lock, _job_lock(job_id, registry_root):
+        current = _load_path(_job_path(job_id, registry_root))
         if not current: raise ValueError("job not found")
         if current.get("status") in {"completed", "failed", "cancelled"}: return current
         current["cancelRequestedAt"] = time.time()
-        _write_job(_job_path(job_id), current)
+        _write_job(_job_path(job_id, registry_root), current)
     if proc:
         _kill_tree(proc)
     if runner and getattr(runner, "pid", None) != getattr(proc, "pid", None):
         _kill_tree(runner)
-    with _lock, _job_lock(job_id):
-        current = _load_path(_job_path(job_id))
+    with _lock, _job_lock(job_id, registry_root):
+        current = _load_path(_job_path(job_id, registry_root))
         if not current:
             raise ValueError("job not found")
         if current.get("status") in {"completed", "failed", "cancelled"}:
             return current
         current.update(status="cancelled", exitCode=None, updatedAt=time.time(),
                        terminalEventId=f"{job_id}:terminal", notificationState="pending")
-        _write_job(_job_path(job_id), current)
+        _write_job(_job_path(job_id, registry_root), current)
         return current
 
 
@@ -3260,6 +3318,8 @@ async def _scheduled_task_emit_strict(event: dict) -> bool:
     job.updated 是状态 upsert，客户端对重复事件幂等：成功后、标记持久化
     前崩溃导致的重发是允许的收敛路径，因此这里绝不以牺牲送达换取严格一次。
     """
+    from packages.jobs.system_actions import notify
+    notify(event)
     strict = _scheduled_task_hooks.get("on_event_strict")
     callback = strict if callable(strict) else _scheduled_task_hooks.get("on_event")
     if not callable(callback):

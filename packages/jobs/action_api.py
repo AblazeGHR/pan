@@ -76,11 +76,11 @@ async def schema(request:Request,actionId:str|None=None):
     metadata={'name':{'type':'string','minLength':1,'maxLength':200},'description':{'type':'string'}}
     config_schema={'type':'object','additionalProperties':False,'required':['name','actionId','schedule'],
         'properties':{**metadata,'actionId':{'type':'string'},'arguments':arguments,
-        'schedule':{'type':'array','minItems':1,'maxItems':32,'items':{'oneOf':schedules}},
-        'trigger':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['immediate','once','interval','cron','event','schedule']},'query':{'type':'object'}},'required':['kind']},
+        'schedule':{'type':'array','minItems':0,'maxItems':32,'items':{'oneOf':schedules}},
+        'trigger':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['immediate','once','interval','cron','event','schedule']},'query':{'type':'object'},'eventTypes':{'type':'array','minItems':1,'maxItems':32,'uniqueItems':True,'items':{'type':'string','minLength':1,'maxLength':200}}},'required':['kind']},
         'recovery':{'type':'object','additionalProperties':False,'properties':{'enabled':{'type':'boolean'},'monitoring':{'type':'boolean'},'maxAttempts':{'type':'integer','minimum':1,'maximum':10},'backoffSec':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'integer','minimum':0,'maximum':86400}},'stableResetSec':{'type':'integer','minimum':0,'maximum':86400}}},
         'overlap':{'type':'object','additionalProperties':False,'properties':{'mode':{'enum':['forbid','queue','parallel']},'parallelLimit':{'type':'integer','minimum':1,'maximum':32}}},
-        'notification':{'type':'object','additionalProperties':False,'properties':{'on':{'type':'array','items':{'enum':['completed','failed','cancelled','unknown','uncertain','cleaning']}},'target':{'const':'job'}}},
+        'notification':{'type':'object','additionalProperties':False,'properties':{'on':{'type':'array','items':{'enum':['completed','failed','cancelled','unknown','uncertain','cleaning']}},'target':{'const':'job'},'sessionIds':{'type':'array','maxItems':128,'uniqueItems':True,'items':{'type':'string','minLength':1}}}},
         'completion':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['ordinary','monitoring']},'signalType':{'type':'string'}}},
         'enabled':{'type':'boolean','default':False},'maxRuns':{'type':['integer','null'],'minimum':1},
         'misfirePolicy':{'enum':['fire_now','skip']}}}
@@ -134,6 +134,17 @@ async def cancel(job_id:str,data:dict,request:Request):
 async def delete_job(job_id:str,expectedRevision:int,request:Request):
     await user(request,True)
     return await invoke(runtime(request).delete,job_id,expectedRevision)
+
+
+@router.post('/action-jobs/{job_id}/confirm-recovery')
+@router.post('/action-jobs/{job_id}/retry')
+async def confirm_recovery(job_id:str,data:dict,request:Request):
+    body(data,{'expectedRevision','confirm'},{'expectedRevision','confirm'});await user(request,True)
+    if data['confirm'] is not True:raise HTTPException(400,'Explicit confirm:true required')
+    try:return {'job':await runtime(request).confirm_recovery(job_id,data['expectedRevision'],request.url.path.endswith('/retry'))}
+    except Conflict as exc:raise HTTPException(409,str(exc)) from exc
+    except KeyError as exc:raise HTTPException(404,str(exc)) from exc
+    except OSError as exc:raise HTTPException(503,'Persistence failed; reload before retrying') from exc
 
 
 @router.get('/job-templates')

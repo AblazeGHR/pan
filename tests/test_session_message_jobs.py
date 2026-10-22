@@ -154,7 +154,7 @@ def test_scheduled_broadcast_deduplicates_and_isolates_target_failures(monkeypat
     async def send(session_id, text, **kwargs):
         calls.append((session_id, text, kwargs))
         if session_id == "ses_b":
-            raise RuntimeError("target unavailable")
+            return {"status": "error", "result": "target unavailable"}
         return {"status": "queued", "workerId": f"worker-{session_id}"}
 
     monkeypatch.setattr(worker, "send_session", send)

@@ -369,6 +369,10 @@ export function ActionEditorPage({
                 title="Behavior"
                 description="The effect is disclosed to the Agent and enforced by the build gate."
               >
+                <div className="flex flex-wrap gap-4 pb-3 text-xs">
+                  <label><input type="checkbox" checked={Boolean(action.monitoring)} onChange={(e) => patchDraft({ monitoring: e.target.checked, recoverable: e.target.checked && Boolean(action.recoverable) })} /> Explicit monitoring capability</label>
+                  <label><input type="checkbox" disabled={!action.monitoring} checked={Boolean(action.recoverable)} onChange={(e) => patchDraft({ recoverable: e.target.checked })} /> Allow declared Job recovery</label>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Effect" htmlFor="action-effect" hint={EFFECT_HINTS[action.effect]}>
                     <Select
@@ -559,13 +563,16 @@ export function ActionEditorPage({
                       { value: 'api' as const, label: 'Internal API', icon: <Braces size={12} /> },
                       { value: 'command' as const, label: 'Command', icon: <Terminal size={12} /> },
                       { value: 'session_operation' as const, label: 'Session Operation', icon: <Layers size={12} /> },
+                      { value: 'job_template' as const, label: 'Create Job', icon: <Layers size={12} /> },
                     ]}
                     onChange={(kind) =>
                       patchDraft({
                         ...(kind === 'session_operation' ? { effect: 'write_local' as const } : {}),
+                        ...(kind === 'job_template' ? { effect: 'write_local' as const, input_schema: { type: 'object' as const, properties: {}, additionalProperties: false as const } } : {}),
                         execution:
                           kind === 'api'
                             ? { kind: 'api', method: 'GET', path: '/api/sessions' }
+                            : kind === 'job_template' ? { kind, templateId: '', templateRevision: 1 }
                             : kind === 'session_operation'
                               ? { kind, operation: 'pause_everything', selector: { mode: 'explicit', ids: [] } }
                               : { kind: 'command', executable: '', args: [], cwd: '', timeout_sec: 30 },
@@ -616,7 +623,11 @@ export function ActionEditorPage({
                       draft: !executionError && action.execution.kind === 'session_operation' ? { ...action, execution: { ...action.execution, selector: { mode: 'query', query: JSON.parse(executionText) } } } : action })} />
                   {state.executionError && <p role="alert" className="mt-2 text-xs text-danger">{state.executionError}</p>}
                   {operationError && <p role="alert" className="mt-2 text-xs text-danger">{operationError}</p>}
-                </> : (
+                </> : action.execution.kind === 'system_job' ? <p className="text-xs text-text-secondary">Product-managed system Action: {action.execution.operation}. Edit its declared parameters in a Job or Template.</p> : action.execution.kind === 'job_template' ? <div className="space-y-3">
+                  <p className="text-xs text-text-secondary">Fixed complete Template only. Success means Job created, not Job execution completed. No parameter overlays.</p>
+                  <Field label="Template ID"><input className={inputClass} value={action.execution.templateId} onChange={(e) => { if (action.execution.kind === 'job_template') patchDraft({ execution: { ...action.execution, templateId: e.target.value } }); }} /></Field>
+                  <Field label="Template revision"><input className={inputClass} type="number" min={1} value={action.execution.templateRevision} onChange={(e) => { if (action.execution.kind === 'job_template') patchDraft({ execution: { ...action.execution, templateRevision: Number(e.target.value) } }); }} /></Field>
+                </div> : (
                   <div className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Executable" required htmlFor="action-executable">

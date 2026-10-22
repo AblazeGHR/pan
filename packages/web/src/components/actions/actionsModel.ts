@@ -132,7 +132,7 @@ export function effectTone(effect: Action['effect']): 'neutral' | 'accent' | 'wa
 }
 
 export function executionLabel(action: Action): string {
-  return action.execution.kind === 'api' ? 'Internal API' : action.execution.kind === 'session_operation' ? 'Session Operation' : 'Command';
+  return action.execution.kind === 'job_template' ? 'Create Job from Template' : action.execution.kind === 'system_job' ? 'System Action' : action.execution.kind === 'api' ? 'Internal API' : action.execution.kind === 'session_operation' ? 'Session Operation' : 'Command';
 }
 
 export function sessionOperationError(action: Action): string {
@@ -148,6 +148,8 @@ export function actionRoute(action: Action): string {
   const execution = action.execution;
   if (execution.kind === 'api') return `${execution.method} ${execution.path}`;
   if (execution.kind === 'command') return execution.executable;
+  if (execution.kind === 'system_job') return `Product executor · ${execution.operation}`;
+  if (execution.kind === 'job_template') return `Complete Template ${execution.templateId} · revision ${execution.templateRevision}`;
   const selector = execution.selector;
   return `Pause Everything · ${selector.mode === 'explicit' ? `${selector.ids.length} Sessions` : selector.mode === 'query' ? 'Session query' : `Event: ${selector.path}`}`;
 }
@@ -203,6 +205,8 @@ export function buildGate(
     return { kind: 'missing', message: 'One or more selected Actions no longer exist. Remove them and save.' };
   }
   const automationOnly = selected.filter((action) => action.execution.kind === 'session_operation');
+  const jobsOnly = selected.filter((action) => action.execution.kind === 'system_job' || action.execution.kind === 'job_template');
+  if (jobsOnly.length) return { kind: 'automation_only', message: `${jobsOnly.map((action) => action.name).join(', ')}: Job capabilities cannot be built into a legacy Group release.` };
   if (automationOnly.length) return {
     kind: 'automation_only',
     message: `${automationOnly.map((action) => action.name).join(', ')}: Session Operation is automation only and cannot be built into a Group.`,

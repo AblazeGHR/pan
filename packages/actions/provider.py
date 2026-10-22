@@ -85,6 +85,12 @@ async def execute(action, arguments):
         result = out if action['output_format'] == 'text' else json.loads(out)
     reply = {'content': [{'type': 'text', 'text': result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)}],
             **({'structuredContent': result} if isinstance(result, dict) else {}), 'isError': False}
+    if ex['kind']=='command':
+        tree_ended=windows
+        if not windows:
+            try:os.killpg(process.pid,0)
+            except ProcessLookupError:tree_ended=True
+        reply['processTreeEnded']=tree_ended
     if len(json.dumps(reply, ensure_ascii=False).encode('utf-8')) > RESULT_LIMIT:
         raise ValueError('Action output exceeds 1 MiB encoded result limit')
     return reply

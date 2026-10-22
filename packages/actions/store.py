@@ -45,7 +45,7 @@ def identifier(value):
 
 
 def validate_action(raw, automation=True):
-    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent', 'system'}:
+    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent', 'system', 'monitoring', 'recoverable'}:
         raise ValueError('Unknown Action fields')
     from .session_query import validate_action_query
     validate_action_query(raw)
@@ -59,6 +59,10 @@ def validate_action(raw, automation=True):
     action.setdefault('enabled', False)
     action.setdefault('idempotent', False)
     action.setdefault('system', False)
+    action.setdefault('monitoring', False)
+    action.setdefault('recoverable', False)
+    if type(action['monitoring']) is not bool or type(action['recoverable']) is not bool or (action['recoverable'] and not action['monitoring']):
+        raise ValueError('Recoverable Actions must explicitly declare monitoring capability')
     if type(action['system']) is not bool:
         raise ValueError('Action system must be boolean')
     if type(action['idempotent']) is not bool:
@@ -95,7 +99,10 @@ def validate_action(raw, automation=True):
     ex = action.get('execution')
     if not isinstance(ex, dict):
         raise ValueError('Execution is required')
-    if ex.get('kind') == 'api':
+    if ex.get('kind') == 'system_job' and automation:
+        from packages.jobs.system_actions import validate
+        validate(action)
+    elif ex.get('kind') == 'api':
         if (set(ex) != {'kind', 'method', 'path'} or ex['method'] != 'GET'
                 or not isinstance(ex['path'], str) or ex['path'] not in API_ROUTES or action['effect'] != 'read'):
             raise ValueError('API Actions require a fixed allowed GET route and read effect')
@@ -196,7 +203,7 @@ class Store:
             if create and isinstance(value, dict) and value.get('id') in state[kind]:
                 raise ValueError('ID already exists; update the existing item by ID')
             item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
-            if kind == 'actions' and item.get('system') and not authorized:
+            if kind == 'actions' and (item.get('system') or state['actions'].get(item['id'], {}).get('system')):
                 raise PermissionError('System Actions are product-managed')
             if draft and kind == 'actions':
                 item['enabled'] = False

@@ -12,6 +12,11 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action disabled or requires approval policy')
     jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    if action['execution']['kind'] == 'system_job':
+        execute_system = getattr(progress, 'execute_system', None)
+        if execute_system is None:
+            raise PermissionError('Trusted Job host capability required')
+        return await execute_system(action, arguments, event, progress)
     if action['execution']['kind'] == 'job_template':
         if arguments:
             raise ValueError('Fixed Job Template Action accepts no fields')

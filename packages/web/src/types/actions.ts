@@ -11,11 +11,16 @@ export type InputSchema = {
 };
 export type Action = {
   id: string; name: string; description: string; enabled: boolean;
+  system?: boolean;
+  monitoring?: boolean;
+  recoverable?: boolean;
   effect: 'read' | 'write_local' | 'write_external' | 'high_risk'; output_format: 'json' | 'text';
   input_schema: InputSchema;
   execution: { kind: 'api'; method: 'GET'; path: string } |
     { kind: 'command'; executable: string; args: string[]; cwd: string; timeout_sec?: number } |
-    { kind: 'session_operation'; operation: 'pause_everything'; selector: SessionSelector };
+    { kind: 'session_operation'; operation: 'pause_everything'; selector: SessionSelector } |
+    { kind: 'job_template'; templateId: string; templateRevision: number } |
+    { kind: 'system_job'; operation: 'background-process' | 'session-message' | 'session-broadcast' | 'scheduled-task' | 'main-lifecycle' };
 };
 export type ActionGroup = {
   id: string; name: string; action_ids: string[];

@@ -3102,6 +3102,50 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
                  **({'expectedRevision': expected_revision} if expected_revision is not None else {})})
 
 
+@mcp.tool()
+def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict | None = None,
+                      item_id: str | None = None, expected_revision: int | None = None,
+                      name: str | None = None) -> dict:
+    """Unified Action-reference Job/complete Template drafts (never execute or enable).
+
+    kind: job or template. operation: list, schema, put, runs.
+    config: complete {name, actionId, arguments, schedule, trigger, completion,
+    recovery, overlap, notification, enabled:false}. Arguments are only declared
+    Action fields; empty schema accepts only {}. Templates have no parameter holes.
+    trigger kinds immediate/once/interval/cron/event/schedule; event uses bounded
+    typed Session query. Recovery defaults off and requires monitoring declaration.
+    Overlap forbid/queue/parallel, parallelLimit 1..32 (default3).
+    Template instantiate/enable/repair, cancellation and uncertain recovery are
+    protected user operations. No Bearer, permission or managed bypass here.
+    Unknown creation outcome: list before retry; do not blindly create again.
+    """
+    if kind not in ('job', 'template'):
+        return {'error': 'kind must be job or template'}
+    path = '/api/jobs/action-jobs' if kind == 'job' else '/api/jobs/job-templates'
+    if operation == 'list': return _api('GET', path)
+    if operation == 'schema': return _api('GET', '/api/jobs/action-jobs/schema')
+    if operation == 'runs' and kind == 'job' and isinstance(item_id, str):
+        from urllib.parse import quote
+        return _api('GET', path + '/' + quote(item_id, safe='') + '/runs')
+    if operation != 'put' or not isinstance(config, dict):
+        return {'error': 'put requires complete config'}
+    if config.get('enabled', False) is not False:
+        return {'error': 'Agent may submit disabled drafts only; enabled must be false'}
+    import copy
+    draft = copy.deepcopy(config); draft['enabled'] = False
+    from urllib.parse import quote
+    if kind == 'job':
+        body = {'config': draft}
+        if item_id:
+            body['expectedRevision'] = expected_revision
+            return _api('PUT', path + '/' + quote(item_id, safe=''), body)
+        return _api('POST', path, body)
+    item = {'name': name or draft.get('name'), 'enabled': False, 'config': draft}
+    if item_id: item['id'] = item_id
+    return _api('PUT' if item_id else 'POST', path + ('/' + quote(item_id, safe='') if item_id else ''),
+                {'item': item, 'expectedRevision': expected_revision if item_id else 0})
+
+
 def main():
     global _pan_api_url, _terminal_transport
     parser = argparse.ArgumentParser(description="Pan MCP Server")

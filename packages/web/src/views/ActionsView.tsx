@@ -132,6 +132,7 @@ export default function ActionsView() {
   }
 
   function openAction(action: Action) {
+    if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
     setEditor(actionEditorState(action, 'edit'));
     setEditorError('');
   }
@@ -320,6 +321,7 @@ export default function ActionsView() {
   }
 
   function requestDeleteAction(action: Action) {
+    if (action.system) { notify('System Actions cannot be deleted.', 'error'); return; }
     const usage = usedByGroups(registry, action.id);
     if (usage.length) {
       notify(

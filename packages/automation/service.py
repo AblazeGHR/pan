@@ -57,6 +57,8 @@ class Service:
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
             targets = [t for t in state['triggers'].values() if t['enabled'] and event['type'] in t['eventTypes'] and self.engine.available(t)]
+            if self.job_runtime:
+                targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type']))
             try:
                 receipt = await self.engine.io(self.events.append, event, targets)
             except Exception as exc:
@@ -99,7 +101,9 @@ class Service:
                     if self.stopping:
                         return
                     try:
-                        await self.engine.match(row['event'], targets=row['targets'], strict=True)
+                        await self.engine.match(row['event'], targets=[t for t in row['targets'] if not t.get('_job')], strict=True)
+                        if self.job_runtime:
+                            await self.job_runtime.match_event(row['event'],[t for t in row['targets'] if t.get('_job')])
                         # Notifications remain best effort; durable inbox delivery
                         # guarantees Trigger matching, not plugin delivery receipts.
                         self.bus._fanout(row['event'])
@@ -132,6 +136,7 @@ class Service:
         from packages.jobs.action_runtime import Runtime
         from packages.scheduler.store import data_root
         self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
         await self.job_runtime.start()
         self.engine.job_runtime = self.job_runtime
         from .quota_policy import Runtime as QuotaRuntime

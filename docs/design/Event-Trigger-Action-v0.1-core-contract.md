@@ -313,3 +313,19 @@ Recovered running/uncertain Runs never requery or replay their target set. Queue
 Runs that have never started resolve once when they actually start after recovery.
 The query follow-up itself introduced no generic retry API; the later scheduling
 batch reuses its fixed targets across authorized attempts.
+
+## Unified Job integration
+
+The complete Job config/Template/Run/Attempt and System Action contract is specified
+in [v0.4 Job Templates](Event-Trigger-Action-v0.4-job-templates.md#unified-execution-contract-2026-10-23).
+Jobs consume durable events through the same Event Store, indexed target list and
+dispatch lifecycle; a target is marked `_job:true` with Job/config revision.
+Event+Job receipts and bounded queued intents are committed before dispatch.
+Unavailable event sources cannot start a queued Job; disabled or changed targets
+are cancelled. No second Event Store, scheduler or resource controller is added.
+Event query freezes `triggerTargetIds` and `triggerSelection`; event Session Actions
+may select `jobSelection.ids`. Automatic/confirmed Attempts reuse persisted IDs.
+Action query/explicit selectors retain their own existing semantics and gates.
+System Actions require trusted Job host capability and cannot enter legacy Group
+provider execution or alter immutable Group releases/pins. Existing Trigger retry
+rules stay separate from monitoring Job recovery; ordinary Actions need no signal.

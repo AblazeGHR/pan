@@ -34,6 +34,7 @@ def test_invalid_unified_policy_fails_closed(tmp_path,patch):
 
 def test_event_query_is_structured_and_bounded(tmp_path):
     store=Store(tmp_path/'actions'); raw={**base(store),'trigger':{'kind':'event','query':{'and':[{'field':'adapter','op':'eq','value':'codex'},{'not':{'field':'pinned','op':'eq','value':True}}]}}}
+    raw['trigger']['eventTypes']=['workers.all_idle']
     assert config_value(raw,store.read())['trigger']['kind']=='event'
 
 def test_attempt_audit_is_persisted_and_terminal_summary_is_non_executable(tmp_path):
@@ -58,10 +59,10 @@ from packages.jobs.unified import project
 
 def test_legacy_job_projection_is_unified_without_storage_rewrite():
     row=project({'jobId':'j1','kind':'session-message','name':'hello','enabled':True,'schedule':[],'status':'scheduled'})
-    assert row['action']['actionId']=='system.session_message'
+    assert row['action']['actionId']=='system_session_message'
     assert row['config']['trigger']=={'kind':'schedule'}
     assert row['config']['recovery']['enabled'] is False
-    assert row['compatibility']['migration']=='projection-only'
+    assert row['compatibility']['migration']=='system-executor'
 
 def test_legacy_unknown_kind_is_conservative():
     row=project({'id':'j2','kind':'future-kind','enabled':True})
@@ -74,9 +75,10 @@ from tests.test_automation_core import until
 
 def test_monitoring_without_signal_enters_restarting(tmp_path):
     async def run():
-        store=Store(tmp_path/'actions');store.put('actions',action())
+        store=Store(tmp_path/'actions');store.put('actions',{**action(),'monitoring':True,'recoverable':True})
         rt=Runtime(tmp_path/'jobs',store,lambda *_: {'ok':True});await rt.start()
-        cfg={**base(store),'enabled':True,'completion':{'kind':'monitoring','signalType':'health.completed'},'recovery':{'enabled':True,'monitoring':True,'maxAttempts':3,'backoffSec':[0,0,0],'stableResetSec':300}}
+        raw=base(store);store.put('actions',{**action(),'monitoring':True,'recoverable':True})
+        cfg={**raw,'enabled':True,'completion':{'kind':'monitoring','signalType':'health.completed'},'recovery':{'enabled':True,'monitoring':True,'maxAttempts':3,'backoffSec':[0,0,0],'stableResetSec':300}}
         job=rt.create(cfg,True);await rt.launch(job['jobId'],1)
         await until(lambda:asyncio.sleep(0,result=rt.get(job['jobId']).get('lastStatus')=='restarting'))
         current=rt.get(job['jobId']);assert current['status']=='restarting' and len(current['attempts'])==1

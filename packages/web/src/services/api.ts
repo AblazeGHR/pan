@@ -104,6 +104,7 @@ import type {
   JobPatchInput,
   JobRunRecord,
 } from '@/types/jobs';
+import type { ActionRegistry } from '@/types/actions';
 
 const BASE = '/api';
 
@@ -2548,6 +2549,67 @@ export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job
   if (data.error) throwSchedulerError(data.error);
   if (!data.job) throw new Error('job missing in response');
   return data.job;
+}
+
+/** Unified Job API. The legacy endpoints remain available for old records. */
+export async function fetchActionRegistry(): Promise<ActionRegistry> {
+  return request<ActionRegistry>(`${BASE}/actions`);
+}
+
+async function protectedJobRequest<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const { automationRequest, AutomationError } = await import('@/stores/automationStore');
+  try { return await automationRequest<T>(path, method, body); }
+  catch (error) { if (error instanceof AutomationError) throw new ApiRequestError(error.status, error.message); throw error; }
+}
+
+export async function createActionJob(config: import('@/types/jobs').UnifiedJobConfig): Promise<Job> {
+  const data = await protectedJobRequest<{ job?: Job; error?: SchedulerApiError }>('jobs/action-jobs', 'POST', { config });
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('unified job missing in response');
+  return fetchJob(data.job.jobId);
+}
+
+export async function updateActionJob(jobId: string, config: import('@/types/jobs').UnifiedJobConfig, expectedRevision: number): Promise<Job> {
+  const data = await protectedJobRequest<{ job?: Job; error?: SchedulerApiError }>(`jobs/action-jobs/${encodeURIComponent(jobId)}`, 'PUT', { config, expectedRevision });
+  if (data.error) throwSchedulerError(data.error);
+  if (!data.job) throw new Error('unified job missing in response');
+  return fetchJob(data.job.jobId);
+}
+
+export interface CompleteJobTemplate {
+  id: string; name: string; description?: string; revision: number; enabled: boolean;
+  config: import('@/types/jobs').UnifiedJobConfig;
+}
+
+export async function fetchCompleteJobTemplates(): Promise<CompleteJobTemplate[]> {
+  const data = await request<{ templates: CompleteJobTemplate[] }>(`${BASE}/jobs/job-templates`);
+  return data.templates;
+}
+
+export async function saveCompleteJobTemplate(item: Partial<CompleteJobTemplate>, expectedRevision: number): Promise<CompleteJobTemplate> {
+  const data = await protectedJobRequest<{ item: CompleteJobTemplate }>(`jobs/job-templates${item.id ? '/' + encodeURIComponent(item.id) : ''}`, item.id ? 'PUT' : 'POST', { item, expectedRevision });
+  return data.item;
+}
+
+export async function instantiateCompleteJobTemplate(template: CompleteJobTemplate, idempotencyKey: string): Promise<Job> {
+  const data = await protectedJobRequest<{ job: Job }>(`jobs/job-templates/${encodeURIComponent(template.id)}/instantiate`, 'POST', { expectedRevision: template.revision, idempotencyKey });
+  return fetchJob(data.job.jobId);
+}
+
+export async function deleteCompleteJobTemplate(template: CompleteJobTemplate): Promise<void> {
+  await protectedJobRequest(`jobs/job-templates/${encodeURIComponent(template.id)}?expectedRevision=${template.revision}`, 'DELETE');
+}
+
+export async function fetchActionJobSchema(actionId?: string): Promise<unknown> {
+  return request<unknown>(`${BASE}/jobs/action-jobs/schema${actionId ? `?actionId=${encodeURIComponent(actionId)}` : ''}`);
+}
+
+export async function mutateActionJob(job: Job, operation: 'run-now' | 'cancel' | 'delete' | 'retry' | 'confirm-recovery'): Promise<void> {
+  if (job.configRevision == null) throw new ApiRequestError(409, 'Missing configuration revision; reload first');
+  const path = `jobs/action-jobs/${encodeURIComponent(job.jobId)}`;
+  await protectedJobRequest(operation === 'delete' ? `${path}?expectedRevision=${job.configRevision}` : `${path}/${operation}`,
+    operation === 'delete' ? 'DELETE' : 'POST', operation === 'delete' ? undefined : { expectedRevision: job.configRevision,
+      ...(['retry','confirm-recovery'].includes(operation) ? { confirm: true } : {}) });
 }
 
 /** DELETE /api/jobs/{id}。 */

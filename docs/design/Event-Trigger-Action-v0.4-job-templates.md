@@ -177,11 +177,10 @@ are preserved. Scheduler-wide policy changes are outside this batch.
 
 Templates copy absolute once schedules without shifting their dates; an expired
 once schedule fails existing schedule validation on future instantiation.
-No Job retries, input interpolation, unfinished parameter templates, new MCP CRUD
-tools, React controls or automatic profile downgrade conversion are added here.
-Gateway/API discovery can use protected HTTP routes; Agent traffic has no privileged
-instantiate/repair shortcut. Production UI and overall human acceptance remain
-separate work.
+The unified implementation below supersedes the original backend-only scope.
+Input interpolation, unfinished parameter templates and automatic profile downgrade
+conversion remain excluded. Agent traffic has no privileged instantiate/repair
+shortcut. Overall human acceptance remains separate from automated validation.
 
 ## Unified Job follow-up
 
@@ -204,6 +203,119 @@ through the existing durable Job event path and use the Job notification allowli
 never Session message targets.
 
 The new `unified` field is included in the existing Jobs API projection, while old
-`kind`/API routes remain compatible. UI TypeScript types expose the shared policy
-shape; React controls still require a separate product UI implementation and are
-not claimed complete by backend work.
+`kind`/API routes remain compatible. React's New Job entry edits the shared complete
+configuration or a complete Template; it no longer chooses a purpose kind.
+
+## Unified execution contract (2026-10-23)
+
+New Jobs use `actionId`, `arguments`, `trigger`, `recovery`, `overlap`,
+`notification`, `completion`, plus name/description/enabled/schedule/maxRuns/
+misfirePolicy. Unknown keys/types fail closed. Parameters are validated against
+the referenced Action's declared properties as well as its schema; an empty
+schema accepts only `{}`. Action definitions declare `monitoring` and `recoverable`
+(both false for old data). Ordinary completion needs only a successful business
+result. Only monitoring/recoverable definitions can opt into monitoring/recovery.
+Action changes affect subsequent Attempts, never an admitted snapshot; reference
+deletion makes configuration Incomplete immediately. Restoring/replacing a deleted
+reference requires user approval and leaves the repaired Job disabled.
+
+| Compatibility kind | Product-owned Action ID | Admission / effect capability |
+|---|---|---|
+| background-process | system_background_process | Existing safe owned process runner |
+| session-message | system_session_message | Existing ordinary send / queue gates |
+| session-broadcast | system_session_broadcast | Existing ordered per-target ordinary send |
+| scheduled-task | system_scheduled_task | Existing assign/send_session/resume_legal_running/shell/send_qq business entry |
+| main-lifecycle | system_main_lifecycle | Existing protected supervisor only; generic Job/Template creation rejects it |
+
+System definitions live in the existing Action registry, are installed explicitly
+on owned runtime startup and cannot be overwritten/deleted by user or Agent.
+They cannot enter legacy Group releases or the legacy provider execution path.
+Internal executor operations do not grant arbitrary API dispatch. The existing
+supervisor authenticates/adopts its own lifecycle intent and admits the same
+Run/Attempt/snapshot lifecycle before effects; exposing its definition does not
+delegate service restart authority. Lifecycle options/identity have a private
+snapshot context and only its digest remains in terminal audit.
+
+Legacy endpoints and records are retained during this compatibility window (no
+removal date or destructive migration in this candidate). Their actual effects
+now admit a System Action snapshot and Run/Attempt in the existing Job file before
+execution; terminal cleanup and audit are one atomic Job write. New reference
+Jobs use the existing Action snapshot storage and durable cleaning protocol above.
+These are persistence formats within one registry and scheduler, not a second Job
+system. Old PID/birth/owner/generation checks, ordinary message receipts and main
+lifecycle gates remain authoritative. New process Actions call the original
+runner, wait on its existing terminal events and checkpoint child Job identity.
+On host interruption the parent becomes uncertain and cleans its snapshot; the
+original independently owned child is reconciled through the existing PID/birth
+checks. It is never silently spawned again or treated as completed without a
+receipt. Explicit recovery of an unknown process requires a trusted terminal child
+receipt; unavailable identity blocks recovery.
+
+Trigger kinds are `immediate`, `once`, `interval`, `cron`, `event`; `schedule` is
+the existing multi-entry compatibility spelling. Immediate/event use `schedule:[]`;
+time triggers require complete matching schedule specs. Event requires1..32
+distinct `eventTypes` and the existing seven-field typed Session query. It uses
+the existing durable Event Store target list, revision check and per-Job event
+receipt before dispatch. Unavailable sources retain queued intent. Query IDs are
+resolved once at Attempt admission, persisted before effects, sorted/deduplicated
+by the shared resolver, exposed as `jobSelection.ids` to an event Session selector,
+and reused within the logical Run. Zero matches succeed with diagnostics.
+
+Overlap modes: `forbid` rejects overlap; `queue` persists up to128 waiting Run
+intents; `parallel` requires stored limit1..32 (default3). Claim checks capacity
+under the existing per-Job lock. Final configuration CAS rechecks active count
+before lowering a limit. Queue capacity and audit capacity reject visibly; there
+is no new external resource lock. Disable cancels queued intents; reenable never
+replays cancelled history. A queued intent whose config revision changed is
+cancelled explicitly. Different Jobs do not share an effect-duration lock.
+
+Monitoring completion is an exact structured result:
+`{"panJobCompletion":{"type":"<declared signalType>","completed":true},"processTreeEnded":true}`.
+For owned process Actions the runner reads a bounded64KiB log tail for exact JSON
+records; it trusts process-tree termination only after the original owned tree
+cleanup. Generic command Actions use their shared execution result. A wrong or
+missing signal or an unterminated tree cannot complete a monitor. Unknown delivery
+always stays uncertain, even with a missing signal, and is never auto-retried.
+
+Recovery defaults off. A declared monitor may enable maxAttempts1..10 (default3,
+including initial Attempt), three backoffs0..86400 seconds (default5/15/60), and
+stableResetSec0..86400 (default300;0 disables reset). Each restart preserves Run ID
+and allocates a new Attempt ID. Backoff/count/nextAttemptAt persist; stable running
+resets consecutive failures, not audit history. Pause/business gates block before
+claim without consuming budget. A gate changing after claim is rechecked at the
+business entry; blocked admission retains intent. Started Run eligibility and
+completion/recovery/notification policies are frozen so editing an Action cannot
+elevate an existing Run. Exhaustion becomes final failed. Unknown/uncertain require
+the separate user-confirmed revision endpoint, never automatic recovery.
+
+Each Attempt has id/runId/count/status/actionId/revision/digest/template revision,
+backoff/nextAttemptAt/receipt/sideEffectUncertainty/snapshotCleanup audit. `cleaning`
+and `snapshotCleanup:pending` mean no effect replay and no falsely completed state.
+Clearing the executable snapshot must succeed before terminal status publication.
+History is non-executable. Attempt/event dedup ledgers cap at10,000 per Job, waiting
+queue128 and concurrent Action snapshots128; archival is an explicit future
+operator operation, not silent eviction of safety receipts.
+
+Notifications are `notification:{target:"job",on:[...],sessionIds?:[...]}` with
+completed/failed/cancelled/unknown/uncertain/cleaning allowlist. Recipients are
+independent of Action business targets. The durable per-Attempt outbox calls the
+existing Job event path and `enqueue_notice` with a stable event ID; normal durable
+report/force/unknown/Pause/Illegal/owner gates still decide actual handoff. Only
+IDs/status are queued, never Action arguments/message body. Failed notice admission
+retains the outbox, not a runnable effect. Existing legacy report routing remains
+compatible with old target semantics.
+
+React supports Action/system Action reference, declared JSON fields, all trigger
+kinds/typed query, completion/signal/recovery/backoff, overlap limit, separate
+notification recipients and complete Template revision editing/instantiation.
+401/409 keep drafts, dirty switching/close is confirmed, and Incomplete/reference
+approval, cleaning/restarting and per-Attempt state are displayed. User key login
+uses the existing memory-only Bearer. Fixed Template instantiation never overlays
+editor changes and reuses the idempotency key for an unknown response.
+
+Migration is conservative: missing additive policies default serial/no recovery/
+ordinary completion; unknown policy values show Incomplete and cannot execute.
+Unknown historical kinds remain readable and never acquire recovery. No automatic
+profile downgrade conversion, mixed-version writer support, production credential
+export/OAuth integration or real provider/account effects are included. Browser
+fixture validation is separate from overall human acceptance.

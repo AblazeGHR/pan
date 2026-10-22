@@ -399,6 +399,30 @@ Generic legacy mutations reject these protected Jobs. Full body/schema/default,
 snapshot cleanup and migration rules are in
 [`Event-Trigger-Action-v0.4-job-templates.md`](../../../design/Event-Trigger-Action-v0.4-job-templates.md).
 
+Unified Job policies are part of the complete `config`, not extra Action fields:
+`trigger:{kind:immediate|once|interval|cron|event|schedule,query?,eventTypes?}`,
+`completion:{kind:ordinary|monitoring,signalType?}`, `recovery:{enabled,monitoring,
+maxAttempts,backoffSec:[5,15,60],stableResetSec:300}`,
+`overlap:{mode:forbid|queue|parallel,parallelLimit:3}`,
+`notification:{target:job,on:[completed,failed,cancelled,unknown,uncertain,cleaning],sessionIds?:[...]}`.
+Immediate/event use empty schedule; event query is the existing fail-closed
+seven-field Session predicate. Policy defaults are no recovery/ordinary/forbid.
+Monitoring requires Action capability; parallel monitoring is rejected.
+`GET /api/jobs/action-jobs/{id}/runs` returns Attempt history and lastExecution.
+`POST /api/jobs/action-jobs/{id}/retry` (failed) or `/confirm-recovery`
+(unknown/uncertain) requires user Bearer and exactly
+`{expectedRevision,confirm:true}`. They preserve Run ID, allocate a new Attempt,
+never silently retry unknown process identity, and return409 when state changed.
+All Job edits use returned `configRevision`; terminal status is withheld while
+`snapshotCleanup:pending`/`status:cleaning`. Notification recipients are separate
+from business arguments; existing durable notice gates remain in force.
+
+Agent MCP `job_config_drafts(operation:list|schema|put|runs,...)` exposes the same
+backend schema and disabled Job/complete Template draft path. It rejects enabled
+configs and offers no instantiate/run/recovery or privileged lifecycle capability.
+Old Job MCP/HTTP entry points remain compatibility adapters and report `unified`
+with product System Action references; unknown historical kinds never gain recovery.
+
 `GET /api/automation/schema` supplies the strict scheduling fragment and limits.
 Trigger writes accept `executionMode` (serial default/parallel), `maxConcurrency`
 (serial1; parallel default3/range1..32), `retry:{enabled:false,maxAttempts:3}`
