@@ -6,7 +6,7 @@
 &gt;       job=await rt.create_monitor();same=await rt.create_monitor()
             ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-tests\test_quota_policy.py:131: 
+tests\test_quota_policy.py:131:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 packages\automation\quota_policy.py:286: in create_monitor
     return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1)
@@ -54,7 +54,7 @@ packages\scheduler\store.py:290: KeyError</failure></testcase><testcase classnam
         assert (await rt.consume(issue('codex_quota_exhausted')))['status']=='waiting_reset'
 &gt;       await rt.dispatch()
 
-tests\test_quota_policy.py:150: 
+tests\test_quota_policy.py:150:
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 packages\automation\quota_policy.py:227: in dispatch
     job=await io(self.ensure_job,state,'reset',command['arguments']['at'])
