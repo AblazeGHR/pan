@@ -367,3 +367,13 @@ Notification 不携正文、不消费；开订阅及变更模式默认只收新�
 参数、响应、迁移及恢复边界见
 [Agent Inbox API 与冻结设计](../../../design/Agent-Inbox-Router-Locker.md)，前端结构见
 [JSON Schema](../../../design/Agent-Inbox-Router-Locker.schema.json)。
+
+## User Inbox / Interaction Card 后端契约
+
+基于 Agent Inbox 候选的后续后端批次新增 `/api/interaction-cards` 生产者请求与
+`/api/user-inbox` 用户读取/一次性答复接口。用户端在未注入受信登录验证器时明确503关闭；
+MCP `interaction_card` 只导出create/get，不导出用户答复。可选answerInput、可选choice
+triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
+[Interaction Card契约](../../../design/User-Inbox-Interaction-Card-Contract.md)，
+[完整Schema](../../../../packages/interactions/schema.json)。此接口不会自动继续/完成Job，
+也不改变QQ/Agent Inbox/Locker消费状态。

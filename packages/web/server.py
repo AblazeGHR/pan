@@ -12237,6 +12237,8 @@ async def api_session_manual_report(session_id: str, data: dict):
 
 from packages.web.agent_inbox_api import register as _register_agent_inbox_api
 _register_agent_inbox_api(app)
+from packages.interactions.api import register as _register_interaction_card_api
+_register_interaction_card_api(app)
 
 
 # ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
