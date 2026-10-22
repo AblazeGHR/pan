@@ -1,0 +1,20 @@
+{
+  "sourceSha": "1ea60582eff3275acb97816ab0f4733fdcc07018",
+  "checkedAt": 1792675364.547023,
+  "checks": [
+    {
+      "evidence": "http-evidence.json",
+      "port": 54305,
+      "portReleased": true,
+      "ownedProcessesRemaining": [],
+      "unknownPids": []
+    },
+    {
+      "evidence": "compat-http-evidence.json",
+      "port": 54253,
+      "portReleased": true,
+      "ownedProcessesRemaining": [],
+      "unknownPids": []
+    }
+  ]
+}

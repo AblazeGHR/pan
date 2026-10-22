@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.446" timestamp="2026-10-22T21:09:40.704434+08:00" hostname="ablaze"><testcase classname="tests.test_quota_provider_source" name="test_provider_quota_is_known_without_managed_native_binding" time="0.086"><failure message="AssertionError: assert 'unknown' == 'known'&#10;  &#10;  - known&#10;  + unknown&#10;  ? ++">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3701/test_provider_quota_is_known_w0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000218E0727820&gt;
+
+    def test_provider_quota_is_known_without_managed_native_binding(tmp_path,monkeypatch):
+        source,store,profile,now,trace=source_fixture(tmp_path,monkeypatch)
+        monkeypatch.setenv('PAN_TEST_QUOTA_HOST_NOW',str(now))
+        value=source.read()
+&gt;       assert value['policySnapshot']['status']=='known'
+E       AssertionError: assert 'unknown' == 'known'
+E
+E         - known
+E         + unknown
+E         ? ++
+
+tests\test_quota_provider_source.py:9: AssertionError</failure></testcase></testsuite></testsuites>
