@@ -84,6 +84,47 @@ def test_untracked_dead_owner_kill_remains_noop(monkeypatch):
     asyncio.run(run())
 
 
+def test_concurrent_branch_and_start_keep_distinct_registered_owners(monkeypatch):
+    from packages.core.adapters import CbcAdapter
+    async def run():
+        parent, child, other = [sess.create(name) for name in ('parent', 'child', 'other')]
+        adapter = CbcAdapter()
+        monkeypatch.setattr(adapter, 'fork_args', lambda s: ['--fork'])
+        source = worker.Worker(worker_id='worker-1', session_id=parent.id, adapter=adapter)
+        worker.workers[source.worker_id] = source
+        worker._register_worker(source)
+        branch_spawning, other_claimed = asyncio.Event(), asyncio.Event()
+        original_claim = worker._claim_offline_owner
+        async def claim(w):
+            await original_claim(w)
+            if w.session_id == other.id:
+                other_claimed.set()
+        async def spawn(session_id, *args, **kwargs):
+            if session_id == child.id:
+                branch_spawning.set()
+                await asyncio.wait_for(other_claimed.wait(), 5)
+            return SimpleNamespace(returncode=None, stdin=None)
+        monkeypatch.setattr(worker, '_spawn_process', spawn)
+        monkeypatch.setattr(worker, '_claim_offline_owner', claim)
+        monkeypatch.setattr(worker, '_spawn_system_prompt_args', lambda *args: [])
+        for name in ('_read_stdout', '_watchdog', '_consumer'):
+            monkeypatch.setattr(worker, name, AsyncMock())
+        fork = asyncio.create_task(worker.branch_worker(source.worker_id, child.id))
+        await asyncio.wait_for(branch_spawning.wait(), 5)
+        normal = await worker.create_worker(other.id)
+        branched = await fork
+        try:
+            assert isinstance(normal, worker.Worker) and isinstance(branched, worker.Worker)
+            assert normal.worker_id != branched.worker_id
+            for w in (source, normal, branched):
+                assert worker.workers[w.worker_id] is w
+                assert worker.find_worker_by_session(w.session_id) is w
+        finally:
+            for w in (source, normal, branched):
+                await worker._stop_worker_tasks(w)
+    asyncio.run(run())
+
+
 def test_concurrent_starts_over_random_port_with_real_owned_processes(monkeypatch, tmp_path):
     """Real HTTP + OS, with a harmless stand-in CLI and temporary Session data."""
     import json

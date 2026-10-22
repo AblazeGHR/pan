@@ -592,7 +592,7 @@ async def _bcast(data: dict):
 # ── helpers (internal) ──
 
 
-async def _next_worker_id() -> str:
+def _next_worker_id() -> str:
     used: set[int] = set()
     for wid in workers:
         try:
@@ -8133,13 +8133,13 @@ async def _create_worker(session_id: str) -> Worker | str:
         if isinstance(proc, str):
             for path in prompt_files:
                 _cleanup_system_prompt_file(path)
-            await _record_worker_start_failure(s, session_id, await _next_worker_id(), proc)
+            await _record_worker_start_failure(s, session_id, _next_worker_id(), proc)
             return proc
 
     # Different Sessions have different spawn locks. Allocate only after the
     # asynchronous spawn, immediately before synchronous registration, so two
     # concurrent starts cannot select the same free id and overwrite an owner.
-    worker_id = await _next_worker_id()
+    worker_id = _next_worker_id()
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
                native_control_enabled=s.adapter in {"codex", "cbc"} and s.adapter_config.get("native_control") is True,
@@ -9344,11 +9344,12 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         except Exception as exc:
             return f"Fork failed: {exc}"
 
-    new_id = await _next_worker_id()
     proc = await _spawn_process(new_session_id, adapter=w.adapter, extra_args=extra_args)
     if isinstance(proc, str):
         return proc
 
+    # Match normal startup: no await between choosing a free id and registering.
+    new_id = _next_worker_id()
     new_w = Worker(worker_id=new_id, session_id=new_session_id,
                    adapter=w.adapter,
                    status="idle", process=proc, pending_signal=asyncio.Queue(),
