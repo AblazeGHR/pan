@@ -1,0 +1,85 @@
+Pan
+Chat
+Editor
+Jobs
+Terminal
+Actions
+Automation
+New
+Import
+recent
+Unified-control
+////by pan system status: completed noticeKind: ba...
+15
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+3
+cbc
+Unified-match-added-later
+0
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+cbc
+Unified-match-original
+0
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+cbc
+工作区
+全部
+3
+无工作区
+3
+新建工作区
+全部
+Jobs
+Jobs
+New Job
+Settings
+
+User confirmation uses automation/user.key and an in-memory Bearer, up to 12 hours. Enabled Jobs keep their granted capability after logout.
+
+Log out
+Create
+Job instance
+Complete Job Template
+Complete Template
+New configuration
+Unified Job · Action reference + Trigger + policies
+Name
+Description
+Action reference
+Select an Action…
+background-process · system_background_process · system
+session-message · system_session_message · system
+session-broadcast · system_session_broadcast · system
+scheduled-task · system_scheduled_task · system
+main-lifecycle · system_main_lifecycle · system
+Unified Event query Pause · pause
+
+Declared fields: sessionId: string, text: string
+
+Declared arguments (JSON)
+Trigger
+Immediate
+Once
+Interval
+Cron
+Event query
+Existing schedule
+Complete schedule specs (JSON)
+Completion
+Ordinary result
+Monitoring signal
+Signal type
+Recovery
+Off
+On
+Overlap
+No duplicate
+Queue
+Parallel
+Notification statuses
+Enable after user confirmation
+Unsaved changes
+Save unified Job

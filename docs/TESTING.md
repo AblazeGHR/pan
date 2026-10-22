@@ -1,5 +1,31 @@
 # Pan 测试隔离约定
 
+## Unified Job targeted acceptance
+
+Job configuration/System Actions use the existing registry and runners. Focused
+fixtures are `test_job_completion_recovery.py`, `test_job_overlap.py`,
+`test_job_system_actions.py`, `test_job_action_templates.py`,
+`test_independent_job_service.py`, and `test_action_persistence.py`. They cover
+typed config, frozen Run targets, bounded monitoring recovery/parallel claims,
+unknown receipts, all terminal snapshot cleanup and atomic-storage faults.
+Run through the isolated entry below, never against a user Job profile.
+
+`tests/test_job_unified_http.py` starts an owned fakeCLI Pan instance on the
+isolated runner's assigned non8767/8768 port. It consumes the built production
+web bundle and invokes `packages/web/e2e/job-unified-live.mjs` with the temporary
+local key only in its child environment. It verifies real event→query→Pause,
+compatibility sends/processes/scheduled execution, monitoring JSON completion,
+complete Template instantiate and production Chromium at1280/390/320px. Its
+finally block saves retained PID/birth cleanup and port-release evidence.
+`test_job_action_http.py` remains the companion reference/snapshot/permission
+acceptance. Build React before these tests; do not replace their HTTP routes with
+browser mocks. Test logs/JSON/child decoding explicitly use UTF-8.
+
+Exact frozen-source commands and the current acceptance matrix are in
+[`job-unified-completion-report.md`](../artifacts/job-unified-completion-report.md).
+Passing these fixtures does not claim real model/account operations, actual main
+service restart, user-profile migration or overall human acceptance.
+
 Codex fixed-provider launch tests additionally use an owned `CODEX_HOME`, local
 fake provider and app-server fixture; `PAN_CODEX_FIXED_PROVIDER_LAUNCH` defaults
 off and must never be applied to a real profile for these tests. The fixture

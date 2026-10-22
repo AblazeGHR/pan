@@ -1,0 +1,57 @@
+{
+  "sourceSha": "10376d3329179d4d14d3526c83ee400e64b6a32e",
+  "tests": {
+    "python": {
+      "junit": "artifacts/job-unified-final-python.xml",
+      "exitCode": 0,
+      "tests": 559,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "httpChromium": {
+      "junit": "artifacts/job-unified-live/junit.xml",
+      "exitCode": 0,
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "vitest": {
+      "junit": "artifacts/job-unified-final-ui.xml",
+      "exitCode": 0,
+      "tests": 45,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "typecheckExitCode": 0,
+  "productionBuildExitCode": 0,
+  "compressedAssets": 84,
+  "chromium": {
+    "ok": true,
+    "chromiumVersion": "153.0.8010.12",
+    "sizes": [
+      {
+        "width": 1280,
+        "scrollWidth": 1280
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390
+      },
+      {
+        "width": 320,
+        "scrollWidth": 320
+      }
+    ],
+    "errors": []
+  },
+  "cleanup": {
+    "ownedProcessesRemaining": [],
+    "portsReleased": true,
+    "executableSnapshots": 0
+  },
+  "productSourceUnchangedSinceTestedCommit": true
+}

@@ -1,0 +1,18 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/event-trigger-core-20261022/packages/web/src
+
+ ✓ components/jobs/NewJobForm.resume-legal-running.test.tsx (2 tests) 133ms
+ ✓ components/jobs/UnifiedJobForm.test.tsx (6 tests) 229ms
+ ✓ components/jobs/JobTemplateEditor.test.tsx (3 tests) 271ms
+ ✓ components/jobs/NewJobForm.selected-broadcast.test.tsx (3 tests) 154ms
+ ✓ components/jobs/NewJobForm.scheduled-qq.test.tsx (3 tests) 405ms
+ ✓ views/JobsView.schedule-shapes.test.tsx (5 tests) 556ms
+   ✓ JobsView schedule payload compatibility > opens details for object, missing, null, and scalar schedules safely 345ms
+ ✓ views/JobsView.bulk-search.test.tsx (23 tests) 2422ms
+
+ Test Files  7 passed (7)
+      Tests  45 passed (45)
+   Start at  01:30:51
+   Duration  4.98s (transform 656ms, setup 35ms, collect 4.03s, tests 4.17s, environment 5.43s, prepare 1.10s)
+
+JUNIT report written to D:/project/pan-worktrees/event-trigger-core-20261022/artifacts/job-unified-final-ui.xml

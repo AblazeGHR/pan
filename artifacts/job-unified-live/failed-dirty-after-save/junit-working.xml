@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="42.345" timestamp="2026-10-23T00:55:09.929134+08:00" hostname="ablaze"><testcase classname="tests.test_job_unified_http" name="test_unified_event_system_actions_legacy_and_production_ui" time="41.736"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  locator.selectOption: Timeout 30000ms exceeded.&#10;  Call log:&#10;  #x1B[2m  - waiting for getByLabel('Create', { exact: true })#x1B[22m&#10;  &#10;      at D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\e2e\job-unified-live.mjs:35:48 {&#10;    log: [ &quot;  - waiting for getByLabel('Create', { exact: true })&quot; ],&#10;    name: 'TimeoutError'&#10;  }&#10;  &#10;  Node.js v24.15.0&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:56847', 'D:\\project\\pan-wo...og: [ &quot;  - waiting for getByLabel(\'Create\', { exact: true })&quot; ],\n  name: \'TimeoutError\'\n}\n\nNode.js v24.15.0\n').returncode">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3792/test_unified_event_system_acti0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EA16B51940&gt;
+
+    def test_unified_event_system_actions_legacy_and_production_ui(tmp_path,monkeypatch):
+        assert h.PORT not in (8767,8768)
+        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        rt=h._PanRuntime(tmp_path/'owned-unified-profile');rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
+        OUT.mkdir(parents=True,exist_ok=True)
+        identities={}
+        evidence={'port':h.PORT,'profile':str(rt.data_root),'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True,encoding='utf-8').strip()}
+        def capture():
+            if rt.process and rt.process.poll() is None:
+                for proc in [psutil.Process(rt.process.pid),*psutil.Process(rt.process.pid).children(recursive=True)]:
+                    try:identities[proc.pid]=proc.create_time()
+                    except psutil.Error:pass
+        def get_job(jid):return rt.request('GET','/api/jobs/'+jid)['job']
+        def done(jid):return h._wait_for(lambda:(j if j.get('status')=='completed' and not j.get('execution') else None) if (j:=get_job(jid)) else None,label='unified Job completion')
+        try:
+            rt.start()
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
+            def create(name):return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})
+            target=create('Unified-match-original');control=create('Unified-control')
+            for session in (target,control):assert 'error' not in h._spawn(rt,session['id'])
+            a=action();a['name']='Unified Event query Pause';a['execution']['selector']={'mode':'event','path':'jobSelection.ids'}
+            rt.request('POST','/api/actions/actions',json={'item':a})
+            cfg={'name':'Unified Event Job','actionId':'pause','arguments':{},'enabled':True,'schedule':[],
+                 'trigger':{'kind':'event','eventTypes':['workers.all_idle'],'query':{'field':'name','op':'contains','value':'Unified-match'}}}
+            event_job=rt.request('POST','/api/jobs/action-jobs',json={'config':cfg},headers=auth)['job']
+            h._enqueue(rt,control['id'],'unified-event-edge','unified-event-edge')
+            def event_done():
+                job=get_job(event_job['jobId'])
+                return job if job.get('lastExecution',{}).get('status')=='completed' else None
+            settled=h._wait_for(event_done,label='real Worker running edge -&gt; Event Store -&gt; unified Job query -&gt; Pause')
+            assert settled['lastExecution']['triggerTargetIds']==[target['id']]
+            assert settled['lastExecution']['targetIds']==[target['id']]
+            assert rt.request('GET',f"/api/sessions/{target['id']}/queue")['queuePaused']
+            rt.request('PUT','/api/jobs/action-jobs/'+event_job['jobId'],json={'config':{**cfg,'enabled':False},'expectedRevision':1},headers=auth)
+            create('Unified-match-added-later')
+            rt.request('PATCH',f"/api/sessions/{target['id']}",json={'name':'renamed-after-freeze'})
+            assert get_job(event_job['jobId'])['lastExecution']['targetIds']==[target['id']]
+            evidence['eventRun']=settled['lastExecution']
+            # The old API remains a compatibility adapter, with real queue receipts.
+            old=[]
+            for kind in ('session-message','session-broadcast'):
+                target_spec={'sessionId':control['id']} if kind=='session-message' else {'sessionIds':[control['id']]}
+                job=rt.request('POST','/api/jobs',json={'kind':kind,'name':'legacy '+kind,'target':target_spec,'text':'legacy '+kind,'schedule':{'type':'once','delaySeconds':1}})['job']
+                finished=done(job['jobId']);assert finished['attempts'][-1]['status']=='completed'
+                assert finished['snapshotCleanup']=='cleaned';old.append(finished)
+            process=rt.request('POST','/api/jobs',json={'kind':'background-process','name':'legacy owned CLI','target':{'sessionId':control['id']},
+                'argv':[sys.executable,'-c','print("owned legacy CLI")'],'cwd':str(tmp_path)})['job']
+            capture();finished=done(process['jobId']);assert finished['snapshotCleanup']=='cleaned';old.append(finished)
+            # New System Action uses the same native runner and waits for its terminal receipt.
+            new_cfg={'name':'unified owned CLI','actionId':'system_background_process','arguments':{'sessionId':control['id'],
+                'argv':[sys.executable,'-c','print("owned unified CLI")'],'cwd':str(tmp_path)},'schedule':[],
+                'trigger':{'kind':'immediate'},'enabled':True}
+            new=rt.request('POST','/api/jobs/action-jobs',json={'config':new_cfg},headers=auth)['job']
+            capture();new_done=done(new['jobId']);assert new_done['snapshotCleanup']=='cleaned'
+            evidence.update(legacy=old,systemExecution=new_done['lastExecution'])
+            input_file=OUT/'browser-input.json';input_file.write_text(json.dumps({'controlId':control['id']}),encoding='utf-8')
+            browser=subprocess.run(['node','packages/web/e2e/job-unified-live.mjs',rt.base_url,str(input_file.resolve()),str(OUT.resolve())],
+                env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90,**command_window_options())
+            (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
+&gt;           assert browser.returncode==0,browser.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             locator.selectOption: Timeout 30000ms exceeded.
+E             Call log:
+E             #x1B[2m  - waiting for getByLabel('Create', { exact: true })#x1B[22m
+E             
+E                 at D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\e2e\job-unified-live.mjs:35:48 {
+E               log: [ "  - waiting for getByLabel('Create', { exact: true })" ],
+E               name: 'TimeoutError'
+E             }
+E             
+E             Node.js v24.15.0
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:56847', 'D:\\project\\pan-wo...og: [ "  - waiting for getByLabel(\'Create\', { exact: true })" ],\n  name: \'TimeoutError\'\n}\n\nNode.js v24.15.0\n').returncode
+
+tests\test_job_unified_http.py:79: AssertionError</failure></testcase></testsuite></testsuites>

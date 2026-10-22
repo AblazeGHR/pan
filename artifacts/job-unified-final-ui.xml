@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="45" failures="0" errors="0" time="4.984">
+    <testsuite name="views/JobsView.bulk-search.test.tsx" timestamp="2026-10-22T17:30:56.594Z" hostname="ablaze" tests="23" failures="0" errors="0" skipped="0" time="2.4221456">
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a pin through lifecycle events and restores ordinary ordering after unpin" time="0.1627966">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows unavailable pin metadata, disables pin, and leaves ordinary filters usable" time="0.1024951">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows metadata failure for an empty list via the list envelope" time="0.0330131">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; clears a cached pin when an update explicitly reports unknown metadata" time="0.0452915">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; matches Completed and Timeout only to their persisted API statuses" time="0.0643141">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads retention settings from the server and saves the edited values" time="0.0822513">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads blank retention days from server defaults" time="0.0943519">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads and saves failed, timeout, cancelled, and log retention independently" time="0.1415537">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a cleared day count blank when saving an enabled rule" time="0.0794413">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows invalid persisted rule feedback and keeps that switch off" time="0.049823">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows settings load and save errors" time="0.122773">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; combines case-insensitive name, ID, and description search with status and kind filters" time="0.1585144">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps controls and counts outside the dedicated row scroll container" time="0.0789339">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; selects and deselects visible results without opening a detail drawer; row menus stay isolated" time="0.1251901">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; pauses unpaused jobs with paused=true, reports partial failure, and retries only failures" time="0.1898196">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; blocks duplicate bulk submission while per-job pause requests are pending" time="0.091243">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; cancels batch delete without requests and confirms the displayed quantity" time="0.1194142">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; removes WS-deleted selection before confirmation and retries only a failed DELETE" time="0.209065">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; supports searching by kind payload ID and description while retaining kind filters" time="0.064756">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; retains a failed cancellation and prevents duplicate requests" time="0.1250076">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; sorts equal timestamps by ID and persists direction while live updates reorder" time="0.0691647">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="sorts created time and actual kind safely with missing legacy times last" time="0.0890381">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="keeps accepted asynchronous cancellation disabled until the live terminal event" time="0.1221209">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/JobsView.schedule-shapes.test.tsx" timestamp="2026-10-22T17:30:56.605Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.5560285">
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; reproduces a historical object schedule from the initial REST list" time="0.0642669">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; opens details for object, missing, null, and scalar schedules safely" time="0.3448984">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; keeps a message Job object schedule read-only without pause controls" time="0.0560747">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; renders scheduled-task entry arrays and keeps their controls available" time="0.062274">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; accepts object schedule updates arriving over WebSocket" time="0.0276369">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/JobTemplateEditor.test.tsx" timestamp="2026-10-22T17:30:56.607Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.2707905">
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="fixed instantiate reuses idempotency key after an unknown result and never overlays editor fields" time="0.1456376">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="dirty configuration cannot be used as an instantiate overlay" time="0.0689977">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="template deletion uses the selected revision only after explicit confirmation" time="0.055436">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/NewJobForm.resume-legal-running.test.tsx" timestamp="2026-10-22T17:30:56.609Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.1328011">
+        <testcase classname="components/jobs/NewJobForm.resume-legal-running.test.tsx" name="NewJobForm resume legal running template &gt; creates a scheduled action with a dynamic target and fixed message" time="0.1088349">
+        </testcase>
+        <testcase classname="components/jobs/NewJobForm.resume-legal-running.test.tsx" name="NewJobForm resume legal running template &gt; preserves the action while editing its schedule and metadata" time="0.0232487">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/NewJobForm.scheduled-qq.test.tsx" timestamp="2026-10-22T17:30:56.610Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.4051668">
+        <testcase classname="components/jobs/NewJobForm.scheduled-qq.test.tsx" name="NewJobForm scheduled QQ message template &gt; loads each bot contact list and creates a targetless scheduled QQ Job" time="0.1857975">
+        </testcase>
+        <testcase classname="components/jobs/NewJobForm.scheduled-qq.test.tsx" name="NewJobForm scheduled QQ message template &gt; edits an existing QQ Job with a picker-selected bot and shared schedule controls" time="0.1308636">
+        </testcase>
+        <testcase classname="components/jobs/NewJobForm.scheduled-qq.test.tsx" name="NewJobForm scheduled QQ message template &gt; keeps the legacy single default channel bot identity omitted" time="0.0876575">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/NewJobForm.selected-broadcast.test.tsx" timestamp="2026-10-22T17:30:56.611Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.154165">
+        <testcase classname="components/jobs/NewJobForm.selected-broadcast.test.tsx" name="compact selected Session broadcast contract &gt; preserves the once schedule and server identity contract" time="0.1003176">
+        </testcase>
+        <testcase classname="components/jobs/NewJobForm.selected-broadcast.test.tsx" name="compact selected Session broadcast contract &gt; preserves the interval schedule and server identity contract" time="0.0224237">
+        </testcase>
+        <testcase classname="components/jobs/NewJobForm.selected-broadcast.test.tsx" name="compact selected Session broadcast contract &gt; preserves the weekly schedule and server identity contract" time="0.0305817">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/UnifiedJobForm.test.tsx" timestamp="2026-10-22T17:30:56.612Z" hostname="ablaze" tests="6" failures="0" errors="0" skipped="0" time="0.2286271">
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; creates from Action reference with conservative explicit policies, without kind selector" time="0.0814334">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; refuses extra body for an empty Action schema and keeps the draft" time="0.0241208">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; rejects malformed query instead of keeping an earlier valid query" time="0.0306315">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; requires monitoring declaration before recovery and persists backoff/reset fields" time="0.0368569">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 401" time="0.0290454">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 409" time="0.0255974">
+        </testcase>
+    </testsuite>
+</testsuites>
