@@ -38,6 +38,7 @@ def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
     assert view['config']['enabled'] is False
     assert view['compatibility']['migrationIssues']
     assert view['compatibility']['reviewRequired'] is True
+    assert view['config']['trigger']=={'kind':'schedule'} and view['config']['schedule']==[]
 
 
 def test_readonly_inbox_and_job_notices_accept_queue_but_never_auto_force(tmp_path,monkeypatch):

@@ -56,7 +56,9 @@ def project(job):
     except ValueError as exc:schedule=[];issues.append(str(exc))
     if kind not in LEGACY_ACTIONS:issues.append('Unknown legacy kind; Action reference unavailable')
     if kind=='main-lifecycle':issues.append('Protected supervisor entry only; not a generic Job migration')
-    trigger={'kind':'schedule'} if schedule else {'kind':'immediate'}
+    # An unconvertible schedule must remain invalid for new Job admission, even
+    # if a client accidentally ignores review diagnostics. Never invent immediate.
+    trigger={'kind':'schedule'} if schedule or issues else {'kind':'immediate'}
     return {'jobId':job.get('jobId') or job.get('id'),'legacyKind':kind,
             'action':{'api':'system_action','actionId':aid,'arguments':copy.deepcopy(params)},
             'config':{'name':job.get('name') or kind,'description':job.get('description',''),

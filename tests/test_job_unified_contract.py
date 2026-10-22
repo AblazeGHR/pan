@@ -60,7 +60,8 @@ from packages.jobs.unified import project
 def test_legacy_job_projection_is_unified_without_storage_rewrite():
     row=project({'jobId':'j1','kind':'session-message','name':'hello','enabled':True,'schedule':[],'status':'scheduled'})
     assert row['action']['actionId']=='system_session_message'
-    assert row['config']['trigger']=={'kind':'immediate'}
+    assert row['config']['trigger']=={'kind':'schedule'}
+    assert row['compatibility']['migrationIssues']  # Missing legacy target/body cannot become immediate.
     assert row['config']['recovery']['enabled'] is False
     assert row['compatibility']['migration']=='system-executor'
 
