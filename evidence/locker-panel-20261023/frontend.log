@@ -1,0 +1,30 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/user-inbox-interaction-contract-20261023/packages/web/src
+
+ ✓ shortcuts/registry.test.ts (4 tests) 4ms
+stderr | components/layout/ViewEntryGroups.test.tsx > ViewEntryGroups Jobs running badge > hides the badge again when the last running job settles
+No routes matched location "/" 
+
+ ✓ components/layout/ViewEntryGroups.test.tsx (5 tests) 107ms
+ ✓ components/layout/ViewEntryRail.test.tsx (5 tests) 108ms
+ ✓ shortcuts/useGlobalShortcuts.test.tsx (8 tests) 31ms
+ ✓ views/LockerView.test.tsx (7 tests) 351ms
+stdout | components/chat/MarkdownRenderer.test.tsx > MarkdownRenderer > renders list bullets structure and hljs spans
+UL: <ul>
+<li>item one</li>
+<li>item two</li>
+</ul>
+LI: <li>item one</li>
+HLJS_KEYWORD: <span class="hljs-keyword">const</span>
+CODE: <code class="text-xs font-mono leading-relaxed hljs language-js"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;
+</code>
+
+ ✓ components/chat/MarkdownRenderer.test.tsx (35 tests) 5822ms
+   ✓ MarkdownRenderer > preserves the entire large plain paragraph, selection text, and subsequent rich Markdown 3907ms
+
+ Test Files  6 passed (6)
+      Tests  64 passed (64)
+   Start at  02:34:10
+   Duration  8.60s (transform 761ms, setup 30ms, collect 3.19s, tests 6.42s, environment 3.35s, prepare 909ms)
+
+JUNIT report written to D:/project/pan-worktrees/user-inbox-interaction-contract-20261023/evidence/locker-panel-20261023/frontend.xml

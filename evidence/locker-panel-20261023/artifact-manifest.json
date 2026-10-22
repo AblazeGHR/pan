@@ -1,0 +1,13 @@
+{
+  "sourceSHA": "6158cd4fdee33586e23d03bfc0a8f6f28573dbe0",
+  "distIndexSHA256": "7451beba8d23bcb1a7ac4154c9107ed3ac3dd94b2851cb0b9a0b487f30785bbd",
+  "files": {
+    "backend.log": "3a1a8578b8d629b10b3dd95cd7cc23062072259ce8da80635f336eeaf5a1ba86",
+    "backend.xml": "0db6af793ec56d1e3be02a3c9699e4d29b716b749f6789f67ee0933816d66673",
+    "build.log": "0d902c3be057b236c4780a8de396eb098ee95843d26c19d17a25c04cc6794ae0",
+    "frontend.log": "c7dd542a762850c59d84aaeb15bfb86df133a0379ef8c1abe1c69b46622a80cf",
+    "frontend.xml": "916ab7974b80695a5ac79bdf0b0a61764c445f4b679930cf5a287537d3dab43e",
+    "locker-desktop.png": "1ebb79a973b51222afad7a83b14f8b023baaab252c712800f9e4f5bb5e227e8f",
+    "locker-mobile.png": "3ea6ac03e95f16dc6cc4c68bf34e719ddb5eb4fcf739e855d12db592e73ac9e5"
+  }
+}

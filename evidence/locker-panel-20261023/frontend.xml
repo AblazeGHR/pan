@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="64" failures="0" errors="0" time="8.601">
+    <testsuite name="shortcuts/registry.test.ts" timestamp="2026-10-22T18:34:19.450Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.0042796">
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; uses pluginId/panelId identities and never array positions" time="0.0018487">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; skips malformed/duplicate panels without throwing" time="0.0006977">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; adds and removes actions from the live store without disturbing others" time="0.0006172">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; keeps the full action set in stable groups with safe defaults" time="0.0004281">
+        </testcase>
+    </testsuite>
+    <testsuite name="shortcuts/useGlobalShortcuts.test.tsx" timestamp="2026-10-22T18:34:19.458Z" hostname="ablaze" tests="8" failures="0" errors="0" skipped="0" time="0.0307653">
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; fires exactly one action for the default sidebar binding" time="0.0147296">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; ignores input, textarea, contenteditable, Monaco and terminal targets" time="0.0051109">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; allows queue/session actions in the composer scope but not other inputs" time="0.0036223">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; ignores IME, repeat, defaultPrevented and modifier-only events" time="0.0014475">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; does not run business actions while a modal is open or a recorder is active" time="0.0014747">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; refuses to execute a conflicting binding until it is resolved" time="0.001051">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; uses the live plugin registry and stops after removal" time="0.0012083">
+        </testcase>
+        <testcase classname="shortcuts/useGlobalShortcuts.test.tsx" name="central shortcut dispatcher &gt; dispatches command palette and history search only through the shell listener" time="0.0014207">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-22T18:34:19.460Z" hostname="ablaze" tests="7" failures="0" errors="0" skipped="0" time="0.3505616">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; aggregates by Workspace with original identity and time order" time="0.0079502">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows independent Locker sources and Workspace projection" time="0.0728691">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice once, becomes readonly, then deletes" time="0.0503052">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects without answer, preserves card, allows delete and unread toggle" time="0.0168767">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; pages visible messages without another container and reads server response after refresh" time="0.1216568">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows unavailable authentication instead of granting Agent user rights" time="0.0171286">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.0630248">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/MarkdownRenderer.test.tsx" timestamp="2026-10-22T18:34:19.461Z" hostname="ablaze" tests="35" failures="0" errors="0" skipped="0" time="5.8216845">
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat same.md against the Session cwd, independently of the Editor file" time="0.1294222">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ./文档%20说明.md against the Session cwd, independently of the Editor file" time="0.0772201">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ../shared/guide.md#标题 against the Session cwd, independently of the Editor file" time="0.0795574">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat C:\other\guide.md:2 against the Session cwd, independently of the Editor file" time="0.0800762">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ./目录%20名称/ as an Editor root without reading it as a file" time="0.0797259">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ../目录%20名称 as an Editor root without reading it as a file" time="0.0788499">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves the same history link against each Session cwd" time="0.1723577">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a directory result after switching away and back to the original Session" time="0.0164037">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a file read after switching to a Session with another cwd" time="0.0851492">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves the entire large plain paragraph, selection text, and subsequent rich Markdown" time="3.9072936">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps search marks and attachment handling on the ordinary pipeline for a large plain paragraph" time="0.1362172">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds giant highlighted code and copies the entire latest payload" time="0.1301676">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps addition and deletion colors in a bounded diff without coloring file headers" time="0.0133502">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds a huge single line without requiring a language annotation" time="0.0121689">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps the code window mounted when a streamed fence closes" time="0.0170747">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; does not reparse historical Markdown when another message streams" time="0.016728">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders list bullets structure and hljs spans" time="0.0132885">
+            <system-out>
+UL: &lt;ul&gt;
+&lt;li&gt;item one&lt;/li&gt;
+&lt;li&gt;item two&lt;/li&gt;
+&lt;/ul&gt;
+LI: &lt;li&gt;item one&lt;/li&gt;
+HLJS_KEYWORD: &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt;
+CODE: &lt;code class=&quot;text-xs font-mono leading-relaxed hljs language-js&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; x = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;
+&lt;/code&gt;
+
+            </system-out>
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses relative, Windows, file URI and line-range destinations" time="0.0029368">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; strips malformed numeric line targets while preserving ordinary path colons" time="0.0010569">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps web, mailto and document-only anchor destinations unchanged" time="0.0016167">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses opaque editor links as server references while retaining the line range" time="0.0008703">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders attachment hrefs as clickable standard Markdown and preserves ordinary links" time="0.0069916">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; marks safe attachment links as draggable sources with the file icon" time="0.0114657">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders an opaque editor link that supports click-to-open and dragstart without a path payload" time="0.0892045">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens raster attachment links in the Editor preview using the server-owned opaque reference" time="0.1570157">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps non-image attachment links on their original browser path" time="0.0030296">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; recovers a legacy attachment without display metadata using a safe download href" time="0.0037704">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves local file hrefs through react-markdown URL sanitization" time="0.0027665">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a relative link through the current Session workdir and preserves its line range" time="0.0867838">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; uses the Editor preview document directory when supplied and preserves line targets" time="0.0775494">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a root-relative Windows drive href without the synthetic leading slash" time="0.0797936">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens source-style colon line targets without passing the suffix to the file API" time="0.079046">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; shows a visible missing-file error instead of falling back to a web link" time="0.0771302">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders a composer URL-node Markdown link with escaped parentheses" time="0.0086566">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="resolves Locker links against its explicit source while another Chat stays selected" time="0.0856353">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/ViewEntryGroups.test.tsx" timestamp="2026-10-22T18:34:19.468Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1068185">
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; renders no badge when no job is running" time="0.056287">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; floats the count at the bottom-right corner over the Jobs entry" time="0.0234612">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; navigates when the floating badge itself is clicked" time="0.0109691">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; caps the count at 99+" time="0.0064449">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryGroups.test.tsx" name="ViewEntryGroups Jobs running badge &gt; hides the badge again when the last running job settles" time="0.008951">
+            <system-err>
+No routes matched location &quot;/&quot; 
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/ViewEntryRail.test.tsx" timestamp="2026-10-22T18:34:19.470Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1079874">
+        <testcase classname="components/layout/ViewEntryRail.test.tsx" name="ViewEntryRail (desktop collapsed sidebar) &gt; renders one vertical entry per shared view entry — no second route list" time="0.0583616">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryRail.test.tsx" name="ViewEntryRail (desktop collapsed sidebar) &gt; marks the active route and navigates on click" time="0.0273366">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryRail.test.tsx" name="ViewEntryRail (desktop collapsed sidebar) &gt; matches / exactly so nested routes never light up Chat" time="0.0066193">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryRail.test.tsx" name="ViewEntryRail (desktop collapsed sidebar) &gt; shows the running-jobs badge on the Jobs entry only" time="0.0099055">
+        </testcase>
+        <testcase classname="components/layout/ViewEntryRail.test.tsx" name="ViewEntryRail (desktop collapsed sidebar) &gt; renders no badge when no job is running" time="0.0050493">
+        </testcase>
+    </testsuite>
+</testsuites>
