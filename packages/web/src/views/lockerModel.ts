@@ -1,0 +1,43 @@
+export interface Locker {
+  id: string;
+  sessionId: string;
+  sourceName: string;
+  workspaceIds: string[];
+  available: boolean;
+  total: number;
+  unread: number;
+}
+export interface InteractionCard {
+  id: string;
+  lockerId: string;
+  ownerSessionId: string;
+  createdAt: string;
+  read: boolean;
+  revision: number;
+  status: 'open' | 'responded' | 'rejected';
+  definition: {
+    title: string;
+    body: string;
+    summaryBody: string;
+    attachments?: { id: string; name: string }[];
+    answerInput?: { label?: string; maxLength?: number };
+    choices?: { id: string; label: string; triggerRef?: { id: string; revision?: number } }[];
+  };
+  response: null | { answer?: string; choiceId?: string };
+  delivery: { state: string };
+  rejectionDelivery?: { state: string };
+}
+export async function lockerRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, { method, credentials: 'same-origin', signal,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.detail?.code || result.detail?.message || `HTTP ${response.status}`);
+  return result as T;
+}
+/** This is a projection over real Lockers; it persists no aggregate identity. */
+export function lockerProjection(lockers: Locker[], cards: InteractionCard[], workspace: string, selected: string) {
+  const scope = lockers.filter(l => !workspace || l.workspaceIds.includes(workspace));
+  const ids = new Set(scope.filter(l => selected === 'aggregate' || selected === l.id).map(l => l.id));
+  return cards.filter(c => ids.has(c.lockerId)).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}

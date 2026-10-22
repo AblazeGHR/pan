@@ -18,7 +18,7 @@ from packages.jobs.window import command_window_options
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def test_http_mcp_user_response_and_directed_trigger(tmp_path):
+def run_http_mcp(tmp_path,*,browser=False):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0))
         port=sock.getsockname()[1]
@@ -97,6 +97,20 @@ def test_http_mcp_user_response_and_directed_trigger(tmp_path):
         artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
             'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
         (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
+        if browser:
+            result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-panel.e2e.mjs'),base,
+                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser')],
+                cwd=ROOT/'packages/web',capture_output=True,text=True,encoding='utf-8',timeout=90)
+            (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+            assert result.returncode==0,result.stdout+'\n'+result.stderr
+            with sqlite3.connect(ports['cardPath']) as db:
+                notice=db.execute('SELECT id,state,payload FROM rejection_outbox').fetchall()
+                assert len(notice)==1 and notice[0][1:] == ('accepted',None)
+            browser_evidence=json.loads((tmp_path/'browser/browser.json').read_text(encoding='utf-8'))
+            browser_evidence['durableRejectionNoticeCount']=1
+            browser_evidence['durableRejectionNoticeState']='accepted'
+            (tmp_path/'browser/browser.json').write_text(json.dumps(browser_evidence,indent=2),encoding='utf-8')
+
     finally:
         if proc.poll() is None:
             try:
@@ -111,3 +125,7 @@ def test_http_mcp_user_response_and_directed_trigger(tmp_path):
     with socket.socket() as probe:
         assert probe.connect_ex(('127.0.0.1',port))!=0
     (tmp_path/'cleanup.json').write_text(json.dumps({'port':port,'serverExited':True,'listenerClosed':True}),encoding='utf-8')
+
+
+def test_http_mcp_user_response_and_directed_trigger(tmp_path):
+    run_http_mcp(tmp_path)

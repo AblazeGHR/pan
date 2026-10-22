@@ -30,6 +30,8 @@ function transformMarkdownUrl(value: string): string {
   return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
 }
 
+const SourceSessionContext = createContext<string | undefined>(undefined);
+
 const RASTER_IMAGE_MIMES = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif',
 ]);
@@ -42,8 +44,10 @@ function looksLikeImageLink(href: string, label: React.ReactNode): boolean {
 
 function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, ...props }: LinkProps & { attachmentId?: string; sourcePath?: string }) {
   const navigate = useNavigate();
-  const sessionId = useSessionStore((s) => s.currentSessionId);
-  const workdir = useSessionStore((s) => s.sessions.find(x => x.id === s.currentSessionId)?.workdir);
+  const sourceSessionId = useContext(SourceSessionContext);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const sessionId = sourceSessionId ?? currentSessionId;
+  const workdir = useSessionStore((s) => s.sessions.find(x => x.id === sessionId)?.workdir);
   const showToast = useUIStore((s) => s.showToast);
   const draggedRef = useRef(false);
   const dragResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,7 +138,7 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
     let stale = false;
     const isCurrent = () => {
       const state = useSessionStore.getState();
-      return !stale && state.currentSessionId === sessionId
+      return !stale && (sourceSessionId !== undefined || state.currentSessionId === sessionId)
         && state.sessions.find((item) => item.id === sessionId)?.workdir === workdir;
     };
 
@@ -264,6 +268,8 @@ function extractAttachmentSessionId(href: string): string | undefined {
 const PreContext = createContext(false);
 
 interface MarkdownRendererProps {
+  /** Explicit container origin; never borrow the currently selected Chat. */
+  sourceSessionId?: string;
   content: string;
   className?: string;
   attachmentIds?: string[];
@@ -377,18 +383,18 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath, sourceSessionId }: MarkdownRendererProps) {
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const search = useContext(SearchTextContext);
   const plugins = useMemo(() => search.query ? [...REHYPE_PLUGINS, searchTextPlugin(search.query, search.occurrence)] : REHYPE_PLUGINS, [search.query, search.occurrence]);
   if (!content) return null;
-  const renderedContent = normalizeLegacyAttachmentLinks(content, sessionId ?? undefined);
+  const renderedContent = normalizeLegacyAttachmentLinks(content, sourceSessionId ?? sessionId ?? undefined);
   let attachmentIndex = 0;
 
   return (
-    <div className={`prose-kimi max-w-none break-words ${className}`}>
+    <SourceSessionContext.Provider value={sourceSessionId}><div className={`prose-kimi max-w-none break-words ${className}`}>
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={plugins}
@@ -406,6 +412,6 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
       >
         {renderedContent}
       </ReactMarkdown>
-    </div>
+    </div></SourceSessionContext.Provider>
   );
 });

@@ -1933,13 +1933,13 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 @mcp.tool()
 def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
                      recipient_id: str = "", request_key: str = "", card: dict | None = None) -> dict:
-    """Create/get a Session-owned user request. Never answer as a user.
+    """Create/get/receipt for a Session-owned user request. Never answer as a user.
 
     Card supports optional answerInput, choices with optional triggerRef, and
     notification metadata. A recorded response is not Job/Trigger completion.
     """
-    if operation not in {"create", "get"}:
-        return {"error": "Only create/get producer operations are available"}
+    if operation not in {"create", "get", "receipt"}:
+        return {"error": "Only create/get/receipt producer operations are available"}
     caller, error = _require_caller()
     if error:
         return error
@@ -1947,8 +1947,9 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
     denied = _check_access(target, caller=caller)
     if denied:
         return denied
-    if operation == "get":
-        return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + "?" + urlencode({"ownerSessionId": target}))
+    if operation in {"get", "receipt"}:
+        suffix = "/receipt" if operation == "receipt" else ""
+        return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
     return _api("POST", "/api/interaction-cards", {
         "ownerSessionId": target, "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
 

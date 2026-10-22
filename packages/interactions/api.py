@@ -58,12 +58,67 @@ def register(app):
         except InteractionError as exc:
             raise failure(exc) from exc
 
+    @app.get('/api/interaction-cards/{card_id}/receipt')
+    async def producer_receipt(card_id:str,ownerSessionId:str):
+        owner(ownerSessionId)
+        try:
+            return {'receipt':get_store().receipt_for_owner(ownerSessionId,card_id)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
     @app.get('/api/user-inbox')
     async def inbox(request:Request,limit:int=100,after:str | None=None):
         principal=await user(request)
         try:
             cards=get_store().list_for_user(principal,limit=limit,after=after)
             return {'schemaVersion':1,'cards':cards,'nextAfter':cards[-1]['id'] if len(cards)==limit else None}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.get('/api/user-lockers')
+    async def lockers(request:Request):
+        principal=await user(request)
+        store=get_store()
+        with store.db() as db:
+            rows=db.execute('SELECT l.owner,count(c.id) AS total,coalesce(sum(1-c.is_read),0) AS unread FROM user_lockers l LEFT JOIN cards c ON c.owner=l.owner AND c.recipient=l.recipient WHERE l.recipient=? GROUP BY l.owner',
+                            (principal.id,)).fetchall()
+        from .contracts import identity
+        result=[]
+        for row in rows:
+            source=session.get(row['owner'],load_history=False)
+            result.append({'id':identity('ulocker_',[principal.id,row['owner']]),'sessionId':row['owner'],
+                           'sourceName':source.name if source else row['owner'],
+                           'workspaceIds':session.effective_workspace_ids(source) if source else [],
+                           'available':source is not None,'total':row['total'],'unread':row['unread']})
+        return {'lockers':result}
+
+    @app.put('/api/user-inbox/{card_id}/read')
+    async def mark_read(card_id:str,data:dict,request:Request):
+        principal=await user(request)
+        if set(data)!={'read'}:
+            raise HTTPException(422,detail={'code':'invalid'})
+        try:
+            return {'card':get_store().mark_read(principal,card_id,data['read'])}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.post('/api/user-inbox/{card_id}/reject')
+    async def reject(card_id:str,data:dict,request:Request):
+        principal=await user(request)
+        store=get_store()
+        try:
+            card=store.reject(principal,card_id,data)
+            from packages.core.inbox_service import SessionQueue
+            await store.deliver_rejections(SessionQueue())
+            return {'card':store.get_for_user(principal,card_id)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.delete('/api/user-inbox/{card_id}')
+    async def delete(card_id:str,request:Request):
+        principal=await user(request)
+        try:
+            return get_store().delete(principal,card_id)
         except InteractionError as exc:
             raise failure(exc) from exc
 
@@ -75,12 +130,13 @@ def register(app):
         except InteractionError as exc:
             raise failure(exc) from exc
 
+    @app.post('/api/user-inbox/{card_id}/submit')
     @app.post('/api/user-inbox/{card_id}/respond')
     async def respond(card_id:str,data:dict,request:Request):
         principal=await user(request)
         store=get_store()
         try:
-            card=store.respond(principal,card_id,data)
+            card=store.respond(principal,card_id,data,allow_empty=request.url.path.endswith('/submit'))
         except InteractionError as exc:
             raise failure(exc) from exc
         # Response persistence and Trigger acceptance are distinct results.
