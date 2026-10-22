@@ -22,6 +22,16 @@ integration test is skipped; its strict native-shape/buffering unit tests still
 run. The tests never replace the product CODEX_HOME contract or production
 provider exporter with a client-supplied verification flag.
 
+Private export follow-up uses `scripts/verify_provider_export.py` with the same
+explicit `TEST_REAL_CODEX_JS` opt-in. It consumes an injected synthetic protocol
+owner through the production Bridge/prepare path, generates random test bearer
+material only in owner-only temporary files/environment and verifies actual
+installed-CLI loopback requests. Reports retain only boolean credential matches;
+do not capture request headers, private bundle bytes or environment values.
+The current cc-switch source does not implement this export capability; the
+fixture is not evidence of an upstream atomic exporter. Contract and exact
+upstream patch locations: `docs/design/provider-private-export-v0.3.md`.
+
 ## 默认入口
 
 从 Job、Agent Worker 或已配置的 Pan 终端运行测试时，使用统一入口：

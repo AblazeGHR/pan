@@ -32,6 +32,27 @@ class Bridge:
         self.data_dir = Path(data_dir)
         self.runner = runner or self._run
 
+    def private_launch_supported(self):
+        """Internal capability probe only; never list/read a live profile.
+
+        Existing v1 CLIs do not advertise this extension and receive no export
+        request. This method is deliberately absent from plugin capabilities.
+        """
+        self._deadline = time.monotonic() + 8
+        version = self.runner(['--version'])
+        return (isinstance(version, dict) and version.get('contract') == 'pan-cc-switch-gui/v1'
+                and version.get('privateLaunchExport') == 'pan-cc-switch-launch/v1')
+
+    def private_launch_export(self, request_path):
+        path = Path(request_path)
+        if not path.is_absolute():raise ValueError('Private launch request must be absolute')
+        # Owner writes secret material only to the exclusive private request
+        # directory. CLI stdout is a bounded non-secret receipt, not a config.
+        result = self.runner(['--app', 'codex', 'provider', 'launch-export', str(path), '--json'])
+        if not isinstance(result,dict) or len(json.dumps(result).encode('utf-8')) > 16*1024:
+            raise ValueError('Invalid private launch receipt')
+        return result
+
     def read_only(self, operation, arguments, *, deadline=None):
         """Bounded policy reads: no bridge lock/cache write or mutation command.
 

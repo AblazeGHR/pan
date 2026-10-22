@@ -1,6 +1,10 @@
 # Trusted new-Worker provider launch binding (credentialless first path)
 
 This revision implements the launch pipeline, not production account recovery.
+Follow-up: [Private export v1](provider-private-export-v0.3.md) defines the
+default-off production consumer and exact missing upstream owner extension.
+The statements below about the original credentialless source remain its
+baseline contract; the narrowly separate private API-key mode is described there.
 Default disabled: `PAN_CODEX_FIXED_PROVIDER_LAUNCH=1` AND the existing user-enabled
 quota host AND a trusted in-code CodexAdapter.provider_launch_source are required.
 No source is installed by production in this batch: current cc-switch CLI has

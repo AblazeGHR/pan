@@ -1,8 +1,9 @@
-"""Fixed, credentialless launch config + native config/read attestation.
+"""Fixed launch configuration + native config/read attestation.
 
 Only a trusted in-code export source can supply provider identity. No HTTP/
 Session verified flag, global-profile read, or provider-ID inference. Current
-Bridge has no export capability, so ordinary production spawns stay unbound.
+Bridge needs a versioned private export capability for production binding;
+current unextended cc-switch does not advertise it and remains unbound.
 """
 import asyncio
 import hashlib
@@ -46,7 +47,7 @@ def projection(config):
     return {'model_provider':key,'provider':{k:p[k] for k in ('base_url','wire_api','requires_openai_auth')}}
 
 
-def native_projection(config):
+def native_projection(config, credential_env_key=None):
     """Accept only observed inert native defaults, never credential fallback.
 
     Codex 0.163 config/read serializes optional ProviderConfig fields as null
@@ -57,6 +58,9 @@ def native_projection(config):
     if not isinstance(key,str) or not isinstance(providers,dict) or not isinstance(providers.get(key),dict):
         raise ValueError('Fixed provider missing')
     p=dict(providers[key])
+    if credential_env_key is not None:
+        if p.get('env_key')!=credential_env_key:raise ValueError('Native credential route mismatch')
+        del p['env_key']
     nullable={'model_catalog_url','env_key','env_key_instructions','experimental_bearer_token',
               'auth','gateway_oauth','aws','capabilities','query_params','http_headers','env_http_headers',
               'request_max_retries','stream_max_retries','stream_idle_timeout_ms','websocket_connect_timeout_ms'}
@@ -68,7 +72,9 @@ def native_projection(config):
         if field in p:
             if p[field] is not False:raise ValueError('Unsupported native provider capability')
             del p[field]
-    return projection({'model_provider':key,'model_providers':{key:p}})
+    result=projection({'model_provider':key,'model_providers':{key:p}})
+    if credential_env_key is not None:result['provider']['env_key']=credential_env_key
+    return result
 
 
 def prepare(adapter,session,root):
@@ -77,9 +83,13 @@ def prepare(adapter,session,root):
     from packages.automation.quota_policy import Store
     state=Store(Path(root)/'automation').read()
     source=getattr(adapter,'provider_launch_source',None)
-    if (not state['host']['enabled'] or not callable(source) or adapter.name!='codex'
+    if (not state['host']['enabled'] or adapter.name!='codex'
             or session.adapter_config.get('native_control')):return None
     if os.name!='nt':return None  # retained FILETIME + existing owner-only ACL
+    if not callable(source):
+        from packages.cc_switch_bridge import launch_export
+        if os.environ.get(launch_export.FLAG)!='1':return None
+        return launch_export.prepare(session,root,state)
     export=source(session)
     if export is None:return None
     from packages.automation.quota_identity import identifier
@@ -124,7 +134,11 @@ class Pending:
     def environment(self):
         env=dict(os.environ)
         for key in list(env):
-            if key.startswith(('OPENAI_','AZURE_OPENAI_')) or key==ENV:env.pop(key)
+            if key.startswith(('OPENAI_','AZURE_OPENAI_','PAN_CODEX_LAUNCH_TOKEN_')) or key==ENV:env.pop(key)
+        if 'privateBundleDigest' in self.manifest:
+            from packages.cc_switch_bridge.launch_export import credential
+            value=credential(self.home,self.manifest)
+            if value['kind']=='bearer-env':env[self.manifest['pin']['provider']['env_key']]=value['token']
         env[ENV]=str(self.home/'launch.json')
         return env
 
@@ -137,6 +151,8 @@ class Pending:
     async def accept(self,process):
         from packages.automation.quota_host import retained_process
         from packages.core.terminal import identity
+        audit=self.manifest.get('exportAudit')
+        if audit and time.time()*1000>=audit['expiresAt']:raise RuntimeError('Export receipt expired before launch')
         attaching=asyncio.create_task(asyncio.to_thread(self.attach,process))
         try:await asyncio.shield(attaching)
         except asyncio.CancelledError:
@@ -184,6 +200,7 @@ class Pending:
                 raise RuntimeError('Native identity changed')
             if not self.guard.is_member(self.native_handle):raise RuntimeError('Native process is outside launch owner')
             if expected.endswith('verified'):
+                if audit and time.time()*1000>=audit['expiresAt']:raise RuntimeError('Export receipt expired during launch')
                 if row.get('projectionDigest')!=digest(self.manifest['pin']):raise RuntimeError('Native config mismatch')
                 from packages.automation.quota_identity import identifier
                 if row.get('modelProvider')!=self.manifest['pin']['model_provider'] or not identifier(row.get('nativeThreadId')):
@@ -196,6 +213,7 @@ class Pending:
                     'configDigest':self.manifest['configDigest'],'projectionDigest':row['projectionDigest'],
                     'processIdentity':owner,'wrapperProcessIdentity':wrapper,
                     'nativeProcessIdentity':native,'nativeThreadId':row['nativeThreadId'],'verifiedAt':time.time()}
+        if audit:self.receipt['privateExport']=audit
         self.manifest.clear()  # secret capability remains only in private file until cleanup
 
     def close(self):
@@ -247,6 +265,12 @@ def attest(app,emit):
     m=json.loads(Path(path).read_text(encoding='utf-8'))
     config=Path(path).parent/'config.toml'
     if hashlib.sha256(config.read_bytes()).hexdigest()!=m['configDigest']:raise RuntimeError('Launch file changed')
+    if 'privateBundleDigest' in m:
+        from packages.cc_switch_bridge.launch_export import credential
+        value=credential(Path(path).parent,m)
+        if value['kind']=='bearer-env':
+            token=os.environ.get(m['pin']['provider']['env_key'],'')
+            if not hmac.compare_digest(token,value['token']):raise RuntimeError('Launch credential handoff changed')
     from packages.automation.quota_host import retained_process
     native=retained_process(app.process)
     if native is None:raise RuntimeError('Native retained identity missing')
@@ -256,7 +280,7 @@ def attest(app,emit):
         emit(row)
     send('provider.launch.started')
     reply=app._wait_response(app._request('config/read',{'includeLayers':False}))
-    actual=native_projection(reply['result']['config'])
+    actual=native_projection(reply['result']['config'],m['pin']['provider'].get('env_key'))
     if actual!=m['pin']:raise RuntimeError('Native fixed configuration not confirmed')
     app._fixed_launch_proof=(send,digest(actual))
 

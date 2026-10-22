@@ -9054,7 +9054,7 @@ async def _spawn_process(session_id: str,
             stdin=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
-            **({'env': pending.environment()} if pending else {}),
+              **({'env': await io(pending.environment)} if pending else {}),
             **command_window_options(),
             )
             if pending:

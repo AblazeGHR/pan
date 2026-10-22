@@ -40,6 +40,7 @@ _STDOUT_LOCK = threading.Lock()
 _STARTUP_OUTPUT: list[tuple[bool, bytes]] | None = None
 _STARTUP_BYTES = 0
 _STARTUP_OVERFLOW = False
+_LAUNCH_OUTPUT_SECRETS: tuple[bytes, ...] = ()
 _INTERACTIVE_APPROVAL_METHODS = {
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
@@ -84,6 +85,8 @@ def _write_stderr(text: str) -> None:
 
 def _write_output(stderr: bool, raw: bytes) -> None:
     global _STARTUP_BYTES, _STARTUP_OVERFLOW
+    for secret in _LAUNCH_OUTPUT_SECRETS:
+        raw = raw.replace(secret, b'[private-launch-redacted]')
     with _STDOUT_LOCK:
         if _STARTUP_OUTPUT is not None:
             if _STARTUP_BYTES + len(raw) > 64 * 1024:
@@ -1501,9 +1504,11 @@ def main(argv: list[str] | None = None) -> int:
     # Bootstrap itself must precede the gate. The parent is now retaining the
     # interpreter and its Job before any native process/reader can emit output.
     from packages.core.adapters.codex.provider_launch import ENV
-    global _STARTUP_OUTPUT, _STARTUP_BYTES, _STARTUP_OVERFLOW
+    global _STARTUP_OUTPUT, _STARTUP_BYTES, _STARTUP_OVERFLOW, _LAUNCH_OUTPUT_SECRETS
     if os.environ.get(ENV):
         _STARTUP_OUTPUT, _STARTUP_BYTES, _STARTUP_OVERFLOW = [], 0, False
+        _LAUNCH_OUTPUT_SECRETS = tuple(value.encode('utf-8') for key, value in os.environ.items()
+                                       if key.startswith('PAN_CODEX_LAUNCH_TOKEN_') and value)
     parser = argparse.ArgumentParser(description="Pan bridge for Codex app-server")
     parser.add_argument("--codex-path", required=True)
     parser.add_argument("--node-path", default="node")
