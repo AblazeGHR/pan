@@ -143,3 +143,19 @@ def test_event_query_is_frozen_across_monitor_attempts(tmp_path,monkeypatch):
             assert len({a['runId'] for a in rt.get(job['jobId'])['attempts']})==1
         finally:await rt.close()
     asyncio.run(run())
+
+
+def test_event_admission_respects_shared_scheduler_disabled(tmp_path,monkeypatch):
+    async def run():
+        store=Store(tmp_path/'actions');store.put('actions',action())
+        rt=Runtime(tmp_path/'jobs',store,None);await rt.start()
+        monkeypatch.setattr('packages.core.background_jobs._scheduled_task_config',lambda:{'enabled':False})
+        try:
+            cfg={**config(),'completion':{'kind':'ordinary'},'recovery':{**config()['recovery'],'enabled':False,'monitoring':False},
+                 'trigger':{'kind':'event','eventTypes':['owned.e'],'query':{'field':'pinned','op':'eq','value':True}}}
+            job=rt.create(cfg,True)
+            await rt.match_event({'id':'e','type':'owned.e','payload':{}},rt.event_targets('owned.e'))
+            current=rt.get(job['jobId'])
+            assert len(current['pendingRuns'])==1 and not current.get('attempts')
+        finally:await rt.close()
+    asyncio.run(run())

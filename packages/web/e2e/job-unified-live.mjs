@@ -44,6 +44,8 @@ try {
   await page.getByLabel('Signal type',{exact:true}).fill('owned.done');
   await page.getByLabel('Recovery',{exact:true}).selectOption('on');
   const sizes=[];
+  for (const toast of await page.getByRole('button',{name:'Dismiss toast',exact:true}).all()) await toast.click();
+  await expect(page.getByRole('button',{name:'Dismiss toast',exact:true})).toHaveCount(0);
   for (const width of [1280,390,320]) {
     await page.setViewportSize({width,height:1000});
     await expect(page.getByTestId('unified-job-form')).toBeVisible();

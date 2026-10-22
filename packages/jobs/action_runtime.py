@@ -510,7 +510,7 @@ class Runtime:
     async def match_event(self,event,targets):
         for target in targets:
             await io(self.queue_event,event,target)
-        await self.tick({'enabled':True,'max_concurrent_dispatch':self.limit})
+        await self.tick(await io(jobs._scheduled_task_config))
 
     async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False):
         if self.closed:raise Conflict('Job runtime closed')
