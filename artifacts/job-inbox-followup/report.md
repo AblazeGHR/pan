@@ -103,8 +103,8 @@ pnpm exec vitest run components/jobs/UnifiedJobForm.test.tsx components/jobs/Job
 84 precompressed assets verified ([build log](build.log)); standard chunk-size/
 mixed-import warnings remain. `git diff --check -- packages tests docs` exit0.
 The frontend build ran on cb47b91a; the final source commit adds the Python migration
-dril and unknown-field audit projection. `git diff cb47b91a 16429246 -- packages/web` is empty, proving the exact
-built frontend source is unchanged. Python/HTTP/Vitest final runs are on16429246.
+drill and unknown-field audit projection. `git diff cb47b91a 16429246 -- packages/web` is empty, proving the exact
+built frontend source is unchanged. Python migration run is on5db562a2; HTTP/Vitest remain on16429246 because the final product change is Python-only.
 Raw pytest evidence retains tool-emitted trailing whitespace.
 
 ## Failure experiments retained
@@ -141,5 +141,5 @@ catalog with an explicitly empty gateway manifest, deterministic fake CLI, and
 records process/root identities. It reports zero owned processes remaining and
 released port. Chromium closes in finally. Test-generated legacy tracked evidence
 is copied here then restored. Original core tree remains at88684233 and clean. The follow-up tree is clean at
-8e6f68a7be4c962ce7bbb09a156099c14492c45f.
+1b92256541787fa3e71ecce9f0ccc809889a137e.
 Overall human acceptance and MA independent review remain pending. Stop here.
