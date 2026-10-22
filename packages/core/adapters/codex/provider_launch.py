@@ -46,6 +46,31 @@ def projection(config):
     return {'model_provider':key,'provider':{k:p[k] for k in ('base_url','wire_api','requires_openai_auth')}}
 
 
+def native_projection(config):
+    """Accept only observed inert native defaults, never credential fallback.
+
+    Codex 0.163 config/read serializes optional ProviderConfig fields as null
+    and capability flags as false. The trusted export still uses projection's
+    strict input grammar. New native fields/nonempty auth remain unconfirmed.
+    """
+    key=config.get('model_provider');providers=config.get('model_providers')
+    if not isinstance(key,str) or not isinstance(providers,dict) or not isinstance(providers.get(key),dict):
+        raise ValueError('Fixed provider missing')
+    p=dict(providers[key])
+    nullable={'model_catalog_url','env_key','env_key_instructions','experimental_bearer_token',
+              'auth','gateway_oauth','aws','capabilities','query_params','http_headers','env_http_headers',
+              'request_max_retries','stream_max_retries','stream_idle_timeout_ms','websocket_connect_timeout_ms'}
+    for field in nullable:
+        if field in p:
+            if p[field] is not None:raise ValueError('Nonempty native provider extension')
+            del p[field]
+    for field in ('supports_websockets','supports_standalone_web_search'):
+        if field in p:
+            if p[field] is not False:raise ValueError('Unsupported native provider capability')
+            del p[field]
+    return projection({'model_provider':key,'model_providers':{key:p}})
+
+
 def prepare(adapter,session,root):
     """Called off-loop. Source is host code, not adapter_config or caller data."""
     if not enabled():return None
@@ -231,7 +256,7 @@ def attest(app,emit):
         emit(row)
     send('provider.launch.started')
     reply=app._wait_response(app._request('config/read',{'includeLayers':False}))
-    actual=projection(reply['result']['config'])
+    actual=native_projection(reply['result']['config'])
     if actual!=m['pin']:raise RuntimeError('Native fixed configuration not confirmed')
     app._fixed_launch_proof=(send,digest(actual))
 

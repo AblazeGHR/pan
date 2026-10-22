@@ -37,6 +37,9 @@ from packages.jobs.window import command_window_options
 
 _APPROVAL_TIMEOUT_SEC = 120.0
 _STDOUT_LOCK = threading.Lock()
+_STARTUP_OUTPUT: list[tuple[bool, bytes]] | None = None
+_STARTUP_BYTES = 0
+_STARTUP_OVERFLOW = False
 _INTERACTIVE_APPROVAL_METHODS = {
     "item/commandExecution/requestApproval",
     "item/fileChange/requestApproval",
@@ -70,16 +73,49 @@ _CANCELLED_TURN_STATUSES = {"interrupted", "cancelled", "canceled"}
 
 def _write_stdout(event: dict[str, Any]) -> None:
     raw = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
-    with _STDOUT_LOCK:
-        sys.stdout.buffer.write(raw.encode("utf-8", errors="replace") + b"\n")
-        sys.stdout.buffer.flush()
+    _write_output(False, raw.encode("utf-8", errors="replace") + b"\n")
 
 
 def _write_stderr(text: str) -> None:
     if not text:
         return
-    sys.stderr.buffer.write(text.encode("utf-8", errors="replace"))
-    sys.stderr.buffer.flush()
+    _write_output(True, text.encode("utf-8", errors="replace"))
+
+
+def _write_output(stderr: bool, raw: bytes) -> None:
+    global _STARTUP_BYTES, _STARTUP_OVERFLOW
+    with _STDOUT_LOCK:
+        if _STARTUP_OUTPUT is not None:
+            if _STARTUP_BYTES + len(raw) > 64 * 1024:
+                _STARTUP_OVERFLOW = True
+                return
+            _STARTUP_BYTES += len(raw)
+            _STARTUP_OUTPUT.append((stderr, raw))
+            return
+        stream = sys.stderr.buffer if stderr else sys.stdout.buffer
+        stream.write(raw)
+        stream.flush()
+
+
+def _write_launch_receipt(event: dict[str, Any]) -> None:
+    """Keep native diagnostics out of the authenticated startup frame sequence.
+
+    Only the trusted attester calls this function. Native notifications cannot
+    mark themselves as receipts. Overflow rejects startup before confirmation.
+    """
+    global _STARTUP_OUTPUT
+    raw = json.dumps(event, separators=(",", ":")).encode("utf-8") + b"\n"
+    with _STDOUT_LOCK:
+        if _STARTUP_OVERFLOW:
+            raise RuntimeError("Fixed launch startup output overflow")
+        sys.stdout.buffer.write(raw)
+        sys.stdout.buffer.flush()
+        if event["type"] == "provider.launch.verified" and _STARTUP_OUTPUT is not None:
+            for stderr, pending in _STARTUP_OUTPUT:
+                stream = sys.stderr.buffer if stderr else sys.stdout.buffer
+                stream.write(pending)
+                stream.flush()
+            _STARTUP_OUTPUT = None
 
 
 def _json_value(raw: str) -> Any:
@@ -372,7 +408,7 @@ class AppServer:
         self._send({"method": "initialized", "params": {}})
 
         from packages.core.adapters.codex.provider_launch import attest
-        attest(self, _write_stdout)
+        attest(self, _write_launch_receipt)
 
         params = self._thread_params()
         if self._initial_thread_id:
@@ -1462,6 +1498,12 @@ def _read_pan_stdin(task_queue: Queue[dict[str, Any] | None],
 def main(argv: list[str] | None = None) -> int:
     from packages.core.adapters.codex.provider_launch import bootstrap
     bootstrap()
+    # Bootstrap itself must precede the gate. The parent is now retaining the
+    # interpreter and its Job before any native process/reader can emit output.
+    from packages.core.adapters.codex.provider_launch import ENV
+    global _STARTUP_OUTPUT, _STARTUP_BYTES, _STARTUP_OVERFLOW
+    if os.environ.get(ENV):
+        _STARTUP_OUTPUT, _STARTUP_BYTES, _STARTUP_OVERFLOW = [], 0, False
     parser = argparse.ArgumentParser(description="Pan bridge for Codex app-server")
     parser.add_argument("--codex-path", required=True)
     parser.add_argument("--node-path", default="node")

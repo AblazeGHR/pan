@@ -126,8 +126,46 @@ needs a non-secret resolved-provider digest/receipt or equivalent owner proof;
 this implementation returns unconfirmed, not a fabricated binding. Native control
 OwnedKernel requires a retained-process/receipt integration before opt-in there.
 
-Validation uses real Pan wrapper/lifecycle, real owned native-protocol fixture
+The original batch validation used real Pan wrapper/lifecycle, owned native-protocol fixture
 process and loopback fake provider, plus owned HTTP spawn/restart. It proves
 controlled child configuration use (actual loopback request), not a real official
 account or installed Codex native execution. Installed CLI schema generation is
 separate evidence. No paid turn or real account/provider query was performed.
+
+## Installed CLI compatibility follow-up (0.163.0)
+
+The follow-up uses the installed `codex-cli 0.163.0` app-server, the executable
+Pan wrapper, an empty owned native home and a loopback-only Responses endpoint.
+It verifies config/read attestation, returned modelProvider on thread start and
+resume, four actual credentialless local model requests, and a new materialized
+branch from real native rollout/state via the existing SessionsProvider. Each
+spawn commits its own binding operation and host inventory consumes it. This is
+native branch materialization plus spawn/resume, not full production branch UI
+or a credentialed official-provider test. Evidence/commands are under
+`artifacts/provider-launch-real`; the earlier fixture proof remains separate.
+
+Two real compatibility differences required bounded, fail-closed adaptations:
+
+- Native config/read serializes known optional ProviderConfig fields as null
+  and two unsupported capability defaults as false. `native_projection` accepts
+  exactly those observed inert defaults before the existing strict projection.
+  Nonempty auth/env/header/catalog/retry extensions, true capabilities, unknown
+  fields or missing provider identity still reject. Trusted export input remains
+  unchanged and rejects all of those extra fields, including null.
+- Real native warnings/notifications precede attestation. Only during opted-in
+  startup, the wrapper buffers ordinary stdout/stderr to at most 64KiB under its
+  own output lock. The trusted attester alone writes the two signed frames;
+  after confirmation it flushes the bounded diagnostics. Overflow refuses to
+  confirm. Parent signature/order/PID/birth/Job/config/thread checks are intact;
+  it does not skip arbitrary output or accept unsigned diagnostic lookalikes.
+
+A deterministic barrier changes the owned global provider config while an actual
+HTTP request is blocked at the local endpoint. That request, the next turn, a new
+process resuming the same thread and the materialized branch all use the fixed
+endpoint. Unique process aliases remain distinct, and CODEX_HOME is retained by
+product code. Tests alone set it to a new empty directory, scrub inherited auth
+environment, select file-only credential storage and remove their own profile
+after retained Job-member handles report termination. No user home/config/auth
+is copied. Default-off, immutable exporter/official credential support, native
+control, explicit task continuation, crash-orphan inspection and production
+policy effects remain the boundaries described above; none is enabled here.

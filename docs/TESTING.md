@@ -9,6 +9,19 @@ an account/config identity attestation. Test source injection cannot be replaced
 with a public verified flag. See `tests/test_provider_launch.py` and its owned HTTP
 launcher for process/ACL/Job cleanup assertions.
 
+Installed native compatibility is a separate explicit opt-in, never an account
+test. Set `TEST_REAL_CODEX_JS` to the installed codex.js and run
+`python scripts/verify_provider_launch_real.py` after freezing source. It runs
+the isolated runner, actual installed app-server and real Pan wrapper against
+an owned loopback Responses server, with a fresh file-auth-only CODEX_HOME and
+scrubbed environment. It verifies start/resume/materialized native branch,
+concurrent global-config change, durable bindings and retained-handle cleanup.
+No credentials or paid models are required. Evidence is under
+`artifacts/provider-launch-real`. Without explicit opt-in this one external-CLI
+integration test is skipped; its strict native-shape/buffering unit tests still
+run. The tests never replace the product CODEX_HOME contract or production
+provider exporter with a client-supplied verification flag.
+
 ## 默认入口
 
 从 Job、Agent Worker 或已配置的 Pan 终端运行测试时，使用统一入口：
