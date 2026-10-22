@@ -1,0 +1,16 @@
+{
+  "mergeCommit": "8418d6426b4180c02d6d558a3c48250b40c1dc98",
+  "sourceFixCommit": "cfe2663f2ad3b206406d5a28a5df193337f31b42",
+  "unifiedInput": "4e51ec704bd3d2d04c6913da7c8f90f76fbc93f7",
+  "userInboxInput": "ba847160a01daf0049bb84575c427317ab7db236",
+  "mainPracticalChecked": "140455976b7c60097fafdd4dc3f8e3b18a699ccc",
+  "python": {"tests": 517, "failures": 0, "errors": 0, "skipped": 0, "exitCode": 0, "junit": "evidence/composition-python-final.xml"},
+  "vitest": {"tests": 121, "failures": 0, "errors": 0, "skipped": 0, "exitCode": 0, "junit": "evidence/composition-ui-final.xml"},
+  "isolatedHttpMcpChromium": {"tests": 2, "failures": 0, "errors": 0, "skipped": 0, "exitCode": 0, "junit": "evidence/interaction-browser-final.xml"},
+  "typecheckExitCode": 0,
+  "buildExitCode": 0,
+  "compressedAssets": 88,
+  "migrationDrill": {"tests": 4, "sourceBytesUnchanged": true, "unknownFieldsRetained": true, "legacyEnabledForcedOff": true},
+  "protectedPortsTouched": [],
+  "cleanup": {"ownedProcessesRemaining": [], "randomPortReleased": true}
+}
