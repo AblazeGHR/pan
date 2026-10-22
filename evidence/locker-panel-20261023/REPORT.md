@@ -24,9 +24,9 @@ delete 仅允许终态，只删除用户侧原记录，不发通知；最小 tom
 
 | 层次 | 结果 | 证据 |
 | --- | --- | --- |
-| Python 后端/兼容回归 | **268 passed, 0 failed/errors/skipped**，退出 0，JUnit 34.904 秒 | [backend.xml](backend.xml)、[backend.log](backend.log)、[退出码](backend-result.json) |
-| 前端 jsdom / 导航 / 快捷键 / Markdown | **64 passed, 0 failed/errors/skipped**，6 files，退出 0 | [frontend.xml](frontend.xml)、[frontend.log](frontend.log)、[退出码](frontend-result.json) |
-| 生产构建 | tsc + Vite + 80 项压缩资源校验通过，退出 0 | [build.log](build.log)、[退出码](build-result.json) |
+| Python 后端/兼容回归 | **268 passed, 0 failed/errors/skipped**，退出 0，JUnit 34.904 秒 | [backend.xml](backend.xml)、[backend.log](backend.log.gz)、[退出码](backend-result.json) |
+| 前端 jsdom / 导航 / 快捷键 / Markdown | **64 passed, 0 failed/errors/skipped**，6 files，退出 0 | [frontend.xml](frontend.xml.gz)、[frontend.log](frontend.log.gz)、[退出码](frontend-result.json) |
+| 生产构建 | tsc + Vite + 80 项压缩资源校验通过，退出 0 | [build.log](build.log.gz)、[退出码](build-result.json) |
 | 静态 | compileall、Draft202012 check_schema、diff --check、源码无未提交变化，4 项退出 0 | [static.json](static.json) |
 | 真实 HTTP / stdio MCP / Chromium | 计入上方 Python 回归；完整 lifespan，桌面与 390×844 viewport，0 page errors | [browser.json](browser.json)、[实例与根目录](interaction-evidence.json)、[清理](cleanup.json) |
 
@@ -62,3 +62,5 @@ rejection outbox 与现有 Queue 不承诺跨文件事务；claim/原 ID/持久�
 最终回归保留既有 Pydantic/Starlette/httpx deprecation 警告、scheduler/api.py:259 未 await broadcast 警告（在 independent Job bridge 用例），前端测试存在既有 No routes matched 提示，构建保留路由 chunk 与 >500 kB chunk 提示；不把这些报告为已修复，不扩张到其他 TA 的 Job 业务。
 
 中间执行曾有路径/命令配置错误及严格 TypeScript 夹具错误，已修正后重跑上述最终固定源码命令；没有把中间失败当作最终通过，也没有跳过失败用例。
+
+原始日志与前端 JUnit 含工具输出的尾随空格，使用 gzip 按原字节保存（解压后逐字节相等），未编辑输出或断言；本地原文件仍保留。最终候选完整 diff --check 退出 0。
