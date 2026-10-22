@@ -1,0 +1,2842 @@
+{
+  "port": 53220,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile",
+  "processes": [
+    {
+      "pid": 38048,
+      "created": 1792641425.310106,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 37472,
+      "created": 1792641425.3189013,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10864,
+      "created": 1792641425.3333218,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42984,
+      "created": 1792641426.5234656,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 38148,
+      "created": 1792641426.6502235,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 31544,
+      "created": 1792641428.071541,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 2348,
+      "created": 1792641428.0895708,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 23932,
+      "created": 1792641428.0936184,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 48056,
+      "created": 1792641428.1115963,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 48924,
+      "created": 1792641428.0772235,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 42716,
+      "created": 1792641428.090629,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 32272,
+      "created": 1792641426.6547673,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37528,
+      "created": 1792641426.6677651,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 5644,
+      "created": 1792641426.737219,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 35472,
+      "created": 1792641426.7580853,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 16652,
+      "created": 1792641426.5320673,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 3860,
+      "created": 1792641426.546424,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 38048,
+      "created": 1792641425.310106,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 37472,
+      "created": 1792641425.3189013,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10864,
+      "created": 1792641425.3333218,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42984,
+      "created": 1792641426.5234656,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 38148,
+      "created": 1792641426.6502235,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 48380,
+      "created": 1792641429.790336,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 37852,
+      "created": 1792641429.7958558,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 32272,
+      "created": 1792641426.6547673,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37528,
+      "created": 1792641426.6677651,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 5644,
+      "created": 1792641426.737219,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 35472,
+      "created": 1792641426.7580853,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 16652,
+      "created": 1792641426.5320673,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 3860,
+      "created": 1792641426.546424,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 44732,
+      "created": 1792641445.216067,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42968,
+      "created": 1792641445.222019,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39744,
+      "created": 1792641445.2345877,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 35172,
+      "created": 1792641445.9740863,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 41236,
+      "created": 1792641445.981858,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 38256,
+      "created": 1792641445.9974234,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 37872,
+      "created": 1792641446.0639894,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47236,
+      "created": 1792641446.0840745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 44732,
+      "created": 1792641445.216067,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42968,
+      "created": 1792641445.222019,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39744,
+      "created": 1792641445.2345877,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "53220",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 35172,
+      "created": 1792641445.9740863,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 41236,
+      "created": 1792641445.981858,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 38256,
+      "created": 1792641445.9974234,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 37872,
+      "created": 1792641446.0639894,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 47236,
+      "created": 1792641446.0840745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    }
+  ],
+  "held": {
+    "revision": 22,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-22T03:57:06.612292+00:00",
+        "updatedAt": "2026-10-22T03:57:06.612297+00:00"
+      }
+    },
+    "runs": {
+      "run_92be846fb0144bc094df17366b39749e": {
+        "id": "run_92be846fb0144bc094df17366b39749e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.849000+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.860004+00:00",
+        "status": "running",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_5607012e47a243f5bce9a4534a363690",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.870083+00:00",
+            "finishedAt": "2026-10-22T03:57:07.051639+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_0fdd7ef3d6ab446492b348a21018afc6",
+            "number": 2,
+            "status": "running",
+            "startedAt": "2026-10-22T03:57:08.058785+00:00",
+            "reason": "automatic"
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.058785+00:00",
+        "activeAttemptId": "att_0fdd7ef3d6ab446492b348a21018afc6",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241"
+      },
+      "run_ff5298c0b38b400e81135c9353dfc3da": {
+        "id": "run_ff5298c0b38b400e81135c9353dfc3da",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.880142+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.895194+00:00",
+        "status": "running",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_8e8ee630bb3a479ca5226297e05bdb7d",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.904163+00:00",
+            "finishedAt": "2026-10-22T03:57:07.075782+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_12b6f21fd2504da5912ede8b48cecf43",
+            "number": 2,
+            "status": "running",
+            "startedAt": "2026-10-22T03:57:08.077411+00:00",
+            "reason": "automatic"
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.077411+00:00",
+        "activeAttemptId": "att_12b6f21fd2504da5912ede8b48cecf43",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241"
+      },
+      "run_f6ef093b9ace419782dd04045281651f": {
+        "id": "run_f6ef093b9ace419782dd04045281651f",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.906150+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.926428+00:00",
+        "status": "retry_wait",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "revision": 5,
+        "attempts": [
+          {
+            "id": "att_2dd6c23799c049e298f46ae2c4c7d5b5",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:07.055969+00:00",
+            "finishedAt": "2026-10-22T03:57:07.225597+00:00",
+            "error": "Command exited 7: "
+          }
+        ],
+        "attemptCount": 1,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:07.055969+00:00",
+        "activeAttemptId": "att_2dd6c23799c049e298f46ae2c4c7d5b5",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "error": "Command exited 7: ",
+        "finishedAt": "2026-10-22T03:57:07.225597+00:00",
+        "retryAuthorized": "automatic",
+        "nextAttemptAt": "2026-10-22T03:57:08.225621+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 3,
+        "bytes": 1644,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 3,
+        "bytes": 6441,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "succeeded": {
+    "revision": 28,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-22T03:57:06.612292+00:00",
+        "updatedAt": "2026-10-22T03:57:06.612297+00:00"
+      }
+    },
+    "runs": {
+      "run_92be846fb0144bc094df17366b39749e": {
+        "id": "run_92be846fb0144bc094df17366b39749e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.849000+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.860004+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_5607012e47a243f5bce9a4534a363690",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.870083+00:00",
+            "finishedAt": "2026-10-22T03:57:07.051639+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_0fdd7ef3d6ab446492b348a21018afc6",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.058785+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.237961+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.058785+00:00",
+        "activeAttemptId": "att_0fdd7ef3d6ab446492b348a21018afc6",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.237961+00:00"
+      },
+      "run_ff5298c0b38b400e81135c9353dfc3da": {
+        "id": "run_ff5298c0b38b400e81135c9353dfc3da",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.880142+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.895194+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_8e8ee630bb3a479ca5226297e05bdb7d",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.904163+00:00",
+            "finishedAt": "2026-10-22T03:57:07.075782+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_12b6f21fd2504da5912ede8b48cecf43",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.077411+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.258145+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.077411+00:00",
+        "activeAttemptId": "att_12b6f21fd2504da5912ede8b48cecf43",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.258145+00:00"
+      },
+      "run_f6ef093b9ace419782dd04045281651f": {
+        "id": "run_f6ef093b9ace419782dd04045281651f",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.906150+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.926428+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_2dd6c23799c049e298f46ae2c4c7d5b5",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:07.055969+00:00",
+            "finishedAt": "2026-10-22T03:57:07.225597+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_8f880806db4541e1b80bf780d88fc2f9",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.243021+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.406476+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.243021+00:00",
+        "activeAttemptId": "att_8f880806db4541e1b80bf780d88fc2f9",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.406476+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 4,
+        "bytes": 1852,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 3,
+        "bytes": 7818,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "confirmed": {
+    "id": "run_d6f0ba200fdb40878b13bb36630a8050",
+    "triggerId": "t",
+    "triggerRevision": 1,
+    "actionId": "retry_command",
+    "event": {
+      "id": "retry-4",
+      "type": "producer.ping",
+      "schemaVersion": 1,
+      "source": {
+        "type": "plugin",
+        "id": "producer"
+      },
+      "occurredAt": "2026-10-22T03:57:08.554431+00:00",
+      "payload": {
+        "value": 4
+      }
+    },
+    "createdAt": "2026-10-22T03:57:08.575882+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {
+      "key": 4
+    },
+    "state": {},
+    "revision": 12,
+    "attempts": [
+      {
+        "id": "att_cb70b8c55fa24099b3b5a34f0080a067",
+        "number": 1,
+        "status": "failed",
+        "startedAt": "2026-10-22T03:57:08.595419+00:00",
+        "finishedAt": "2026-10-22T03:57:08.766795+00:00",
+        "error": "Command exited 7: "
+      },
+      {
+        "id": "att_2982a38c8244495f9109a049b46c6017",
+        "number": 2,
+        "status": "uncertain",
+        "startedAt": "2026-10-22T03:57:09.772696+00:00",
+        "reason": "automatic",
+        "finishedAt": "2026-10-22T03:57:25.962194+00:00",
+        "error": "Service interrupted; no automatic replay"
+      },
+      {
+        "id": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+        "number": 3,
+        "status": "succeeded",
+        "startedAt": "2026-10-22T03:57:29.065231+00:00",
+        "reason": "user-confirmed",
+        "finishedAt": "2026-10-22T03:57:29.243784+00:00",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false
+        }
+      }
+    ],
+    "attemptCount": 3,
+    "retryPolicy": {
+      "enabled": true,
+      "maxAttempts": 3
+    },
+    "startedAt": "2026-10-22T03:57:29.065231+00:00",
+    "activeAttemptId": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+    "retryEligible": true,
+    "action": {
+      "id": "retry_command",
+      "name": "Owned idempotent retry fixture",
+      "enabled": true,
+      "idempotent": true,
+      "effect": "write_local",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "kind": "command",
+        "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "args": [
+          "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+          "{key}"
+        ],
+        "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+        "timeout_sec": 30
+      },
+      "description": "Owned idempotent retry fixture",
+      "output_format": "json"
+    },
+    "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+        }
+      ],
+      "structuredContent": {
+        "ok": true,
+        "key": "4",
+        "attempt": 3
+      },
+      "isError": false
+    },
+    "finishedAt": "2026-10-22T03:57:29.243784+00:00"
+  },
+  "trace": [
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 1,
+      "pid": 46848,
+      "at": 1792641427.0349457
+    },
+    {
+      "kind": "failed",
+      "key": "1",
+      "attempt": 1,
+      "pid": 46848,
+      "at": 1792641427.0356302
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 1,
+      "pid": 35112,
+      "at": 1792641427.0585506
+    },
+    {
+      "kind": "failed",
+      "key": "2",
+      "attempt": 1,
+      "pid": 35112,
+      "at": 1792641427.0589898
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 1,
+      "pid": 38572,
+      "at": 1792641427.2101805
+    },
+    {
+      "kind": "failed",
+      "key": "3",
+      "attempt": 1,
+      "pid": 38572,
+      "at": 1792641427.2104654
+    },
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 2,
+      "pid": 36792,
+      "at": 1792641428.2221987
+    },
+    {
+      "kind": "succeeded",
+      "key": "1",
+      "attempt": 2,
+      "pid": 36792,
+      "at": 1792641428.222541
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 2,
+      "pid": 42200,
+      "at": 1792641428.240395
+    },
+    {
+      "kind": "succeeded",
+      "key": "2",
+      "attempt": 2,
+      "pid": 42200,
+      "at": 1792641428.2407444
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 2,
+      "pid": 40984,
+      "at": 1792641428.391068
+    },
+    {
+      "kind": "succeeded",
+      "key": "3",
+      "attempt": 2,
+      "pid": 40984,
+      "at": 1792641428.3914099
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 1,
+      "pid": 48044,
+      "at": 1792641428.7514348
+    },
+    {
+      "kind": "failed",
+      "key": "4",
+      "attempt": 1,
+      "pid": 48044,
+      "at": 1792641428.751744
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 2,
+      "pid": 13780,
+      "at": 1792641429.9345806
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 3,
+      "pid": 23224,
+      "at": 1792641449.2282047
+    },
+    {
+      "kind": "succeeded",
+      "key": "4",
+      "attempt": 3,
+      "pid": 23224,
+      "at": 1792641449.2285273
+    }
+  ],
+  "final": {
+    "revision": 41,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-22T03:57:06.612292+00:00",
+        "updatedAt": "2026-10-22T03:57:06.612297+00:00"
+      }
+    },
+    "runs": {
+      "run_92be846fb0144bc094df17366b39749e": {
+        "id": "run_92be846fb0144bc094df17366b39749e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.849000+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.860004+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_5607012e47a243f5bce9a4534a363690",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.870083+00:00",
+            "finishedAt": "2026-10-22T03:57:07.051639+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_0fdd7ef3d6ab446492b348a21018afc6",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.058785+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.237961+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.058785+00:00",
+        "activeAttemptId": "att_0fdd7ef3d6ab446492b348a21018afc6",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.237961+00:00"
+      },
+      "run_ff5298c0b38b400e81135c9353dfc3da": {
+        "id": "run_ff5298c0b38b400e81135c9353dfc3da",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.880142+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.895194+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_8e8ee630bb3a479ca5226297e05bdb7d",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.904163+00:00",
+            "finishedAt": "2026-10-22T03:57:07.075782+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_12b6f21fd2504da5912ede8b48cecf43",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.077411+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.258145+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.077411+00:00",
+        "activeAttemptId": "att_12b6f21fd2504da5912ede8b48cecf43",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.258145+00:00"
+      },
+      "run_f6ef093b9ace419782dd04045281651f": {
+        "id": "run_f6ef093b9ace419782dd04045281651f",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.906150+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.926428+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_2dd6c23799c049e298f46ae2c4c7d5b5",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:07.055969+00:00",
+            "finishedAt": "2026-10-22T03:57:07.225597+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_8f880806db4541e1b80bf780d88fc2f9",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.243021+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.406476+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.243021+00:00",
+        "activeAttemptId": "att_8f880806db4541e1b80bf780d88fc2f9",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.406476+00:00"
+      },
+      "run_d6f0ba200fdb40878b13bb36630a8050": {
+        "id": "run_d6f0ba200fdb40878b13bb36630a8050",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-4",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:08.554431+00:00",
+          "payload": {
+            "value": 4
+          }
+        },
+        "createdAt": "2026-10-22T03:57:08.575882+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 4
+        },
+        "state": {},
+        "revision": 12,
+        "attempts": [
+          {
+            "id": "att_cb70b8c55fa24099b3b5a34f0080a067",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:08.595419+00:00",
+            "finishedAt": "2026-10-22T03:57:08.766795+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_2982a38c8244495f9109a049b46c6017",
+            "number": 2,
+            "status": "uncertain",
+            "startedAt": "2026-10-22T03:57:09.772696+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:25.962194+00:00",
+            "error": "Service interrupted; no automatic replay"
+          },
+          {
+            "id": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+            "number": 3,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:29.065231+00:00",
+            "reason": "user-confirmed",
+            "finishedAt": "2026-10-22T03:57:29.243784+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "4",
+                "attempt": 3
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 3,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:29.065231+00:00",
+        "activeAttemptId": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:29.243784+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 5,
+        "bytes": 2400,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 4,
+        "bytes": 10537,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "lastView": {
+    "revision": 41,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-22T03:57:06.612292+00:00",
+        "updatedAt": "2026-10-22T03:57:06.612297+00:00"
+      }
+    },
+    "runs": {
+      "run_92be846fb0144bc094df17366b39749e": {
+        "id": "run_92be846fb0144bc094df17366b39749e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.849000+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.860004+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_5607012e47a243f5bce9a4534a363690",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.870083+00:00",
+            "finishedAt": "2026-10-22T03:57:07.051639+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_0fdd7ef3d6ab446492b348a21018afc6",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.058785+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.237961+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.058785+00:00",
+        "activeAttemptId": "att_0fdd7ef3d6ab446492b348a21018afc6",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.237961+00:00"
+      },
+      "run_ff5298c0b38b400e81135c9353dfc3da": {
+        "id": "run_ff5298c0b38b400e81135c9353dfc3da",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.880142+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.895194+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_8e8ee630bb3a479ca5226297e05bdb7d",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:06.904163+00:00",
+            "finishedAt": "2026-10-22T03:57:07.075782+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_12b6f21fd2504da5912ede8b48cecf43",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.077411+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.258145+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.077411+00:00",
+        "activeAttemptId": "att_12b6f21fd2504da5912ede8b48cecf43",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.258145+00:00"
+      },
+      "run_f6ef093b9ace419782dd04045281651f": {
+        "id": "run_f6ef093b9ace419782dd04045281651f",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:06.906150+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-22T03:57:06.926428+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_2dd6c23799c049e298f46ae2c4c7d5b5",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:07.055969+00:00",
+            "finishedAt": "2026-10-22T03:57:07.225597+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_8f880806db4541e1b80bf780d88fc2f9",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:08.243021+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:08.406476+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:08.243021+00:00",
+        "activeAttemptId": "att_8f880806db4541e1b80bf780d88fc2f9",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:08.406476+00:00"
+      },
+      "run_d6f0ba200fdb40878b13bb36630a8050": {
+        "id": "run_d6f0ba200fdb40878b13bb36630a8050",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-4",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-22T03:57:08.554431+00:00",
+          "payload": {
+            "value": 4
+          }
+        },
+        "createdAt": "2026-10-22T03:57:08.575882+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 4
+        },
+        "state": {},
+        "revision": 12,
+        "attempts": [
+          {
+            "id": "att_cb70b8c55fa24099b3b5a34f0080a067",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-22T03:57:08.595419+00:00",
+            "finishedAt": "2026-10-22T03:57:08.766795+00:00",
+            "error": "Command exited 7: "
+          },
+          {
+            "id": "att_2982a38c8244495f9109a049b46c6017",
+            "number": 2,
+            "status": "uncertain",
+            "startedAt": "2026-10-22T03:57:09.772696+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-22T03:57:25.962194+00:00",
+            "error": "Service interrupted; no automatic replay"
+          },
+          {
+            "id": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+            "number": 3,
+            "status": "succeeded",
+            "startedAt": "2026-10-22T03:57:29.065231+00:00",
+            "reason": "user-confirmed",
+            "finishedAt": "2026-10-22T03:57:29.243784+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "4",
+                "attempt": 3
+              },
+              "isError": false
+            }
+          }
+        ],
+        "attemptCount": 3,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-22T03:57:29.065231+00:00",
+        "activeAttemptId": "att_c0f61070558b4e4a9f9d3a5e6756e93a",
+        "retryEligible": true,
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3602\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "output_format": "json"
+        },
+        "actionDigest": "9379c7dabac9ee1d066cafbaeca4efeda809f363f45c50a90e4e8077c6c30241",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false
+        },
+        "finishedAt": "2026-10-22T03:57:29.243784+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 5,
+        "bytes": 2400,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 4,
+        "bytes": 10537,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "traceAtCleanup": [
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 1,
+      "pid": 46848,
+      "at": 1792641427.0349457
+    },
+    {
+      "kind": "failed",
+      "key": "1",
+      "attempt": 1,
+      "pid": 46848,
+      "at": 1792641427.0356302
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 1,
+      "pid": 35112,
+      "at": 1792641427.0585506
+    },
+    {
+      "kind": "failed",
+      "key": "2",
+      "attempt": 1,
+      "pid": 35112,
+      "at": 1792641427.0589898
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 1,
+      "pid": 38572,
+      "at": 1792641427.2101805
+    },
+    {
+      "kind": "failed",
+      "key": "3",
+      "attempt": 1,
+      "pid": 38572,
+      "at": 1792641427.2104654
+    },
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 2,
+      "pid": 36792,
+      "at": 1792641428.2221987
+    },
+    {
+      "kind": "succeeded",
+      "key": "1",
+      "attempt": 2,
+      "pid": 36792,
+      "at": 1792641428.222541
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 2,
+      "pid": 42200,
+      "at": 1792641428.240395
+    },
+    {
+      "kind": "succeeded",
+      "key": "2",
+      "attempt": 2,
+      "pid": 42200,
+      "at": 1792641428.2407444
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 2,
+      "pid": 40984,
+      "at": 1792641428.391068
+    },
+    {
+      "kind": "succeeded",
+      "key": "3",
+      "attempt": 2,
+      "pid": 40984,
+      "at": 1792641428.3914099
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 1,
+      "pid": 48044,
+      "at": 1792641428.7514348
+    },
+    {
+      "kind": "failed",
+      "key": "4",
+      "attempt": 1,
+      "pid": 48044,
+      "at": 1792641428.751744
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 2,
+      "pid": 13780,
+      "at": 1792641429.9345806
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 3,
+      "pid": 23224,
+      "at": 1792641449.2282047
+    },
+    {
+      "kind": "succeeded",
+      "key": "4",
+      "attempt": 3,
+      "pid": 23224,
+      "at": 1792641449.2285273
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

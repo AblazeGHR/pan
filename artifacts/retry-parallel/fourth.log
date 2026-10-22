@@ -1,0 +1,59 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+.........................F..................                             [100%]
+================================== FAILURES ===================================
+____________ test_parallel_bounded_independent_and_live_reduction _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3599/test_parallel_bounded_independ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001ECC9ED2EB0>
+
+    @async_test
+    async def test_parallel_bounded_independent_and_live_reduction(tmp_path,monkeypatch):
+        entered=asyncio.Queue();release={};active=set();maximum=0
+        async def execute(a,args,e,progress):
+            nonlocal maximum
+            key=(a['id'],e['id']);active.add(key);maximum=max(maximum,sum(k[0]=='pause' for k in active))
+            release[key]=asyncio.Event();await entered.put(key)
+            try:
+                await release[key].wait();return {'ok':True}
+            finally:active.remove(key)
+        engine,_,_=await setup(tmp_path,execute)
+        snapshot,release_snapshot=asyncio.Event(),asyncio.Event()
+        original=engine.io
+        async def io(fn,*args,**kw):
+            result=await original(fn,*args,**kw)
+            if (fn==engine.ledger.read and asyncio.current_task() is engine.tasks.get('t')
+                    and not snapshot.is_set() and any(r['status']=='succeeded' for r in result['runs'].values())):
+                snapshot.set();await release_snapshot.wait()
+            return result
+        monkeypatch.setattr(engine,'io',io)
+        engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=2),0,True)
+        try:
+            for i in range(4):await engine.match(event(str(i)))
+            first=[await asyncio.wait_for(entered.get(),2) for _ in range(2)]
+            assert maximum==2 and len(active)==2
+            engine.actions.put('actions',{**action(),'id':'other'})
+            engine.ledger.put({**trigger('other'),'actionId':'other'},0,True)
+            await engine.match(event('independent'))
+            independent=await asyncio.wait_for(entered.get(),2)
+            assert independent==('other','independent') and len(active)==3
+            with pytest.raises(Conflict,match='Running Run count'):
+                engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=1),1,True)
+            release[first[0]].set()
+            await asyncio.wait_for(snapshot.wait(),2)
+            # Keep the second slot occupied until the confirmed reduction commits.
+            engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=1),1,True)
+            await engine.kick()
+            release_snapshot.set()
+            assert entered.empty() and len([k for k in active if k[0]=='pause'])==1
+            release[first[1]].set()
+            successor=await asyncio.wait_for(entered.get(),2)
+>           assert successor==('pause','2') and maximum==2
+E           AssertionError: assert (('pause', '3') == ('pause', '2')
+E
+E             At index 1 diff: '3' != '2'
+E             Use -v to get more diff)
+
+tests\test_automation_retry_parallel.py:125: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_automation_retry_parallel.py::test_parallel_bounded_independent_and_live_reduction
+1 failed, 43 passed in 27.25s

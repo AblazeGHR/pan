@@ -1,0 +1,373 @@
+{
+  "revision": 31,
+  "triggers": {
+    "t": {
+      "id": "t",
+      "name": "t",
+      "eventTypes": [
+        "workers.all_idle"
+      ],
+      "actionId": "pause",
+      "arguments": {},
+      "enabled": true,
+      "executionMode": "parallel",
+      "maxConcurrency": 1,
+      "retry": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "revision": 2,
+      "createdBy": {
+        "type": "agent"
+      },
+      "createdAt": "2026-10-22T03:47:17.314815+00:00",
+      "updatedAt": "2026-10-22T03:47:17.407607+00:00"
+    },
+    "other": {
+      "id": "other",
+      "name": "other",
+      "eventTypes": [
+        "workers.all_idle"
+      ],
+      "actionId": "other",
+      "arguments": {},
+      "enabled": true,
+      "maxConcurrency": 1,
+      "executionMode": "serial",
+      "retry": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "revision": 1,
+      "createdBy": {
+        "type": "agent"
+      },
+      "createdAt": "2026-10-22T03:47:17.376963+00:00",
+      "updatedAt": "2026-10-22T03:47:17.376967+00:00"
+    }
+  },
+  "runs": {
+    "run_ffa3bd5957b446ceb1fb65c9ba1faaaa": {
+      "id": "run_ffa3bd5957b446ceb1fb65c9ba1faaaa",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "0",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.321368+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 5,
+      "attempts": [
+        {
+          "id": "att_15bd081023034ad493547a156a8907d8",
+          "number": 1,
+          "status": "succeeded",
+          "startedAt": "2026-10-22T03:47:17.334291+00:00",
+          "finishedAt": "2026-10-22T03:47:17.402903+00:00",
+          "result": {
+            "ok": true
+          }
+        }
+      ],
+      "attemptCount": 1,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "startedAt": "2026-10-22T03:47:17.334291+00:00",
+      "activeAttemptId": "att_15bd081023034ad493547a156a8907d8",
+      "retryEligible": false,
+      "action": {
+        "id": "pause",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "idempotent": false,
+        "output_format": "json"
+      },
+      "actionDigest": "99c19216d4586a365a5e4e29676a2cb1baf2c27fa74bb12eb42f3bc41d9eb3bf",
+      "result": {
+        "ok": true
+      },
+      "finishedAt": "2026-10-22T03:47:17.402903+00:00"
+    },
+    "run_9629a82c7891449c8d5cb1ae172a909e": {
+      "id": "run_9629a82c7891449c8d5cb1ae172a909e",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "1",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.329789+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 5,
+      "attempts": [
+        {
+          "id": "att_51f6f39730424085b60665128f1f0d24",
+          "number": 1,
+          "status": "succeeded",
+          "startedAt": "2026-10-22T03:47:17.351283+00:00",
+          "finishedAt": "2026-10-22T03:47:17.417200+00:00",
+          "result": {
+            "ok": true
+          }
+        }
+      ],
+      "attemptCount": 1,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "startedAt": "2026-10-22T03:47:17.351283+00:00",
+      "activeAttemptId": "att_51f6f39730424085b60665128f1f0d24",
+      "retryEligible": false,
+      "action": {
+        "id": "pause",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "idempotent": false,
+        "output_format": "json"
+      },
+      "actionDigest": "99c19216d4586a365a5e4e29676a2cb1baf2c27fa74bb12eb42f3bc41d9eb3bf",
+      "result": {
+        "ok": true
+      },
+      "finishedAt": "2026-10-22T03:47:17.417200+00:00"
+    },
+    "run_5aa4adb049eb4ac9beedd4442ba11c3f": {
+      "id": "run_5aa4adb049eb4ac9beedd4442ba11c3f",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "2",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.346716+00:00",
+      "status": "queued",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 3,
+      "attempts": [],
+      "attemptCount": 0,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      }
+    },
+    "run_a7549822cc634252be042af37acac144": {
+      "id": "run_a7549822cc634252be042af37acac144",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "3",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.363802+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 5,
+      "attempts": [
+        {
+          "id": "att_a603403c2d154a9687ca19af95e523b1",
+          "number": 1,
+          "status": "succeeded",
+          "startedAt": "2026-10-22T03:47:17.421535+00:00",
+          "finishedAt": "2026-10-22T03:47:17.434007+00:00",
+          "result": {
+            "ok": true
+          }
+        }
+      ],
+      "attemptCount": 1,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "startedAt": "2026-10-22T03:47:17.421535+00:00",
+      "activeAttemptId": "att_a603403c2d154a9687ca19af95e523b1",
+      "retryEligible": false,
+      "action": {
+        "id": "pause",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "idempotent": false,
+        "output_format": "json"
+      },
+      "actionDigest": "99c19216d4586a365a5e4e29676a2cb1baf2c27fa74bb12eb42f3bc41d9eb3bf",
+      "result": {
+        "ok": true
+      },
+      "finishedAt": "2026-10-22T03:47:17.434007+00:00"
+    },
+    "run_df558faf17724d20b2ca7ff8f1d31ef8": {
+      "id": "run_df558faf17724d20b2ca7ff8f1d31ef8",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "independent",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.381364+00:00",
+      "status": "queued",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 3,
+      "attempts": [],
+      "attemptCount": 0,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      }
+    },
+    "run_97be0819bedb43118f1e61c53b556e19": {
+      "id": "run_97be0819bedb43118f1e61c53b556e19",
+      "triggerId": "other",
+      "triggerRevision": 1,
+      "actionId": "other",
+      "event": {
+        "id": "independent",
+        "type": "workers.all_idle",
+        "payload": {
+          "runningCount": 0
+        }
+      },
+      "createdAt": "2026-10-22T03:47:17.384967+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 5,
+      "attempts": [
+        {
+          "id": "att_9257aa2e60d84063be1f315a6c3c21e2",
+          "number": 1,
+          "status": "succeeded",
+          "startedAt": "2026-10-22T03:47:17.394169+00:00",
+          "finishedAt": "2026-10-22T03:47:17.430565+00:00",
+          "result": {
+            "ok": true
+          }
+        }
+      ],
+      "attemptCount": 1,
+      "retryPolicy": {
+        "enabled": false,
+        "maxAttempts": 3
+      },
+      "startedAt": "2026-10-22T03:47:17.394169+00:00",
+      "activeAttemptId": "att_9257aa2e60d84063be1f315a6c3c21e2",
+      "retryEligible": false,
+      "action": {
+        "id": "other",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "idempotent": false,
+        "output_format": "json"
+      },
+      "actionDigest": "b2ec8ceb69d43b7763a8385c07403479f6057285a22f75a467c6c7e59c092cc9",
+      "result": {
+        "ok": true
+      },
+      "finishedAt": "2026-10-22T03:47:17.430565+00:00"
+    }
+  }
+}

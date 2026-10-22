@@ -1,0 +1,29 @@
+{
+  "sourceSHA": "1fc9ddc85560d6d60208e956efef0fc2054cbac5",
+  "checks": [
+    {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/automation",
+        "packages/actions",
+        "tests/test_automation_retry_parallel.py",
+        "tests/test_automation_retry_http.py",
+        "tests/support/retry_action.py"
+      ],
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "output": "warning: in the working copy of 'artifacts/event-plugin-adapter/gateway-transport.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'artifacts/event-plugin-adapter/pan_native-transport.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'artifacts/event-plugin-adapter/standalone-transport.json', LF will be replaced by CRLF the next time Git touches it\n"
+    }
+  ]
+}
