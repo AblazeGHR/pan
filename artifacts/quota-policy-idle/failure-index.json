@@ -1,0 +1,42 @@
+{
+  "originalReproduction": {
+    "sourceSha": "b1f1100b5fc6df0e46bbd60f43cc6bc3b5ba2490",
+    "sourceChanges": "only added normal restart-to-idle regression test",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_quota_policy_idle.py",
+      "-q",
+      "--junitxml=artifacts/quota-policy-idle/before-fix.xml"
+    ],
+    "exitCode": 1,
+    "tests": 1,
+    "failures": 1,
+    "reason": "confirmed restart produced live idle successor with unchanged unfinished task; no continue message planned"
+  },
+  "oldContractAssertions": {
+    "junit": "first-fix.xml",
+    "exitCode": 1,
+    "tests": 85,
+    "failures": 2,
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_quota_policy_idle.py",
+      "tests/test_quota_policy.py",
+      "tests/test_quota_policy_safety.py",
+      "-q",
+      "--junitxml=artifacts/quota-policy-idle/first-fix.xml"
+    ],
+    "reason": "two previous idle-must-reject assertions conflict with MA revised contract; same test IDs retained, changed only receipted idle expectations to exactly one success; other negatives retained"
+  },
+  "final": "verification.json"
+}
