@@ -50,10 +50,10 @@ exit 0; it uses only its owned HTTP process and deterministic fake CLI.
 
 Additional checks:
 
-- `python -m compileall -q packages/actions/store.py packages/jobs/action_templates.py packages/jobs/action_runtime.py packages/jobs/action_api.py packages/jobs/api.py packages/jobs/unified.py tests/test_job_unified_contract.py` â€” exit 0.
-- `pnpm --dir packages/web exec tsc -b` â€” exit 0.
-- `pnpm --dir packages/web build` â€” exit 0; Vite built and verified 80 compressed assets.
-- `git diff --check` â€” exit 0 before commit.
+- `python -m compileall -q packages/actions/store.py packages/jobs/action_templates.py packages/jobs/action_runtime.py packages/jobs/action_api.py packages/jobs/api.py packages/jobs/unified.py tests/test_job_unified_contract.py` ¡ª exit 0.
+- `pnpm --dir packages/web exec tsc -b` ¡ª exit 0.
+- `pnpm --dir packages/web build` ¡ª exit 0; Vite built and verified 80 compressed assets.
+- `git diff --check` ¡ª exit 0 before commit.
 
 The new deterministic contract tests cover policy defaults/invalid combinations,
 structured query, Run/Attempt audit, terminal snapshot cleanup, monitoring no-
