@@ -1,0 +1,140 @@
+{
+  "sourceSha": "ac21e53b30a60b25865a5b8892fecc9bfd3bf93d",
+  "branch": "feature/event-trigger-core-20261022",
+  "python": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "cwd": "D:\\project\\pan-worktrees\\event-trigger-core-20261022",
+  "checks": [
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "5f44bbf5",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "seconds": 0.054
+    },
+    {
+      "name": "export-regressions",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_provider_launch_export.py",
+        "-q",
+        "--junitxml=artifacts/provider-export/export-regressions.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 22.398,
+      "counts": {
+        "tests": 40,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "real-installed",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_provider_launch_export_real_codex.py",
+        "-q",
+        "--junitxml=artifacts/provider-export/real-installed.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 3.281,
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "launch-regressions",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_provider_launch_native_compat.py",
+        "tests/test_provider_launch.py",
+        "-q",
+        "--junitxml=artifacts/provider-export/launch-regressions.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 19.023,
+      "counts": {
+        "tests": 44,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "bridge-compat",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_provider_source.py",
+        "tests/test_plugin_panels.py::test_cli_availability_codes_are_stable_and_do_not_hide_success",
+        "tests/test_plugin_panels.py::test_cli_errors_and_quota_normalization_do_not_expose_credentials",
+        "-q",
+        "--junitxml=artifacts/provider-export/bridge-compat.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 1.569,
+      "counts": {
+        "tests": 41,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "compile",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/cc_switch_bridge/launch_export.py",
+        "packages/cc_switch_bridge/provider.py",
+        "packages/core/worker.py",
+        "packages/core/adapters/codex/provider_launch.py",
+        "packages/core/adapters/codex/app_server_wrapper.py",
+        "tests/test_provider_launch_export.py",
+        "tests/support/private_export_owner.py",
+        "tests/test_provider_launch_export_real_codex.py",
+        "scripts/verify_provider_export.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.08
+    }
+  ],
+  "realAccountCalls": 0,
+  "paidModelCalls": 0,
+  "existingServiceOperations": 0,
+  "encoding": {
+    "utf8Mode": 0,
+    "localeEncoding": "cp936",
+    "PYTHONUTF8": null,
+    "PYTHONIOENCODING": null
+  }
+}
