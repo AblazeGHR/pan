@@ -1,0 +1,7 @@
+{
+  "exitCode": 0,
+  "interpreter": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "sourceSha": "f2048c781f91583e2c30af11e57548fc78de2e60",
+  "command": "python -m pytest tests/test_interaction_cards.py tests/test_interaction_card_api.py tests/test_interaction_card_http.py tests/test_agent_inbox.py tests/test_agent_inbox_http.py packages/qq/test_qq_api.py packages/qq/test_channels.py tests/test_data_catalog.py tests/test_session_queue_api.py tests/test_illegal_queue_wake.py tests/test_jobs_api.py tests/test_independent_job_bridge.py -q --junitxml=evidence/user-inbox-interaction-contract-20261023/final-verified.xml",
+  "observedAt": "2026-10-23T02:04:26.5152682+08:00"
+}
