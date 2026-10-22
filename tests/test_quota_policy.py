@@ -14,30 +14,38 @@ from tests.test_automation_core import async_test
 
 class Fake(Adapter):
     def __init__(self,now):
-        self.now=now;self.effects=[];self.fail=False;self.unknown=False
+        self.now=now;self.effects=[];self.fail=False;self.unknown=False;self.currentAccountId="a";self.runtimeEpoch="owned-epoch"
         self.accounts=[self.row('a',10,500),self.row('b',30,100),self.row('c',20,100)]
         self.workers=[{'sessionId':'ta','workerId':'w','generation':2,'role':'ta','status':'running','adapter':'codex'},
                       {'sessionId':'idle','workerId':'wi','generation':1,'role':'ta','status':'idle','adapter':'codex'},
                       {'sessionId':'ma','workerId':'wm','generation':4,'role':'ma','status':'running','adapter':'codex'},
                       {'sessionId':'cbc','workerId':'wc','generation':1,'role':'ta','status':'running','adapter':'cbc'}]
-        for w in self.workers:
-            if w['adapter']=='codex':w['accountId']='a'
+        for index,w in enumerate(self.workers):
+            w.update(accountId='a',alive=True,processIdentity={'pid':100+index,'birthToken':'birth-'+str(index)},
+                     task={'taskId':'task-'+w['sessionId'],'executionSeq':1,'state':'unfinished'} if w['status']=='running' else None)
     def row(self,aid,used,week):
         return {'id':aid,'fiveHour':{'usedPercent':used,'resetsAt':self.now+200},
                 'week':{'usedPercent':used,'resetsAt':self.now+week}}
     async def query(self):
         if self.fail:raise ValueError('secret upstream error')
-        return {'status':'known','observedAt':self.now,'currentAccountId':'a','accounts':copy.deepcopy(self.accounts),'credential':'must not persist'}
-    async def inventory(self):return {'currentAccountId':'a','workers':copy.deepcopy(self.workers)}
+        return {'status':'known','observedAt':self.now,'currentAccountId':self.currentAccountId,'accounts':copy.deepcopy(self.accounts),'credential':'must not persist'}
+    async def inventory(self):return {'runtimeEpoch':self.runtimeEpoch,'observedAt':self.now,'currentAccountId':self.currentAccountId,'workers':copy.deepcopy(self.workers)}
     async def perform(self,command,key):
         self.effects.append(command)
         if self.unknown:return {'key':key,'status':'unknown'}
-        return {'key':key,'status':'confirmed','jobId':'owned-ma-wake'}
+        args=command['arguments'];receipt={'key':key,'status':'confirmed','jobId':'owned-ma-wake'}
+        if command['operation']=='switch_account':self.currentAccountId=args['targetAccountId']
+        if command['operation'] in ('restart_worker','restart_ma'):
+            target=args['worker'];w=next(w for w in self.workers if w['sessionId']==target['sessionId'])
+            w['generation']+=1;w['accountId']=args['expectedAccountId']
+            w['processIdentity']={'pid':w['processIdentity']['pid']+1000,'birthToken':w['processIdentity']['birthToken']+'-next'}
+            receipt['successor']={**copy.deepcopy(w),'runtimeEpoch':self.runtimeEpoch}
+        return receipt
 
 
 def issue(kind='codex_capacity',seq=1,session='ta',worker='w',generation=2):
     return {'issueId':'i'+str(seq),'classification':kind,'confidence':'structured',
-            'correlation':{'sessionId':session,'workerId':worker,'generation':generation,'taskSeq':seq}}
+            'correlation':{'runtimeEpoch':'owned-epoch','sessionId':session,'workerId':worker,'generation':generation,'taskSeq':seq}}
 
 
 async def setup(tmp_path):
@@ -145,7 +153,7 @@ async def test_cbc_keeps_session_and_does_not_query_accounts(tmp_path):
     result=await rt.consume(issue('cbc_rate_limited',session='cbc',worker='wc',generation=1))
     assert result['status']=='planned'
     await rt.dispatch();assert f.effects[0]['operation']=='cbc_next_model'
-    assert f.effects[0]['arguments']['sessionId']=='cbc'
+    assert f.effects[0]['arguments']['worker']['sessionId']=='cbc'
 
 
 @async_test
@@ -221,7 +229,7 @@ async def test_new_capacity_during_handover_blocks_ma_steps_and_restart_dedup(tm
     rt,f=await setup(tmp_path)
     await rt.consume(issue('codex_quota_exhausted'));await rt.dispatch()
     await rt.dispatch();await rt.progress_restarts()
-    assert (await rt.consume(issue(seq=2)))['status']=='blocked'
+    assert (await rt.consume(issue(seq=2,generation=f.workers[0]['generation'])))['status']=='blocked'
     state=rt.store.read()
     assert any(c['status']=='blocked_handover_review' for c in state['cases'].values())
     assert any(c['operation']=='ma_resume_job' and c['status']=='blocked_new_capacity' for c in state['commands'].values())
@@ -260,7 +268,7 @@ async def test_logged_native_issue_enters_bounded_policy_observer(tmp_path):
     session_error_log.reset_state();session_error_log.configure(log)
     runtime_issues.set_observer(rt.observe)
     mapping=map_runtime_issue({'type':'error','error':{'codexErrorInfo':'usageLimitExceeded'}},
-                              adapter='codex',metadata={'sessionId':'ta','workerId':'w','generation':2,'taskSeq':1})
+                              adapter='codex',metadata={'runtimeEpoch':'owned-epoch','sessionId':'ta','workerId':'w','generation':2,'taskSeq':1})
     try:
         event_id=await session_error_log.record_session_error_async(kind='terminal_error',
              error_text='owned native sample',error_text_source='test',terminal=True,runtime_issue=mapping)

@@ -437,3 +437,16 @@ manual and the production adapter is unavailable. Unknown/stale account windows
 never trigger switching. No issue injection or arbitrary command endpoint exists.
 See `docs/design/quota-policy-v0.3.md` for the ledger/Job/receipt contract and
 remaining managed-account/provider integration boundary.
+### Quota policy safety revision
+
+`PUT /api/automation/quota-policy/disabled-accounts` requires user Bearer and exactly
+`{disabledAccountIds: string[], expectedRevision: integer}`. IDs are unique, <=128,
+nonempty <=256 chars; unknown account IDs may be disabled before inventory can see
+them. Invalid input400/auth401/stale409/persistence503. GET the existing policy
+endpoint for `disabledAccountIds` and `accountConfigRevision`; these are separate
+from capacity `excluded`. No reset/recovery can clear user-disabled accounts.
+Changed lists increment epoch and fence pending recovery commands/Jobs. Product
+defaults contain no user IDs. Adapter/Worker command contract is v2; missing owner,
+process birth or unfinished-task evidence blocks recovery rather than guessing.
+See [quota policy safety](../../../design/quota-policy-v0.3-safety.md) for the exact
+inventory/receipt contract and production wiring boundary.

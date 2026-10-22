@@ -44,9 +44,11 @@ def install(server):
     @router.get('/api/automation/schema')
     async def schema():
         return {'version': 1, 'scheduling': SCHEDULING_SCHEMA,
-                'quotaPolicy':{'version':1,'defaultMode':'manual','modes':['manual','automatic'],
+                'quotaPolicy':{'version':2,'defaultMode':'manual','modes':['manual','automatic'],
                                'queryJobKinds':['monitor95','once'],'maxAgeSeconds':300,
                                'thresholdPercent':95,'queryIntervalSeconds':60,
+                               'disabledAccountIds':{'type':'array','maxItems':128,'default':[]},
+                               'adapterContractVersion':2,'inventoryMaxAgeSeconds':5,
                                'defaultAdapter':'unavailable','unknownReplayed':False},
                 'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
                 'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
@@ -59,9 +61,24 @@ def install(server):
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
         state=await service().engine.io(policy.store.read)
         snapshot=normalize(state['quota'],policy.clock())
-        return {**state,'quota':snapshot,'rankedAccounts':rank(snapshot,state['excluded']),
+        return {**state,'quota':snapshot,'rankedAccounts':rank(snapshot,state['excluded'],state['disabledAccountIds']),
                 'adapter':'unavailable' if type(policy.adapter).__name__=='Adapter' else 'host-injected',
                 'diagnostics':policy.diagnostics}
+
+    @router.put('/api/automation/quota-policy/disabled-accounts')
+    async def quota_disabled_accounts(data:dict,request:Request):
+        await require(request)
+        if set(data)!={'disabledAccountIds','expectedRevision'}:
+            raise HTTPException(400,'Expected disabledAccountIds/expectedRevision')
+        policy=getattr(service(),'quota_policy',None)
+        if policy is None:raise HTTPException(503,'Quota policy unavailable')
+        try:
+            result=await service().engine.io(policy.store.set_disabled,data['disabledAccountIds'],data['expectedRevision'])
+            await policy.cancel_obsolete_jobs()
+            return result
+        except Conflict as exc:raise HTTPException(409,str(exc)) from exc
+        except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+        except OSError as exc:raise HTTPException(503,'Disabled account configuration persistence failed') from exc
 
     @router.put('/api/automation/quota-policy')
     async def quota_configure(data:dict,request:Request):

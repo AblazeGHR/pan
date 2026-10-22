@@ -21,6 +21,17 @@ def test_quota_policy_owned_http_default_unavailable_is_unknown(tmp_path,monkeyp
         headers={'Authorization':'Bearer '+token};url=rt.base_url+'/api/automation/quota-policy'
         with httpx.Client(timeout=10,trust_env=False) as client:
             state=client.get(url).json();assert state['mode']=='manual' and state['adapter']=='unavailable'
+            assert state['disabledAccountIds']==[] and state['accountConfigRevision']==0
+            disabled_url=url+'/disabled-accounts'
+            disabled={'disabledAccountIds':['disabled-account-three'],'expectedRevision':state['revision']}
+            assert client.put(disabled_url,json=disabled).status_code==401
+            assert client.put(disabled_url,json={**disabled,'enabled':True},headers=headers).status_code==400
+            assert client.put(disabled_url,json={**disabled,'disabledAccountIds':['x','x']},headers=headers).status_code==400
+            assert client.put(disabled_url,json={**disabled,'expectedRevision':True},headers=headers).status_code==400
+            assert client.put(disabled_url,json=disabled,headers=headers).status_code==200
+            assert client.put(disabled_url,json=disabled,headers=headers).status_code==409
+            state=client.get(url).json()
+            assert state['disabledAccountIds']==['disabled-account-three'] and state['accountConfigRevision']==1
             body={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
             assert client.put(url,json=body).status_code==401
             assert client.put(url,json={**body,'script':'denied'},headers=headers).status_code==400
@@ -45,10 +56,16 @@ def test_quota_policy_owned_http_default_unavailable_is_unknown(tmp_path,monkeyp
             state=client.get(url).json();assert state['quota']['status']=='unknown' and not state['commands']
             assert client.put(url,json={'mode':'manual','maSessionId':'owned-ma','expectedRevision':state['revision']},headers=headers).status_code==200
             evidence.update(job=job,policy=client.get(url).json())
+            # Restart only this owned server; no provider or Worker exists.
+            rt.stop();rt.start();evidence['restartedServerPid']=rt.process.pid
+            recovered=client.get(url).json()
+            assert recovered['disabledAccountIds']==['disabled-account-three'] and recovered['mode']=='manual'
+            assert client.put(disabled_url,json={'disabledAccountIds':[],'expectedRevision':recovered['revision']},headers=headers).status_code==401
+            evidence['recovered']=recovered
     finally:
         rt.stop()
         with socket.socket() as probe:
             probe.bind(('127.0.0.1',h.PORT));evidence['portReleased']=True
         evidence['ownedServerStopped']=rt.process is None or rt.process.poll() is not None
-        out=Path('artifacts/quota-policy');out.mkdir(parents=True,exist_ok=True)
+        out=Path('artifacts/quota-policy-safety');out.mkdir(parents=True,exist_ok=True)
         (out/'http-evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')

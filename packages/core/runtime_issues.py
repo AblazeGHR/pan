@@ -102,6 +102,9 @@ def _metadata(raw: dict, supplied: dict | None) -> dict:
                 if value is not None:
                     source[key] = value
                     break
+    # Owner epoch is host metadata, never a provider-payload assertion.
+    epoch=supplied.get('runtimeEpoch',supplied.get('runtime_epoch'))
+    if isinstance(epoch,str) and 0<len(epoch)<=256:source['runtimeEpoch']=epoch
     return {key: _safe(value, 0) for key, value in source.items()
             if type(value) in (str, int) and (not isinstance(value,str) or len(value)<=256)}
 
@@ -181,6 +184,6 @@ def runtime_issue_schema() -> dict:
     return {"version": 1, "eventType": "runtime.issue.v1", "classification": [
         "codex_quota_exhausted", "codex_capacity", "cbc_rate_limited", "provider_rate_limited", "unknown"],
         "confidence": ["structured", "adapter_text", "unknown"],
-        "requiredCorrelation": ["sessionId", "workerId", "generation", "taskId", "executionId", "queueItemId", "threadId", "turnId"],
+        "requiredCorrelation": ["runtimeEpoch", "sessionId", "workerId", "generation", "taskId", "executionId", "queueItemId", "threadId", "turnId"],
         "delivery": ["observed", "classified", "persisted", "delivered", "deduped"],
         "limits": {"textChars": MAX_TEXT, "rawKeys": MAX_RAW_KEYS}}

@@ -1,5 +1,9 @@
 # Quota policy v0.3 foundation
 
+The [safety revision](quota-policy-v0.3-safety.md) supersedes the v1 Worker/command
+contract below: persistent user-disabled accounts, fresh runtime/process/task
+identity, verified restart successors and guarded wakes are now required.
+
 This batch extends RuntimeIssue diagnostics with durable policy state and existing
 generic scheduled quota-query Jobs. Production starts **manual** with an unavailable
 adapter. No account scan, quota HTTP request, model request, switch, restart or send
