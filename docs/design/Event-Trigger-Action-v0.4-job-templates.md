@@ -182,3 +182,28 @@ tools, React controls or automatic profile downgrade conversion are added here.
 Gateway/API discovery can use protected HTTP routes; Agent traffic has no privileged
 instantiate/repair shortcut. Production UI and overall human acceptance remain
 separate work.
+
+## Unified Job follow-up
+
+The unified backend projection is additive. New Action-reference Jobs persist
+`trigger`, `recovery`, `overlap`, `notification`, and `completion` policies with
+conservative defaults (`recovery.enabled=false`, `forbid` overlap, parallel limit
+3, ordinary completion, job-scoped terminal notifications). Existing `schedule`
+and legacy `kind` remain readable and executable through compatibility projection;
+unknown legacy kinds map to a disabled-recovery system Action view and are never
+implicitly migrated or enabled.
+
+Run claim/finalization now records a stable Run ID and Attempt ID/count, action and
+template references, backoff, receipt and side-effect uncertainty. Snapshot
+cleanup remains the gate for every terminal outcome. Monitoring completion requires
+a structured completion signal; ordinary Actions complete from their returned
+result. A monitoring Action without a signal enters `restarting` and consumes a
+bounded declared recovery attempt after persisted backoff; unknown/uncertain
+outcomes are not automatically replayed. Terminal notification events are emitted
+through the existing durable Job event path and use the Job notification allowlist,
+never Session message targets.
+
+The new `unified` field is included in the existing Jobs API projection, while old
+`kind`/API routes remain compatible. UI TypeScript types expose the shared policy
+shape; React controls still require a separate product UI implementation and are
+not claimed complete by backend work.

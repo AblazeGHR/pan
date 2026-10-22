@@ -46,6 +46,14 @@ async def list_jobs(request:Request):
     rt=runtime(request)
     return {'jobs':await invoke(rt.list),'diagnostics':list(rt.diagnostics)}
 
+@router.get('/action-jobs/{job_id}/runs')
+async def runs(job_id:str,request:Request):
+    rt=runtime(request)
+    try:job=await invoke(rt.get,job_id)
+    except KeyError as exc:raise HTTPException(404,str(exc)) from exc
+    return {'jobId':job_id,'run':job.get('runId'),'attempts':job.get('attempts',[]),
+            'lastExecution':job.get('lastExecution'),'status':job.get('status')}
+
 
 @router.get('/action-jobs/schema')
 async def schema(request:Request,actionId:str|None=None):
@@ -69,6 +77,11 @@ async def schema(request:Request,actionId:str|None=None):
     config_schema={'type':'object','additionalProperties':False,'required':['name','actionId','schedule'],
         'properties':{**metadata,'actionId':{'type':'string'},'arguments':arguments,
         'schedule':{'type':'array','minItems':1,'maxItems':32,'items':{'oneOf':schedules}},
+        'trigger':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['immediate','once','interval','cron','event','schedule']},'query':{'type':'object'}},'required':['kind']},
+        'recovery':{'type':'object','additionalProperties':False,'properties':{'enabled':{'type':'boolean'},'monitoring':{'type':'boolean'},'maxAttempts':{'type':'integer','minimum':1,'maximum':10},'backoffSec':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'integer','minimum':0,'maximum':86400}},'stableResetSec':{'type':'integer','minimum':0,'maximum':86400}}},
+        'overlap':{'type':'object','additionalProperties':False,'properties':{'mode':{'enum':['forbid','queue','parallel']},'parallelLimit':{'type':'integer','minimum':1,'maximum':32}}},
+        'notification':{'type':'object','additionalProperties':False,'properties':{'on':{'type':'array','items':{'enum':['completed','failed','cancelled','unknown','uncertain','cleaning']}},'target':{'const':'job'}}},
+        'completion':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['ordinary','monitoring']},'signalType':{'type':'string'}}},
         'enabled':{'type':'boolean','default':False},'maxRuns':{'type':['integer','null'],'minimum':1},
         'misfirePolicy':{'enum':['fire_now','skip']}}}
     return {'version':1,'config':config_schema,'template':{'type':'object','additionalProperties':False,

@@ -66,7 +66,8 @@ def _view(job: dict) -> dict:
     if is_action_job(job) and runtime:
         job=runtime.view(job)
     value, status = pins.snapshot(_job_root())
-    return {**background_jobs.job_public_view(job),
+    from packages.jobs.unified import project
+    return {**background_jobs.job_public_view(job),'unified':project(job),
             **pins.presentation(job["jobId"], value, status)}
 
 
@@ -146,7 +147,8 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
     if runtime:
         jobs=[await asyncio.to_thread(runtime.view,j) if is_action_job(j) else j for j in jobs]
     pinned, pin_status = pins.snapshot(_job_root())
-    jobs = [{**job, **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
+    from packages.jobs.unified import project
+    jobs = [{**job, 'unified':project(job), **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:

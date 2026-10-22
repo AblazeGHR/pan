@@ -17,6 +17,10 @@ class SnapshotPersistenceError(RuntimeError):
     pass
 
 
+class MonitoringIncomplete(RuntimeError):
+    """A monitoring Action exited without its declared structured completion signal."""
+
+
 def is_action_job(job):
     return isinstance(job,dict) and isinstance(job.get('action'),dict) and job['action'].get('api')=='action_reference'
 
@@ -187,7 +191,18 @@ class Runtime:
             if not job['enabled']:raise Conflict('Job disabled')
             context={'id':eid,'type':'jobs.execute','payload':copy.deepcopy(job['config']['arguments']),
                      'jobId':jid,'dispatchKey':eid,'fireAt':datetime.now().isoformat()}
-            execution={'id':eid,'jobRoot':str(self.root),'phase':'preparing','entryId':entry,'context':context}
+            config=job['config']
+            run_id=job.get('runId') or 'run_'+uuid.uuid4().hex[:24]
+            attempt_id='attempt_'+uuid.uuid4().hex[:24]
+            execution={'id':eid,'runId':run_id,'attemptId':attempt_id,'attemptCount':1,
+                       'jobRoot':str(self.root),'phase':'preparing','entryId':entry,'context':context,
+                       'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
+                       'templateRevision':job.get('templateRevision'),'backoffSec':0,
+                       'receipt':None,'sideEffectUncertainty':False}
+            job.setdefault('attempts',[]).append({'id':attempt_id,'runId':run_id,'count':1,'status':'running',
+                         'actionId':config['actionId'],'templateRevision':job.get('templateRevision'),
+                         'backoffSec':0,'receipt':None,'sideEffectUncertainty':False})
+            job['runId']=run_id
             job.update(status='running',execution=execution,runStartedAt=time.time())
             jobs._write_job(jobs._job_path(jid,self.root),job)
             return copy.deepcopy(job)
@@ -199,6 +214,12 @@ class Runtime:
             if job.get('execution',{}).get('id')!=eid:return
             prior=job.get('executionFinalization')
             outcome=prior or {'status':status,'audit':audit or {}}
+            attempt_id=job.get('execution',{}).get('attemptId')
+            for attempt in job.get('attempts',[]):
+                if attempt.get('id')==attempt_id:
+                    attempt.update(status=outcome['status'],receipt=(audit or {}).get('receipt'),
+                                   sideEffectUncertainty=outcome['status'] in {'unknown','uncertain'})
+                    break
             job.update(status='cleaning',executionFinalization=outcome)
             job['execution']['phase']='cleaning'
             jobs._write_job(jobs._job_path(jid,self.root),job)
@@ -206,16 +227,24 @@ class Runtime:
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
             if job.get('execution',{}).get('id')!=eid:return
+            execution_audit=copy.deepcopy(job.get('execution') or {})
             job.pop('execution',None);job.pop('executionFinalization',None)
-            summary={'id':eid,'status':outcome['status'],**outcome['audit']}
+            summary={'id':eid,'runId':execution_audit.get('runId') or job.get('runId'),'attemptId':execution_audit.get('attemptId'),
+                     'status':outcome['status'],**outcome['audit']}
             job.update(lastExecution=summary,lastStatus=outcome['status'],runStartedAt=None,
                        runCount=int(job.get('runCount',0))+1,terminalEventId=eid)
+            policy=job.get('config',{}).get('recovery',{})
+            if outcome['status']=='restarting' and policy.get('enabled'):
+                count=len(job.get('attempts',[]));backoff=policy.get('backoffSec',[5,15,60])[min(max(count-1,0),2)]
+                job['nextAttemptAt']=time.time()+backoff
+            elif outcome['status']!='restarting':
+                job.pop('nextAttemptAt',None)
             cfg=job['config'];once=all(e['kind']=='once' and not e.get('enabled',True) for e in job['schedule'])
             # The claimed entry is consumed at dispatch admission, not recovery.
             exhausted=not any(e.get('enabled',True) and e.get('nextFireAt') for e in job['schedule'])
             if outcome['status'] in {'uncertain','cancelled'} or exhausted or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']):
                 job['enabled']=False;job['config']['enabled']=False
-            job['status']='scheduled' if job['enabled'] else outcome['status']
+            job['status']=('restarting' if outcome['status']=='restarting' else ('scheduled' if job['enabled'] else outcome['status']))
             record={'run_id':eid,'task_id':job['taskId'],'dispatch_key':eid,
                     'status':outcome['status'],'result':summary,'actual_at':datetime.now().isoformat()}
             jobs._append_run_record_once(record,registry_root=self.root)
@@ -234,6 +263,11 @@ class Runtime:
             if not await jobs._scheduled_task_emit_strict({'type':'job.updated','jobId':job['jobId'],'job':view}):continue
             if not await jobs._scheduled_task_emit_strict({'type':'scheduler.task.fired','taskId':job['taskId'],
                     'dispatchKey':eid,'status':job['lastExecution']['status'],'terminal':True}):continue
+            configured=job.get('config',{}).get('notification',{})
+            if job['lastExecution']['status'] in configured.get('on',[]) and configured.get('target')=='job':
+                if not await jobs._scheduled_task_emit_strict({'type':'job.notification','jobId':job['jobId'],
+                        'runId':job['lastExecution'].get('runId'),'attemptId':job['lastExecution'].get('attemptId'),
+                        'status':job['lastExecution']['status']}):continue
             def mark():
                 with jobs._lock,jobs._job_lock(job['jobId'],self.root):
                     current=self.get(job['jobId'])
@@ -254,11 +288,16 @@ class Runtime:
             progress.checkpoint={'id':eid}
             progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'))
             result=await execute_dynamic(snapshot['definition'],snapshot['arguments'],snapshot['context'],progress,self.pause)
+            completion=job.get('config',{}).get('completion',{})
+            if completion.get('kind')=='monitoring' and not result.get('completedSignal'):
+                raise MonitoringIncomplete('Monitoring Action exited without completion signal')
             outcome='completed' if result.get('ok',True) and not result.get('isError',False) else 'failed'
             for key in ('jobId','matched','succeeded','failed'):
                 if key in result:audit[key if key!='jobId' else 'createdJobId']=result[key]
         except asyncio.CancelledError:
             outcome='cancelled' if eid in self.cancelled else 'uncertain'
+        except MonitoringIncomplete as exc:
+            outcome='restarting';audit['error']=str(exc)
         except Exception as exc:
             from packages.automation.engine import PersistenceError
             outcome='uncertain' if isinstance(exc,(SnapshotPersistenceError,PersistenceError,TimeoutError)) else 'failed';audit['error']=str(exc)[:1000]
@@ -334,6 +373,16 @@ class Runtime:
             if len(self.tasks)>=limit:break
             if not is_action_job(job) or job['jobId'] in self.tasks or not job.get('enabled') or job.get('paused'):continue
             if job['status'] in {'running','cleaning'}:continue
+            recovery=job.get('config',{}).get('recovery',{})
+            if job.get('status')=='restarting':
+                if not recovery.get('enabled') or len(job.get('attempts',[]))>=recovery.get('maxAttempts',3):
+                    if len(job.get('attempts',[]))>=recovery.get('maxAttempts',3):
+                        await io(self.finalize_recovery_exhausted,job)
+                    continue
+                if job.get('nextAttemptAt',0)>time.time():continue
+                try:await self.launch(job['jobId'],expected=job.get('configRevision'))
+                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
+                continue
             for entry in job.get('schedule',[]):
                 if entry.get('enabled',True) and jobs._entry_is_due(entry,datetime.now().replace(microsecond=0)):
                     if await io(self.skip_misfire,job,entry,cfg):
@@ -341,6 +390,13 @@ class Runtime:
                     try:await self.launch(job['jobId'],entry=entry['id'])
                     except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                     break
+
+    def finalize_recovery_exhausted(self,job):
+        with jobs._lock,jobs._job_lock(job['jobId'],self.root):
+            current=self.get(job['jobId'])
+            if current.get('status')=='restarting' and len(current.get('attempts',[]))>=current.get('config',{}).get('recovery',{}).get('maxAttempts',3):
+                current['status']='failed';current['lastStatus']='failed';current['lastError']='Recovery attempts exhausted';current['enabled']=False;current['config']['enabled']=False
+                jobs._write_job(jobs._job_path(job['jobId'],self.root),current)
 
     def skip_misfire(self,job,entry,cfg):
         now=datetime.now().replace(microsecond=0)

@@ -45,7 +45,7 @@ def identifier(value):
 
 
 def validate_action(raw, automation=True):
-    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent'}:
+    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent', 'system'}:
         raise ValueError('Unknown Action fields')
     from .session_query import validate_action_query
     validate_action_query(raw)
@@ -58,6 +58,9 @@ def validate_action(raw, automation=True):
         raise ValueError('Action description is required')
     action.setdefault('enabled', False)
     action.setdefault('idempotent', False)
+    action.setdefault('system', False)
+    if type(action['system']) is not bool:
+        raise ValueError('Action system must be boolean')
     if type(action['idempotent']) is not bool:
         raise ValueError('Action idempotent must be boolean')
     action.setdefault('effect', 'read')
@@ -193,6 +196,8 @@ class Store:
             if create and isinstance(value, dict) and value.get('id') in state[kind]:
                 raise ValueError('ID already exists; update the existing item by ID')
             item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
+            if kind == 'actions' and item.get('system') and not authorized:
+                raise PermissionError('System Actions are product-managed')
             if draft and kind == 'actions':
                 item['enabled'] = False
             if kind == 'actions':
@@ -227,6 +232,8 @@ class Store:
             item = state[kind].get(item_id)
             if not item:
                 raise ValueError('Item not found')
+            if kind == 'actions' and item.get('system'):
+                raise PermissionError('System Actions cannot be deleted')
             if kind == 'actions' and any(item_id in g['action_ids'] for g in state['groups'].values()):
                 raise ValueError('Action is referenced by a Group; remove its references first')
             if kind == 'actions':

@@ -80,7 +80,7 @@ def check_action_graph(state, action, seen=()):
 
 
 def config_value(raw, state):
-    strict(raw, {'name','description','actionId','arguments','schedule','enabled','maxRuns','misfirePolicy'}, 'Job config')
+    strict(raw, {'name','description','actionId','arguments','schedule','trigger','recovery','overlap','notification','completion','enabled','maxRuns','misfirePolicy'}, 'Job config')
     value = copy.deepcopy(raw)
     if not isinstance(value.get('name'), str) or not value['name'].strip() or len(value['name']) > 200:
         raise ValueError('Job name required (1..200 characters)')
@@ -89,12 +89,52 @@ def config_value(raw, state):
     value.setdefault('enabled', False)
     value.setdefault('maxRuns', None)
     value.setdefault('misfirePolicy', 'fire_now')
+    value.setdefault('trigger', {'kind':'schedule'})
+    value.setdefault('recovery', {'enabled':False,'monitoring':False,'maxAttempts':3,'backoffSec':[5,15,60],'stableResetSec':300})
+    value.setdefault('overlap', {'mode':'forbid','parallelLimit':3})
+    value.setdefault('notification', {'on':['completed','failed','cancelled','unknown','uncertain','cleaning'],'target':'job'})
+    value.setdefault('completion', {'kind':'ordinary'})
     if not isinstance(value['description'], str) or type(value['enabled']) is not bool:
         raise ValueError('Invalid Job description or enabled')
     if value['maxRuns'] is not None and (type(value['maxRuns']) is not int or value['maxRuns'] < 1):
         raise ValueError('maxRuns must be positive integer or null')
     if value['misfirePolicy'] not in ('fire_now','skip'):
         raise ValueError('Invalid misfirePolicy')
+    trigger=value['trigger']
+    if not isinstance(trigger,dict) or set(trigger)-{'kind','query'} or trigger.get('kind') not in ('immediate','once','interval','cron','event','schedule'):
+        raise ValueError('Invalid Job trigger')
+    if trigger['kind']=='event':
+        if not isinstance(trigger.get('query'),dict):raise ValueError('Event trigger requires structured query')
+        from packages.actions.session_query import validate_query
+        validate_query(trigger['query'])
+    recovery=value['recovery']
+    if (not isinstance(recovery,dict) or set(recovery)-{'enabled','monitoring','maxAttempts','backoffSec','stableResetSec'}
+            or type(recovery.get('enabled')) is not bool or type(recovery.get('monitoring')) is not bool
+            or type(recovery.get('maxAttempts')) is not int or not 1<=recovery['maxAttempts']<=10
+            or type(recovery.get('stableResetSec')) is not int or not 0<=recovery['stableResetSec']<=86400
+            or not isinstance(recovery.get('backoffSec'),list) or len(recovery['backoffSec'])!=3
+            or any(type(v) is not int or not 0<=v<=86400 for v in recovery['backoffSec'])):
+        raise ValueError('Invalid recovery policy')
+    if recovery['enabled'] and not recovery['monitoring']:
+        raise ValueError('Recovery is allowed only for monitoring Actions')
+    completion=value['completion']
+    if not isinstance(completion,dict) or set(completion)-{'kind','signalType'} or completion.get('kind') not in ('ordinary','monitoring'):
+        raise ValueError('Invalid completion contract')
+    if completion['kind']=='monitoring' and not recovery['monitoring']:
+        raise ValueError('Monitoring completion requires monitoring recovery declaration')
+    overlap=value['overlap']
+    if (not isinstance(overlap,dict) or set(overlap)-{'mode','parallelLimit'}
+            or overlap.get('mode') not in ('forbid','queue','parallel')
+            or type(overlap.get('parallelLimit')) is not int or not 1<=overlap['parallelLimit']<=32):
+        raise ValueError('Invalid overlap policy')
+    if overlap['mode']=='parallel' and recovery['monitoring']:
+        raise ValueError('Monitoring Actions cannot use parallel overlap')
+    notification=value['notification']
+    if (not isinstance(notification,dict) or set(notification)-{'on','target'}
+            or not isinstance(notification.get('on'),list) or not notification['on']
+            or any(v not in ('completed','failed','cancelled','unknown','uncertain','cleaning') for v in notification['on'])
+            or notification.get('target')!='job'):
+        raise ValueError('Invalid Job notification policy')
     aid = value.get('actionId')
     if not isinstance(aid, str) or aid not in state['actions']:
         raise ValueError('Missing Action reference at /config/actionId: '+str(aid))
