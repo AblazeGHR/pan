@@ -287,6 +287,7 @@ def record_session_error(
     dedupe_token: str | None = None,
     raw_diagnostics: str | None = None,
     raw_diagnostics_source: Any = None,
+    runtime_issue: dict | None = None,
 ) -> str | None:
     """Synchronously append one sample.  Never raises; returns eventId/None."""
     try:
@@ -322,6 +323,7 @@ def record_session_error(
             dedupe_token=dedupe_token,
             raw_diagnostics=raw_diagnostics,
             raw_diagnostics_source=raw_diagnostics_source,
+            runtime_issue=runtime_issue,
         )
     except Exception as exc:
         _record_failure(exc)
@@ -389,6 +391,7 @@ def _prepare_record(
     dedupe_token: str | None = None,
     raw_diagnostics: str | None = None,
     raw_diagnostics_source: Any = None,
+    runtime_issue: dict | None = None,
 ) -> tuple[dict, str, Any] | None:
     if kind not in KINDS:
         kind = "terminal_error"
@@ -497,6 +500,8 @@ def _prepare_record(
         record["rawDiagnostics"] = sanitize(raw_diagnostics)
         record["rawDiagnosticSource"] = "unparsed_stream_text"
         record["rawDiagnosticComplete"] = True
+    if runtime_issue is not None:
+        record["runtimeIssue"] = sanitize(runtime_issue)
     return record, event_id, raw_diagnostics_source
 
 

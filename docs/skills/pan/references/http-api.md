@@ -421,3 +421,9 @@ it never promotes eligibility. This is not an Agent tool. Query IDs and confirme
 successful target results are reused. Token expiry/logout after admission does
 not revoke execution or bypass business gates. Full contract and migration caveats:
 `docs/design/Event-Trigger-Action-v0.3-retry-scheduling.md`.
+
+`GET /api/diagnostics/runtime-issues/schema` returns the v0.3 RuntimeIssue/Event
+contract. Native/provider samples keep observation, classification and delivery
+outcomes separate. Codex quota exhausted, Codex capacity and CBC rate limiting are
+distinct; generic 429 and tool failures remain unknown. Mapping is diagnostic only
+and does not change retry, account, restart or recovery behavior.

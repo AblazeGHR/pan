@@ -295,3 +295,11 @@ Run with the repository Python env:
 python -m pytest tests/test_session_error_log.py tests/test_session_error_log_worker.py `
   tests/test_session_error_log_multiprocess.py tests/test_session_error_log_e2e.py -q
 ```
+
+## RuntimeIssue/Event v0.3 projection
+
+Provider/native samples may include a three-layer `runtimeIssue` projection and
+`runtime.issue.v1` envelope. Structured fields win; adapter text is strict fallback.
+Codex quota exhaustion, Codex capacity and CBC rate limiting are separate; generic
+429 and tool failures remain `unknown`. Read-only schema: `/api/diagnostics/runtime-issues/schema`.
+This projection does not trigger retry, account switch, restart or recovery.

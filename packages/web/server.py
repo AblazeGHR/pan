@@ -3805,6 +3805,13 @@ async def api_runtime_diagnostics():
             "threads": _runtime_diag.runtime.thread_stacks()}
 
 
+@app.get("/api/diagnostics/runtime-issues/schema")
+async def api_runtime_issue_schema():
+    """Stable RuntimeIssue/Event classification contract; read-only."""
+    from packages.core.runtime_issues import runtime_issue_schema
+    return runtime_issue_schema()
+
+
 @app.get("/api/main/restart/status")
 async def api_main_restart_status():
     """Report whether the safe Windows main-service restart is available."""
