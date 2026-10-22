@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="2.831" timestamp="2026-10-22T21:42:01.291916+08:00" hostname="ablaze"><testcase classname="tests.test_provider_launch_http" name="test_http_spawn_restart_fixed_config_and_private_cleanup" time="2.744" /></testsuite></testsuites>

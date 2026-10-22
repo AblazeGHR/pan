@@ -1,0 +1,37 @@
+{
+  "checkedAt": 1792678182.0459118,
+  "sourceSha": "084b3ab20fbd6f4ba5a63464446f3e5d6f499e8e",
+  "port": 62473,
+  "portReleased": true,
+  "providerPortReleasedByHarness": true,
+  "ownedServerStopped": true,
+  "remainingOwnedProcesses": [],
+  "unknownPids": [],
+  "identities": [
+    {
+      "pid": 34388,
+      "result": "no_process"
+    },
+    {
+      "pid": 30868,
+      "result": "no_process"
+    },
+    {
+      "pid": 37636,
+      "result": "no_process"
+    },
+    {
+      "pid": 5076,
+      "result": "no_process"
+    },
+    {
+      "pid": 36776,
+      "result": "no_process"
+    },
+    {
+      "pid": 17224,
+      "result": "no_process"
+    }
+  ],
+  "privateConfigsRemaining": []
+}
