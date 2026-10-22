@@ -25,6 +25,7 @@ export const entries: ViewEntry[] = [
   { id: 'builtin:editor', to: '/editor', label: 'Editor', icon: Code },
   { id: 'builtin:jobs', to: '/jobs', label: 'Jobs', icon: ListChecks },
   { id: 'builtin:terminals', to: '/terminals', label: 'Terminal', icon: TerminalSquare },
+  { id: 'builtin:locker', to: '/locker', label: 'Locker', icon: PanelsTopLeft },
   { id: 'builtin:actions', to: '/actions', label: 'Actions', icon: PanelsTopLeft },
   { id: 'builtin:automation', to: '/automation', label: 'Automation', icon: ListChecks },
 ];

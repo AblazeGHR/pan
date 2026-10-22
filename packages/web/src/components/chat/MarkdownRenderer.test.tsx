@@ -511,3 +511,14 @@ describe('MarkdownRenderer', () => {
     expect(anchor?.getAttribute('href')).toBe('https://example.test/a(b)?q=1&x=2#h');
   });
 });
+
+
+it('resolves Locker links against its explicit source while another Chat stays selected', async () => {
+  const current=useSessionStore.getState().sessions[0];
+  if (!current) throw new Error('Missing current Session fixture');
+  useSessionStore.setState({ sessions: [current, { ...current, id: 'locker-source', workdir: 'E:/locker' }] });
+  render(<MemoryRouter><MarkdownRenderer sourceSessionId="locker-source" content="[open](./card.md)" /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('link', { name: 'open' }));
+  await waitFor(() => expect(readFile).toHaveBeenCalledWith('locker-source', 'E:/locker/card.md'));
+  expect(useSessionStore.getState().currentSessionId).toBe('s1');
+});

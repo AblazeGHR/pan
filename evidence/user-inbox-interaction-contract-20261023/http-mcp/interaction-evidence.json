@@ -1,0 +1,36 @@
+{
+  "instance": {
+    "pid": 44844,
+    "port": 56196,
+    "cwd": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023",
+    "roots": {
+      "data": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data",
+      "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\sessions",
+      "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\config.json",
+      "jobs": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\background_jobs",
+      "scheduler": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\background_jobs",
+      "terminal": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\terminals",
+      "gateway": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\qq_plugins\\manifest.json",
+      "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\agent_inbox\\inbox.sqlite",
+      "attachments": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\attachments",
+      "workdirs": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\workdirs",
+      "errorLog": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\logs\\session-errors.jsonl",
+      "mcpConfigs": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\mcp-configs"
+    },
+    "fakeCLI": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\tests\\support\\fake_stream_cli.py",
+    "nonce": "420e2428858008ea9d09123993a5a357"
+  },
+  "interaction": {
+    "pid": 44844,
+    "cardPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\user_inbox\\cards.sqlite",
+    "receiptPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3857\\test_http_mcp_user_response_an0\\profile\\data\\synthetic-trigger.sqlite",
+    "auth": "synthetic-test-only",
+    "trigger": "synthetic-test-only"
+  },
+  "ownerSessionId": "ses_be3d33f34e04d41d",
+  "cardId": "card_50639fa65aa5cdbab479f4ed67c07773c078cd50c0fb8a4b6b3124bfb7ea988d",
+  "eventId": "evt_bc512f89ca6534343f6fb58c52db18956e9f87c1715d8549b3eaaf93f08f5461",
+  "receiptId": "receipt_cd7de6a3acd298e13d85574a7fdd769904395a258c75d1a8070ef5eb74d5b692",
+  "mcpProducerOnly": true,
+  "oneResponse": true
+}

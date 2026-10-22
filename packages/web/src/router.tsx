@@ -10,6 +10,7 @@ const ManageView = lazy(() => import('./views/ManageView'));
 const JobsView = lazy(() => import('./views/JobsView'));
 const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
+const LockerView = lazy(() => import('./views/LockerView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
 const AutomationView = lazy(() => import('./views/AutomationView'));
 
@@ -26,6 +27,7 @@ export const router = createBrowserRouter(
       path: '/',
       element: <App />,
       children: [
+        { path: 'locker', element: deferredRoute(<LockerView />) },
         { path: 'actions', element: deferredRoute(<ActionsView />) },
         { path: 'automation', element: deferredRoute(<AutomationView />) },
         {

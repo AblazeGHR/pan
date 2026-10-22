@@ -282,6 +282,10 @@ async def lifespan(app: FastAPI):
 
     from packages.core.inbox_service import recover as recover_inbox
     await recover_inbox(_plugin_manifest())
+    from packages.interactions.api import get_store as interaction_store
+    from packages.core.inbox_service import SessionQueue
+    await interaction_store().deliver_rejections(SessionQueue())
+    await interaction_store().recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
 
     qq_config = load_config().get("qq") or {}
     await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
@@ -12272,6 +12276,8 @@ async def api_session_manual_report(session_id: str, data: dict):
 
 from packages.web.agent_inbox_api import register as _register_agent_inbox_api
 _register_agent_inbox_api(app)
+from packages.interactions.api import register as _register_interaction_card_api
+_register_interaction_card_api(app)
 
 
 # ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──

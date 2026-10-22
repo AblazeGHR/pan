@@ -1931,6 +1931,30 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 
 @mcp.tool()
+def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
+                     recipient_id: str = "", request_key: str = "", card: dict | None = None) -> dict:
+    """Create/get/receipt for a Session-owned user request. Never answer as a user.
+
+    Card supports optional answerInput, choices with optional triggerRef, and
+    notification metadata. A recorded response is not Job/Trigger completion.
+    """
+    if operation not in {"create", "get", "receipt"}:
+        return {"error": "Only create/get/receipt producer operations are available"}
+    caller, error = _require_caller()
+    if error:
+        return error
+    target = owner_session_id or caller["id"]
+    denied = _check_access(target, caller=caller)
+    if denied:
+        return denied
+    if operation in {"get", "receipt"}:
+        suffix = "/receipt" if operation == "receipt" else ""
+        return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
+    return _api("POST", "/api/interaction-cards", {
+        "ownerSessionId": target, "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
+
+
+@mcp.tool()
 def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[str] | None = None,
                 session_id: str | None = None, mode: str = "silent", limit: int = 100) -> dict:
     """Shared Agent Inbox: list/read/consume/subscriptions/subscribe/mode/backlog/recover.

@@ -1,0 +1,13 @@
+[02:04:03] [Pan] Loaded 6 session templates from manifest
+[QQ plugins] automatic start failed: unknown QQ plugin: napcat
+[02:04:04] GET  /__test/inbox-identity  → 200
+[02:04:04] GET  /__test/interaction-identity  → 200
+[02:04:04] POST  /api/sessions  → 200
+[02:04:04] GET  /api/sessions/ses_be3d33f34e04d41d  → 200
+[02:04:05] POST  /api/interaction-cards  → 200
+[02:04:05] POST  /api/user-inbox/card_50639fa65aa5cdbab479f4ed67c07773c078cd50c0fb8a4b6b3124bfb7ea988d/respond  → 401
+[02:04:05] GET  /api/user-inbox  → 200
+[02:04:05] POST  /api/user-inbox/card_50639fa65aa5cdbab479f4ed67c07773c078cd50c0fb8a4b6b3124bfb7ea988d/respond  → 200
+[02:04:05] POST  /api/user-inbox/card_50639fa65aa5cdbab479f4ed67c07773c078cd50c0fb8a4b6b3124bfb7ea988d/respond  → 200
+[02:04:05] POST  /__test/inbox-exit  → 200
+[02:04:05] [Pan] All workers shut down

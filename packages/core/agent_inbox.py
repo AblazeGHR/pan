@@ -302,14 +302,17 @@ class Inbox:
 
 class Router:
     """Fixed internal destinations only; no executable or URL targets."""
-    def __init__(self, inbox):
+    def __init__(self, inbox, *, user_inbox=None):
         self.inbox = inbox
+        self.user_inbox = user_inbox
 
     async def route(self, target, source_message_id, content):
         if not isinstance(source_message_id, str) or not source_message_id or not isinstance(content, dict):
             raise InboxError("stable source message id and content required")
         self.inbox._validate_content(content)
         kind = target.get("kind")
+        if kind == "user_inbox" and self.user_inbox is not None:
+            return await self.user_inbox.route(target, source_message_id, content)
         if kind == "agent_inbox":
             message = self.inbox.receive(target["lockerId"], source_message_id, content)
             await self.inbox.forward(target["lockerId"])

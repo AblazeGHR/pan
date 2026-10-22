@@ -1,0 +1,14 @@
+{
+  "base": "http://127.0.0.1:65348",
+  "owner": "ses_7bc3f4dfa8dec825",
+  "cardId": "card_b1cc0bfaf51dc1f10d39e2391007b76fa6615b67574a53aa6b6a1cae8bd79f39",
+  "rejectedId": "card_6a3768c5779cef56d5529de852c1680f22c65b97acda0dd922c347d85c0fbbad",
+  "submitted": true,
+  "rejected": true,
+  "reloaded": true,
+  "deleted": true,
+  "readOriginal": true,
+  "pageErrors": [],
+  "durableRejectionNoticeCount": 1,
+  "durableRejectionNoticeState": "accepted"
+}

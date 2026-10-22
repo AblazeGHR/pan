@@ -533,3 +533,25 @@ Notification 不携正文、不消费；开订阅及变更模式默认只收新�
 参数、响应、迁移及恢复边界见
 [Agent Inbox API 与冻结设计](../../../design/Agent-Inbox-Router-Locker.md)，前端结构见
 [JSON Schema](../../../design/Agent-Inbox-Router-Locker.schema.json)。
+
+## User Inbox / Interaction Card 后端契约
+
+基于 Agent Inbox 候选的后续后端批次新增 `/api/interaction-cards` 生产者请求与
+`/api/user-inbox` 用户读取/一次性答复接口。用户端在未注入受信登录验证器时明确503关闭；
+MCP `interaction_card` 只导出create/get，不导出用户答复。可选answerInput、可选choice
+triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
+[Interaction Card契约](../../../design/User-Inbox-Interaction-Card-Contract.md)，
+[完整Schema](../../../../packages/interactions/schema.json)。此接口不会自动继续/完成Job，
+也不改变QQ/Agent Inbox/Locker消费状态。
+
+
+### 用户 Locker / Interaction Card 增量（2026-10-23）
+
+User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Session Chat History 或 Agent Inbox 的消费语义混用。
+`GET /api/user-lockers` 返回 recipient 的真实来源容器和当前 Workspace IDs；聚合 Locker 只是前端按 Workspace 合并原消息的视图。
+`PUT /api/user-inbox/{id}/read {read:boolean}` 修改原消息 read/unread；没有消费游标。
+`POST .../submit`（Respond 请求）与 `POST .../reject`（仅 requestId/expectedRevision）原子竞争一次性 response，之后只读。
+拒收保留卡片，内部 outbox 使用稳定 QueueID 向来源 Session 发 summaryBody 前 200 字符；返回 Card.rejectionDelivery 显示通知接纳状态，unknown 不盲目重投。
+`DELETE /api/user-inbox/{id}` 仅删除终态用户记录，不通知，留最小 tombstone；内部未确认投递和生产者回应回执保留。
+`GET /api/interaction-cards/{id}/receipt?ownerSessionId=...` 与 MCP `interaction_card(operation=receipt)` 为来源归属读回执，用户删除后仍可核对。
+全部用户入口依赖可信 `user_inbox_principal`；缺配置=503，绝不借用 MCP/Session 身份代答。schema/API/迁移/UI/运行时边界见 `docs/design/User-Inbox-Interaction-Card-Contract.md`。
