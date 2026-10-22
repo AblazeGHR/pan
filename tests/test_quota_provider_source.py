@@ -75,7 +75,9 @@ def test_read_only_refuses_mutations_and_does_not_change_shared_deadline(tmp_pat
 def test_managed_query_failure_does_not_poison_provider_quota(tmp_path):
     s,b,l,q,calls,now=injected(tmp_path);run=b.runner
     def runner(args):
-        if args==['auth','status','--json']:raise RuntimeError('managed auth unavailable')
+        if args==['auth','status','--json']:
+            assert {c[4] for c in calls if c[3:4]==['quota']}=={'p-a','p-b'}
+            raise RuntimeError('managed auth unavailable')
         return run(args)
     b.runner=runner;v=s.read()
     assert v['managed']['status']=='unknown' and v['native']['status']=='unknown'

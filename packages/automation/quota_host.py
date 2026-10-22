@@ -95,8 +95,10 @@ class ReadSource:
     def read(self,disabled=()):
         from .quota_provider import sample
         deadline=time.monotonic()+8
-        value=self._metadata(deadline)
         provider,snapshot=sample(self.bridge,frozenset(disabled),self.clock,deadline)
+        # Optional managed/native diagnostics must never consume the provider
+        # sampling budget first. They use only its remaining CLI time.
+        value=self._metadata(deadline)
         return {**value,'observedAt':self.clock(),'provider':provider,'identityDomains':{
                     'provider':'cc-switch-provider:codex','native':'codex-native','managed':'cc-switch-managed:codex'},
                 'binding':'unknown',

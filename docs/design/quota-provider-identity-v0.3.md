@@ -70,6 +70,8 @@ write/Panel behavior remains unchanged. The external GUI may own its own quota
 refresh/cache lifecycle; no external credentials or cache were touched in tests.
 
 Budget8 seconds total; <=128 catalog entries, <=32 official providers, <=32 tiers.
+Provider reads run before optional managed/native diagnostics; optional managed
+reads may use only the remaining CLI budget and never gate provider identity.
 Provider IDs are nonempty, unique <=256 chars, no leading dash or whitespace.
 Only exact official category is sampled. Disabled providers are retained as
 disabled diagnostics and not queried or eligible for rank/reset. Before and after

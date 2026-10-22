@@ -61,10 +61,10 @@ def test_owned_fake_cli_and_native_quota_keep_identity_and_time_sources(tmp_path
     assert 'fixture-secret' not in json.dumps(value) and 'private-label' not in json.dumps(value)
     assert before=={p.name:p.read_bytes() for p in store.path.parent.iterdir()}
     commands=[json.loads(line) for line in trace.read_text(encoding='utf-8').splitlines()]
-    assert commands==[['auth','status','--json'],['--app','codex','provider','list','--json'],
+    assert commands==[['--app','codex','provider','list','--json'],
                       ['--app','codex','provider','quota','provider-a','--json'],
                       ['--app','codex','provider','quota','provider-b','--json'],
-                      ['--app','codex','provider','list','--json']]
+                      ['--app','codex','provider','list','--json'],['auth','status','--json']]
 
 
 @pytest.mark.parametrize('bad',['partial','stale','stale_receipt','future','missing_reset','wrong_duration','profile_changed','missing_cache','query_failure'])
