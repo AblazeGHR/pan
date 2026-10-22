@@ -121,7 +121,8 @@ should use a distinct prefix. No batching or notifications in this extension.
    sends `events.ready` with `{generation}`. Provider acknowledges and may publish.
 4. Provider sends `events.publish` with
    `{generation,type,payload,event_id?}`. Only these keys are allowed. Response is
-   `{event,accepted,rejected}` from the Bus or JSON-RPC error `-32602`. A reused
+   `{event,accepted:true,persisted:true,duplicate,rejected:[]}` after durable inbox
+   commit, or JSON-RPC error `-32602` (including admission/disk/capacity failure). A reused
    event ID is deliberate redelivery, never automatic transport retry.
 5. For matching interests, host sends `events.deliver` with `{generation,event}`.
    Provider returns **exactly** `{accepted:true}`. Independent subscribers receive
@@ -173,3 +174,20 @@ and start background event production only after `events.ready`.
 Use the Automation user login to enable a Trigger for `producer.ping` and select
 an enabled Action. Ordinary Agent draft and user-management rules are unchanged.
 Do not publish secrets: realtime recipients get the full declared payload.
+
+## Durable publication boundary
+
+See [Event Store foundation](../design/Event-Trigger-Action-v0.2-event-store.md).
+The adapter awaits `bus.publish_async` after its existing generation/binding
+checks; revocation while waiting for admission is rejected. A committed historical
+fact remains deliverable after its producer disconnects. Its frozen eligible
+Trigger revisions are used, and unavailable dependencies wait for real readiness.
+No source identity may be supplied through payload or the replay endpoint.
+
+`persisted` acknowledges Event storage only. Delivery to Trigger matching is
+at-least-once, deduplicated by retained Event+Trigger. Plugin `events.deliver`
+subscriptions still provide live best-effort notifications: there is no durable
+per-subscriber cursor, receipt, or historical subscription here. A publisher may
+resend the same fact/ID if its response was lost. It must not assign an old ID to
+a different fact or rely on dedup after retention expires. Replay never retries a
+failed/cancelled/succeeded Run, and refuses uncertain Runs.

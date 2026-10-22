@@ -2,11 +2,14 @@
 import copy
 import json
 import threading
+import time
+from datetime import datetime
 import uuid
 from pathlib import Path
 
 from packages.actions.store import atomic
 from .events import now
+from .event_store import CapacityError, RETENTION_SECONDS
 
 
 class Conflict(ValueError):
@@ -14,9 +17,10 @@ class Conflict(ValueError):
 
 
 class Ledger:
-    def __init__(self, root, max_triggers=64):
+    def __init__(self, root, max_triggers=64, max_runs=10_000, max_bytes=64*1024*1024):
         self.path = Path(root) / 'registry.json'
         self.max_triggers = max_triggers
+        self.max_runs, self.max_bytes = max_runs, max_bytes
         self.lock = threading.RLock()
 
     def read(self):
@@ -26,8 +30,12 @@ class Ledger:
     def mutate(self, change):
         with self.lock:
             state = self.read()
+            previous_size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
             result = change(state)
             state['revision'] += 1
+            size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
+            if size > self.max_bytes and size > previous_size:
+                raise CapacityError('Run ledger byte capacity reached; write refused')
             atomic(self.path, state)
             return copy.deepcopy(result)
 
@@ -63,6 +71,7 @@ class Ledger:
                 for run in state['runs'].values():
                     if run['triggerId'] == tid and run['status'] == 'queued':
                         run.update(status='cancelled', finishedAt=now(), revision=run['revision'] + 1)
+                        self.sync_attempt(run)
             return item
         return self.mutate(change)
 
@@ -78,13 +87,17 @@ class Ledger:
 
     def append(self, run):
         def change(state):
-            # Same Event+Trigger is permanently deduplicated, including failed runs.
+            # Same retained Event+Trigger is deduplicated, including failed runs.
             if any(r['event']['id'] == run['event']['id'] and r['triggerId'] == run['triggerId'] for r in state['runs'].values()):
                 return None
+            if len(state['runs']) >= self.max_runs:
+                raise CapacityError('Run ledger count capacity reached; admission refused')
             current = state['triggers'].get(run['triggerId'])
             if not current or not current['enabled'] or current['revision'] != run['triggerRevision']:
-                run.update(status='cancelled', error='Trigger changed during matching')
+                run.update(status='cancelled', finishedAt=now(), error='Trigger changed during matching')
             run['revision'] = 1
+            run.setdefault('attempts', [])
+            run.setdefault('attemptCount', 0)
             state['runs'][run['id']] = run
             return run
         return self.mutate(change)
@@ -95,6 +108,7 @@ class Ledger:
             if expected_revision is not None and run['revision'] != expected_revision:
                 raise Conflict('Run revision changed')
             state['runs'][rid].update(fields, revision=run['revision'] + 1)
+            self.sync_attempt(run)
             return state['runs'][rid]
         return self.mutate(change)
 
@@ -114,8 +128,18 @@ class Ledger:
             trigger = state['triggers'].get(run['triggerId'])
             if not trigger or not trigger['enabled']:
                 run.update(status='cancelled', finishedAt=now(), revision=run['revision'] + 1)
+                self.sync_attempt(run)
                 return None
             run.update(status='running', startedAt=now(), revision=run['revision'] + 1)
+            attempts = run.setdefault('attempts', [])
+            # A dependency deferral is pre-effect waiting, not a new retry.
+            if not attempts:
+                attempts.append(dict(id='att_' + uuid.uuid4().hex, number=1, status='running', startedAt=run['startedAt']))
+            elif attempts[-1]['status'] != 'queued':
+                raise Conflict('Run already has an attempted effect; automatic retry refused')
+            run['attemptCount'] = len(attempts)
+            run['activeAttemptId'] = attempts[-1]['id']
+            self.sync_attempt(run)
             return run
         return self.mutate(change)
 
@@ -135,6 +159,7 @@ class Ledger:
                 run.update(status='queued', waitingReason='Event dependency unavailable', revision=expected + 1)
             else:
                 run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
+            self.sync_attempt(run)
             return run
         return self.mutate(change)
 
@@ -146,6 +171,7 @@ class Ledger:
             if run['status'] != 'queued':
                 raise Conflict('Only queued Runs can be cancelled; started effects require reconciliation')
             run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
+            self.sync_attempt(run)
             return run
         return self.mutate(change)
 
@@ -160,4 +186,45 @@ class Ledger:
                     run['revision'] += 1
                 if run['status'] == 'running':
                     run.update(status='uncertain', error='Service interrupted; no automatic replay', finishedAt=now(), revision=run['revision'] + 1)
+                    if not run.get('attempts'):
+                        run['attempts'] = [dict(id='att_' + uuid.uuid4().hex, number=1, status='uncertain', legacy=True)]
+                        run['attemptCount'] = 1
+                        run['activeAttemptId'] = run['attempts'][0]['id']
+                self.sync_attempt(run)
         self.mutate(change)
+
+
+    @staticmethod
+    def sync_attempt(run):
+        if run.get('attempts'):
+            attempt = run['attempts'][-1]
+            for key in ('status', 'startedAt', 'finishedAt', 'error', 'result', 'targetIds', 'targetResults', 'selection'):
+                if key in run:
+                    attempt[key] = copy.deepcopy(run[key])
+
+    def maintenance(self, retained_event_ids, *, clock=time.time, retention=RETENTION_SECONDS):
+        def change(state):
+            deleted = []
+            for rid, run in list(state['runs'].items()):
+                if run['status'] not in {'succeeded', 'failed', 'cancelled', 'skipped'} or run['event']['id'] in retained_event_ids:
+                    continue
+                try:
+                    finished_at = datetime.fromisoformat(run.get('finishedAt', ''))
+                    if finished_at.tzinfo is None:
+                        continue  # Do not guess a legacy record's timezone.
+                    finished = finished_at.timestamp()
+                except (ValueError, TypeError):
+                    continue  # Unknown legacy timestamps are preserved, not guessed.
+                if finished < clock() - retention:
+                    del state['runs'][rid]
+                    deleted.append(rid)
+            return {'deletedRuns': len(deleted)}
+        return self.mutate(change)
+
+    def stats(self):
+        state = self.read()
+        size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
+        count = len(state['runs'])
+        return dict(runs=count, bytes=size, maxRuns=self.max_runs, maxBytes=self.max_bytes,
+                    warning=count >= self.max_runs*.8 or size >= self.max_bytes*.8,
+                    full=count >= self.max_runs or size >= self.max_bytes)

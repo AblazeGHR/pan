@@ -11,7 +11,8 @@ validation does not mean overall human acceptance.
 
 `packages.automation.service.Service` is created/stopped by the web lifespan.
 All new files live under `session.SESSION_DIR.parent / automation`:
-`registry.json` (Trigger/Run ledger) and `user.key` (local user key). There are no
+`registry.json` (Trigger/Run ledger), `events.sqlite3` (durable inbox), and
+`user.key` (local user key). There are no
 new environment variables and no import-time initialization or migration.
 Existing Actions remain under the sibling `actions/registry.json`.
 
@@ -22,11 +23,13 @@ ordered consumer with a matching-only async lock, independently of executors.
 No async event producer performs filesystem I/O. A slow subscriber has its own
 queue and task. The bounded queue admission is synchronous and nonblocking.
 
-Run retention is currently indefinite, as is deduplication. The JSON ledger is
-rewritten on each transaction; retention/indexing/paging must be designed before
-large deployments. There is no durable Event Store, replay, or exactly-once
-side-effect guarantee. Diagnostics before persistence are process-local and may
-be lost on restart; persisted Runs retain later errors.
+The next-phase durable Event Store contract is specified in
+[Event Store foundation](Event-Trigger-Action-v0.2-event-store.md). It supersedes
+v0.1's indefinite retention and volatile acceptance: default retention is seven
+days, subject to protected pending/uncertain records, and deduplication is bounded
+by retained Events/Runs. Accepted runtime publications commit before delivery.
+There is still no exactly-once side-effect guarantee. Pre-commit core ingress and
+diagnostics are process-local; the durable guarantee starts at commit.
 
 ## HTTP
 
@@ -34,7 +37,10 @@ be lost on restart; persisted Runs retain later errors.
 |---|---|---|
 | POST `/api/automation/login` | `{key: string}` | `{token, expiresIn:43200}`; invalid key 401 |
 | POST `/api/automation/logout` | Bearer header | revoke that in-memory token |
-| GET `/api/automation` | none | ledger, definitions, per-Trigger dependencies, diagnostics, limits |
+| GET `/api/automation` | none | ledger, definitions, dependencies, diagnostics, limits, `storage:{events,runs}` |
+| GET `/api/automation/events?after=N&limit=N` | nonnegative cursor; limit 1..100 (default 20) | `{events,nextAfter}` |
+| POST `/api/automation/events/replay` | `{eventIds:[string]}`, Bearer | 1..100 unique retained IDs; `{scheduled,automaticRunRetry:false}`; uncertain -> 409 |
+| POST `/api/automation/events/maintenance` | Bearer | fixed retention cleanup counts; no arbitrary deletion |
 | POST `/api/automation/triggers` | `{item, expectedRevision, agentId?}` | `{item}`; create revision 0, updates exact Trigger revision |
 | DELETE `/api/automation/triggers/{id}?expectedRevision=N` | Bearer header | user token always required; disable before delete; history retained |
 | POST `/api/automation/runs/{id}/cancel` | `{expectedRevision:N}`, Bearer | queued only; conflict/start already occurred -> 409 |
@@ -69,12 +75,16 @@ handle, not a serializable credential. `register(handle,type,schema,version=1)`
 requires the owner's `<owner>.` namespace; ownership cannot be overwritten.
 Schemas use JSON Schema 2020-12, without references or external resolution.
 A declaration carries `type/source/schemaVersion/schema/available`.
-`publish(handle,type,payload,event_id?)` validates ownership/schema and returns
-`{event,accepted,rejected:[subscriber names]}`. Each subscriber receives an
-independent copy of the same envelope (`id/type/schemaVersion/source/occurredAt/payload`).
-Accepted means admission only, never durable Run or Action completion.
-Partial fanout is possible and explicitly reported. Runtime IDs must be stable;
-event IDs must be reused for deliberate redelivery, maximum 128 characters.
+`await publish_async(handle,type,payload,event_id?)` validates ownership/schema,
+commits the Event with its candidate Trigger revisions, then returns
+`{event,accepted:true,persisted:true,duplicate:boolean,rejected:[]}`. This receipt
+acknowledges durable inbox admission, never Action completion. Reused IDs with
+identical source/type/schemaVersion/payload retain the original envelope; different
+facts are rejected. `occurredAt` is not part of identity. Live subscriptions remain
+best effort and may receive duplicates; `rejected:[]` is not a delivery receipt.
+Each callback receives its own envelope copy. The synchronous `publish` is only
+available on a standalone volatile Bus; durable Service instances reject it.
+IDs must be reused for deliberate redelivery, maximum 128 characters.
 
 `subscribe(handle,name,async_callback)` subscribes to the live stream (callbacks
 filter Event types as needed); `deactivate(handle)` revokes publication,
@@ -124,9 +134,11 @@ nothing. Worker queue/lifecycle rules are unchanged.
 
 Runs store `id/revision/triggerId/triggerRevision/actionId/event/arguments/state`,
 `createdAt/startedAt?/finishedAt?`, `status/error?/result?`, `action/actionDigest?`,
-and Session Operation checkpoints `targetIds/targetResults`. Registry and every
+and Session Operation checkpoints `targetIds/targetResults`. The Event Store phase
+adds `attempts/attemptCount/activeAttemptId`; its first durable claim creates one
+attempt, with no automatic retry. Registry and every
 object have independent increasing revisions. Event ID + Trigger ID deduplicates
-all statuses permanently. Runs are appended before effects and gated by durable
+all statuses while retained. Runs are appended before effects and gated by durable
 `admitted:true` after all matching persistence attempts for that Event finish.
 Partial persistence failures are diagnostic; successfully persisted matches can
 run once admission is durable. Admission failure keeps queued records waiting.
@@ -171,8 +183,9 @@ so their permission and execution semantics do not expand accidentally.
 `query` is implemented by the authorized Session query follow-up below.
 Parallel mode remains reserved. Production UI and the stdio external plugin
 transport are integrated and have isolated combination evidence. Alternative
-remote transports, large-ledger retention/paging and reliable Event delivery
-remain deferred. Overall human Pause/queue acceptance is pending the user.
+remote transports and durable per-plugin consumer delivery remain deferred.
+The Event Store phase adds bounded retention, inbox paging and durable Trigger
+matching as specified in its separate contract. Overall human Pause/queue acceptance is pending the user.
 
 
 ## Scheduler concurrency clarification (core acceptance rework)

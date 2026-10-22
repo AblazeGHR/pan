@@ -36,3 +36,25 @@ class SessionSelector(TypedDict):
 
 ExecutionMode = Literal['serial', 'parallel']
 RunStatus = Literal['queued', 'running', 'succeeded', 'failed', 'cancelled', 'uncertain', 'skipped']
+
+
+class EventReceipt(TypedDict):
+    event: Event
+    accepted: Literal[True]
+    persisted: Literal[True]
+    duplicate: bool
+    rejected: list[str]  # Live subscriber delivery is not acknowledged here.
+
+
+class RunAttempt(TypedDict):
+    id: str
+    number: int
+    status: RunStatus
+    startedAt: NotRequired[str]
+    finishedAt: NotRequired[str]
+    legacy: NotRequired[bool]
+    error: NotRequired[str]
+    result: NotRequired[Any]
+    targetIds: NotRequired[list[str]]
+    targetResults: NotRequired[list[dict[str, Any]]]
+    selection: NotRequired[dict[str, Any]]

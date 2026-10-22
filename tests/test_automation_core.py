@@ -79,7 +79,7 @@ async def test_running_edge_durable_pause_and_dedupe(tmp_path, monkeypatch):
     svc = Service(tmp_path / 'service', worker, None)
     svc.engine, svc.ledger = engine, ledger
     engine.bus = svc.bus
-    svc.bus.subscribe(svc.core, 'triggers', engine.match)
+    await svc.start()
     monkeypatch.setattr(worker, 'workers', {})
     worker.set_running_observer(svc.observe)
     w = worker.Worker('own', 'source', None)
@@ -105,8 +105,7 @@ async def test_running_edge_durable_pause_and_dedupe(tmp_path, monkeypatch):
         worker.workers.pop('own')
         worker._unregister_worker(w)
         worker.set_running_observer(None)
-        await svc.bus.close()
-        await engine.close()
+        await svc.close()
 
 
 @async_test
@@ -292,7 +291,7 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
         svc.auth.sessions.clear()
         assert svc.ledger.read()['triggers']['t']['enabled']
         assert (await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 2}, headers=headers)).status_code == 401
-        assert (await client.post('/api/automation/events', json={'source': {'type': 'core'}})).status_code == 404
+        assert (await client.post('/api/automation/events', json={'source': {'type': 'core'}})).status_code == 405  # read-only discovery, no public publisher
     await svc.bus.close()
     await svc.engine.close()
 
@@ -468,9 +467,11 @@ async def test_example_internal_plugin_runtime_lifecycle(tmp_path):
     from packages.automation.example_plugin import ExamplePlugin
     svc = Service(tmp_path, worker, None)
     plugin = ExamplePlugin(svc)
+    await svc.start()
     await plugin.enable()
     handle = plugin.handle
-    result = plugin.tick(3)
+    result = await plugin.tick(3)
+    await until(lambda: asyncio.sleep(0, result=bool(plugin.received)))
     await asyncio.gather(*(q.join() for _, q, _ in svc.bus.subscribers.values()))
     assert plugin.received == [result['event']['id']]
     await plugin.disable()

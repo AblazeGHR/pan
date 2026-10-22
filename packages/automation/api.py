@@ -38,7 +38,7 @@ def install(server):
     async def view():
         svc = service()
         state = await svc.engine.io(svc.ledger.read)
-        return {**state, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
+        return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
 
     @router.post('/api/automation/triggers')
     async def put(data: dict, request: Request):
@@ -84,5 +84,30 @@ def install(server):
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(404, 'Run not found') from exc
+
+    @router.get('/api/automation/events')
+    async def events(after: int = 0, limit: int = 20):
+        try:
+            return {**await service().engine.io(service().events.page, after, limit),
+                    'storage': await service().engine.io(service().events.stats)}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @router.post('/api/automation/events/replay')
+    async def replay(data: dict, request: Request):
+        await require(request)
+        if set(data) != {'eventIds'}:
+            raise HTTPException(400, 'Expected eventIds only')
+        try:
+            return {'scheduled': await service().replay(data['eventIds']), 'automaticRunRetry': False}
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @router.post('/api/automation/events/maintenance')
+    async def maintenance(request: Request):
+        await require(request)
+        result = await service().maintenance()
+        service().wake.set()
+        return result
 
     server.app.include_router(router)

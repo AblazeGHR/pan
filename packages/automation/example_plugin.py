@@ -17,8 +17,8 @@ class ExamplePlugin:
         self.service.bus.subscribe(self.handle, 'example.observer', receive)
         await self.service.plugin_ready()
 
-    def tick(self, value):
-        return self.service.bus.publish(self.handle, 'example.tick', {'value': value})
+    async def tick(self, value):
+        return await self.service.bus.publish_async(self.handle, 'example.tick', {'value': value})
 
     async def disable(self):
         await self.service.plugin_disabled(self.handle)

@@ -360,3 +360,25 @@ operation:"pause_everything",selector:{mode:"query",query:Predicate}}`。
 Predicate 使用 and/or/not 或 field/op/value；七字段、类型约束与 8/64/2048/256
 深度/节点/候选/结果限制见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
 Agent 草稿强制关闭、Trigger token 管理与 Group/provider 安全门禁不变。
+
+
+## Durable Automation Events
+
+- `GET /api/automation` adds `storage.events` and `storage.runs`: usage, caps,
+  warning/full, pending/overduePending and default retentionSeconds=604800.
+- `GET /api/automation/events?after=0&limit=20`: ascending sequence cursor,
+  limit 1..100, returns `{events,nextAfter,storage}`. Each entry includes the
+  original event, frozen Trigger revisions, pending/delivered, deliveryCount and
+  lastError. It does not execute anything or grant publication rights.
+- `POST /api/automation/events/replay`, user Bearer and exactly `{eventIds:[...]}`:
+  1..100 unique retained IDs, returns `{scheduled,automaticRunRetry:false}`.
+  Missing/expired or uncertain-associated events ->409. No new Event or Run attempt
+  is created; existing failed/succeeded/cancelled Runs stay deduplicated.
+- `POST /api/automation/events/maintenance`, user Bearer: fixed seven-day policy,
+  returns `deletedEvents/deletedRuns`. No caller-controlled delete range.
+
+There is no public event publisher. Production plugin publication commits before
+acknowledgement; at-least-once covers Event-to-Trigger matching, with retained
+Event+Trigger dedup. Live plugin subscriptions remain best effort. Capacity blocks
+new admission rather than dropping pending facts/uncertain Runs. Details and
+migration risks: `docs/design/Event-Trigger-Action-v0.2-event-store.md`.
