@@ -21,7 +21,7 @@ const sessions = ['a', 'b', 'c'].map((id) => ({
   unreadDoneCount: 3,
   msgBridgeEnabled: false,
   // a and c carry a live worker; b has none (Kill/Delayed restart boundaries).
-  ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle' }),
+  ...(id === 'b' ? {} : { workerId: `worker-${id}`, workerStatus: 'idle', workerGeneration: 1 }),
 }));
 useSessionStore.setState({ sessions, multiSelectMode: true, selectedIds: new Set(['a', 'b']) });
 useWorkerStore.setState({ workers: {}, delayedRestarts: {} });
@@ -43,8 +43,10 @@ useUIStore.setState({
 Object.assign(window, {
   selectTargets: (ids: string[]) => useSessionStore.setState({ selectedIds: new Set(ids) }),
   setManager: (id: string, manager: string | null) => useSessionStore.getState().updateSession(id, { managedBy: manager }),
-  setWorker: (id: string, workerId: string | null, status: string | null) =>
-    useSessionStore.getState().updateSession(id, { workerId, workerStatus: status }),
+  setWorker: (id: string, workerId: string | null, status: string | null, generation = 1) => {
+    useSessionStore.getState().updateSession(id, { workerId, workerStatus: status, workerGeneration: generation });
+    useWorkerStore.getState().updateWorker(id, workerId, status, generation);
+  },
   applyDelayedRestart: (intent: Record<string, unknown>) =>
     useWorkerStore.getState().applyDelayedRestart(intent as never),
   delayedRestartState: () => useWorkerStore.getState().delayedRestarts,

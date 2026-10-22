@@ -132,7 +132,7 @@ def test_send_session_accepts_future_external_sources(monkeypatch):
         target.id, "task", source="meta-agent", source_session_id=caller.id))
 
     assert result["status"] == "queued"
-    assert target.queue_pending[0]["source"] == "meta-agent"
+    assert target.queue_pending[0]["source"] == "agent"  # Persisted ancestry classifies unrelated agent input.
     assert target.queue_pending[0]["sourceSessionId"] == "caller"
 
 

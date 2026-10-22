@@ -187,15 +187,21 @@ def test_console_api_requires_exact_instance_identity(monkeypatch):
 
 def test_lifecycle_http_guard_refuses_replaced_instance(monkeypatch):
     import packages.web.server as srv
-    from starlette.requests import Request
     monkeypatch.setattr(srv.launcher, "process_create_time", lambda pid: 12)
-    async def next_call(request):
+    messages = []
+
+    async def next_call(scope, receive, send):
         pytest.fail("must not schedule a lifecycle Job on a replacement instance")
-    request = Request({"type": "http", "method": "POST", "path": "/api/main/exit",
-                       "headers": [(b"x-pan-expected-pid", str(os.getpid()).encode()),
-                                   (b"x-pan-expected-created-at", b"11")]})
-    result = asyncio.run(srv.cli_instance_guard(request, next_call))
-    assert result.status_code == 409
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {"type": "http", "method": "POST", "path": "/api/main/exit",
+             "headers": [(b"x-pan-expected-pid", str(os.getpid()).encode()),
+                         (b"x-pan-expected-created-at", b"11")]}
+    asyncio.run(srv.CLIInstanceGuardMiddleware(next_call)(scope, None, send))
+    assert messages[0]["status"] == 409
+
 
 
 def test_follow_reads_rotation_and_exits_without_service_action(tmp_path, monkeypatch, capsys):

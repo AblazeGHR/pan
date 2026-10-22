@@ -73,6 +73,7 @@ def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tm
     _enqueue(runtime, sid, "hold-A", "active")
     active = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))[0]
     job = runtime.request("POST", "/api/background-jobs", json={
+            "name": "Validate isolated terminal notice",
         "targetSessionId": sid, "creatorSessionId": sid,
         "argv": [sys.executable, "-u", "-c", "import time; print('JOB_LONG_STARTED', flush=True); time.sleep(86400)"],
         "cwd": s["workdir"], "label": "isolated shutdown sticky lock"})

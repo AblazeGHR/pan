@@ -37,6 +37,15 @@ function sameRuntimeWorker(previous: WorkerInfo | undefined, workerId: string | 
     || previous?.generation === undefined || previous.generation === generation);
 }
 
+function canClearKilledRuntime(previousId: string | null | undefined, previousGeneration: number | null | undefined,
+  currentId: string | null | undefined, currentGeneration: number | null | undefined): boolean {
+  if (!currentId) return true;
+  // An active entry with an unknown generation cannot be proven to be the
+  // killed runtime, even when its worker id has not changed.
+  return currentId === previousId && typeof previousGeneration === 'number'
+    && typeof currentGeneration === 'number' && currentGeneration === previousGeneration;
+}
+
 interface WorkerStore {
   delayedRestarts: Record<string, DelayedRestartState>;
   applyDelayedRestart: (intent: DelayedRestartState) => void;
@@ -129,7 +138,22 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
   },
 
   killCurrent: async (sessionId) => {
+    const { id: previousId, generation: previousGeneration } = get().workers[sessionId] ?? {};
+    const epoch = get().runtimeEpoch;
+    const previousSession = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+    const previousSessionId = previousSession?.workerId;
+    const previousSessionGeneration = previousSession?.workerGeneration;
     await killSessionWorker(sessionId);
+    const current = get().workers[sessionId];
+    const currentSession = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+    if (get().runtimeEpoch !== epoch
+      || !canClearKilledRuntime(previousId, previousGeneration, current?.id, current?.generation)
+      || !canClearKilledRuntime(previousSessionId, previousSessionGeneration,
+        currentSession?.workerId, currentSession?.workerGeneration)) return;
+    useSessionStore.getState().updateSession(sessionId, {
+      workerId: null,
+      workerStatus: null,
+    });
     set((s) => {
       const workers = { ...s.workers };
       delete workers[sessionId];

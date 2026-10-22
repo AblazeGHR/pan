@@ -95,7 +95,7 @@ Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允�
 
 ### 读取和提前消费自己的队列
 
-- `self_queue_read()` 返回自己的可消费队列项。child-agent 报告只返回原 ID/type/source，不返回正文、result、snippet、parts、附件文本或任意 envelope；其他非 report 消息的既有正文/元数据读取不变。读取本身不消费。报告推荐先用 `report_consume()`，由真实 CLI 交接/history 表明正文进入 context 的时点。
+- `self_queue_read()` 返回自己的可消费队列项。TA 报告只返回原 ID/type/source，不返回正文、result、snippet、parts、附件文本或任意 envelope；其他非 report 消息的既有正文/元数据读取不变。读取本身不消费。报告推荐先用 `report_consume()`，由真实 CLI 交接/history 表明正文进入 context 的时点。
 - `self_queue_consume(item_id)` 按读取所得的原 ID 提前消费，可打断当前任务。接口不接受 Session 参数；身份来自 Pan 为本地 stdio MCP 注入的可信调用者上下文，远程无绑定身份的调用不可用。
 - 带逐项锁、全体锁、Stop reports 实际自动锁、编辑租约，以及 Pause everything 阻止的项不可见、不可消费；不会返回隐藏项的正文、ID、数量、队列位置或整体 revision。Stop reports 只隐藏实际锁定的 Agent 报告，通道提醒和显式通知沿用原规则；UI 显式解锁后可恢复可见。消费会复检当前限制并遵守最终交接 gate。
 - 只有 `ok=true, status=consumed` 证明原消息已实际交给 CLI；这不是任务完成报告。`pending`、`unconfirmed` 不表示成功。调用可能因为打断当前任务而失去响应；再次使用**同一原 ID**只查已有意图或持久回执，不重新发送正文或伪造新消息。不确定交接不会自动重投；待确认项继续受阻，需由用户调查处置。
@@ -226,13 +226,13 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 `report_status()` 只读自己的持久 reportSubscriptions 和 agentReportsPaused 配置，不 claim/修复关系，也不证明目标活着、报告已产生或交接。订阅变更仍用 report_subscribe/report_unsubscribe。
 
-报告推荐 `report_consume()`：把当前可处理的 child-agent 报告按原相对顺序聚集到队首，持久化后组成一条消息强制交给 CLI。running 且支持原生 Steer 时是一条真正的批量 Steer；无 Steer 按既有 Force restart 路由；idle/queued 用普通 handoff，不因无 Steer 能力而阻止发送或额外重启，无 Worker 则创建/恢复 Worker。delayed restart 仍优先。非 report 项保留相互顺序，Job/notice/channel 不混入该批次。复用原报告行、ID、来源及普通 batch 格式/history 映射，不复制入队、不伪造报告。
+报告推荐 `report_consume()`：把当前可处理的 TA 报告按原相对顺序聚集到队首，持久化后组成一条消息强制交给 CLI。running 且支持原生 Steer 时是一条真正的批量 Steer；无 Steer 按既有 Force restart 路由；idle/queued 用普通 handoff，不因无 Steer 能力而阻止发送或额外重启，无 Worker 则创建/恢复 Worker。delayed restart 仍优先。非 report 项保留相互顺序，Job/notice/channel 不混入该批次。复用原报告行、ID、来源及普通 batch 格式/history 映射，不复制入队、不伪造报告。
 
 回执只含 `itemId`（首个原 ID）、`queueItemIds` 和交接状态；没有 result、正文、snippet 或附件文本。`accepted` 仅证明 CLI 接受，绝非 MA 处理完成或模型执行完成；`queued/pending/unknown/unconfirmed` 不能当作成功。保留 itemId，调用 `report_consume(item_id=原ID)` **只查询该批次回执，不写 CLI、不补写 Session、不重发**。任一原成员 ID 均可查询。未结束批次保持同一组成员，未知写入不能重组为新 batch 或自动重投。普通队列/Steer 以同一批次为不可拆交接单元；实际交接与 Action unbuild/settings/startup 共用 Session/Group reservation，已卸载的 loaded pin 阻止写入，reservation 保持到交接写入/回执 owner 结束；已拒绝但未交接的批次仍可由正常消费者按原批次处理。
 
 两工具无 Session 参数，仅绑定本地 stdio 自身身份；remote/SSE、浏览器 Origin/Fetch、非 loopback 不能借用身份。Illegal/manual/Stop-report 实际锁、Pause、readonly、lease、native owner、未知交接等 gate 均保留；不能消费项跳过，不泄漏其身份/数量。编辑 lease 阻止批次聚集和 Steer，不为聚集解锁。无 ID 旧报告跳过，不生成持久身份；未来 stop-report 配置不替代实际行锁。批次形成后若任一成员被锁/编辑/重排则不拆分投递，等待既有 gate 解除。
 
-用户原写法 `report_comsume` 对应规范工具名 **report_consume**，不另设别名。`report_next` 已移除，`report_ack` 不实现。`self_queue_read` 不再提前暴露 child-agent 报告正文。正文只经真实 CLI 成功交接进入 history，不把读取当消费，也不把 CLI 交接当处理确认。正常订阅通知仍是唤醒路径，不为报告建立轮询。
+用户原写法 `report_comsume` 对应规范工具名 **report_consume**，不另设别名。`report_next` 已移除，`report_ack` 不实现。`self_queue_read` 不再提前暴露 TA 报告正文。正文只经真实 CLI 成功交接进入 history，不把读取当消费，也不把 CLI 交接当处理确认。正常订阅通知仍是唤醒路径，不为报告建立轮询。
 
 ### 2.5 清理（收尾）
 

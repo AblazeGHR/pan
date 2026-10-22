@@ -148,9 +148,18 @@ try {
       return (history.history || []).some((row) =>
         String(row.content || '').includes('UI triggered MA'));
     }, { target: targetId }, { timeout: 20000 });
-    const queue = await page.evaluate(async ({ target }) => (
-      await (await fetch(`/api/sessions/${target}/queue`)).json()
-    ), { target: targetId });
+    // Assert the snapshot that satisfied the condition; a separate fetch can
+    // race the receipt writer while history is already visible.
+    let queue;
+    const deadline = Date.now() + 20000;
+    do {
+      queue = await page.evaluate(async ({ target }) => (
+        await (await fetch(`/api/sessions/${target}/queue`)).json()
+      ), { target: targetId });
+      if (!(queue.items || []).some((item) =>
+        String(item.text || '').includes('UI triggered MA'))) break;
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+    } while (Date.now() < deadline);
     assert.ok(!(queue.items || []).some((item) =>
       String(item.text || '').includes('UI triggered MA')), JSON.stringify(queue));
     await page.screenshot({

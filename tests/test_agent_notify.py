@@ -220,14 +220,15 @@ def test_notice_save_failure_keeps_queued_item(monkeypatch):
     _cleanup()
     s = _setup_session("ses_save_fail")
 
-    async def fail_save(_session):
+    def fail_save(_session, **kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr(_sess, "save_async", fail_save)
+    monkeypatch.setattr(_sess, "_save_body", fail_save)
     with pytest.raises(OSError):
         asyncio.run(worker.enqueue_notice("ses_save_fail", "must retry"))
-    assert len(s.queue_pending) == 1
-    assert s.queue_pending[0]["deliveryState"] == "queued"
+    assert s.queue_pending == []  # Failed candidate never publishes an uncommitted notice.
+    assert s.queue_delivery_ledger == {}
+    assert not (_sess.SESSION_DIR / f"{s.id}.json").exists()
     _cleanup()
 
 

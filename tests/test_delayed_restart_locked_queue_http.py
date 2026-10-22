@@ -145,6 +145,7 @@ def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, orde
         sid = s["id"]
         endpoint = f"/api/sessions/{sid}/worker/delayed-restart"
         active = order in {"plugin-first", "manual-first"}
+        runtime.request("PUT", "/api/settings/ui", json={"autoReport": {"ma": True, "user": True}})
         if active:
             manager = _create(runtime, "paused-report-manager")
             runtime.request("PATCH", f"/api/sessions/{manager['id']}/queue/paused", json={"paused": True})

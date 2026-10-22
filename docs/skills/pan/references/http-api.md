@@ -336,7 +336,7 @@ MCP `report_status()` wraps `POST /api/self-queue/report-status` with exactly `{
 
 Status returns `{ok:true,sessionId,reportSubscriptions,agentReportsPaused}` from persisted configuration without liveness/relationship repair or queue counts. `report_next` and its HTTP operation are removed; `report_ack` is not implemented. User spelling report_comsume maps to report_consume, with no alias.
 
-Consume uses the existing child-agent report classifier (not Job/notice/channel). It skips unprocessable or missing-ID rows without exposing IDs/counts. Existing Illegal/manual/Stop-report row locks, Pause, readonly, edit leases, native ownership and uncertain/reserved/retry gates are authoritative. Future report pause configuration is not an extra row lock. An active edit lease prevents aggregation/Steer. No gate is unlocked. A frozen batch whose member becomes unavailable is not split.
+Consume uses the existing TA report classifier (not Job/notice/channel). It skips unprocessable or missing-ID rows without exposing IDs/counts. Existing Illegal/manual/Stop-report row locks, Pause, readonly, edit leases, native ownership and uncertain/reserved/retry gates are authoritative. Future report pause configuration is not an extra row lock. An active edit lease prevents aggregation/Steer. No gate is unlocked. A frozen batch whose member becomes unavailable is not split.
 
 Selection/reordering and `reportConsumeIds`/self-consume intent on the ORIGINAL rows are persisted in one ordered writer ticket with rollback before delivery on failure. Eligible reports move to the front in original order; other rows retain relative order. `reportConsumeIds` are the existing member IDs, not a new identity/inbox. Both ordinary queue selection and native Steer resolve this exact unit; one native control message and one normal formatted history row preserve all original `queueItemIds`, delivery keys, per-row sources/task identity and envelopes. Automatic Force skips frozen batch rows to avoid independent reordering. Actual ordinary and batch Steer handoff share the Action Session/Group reservation with unbuild/settings/startup. Steer acquires it in spawn-then-Session order, rechecks loaded pins after waiting, and keeps it until the write/drain/receipt owner retires, including cancellation. Spawn/queue locks are released before waiting on provider I/O. Normal reservation rechecks the exact unit and revisions; final write rechecks gates. Settings changes may block delivery after queuing, without deleting the batch.
 
@@ -505,3 +505,21 @@ Worker/generation, process birth and thread receipt); no config body/capability.
 Host inventory consumes only its matching live owner. A copied historical record
 does not grant startup identity or unfinished-task eligibility. No new effect or
 launch-export endpoint is exposed in this batch.
+
+
+## Agent Inbox / Router / Locker v1
+
+共享 Agent Inbox 与 Session Queue 是不同容器。HTTP `/api/agent-inbox` 列出
+Locker；`POST /api/agent-inbox/{list|read|consume|subscriptions|subscribe|mode|backlog|recover}`
+提供共享读取、原子消费与订阅。`POST /api/plugins/{plugin_id}/route` 提供固定内部
+目标 agent_inbox / session_queue；user_inbox 尚未实现，明确拒绝。
+MCP `agent_inbox` 复用 caller self/managed 权限，不提供用户审批或任意执行目标。
+
+全文入目标 Queue 落盘即完成目标接纳，全部固定目标接纳才完成共享消费，不等待 CLI。
+Notification 不携正文、不消费；开订阅及变更模式默认只收新消息，backlog 是显式转发
+操作。逐目标 unknown 必须核对原 QueueID，不得盲目重投。QQ 旧订阅保留并映射全文，
+历史积压不自动回放，QQ history 独立保留。
+
+参数、响应、迁移及恢复边界见
+[Agent Inbox API 与冻结设计](../../../design/Agent-Inbox-Router-Locker.md)，前端结构见
+[JSON Schema](../../../design/Agent-Inbox-Router-Locker.schema.json)。
