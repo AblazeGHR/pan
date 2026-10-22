@@ -129,7 +129,19 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
   },
 
   killCurrent: async (sessionId) => {
+    const previous = get().workers[sessionId];
+    const epoch = get().runtimeEpoch;
+    const previousSession = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
     await killSessionWorker(sessionId);
+    const current = get().workers[sessionId];
+    const currentSession = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+    if (get().runtimeEpoch !== epoch || (current && current !== previous)
+      || currentSession?.workerId !== previousSession?.workerId
+      || currentSession?.workerGeneration !== previousSession?.workerGeneration) return;
+    useSessionStore.getState().updateSession(sessionId, {
+      workerId: null,
+      workerStatus: null,
+    });
     set((s) => {
       const workers = { ...s.workers };
       delete workers[sessionId];

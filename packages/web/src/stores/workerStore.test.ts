@@ -87,7 +87,9 @@ describe('workerStore currentWorker resolution', () => {
   });
 
   it('killCurrent routes by sessionId and clears that session worker', async () => {
-    useSessionStore.setState({ currentSessionId: 'ses_1' });
+    useSessionStore.setState({ currentSessionId: 'ses_1', sessions: [
+      { id: 'ses_1', name: 'target', workerId: 'worker-5', workerStatus: 'idle', history: [], alwaysThinkingEnabled: false, effort: '' },
+    ] });
     useWorkerStore.getState().updateWorker('ses_1', 'worker-5', 'idle');
     mockKillSessionWorker.mockResolvedValue({ status: 'offline', workerId: 'worker-5' });
 
@@ -95,6 +97,30 @@ describe('workerStore currentWorker resolution', () => {
 
     expect(useWorkerStore.getState().currentWorker).toBeNull();
     expect(mockKillSessionWorker).toHaveBeenCalledWith('ses_1');
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({ workerId: null, workerStatus: null });
+  });
+
+  it('a rejected Kill preserves the runtime and Session projection', async () => {
+    useSessionStore.setState({ currentSessionId: 'ses_1', sessions: [
+      { id: 'ses_1', name: 'target', workerId: 'worker-5', workerStatus: 'idle', history: [], alwaysThinkingEnabled: false, effort: '' },
+    ] });
+    useWorkerStore.getState().updateWorker('ses_1', 'worker-5', 'idle');
+    mockKillSessionWorker.mockRejectedValue(new Error('owner retained'));
+    await expect(useWorkerStore.getState().killCurrent('ses_1')).rejects.toThrow('owner retained');
+    expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-5');
+    expect(useSessionStore.getState().sessions[0]?.workerStatus).toBe('idle');
+  });
+
+  it('a late Kill response preserves a successor runtime', async () => {
+    useSessionStore.setState({ currentSessionId: 'ses_1', sessions: [] });
+    useWorkerStore.getState().updateWorker('ses_1', 'worker-5', 'idle', 10);
+    let finish!: (value: { status: string }) => void;
+    mockKillSessionWorker.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const killing = useWorkerStore.getState().killCurrent('ses_1');
+    useWorkerStore.getState().updateWorker('ses_1', 'worker-6', 'idle', 11);
+    finish({ status: 'offline' });
+    await killing;
+    expect(useWorkerStore.getState().currentWorker?.id).toBe('worker-6');
   });
 
   it('restart routes by sessionId so a stale workerId cannot cause Worker not found', async () => {
