@@ -8532,6 +8532,11 @@ async def _kill_process_tree(w: Worker) -> None:
             except (ProcessLookupError, Exception):
                 pass
         await wait_for_exit(process, "CLI process")
+        launch_cleanup = getattr(process, '_provider_launch_cleanup', None)
+        if launch_cleanup is not None:
+            # The launch Job/handles/private snapshot belong to this lifecycle;
+            # kill/restart must retire them before reporting terminal cleanup.
+            await asyncio.shield(launch_cleanup)
 
     # One-shot mode: w._mcp_proc is the in-flight short-lived provider process
     # (may be None).
