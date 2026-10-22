@@ -1,0 +1,80 @@
+Pan
+Chat
+Editor
+Jobs
+Terminal
+Actions
+Automation
+CC Switch
+New
+Import
+recent
+combined-control
+Unified production UI message
+3
+deepseek-v4-flash (x0.17)
+…/data/workdirs
+1
+cbc
+combined-paused-target
+////by pan system status: notice jobId: jobbcfc2f4...
+9
+deepseek-v4-flash (x0.17)
+…/data/workdirs
+1
+cbc
+工作区
+全部
+2
+无工作区
+2
+新建工作区
+全部
+Jobs
+Jobs
+New Job
+Settings
+All
+Active
+Scheduled
+Completed
+Failed
+Timeout
+Undeliverable
+Kind
+All kinds
+后台进程
+定时消息
+群发消息
+定时任务
+服务生命周期
+Refresh
+Search
+Sort by 
+Active first
+Updated time
+Created time
+Kind
+Descending
+Pinned jobs first
+3 of 3 jobs
+Select jobs
+Job beside Locker
+Cancel job
+pending
+定时任务
+system → no target
+runs 0
+Unified production UI message
+completed
+定时任务
+system → no target
+last completed
+Job beside Locker
+completed
+定时任务
+system → no target
+last completed
+Created unified Job "Unified production UI message"
+Fired: sch_4eaf36f5c63f (cleaning)
+Fired: sch_4eaf36f5c63f (completed)

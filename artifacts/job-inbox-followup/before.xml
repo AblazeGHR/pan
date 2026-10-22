@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="6" time="0.674" timestamp="2026-10-23T01:42:36.305891+08:00" hostname="ablaze"><testcase classname="tests.test_job_inbox_boundaries" name="test_disabled_agent_template_cannot_smuggle_enabled_instance" time="0.098"><failure message="Failed: DID NOT RAISE PermissionError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3835/test_disabled_agent_template_c0')
+
+    def test_disabled_agent_template_cannot_smuggle_enabled_instance(tmp_path):
+        store=Store(tmp_path/'actions');store.put('actions',action())
+        config={'name':'fixed','actionId':'pause','arguments':{},'enabled':True,
+                'schedule':[],'trigger':{'kind':'immediate'}}
+&gt;       with pytest.raises(PermissionError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests\test_job_inbox_boundaries.py:15: Failed</failure></testcase><testcase classname="tests.test_job_inbox_boundaries" name="test_legacy_message_projection_is_disabled_typed_and_does_not_mutate" time="0.013"><failure message="AssertionError: assert {'type': 'int...lSeconds': 60} == [{'kind': 'in...rvalSec': 60}]&#10;  &#10;  Use -v to get more diff">def test_legacy_message_projection_is_disabled_typed_and_does_not_mutate():
+        old={'jobId':'old','kind':'session-message','name':'old reminder','enabled':True,
+             'targetSessionId':'session','text':'body','schedule':{'type':'interval','intervalSeconds':60},
+             'lastExecution':{'id':'execution','runId':'logical-run'}}
+        before=copy.deepcopy(old);view=project(old)
+&gt;       assert view['config']['schedule']==[{'kind':'interval','intervalSec':60}]
+E       AssertionError: assert {'type': 'int...lSeconds': 60} == [{'kind': 'in...rvalSec': 60}]
+E         
+E         Use -v to get more diff
+
+tests\test_job_inbox_boundaries.py:25: AssertionError</failure></testcase><testcase classname="tests.test_job_inbox_boundaries" name="test_ambiguous_legacy_migration_has_explicit_diagnostics[future-kind-schedule0]" time="0.003"><failure message="assert True is False">kind = 'future-kind', schedule = []
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+&gt;       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_inbox_boundaries" name="test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule1]" time="0.002"><failure message="assert True is False">kind = 'session-message'
+schedule = {'type': 'weekly', 'weekday': True, 'time': '13:00'}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+&gt;       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_inbox_boundaries" name="test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule2]" time="0.002"><failure message="assert True is False">kind = 'session-message', schedule = {'type': 'once', 'delaySeconds': 5}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+&gt;       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_inbox_boundaries" name="test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule3]" time="0.002"><failure message="assert True is False">kind = 'session-message'
+schedule = {'type': 'weekly', 'weekday': 0, 'time': '12:00:15'}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+&gt;       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError</failure></testcase></testsuite></testsuites>

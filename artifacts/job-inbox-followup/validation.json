@@ -1,0 +1,61 @@
+{
+  "sourceSha": "16429246ac1527ae89f3b6948407a527fd29f729",
+  "jobBase": "886842338c623b73bac8f16a12f4675879664674",
+  "inboxBase": "7446efcb55545be35e76b4845941991202b8cd93",
+  "tests": {
+    "python": {
+      "tests": 327,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "junit": "artifacts/job-inbox-followup/python.xml"
+    },
+    "ui": {
+      "tests": 65,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "junit": "artifacts/job-inbox-followup/ui.xml"
+    },
+    "http": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "junit": "artifacts/job-inbox-followup/http.xml"
+    }
+  },
+  "frontend": {
+    "typecheckExitCode": 0,
+    "buildExitCode": 0,
+    "compressedAssets": 84,
+    "buildSource": "cb47b91a1f029860d57465e1a543757a5d157b5a",
+    "unchangedSinceBuild": true,
+    "chromium": {
+      "ok": true,
+      "chromiumVersion": "153.0.8010.12",
+      "sizes": [
+        {
+          "width": 1280,
+          "scrollWidth": 1280
+        },
+        {
+          "width": 390,
+          "scrollWidth": 390
+        },
+        {
+          "width": 320,
+          "scrollWidth": 320
+        }
+      ],
+      "errors": []
+    }
+  },
+  "cleanup": {
+    "ownedProcessesRemaining": [],
+    "portReleased": true
+  }
+}

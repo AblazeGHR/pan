@@ -1,0 +1,19 @@
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Error: strict mode violation: getByText('Unified production UI message', { exact: true }) resolved to 2 elements:
+    1) <div data-testid="session-preview-line" class="text-xs text-text-tertiary truncate mt-0.5 leading-tight min-h-[1.25em]">Unified production UI message</div> aka getByTestId('session-preview-line').first()
+    2) <div title="Unified production UI message" class="min-w-0 flex-1 truncate text-sm text-text-primary">Unified production UI message</div> aka getByTestId('jobs-list-scroll').getByText('Unified production UI message')
+
+Call log:
+[2m  - waiting for getByText('Unified production UI message', { exact: true })[22m
+
+    at D:\project\pan-worktrees\job-unified-inbox-followup-20261023\packages\web\e2e\job-unified-live.mjs:35:70 {
+  log: [
+    "  - waiting for getByText('Unified production UI message', { exact: true })"
+  ]
+}
+
+Node.js v24.15.0

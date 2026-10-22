@@ -1,0 +1,99 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-unified-inbox-followup-20261023
+FFFFFF                                                                   [100%]
+================================== FAILURES ===================================
+________ test_disabled_agent_template_cannot_smuggle_enabled_instance _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3835/test_disabled_agent_template_c0')
+
+    def test_disabled_agent_template_cannot_smuggle_enabled_instance(tmp_path):
+        store=Store(tmp_path/'actions');store.put('actions',action())
+        config={'name':'fixed','actionId':'pause','arguments':{},'enabled':True,
+                'schedule':[],'trigger':{'kind':'immediate'}}
+>       with pytest.raises(PermissionError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests\test_job_inbox_boundaries.py:15: Failed
+____ test_legacy_message_projection_is_disabled_typed_and_does_not_mutate _____
+
+    def test_legacy_message_projection_is_disabled_typed_and_does_not_mutate():
+        old={'jobId':'old','kind':'session-message','name':'old reminder','enabled':True,
+             'targetSessionId':'session','text':'body','schedule':{'type':'interval','intervalSeconds':60},
+             'lastExecution':{'id':'execution','runId':'logical-run'}}
+        before=copy.deepcopy(old);view=project(old)
+>       assert view['config']['schedule']==[{'kind':'interval','intervalSec':60}]
+E       AssertionError: assert {'type': 'int...lSeconds': 60} == [{'kind': 'in...rvalSec': 60}]
+E         
+E         Use -v to get more diff
+
+tests\test_job_inbox_boundaries.py:25: AssertionError
+_ test_ambiguous_legacy_migration_has_explicit_diagnostics[future-kind-schedule0] _
+
+kind = 'future-kind', schedule = []
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+>       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError
+_ test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule1] _
+
+kind = 'session-message'
+schedule = {'type': 'weekly', 'weekday': True, 'time': '13:00'}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+>       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError
+_ test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule2] _
+
+kind = 'session-message', schedule = {'type': 'once', 'delaySeconds': 5}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+>       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError
+_ test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule3] _
+
+kind = 'session-message'
+schedule = {'type': 'weekly', 'weekday': 0, 'time': '12:00:15'}
+
+    @pytest.mark.parametrize('kind,schedule',[
+        ('future-kind',[]),('session-message',{'type':'weekly','weekday':True,'time':'13:00'}),
+        ('session-message',{'type':'once','delaySeconds':5}),
+        ('session-message',{'type':'weekly','weekday':0,'time':'12:00:15'}),
+    ])
+    def test_ambiguous_legacy_migration_has_explicit_diagnostics(kind,schedule):
+        view=project({'jobId':'old','kind':kind,'targetSessionId':'s','text':'body','enabled':True,'schedule':schedule})
+>       assert view['config']['enabled'] is False
+E       assert True is False
+
+tests\test_job_inbox_boundaries.py:37: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_inbox_boundaries.py::test_disabled_agent_template_cannot_smuggle_enabled_instance
+FAILED tests/test_job_inbox_boundaries.py::test_legacy_message_projection_is_disabled_typed_and_does_not_mutate
+FAILED tests/test_job_inbox_boundaries.py::test_ambiguous_legacy_migration_has_explicit_diagnostics[future-kind-schedule0]
+FAILED tests/test_job_inbox_boundaries.py::test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule1]
+FAILED tests/test_job_inbox_boundaries.py::test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule2]
+FAILED tests/test_job_inbox_boundaries.py::test_ambiguous_legacy_migration_has_explicit_diagnostics[session-message-schedule3]
+6 failed in 0.71s
