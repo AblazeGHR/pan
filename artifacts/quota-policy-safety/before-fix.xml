@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.519" timestamp="2026-10-22T16:44:30.432166+08:00" hostname="ablaze"><testcase classname="tests.test_quota_policy_safety" name="test_disabled_with_quota_never_selected" time="0.047"><failure message="AssertionError: assert 'c' == 'b'&#10;  &#10;  - b&#10;  + c">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3654/test_disabled_with_quota_never0')
+
+    @async_test
+    async def test_disabled_with_quota_never_selected(tmp_path):
+        rt,f=await setup(tmp_path)
+        rt.store.change(lambda s:s.update(disabledAccountIds=['c']))
+        await rt.consume(issue('codex_quota_exhausted'))
+        switch=next(c for c in rt.store.read()['commands'].values() if c['operation']=='switch_account')
+&gt;       assert switch['arguments']['targetAccountId']=='b'
+E       AssertionError: assert 'c' == 'b'
+E
+E         - b
+E         + c
+
+tests\test_quota_policy_safety.py:12: AssertionError</failure></testcase><testcase classname="tests.test_quota_policy_safety" name="test_old_running_completed_before_wake_never_woken" time="0.092"><failure message="assert not True&#10; +  where True = any(&lt;generator object test_old_running_completed_before_wake_never_woken.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000240352BEB50&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3654/test_old_running_completed_bef0')
+
+    @async_test
+    async def test_old_running_completed_before_wake_never_woken(tmp_path):
+        rt,f=await setup(tmp_path)
+        await rt.consume(issue('codex_quota_exhausted'));await rt.dispatch();await rt.dispatch()
+        f.workers[0]['task']={'taskId':'done-task','executionSeq':1,'state':'completed'}
+        await rt.progress_restarts();await rt.dispatch()
+&gt;       assert not any(c['operation']=='wake_ta' for c in f.effects)
+E       assert not True
+E        +  where True = any(&lt;generator object test_old_running_completed_before_wake_never_woken.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000240352BEB50&gt;)
+
+tests\test_quota_policy_safety.py:21: AssertionError</failure></testcase></testsuite></testsuites>

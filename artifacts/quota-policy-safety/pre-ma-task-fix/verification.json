@@ -1,0 +1,136 @@
+{
+  "sourceSha": "edafe0a9c23d9880629f75d53d3ff23b6168e59f",
+  "branch": "feature/event-trigger-core-20261022",
+  "cwd": "D:\\project\\pan-worktrees\\event-trigger-core-20261022",
+  "python": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "encoding": {
+    "utf8Mode": 0,
+    "stdoutEncoding": "gbk",
+    "localeEncoding": "cp936",
+    "PYTHONUTF8": null,
+    "PYTHONIOENCODING": null
+  },
+  "providerCalls": 0,
+  "accountSwitches": 0,
+  "existingServiceOperations": 0,
+  "checks": [
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "115e7db2",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "seconds": 0.047,
+      "log": "diff-check.log"
+    },
+    {
+      "name": "final-policy",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_policy_safety.py",
+        "tests/test_quota_policy.py",
+        "tests/test_runtime_issues.py",
+        "tests/test_session_error_log_worker.py::test_codex_result_error_preserves_raw_payload_and_never_impersonates_assistant",
+        "tests/test_session_error_log_worker.py::test_tool_item_failure_is_non_terminal",
+        "-q",
+        "--junitxml=artifacts/quota-policy-safety/final-policy.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 4.517,
+      "log": "final-policy.log",
+      "junit": "final-policy.xml",
+      "counts": {
+        "tests": 91,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "final-compat",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_automation_concurrency.py",
+        "tests/test_job_action_templates.py::test_api_permissions_unknown_fields_legacy_aliases_and_repair",
+        "tests/test_job_action_templates.py::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+        "tests/test_job_action_templates.py::test_disabled_and_high_risk_action_gates_block_job_effects",
+        "tests/test_job_action_templates.py::test_cancel_exception_shutdown_and_recovery_remove_snapshots",
+        "tests/test_session_query.py::test_freezes_once_before_effect_and_reports_partial_failure",
+        "tests/test_session_query.py::test_recovery_preserves_frozen_targets_and_never_requeries",
+        "tests/test_automation_retry_parallel.py::test_retry_pause_gate_plugin_loss_and_new_generation",
+        "tests/test_plugin_events.py::test_service_restart_restores_queued_only_after_actual_plugin_ready",
+        "-q",
+        "--junitxml=artifacts/quota-policy-safety/final-compat.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 2.556,
+      "log": "final-compat.log",
+      "junit": "final-compat.xml",
+      "counts": {
+        "tests": 16,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "final-http",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_policy_http.py",
+        "-q",
+        "--junitxml=artifacts/quota-policy-safety/final-http.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 5.666,
+      "log": "final-http.log",
+      "junit": "final-http.xml",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "compile",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/automation/quota_policy.py",
+        "packages/automation/quota_identity.py",
+        "packages/automation/api.py",
+        "packages/core/runtime_issues.py",
+        "packages/core/session_error_log.py",
+        "packages/jobs/action_runtime.py",
+        "tests/test_quota_policy.py",
+        "tests/test_quota_policy_http.py",
+        "tests/test_quota_policy_safety.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.083,
+      "log": "compile.log"
+    }
+  ]
+}

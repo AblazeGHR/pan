@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.437" timestamp="2026-10-22T17:00:41.879941+08:00" hostname="ablaze"><testcase classname="tests.test_quota_policy_safety" name="test_monitor_does_not_retarget_a_new_ma_task_after_creation" time="0.053"><failure message="assert not True&#10; +  where True = any(&lt;generator object test_monitor_does_not_retarget_a_new_ma_task_after_creation.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000235F9797D30&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3662/test_monitor_does_not_retarget0')
+
+    @async_test
+    async def test_monitor_does_not_retarget_a_new_ma_task_after_creation(tmp_path):
+        rt,f=await setup(tmp_path);job=await rt.create_monitor()
+        ma=next(w for w in f.workers if w['role']=='ma')
+        ma['task']['taskId']='new-unrelated-ma-task'
+        f.accounts[0]['fiveHour']['usedPercent']=95
+        j=jobs.get(job['jobId'],rt.root);j['schedule'][0]['nextFireAt']='2000-01-01T00:00:00'
+        jobs._write_job(jobs._job_path(j['jobId'],rt.root),j)
+        await rt.tick_jobs();await rt.dispatch()
+&gt;       assert not any(c['operation']=='wake_ma' for c in f.effects)
+E       assert not True
+E        +  where True = any(&lt;generator object test_monitor_does_not_retarget_a_new_ma_task_after_creation.&lt;locals&gt;.&lt;genexpr&gt; at 0x00000235F9797D30&gt;)
+
+tests\test_quota_policy_safety.py:285: AssertionError</failure></testcase></testsuite></testsuites>
