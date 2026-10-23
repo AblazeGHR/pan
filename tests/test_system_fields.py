@@ -203,6 +203,11 @@ def test_action_selector_uses_only_trusted_system_targets():
         run(execute_dynamic(action({"mode": "event", "path": "system.sourceSessionId"}),
                             {}, event, progress, pause))
     assert calls == []
+    forged = fact(payload={"sessionId": "ses_payload"})
+    with pytest.raises(SystemFieldError, match="unavailable"):
+        run(execute_dynamic(action({"mode": "event", "path": "system.sessionId"}),
+                            {}, forged, progress, pause))
+    assert calls == []
 
 
 def test_bus_accepts_system_only_from_trusted_core_runtime():
@@ -229,6 +234,7 @@ def test_runtime_issue_uses_structured_host_identity_only():
         "session_id": "ses_host", "worker_id": "w1", "task_id": "T-1",
         "generation": 3, "runtimeEpoch": "owner",
     })
+    assert mapped["event"]["source"] == {"type": "core", "id": "runtime"}
     assert mapped["event"]["system"] == {
         "sessionId": "ses_host", "workerId": "w1", "taskId": "T-1",
         "threadId": "thr-1", "turnId": "turn-1",
@@ -245,8 +251,94 @@ def test_runtime_issue_uses_structured_host_identity_only():
     only_task = map_runtime_issue({"message": "failed"}, adapter="codex", metadata={"task_id": "T-1"})
     assert only_task["event"]["system"] == {"taskId": "T-1"}
     assert "sessionId" not in only_task["event"]["system"]
+    with pytest.raises(SystemFieldError, match="Conflicting supplied aliases"):
+        map_runtime_issue({"message": "failed"}, adapter="codex",
+                          metadata={"sessionId": "ses_a", "session_id": "ses_b"})
+    with pytest.raises(SystemFieldError, match="Conflicting adapter aliases"):
+        map_runtime_issue({"threadId": "thr_a", "thread_id": "thr_b",
+                           "error": {"code": "usage_limit_reached"}}, adapter="codex")
     from packages.core.runtime_issues import runtime_issue_schema
     assert set(runtime_issue_schema()["systemFields"]) == REQUIRED
+
+
+def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):
+    async def scenario():
+        from tests.test_event_store import setup as service_setup
+        from tests.test_automation_core import until
+        from packages.core.runtime_issues import observe as notify_observer
+        svc, _ = await service_setup(tmp_path)
+        seen = []
+        original = svc.quota_policy.observe
+
+        def quota_observe(mapping):
+            seen.append(mapping)
+            original(mapping)
+
+        svc.quota_policy.observe = quota_observe
+        try:
+            mapping = map_runtime_issue(
+                {"type": "error", "status": 429,
+                 "error": {"code": "model_capacity_exceeded",
+                           "message": "Selected model is at capacity."}},
+                adapter="cbc", metadata={"session_id": "ses_observed", "worker_id": "w1"})
+            assert mapping["event"]["system"] == {"sessionId": "ses_observed", "workerId": "w1"}
+            notify_observer(mapping)
+
+            async def stored():
+                page = await svc.engine.io(svc.events.page, 0, 100)
+                return next((row for row in page["events"]
+                             if row["event"]["type"] == "runtime.issue.v1"), None)
+
+            await until(stored)
+            row = await stored()
+            event = row["event"]
+            assert event["system"] == {"sessionId": "ses_observed", "workerId": "w1"}
+            assert event["source"] == {"type": "core", "id": "runtime"}
+            assert event["occurredAt"]
+            assert event["payload"]["correlation"]["sessionId"] == "ses_observed"
+            assert seen and seen[0]["event"]["id"] == event["id"]
+            assert svc.bus.available("runtime.issue.v1")
+
+            await svc.close()
+            before = len((await svc.engine.io(svc.events.page, 0, 100))["events"])
+            closed_mapping = map_runtime_issue({"type": "error", "status": 429,
+                               "error": {"code": "model_capacity_exceeded"}},
+                              adapter="cbc", metadata={"session_id": "ses_after_close"})
+            notify_observer(closed_mapping)
+            svc.observe_runtime_issue(closed_mapping)
+            await asyncio.sleep(.05)
+            after = len((await svc.engine.io(svc.events.page, 0, 100))["events"])
+            assert after == before
+            assert any(d.get("phase") == "runtime-issue-ingress"
+                       and "closed" in d.get("error", "").lower()
+                       for d in svc.bus.diagnostics)
+        finally:
+            if not svc.stopping:
+                await svc.close()
+
+    run(scenario())
+
+
+def test_trigger_system_binding_fails_closed_when_only_payload_has_id(tmp_path):
+    async def scenario():
+        from tests.test_automation_core import setup as engine_setup, settled
+        engine, calls, _ = await engine_setup(tmp_path)
+        owner = engine.bus.activate("core", "runtime")
+        engine.bus.register(owner, "runtime.issue.v1", {"type": "object"})
+        engine.ledger.put(dict(id="t", name="t", eventTypes=["runtime.issue.v1"],
+                               actionId="pause", enabled=True, arguments={
+                                   "targetSessionId": {"from": "system", "path": "sessionId"}}), 0, True)
+        try:
+            await engine.match({"id": "forged", "type": "runtime.issue.v1",
+                                "payload": {"sessionId": "ses_forged"}})
+            rows = await settled(engine, 1)
+            assert rows[0]["status"] == "failed"
+            assert "System field unavailable" in rows[0]["error"]
+            assert calls == []
+        finally:
+            await engine.close()
+
+    run(scenario())
 
 
 def test_discovery_http_is_read_only_and_available_without_runtime():

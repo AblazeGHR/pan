@@ -46,7 +46,7 @@ structured adapter envelope, never from free text.
   "id": "evt_...",
   "type": "runtime.issue.v1",
   "schemaVersion": 1,
-  "source": {"type": "core", "id": "runtime-issues"},
+  "source": {"type": "core", "id": "runtime"},
   "occurredAt": "2026-10-23T00:00:00Z",
   "system": {
     "sessionId": "ses_...",
@@ -73,6 +73,35 @@ Rules:
 - RuntimeIssue correlation is host metadata first. Only `threadId`/`turnId` may
   additionally come from a structured adapter envelope. A provider envelope's
   `session_id` is not promoted to Pan `sessionId`.
+- If host metadata supplies both a canonical name and an alias with different
+  values (`sessionId` vs `session_id`), mapping raises `SystemFieldError`
+  (`Conflicting supplied aliases...`) instead of silently choosing one.
+
+## RuntimeIssue durable path
+
+`Service.start` registers the trusted core owner `runtime` for
+`runtime.issue.v1`. RuntimeIssue mapping remains owned by
+`packages/core/runtime_issues.py`; the Automation service composes two consumers
+in the single observer callback:
+
+1. the existing `quota_policy.observe(mapping)` path, unchanged;
+2. `Service.observe_runtime_issue(mapping)`, which re-publishes the mapping's
+   Event through `Bus.prepare` with the core `runtime` handle.
+
+The prepared Event is put on the existing bounded 128-slot `Service.ingress`
+queue; `ingest_core` then calls the normal `Service.accept` path, so Event Store
+capacity, Trigger matching, Run admission, retries, Pause/Illegal/lease gates and
+diagnostics are the production path, not a side channel. `Bus.prepare` validates
+the RuntimeIssue payload schema and only the core handle may attach
+`system`; quota consumption still receives the original mapping even if Event
+ingress is full or refuses it.
+
+Refusals are observable in the bounded Bus diagnostics (`runtime-issue-ingress`,
+`runtime-issue-quota`, and the existing `event-admission`), never retried
+unboundedly. `Service.close` sets `stopping` before shutdown and clears the
+global observer, so late Worker errors cannot be admitted after close. Successive
+Events keep canonical `system` and Event identity; legacy Events without a
+system block retain their previous fact fingerprint.
 
 ## Input aliases and canonical storage
 
@@ -181,11 +210,21 @@ entrypoint (`E:/software/miniforge/python.exe` here), which removes inherited
 
 | Command | Result |
 |---|---|
-| `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields.py tests/test_runtime_issues.py -q` | 20 passed |
-| `python scripts/run_tests_isolated.py -- python -m pytest` on the 19 targeted system/event/automation/plugin/MCP/Action/Job files | 298 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields.py tests/test_runtime_issues.py -q` | 22 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest` on the 20 targeted system/event/automation/plugin/MCP/Action/Job files | 301 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields_http.py -q` | 1 passed; fakeCLI native capacity -> durable `runtime.issue.v1` -> Trigger system argument -> Pause target; `queuePaused=true` |
 | `python scripts/run_tests_isolated.py -- python artifacts/system-fields-registry/verify_http.py` | real 127.0.0.1 ephemeral-port GET 200; POST 405; 10 canonical fields; schema pointer present |
 
-The consolidated list is `test_system_fields.py`, `test_runtime_issues.py`,
+The closed-loop evidence is
+`artifacts/system-fields-registry/http-closed-loop.json`: Event source
+`{"type":"core","id":"runtime"}`, `system.sessionId` equal to the Worker host
+Session, observation code `model_capacity_exceeded`/status `429`, Run argument
+`targetSessionId` equal to that Session, `targetIds` equal to `[sessionId]`, and
+Pause's existing `queuePaused` business state confirmed. No real provider was
+contacted.
+
+The consolidated list is `test_system_fields.py`, `test_system_fields_http.py`,
+`test_runtime_issues.py`,
 `test_event_store.py`, `test_automation_core.py`,
 `test_event_trigger_reliability.py`, `test_automation_concurrency.py`,
 `test_automation_retry_parallel.py`, `test_plugin_events.py`,

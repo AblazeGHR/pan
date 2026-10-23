@@ -1,0 +1,46 @@
+{
+  "port": 64042,
+  "dataRootKind": "owned-temp",
+  "event": {
+    "id": "ri_28e8f3a9dfd09162e4cbf0f6692478ce",
+    "source": {
+      "type": "core",
+      "id": "runtime"
+    },
+    "system": {
+      "sessionId": "ses_c18ba0f6dd79eff6",
+      "workerId": "worker-1",
+      "queueItemId": "q_27aae5f6bc044c4083ccb3df0e242c38"
+    },
+    "classification": "cbc_rate_limited",
+    "observationCode": "model_capacity_exceeded",
+    "observationStatus": 429,
+    "correlation": {
+      "sessionId": "ses_c18ba0f6dd79eff6",
+      "workerId": "worker-1",
+      "queueItemId": "q_27aae5f6bc044c4083ccb3df0e242c38",
+      "generation": 0,
+      "taskSeq": 1,
+      "executionSeq": 1,
+      "runtimeEpoch": "8e30e1daf33e4abf8078086c7cd26f6e"
+    }
+  },
+  "run": {
+    "id": "run_5933964e83fb464eae733b5a0c152d3e",
+    "status": "succeeded",
+    "arguments": {
+      "targetSessionId": "ses_c18ba0f6dd79eff6"
+    },
+    "targetIds": [
+      "ses_c18ba0f6dd79eff6"
+    ],
+    "attempts": 1
+  },
+  "queuePaused": true,
+  "eventDelivery": {
+    "status": "delivered",
+    "deliveryCount": 1
+  },
+  "fakeCliRecords": 2,
+  "realProviderUsed": false
+}

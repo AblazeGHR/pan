@@ -13,7 +13,9 @@ import json
 import re
 from typing import Any
 
-from packages.core.system_fields import SYSTEM_FIELDS, SYSTEM_FIELD_NAMES, canonical_system
+from packages.core.system_fields import (
+    SYSTEM_FIELDS, SYSTEM_FIELD_NAMES, SystemFieldError, canonical_system,
+)
 
 SCHEMA_VERSION = 1
 MAX_TEXT = 2048
@@ -86,6 +88,18 @@ def _get(raw: dict, *paths):
     return None
 
 
+def _one_alias(container: dict, names: tuple[str, ...], field: str, origin: str):
+    """Return one alias value or reject an ambiguous duplicate explicitly."""
+    values = [(name, container[name]) for name in names if container.get(name) is not None]
+    if not values:
+        return None
+    first = values[0][1]
+    if any(value != first for _, value in values[1:]):
+        aliases = "/".join(name for name, _ in values)
+        raise SystemFieldError(f"Conflicting {origin} aliases for system field {field}: {aliases}")
+    return first
+
+
 def _metadata(raw: dict, supplied: dict | None) -> dict:
     source = {}
     supplied = supplied or {}
@@ -95,12 +109,12 @@ def _metadata(raw: dict, supplied: dict | None) -> dict:
     for name in SYSTEM_FIELD_NAMES:
         row = SYSTEM_FIELDS[name]
         names = (name,) + tuple(row["aliases"])
-        value = next((supplied[n] for n in names if supplied.get(n) is not None), None)
+        value = _one_alias(supplied, names, name, "supplied")
         if value is None and row["trustedFrom"] == "adapter":
             for candidate in (raw, raw.get("params"), raw.get("error")):
                 if not isinstance(candidate, dict):
                     continue
-                value = next((candidate[n] for n in names if candidate.get(n) is not None), None)
+                value = _one_alias(candidate, names, name, "adapter")
                 if value is not None:
                     break
         if value is not None:
@@ -194,12 +208,32 @@ def map_runtime_issue(raw: dict, *, adapter: str | None = None, metadata: dict |
                           observation, correlation, dict(delivery or {"observed": True, "classified": True,
                           "persisted": False, "delivered": False, "deduped": False}))
     event = {"id": issue_id, "type": "runtime.issue.v1",
-             "schemaVersion": SCHEMA_VERSION, "source": {"type": "core", "id": "runtime-issues"},
+             "schemaVersion": SCHEMA_VERSION, "source": {"type": "core", "id": "runtime"},
              "occurredAt": None, "payload": asdict(result)}
     system = canonical_system(correlation, allow_unknown=True)
     if system:
         event["system"] = system
     return {"issue": asdict(result), "event": event}
+
+
+def runtime_issue_event_schema() -> dict:
+    """JSON schema for the Event payload accepted by trusted core admission."""
+    return {
+        "type": "object",
+        "required": ["schemaVersion", "issueId", "adapter", "classification",
+                     "confidence", "observation", "correlation", "delivery"],
+        "properties": {
+            "schemaVersion": {"const": SCHEMA_VERSION},
+            "issueId": {"type": "string", "minLength": 1, "maxLength": 128},
+            "adapter": {"type": ["string", "null"], "maxLength": 64},
+            "classification": {"type": "string", "minLength": 1, "maxLength": 128},
+            "confidence": {"type": "string", "minLength": 1, "maxLength": 32},
+            "observation": {"type": "object"},
+            "correlation": {"type": "object"},
+            "delivery": {"type": "object"},
+        },
+        "additionalProperties": False,
+    }
 
 
 def runtime_issue_schema() -> dict:
