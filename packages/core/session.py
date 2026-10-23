@@ -486,7 +486,11 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
     projection["history_total"] = (total + 1) if isinstance(total, int) else None
 
     changed = True
-    if role == "user":
+    if not preview.strip():
+        # Empty provider blocks still advance the history cursor, but have no
+        # displayable body with which to replace an established preview.
+        changed = False
+    elif role == "user":
         projection["last_user_preview"] = preview
         projection["last_display_preview"] = preview
         projection["last_main_role"] = role
@@ -500,15 +504,10 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
         projection["last_main_role"] = role
     elif role == "thinking":
         projection["last_thinking_preview"] = preview
-        # Thinking/tool rows are auxiliary. They may be used only before any
-        # user/assistant/system preview exists and must never overwrite the
-        # established assistant (or other main-role) preview.
-        if not projection.get("last_main_role"):
-            projection["last_display_preview"] = preview
+        # Auxiliary previews remain available separately; they are not bodies
+        # for the Session card, even before the first main-role message.
     elif role == "tool":
         projection["last_tool_preview"] = preview
-        if not projection.get("last_main_role"):
-            projection["last_display_preview"] = preview
     else:
         # Unknown roles still count toward historyTotal, but cannot become a
         # user-visible summary preview.

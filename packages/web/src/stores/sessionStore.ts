@@ -3330,7 +3330,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               nextHistory.length,
               historyTotal + (alreadyInHistory ? 0 : 1),
             ),
-            lastMessage: localMessage.content.slice(0, 200),
+            // Steer HTTP acknowledgement can arrive after its assistant WS
+            // summary. This local transcript echo owns no canonical preview.
+            lastMessage: typeof session.summaryRevision === 'number'
+              ? session.lastMessage : localMessage.content.slice(0, 200),
           }
         : session);
       const alreadyCurrent = s.currentMessages.some((candidate) =>

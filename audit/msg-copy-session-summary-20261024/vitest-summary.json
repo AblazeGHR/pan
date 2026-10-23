@@ -1,0 +1,73 @@
+{
+  "success": true,
+  "passed": 287,
+  "failed": 0,
+  "skipped": 0,
+  "files": [
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/hooks/liveIndicators.test.tsx",
+      "status": "passed",
+      "tests": 11
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/hooks/useWebSocket.test.tsx",
+      "status": "passed",
+      "tests": 111
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/services/api.messageText.test.ts",
+      "status": "passed",
+      "tests": 4
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/stores/sessionStore.interleaving.test.ts",
+      "status": "passed",
+      "tests": 23
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/stores/sessionStore.refresh.test.ts",
+      "status": "passed",
+      "tests": 17
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/stores/sessionStore.snapshot.test.ts",
+      "status": "passed",
+      "tests": 16
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/stores/sessionStore.t055.test.ts",
+      "status": "passed",
+      "tests": 13
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/stores/sessionStore.terminalTransient.test.ts",
+      "status": "passed",
+      "tests": 32
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/utils/clipboard.test.ts",
+      "status": "passed",
+      "tests": 3
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/components/chat/MessageBubble.bookmark.test.tsx",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/components/chat/MessageBubble.manualReport.test.tsx",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/components/chat/MessageBubble.rewind.test.tsx",
+      "status": "passed",
+      "tests": 10
+    },
+    {
+      "name": "D:/project/pan-worktrees/msg-copy-session-summary-20261024/packages/web/src/components/session/SessionItem.test.tsx",
+      "status": "passed",
+      "tests": 25
+    }
+  ]
+}

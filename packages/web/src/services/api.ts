@@ -1,4 +1,16 @@
 import { beginForegroundRequest, foregroundActivity, subscribeForegroundActivity } from './foregroundActivity';
+
+/** Read one canonical body, before display-time Markdown link projection. */
+export async function fetchSessionMessageText(sessionId: string, messageId: string): Promise<string> {
+  const data = await request<{
+    ok?: boolean; sessionId?: string; message?: { messageId?: string; content?: string };
+  }>(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}`);
+  if (!data.ok || data.sessionId !== sessionId || data.message?.messageId !== messageId
+      || typeof data.message.content !== 'string') {
+    throw new Error('Message body is unavailable');
+  }
+  return data.message.content;
+}
 import type {
   Session,
   SessionUsageView,

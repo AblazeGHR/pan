@@ -25,6 +25,17 @@ function mk(id: string, extra: Partial<Session> = {}): Session {
 }
 
 describe('session summary reconciliation', () => {
+  it('keeps the authoritative assistant when a delayed Steer HTTP acknowledgement appends its local user row', async () => {
+    const answer = mk('s1', { summaryRevision: 12, historyRevision: 3, historyEpoch: 'h',
+      historyTotal: 3, lastMessage: 'answer', lastDisplayPreview: 'answer', lastAssistantPreview: 'answer' });
+    useSessionStore.setState({ sessions: [answer], currentSessionId: 's1' });
+    useSessionStore.getState().appendLocalMessage('s1', { role: 'user', content: 'earlier steer', messageId: 'steer:late' });
+    expect(useSessionStore.getState().sessions[0]?.lastMessage).toBe('answer');
+    api.fetchSessions.mockResolvedValueOnce([answer]);
+    await useSessionStore.getState().loadSessions();
+    expect(useSessionStore.getState().sessions[0]?.lastMessage).toBe('answer');
+    expect(useSessionStore.getState().currentMessages.some(row => row.content === 'earlier steer')).toBe(true);
+  });
   beforeEach(() => {
     api.fetchSessions.mockReset();
     useSessionStore.setState({
