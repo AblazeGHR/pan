@@ -1,0 +1,32 @@
+[
+  {
+    "fixture": "base73289",
+    "remainingAfterStop": [
+      {
+        "pid": 36328,
+        "created": 1792752609.5829923,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-owned-late-child-w3254fo9\\owned_server.py",
+          "--port",
+          "57281",
+          "--data-root",
+          "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-owned-late-child-w3254fo9\\profile",
+          "--owned-child"
+        ]
+      },
+      {
+        "pid": 36288,
+        "created": 1792752609.5895305,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ]
+  },
+  {
+    "fixture": "candidate",
+    "remainingAfterStop": []
+  }
+]

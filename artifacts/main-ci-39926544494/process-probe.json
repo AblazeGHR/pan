@@ -1,0 +1,1042 @@
+[
+  {
+    "iteration": 0,
+    "captured": [
+      {
+        "pid": 31700,
+        "created": 1792753239.6725812,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 38060,
+        "created": 1792753239.6772425,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 2280,
+        "created": 1792753239.6914833,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37564,
+        "created": 1792753239.7960904,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 26072,
+        "created": 1792753239.8212981,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 1,
+    "captured": [
+      {
+        "pid": 23212,
+        "created": 1792753240.0116425,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 31892,
+        "created": 1792753240.0155816,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 35796,
+        "created": 1792753240.0288925,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37636,
+        "created": 1792753240.098124,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37072,
+        "created": 1792753240.129206,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 2,
+    "captured": [
+      {
+        "pid": 37584,
+        "created": 1792753240.3223894,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 38228,
+        "created": 1792753240.328,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 37276,
+        "created": 1792753240.341783,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36252,
+        "created": 1792753240.4207113,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36896,
+        "created": 1792753240.4521077,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 3,
+    "captured": [
+      {
+        "pid": 2752,
+        "created": 1792753240.6370447,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 676,
+        "created": 1792753240.6415818,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 14084,
+        "created": 1792753240.6552985,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37208,
+        "created": 1792753240.7312725,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 35568,
+        "created": 1792753240.7625766,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 4,
+    "captured": [
+      {
+        "pid": 9420,
+        "created": 1792753240.9406443,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36008,
+        "created": 1792753240.9469557,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 38164,
+        "created": 1792753240.9617097,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37588,
+        "created": 1792753241.0375595,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36680,
+        "created": 1792753241.0676491,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 5,
+    "captured": [
+      {
+        "pid": 30852,
+        "created": 1792753241.2583165,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 19512,
+        "created": 1792753241.2624073,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 38880,
+        "created": 1792753241.276882,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 24228,
+        "created": 1792753241.3524587,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 33008,
+        "created": 1792753241.37969,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 6,
+    "captured": [
+      {
+        "pid": 36996,
+        "created": 1792753241.566896,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36524,
+        "created": 1792753241.5716674,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 36688,
+        "created": 1792753241.585827,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37668,
+        "created": 1792753241.660128,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 22084,
+        "created": 1792753241.6875281,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 7,
+    "captured": [
+      {
+        "pid": 37036,
+        "created": 1792753241.8671982,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36264,
+        "created": 1792753241.87131,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 38740,
+        "created": 1792753241.8852377,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36536,
+        "created": 1792753241.9573493,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 31948,
+        "created": 1792753241.9873917,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 8,
+    "captured": [
+      {
+        "pid": 31996,
+        "created": 1792753242.1969,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 34972,
+        "created": 1792753242.2027016,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 38060,
+        "created": 1792753242.2168155,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 38888,
+        "created": 1792753242.289462,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 6476,
+        "created": 1792753242.3164573,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 9,
+    "captured": [
+      {
+        "pid": 38056,
+        "created": 1792753242.5378113,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 17568,
+        "created": 1792753242.5427504,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 3120,
+        "created": 1792753242.5566492,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 31892,
+        "created": 1792753242.635329,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 31848,
+        "created": 1792753242.6581964,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 10,
+    "captured": [
+      {
+        "pid": 38452,
+        "created": 1792753242.8663912,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 3576,
+        "created": 1792753242.870324,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 28480,
+        "created": 1792753242.882736,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 3452,
+        "created": 1792753242.952638,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36780,
+        "created": 1792753242.9786024,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 11,
+    "captured": [
+      {
+        "pid": 37208,
+        "created": 1792753243.1981697,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37200,
+        "created": 1792753243.2025654,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 31212,
+        "created": 1792753243.2169058,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36020,
+        "created": 1792753243.296298,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 4084,
+        "created": 1792753243.3296752,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 12,
+    "captured": [
+      {
+        "pid": 31976,
+        "created": 1792753243.5098214,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37588,
+        "created": 1792753243.5142317,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 38412,
+        "created": 1792753243.527044,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 22584,
+        "created": 1792753243.5979517,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37688,
+        "created": 1792753243.6248355,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 13,
+    "captured": [
+      {
+        "pid": 38484,
+        "created": 1792753243.8157313,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 38508,
+        "created": 1792753243.8199873,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 22344,
+        "created": 1792753243.8342478,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37412,
+        "created": 1792753243.9070451,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36120,
+        "created": 1792753243.931104,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 14,
+    "captured": [
+      {
+        "pid": 38844,
+        "created": 1792753244.1576655,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 4960,
+        "created": 1792753244.1625602,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 21640,
+        "created": 1792753244.17964,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36788,
+        "created": 1792753244.2701764,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 38632,
+        "created": 1792753244.2986207,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 15,
+    "captured": [
+      {
+        "pid": 14900,
+        "created": 1792753244.5617652,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 23080,
+        "created": 1792753244.5658696,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 35076,
+        "created": 1792753244.5811543,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 21084,
+        "created": 1792753244.654446,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 36344,
+        "created": 1792753244.6918967,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 16,
+    "captured": [
+      {
+        "pid": 38108,
+        "created": 1792753244.915762,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 16020,
+        "created": 1792753244.9219317,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 15856,
+        "created": 1792753244.936845,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37928,
+        "created": 1792753245.0116777,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 9144,
+        "created": 1792753245.040186,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 17,
+    "captured": [
+      {
+        "pid": 37636,
+        "created": 1792753245.2477217,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 3592,
+        "created": 1792753245.252188,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 10792,
+        "created": 1792753245.2667055,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 37020,
+        "created": 1792753245.3491962,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 5548,
+        "created": 1792753245.3788517,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 18,
+    "captured": [
+      {
+        "pid": 37296,
+        "created": 1792753245.5839007,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 18032,
+        "created": 1792753245.587812,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 37400,
+        "created": 1792753245.6016507,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 17500,
+        "created": 1792753245.6768055,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 3604,
+        "created": 1792753245.705901,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  },
+  {
+    "iteration": 19,
+    "captured": [
+      {
+        "pid": 24188,
+        "created": 1792753245.897818,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 6356,
+        "created": 1792753245.9019766,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      },
+      {
+        "pid": 37792,
+        "created": 1792753245.915524,
+        "command": [
+          "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+          "-m",
+          "packages.plugins.stdio_runner",
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 17976,
+        "created": 1792753245.9864562,
+        "command": [
+          "D:\\software\\nodeJs\\node.EXE",
+          "D:\\project\\pan-worktrees\\main-ci-39913304619\\examples\\event-plugin\\provider.mjs"
+        ]
+      },
+      {
+        "pid": 13624,
+        "created": 1792753246.0186136,
+        "command": [
+          "\\??\\C:\\Windows\\system32\\conhost.exe",
+          "0x4"
+        ]
+      }
+    ],
+    "remainingAtCleanup": []
+  }
+]

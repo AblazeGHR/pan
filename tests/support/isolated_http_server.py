@@ -16,6 +16,10 @@ import sys
 import time
 from pathlib import Path
 
+from tests.support.startup_trace import arm, StartupTrace
+
+arm()
+
 
 def _capture_delay_middleware(app):
     marker = os.environ.get("PAN_E2E_CAPTURE_MARKER")
@@ -102,6 +106,7 @@ def main() -> None:
     server._startup_recovery_record_path = lambda: (
         data_root / "startup_recovery" / f"{server._STARTUP_RECOVERY_GENERATION}.json")
     server.app.add_middleware(_capture_delay_middleware)
+    server.app.add_middleware(StartupTrace)
 
     fake_cli = os.environ.get("PAN_E2E_FAKE_CLI")
     if fake_cli:
@@ -170,6 +175,12 @@ def main() -> None:
     host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,
                                     log_level="warning", access_log=False))
     server.app.state.pan_uvicorn_server = host
+    @server.app.post('/__test/stop-owned-runtime')
+    async def stop_owned_runtime():
+        # Ordinary fixture shutdown joins lifespan-owned Actions/plugins.
+        # Explicit process.kill crash tests remain a separate path.
+        asyncio.get_running_loop().call_later(.05, setattr, host, 'should_exit', True)
+        return {'ok': True}
     if os.environ.get("PAN_TEST_HOST_EXIT_PROBE") == "1":
         import signal
         @server.app.post("/__test/host-signal/{kind}")
