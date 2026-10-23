@@ -117,6 +117,12 @@ class EventStore:
             db.execute('UPDATE events SET done=?, deliveries=deliveries+1,last_error=? WHERE id=?',
                        (int(done), str(error)[:2000] if error else None, event_id))
 
+    def delivery_errors(self, errors):
+        """Persist a bounded dispatch page's failures in one durable commit."""
+        with self.connection() as db:
+            db.executemany('UPDATE events SET done=0, deliveries=deliveries+1,last_error=? WHERE id=?',
+                           [(str(error)[:2000], event_id) for event_id, error in errors])
+
     def replay(self, ids):
         if not isinstance(ids, list) or not 1 <= len(ids) <= BATCH or any(not isinstance(i, str) or not i or len(i)>128 for i in ids) or len(set(ids)) != len(ids):
             raise ValueError('eventIds requires 1..100 unique Event IDs')

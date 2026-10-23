@@ -239,6 +239,27 @@ def test_payload_and_bytes_capacity_fail_closed(tmp_path):
         ledger.put(trigger(),0,True)
     assert not ledger.path.exists()
 
+
+def test_failed_delivery_page_preserves_each_count_and_rolls_back_together(tmp_path):
+    store = EventStore(tmp_path)
+    store.initialize()
+    for event_id in ('a', 'b', 'untouched'):
+        store.append(fact(event_id), [])
+    store.delivery_errors([('a', 'dependency unavailable'), ('b', 'x' * 2500)])
+    assert store.lookup('a')['status'] == store.lookup('b')['status'] == 'pending'
+    assert store.lookup('a')['deliveryCount'] == store.lookup('b')['deliveryCount'] == 1
+    assert store.lookup('a')['lastError'] == 'dependency unavailable'
+    assert store.lookup('b')['lastError'] == 'x' * 2000
+    assert store.lookup('untouched')['deliveryCount'] == 0
+    with store.connection() as db:
+        db.execute("CREATE TRIGGER refuse_b BEFORE UPDATE ON events WHEN OLD.id='b' BEGIN SELECT RAISE(ABORT, 'injected failure'); END")
+    import sqlite3
+    with pytest.raises(sqlite3.IntegrityError, match='injected failure'):
+        store.delivery_errors([('a', 'second'), ('b', 'second')])
+    assert store.lookup('a')['deliveryCount'] == store.lookup('b')['deliveryCount'] == 1
+    assert store.lookup('a')['lastError'] == 'dependency unavailable'
+    assert store.stats()['pending'] == 3
+
 def test_empty_event_release_is_read_only_and_existing_run_still_admitted(tmp_path):
     ledger = Ledger(tmp_path)
     ledger.put(trigger(), 0, True)
@@ -277,11 +298,48 @@ async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_pat
         time.sleep(commit_delay)
         return original_atomic(*args, **kwargs)
     monkeypatch.setattr(ledger_store, 'atomic', slow_atomic)
+    from contextlib import contextmanager
+    original_connection = svc.events.connection
+    @contextmanager
+    def slow_event_commit():
+        with original_connection() as db:
+            changes = db.total_changes
+            yield db
+            if db.total_changes != changes:
+                time.sleep(commit_delay)
+    monkeypatch.setattr(svc.events, 'connection', slow_event_commit)
     svc.dispatcher=asyncio.create_task(svc.dispatch())
     try:
         rows=await asyncio.wait_for(terminal(svc),3)
         assert rows[0]['event']['id']=='independent' and calls==['selected']
         assert svc.events.stats()['pending']>=65
+    finally:
+        await svc.close()
+
+
+@async_test
+async def test_dispatch_cancel_flushes_completed_failure_without_delivering_pending(tmp_path, monkeypatch):
+    svc, calls = await setup(tmp_path)
+    svc.dispatcher.cancel()
+    await asyncio.gather(svc.dispatcher, return_exceptions=True)
+    svc.events.append(fact('failed'), [])
+    svc.events.append(fact('blocked'), [])
+    entered = asyncio.Event()
+    async def matching(event, **kwargs):
+        if event['id'] == 'failed':
+            raise ValueError('dependency unavailable')
+        entered.set()
+        await asyncio.Event().wait()
+    monkeypatch.setattr(svc.engine, 'match', matching)
+    svc.dispatcher = asyncio.create_task(svc.dispatch())
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        svc.dispatcher.cancel()
+        await asyncio.gather(svc.dispatcher, return_exceptions=True)
+        assert svc.events.lookup('failed')['deliveryCount'] == 1
+        assert svc.events.lookup('failed')['lastError'] == 'dependency unavailable'
+        assert svc.events.lookup('blocked')['deliveryCount'] == 0
+        assert svc.events.stats()['pending'] == 2 and not calls
     finally:
         await svc.close()
 

@@ -193,22 +193,31 @@ class Service:
                     await self.maintenance()
                     maintenance_at = loop.time() + 60
                 batch = await self.engine.io(self.events.pending, 64, cursor)
-                for row in batch:
-                    cursor = row['seq']
-                    if self.stopping:
-                        return
-                    try:
-                        await self.engine.match(row['event'], targets=[t for t in row['targets'] if not t.get('_job')], strict=True)
-                        if self.job_runtime:
-                            await self.job_runtime.match_event(row['event'],[t for t in row['targets'] if t.get('_job')])
-                        # Notifications remain best effort; durable inbox delivery
-                        # guarantees Trigger matching, not plugin delivery receipts.
-                        self.bus._fanout(row['event'])
-                        await self.engine.io(self.events.delivery, row['event']['id'], done=True)
-                    except Exception as exc:
-                        retry = True
-                        self.diagnostic('event-delivery', exc, row['event']['id'])
-                        await self.engine.io(self.events.delivery, row['event']['id'], error=exc)
+                delivery_errors = []
+                try:
+                    for row in batch:
+                        cursor = row['seq']
+                        if self.stopping:
+                            return
+                        try:
+                            await self.engine.match(row['event'], targets=[t for t in row['targets'] if not t.get('_job')], strict=True)
+                            if self.job_runtime:
+                                await self.job_runtime.match_event(row['event'],[t for t in row['targets'] if t.get('_job')])
+                            # Notifications remain best effort; durable inbox delivery
+                            # guarantees Trigger matching, not plugin delivery receipts.
+                            self.bus._fanout(row['event'])
+                            await self.engine.io(self.events.delivery, row['event']['id'], done=True)
+                        except Exception as exc:
+                            retry = True
+                            self.diagnostic('event-delivery', exc, row['event']['id'])
+                            # Failed matching has no delivered receipt. Persist its
+                            # diagnostic/count with this bounded page so unavailable
+                            # old dependencies do not each impose a separate fsync
+                            # before independent events on the next page can run.
+                            delivery_errors.append((row['event']['id'], str(exc)))
+                finally:
+                    if delivery_errors:
+                        await self.engine.io(self.events.delivery_errors, delivery_errors)
                 cycle_retry = cycle_retry or retry
                 if len(batch) == 64:
                     continue
