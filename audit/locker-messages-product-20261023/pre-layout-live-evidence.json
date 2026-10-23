@@ -1,0 +1,95 @@
+{
+  "sourceSha": "0c4509e7ec6694deecdd491a18d95547df4fb1e0",
+  "port": 57973,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data",
+  "apiInterception": false,
+  "identity": {
+    "pid": 18620,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-product-integration-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "queueItemIds": [
+    "q_c925b00674dede7780eb1d69911ee4c4a18b1584d14789e23b39819158276c08",
+    "q_b67241d765d0b9f7eb7ca1ed70d6911b20374d91b859c4bd1730c6260beb632f",
+    "q_469b827a82cd59468eac677ee592b16298872c056e393a0ceafb39534eeed900"
+  ],
+  "actualCliReceived": [
+    {
+      "kind": "received",
+      "pid": 8420,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data\\workdirs\\Design agent with a long dedicated Locker source name",
+      "text": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"Proceed with isolated Pause.\",\"cardId\":\"card_90c8f5f52ada97afefd9abf293d9a0693dee1ef73fff048414e96f4bb8d2816a\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"A standalone answer.\",\"cardId\":\"card_02bccde7ac55abc1009ae3a0948efb069c701ff3d983493f90ca4a635ff4c1fa\",\"responseKind\":\"submit\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: {\"answer\":\"Please narrow the proposal.\",\"cardId\":\"card_7d12d4ccd0a740cc587b58b1ea4f8322a7adccc888e5380dd291973578a01e99\",\"responseKind\":\"reject\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null",
+      "at": 1792764938.0542724
+    }
+  ],
+  "notifications": [
+    {
+      "answer": "Proceed with isolated Pause.",
+      "cardId": "card_90c8f5f52ada97afefd9abf293d9a0693dee1ef73fff048414e96f4bb8d2816a",
+      "choiceId": "pause",
+      "responseKind": "submit",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    },
+    {
+      "answer": "A standalone answer.",
+      "cardId": "card_02bccde7ac55abc1009ae3a0948efb069c701ff3d983493f90ca4a635ff4c1fa",
+      "responseKind": "submit",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    },
+    {
+      "answer": "Please narrow the proposal.",
+      "cardId": "card_7d12d4ccd0a740cc587b58b1ea4f8322a7adccc888e5380dd291973578a01e99",
+      "responseKind": "reject",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    }
+  ],
+  "fakeCliConsumedExactlyOnce": true,
+  "realPause": true,
+  "attachmentScope": true,
+  "queryPagination": true,
+  "firstOwnedProcesses": [
+    [
+      18620,
+      1792764922.914857,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\pan-worktrees\\locker-product-integration-20261023\\tests\\support\\locker_product_http_server.py --port 57973 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data"
+    ],
+    [
+      24272,
+      1792764922.9214947,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ],
+    [
+      8420,
+      1792764937.9833522,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\pan-worktrees\\locker-product-integration-20261023\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false}"
+    ],
+    [
+      24180,
+      1792764937.9919994,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ]
+  ],
+  "coldRestart": true,
+  "coldOwnedProcesses": [
+    [
+      41464,
+      1792764940.3586109,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\pan-worktrees\\locker-product-integration-20261023\\tests\\support\\locker_product_http_server.py --port 57973 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4014\\test_locker_messages_cards_rea0\\profile\\data"
+    ],
+    [
+      39956,
+      1792764940.3650484,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ]
+  ],
+  "remainingOwnedProcesses": [],
+  "cleanup": {
+    "portReleased": true,
+    "ownedProcesses": [],
+    "serverExited": true
+  }
+}

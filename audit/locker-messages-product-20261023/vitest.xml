@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="147" failures="0" errors="0" time="10.028">
+    <testsuite name="views/lockerModel.auth.test.ts" timestamp="2026-10-23T14:15:15.105Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.0036188">
+        <testcase classname="views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0026101">
+        </testcase>
+        <testcase classname="views/lockerModel.auth.test.ts" name="discards a late old-user response and never clears a successor token" time="0.000377">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-23T14:15:15.108Z" hostname="ablaze" tests="18" failures="0" errors="0" skipped="0" time="1.3701162">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0014582">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.1033039">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0340485">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.105137">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0739101">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0285124">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.0728506">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0198636">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.0882584">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.0853847">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0240991">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0138174">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.0950834">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.0914218">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.0999281">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1355832">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1260064">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1703483">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/MarkdownRenderer.test.tsx" timestamp="2026-10-23T14:15:15.112Z" hostname="ablaze" tests="35" failures="0" errors="0" skipped="0" time="7.0613223">
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat same.md against the Session cwd, independently of the Editor file" time="0.1353455">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ./文档%20说明.md against the Session cwd, independently of the Editor file" time="0.078099">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ../shared/guide.md#标题 against the Session cwd, independently of the Editor file" time="0.0926711">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat C:\other\guide.md:2 against the Session cwd, independently of the Editor file" time="0.0776907">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ./目录%20名称/ as an Editor root without reading it as a file" time="0.0933075">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ../目录%20名称 as an Editor root without reading it as a file" time="0.0789293">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves the same history link against each Session cwd" time="0.1582152">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a directory result after switching away and back to the original Session" time="0.0166449">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a file read after switching to a Session with another cwd" time="0.0805587">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves the entire large plain paragraph, selection text, and subsequent rich Markdown" time="5.1411108">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps search marks and attachment handling on the ordinary pipeline for a large plain paragraph" time="0.1274477">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds giant highlighted code and copies the entire latest payload" time="0.1090517">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps addition and deletion colors in a bounded diff without coloring file headers" time="0.0119692">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds a huge single line without requiring a language annotation" time="0.0177075">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps the code window mounted when a streamed fence closes" time="0.0236563">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; does not reparse historical Markdown when another message streams" time="0.0162819">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders list bullets structure and hljs spans" time="0.016115">
+            <system-out>
+UL: &lt;ul&gt;
+&lt;li&gt;item one&lt;/li&gt;
+&lt;li&gt;item two&lt;/li&gt;
+&lt;/ul&gt;
+LI: &lt;li&gt;item one&lt;/li&gt;
+HLJS_KEYWORD: &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt;
+CODE: &lt;code class=&quot;text-xs font-mono leading-relaxed hljs language-js&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; x = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;
+&lt;/code&gt;
+
+            </system-out>
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses relative, Windows, file URI and line-range destinations" time="0.0028765">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; strips malformed numeric line targets while preserving ordinary path colons" time="0.000779">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps web, mailto and document-only anchor destinations unchanged" time="0.0015926">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses opaque editor links as server references while retaining the line range" time="0.0010958">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders attachment hrefs as clickable standard Markdown and preserves ordinary links" time="0.0078742">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; marks safe attachment links as draggable sources with the file icon" time="0.0075773">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders an opaque editor link that supports click-to-open and dragstart without a path payload" time="0.0904614">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens raster attachment links in the Editor preview using the server-owned opaque reference" time="0.1719768">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps non-image attachment links on their original browser path" time="0.0076558">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; recovers a legacy attachment without display metadata using a safe download href" time="0.0084383">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves local file hrefs through react-markdown URL sanitization" time="0.0052447">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a relative link through the current Session workdir and preserves its line range" time="0.07172">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; uses the Editor preview document directory when supplied and preserves line targets" time="0.0791079">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a root-relative Windows drive href without the synthetic leading slash" time="0.0790468">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens source-style colon line targets without passing the suffix to the file API" time="0.092636">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; shows a visible missing-file error instead of falling back to a web link" time="0.0788804">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders a composer URL-node Markdown link with escaped parentheses" time="0.0025157">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="resolves Locker links against its explicit source while another Chat stays selected" time="0.0756775">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/Sidebar.test.tsx" timestamp="2026-10-23T14:15:15.137Z" hostname="ablaze" tests="31" failures="0" errors="0" skipped="0" time="2.7896388">
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; typing and clearing Session search leaves the workspace query untouched" time="0.1136524">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; shows an accessible clear button only when the query is non-empty" time="0.0398618">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; hides Group by by default while keeping Manager collapse and the toggle cycle usable" time="0.0863495">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; renders the CWD root as a collapsible section labelled CWD" time="0.0934535">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the special filters menu constrained to the viewport" time="0.0226144">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; clears the query and restores the unfiltered state" time="0.0528662">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; selects all filtered sessions, including sessions hidden in normal mode" time="0.0545366">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; fills a partial selection and then deselects the filtered candidates" time="0.0529567">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 280px-or-narrower viewport" time="0.0444535">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 240px-or-narrower viewport" time="0.0411421">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps full action labels and explicit accessible names in the wide selection bar" time="0.0367121">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; uses special filters for the select-all candidate range" time="0.0427375">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; disables select all when the filtered candidate list is empty" time="0.0290363">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; defaults drag sorting on and hides the handle when switched off" time="0.0462327">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the drag menu on long press without cycling sort" time="0.0257844">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps a short press cycling sort" time="0.0267867">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; opens the clicked session in Chat from Jobs, including when it is already selected" time="0.0464979">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when opening the card menu" time="0.0397405">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when the multi-select checkbox is clicked" time="0.0305848">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; closes an open mobile Sidebar after navigating from Jobs to Chat" time="0.0224322">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Terminal route" time="0.0284335">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from a plugin panel route" time="0.032526">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Manage route" time="0.0588542">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat when re-clicking the already selected session from the Terminal route" time="0.0604234">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat again after navigating away and re-clicking the same session" time="0.1034301">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; stays on the chat route without stacking navigation when a card is clicked there" time="0.0556454">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when a card quick action is used from the Terminal route" time="0.0480499">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the multi-select checkbox is clicked from the Terminal route" time="0.0555784">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the store selects a session in the background" time="0.0932074">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; closes an open mobile Sidebar after navigating from the Terminal route to Chat" time="1.2488771">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar render isolation (fine-grained selectors) &gt; ignores streaming/draft/toast updates but re-renders on a session change" time="0.0540629">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SessionItem.test.tsx" timestamp="2026-10-23T14:15:15.146Z" hostname="ablaze" tests="23" failures="0" errors="0" skipped="0" time="0.1811755">
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; shows the last message for a selected completed session" time="0.0280762">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; places the adapter in the quick action rail and hides the Workspace badge at mobile widths" time="0.006676">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps the selected running session preview visible" time="0.0049186">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps the preview visible for a background Codex session while it runs" time="0.0048088">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; shows an explicit unknown count when the cold summary total is null" time="0.0082425">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps an explicit zero distinct from unknown and loaded local history" time="0.0059772">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; does not recompute the derived preview when only unrelated props change" time="0.0089883">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem preview row reservation &gt; reserves one preview row for missing, null, empty, and whitespace sources" time="0.0144974">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem preview row reservation &gt; keeps the long-preview truncation on the same reserved row" time="0.0034221">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows a single blue J for a running job targeting the session" time="0.0337774">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows a yellow J (scheduled) for an armed scheduled/message job" time="0.0055085">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; keeps J out of viewport-based hiding (width decides, see SessionJobBadge)" time="0.0042629">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; aggregates multiple jobs into one J with running priority" time="0.0066564">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows no J for a job targeting another session" time="0.0031638">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; removes J when the last targeted job reaches a terminal state" time="0.0055671">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows no J while the process job is only starting, paused, or disabled" time="0.0026138">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; appears from a cold mount when the WS-created job lands, and clears on delete" time="0.008082">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; keeps numeric badges right-aligned and intact next to J" time="0.0047273">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; renders the info-area row for a job-only session (no adapter counts needed)" time="0.0039263">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; does not select the card when the read-only J is clicked" time="0.0061772">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; appends the multiplier suffix from the session adapter config" time="0.0034334">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; shows the raw model name when the adapter config has no multipliers" time="0.0031035">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; uses the session adapter config, not the current adapter, for the suffix" time="0.0034088">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SessionList.drag.test.tsx" timestamp="2026-10-23T14:15:15.151Z" hostname="ablaze" tests="38" failures="0" errors="0" skipped="0" time="5.166507">
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; splits the card into three generous bands" time="0.0009596">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; keeps bands at least minEdgePx tall on short cards" time="0.0001584">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; degenerate very short cards stay all-edge (no conflicting sliver)" time="0.0001076">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; center and edge bands never overlap (partition the card)" time="0.0001257">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; shows a ghost near the cursor once the drag threshold is crossed; original cards stay in place" time="0.0727397">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; center hit zone highlights card B and drop mocks &quot;B manage A&quot;" time="0.0377145">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; edge/gap hit zone highlights the insert line and drop reorders into custom sort" time="0.0383182">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; inserting via the boundary above C lands A between B and C" time="0.0394104">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; dropping at the boundary above B (original position) is a no-op reorder" time="0.0423354">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; renders sessions in the persisted custom order when sortBy is custom" time="0.0414542">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; a plain click on the drag gutter selects the session (threshold)" time="0.0603413">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed A
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; a click fired right after a real drag does NOT select the dragged session" time="0.0540508">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; workdir groups expose pin drag handles while unpinned general drag stays disabled" time="0.072662">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; manager tree: drag handle exists on roots and children" time="0.0829539">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the recent unpinned sequence unchanged" time="0.0701418">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the name unpinned sequence unchanged" time="0.0400305">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the custom unpinned sequence unchanged" time="0.0382518">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; pinned pointer drag clamps onto the unpinned region without switching sort or changing relationships" time="0.0645829">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; unpin returns a Session to its selected name sort" time="0.0774426">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; center drop → the target manages the dragged session" time="0.000357">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge drop on a child row adopts that group" time="0.0001778">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge drop on a top-level slot leaves the current group" time="0.0001332">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge after a manager row sorts at that row level (never becomes its child)" time="0.000125">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; blocks moving a session under itself" time="0.000128">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; blocks moving a session under its own descendant (deep)" time="0.0001889">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; allows moving a sibling next to another sibling of the same group" time="0.0001013">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; center drop on a root mocks &quot;root manages dragged session&quot; in the tree" time="0.2549719">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop between siblings reorders children under the same manager" time="0.3727394">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop past the last root moves the whole subtree after it" time="0.1425497">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop on another group child row moves the session into that group" time="2.0167166">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop on a top-level slot moves a child out of its group" time="0.221287">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; blocks dropping a manager onto its own child (center)" time="0.1804541">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights only 排序 for a sibling slot inside the same group" time="0.5188484">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights only 管理 over a center manage target" time="0.1501318">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights BOTH when the slot belongs to another level/group" time="0.1796595">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights nothing while over the dragged session itself or empty space" time="0.1053203">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="Sort mode cycling (recent → name → custom) &gt; cycles through all three modes and persists" time="0.0440519">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="Sort mode cycling (recent → name → custom) &gt; accepts a persisted custom sort mode on load" time="0.1432239">
+        </testcase>
+    </testsuite>
+</testsuites>

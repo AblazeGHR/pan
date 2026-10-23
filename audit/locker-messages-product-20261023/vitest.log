@@ -1,0 +1,72 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src[39m
+
+ [32m✓[39m views/lockerModel.auth.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m components/session/SessionItem.test.tsx [2m([22m[2m23 tests[22m[2m)[22m[90m 181[2mms[22m[39m
+ [32m✓[39m views/LockerView.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 1370[2mms[22m[39m
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mopens the clicked session in Chat from Jobs, including when it is already selected
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session navigation from Jobs[2m > [22m[2mcloses an open mobile Sidebar after navigating from Jobs to Chat
+[22m[39m[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mopens the clicked session in Chat from the Terminal route
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-a
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mopens the clicked session in Chat from a plugin panel route
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-b
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mopens the clicked session in Chat from the Manage route
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-b
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mreturns to Chat when re-clicking the already selected session from the Terminal route
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-a
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mreturns to Chat again after navigating away and re-clicking the same session
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-a
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mstays on the chat route without stacking navigation when a card is clicked there
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-a
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mdoes not navigate when a card quick action is used from the Terminal route
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mdoes not navigate when the store selects a session in the background
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-a
+
+[90mstderr[2m | components/layout/Sidebar.test.tsx[2m > [22m[2mSidebar session card activation returns to Chat from any non-chat route[2m > [22m[2mcloses an open mobile Sidebar after navigating from the Terminal route to Chat
+[22m[39m[sessionStore] selectSession fresh-history fetch failed nav-b
+
+ [32m✓[39m components/layout/Sidebar.test.tsx [2m([22m[2m31 tests[22m[2m)[22m[33m 2790[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar session card activation returns to Chat from any non-chat route[2m > [22mcloses an open mobile Sidebar after navigating from the Terminal route to Chat [33m1249[2mms[22m[39m
+[90mstderr[2m | components/session/SessionList.drag.test.tsx[2m > [22m[2mSessionList drag interactions (mock demo)[2m > [22m[2ma plain click on the drag gutter selects the session (threshold)
+[22m[39m[sessionStore] selectSession fresh-history fetch failed A
+
+ [32m✓[39m components/session/SessionList.drag.test.tsx [2m([22m[2m38 tests[22m[2m)[22m[33m 5167[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop between siblings reorders children under the same manager [33m373[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22medge drop on another group child row moves the session into that group [33m2017[2mms[22m[39m
+   [33m[2m✓[22m[39m manager-tree drag interactions (mock demo)[2m > [22mghost lights only 排序 for a sibling slot inside the same group [33m519[2mms[22m[39m
+[90mstdout[2m | components/chat/MarkdownRenderer.test.tsx[2m > [22m[2mMarkdownRenderer[2m > [22m[2mrenders list bullets structure and hljs spans
+[22m[39mUL: <ul>
+<li>item one</li>
+<li>item two</li>
+</ul>
+LI: <li>item one</li>
+HLJS_KEYWORD: <span class="hljs-keyword">const</span>
+CODE: <code class="text-xs font-mono leading-relaxed hljs language-js"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;
+</code>
+
+ [32m✓[39m components/chat/MarkdownRenderer.test.tsx [2m([22m[2m35 tests[22m[2m)[22m[33m 7061[2mms[22m[39m
+   [33m[2m✓[22m[39m MarkdownRenderer[2m > [22mpreserves the entire large plain paragraph, selection text, and subsequent rich Markdown [33m5141[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 22:15:05
+[2m   Duration [22m 10.03s[2m (transform 958ms, setup 35ms, collect 3.80s, tests 16.57s, environment 3.38s, prepare 1.00s)[22m
+
+JUNIT report written to D:/project/pan-worktrees/locker-product-integration-20261023/audit/locker-messages-product-20261023/vitest.xml

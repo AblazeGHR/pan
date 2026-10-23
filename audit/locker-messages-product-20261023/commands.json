@@ -1,0 +1,85 @@
+{
+  "sourceSha": "0c4509e7ec6694deecdd491a18d95547df4fb1e0",
+  "main": "818f6b849d31cac98f03766ad1a6eb7788f5ea58",
+  "commands": [
+    {
+      "name": "typescript",
+      "argv": [
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "exec",
+        "tsc",
+        "-b"
+      ],
+      "exit": 0,
+      "seconds": 13.86
+    },
+    {
+      "name": "build",
+      "argv": [
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 21.83
+    },
+    {
+      "name": "vitest",
+      "argv": [
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "exec",
+        "vitest",
+        "run",
+        "src/views/LockerView.test.tsx",
+        "src/views/lockerModel.auth.test.ts",
+        "src/components/chat/MarkdownRenderer.test.tsx",
+        "src/components/layout/Sidebar.test.tsx",
+        "src/components/session/SessionItem.test.tsx",
+        "src/components/session/SessionList.drag.test.tsx",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\locker-product-integration-20261023\\audit\\locker-messages-product-20261023\\vitest.xml"
+      ],
+      "exit": 0,
+      "seconds": 11.12
+    },
+    {
+      "name": "python",
+      "argv": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_locker_messages.py",
+        "tests/test_user_locker_lifecycle.py",
+        "tests/test_interaction_cards.py",
+        "tests/test_interaction_card_api.py",
+        "tests/test_locker_trusted_binding.py",
+        "tests/test_system_fields.py",
+        "tests/test_worker_runtime_issue_identity.py",
+        "--junitxml=D:\\project\\pan-worktrees\\locker-product-integration-20261023\\audit\\locker-messages-product-20261023\\python.xml"
+      ],
+      "exit": 0,
+      "seconds": 6.72
+    },
+    {
+      "name": "live",
+      "argv": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_locker_product_live.py",
+        "--junitxml=D:\\project\\pan-worktrees\\locker-product-integration-20261023\\audit\\locker-messages-product-20261023\\live.xml"
+      ],
+      "exit": 0,
+      "seconds": 26.05
+    }
+  ]
+}
