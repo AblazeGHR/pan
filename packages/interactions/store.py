@@ -207,12 +207,15 @@ class InteractionStore:
             if state not in {'in_flight','unknown'}:
                 self._settle(card_id,{'state':'unavailable'})
             return self.get_for_user(principal,card_id)
-        try:
-            allowed=await adapter.authorize(json.loads(canonical(event)))
-        except Exception as exc:
-            raise InteractionError('unavailable','Trigger authorization unavailable') from exc
-        if allowed is not True:
-            raise InteractionError('forbidden','Trigger authorization rejected')
+        # A persisted uncertain claim can only look up its original receipt.
+        # Revoking a Trigger must block new admission, not receipt reconciliation.
+        if state not in {'in_flight','unknown'}:
+            try:
+                allowed=await adapter.authorize(json.loads(canonical(event)))
+            except Exception as exc:
+                raise InteractionError('unavailable','Trigger authorization unavailable') from exc
+            if allowed is not True:
+                raise InteractionError('forbidden','Trigger authorization rejected')
         with self.db() as db:
             row=self._user_row(db,principal,card_id)
             state=json.loads(row['delivery'])['state']
@@ -336,8 +339,9 @@ class InteractionStore:
                 if row['event'] is None:
                     continue
                 event=json.loads(row['event'])
+                state=json.loads(row['delivery'])['state']
             try:
-                if await adapter.authorize(json.loads(canonical(event))) is not True:
+                if state not in {'in_flight','unknown'} and await adapter.authorize(json.loads(canonical(event))) is not True:
                     continue
             except Exception:
                 continue
