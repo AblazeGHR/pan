@@ -46,6 +46,8 @@ async def stop():
         host = server.app.state.pan_uvicorn_server
         print('SHUTDOWN_CONNECTIONS', repr(host.server_state.connections), file=sys.stderr, flush=True)
         for listener in host.servers:
+            print('SHUTDOWN_LISTENER', 'active_count=', getattr(listener, '_active_count', None),
+                  'clients=', len(getattr(listener, '_clients', ())), file=sys.stderr, flush=True)
             for transport in list(getattr(listener, '_clients', ())):
                 print('SHUTDOWN_TRANSPORT', repr(transport),
                       'protocol=', repr(transport.get_protocol()),

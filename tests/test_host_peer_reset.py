@@ -7,7 +7,7 @@ from asyncio.proactor_events import _ProactorBasePipeTransport
 from packages.core.host_server import PanServer, _finish_reset_transport
 
 
-def broken_close():
+def broken_close(legacy_detach=False):
     calls = []
     class Socket:
         def fileno(self): return 1
@@ -15,9 +15,11 @@ def broken_close():
         def close(self): calls.append('socket.close')
     class Server:
         def _detach(self, transport): calls.append('server.detach')
+    class LegacyServer:
+        def _detach(self): calls.append('server.detach')
     transport = object.__new__(_ProactorBasePipeTransport)
     transport._sock = Socket()
-    transport._server = Server()
+    transport._server = LegacyServer() if legacy_detach else Server()
     transport._protocol = SimpleNamespace(connection_lost=lambda exc: calls.append('protocol.lost'))
     transport._closing = True
     transport._called_connection_lost = False
@@ -35,8 +37,9 @@ def broken_close():
     return transport, context, calls
 
 
-def test_reset_close_detaches_once_and_preserves_original_protocol_callback():
-    transport, context, calls = broken_close()
+@pytest.mark.parametrize('legacy_detach', [False, True])
+def test_reset_close_detaches_once_and_preserves_original_protocol_callback(legacy_detach):
+    transport, context, calls = broken_close(legacy_detach)
     assert calls == ['protocol.lost'] and transport._server is not None
     assert _finish_reset_transport(context, [transport._server])
     assert calls == ['protocol.lost', 'socket.close', 'server.detach']
