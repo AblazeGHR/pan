@@ -169,22 +169,46 @@ class _PanRuntime:
         )
         self.pan_pids.append(self.process.pid)
         try:
+            self._capture_owned_processes()
             _wait_for(
                 lambda: self.process.poll() is None and self._health_ok(),
                 timeout=20,
                 label="isolated FastAPI readiness",
             )
-        except Exception:
+        except Exception as exc:
             details = (self.data_root / "pan.log").read_text(encoding="utf-8", errors="replace")
-            raise AssertionError(f"isolated server failed to start:\n{details[-4000:]}")
+            trace = self.data_root / 'startup-stacks.txt'
+            if trace.exists():
+                details += '\nStartup stacks:\n' + trace.read_text(encoding='utf-8', errors='replace')
+            self._capture_owned_processes()
+            try:
+                self.stop()
+            except Exception as cleanup:
+                raise ExceptionGroup('Isolated startup and owned cleanup failed', [exc, cleanup]) from exc
+            raise AssertionError(f"isolated server failed to start:\n{details[-8000:]}") from exc
         finally:
             log.close()
-        root_process = psutil.Process(self.process.pid)
-        owned = [root_process, *root_process.children(recursive=True)]
+        self._capture_owned_processes()
+
+    def _capture_owned_processes(self):
+        if self.process is None:
+            return
+        try:
+            root_process = psutil.Process(self.process.pid)
+            created = root_process.create_time()
+            previous = next((born for pid, born, _ in self._owned_processes
+                             if pid == root_process.pid), created)
+            if abs(created - previous) > .01:
+                raise AssertionError('Owned startup root identity changed')
+            owned = [root_process, *root_process.children(recursive=True)]
+        except psutil.NoSuchProcess:
+            return
         for process in owned:
             try:
                 command_line = " ".join(process.cmdline())
-                self._owned_processes.append((process.pid, process.create_time(), command_line))
+                value = (process.pid, process.create_time(), command_line)
+                if value not in self._owned_processes:
+                    self._owned_processes.append(value)
             except psutil.Error:
                 continue
         self.pan_pids.extend(process.pid for process in owned if process.pid not in self.pan_pids)
@@ -200,6 +224,7 @@ class _PanRuntime:
             return False
 
     def stop(self):
+        self._capture_owned_processes()
         process = self.process
         self.process = None
         if process is None and not self._owned_processes:
@@ -208,11 +233,13 @@ class _PanRuntime:
         # Popen handle exits.  Stop only the exact PIDs/create-times captured
         # from this fixture's process tree; never scan or kill a generic
         # python/uvicorn process.
+        captured = []
         for pid, create_time, command_line in reversed(self._owned_processes):
             try:
                 owned = psutil.Process(pid)
                 if abs(owned.create_time() - create_time) > 0.01:
                     continue
+                captured.append(owned)
                 if str(SERVER_LAUNCHER) not in command_line and str(FAKE_CLI) not in command_line:
                     continue
                 owned.terminate()
@@ -233,6 +260,8 @@ class _PanRuntime:
                         owned.kill()
             except psutil.Error:
                 continue
+        _, remaining = psutil.wait_procs(captured, timeout=5)
+        assert not remaining, 'Owned HTTP fixture processes did not retire: ' + str([p.pid for p in remaining])
         self._owned_processes.clear()
         _wait_for(lambda: _port_is_free(PORT), timeout=5, label="isolated port release")
 

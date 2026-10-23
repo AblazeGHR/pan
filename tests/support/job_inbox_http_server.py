@@ -3,6 +3,10 @@ import os
 import sys
 from pathlib import Path
 
+from tests.support.startup_trace import arm
+
+arm()
+
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 data=Path(os.environ['PAN_E2E_DATA_ROOT']).resolve()

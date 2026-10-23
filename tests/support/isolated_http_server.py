@@ -16,6 +16,10 @@ import sys
 import time
 from pathlib import Path
 
+from tests.support.startup_trace import arm, StartupTrace
+
+arm()
+
 
 def _capture_delay_middleware(app):
     marker = os.environ.get("PAN_E2E_CAPTURE_MARKER")
@@ -102,6 +106,7 @@ def main() -> None:
     server._startup_recovery_record_path = lambda: (
         data_root / "startup_recovery" / f"{server._STARTUP_RECOVERY_GENERATION}.json")
     server.app.add_middleware(_capture_delay_middleware)
+    server.app.add_middleware(StartupTrace)
 
     fake_cli = os.environ.get("PAN_E2E_FAKE_CLI")
     if fake_cli:
