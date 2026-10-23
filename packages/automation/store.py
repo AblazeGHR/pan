@@ -141,7 +141,14 @@ class Ledger:
                 if run['event']['id'] == event_id:
                     run['admitted'] = True
                     run['revision'] += 1
-        self.mutate(change)
+        # A retained fact with an unavailable dependency may have no Run yet.
+        # Do not rewrite/fsync the entire ledger for that empty admission fence:
+        # a page of such facts would delay unrelated ready Events. Keep the
+        # existence check and actual admission under the same reentrant lock.
+        with self.lock:
+            if not any(run['event']['id'] == event_id for run in self.read()['runs'].values()):
+                return
+            self.mutate(change)
 
     def claim(self, rid):
         def change(state):

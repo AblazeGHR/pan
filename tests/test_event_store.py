@@ -239,8 +239,26 @@ def test_payload_and_bytes_capacity_fail_closed(tmp_path):
         ledger.put(trigger(),0,True)
     assert not ledger.path.exists()
 
+def test_empty_event_release_is_read_only_and_existing_run_still_admitted(tmp_path):
+    ledger = Ledger(tmp_path)
+    ledger.put(trigger(), 0, True)
+    before = ledger.path.read_bytes()
+    ledger.release_event('missing')
+    assert ledger.path.read_bytes() == before
+    ledger.append(dict(id='r', triggerId='t', triggerRevision=1,
+                       event=fact('ready'), status='queued', admitted=False))
+    before = ledger.read()
+    ledger.release_event('ready')
+    after = ledger.read()
+    assert after['revision'] == before['revision'] + 1
+    assert after['runs']['r']['revision'] == before['runs']['r']['revision'] + 1
+    assert after['runs']['r']['admitted'] is True
+    assert ledger.claim('r')['id'] == 'r'
+
+
+@pytest.mark.parametrize('commit_delay', [0, .06])
 @async_test
-async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_path):
+async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_path, monkeypatch, commit_delay):
     svc,calls=await setup(tmp_path)
     # Stop only dispatcher while arranging a deterministic >one-page backlog.
     svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
@@ -250,6 +268,15 @@ async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_pat
     for i in range(65):
         svc.events.append(fact('waiting-'+str(i)),[waiting])
     await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'independent')
+    # Model slow durable ledger replacement after arranging the backlog. An
+    # unavailable dependency must not force a no-op commit for every old fact.
+    from packages.automation import store as ledger_store
+    import time
+    original_atomic = ledger_store.atomic
+    def slow_atomic(*args, **kwargs):
+        time.sleep(commit_delay)
+        return original_atomic(*args, **kwargs)
+    monkeypatch.setattr(ledger_store, 'atomic', slow_atomic)
     svc.dispatcher=asyncio.create_task(svc.dispatch())
     try:
         rows=await asyncio.wait_for(terminal(svc),3)
