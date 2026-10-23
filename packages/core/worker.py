@@ -4495,12 +4495,12 @@ _DELIVERY_QUEUED = "queued"
 _DELIVERY_RESERVED = "reserved"
 _DELIVERY_WRITING = "writing"
 _DELIVERY_SENT = "sent_to_cli"
-# Old states are accepted as migration inputs.  They are deliberately mapped
-# back to queued because the new contract prefers recovery/retry and explicitly
-# accepts the small duplicate window around an uncertain provider hand-off.
+# Old unfinished reservations retain their compatibility retry behavior.
+# Explicit unknown/uncertain outcomes are different: they never authorize replay.
 _DELIVERY_IN_FLIGHT = "in_flight"
 _DELIVERY_WRITE_FAILED = "write_failed"
 _DELIVERY_UNKNOWN = "unknown_after_crash"
+_DELIVERY_UNCERTAIN_STATES = {_DELIVERY_UNKNOWN, "unknown", "uncertain"}
 _DELIVERY_DELETED = "deleted"
 _DELIVERY_STATES = {
     _DELIVERY_QUEUED,
@@ -4511,6 +4511,7 @@ _DELIVERY_STATES = {
     _DELIVERY_WRITE_FAILED,
     _DELIVERY_UNKNOWN,
     _DELIVERY_DELETED,
+    *_DELIVERY_UNCERTAIN_STATES,
 }
 
 _QUEUE_RETRY_BASE_SEC = 1.0
@@ -5249,7 +5250,7 @@ def _has_dispatchable_items(s) -> bool:
         isinstance(item, dict)
         and _delivery_state(item) in {
             _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-            _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+            _DELIVERY_WRITE_FAILED,
         }
         for item in (s.queue_pending or [])
     )
@@ -5390,7 +5391,8 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
     new contract explicitly accepts that duplicate window, so these rows are
     restored to ``queued`` instead of being silently discarded.  A durable
     ``sent_to_cli`` row is the opposite: it records a completed hand-off and
-    can safely be removed during migration.
+    can safely be removed during migration. Explicit unknown/uncertain receipts
+    remain visible and non-dispatchable, including ledger-only recovery.
     """
     changed = _migrate_legacy_task_items(s)
     keep: list = []
@@ -5444,6 +5446,30 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True
             continue
+        if state == _DELIVERY_SENT:
+            _remember_queue_item(s, item, _DELIVERY_SENT)
+            changed = True
+            continue
+        uncertain_state = (state if state in _DELIVERY_UNCERTAIN_STATES else
+                           ledger_state if ledger_state in _DELIVERY_UNCERTAIN_STATES else None)
+        if uncertain_state is not None:
+            # Either durable copy can prove the outcome is unresolved. A stale
+            # queued row must never overwrite that evidence. Preserve extension
+            # fields in each copy and make reconciliation repeatable.
+            if item.get("deliveryState") != uncertain_state:
+                item["deliveryState"] = uncertain_state
+                changed = True
+            if item.get("dispatchState") not in {None, uncertain_state}:
+                item["dispatchState"] = uncertain_state
+                changed = True
+            record = dict(ledger_record or {})
+            record.update(item)
+            if record != ledger_record:
+                s.queue_delivery_ledger[_queue_item_id(item)] = record
+                changed = True
+            _index_queue_item(s, record, state=uncertain_state)
+            keep.append(item)
+            continue
         # The pending row is the retryable source of truth, but a stale ledger
         # reservation must not remain visible after recovery.  Treat the
         # provider boundary as uncertain and normalize both copies to queued;
@@ -5451,16 +5477,12 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
         # window when the hand-off outcome cannot be known.
         if (state == _DELIVERY_QUEUED and ledger_state in {
                 _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-                _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+                _DELIVERY_WRITE_FAILED,
         }):
             item["lastDeliveryState"] = ledger_state
             _queue_item_backoff(item, "reconciled stale queue delivery ledger")
             _remember_queue_item(s, item, _DELIVERY_QUEUED)
             keep.append(item)
-            changed = True
-            continue
-        if state == _DELIVERY_SENT:
-            _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True
             continue
         # Queue snapshots also run this migration. A reservation still owned
@@ -5477,7 +5499,7 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             continue
         if state in {
             _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-            _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+            _DELIVERY_WRITE_FAILED,
         }:
             item["lastDeliveryState"] = state
             _queue_item_backoff(item, "recovered unfinished CLI hand-off")
@@ -5524,6 +5546,16 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
         restored["queueItemId"] = record_id
         restored.setdefault("id", record_id)
         restored.setdefault("createdAt", time.time())
+        if state in _DELIVERY_UNCERTAIN_STATES:
+            # Restore visibility, not execution authority. Keep the original
+            # receipt and its fields intact; normal claims reject this state.
+            if restored.get("dispatchState") not in {None, state}:
+                restored["dispatchState"] = state
+            keep.append(restored)
+            pending_ids.add(record_id)
+            _remember_queue_item(s, restored, state)
+            changed = True
+            continue
         if state != _DELIVERY_QUEUED:
             restored["lastDeliveryState"] = state
             _queue_item_backoff(restored, "recovered unfinished CLI hand-off")
@@ -10989,7 +11021,8 @@ async def enqueue_user_message(session_id: str, text: str,
         if existing is not None:
             state = _delivery_state(existing)
             return {
-                "status": "sent" if state == _DELIVERY_SENT else "queued",
+                "status": (state if state in _DELIVERY_UNCERTAIN_STATES else
+                           "sent" if state == _DELIVERY_SENT else "queued"),
                 "sessionId": session_id,
                 "workerId": None,
                 "queueItemId": _queue_item_id(existing),
