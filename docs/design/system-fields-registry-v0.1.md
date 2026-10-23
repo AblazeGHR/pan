@@ -218,12 +218,13 @@ are payload data and do not gain system-field trust.
 
 All commands ran from this isolated worktree through the repository's isolation
 entrypoint (`E:/software/miniforge/python.exe` here), which removes inherited
-`PAN_*`, sets an owned `PAN_TEST_HTTP_PORT`, and never uses 8767/8768.
+`PAN_*`, sets an owned `PAN_TEST_HTTP_PORT`, and never uses 8767/8768. The final
+combination run is on merged main `c9c9fe92160bd257eb4b7d53b0669fa85aa1cf2a`.
 
 | Command | Result |
 |---|---|
 | `python scripts/run_tests_isolated.py -- python -m pytest tests/test_worker_runtime_issue_identity.py tests/test_system_fields.py tests/test_runtime_issues.py -q` | 25 passed |
-| `python scripts/run_tests_isolated.py -- python -m pytest` on the 21 targeted system/event/automation/plugin/MCP/Action/Job files | 304 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest` on the 22 targeted system/event/automation/plugin/MCP/Action/Job/startup files | 305 passed |
 | `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields_http.py -q` | 1 passed; fakeCLI native capacity -> durable `runtime.issue.v1` -> Trigger system argument -> Pause target; `queuePaused=true` |
 | `python scripts/run_tests_isolated.py -- python artifacts/system-fields-registry/verify_http.py` | real 127.0.0.1 ephemeral-port GET 200; POST 405; 10 canonical fields; schema pointer present |
 
@@ -245,7 +246,8 @@ The consolidated list is `test_worker_runtime_issue_identity.py`,
 `test_event_store_http.py`, `test_mcp_handbook.py`, `test_action_groups.py`,
 `test_action_ids.py`, `test_action_persistence.py`,
 `test_automation_retry_http.py`, `test_job_action_templates.py`,
-`test_job_system_actions.py` and `test_report_action_coexistence.py`.
+`test_job_system_actions.py`, `test_report_action_coexistence.py` and
+`test_http_runtime_startup.py`.
 
 Unfinished boundaries: no React/GUI selector, no bulk migration of historical
 Event rows, no plugin-provided system identity (host wiring remains future
