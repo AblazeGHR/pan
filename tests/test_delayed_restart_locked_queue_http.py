@@ -1,5 +1,6 @@
 """Real HTTP/process regression: queue locks must not gate Worker retirement."""
 import json
+import errno
 import os
 import subprocess
 import socket
@@ -25,7 +26,10 @@ def _read_session_metadata(path):
             text = path.read_text(encoding="utf-8")
             break
         except PermissionError as exc:
-            if (os.name != "nt" or getattr(exc, "winerror", None) not in {5, 32, 33}
+            winerror = getattr(exc, "winerror", None)
+            sharing_denied = (winerror in {5, 32, 33}
+                              or (winerror is None and exc.errno == errno.EACCES))
+            if (os.name != "nt" or not sharing_denied
                     or attempt == 5):
                 raise
             time.sleep(.01 * (attempt + 1))
