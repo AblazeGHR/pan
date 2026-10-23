@@ -27,12 +27,17 @@ export interface InteractionCard {
   delivery: { state: string };
   rejectionDelivery?: { state: string };
 }
+/** Preserve status so a proven pre-admission validation rejection is distinct
+ * from a network failure or a response whose persistence is uncertain. */
+export class LockerRequestError extends Error {
+  constructor(public readonly status: number, message: string) { super(message); }
+}
 export async function lockerRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { method, credentials: 'same-origin', signal,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.detail?.code || result.detail?.message || `HTTP ${response.status}`);
+  if (!response.ok) throw new LockerRequestError(response.status, result.detail?.code || result.detail?.message || `HTTP ${response.status}`);
   return result as T;
 }
 /** This is a projection over real Lockers; it persists no aggregate identity. */

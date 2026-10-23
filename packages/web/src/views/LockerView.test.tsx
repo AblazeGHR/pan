@@ -94,6 +94,25 @@ describe('Locker panel', () => {
     mount(); expect((await screen.findByRole('alert')).textContent).toContain('user_auth_unavailable');
     expect(screen.queryByText('Submit')).toBeNull();
   });
+  it('allows correction after a proven validation rejection', async () => {
+    const original = globalThis.fetch;
+    let attempts = 0;
+    vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {
+      if (String(args[0]).endsWith('/submit') && ++attempts === 1) {
+        return { ok: false, status: 422, json: async () => ({ detail: { code: 'invalid' } }) } as Response;
+      }
+      return original(...args);
+    }));
+    mount(); await screen.findByText('Card a');
+    fireEvent.click(first(screen.getAllByText('Submit')));
+    await screen.findByRole('alert');
+    await waitFor(() => expect((first(screen.getAllByLabelText('Reply')) as HTMLTextAreaElement).disabled).toBe(false));
+    fireEvent.change(first(screen.getAllByLabelText('Reply')), { target: { value: 'corrected' } });
+    fireEvent.click(first(screen.getAllByText('Submit')));
+    await screen.findByText('已提交');
+    expect(calls.find(c => c.path.endsWith('/submit'))?.body.answer).toBe('corrected');
+  });
+
   it('reuses exact submit identity after uncertain HTTP and never switches to reject', async () => {
     const original = globalThis.fetch; let attempts = 0; const payloads: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {

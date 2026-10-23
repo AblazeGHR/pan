@@ -3,7 +3,7 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
 import { attachmentMarkdown, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { lockerProjection, lockerRequest, type InteractionCard, type Locker } from './lockerModel';
+import { lockerProjection, lockerRequest, LockerRequestError, type InteractionCard, type Locker } from './lockerModel';
 
 function Card({ card, source, update, remove }: {
   card: InteractionCard; source?: Locker;
@@ -51,7 +51,12 @@ function Card({ card, source, update, remove }: {
         intent.current = null;
         if (result.dispatchError) setError(result.dispatchError.code);
       }
-    } catch (e) { setError(String(e)); } finally { setBusy(false); }
+    } catch (e) {
+      // submit/reject validation returns 422 before recording a response. Let
+      // the user correct that rejected payload; uncertain writes keep identity.
+      if (e instanceof LockerRequestError && e.status === 422) intent.current = null;
+      setError(String(e));
+    } finally { setBusy(false); }
   }
   const attachments = (card.definition.attachments ?? []).map(a => attachmentMarkdown({
     displayName: a.name, href: serverAttachmentDownloadHref(card.ownerSessionId, a.id),
