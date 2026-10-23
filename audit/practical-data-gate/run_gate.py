@@ -24,7 +24,7 @@ import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[2]
 OUT=Path(__file__).resolve().parent
 SOURCE=Path('D:/project/Pan').resolve()
-PRIVATE=Path((OUT/'private-root.txt').read_text(encoding='utf-8')).resolve()
+PRIVATE=Path((OUT/'private-root.txt').read_text(encoding='utf-8').strip()).resolve()
 DATA=PRIVATE/'compatibility-final/data'
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(ROOT))
