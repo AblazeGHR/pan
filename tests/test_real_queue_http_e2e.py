@@ -140,6 +140,7 @@ class _PanRuntime:
         self.process: subprocess.Popen | None = None
         self.pan_pids: list[int] = []
         self._owned_processes: list[tuple[int, float, str]] = []
+        self._ready = False
 
     @property
     def base_url(self) -> str:
@@ -189,6 +190,7 @@ class _PanRuntime:
         finally:
             log.close()
         self._capture_owned_processes()
+        self._ready = True
 
     def _capture_owned_processes(self):
         if self.process is None:
@@ -229,6 +231,15 @@ class _PanRuntime:
         self.process = None
         if process is None and not self._owned_processes:
             return
+        if self._ready and process is not None and process.poll() is None:
+            try:
+                response = httpx.post(self.base_url + '/__test/stop-owned-runtime',
+                                      timeout=.5, trust_env=False)
+                if response.is_success:
+                    process.wait(timeout=15)
+            except (httpx.HTTPError, subprocess.TimeoutExpired):
+                pass  # Fall back to the same identity-bound hard cleanup.
+        self._ready = False
         # On Windows the venv launcher can leave uvicorn as a child after the
         # Popen handle exits.  Stop only the exact PIDs/create-times captured
         # from this fixture's process tree; never scan or kill a generic
@@ -239,9 +250,9 @@ class _PanRuntime:
                 owned = psutil.Process(pid)
                 if abs(owned.create_time() - create_time) > 0.01:
                     continue
-                captured.append(owned)
                 if str(SERVER_LAUNCHER) not in command_line and str(FAKE_CLI) not in command_line:
                     continue
+                captured.append(owned)
                 owned.terminate()
             except psutil.Error:
                 continue

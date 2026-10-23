@@ -175,6 +175,12 @@ def main() -> None:
     host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,
                                     log_level="warning", access_log=False))
     server.app.state.pan_uvicorn_server = host
+    @server.app.post('/__test/stop-owned-runtime')
+    async def stop_owned_runtime():
+        # Ordinary fixture shutdown joins lifespan-owned Actions/plugins.
+        # Explicit process.kill crash tests remain a separate path.
+        asyncio.get_running_loop().call_later(.05, setattr, host, 'should_exit', True)
+        return {'ok': True}
     if os.environ.get("PAN_TEST_HOST_EXIT_PROBE") == "1":
         import signal
         @server.app.post("/__test/host-signal/{kind}")

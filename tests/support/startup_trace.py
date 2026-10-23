@@ -2,6 +2,7 @@
 import faulthandler
 import os
 from pathlib import Path
+import sys
 import time
 
 _output = None
@@ -11,7 +12,12 @@ def arm():
     global _output
     if _output is not None:
         return
-    root = Path(os.environ['PAN_E2E_DATA_ROOT']).resolve()
+    supplied = os.environ.get('PAN_E2E_DATA_ROOT')
+    if not supplied and '--data-root' in sys.argv:
+        supplied = sys.argv[sys.argv.index('--data-root') + 1]
+    if not supplied:
+        return  # Never infer a shared/default profile for diagnostics.
+    root = Path(supplied).resolve()
     root.mkdir(parents=True, exist_ok=True)
     _output = (root / 'startup-stacks.txt').open('a', encoding='utf-8')
     _output.write(f'pid={os.getpid()} startup armed at {time.time()}\n')
