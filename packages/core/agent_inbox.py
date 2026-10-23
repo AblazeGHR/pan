@@ -32,7 +32,12 @@ class Inbox:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._forward_lock = asyncio.Lock()
         with self.db() as db:
+            # executescript commits the connection's pending transaction before
+            # running its SQL. Start a transaction inside the script so schema
+            # statements share one durable commit instead of one per table.
+            # The db context also rolls back the whole schema if any DDL fails.
             db.executescript('''
+                BEGIN IMMEDIATE;
                 CREATE TABLE IF NOT EXISTS lockers(id TEXT PRIMARY KEY, source TEXT NOT NULL, available INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS sources(plugin TEXT PRIMARY KEY, available INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS messages(seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL,

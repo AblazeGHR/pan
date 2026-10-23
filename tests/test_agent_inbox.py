@@ -1,5 +1,6 @@
 """Deterministic shared-inbox concurrency and recovery contract tests."""
 import asyncio
+import sqlite3
 import pytest
 from packages.core.agent_inbox import Inbox, InboxError, Router
 
@@ -33,6 +34,54 @@ def setup(tmp_path, capacity=500):
     box = Inbox(tmp_path / "inbox.sqlite", q, capacity=capacity)
     lid = box.locker({"pluginId": "qq", "instanceId": "one", "botId": "bot", "scope": "user", "peerId": "7"})["id"]
     return box, q, lid
+
+
+@pytest.mark.parametrize('interrupt', [False, True])
+def test_schema_creation_is_one_transaction_and_rolls_back_on_failure(tmp_path, monkeypatch, interrupt):
+    original_connect = sqlite3.connect
+    transactions = []
+    def connect(*args, **kwargs):
+        db = original_connect(*args, **kwargs)
+        def authorize(action, name, *_):
+            if action == sqlite3.SQLITE_CREATE_TABLE and name != 'sqlite_sequence':
+                transactions.append(db.in_transaction)
+                if interrupt and name == 'routes':
+                    return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        db.set_authorizer(authorize)
+        return db
+    monkeypatch.setattr(sqlite3, 'connect', connect)
+    path = tmp_path / 'schema.sqlite'
+    if interrupt:
+        with pytest.raises(sqlite3.DatabaseError, match='not authorized'):
+            Inbox(path, Queue())
+        with original_connect(path) as db:
+            assert db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
+    else:
+        Inbox(path, Queue())
+    assert transactions and all(transactions)
+
+
+def test_schema_repeated_initialization_preserves_old_tables_and_unknown_routes(tmp_path):
+    from packages.core.agent_inbox import canonical
+    path = tmp_path / 'old.sqlite'
+    source = {"pluginId": "qq", "instanceId": "one", "botId": "old-bot", "scope": "user", "peerId": "7"}
+    # Retained older databases may have only the initial tables. Initialization
+    # must add missing tables without rewriting old identity or unknown routes.
+    with sqlite3.connect(path) as db:
+        db.execute('CREATE TABLE lockers(id TEXT PRIMARY KEY, source TEXT NOT NULL, available INTEGER NOT NULL)')
+        db.execute('CREATE TABLE routes(id TEXT PRIMARY KEY, signature TEXT NOT NULL, state TEXT NOT NULL, session TEXT NOT NULL, queue_id TEXT NOT NULL)')
+        db.execute('INSERT INTO lockers VALUES(?,?,?)', ('old-locker', canonical(source), 0))
+        db.execute('INSERT INTO routes VALUES(?,?,?,?,?)', ('old-route', 'old-signature', 'unknown', 'original-session', 'original-queue-id'))
+    q = Queue()
+    for _ in range(2):
+        box = Inbox(path, q)
+        with box.db() as db:
+            assert tuple(db.execute('SELECT * FROM lockers').fetchone()) == ('old-locker', canonical(source), 0)
+            assert tuple(db.execute('SELECT * FROM routes').fetchone()) == ('old-route', 'old-signature', 'unknown', 'original-session', 'original-queue-id')
+            assert {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")} >= {
+                'lockers', 'sources', 'messages', 'subscriptions', 'routes', 'origins', 'deleted_messages', 'legacy_bindings'}
+    assert q.calls == []
 
 
 def test_shared_idempotency_capacity_and_conflict(tmp_path):
