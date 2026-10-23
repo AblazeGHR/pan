@@ -1,5 +1,11 @@
 # Event–Trigger–Action core API and data contract (v0.1)
 
+The additive [system quick fields registry](system-fields-registry-v0.1.md)
+defines canonical camelCase Event identity (`system.sessionId`, `workerId`,
+`threadId`, and related fields), its trust boundary against payload, limited
+input aliases, the read-only discovery endpoint and safe
+`system.<field>` Trigger/Action mappings.
+
 Quota host source identity is defined by the
 [provider identity revision](quota-provider-identity-v0.3.md): official provider
 quota is independently queryable; native/managed metadata is not a prerequisite.

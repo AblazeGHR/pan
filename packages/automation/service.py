@@ -1,9 +1,12 @@
 """Explicit automation lifetime, durable event admission and bounded dispatch."""
 import asyncio
 from functools import partial
+import threading
 
 from packages.actions.executor import execute_dynamic
 from packages.actions.store import Store
+from packages.core.runtime_issues import runtime_issue_event_schema
+from packages.core.system_fields import canonical_event
 from .auth import UserAuth
 from .engine import Engine
 from .events import Bus, now
@@ -20,6 +23,8 @@ class Service:
         self.worker = worker
         self.core = self.bus.activate('core', 'workers')
         self.bus.register(self.core, 'workers.all_idle', {'type': 'object', 'properties': {'runningCount': {'const': 0}}, 'required': ['runningCount'], 'additionalProperties': False})
+        self.issue_runtime = self.bus.activate('core', 'runtime')
+        self.bus.register(self.issue_runtime, 'runtime.issue.v1', runtime_issue_event_schema())
         async def state_reader(key):
             if key == 'workers.runningCount':
                 return sum(w.status == 'running' for w in worker.workers.values())
@@ -31,6 +36,9 @@ class Service:
         self.admission = asyncio.Lock()
         self.started = False
         self.stopping = False
+        self.loop = None
+        self._runtime_issue_lock = threading.Lock()
+        self._runtime_issue_reserved = 0
         self.dispatcher = None
         self.ingester = None
         self.job_runtime = None
@@ -48,6 +56,79 @@ class Service:
             except Exception as exc:
                 self.diagnostic('core-ingress', exc)
 
+    def observe_runtime_issue(self, mapping):
+        """Enqueue a mapped RuntimeIssue Event through trusted core admission.
+
+        The quota observer is intentionally separate; this path only adds the
+        durable Event/Trigger fact. Same-loop calls enter the existing 128-slot
+        ingress directly. Cross-thread calls reserve one bounded callback slot
+        before scheduling; the reservation is released in every completion and
+        refusal path so a blocked loop cannot accumulate unbounded callbacks.
+        """
+        event = mapping.get('event') if isinstance(mapping, dict) else None
+        if not isinstance(event, dict) or event.get('type') != 'runtime.issue.v1':
+            return
+        if self.stopping or not self.started:
+            self.diagnostic('runtime-issue-ingress', 'Runtime closed or not started', event.get('id'))
+            return
+        loop = self.loop
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            self._enqueue_runtime_issue(event)
+            return
+        if loop is None or loop.is_closed():
+            self.diagnostic('runtime-issue-ingress', 'Runtime loop unavailable', event.get('id'))
+            return
+        if not self._reserve_runtime_issue():
+            self.diagnostic('runtime-issue-ingress', 'Runtime issue cross-thread backlog full', event.get('id'))
+            return
+        try:
+            loop.call_soon_threadsafe(self._enqueue_runtime_issue, event, True)
+        except Exception as exc:
+            self._release_runtime_issue()
+            self.diagnostic('runtime-issue-ingress', 'Runtime loop closed: ' + str(exc), event.get('id'))
+
+    def _reserve_runtime_issue(self):
+        limit = self.ingress.maxsize or 128
+        with self._runtime_issue_lock:
+            if self._runtime_issue_reserved >= limit:
+                return False
+            self._runtime_issue_reserved += 1
+            return True
+
+    def _release_runtime_issue(self):
+        with self._runtime_issue_lock:
+            if self._runtime_issue_reserved > 0:
+                self._runtime_issue_reserved -= 1
+
+    def _reset_runtime_issue_reservations(self):
+        with self._runtime_issue_lock:
+            self._runtime_issue_reserved = 0
+
+    def _enqueue_runtime_issue(self, event, reserved=False):
+        try:
+            if self.stopping or not self.started:
+                self.diagnostic('runtime-issue-ingress', 'Runtime closed before admission', event.get('id'))
+                return
+            try:
+                # Bus validation and the core owner identity are authoritative;
+                # the mapping helper cannot bypass payload schema or publish as
+                # a plugin.
+                prepared = self.bus.prepare(
+                    self.issue_runtime, event['type'], event.get('payload'),
+                    event.get('id'), system=event.get('system'))
+                self.ingress.put_nowait(prepared)
+            except asyncio.QueueFull:
+                self.diagnostic('runtime-issue-ingress', 'Runtime issue backlog full', event.get('id'))
+            except Exception as exc:
+                self.diagnostic('runtime-issue-ingress', exc, event.get('id'))
+        finally:
+            if reserved:
+                self._release_runtime_issue()
+
     async def accept(self, event, handle=None):
         # At most one admission snapshot/commit at a time; no Action is awaited.
         async with self.admission:
@@ -56,6 +137,9 @@ class Service:
             state = await self.engine.io(self.ledger.read)
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
+            # Canonical system fields are part of Event identity. Normalize
+            # before retained-Run dedupe so aliases never create a second fact.
+            event = canonical_event(event)
             retained = [r['event'] for r in state['runs'].values() if r['event']['id'] == event['id']]
             if retained:
                 if any(fact_identity(old) != fact_identity(event) for old in retained):
@@ -160,7 +244,18 @@ class Service:
         await self.quota_policy.recover()
         self.job_runtime.quota_policy = self.quota_policy
         from packages.core.runtime_issues import set_observer
-        set_observer(self.quota_policy.observe)
+        self.loop = asyncio.get_running_loop()
+
+        def observe_issue(mapping):
+            # Quota policy keeps its existing issue consumer; the durable Event
+            # path is additive and must not suppress it on failure.
+            try:
+                self.quota_policy.observe(mapping)
+            except Exception as exc:
+                self.diagnostic('runtime-issue-quota', exc)
+            self.observe_runtime_issue(mapping)
+
+        set_observer(observe_issue)
         if self.stopping:
             return
         await self.engine.io(self.auth.key)
@@ -206,6 +301,8 @@ class Service:
             self.quota_policy.closed = True
             from packages.core.runtime_issues import set_observer
             set_observer(None)
+        self.loop = None
+        self._reset_runtime_issue_reservations()
 
     async def replay(self, ids):
         async with self.engine.matching:

@@ -115,6 +115,17 @@ def main() -> None:
             _emit({"type": "system", "subtype": "running",
                    "session_id": session_id,
                    "_requestId": f"run-{pid}"})
+        if "RUNTIME_ISSUE_CAPACITY" in text:
+            # Deterministic native-shaped provider failure for the system-fields
+            # closed loop. No provider/account is contacted.
+            print(json.dumps({
+                "type": "result", "is_error": True,
+                "result": "Selected model is at capacity. Please try a different model.",
+                "error": {"code": "model_capacity_exceeded",
+                          "message": "Selected model is at capacity."},
+                "status": 429,
+            }), flush=True)
+            continue
         gate = _gate_for(text)
         while gate and not Path(gate).exists():
             time.sleep(0.01)

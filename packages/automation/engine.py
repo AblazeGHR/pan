@@ -10,6 +10,7 @@ from datetime import datetime
 
 from .policy import concurrency
 
+from packages.core.system_fields import system_binding_name, system_value
 from .events import now
 from .store import Conflict
 from .event_store import CapacityError
@@ -47,6 +48,11 @@ def arguments(mapping, event):
             values[key] = copy.deepcopy(binding['value'])
         elif binding.get('from') == 'event' and set(binding) == {'from', 'path'}:
             values[key] = copy.deepcopy(field(event, binding['path']))
+        elif binding.get('from') == 'system' and set(binding) == {'from', 'path'}:
+            name = system_binding_name(binding['path'])
+            # No fallback to payload: a missing trusted field fails the match
+            # visibly instead of silently targeting an unverified identity.
+            values[key] = copy.deepcopy(system_value(event, name))
         else:
             raise ValueError('Invalid argument binding')
     return values

@@ -12,6 +12,18 @@ generation、task、execution、queue、Codex thread/turn 字段保持缺失，�
 结构化 provider code/status 优先于文本。只有 adapter 自己的严格词表才可作为
 次级判断；普通 tool failure、generic 429 或冲突证据保持 `unknown`。
 
+Automation runtime 启动时把 `runtime.issue.v1` 注册为 trusted core owner
+`runtime` 的事件，并在原 quota observer 之外追加有界 Event ingress：映射出的
+Event 经 `Bus.prepare` 校验后进入现有 128 槽 ingress/Event Store，可供 Trigger
+引用 `system.sessionId` 等规范字段。Event 准入失败只写有界诊断，不改变 quota
+消费，也不引入 retry/account/restart/recovery 策略。Event Store 关闭后 observer
+撤权，迟到错误不再准入。跨线程提交前先预留有限 callback 槽，异常/关闭均释放；
+ingress 队列与预留槽是两个独立上界，不宣称单一全局在途上限。
+
+严格解析器对冲突别名仍抛 `SystemFieldError`；Worker 的 terminal/transient
+采样捕获该身份拒绝，不把它变成诊断写入失败：原错误 JSONL、状态与 report 路径
+继续，且不产生 RuntimeIssue/Event，因此歧义身份不能成为 Action target。
+
 | 分类 | 证据 |
 |---|---|
 | `codex_quota_exhausted` | Codex code `usage_limit_reached`、`quota_exceeded`、`quota_exhausted`、`insufficient_quota`，或明确 usage/plan limit reached/exhausted |

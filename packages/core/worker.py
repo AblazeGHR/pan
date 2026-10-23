@@ -42,6 +42,7 @@ from . import legal_offline as _offline
 from . import queue_locks as _message_locks
 from . import session_error_log as _error_log
 from .runtime_issues import map_runtime_issue
+from .system_fields import SystemFieldError
 
 READONLY_SESSION_ERROR = (
     "该 session 当前为只读，必须先取消对该 session 的 readonly 设置后才能发送信息、任务或回报"
@@ -1684,6 +1685,24 @@ def _error_log_identity(w: Worker, s) -> dict:
     }
 
 
+def _runtime_issue_sample(w: Worker, s, raw: dict) -> dict | None:
+    """Map diagnostics without letting identity rejection erase the error.
+
+    A conflicting alias set is a fail-closed identity decision, not an error
+    logging failure. Returning None keeps the original JSONL/report/status path
+    intact and prevents an Event from acquiring an ambiguous target.
+    """
+    try:
+        return map_runtime_issue(
+            raw,
+            adapter=getattr(getattr(w, "adapter", None), "name", None),
+            metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
+            delivery={"observed": True, "classified": True,
+                      "persisted": False, "delivered": False, "deduped": False})
+    except SystemFieldError:
+        return None
+
+
 async def _record_terminal_error_sample(
     w: Worker, s, status: str, result_text: str | None,
     error_context: dict | None,
@@ -1711,12 +1730,7 @@ async def _record_terminal_error_sample(
         text, source = result_text, "pan.terminal_result"
     else:
         text, source = result_text, "pan.runtime"
-    runtime_issue = map_runtime_issue(raw if isinstance(raw, dict) else {"message": text},
-                                      adapter=getattr(getattr(w, "adapter", None), "name", None),
-                                      metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
-                                      delivery={"observed": True, "classified": True,
-                                                "persisted": False, "delivered": False,
-                                                "deduped": False})
+    runtime_issue = _runtime_issue_sample(w, s, raw if isinstance(raw, dict) else {"message": text})
     may_be_assistant = bool(
         status == "error" and result_text
         and w._current_task_last_assistant_text == result_text
@@ -1778,12 +1792,7 @@ async def _record_transient_error_sample(
         if isinstance(extracted, str):
             text = extracted
             source = extracted_source or "cli.error"
-    runtime_issue = map_runtime_issue(event,
-                                      adapter=getattr(getattr(w, "adapter", None), "name", None),
-                                      metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
-                                      delivery={"observed": True, "classified": True,
-                                                "persisted": False, "delivered": False,
-                                                "deduped": False})
+    runtime_issue = _runtime_issue_sample(w, s, event)
     if not text and event.get("item_status"):
         source = "cli.item_status"
     try:

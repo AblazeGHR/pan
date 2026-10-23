@@ -419,6 +419,21 @@ def _agent_message_prefix(text: str) -> str:
     return text
 
 
+@mcp.tool()
+def system_fields() -> dict:
+    """Discover canonical Event system fields, aliases and Action target rules.
+
+    Read-only contract shared with GET /api/automation/system-fields. Each field
+    declares its type, source, optionality, sensitivity and whether it may be
+    used as an Action target. System fields are trusted host/adapter identity;
+    event payload keys never create or override them, and IDs are never guessed
+    from message text. Input aliases such as session_id are accepted only while
+    admitting an Event; stored Events use canonical camelCase names.
+    完整编排流程见 /pan skill。
+    """
+    return _api("GET", "/api/automation/system-fields")
+
+
 def _worker_unresolvable(worker_id: str) -> dict:
     """Deny error for worker tools when _worker_session_id() returns None.
 
