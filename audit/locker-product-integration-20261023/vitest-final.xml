@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="108" failures="0" errors="0" time="6.189">
+    <testsuite name="views/lockerModel.auth.test.ts" timestamp="2026-10-23T13:41:22.356Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0033961">
+        <testcase classname="views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0027563">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-23T13:41:22.360Z" hostname="ablaze" tests="15" failures="0" errors="0" skipped="0" time="1.1805931">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0074369">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.1002587">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0374153">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.113196">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0637762">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0300334">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.0841782">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0194992">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0202031">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1095417">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.0908021">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.085932">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1264912">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1193794">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1715079">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SessionItem.test.tsx" timestamp="2026-10-23T13:41:22.364Z" hostname="ablaze" tests="23" failures="0" errors="0" skipped="0" time="0.1826331">
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; shows the last message for a selected completed session" time="0.0276313">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; places the adapter in the quick action rail and hides the Workspace badge at mobile widths" time="0.0070999">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps the selected running session preview visible" time="0.0049379">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps the preview visible for a background Codex session while it runs" time="0.0050826">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; shows an explicit unknown count when the cold summary total is null" time="0.008096">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; keeps an explicit zero distinct from unknown and loaded local history" time="0.0059302">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem streaming preview &gt; does not recompute the derived preview when only unrelated props change" time="0.008516">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem preview row reservation &gt; reserves one preview row for missing, null, empty, and whitespace sources" time="0.014344">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem preview row reservation &gt; keeps the long-preview truncation on the same reserved row" time="0.0034981">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows a single blue J for a running job targeting the session" time="0.0283532">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows a yellow J (scheduled) for an armed scheduled/message job" time="0.0058021">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; keeps J out of viewport-based hiding (width decides, see SessionJobBadge)" time="0.0047185">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; aggregates multiple jobs into one J with running priority" time="0.0099532">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows no J for a job targeting another session" time="0.0033213">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; removes J when the last targeted job reaches a terminal state" time="0.0057602">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; shows no J while the process job is only starting, paused, or disabled" time="0.002665">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; appears from a cold mount when the WS-created job lands, and clears on delete" time="0.0081934">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; keeps numeric badges right-aligned and intact next to J" time="0.0056419">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; renders the info-area row for a job-only session (no adapter counts needed)" time="0.0046213">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem Job indicator (J) &gt; does not select the card when the read-only J is clicked" time="0.0067824">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; appends the multiplier suffix from the session adapter config" time="0.0036289">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; shows the raw model name when the adapter config has no multipliers" time="0.0033996">
+        </testcase>
+        <testcase classname="components/session/SessionItem.test.tsx" name="SessionItem model multiplier suffix &gt; uses the session adapter config, not the current adapter, for the suffix" time="0.0034484">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SessionList.drag.test.tsx" timestamp="2026-10-23T13:41:22.370Z" hostname="ablaze" tests="38" failures="0" errors="0" skipped="0" time="3.7279138">
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; splits the card into three generous bands" time="0.0009053">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; keeps bands at least minEdgePx tall on short cards" time="0.0001592">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; degenerate very short cards stay all-edge (no conflicting sliver)" time="0.0001114">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="resolveDropZone (宽松命中区域) &gt; center and edge bands never overlap (partition the card)" time="0.0001136">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; shows a ghost near the cursor once the drag threshold is crossed; original cards stay in place" time="0.0759204">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; center hit zone highlights card B and drop mocks &quot;B manage A&quot;" time="0.0351285">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; edge/gap hit zone highlights the insert line and drop reorders into custom sort" time="0.0396596">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; inserting via the boundary above C lands A between B and C" time="0.0417296">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; dropping at the boundary above B (original position) is a no-op reorder" time="0.0461627">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; renders sessions in the persisted custom order when sortBy is custom" time="0.0452618">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; a plain click on the drag gutter selects the session (threshold)" time="0.0598671">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed A
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; a click fired right after a real drag does NOT select the dragged session" time="0.0646451">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; workdir groups expose pin drag handles while unpinned general drag stays disabled" time="0.0706733">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; manager tree: drag handle exists on roots and children" time="0.0822745">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the recent unpinned sequence unchanged" time="0.0682528">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the name unpinned sequence unchanged" time="0.039701">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; keeps pins leading and leaves the custom unpinned sequence unchanged" time="0.0594517">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; pinned pointer drag clamps onto the unpinned region without switching sort or changing relationships" time="0.1230305">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="SessionList drag interactions (mock demo) &gt; unpin returns a Session to its selected name sort" time="0.0899176">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; center drop → the target manages the dragged session" time="0.0002465">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge drop on a child row adopts that group" time="0.0001581">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge drop on a top-level slot leaves the current group" time="0.0001724">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; edge after a manager row sorts at that row level (never becomes its child)" time="0.0001402">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; blocks moving a session under itself" time="0.0001391">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; blocks moving a session under its own descendant (deep)" time="0.0001942">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="decideManagerDrop (tree management semantics) &gt; allows moving a sibling next to another sibling of the same group" time="0.0001052">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; center drop on a root mocks &quot;root manages dragged session&quot; in the tree" time="0.3844649">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop between siblings reorders children under the same manager" time="0.2295132">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop past the last root moves the whole subtree after it" time="0.110139">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop on another group child row moves the session into that group" time="0.2480407">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; edge drop on a top-level slot moves a child out of its group" time="0.4143088">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; blocks dropping a manager onto its own child (center)" time="0.2993033">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights only 排序 for a sibling slot inside the same group" time="0.2123069">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights only 管理 over a center manage target" time="0.1626746">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights BOTH when the slot belongs to another level/group" time="0.5198028">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="manager-tree drag interactions (mock demo) &gt; ghost lights nothing while over the dragged session itself or empty space" time="0.1151224">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="Sort mode cycling (recent → name → custom) &gt; cycles through all three modes and persists" time="0.0409999">
+        </testcase>
+        <testcase classname="components/session/SessionList.drag.test.tsx" name="Sort mode cycling (recent → name → custom) &gt; accepts a persisted custom sort mode on load" time="0.0452329">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/Sidebar.test.tsx" timestamp="2026-10-23T13:41:22.378Z" hostname="ablaze" tests="31" failures="0" errors="0" skipped="0" time="1.5548031">
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; typing and clearing Session search leaves the workspace query untouched" time="0.1227205">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; shows an accessible clear button only when the query is non-empty" time="0.0421071">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; hides Group by by default while keeping Manager collapse and the toggle cycle usable" time="0.0897546">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; renders the CWD root as a collapsible section labelled CWD" time="0.0976178">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the special filters menu constrained to the viewport" time="0.0221205">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; clears the query and restores the unfiltered state" time="0.0490631">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; selects all filtered sessions, including sessions hidden in normal mode" time="0.0463165">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; fills a partial selection and then deselects the filtered candidates" time="0.0572857">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 280px-or-narrower viewport" time="0.0443459">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 240px-or-narrower viewport" time="0.0503106">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps full action labels and explicit accessible names in the wide selection bar" time="0.0795501">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; uses special filters for the select-all candidate range" time="0.052065">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; disables select all when the filtered candidate list is empty" time="0.0283128">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; defaults drag sorting on and hides the handle when switched off" time="0.0367932">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the drag menu on long press without cycling sort" time="0.0267605">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps a short press cycling sort" time="0.0239608">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; opens the clicked session in Chat from Jobs, including when it is already selected" time="0.0401446">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when opening the card menu" time="0.0467524">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when the multi-select checkbox is clicked" time="0.0314083">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; closes an open mobile Sidebar after navigating from Jobs to Chat" time="0.0212367">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Terminal route" time="0.0601638">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from a plugin panel route" time="0.057842">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Manage route" time="0.0523845">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat when re-clicking the already selected session from the Terminal route" time="0.0521442">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat again after navigating away and re-clicking the same session" time="0.094284">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; stays on the chat route without stacking navigation when a card is clicked there" time="0.0409547">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when a card quick action is used from the Terminal route" time="0.0402402">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the multi-select checkbox is clicked from the Terminal route" time="0.0520848">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the store selects a session in the background" time="0.0387527">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; closes an open mobile Sidebar after navigating from the Terminal route to Chat" time="0.0353393">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar render isolation (fine-grained selectors) &gt; ignores streaming/draft/toast updates but re-renders on a session change" time="0.0200972">
+        </testcase>
+    </testsuite>
+</testsuites>

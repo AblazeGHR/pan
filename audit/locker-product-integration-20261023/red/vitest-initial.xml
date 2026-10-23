@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="39" failures="0" errors="0" time="3.451">
+    <testsuite name="views/lockerModel.auth.test.ts" timestamp="2026-10-23T13:35:45.526Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0027688">
+        <testcase classname="views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0022384">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-23T13:35:45.530Z" hostname="ablaze" tests="7" failures="0" errors="0" skipped="0" time="0.3078925">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0066774">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0808807">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0283615">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.079444">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0647326">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0225247">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0246125">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/Sidebar.test.tsx" timestamp="2026-10-23T13:35:45.532Z" hostname="ablaze" tests="31" failures="0" errors="0" skipped="0" time="0.9913666">
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; typing and clearing Session search leaves the workspace query untouched" time="0.0940519">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; shows an accessible clear button only when the query is non-empty" time="0.0347222">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; hides Group by by default while keeping Manager collapse and the toggle cycle usable" time="0.0715179">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; renders the CWD root as a collapsible section labelled CWD" time="0.082313">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the special filters menu constrained to the viewport" time="0.0190512">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; clears the query and restores the unfiltered state" time="0.0378808">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; selects all filtered sessions, including sessions hidden in normal mode" time="0.0397428">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; fills a partial selection and then deselects the filtered candidates" time="0.0455146">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 280px-or-narrower viewport" time="0.0383698">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps selection actions within a 240px-or-narrower viewport" time="0.0358932">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps full action labels and explicit accessible names in the wide selection bar" time="0.0303616">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; uses special filters for the select-all candidate range" time="0.0222758">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; disables select all when the filtered candidate list is empty" time="0.0143338">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; defaults drag sorting on and hides the handle when switched off" time="0.0176647">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; opens the drag menu on long press without cycling sort" time="0.0112036">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar Session search controls &gt; keeps a short press cycling sort" time="0.0099226">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; opens the clicked session in Chat from Jobs, including when it is already selected" time="0.0194335">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when opening the card menu" time="0.0184603">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; does not navigate when the multi-select checkbox is clicked" time="0.026954">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session navigation from Jobs &gt; closes an open mobile Sidebar after navigating from Jobs to Chat" time="0.0218715">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Terminal route" time="0.0259505">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from a plugin panel route" time="0.0340298">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; opens the clicked session in Chat from the Manage route" time="0.0317224">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat when re-clicking the already selected session from the Terminal route" time="0.0259137">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; returns to Chat again after navigating away and re-clicking the same session" time="0.046486">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; stays on the chat route without stacking navigation when a card is clicked there" time="0.0276948">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when a card quick action is used from the Terminal route" time="0.0208824">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the multi-select checkbox is clicked from the Terminal route" time="0.0218052">
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; does not navigate when the store selects a session in the background" time="0.0192981">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar session card activation returns to Chat from any non-chat route &gt; closes an open mobile Sidebar after navigating from the Terminal route to Chat" time="0.0271437">
+            <system-err>
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/layout/Sidebar.test.tsx" name="Sidebar render isolation (fine-grained selectors) &gt; ignores streaming/draft/toast updates but re-renders on a session change" time="0.0172384">
+        </testcase>
+    </testsuite>
+</testsuites>
