@@ -1,5 +1,19 @@
 # Pan 测试隔离约定
 
+## Locker production wiring targeted acceptance
+
+`test_interaction_runtime.py` exercises the real Automation UserAuth and directed
+Event Store binding, privacy, stale Trigger admission, lost receipt reconciliation
+and a temporary-copy SQLite upgrade without rewriting unknown recipients.
+`test_locker_runtime_http.py` uses the owned composition HTTP launcher, real MCP,
+production Chromium at 1280/390/320px and fakeCLI only. It logs in with its temporary
+profile key, selects one of two matching Triggers, observes a persistent Run and
+the existing Pause business state, checks source Queue notices, reject/delete and
+restart without replay. Run via `scripts/run_tests_isolated.py`; the fixture refuses
+8767/8768. Build React first. Exact commands, exit codes, red evidence and retained
+PID/birth cleanup are in `audit/locker-runtime/REPORT.md`. This is not validation of
+real providers, user-profile migration, or human acceptance.
+
 ## Unified Job targeted acceptance
 
 Job configuration/System Actions use the existing registry and runners. Focused

@@ -86,6 +86,11 @@ class EventStore:
         with self.connection() as db:
             return [self.decode(r) for r in db.execute('SELECT * FROM events WHERE done=0 AND seq>? ORDER BY seq LIMIT ?', (after, limit))]
 
+    def lookup(self, event_id):
+        with self.connection() as db:
+            row = db.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+            return self.decode(row) if row else None
+
     def page(self, after=0, limit=20):
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= BATCH:
             raise ValueError('after must be nonnegative; limit must be 1..100')

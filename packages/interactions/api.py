@@ -1,6 +1,7 @@
 """User-only response endpoints and Session-owned producer endpoints.
 
-No login implementation here: a trusted existing auth adapter must be bound.
+Uses the host's existing Automation UserAuth; an explicit verifier may override
+it for other trusted hosts. No independent login or client-supplied identity.
 """
 import inspect
 from fastapi import HTTPException, Request
@@ -23,7 +24,10 @@ def register(app):
     async def user(request):
         verifier=getattr(app.state,'user_inbox_principal',None)
         if verifier is None:
-            raise HTTPException(503,detail={'code':'user_auth_unavailable'})
+            from .runtime import principal as local_principal
+            if getattr(app.state, 'automation', None) is None:
+                raise HTTPException(503,detail={'code':'user_auth_unavailable'})
+            verifier=lambda request: local_principal(app, request)
         try:
             principal=verifier(request)
             if inspect.isawaitable(principal):
@@ -140,6 +144,8 @@ def register(app):
         except InteractionError as exc:
             raise failure(exc) from exc
         # Response persistence and Trigger acceptance are distinct results.
+        from packages.core.inbox_service import SessionQueue
+        await store.deliver_responses(SessionQueue())
         try:
             card=await store.dispatch(principal,card_id,getattr(app.state,'interaction_trigger_adapter',None))
             return {'card':card}

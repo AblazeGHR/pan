@@ -1,3 +1,5 @@
+import { useAutomationAuth } from '@/stores/automationStore';
+
 export interface Locker {
   id: string;
   sessionId: string;
@@ -33,11 +35,16 @@ export class LockerRequestError extends Error {
   constructor(public readonly status: number, message: string, public readonly code?: string) { super(message); }
 }
 export async function lockerRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const token = useAutomationAuth.getState().token;
   const response = await fetch(path, { method, credentials: 'same-origin', signal,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body) });
   const result = await response.json();
-  if (!response.ok) throw new LockerRequestError(response.status, result.detail?.code || result.detail?.message || `HTTP ${response.status}`, result.detail?.code);
+  if (!response.ok) {
+    if (response.status === 401 && useAutomationAuth.getState().token === token) useAutomationAuth.getState().clear();
+    throw new LockerRequestError(response.status, result.detail?.code || result.detail?.message || `HTTP ${response.status}`, result.detail?.code);
+  }
   return result as T;
 }
 /** This is a projection over real Lockers; it persists no aggregate identity. */

@@ -111,3 +111,13 @@ reject 在同一事务建立唯一内部 rejection outbox，定向来源 Locker 
 Locker 表单区分明确的回应前拒绝与不确定结果：HTTP 422 和 `409/detail.code=capacity` 均发生在 response 持久化前，允许修正输入并建立新意图；普通 409 冲突、网络异常与服务端结果不明继续保留原 requestId/完整 payload，不自动改选或盲目重投。声明的字符上限不取代 64 KiB JSON 上限，多字节 answer 可能在字符上限内被容量拒绝。
 
 生产身份主体到 recipientId 的映射和定向 Trigger 的实际运行时接线仍缺失；不能将合成验证器/Trigger 浏览器证据解释为这两项已完成。复用既有认证不涉及新增 OAuth/private exporter，但不能在未确认 recipient 命名时擅自开放全部已有卡片。
+
+### 生产宿主接线修补（F2/F3，2026-10-23）
+
+本节替代上文“生产身份未接线/缺省仅注入验证器”的历史边界。Pan 是单用户 profile：本 profile 的既有 Automation UserAuth 验证成功后，稳定映射为 `UserPrincipal('user')`；这是 profile 内的用户收件人键，不是 OS 用户、Session ID 或多租户认证。复用 `POST /api/automation/login`、`automation/user.key` 和既有最长 12 小时内存 Bearer；logout/过期/进程重启撤销凭据，新的登录仍对应同一 recipient。Locker 使用共享内存凭据和登录控件，所有用户读写均携带 Authorization。请求 body、URL、自报 recipient/userId 或生产者 owner 不能改变用户身份。没有运行中的认证宿主仍关闭；错误/缺失凭据 401，别人的卡片 404。
+
+兼容决策：旧 `recipientId='user'` 卡片无需改写即可访问；其他旧 recipient 原值、Card ID、signature、response、Event 和 tombstone 保留，不自动合并或改名，也不因本地登录而暴露。无法证明其归属的旧别名仍不可访问，需要后续明确授权的迁移工具；本批不猜测映射。SQLite 仅新增 `response_outbox` 表，不回写旧卡片。临时副本演练对比源文件 digest 和旧行逐字段内容。受信宿主注入 principal/Trigger adapter 的扩展口保留，但产品验收使用真实 UserAuth 和运行时，非合成端口。
+
+生产 lifespan 在既有 Automation Service 启动后，以受信 `core/pan` handle 注册 `pan.interaction.responded` schema。选中 choice 经 TriggerReferenceAdapter 检查启用、可选 revision pin、事件类型、recipient 和依赖资格；提交阶段在已有 Trigger writer lock 内再次核对 revision/enabled/依赖，锁内落盘只在 I/O executor 运行，不跨 Action await。Event Store 保存 **唯一选定 Trigger** 的目标快照，不经通用广播选择其他 Trigger/Job；提交 receipt 是 durable Event ID，不是 Action 完成。现有 dispatcher 建立 Run，以 Event+Trigger 去重，沿用 Action/Group pin/Pause/Illegal/业务门禁和取消/恢复。Event Store 与 Card SQLite 不宣称跨文件原子；in_flight/unknown 冷恢复只查原 Event ID，缺回执保留 unknown，不自动重新执行。disabled/stale 卡片保留显式错误，不阻止服务启动。
+
+提交 response 同事务写唯一 response outbox，来源 Session Queue 接收 `Interaction submitted: ` + `summaryBody[:200]`，envelope 的 type 为 `interaction.submitted`。只通知用户已提交，不暗示 Trigger/Job 执行成功；不转发 body/answer/附件。与 rejection outbox 一样使用稳定 QueueID、落盘 receipt、未知只查回执、明确拒绝等待下一投递轮次；接纳后删除 outbox payload。启动时恢复两类通知，不增加轮询。reject 不生成 choice Event、不启动 Run；delete 不生成任何新通知，已存在的独立投递意图保持原恢复规则。Agent Inbox 的共享消费与用户 read/unread 不变。没有新增 Job 等待/继续或自动批准协议。

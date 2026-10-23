@@ -41,6 +41,7 @@ class InteractionStore:
             db.execute('CREATE TABLE IF NOT EXISTS owner_receipts(id TEXT PRIMARY KEY,owner TEXT,recipient TEXT,response TEXT,event TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS tombstones(id TEXT PRIMARY KEY,owner TEXT,recipient TEXT,signature TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS rejection_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS response_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
 
     @contextmanager
     def db(self):
@@ -172,6 +173,11 @@ class InteractionStore:
             state={'state':'pending' if trigger else 'not_requested'}
             db.execute('''UPDATE cards SET response=?,response_key=?,event=?,delivery=?,revision=revision+1 WHERE id=?''',
                        (canonical(result),data['requestId'],canonical(event),canonical(state),card_id))
+            notification_id=identity('submission_',[card_id])
+            db.execute('INSERT INTO response_outbox VALUES(?,?,?,?)',
+                       (notification_id,row['owner'],canonical({'id':notification_id,'cardId':card_id,
+                        'lockerId':identity('ulocker_',[row['recipient'],row['owner']]),
+                        'summaryBody':definition.get('summaryBody',definition.get('notification',{}).get('summary',definition['body']))[:200]}),'pending'))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
 
     def _settle(self,card_id,result):
@@ -284,32 +290,39 @@ class InteractionStore:
             return {'deleted':True,'id':card_id}
 
     async def deliver_rejections(self,queue):
+        await self._deliver_notices(queue, 'rejection_outbox', 'rejected')
+
+    async def deliver_responses(self,queue):
+        await self._deliver_notices(queue, 'response_outbox', 'submitted')
+
+    async def _deliver_notices(self,queue,table,outcome):
+        assert table in {'rejection_outbox','response_outbox'}
         # Stable Queue IDs and receipts bridge the two durable files. Unknown
         # claims reconcile by ID only; absence is never proof of non-delivery.
         with self.db() as db:
-            ids=[r[0] for r in db.execute("SELECT id FROM rejection_outbox WHERE state!='accepted'")]
+            ids=[r[0] for r in db.execute(f"SELECT id FROM {table} WHERE state!='accepted'")]
         for event_id in ids:
             with self.db() as db:
-                row=db.execute('SELECT * FROM rejection_outbox WHERE id=?',(event_id,)).fetchone()
+                row=db.execute(f'SELECT * FROM {table} WHERE id=?',(event_id,)).fetchone()
                 if row['state']=='accepted':
                     continue
                 reconcile=row['state'] in {'in_flight','unknown'}
                 if not reconcile:
-                    db.execute("UPDATE rejection_outbox SET state='in_flight' WHERE id=?",(event_id,))
+                    db.execute(f"UPDATE {table} SET state='in_flight' WHERE id=?",(event_id,))
                 owner=row['owner']; payload=json.loads(row['payload'])
             qid=identity('q_',[event_id])
             try:
                 receipt=await queue.lookup(owner,qid) if reconcile else await queue.put(owner,qid,{
                     'id':event_id,'lockerId':payload['lockerId'],
                     'source':{'pluginId':'interaction','scope':'user','peerId':owner},
-                    'content':{'text':'Interaction rejected: '+payload['summaryBody'],
-                               'envelope':{'type':'interaction.rejected',**payload}}})
+                    'content':{'text':'Interaction '+outcome+': '+payload['summaryBody'],
+                               'envelope':{'type':'interaction.'+outcome,**payload}}})
                 state='accepted' if receipt and receipt.get('status')=='accepted' else (
                     'pending' if not reconcile and receipt and receipt.get('status')=='rejected' else 'unknown')
             except Exception:
                 state='unknown'
             with self.db() as db:
-                db.execute("UPDATE rejection_outbox SET state=?,payload=CASE WHEN ?='accepted' THEN NULL ELSE payload END WHERE id=? AND state!='accepted'",
+                db.execute(f"UPDATE {table} SET state=?,payload=CASE WHEN ?='accepted' THEN NULL ELSE payload END WHERE id=? AND state!='accepted'",
                            (state,state,event_id))
     async def recover_detached(self,adapter):
         if adapter is None:

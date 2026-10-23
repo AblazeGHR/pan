@@ -3,6 +3,14 @@ name: pan-http-api
 description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills/pan/SKILL.md 使用）。覆盖冷启动常用端点请求体、字段命名映射、Windows curl 中文编码坑、轮询兜底策略。MCP 能覆盖的编排操作一律走 MCP 工具，本文件仅用于直调（rename/branch 等无 MCP 工具）与排查。
 ---
 
+Locker 用户接口复用 `POST /api/automation/login` 的内存 Bearer。单用户 profile
+验证成功固定映射 recipient `user`；创建 Card 时使用 `recipient_id="user"`，
+不得通过 response body 指定身份。旧其他 recipient 不自动合并，未授权仍 401、
+非本人 Card 404。choice 指向已启用 Trigger 时经真实 Event Store 定向持久接纳，
+receipt 不代表 Action 执行完成。submit/reject 只将固定摘要前 200 字符通知来源
+Session Queue，delete 不新增通知；unknown 只查原回执。完整契约见
+[User Inbox](../../../design/User-Inbox-Interaction-Card-Contract.md)。
+
 ## 来源分类与自动回答汇报
 
 `/api/assign`、`/api/send`（含 force）及 `/api/task` 根据验证后的 `sourceSessionId` 和管理祖先链将上行 agent 消息标为 `source=report`，保留原 task 投递事务。设置不影响手动上行投递。

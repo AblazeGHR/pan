@@ -3,6 +3,8 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
 import { attachmentMarkdown, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
+import { useAutomationAuth } from '@/stores/automationStore';
 import { lockerProjection, lockerRequest, LockerRequestError, type InteractionCard, type Locker } from './lockerModel';
 
 function Card({ card, source, update, remove }: {
@@ -98,6 +100,7 @@ function Card({ card, source, update, remove }: {
 }
 
 export default function LockerView() {
+  const token = useAutomationAuth(s => s.token);
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [cards, setCards] = useState<InteractionCard[]>([]);
   const [selected, setSelected] = useState('aggregate');
@@ -130,7 +133,7 @@ export default function LockerView() {
       }
     }
     finally { if (generation.current === run) setLoading(false); }
-  }, []);
+  }, [token]);
   useEffect(() => {
     void refresh(); void useWorkspaceStore.getState().loadWorkspaces();
     const focus = () => void refresh(); window.addEventListener('focus', focus);
@@ -148,6 +151,7 @@ export default function LockerView() {
       }}><option value="">全部</option>{workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
       <button disabled={loading} onClick={() => void refresh()}>刷新</button>
     </header>
+    <JobUserAuthorization purpose="locker" />
     {error && <p role="alert">{error}</p>}{loading && <p role="status">加载中…</p>}
     <div className="flex flex-1 min-h-0 gap-4">
       <nav aria-label="Locker 列表" className="w-28 sm:w-44 text-xs sm:text-sm shrink-0 overflow-y-auto space-y-2">

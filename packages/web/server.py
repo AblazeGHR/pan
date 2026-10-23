@@ -285,6 +285,7 @@ async def lifespan(app: FastAPI):
     from packages.interactions.api import get_store as interaction_store
     from packages.core.inbox_service import SessionQueue
     await interaction_store().deliver_rejections(SessionQueue())
+    await interaction_store().deliver_responses(SessionQueue())
     await interaction_store().recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
 
     qq_config = load_config().get("qq") or {}
@@ -312,12 +313,19 @@ async def lifespan(app: FastAPI):
                     app.state.automation = automation
                     try:
                         await automation.start()
+                        from packages.interactions.runtime import bind as bind_interactions
+                        if getattr(app.state, 'interaction_trigger_adapter', None) is None:
+                            app.state.interaction_trigger_adapter = bind_interactions(automation)
+                        from packages.interactions.runtime import recover as recover_interactions
+                        await recover_interactions(interaction_store(), app.state.interaction_trigger_adapter)
+                        await automation.engine.kick()
                         await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
                         app.state.plugin_events = plugin_runtime.events
                         yield
                     finally:
                         try:
                             app.state.plugin_events = None
+                            app.state.interaction_trigger_adapter = None
                             try:
                                 await plugin_runtime.unbind_events()
                             finally:
