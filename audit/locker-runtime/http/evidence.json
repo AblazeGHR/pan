@@ -1,0 +1,29 @@
+{
+  "port": 59927,
+  "sourceSha": "980fae907a077476e193f1aa9dd556b0ea906a24",
+  "identity": {
+    "pid": 14928,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3889\\test_product_locker_login_choi0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3889\\test_product_locker_login_choi0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3889\\test_product_locker_login_choi0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3889\\test_product_locker_login_choi0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3889\\test_product_locker_login_choi0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "runId": "run_ef82bee4515e404d8a3acdafa27e67fa",
+  "cardId": "card_fc996d67615ab78eb736c3e04c794cd4bf4364f83695acbfdbfd60ad39dd07d9",
+  "pause": true,
+  "rejectNoRun": true,
+  "deleteNoNotice": true,
+  "restartNoReplay": true,
+  "ownedProcessesRemaining": [],
+  "portReleased": true,
+  "ownedPidBirths": {
+    "14928": 1792723814.262993,
+    "32572": 1792723814.2691183,
+    "34960": 1792723815.5154438,
+    "17584": 1792723815.5225632,
+    "12624": 1792723820.3044748,
+    "39948": 1792723820.3103836
+  }
+}

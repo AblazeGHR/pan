@@ -30,6 +30,8 @@ function transformMarkdownUrl(value: string): string {
   return parseMarkdownFileLink(value) ? value : defaultUrlTransform(value);
 }
 
+const SourceSessionContext = createContext<string | undefined>(undefined);
+
 const RASTER_IMAGE_MIMES = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/avif',
 ]);
@@ -40,10 +42,15 @@ function looksLikeImageLink(href: string, label: React.ReactNode): boolean {
     || extensionPattern.test(extractLinkText(label));
 }
 
+const AttachmentDownloadContext = createContext<((href: string) => Promise<void>) | undefined>(undefined);
+
 function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, ...props }: LinkProps & { attachmentId?: string; sourcePath?: string }) {
   const navigate = useNavigate();
-  const sessionId = useSessionStore((s) => s.currentSessionId);
-  const workdir = useSessionStore((s) => s.sessions.find(x => x.id === s.currentSessionId)?.workdir);
+  const sourceSessionId = useContext(SourceSessionContext);
+  const downloadAttachment = useContext(AttachmentDownloadContext);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const sessionId = sourceSessionId ?? currentSessionId;
+  const workdir = useSessionStore((s) => s.sessions.find(x => x.id === sessionId)?.workdir);
   const showToast = useUIStore((s) => s.showToast);
   const draggedRef = useRef(false);
   const dragResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +78,11 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
       return;
     }
     if (!href) return;
+    if (downloadAttachment && isSafeAttachmentHref(href)) {
+      event.preventDefault();
+      await downloadAttachment(href);
+      return;
+    }
     const fileLink = parseMarkdownFileLink(href);
 
     // Resolve image identity and MIME through the server-owned attachment
@@ -134,7 +146,7 @@ function MarkdownLink({ href, children, attachmentId, sourcePath, node: _node, .
     let stale = false;
     const isCurrent = () => {
       const state = useSessionStore.getState();
-      return !stale && state.currentSessionId === sessionId
+      return !stale && (sourceSessionId !== undefined || state.currentSessionId === sessionId)
         && state.sessions.find((item) => item.id === sessionId)?.workdir === workdir;
     };
 
@@ -264,9 +276,12 @@ function extractAttachmentSessionId(href: string): string | undefined {
 const PreContext = createContext(false);
 
 interface MarkdownRendererProps {
+  /** Explicit container origin; never borrow the currently selected Chat. */
+  sourceSessionId?: string;
   content: string;
   className?: string;
   attachmentIds?: string[];
+  onAttachmentDownload?: (href: string) => Promise<void>;
   /** Editor document context; Chat links retain their session-root semantics. */
   sourcePath?: string;
 }
@@ -377,35 +392,39 @@ function PreBlock({ children }: PreProps) {
   return <PreContext.Provider value={true}>{children}</PreContext.Provider>;
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className = '', attachmentIds = [], sourcePath, sourceSessionId, onAttachmentDownload }: MarkdownRendererProps) {
   // Historical Markdown does not depend on the live session object. Subscribing
   // to it reparsed every visible history row on every streamed token.
   const sessionId = useSessionStore((s) => s.currentSessionId);
   const search = useContext(SearchTextContext);
   const plugins = useMemo(() => search.query ? [...REHYPE_PLUGINS, searchTextPlugin(search.query, search.occurrence)] : REHYPE_PLUGINS, [search.query, search.occurrence]);
   if (!content) return null;
-  const renderedContent = normalizeLegacyAttachmentLinks(content, sessionId ?? undefined);
+  const renderedContent = normalizeLegacyAttachmentLinks(content, sourceSessionId ?? sessionId ?? undefined);
   let attachmentIndex = 0;
 
   return (
-    <div className={`prose-kimi max-w-none break-words ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={plugins}
-        components={{
-          code: CodeBlock,
-          pre: PreBlock,
-          a: (props) => {
-            const attachmentId = props.href && isSafeAttachmentHref(props.href)
-              ? attachmentIds[attachmentIndex++]
-              : undefined;
-            return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
-          },
-        }}
-        urlTransform={transformMarkdownUrl}
-      >
-        {renderedContent}
-      </ReactMarkdown>
-    </div>
+    <SourceSessionContext.Provider value={sourceSessionId}>
+      <AttachmentDownloadContext.Provider value={onAttachmentDownload}>
+        <div className={`prose-kimi max-w-none break-words ${className}`}>
+          <ReactMarkdown
+            remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={plugins}
+            components={{
+              code: CodeBlock,
+              pre: PreBlock,
+              a: (props) => {
+                const attachmentId = props.href && isSafeAttachmentHref(props.href)
+                  ? attachmentIds[attachmentIndex++]
+                  : undefined;
+                return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
+              },
+            }}
+            urlTransform={transformMarkdownUrl}
+          >
+            {renderedContent}
+          </ReactMarkdown>
+        </div>
+      </AttachmentDownloadContext.Provider>
+    </SourceSessionContext.Provider>
   );
 });

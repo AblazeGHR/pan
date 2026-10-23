@@ -1,0 +1,113 @@
+{
+  "sourceSha": "a0875956503f957770b0fd071933066543e1c568",
+  "branch": "feature/event-trigger-core-20261022",
+  "python": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "cwd": "D:\\project\\pan-worktrees\\event-trigger-core-20261022",
+  "checks": [
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "19c294a5",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "seconds": 0.044
+    },
+    {
+      "name": "real-installed",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_provider_launch_real_codex.py",
+        "-q",
+        "--junitxml=artifacts/provider-launch-real/real-installed.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 3.734,
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "launch-regressions",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_provider_launch_native_compat.py",
+        "tests/test_provider_launch.py",
+        "-q",
+        "--junitxml=artifacts/provider-launch-real/launch-regressions.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 17.91,
+      "counts": {
+        "tests": 44,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "wrapper-regressions",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_codex_large_resume.py",
+        "tests/test_codex_adapter.py",
+        "-q",
+        "--junitxml=artifacts/provider-launch-real/wrapper-regressions.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 1.005,
+      "counts": {
+        "tests": 78,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "compile",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/core/adapters/codex/provider_launch.py",
+        "packages/core/adapters/codex/app_server_wrapper.py",
+        "tests/test_provider_launch_native_compat.py",
+        "tests/test_provider_launch_real_codex.py",
+        "scripts/verify_provider_launch_real.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.075
+    }
+  ],
+  "realAccountCalls": 0,
+  "paidModelCalls": 0,
+  "existingServiceOperations": 0,
+  "encoding": {
+    "utf8Mode": 0,
+    "localeEncoding": "cp936",
+    "PYTHONUTF8": null,
+    "PYTHONIOENCODING": null
+  }
+}

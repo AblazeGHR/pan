@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
 vi.mock('@/services/api', () => ({
+  fetchActionRegistry: vi.fn(async () => ({ actions: [] })),
   fetchJobs: api.fetchJobs,
   fetchJob: api.fetchJob,
   fetchJobKinds: api.fetchJobKinds,

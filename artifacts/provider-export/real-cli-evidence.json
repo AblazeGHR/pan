@@ -1,0 +1,175 @@
+{
+  "actualNativeCLI": true,
+  "receipts": [
+    {
+      "version": 1,
+      "identityDomain": "cc-switch-provider:codex",
+      "providerId": "provider-a",
+      "runtimeEpoch": "b8d626e164b941c2b799ba63003503e4",
+      "launchId": "c0a6508ab2e9fd8eeaaaf20f525526e8",
+      "exportReceiptId": "700a9bd025261cef040ba285347f0afc",
+      "configDigest": "971c2c2b0940411b6cc819bdb69d6a3bfb5b00cc36ffbe2a7612de07848bf7d8",
+      "projectionDigest": "04f4c9388ea552049a59316453c44b4c742b825baa95bb2a0814c556dae22120",
+      "processIdentity": {
+        "pid": 16288,
+        "birthToken": "134371543227589743"
+      },
+      "wrapperProcessIdentity": {
+        "pid": 16248,
+        "birthToken": "134371543227770685"
+      },
+      "nativeProcessIdentity": {
+        "pid": 21440,
+        "birthToken": "134371543230223125"
+      },
+      "nativeThreadId": "01a16419-03dc-7af0-bf9d-78f4e26d1ee4",
+      "verifiedAt": 1792680723.4808261,
+      "privateExport": {
+        "contract": "pan-cc-switch-launch/v1",
+        "ownerEpoch": "da4dc2c57333727e04f375b93a53ec43",
+        "providerRevision": 1,
+        "selectionRevision": 1,
+        "credentialSource": {
+          "kind": "provider-api-key",
+          "revision": 1
+        },
+        "issuedAt": 1792680722738,
+        "expiresAt": 1792680752738
+      },
+      "sessionId": "ses_39c1239ac44bd9d5",
+      "workerId": "private-real-cli",
+      "generation": 1
+    },
+    {
+      "version": 1,
+      "identityDomain": "cc-switch-provider:codex",
+      "providerId": "provider-a",
+      "runtimeEpoch": "b8d626e164b941c2b799ba63003503e4",
+      "launchId": "edac0046500c42375c9768b6710eeb34",
+      "exportReceiptId": "238c60e49c0124fd06bba21dda4f1361",
+      "configDigest": "971c2c2b0940411b6cc819bdb69d6a3bfb5b00cc36ffbe2a7612de07848bf7d8",
+      "projectionDigest": "b6c0882ca8abba963f3f26d89708d9a2025ce9b352c95517290e67dd960e9c90",
+      "processIdentity": {
+        "pid": 38816,
+        "birthToken": "134371543236211050"
+      },
+      "wrapperProcessIdentity": {
+        "pid": 38596,
+        "birthToken": "134371543236422379"
+      },
+      "nativeProcessIdentity": {
+        "pid": 29596,
+        "birthToken": "134371543238931488"
+      },
+      "nativeThreadId": "01a16419-03dc-7af0-bf9d-78f4e26d1ee4",
+      "verifiedAt": 1792680724.2411287,
+      "privateExport": {
+        "contract": "pan-cc-switch-launch/v1",
+        "ownerEpoch": "da4dc2c57333727e04f375b93a53ec43",
+        "providerRevision": 3,
+        "selectionRevision": 3,
+        "credentialSource": {
+          "kind": "provider-api-key",
+          "revision": 3
+        },
+        "issuedAt": 1792680723600,
+        "expiresAt": 1792680753600
+      },
+      "sessionId": "ses_39c1239ac44bd9d5",
+      "workerId": "private-real-cli",
+      "generation": 2
+    }
+  ],
+  "cleanup": [
+    {
+      "members": [
+        {
+          "pid": 16288,
+          "birthToken": "134371543227589743",
+          "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+        },
+        {
+          "pid": 16272,
+          "birthToken": "134371543227633901",
+          "image": "C:\\Windows\\System32\\conhost.exe"
+        },
+        {
+          "pid": 15264,
+          "birthToken": "134371543230443676",
+          "image": "C:\\Windows\\System32\\conhost.exe"
+        },
+        {
+          "pid": 16248,
+          "birthToken": "134371543227770685",
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+        },
+        {
+          "pid": 21440,
+          "birthToken": "134371543230223125",
+          "image": "D:\\software\\nodeJs\\node.exe"
+        },
+        {
+          "pid": 12852,
+          "birthToken": "134371543230961668",
+          "image": "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe"
+        }
+      ],
+      "ownedProcessesRemaining": [],
+      "privateDirectoryRemoved": true
+    },
+    {
+      "members": [
+        {
+          "pid": 38816,
+          "birthToken": "134371543236211050",
+          "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+        },
+        {
+          "pid": 11284,
+          "birthToken": "134371543236269126",
+          "image": "C:\\Windows\\System32\\conhost.exe"
+        },
+        {
+          "pid": 21840,
+          "birthToken": "134371543239148857",
+          "image": "C:\\Windows\\System32\\conhost.exe"
+        },
+        {
+          "pid": 38596,
+          "birthToken": "134371543236422379",
+          "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+        },
+        {
+          "pid": 29596,
+          "birthToken": "134371543238931488",
+          "image": "D:\\software\\nodeJs\\node.exe"
+        },
+        {
+          "pid": 40304,
+          "birthToken": "134371543239652611",
+          "image": "D:\\node_npm\\node_global\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe"
+        }
+      ],
+      "ownedProcessesRemaining": [],
+      "privateDirectoryRemoved": true
+    }
+  ],
+  "cliVersion": "codex-cli 0.163.0",
+  "providerHits": [
+    {
+      "path": "/provider-a/responses",
+      "syntheticAuthorizationMatched": true,
+      "model": "owned-model"
+    },
+    {
+      "path": "/provider-a/responses",
+      "syntheticAuthorizationMatched": true,
+      "model": "owned-model"
+    }
+  ],
+  "codexHomeRetained": true,
+  "secretPublished": false,
+  "concurrentGlobalChange": true,
+  "providerPortReleased": true,
+  "ownedProfileRemoved": true
+}

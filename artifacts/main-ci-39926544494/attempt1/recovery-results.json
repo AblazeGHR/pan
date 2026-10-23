@@ -1,0 +1,50 @@
+[
+  {
+    "name": "annotations-3.12.json",
+    "attempt": 1,
+    "exitCode": 0,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\annotations-3.12.json"
+  },
+  {
+    "name": "annotations-3.14.json",
+    "attempt": 1,
+    "exitCode": 0,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\annotations-3.14.json"
+  },
+  {
+    "name": "run-logs.zip",
+    "attempt": 1,
+    "exitCode": 0,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\run-logs.zip"
+  },
+  {
+    "name": "job-3.12-recovery.log",
+    "attempt": 1,
+    "exitCode": 1,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\job-3.12-recovery.log"
+  },
+  {
+    "name": "job-3.12-recovery.log",
+    "attempt": 2,
+    "exitCode": 1,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\job-3.12-recovery.log.attempt2"
+  },
+  {
+    "name": "job-3.12-recovery.log",
+    "attempt": 3,
+    "exitCode": 1,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\job-3.12-recovery.log.attempt3"
+  },
+  {
+    "name": "jobs-final.json",
+    "attempt": 1,
+    "exitCode": 0,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\jobs-final.json"
+  },
+  {
+    "name": "artifacts-final.json",
+    "attempt": 1,
+    "exitCode": 0,
+    "path": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39926544494\\artifacts-final.json"
+  }
+]

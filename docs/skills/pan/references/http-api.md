@@ -3,6 +3,14 @@ name: pan-http-api
 description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills/pan/SKILL.md 使用）。覆盖冷启动常用端点请求体、字段命名映射、Windows curl 中文编码坑、轮询兜底策略。MCP 能覆盖的编排操作一律走 MCP 工具，本文件仅用于直调（rename/branch 等无 MCP 工具）与排查。
 ---
 
+Locker 用户接口复用 `POST /api/automation/login` 的内存 Bearer。单用户 profile
+验证成功固定映射 recipient `user`；创建 Card 时使用 `recipient_id="user"`，
+不得通过 response body 指定身份。旧其他 recipient 不自动合并，未授权仍 401、
+非本人 Card 404。choice 指向已启用 Trigger 时经真实 Event Store 定向持久接纳，
+receipt 不代表 Action 执行完成。submit/reject 只将固定摘要前 200 字符通知来源
+Session Queue，delete 不新增通知；unknown 只查原回执。完整契约见
+[User Inbox](../../../design/User-Inbox-Interaction-Card-Contract.md)。
+
 终态 error 的 TA→MA report 保留兼容 `result`，并分别保存 `errorText`、
 `errorCode`、`errorSource`、`errorTextTruncated` 与 `lastMessage` 上下文。
 诊断从同次 terminal CLI 事件提取，在终态提交前冻结为 `reportDiagnostic`，
@@ -362,3 +370,211 @@ Native rejected receipts retain the original queued batch; a subsequent ordinary
 Consumption can hydrate the existing own Session history before taking row references, because native runtime validation and the Worker lifecycle use the full canonical Session. This is not a bounded-memory history read operation; responses remain metadata-only. Structured report parts that the native Steer contract cannot preserve are skipped on that route.
 
 No response contains report result/body/snippet/parts/attachment text. `self_queue_read` now projects TA reports as identity/type/source only; non-report messages retain existing read behavior. Use consume first, then real handoff/history to determine when report text entered agent context. No ack, parallel inbox, polling, queue deletion/unlock or history rewrite is added.
+
+
+### Session Operation query template
+
+`GET /api/actions/session-operation-template` 返回 disabled 普通 Action 模板、
+`queryFields/queryPredicateSchema/limits`，不读取 Session 或执行操作。
+现有 Action draft/source 接口接受 `execution:{kind:"session_operation",
+operation:"pause_everything",selector:{mode:"query",query:Predicate}}`。
+Predicate 使用 and/or/not 或 field/op/value；七字段、类型约束与 8/64/2048/256
+深度/节点/候选/结果限制见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
+Agent 草稿强制关闭、Trigger token 管理与 Group/provider 安全门禁不变。
+
+
+## Durable Automation Events
+
+- `GET /api/automation` adds `storage.events` and `storage.runs`: usage, caps,
+  warning/full, pending/overduePending and default retentionSeconds=604800.
+- `GET /api/automation/events?after=0&limit=20`: ascending sequence cursor,
+  limit 1..100, returns `{events,nextAfter,storage}`. Each entry includes the
+  original event, frozen Trigger revisions, pending/delivered, deliveryCount and
+  lastError. It does not execute anything or grant publication rights.
+- `POST /api/automation/events/replay`, user Bearer and exactly `{eventIds:[...]}`:
+  1..100 unique retained IDs, returns `{scheduled,automaticRunRetry:false}`.
+  Missing/expired or uncertain-associated events ->409. No new Event or Run attempt
+  is created; existing failed/succeeded/cancelled Runs stay deduplicated.
+- `POST /api/automation/events/maintenance`, user Bearer: fixed seven-day policy,
+  returns `deletedEvents/deletedRuns`. No caller-controlled delete range.
+
+There is no public event publisher. Production plugin publication commits before
+acknowledgement; at-least-once covers Event-to-Trigger matching, with retained
+Event+Trigger dedup. Live plugin subscriptions remain best effort. Capacity blocks
+new admission rather than dropping pending facts/uncertain Runs. Details and
+migration risks: `docs/design/Event-Trigger-Action-v0.2-event-store.md`.
+
+
+## Automation scheduling and uncertainty recovery
+
+Complete Job Template backend routes are distinct from schedule presets:
+`GET /api/jobs/action-jobs/schema?actionId=...`, `GET/POST /api/jobs/action-jobs`,
+`PUT/DELETE /api/jobs/action-jobs/{id}`, revision-checked user `run-now`/`cancel`,
+`GET/POST /api/jobs/job-templates`, `PUT/DELETE /api/jobs/job-templates/{id}` and
+user-only `POST /api/jobs/job-templates/{id}/instantiate`. Instantiate accepts only
+`{expectedRevision,idempotencyKey,overrides?:{name?,description?}}`. Agent writes
+disabled complete drafts only; no arbitrary Action fields or API dispatch escape.
+Persist the idempotency key across an unknown response;503 pending includes jobId.
+GET `/api/jobs/action-references/{actionId}` gives deletion reference locations.
+Generic legacy mutations reject these protected Jobs. Full body/schema/default,
+snapshot cleanup and migration rules are in
+[`Event-Trigger-Action-v0.4-job-templates.md`](../../../design/Event-Trigger-Action-v0.4-job-templates.md).
+
+Unified Job policies are part of the complete `config`, not extra Action fields:
+`trigger:{kind:immediate|once|interval|cron|event|schedule,query?,eventTypes?}`,
+`completion:{kind:ordinary|monitoring,signalType?}`, `recovery:{enabled,monitoring,
+maxAttempts,backoffSec:[5,15,60],stableResetSec:300}`,
+`overlap:{mode:forbid|queue|parallel,parallelLimit:3}`,
+`notification:{target:job,on:[completed,failed,cancelled,unknown,uncertain,cleaning],sessionIds?:[...]}`.
+Immediate/event use empty schedule; event query is the existing fail-closed
+seven-field Session predicate. Policy defaults are no recovery/ordinary/forbid.
+Monitoring requires Action capability; parallel monitoring is rejected.
+`GET /api/jobs/action-jobs/{id}/runs` returns Attempt history and lastExecution.
+`POST /api/jobs/action-jobs/{id}/retry` (failed) or `/confirm-recovery`
+(unknown/uncertain) requires user Bearer and exactly
+`{expectedRevision,confirm:true}`. They preserve Run ID, allocate a new Attempt,
+never silently retry unknown process identity, and return409 when state changed.
+All Job edits use returned `configRevision`; terminal status is withheld while
+`snapshotCleanup:pending`/`status:cleaning`. Notification recipients are separate
+from business arguments; existing durable notice gates remain in force.
+
+Agent MCP `job_config_drafts(operation:list|schema|put|runs,...)` exposes the same
+backend schema and disabled Job/complete Template draft path. It rejects enabled
+configs and offers no instantiate/run/recovery or privileged lifecycle capability.
+Old Job MCP/HTTP entry points remain compatibility adapters and report `unified`
+with product System Action references; unknown historical kinds never gain recovery.
+
+`GET /api/automation/schema` supplies the strict scheduling fragment and limits.
+Trigger writes accept `executionMode` (serial default/parallel), `maxConcurrency`
+(serial1; parallel default3/range1..32), `retry:{enabled:false,maxAttempts:3}`
+(total attempts1..10, including first). Unknown fields/types reject. Omitted additive
+fields preserve an existing policy for old clients. Changing concurrency requires
+user Bearer/revision even on disabled drafts; reducing below running count ->409.
+Action `idempotent` defaults false; Agent drafts remain disabled.
+
+Failed automatic retry requires frozen idempotent eligibility and original/current
+retry opt-in, persists retry_wait/nextAttemptAt, with1s exponential backoff capped60s.
+Run attempt IDs/history remain separate under one logical Run ID. Disable cancels
+queued/retry_wait, never replays history on reenable. Cancel API accepts retry_wait.
+
+`POST /api/automation/runs/{id}/confirm-recovery` requires user Bearer and exactly
+`{expectedRevision:N,confirm:true}`. Current uncertain revision only; returns `{run}`
+queued with same ID and a new attempt at claim. Authentication401, malformed400,
+missing404, stale/non-uncertain/disabled/capacity/budget409. Explicit confirmation
+accepts potential repetition of unknown effects even with automatic retry disabled;
+it never promotes eligibility. This is not an Agent tool. Query IDs and confirmed
+successful target results are reused. Token expiry/logout after admission does
+not revoke execution or bypass business gates. Full contract and migration caveats:
+`docs/design/Event-Trigger-Action-v0.3-retry-scheduling.md`.
+
+`GET /api/diagnostics/runtime-issues/schema` returns the v0.3 RuntimeIssue/Event
+contract. Native/provider samples keep observation, classification and delivery
+outcomes separate. Codex quota exhausted, Codex capacity and CBC rate limiting are
+distinct; generic 429 and tool failures remain unknown. Mapping is diagnostic only
+and does not change retry, account, restart or recovery behavior.
+
+The v0.3 quota policy foundation provides user-Bearer management at
+`GET/PUT /api/automation/quota-policy` and protected query Job creation at
+`POST /api/automation/quota-policy/query-jobs`. PUT requires exactly
+`{mode:"manual"|"automatic",maSessionId,expectedRevision}`; query Job creation
+requires exactly `{kind:"monitor95"|"once",expectedRevision}`. Default mode is
+manual and the production adapter is unavailable. Unknown/stale account windows
+never trigger switching. No issue injection or arbitrary command endpoint exists.
+See `docs/design/quota-policy-v0.3.md` for the ledger/Job/receipt contract and
+remaining managed-account/provider integration boundary.
+### Quota policy safety revision
+
+`PUT /api/automation/quota-policy/disabled-accounts` requires user Bearer and exactly
+`{disabledAccountIds: string[], expectedRevision: integer}`. IDs are unique, <=128,
+nonempty <=256 chars; unknown account IDs may be disabled before inventory can see
+them. Invalid input400/auth401/stale409/persistence503. GET the existing policy
+endpoint for `disabledAccountIds` and `accountConfigRevision`; these are separate
+from capacity `excluded`. No reset/recovery can clear user-disabled accounts.
+Changed lists increment epoch and fence pending recovery commands/Jobs. Product
+defaults contain no user IDs. Adapter/Worker command contract is v2; missing owner,
+process birth or unfinished-task evidence blocks recovery rather than guessing.
+See [quota policy safety](../../../design/quota-policy-v0.3-safety.md) for the exact
+inventory/receipt contract and production wiring boundary.
+
+### Default-off quota host projection
+
+`PUT /api/automation/quota-policy/host` requires user Bearer and exactly
+`{enabled:boolean,sessionRoles:{sessionId:"ma"|"ta"},expectedRevision:integer}`.
+At most256 explicit roles; no inference from Session names. Defaults are disabled
+and empty roles. Invalid400/auth401/stale409/persistence503. Changing this config
+increments policy epoch and fences old recovery plans; it does not enable effects.
+GET policy includes `host`, adapter `unavailable` (disabled) / `host-readonly`, and
+the last `hostObservation`. Provider, managed default and native profile/windows
+are separate identity domains. Policy quota now uses official provider IDs and
+`identityDomain:"cc-switch-provider:codex"`; compatibility currentAccountId and
+accounts[].id refer to provider IDs, never auth status IDs. Unverified Worker
+provider identity remains unknown independently. Native status requires fresh observedAt AND receivedAt and both valid
+fiveHour/week windows with future reset. GET does not run a new query; use the
+existing once/monitor95 query Job API after opt-in. No CLI args, credentials,
+account binding, mutation port or effects-enable flag can be provided by clients.
+Production switch/model/restart/send effects remain unbound. See the exact
+[host adapter contract and remaining wiring](../../../design/quota-host-v0.3.md).
+The [provider source contract](../../../design/quota-provider-identity-v0.3.md)
+defines bounded all-official sampling, disabled exclusions, strict window/time
+validation, provider before/after checks and the pending explicit launch binding.
+
+Trusted fixed new-Worker binding is an internal opt-in lifecycle path, not an HTTP
+verified flag. See [launch binding](../../../design/provider-launch-binding-v0.3.md).
+Existing Session execution-operation persistence may include a completed safe
+provider-launch operation with providerLaunchBinding (domain/ID, digests, epoch,
+Worker/generation, process birth and thread receipt); no config body/capability.
+Host inventory consumes only its matching live owner. A copied historical record
+does not grant startup identity or unfinished-task eligibility. No new effect or
+launch-export endpoint is exposed in this batch.
+
+
+## Agent Inbox / Router / Locker v1
+
+Unified Job compatibility keeps these containers separate: `/api/jobs/action-jobs`
+and `/job-templates` retain user-Bearer enable/instantiate/recovery; Agent Template
+drafts require both outer `enabled:false` and `config.enabled:false`. Inbox MCP
+self/managed access does not grant these operations. Job result notices use their
+existing per-Attempt queue event ID, never Locker shared consume/subscribe APIs.
+Legacy Job `unified.config` is a disabled review projection, with typed schedule
+and `compatibility:{reviewRequired:true,migrationIssues:[...]}`; top-level legacy
+Job fields remain actual execution state. Unknown/ambiguous schedule fields report
+diagnostics rather than recalculating a date or starting a migrated Job.
+
+共享 Agent Inbox 与 Session Queue 是不同容器。HTTP `/api/agent-inbox` 列出
+Locker；`POST /api/agent-inbox/{list|read|consume|subscriptions|subscribe|mode|backlog|recover}`
+提供共享读取、原子消费与订阅。`POST /api/plugins/{plugin_id}/route` 提供固定内部
+目标 agent_inbox / session_queue；user_inbox 尚未实现，明确拒绝。
+MCP `agent_inbox` 复用 caller self/managed 权限，不提供用户审批或任意执行目标。
+
+全文入目标 Queue 落盘即完成目标接纳，全部固定目标接纳才完成共享消费，不等待 CLI。
+Notification 不携正文、不消费；开订阅及变更模式默认只收新消息，backlog 是显式转发
+操作。逐目标 unknown 必须核对原 QueueID，不得盲目重投。QQ 旧订阅保留并映射全文，
+历史积压不自动回放，QQ history 独立保留。
+
+参数、响应、迁移及恢复边界见
+[Agent Inbox API 与冻结设计](../../../design/Agent-Inbox-Router-Locker.md)，前端结构见
+[JSON Schema](../../../design/Agent-Inbox-Router-Locker.schema.json)。
+
+## User Inbox / Interaction Card 后端契约
+
+基于 Agent Inbox 候选的后续后端批次新增 `/api/interaction-cards` 生产者请求与
+`/api/user-inbox` 用户读取/一次性答复接口。用户端在未注入受信登录验证器时明确503关闭；
+MCP `interaction_card` 只导出create/get，不导出用户答复。可选answerInput、可选choice
+triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
+[Interaction Card契约](../../../design/User-Inbox-Interaction-Card-Contract.md)，
+[完整Schema](../../../../packages/interactions/schema.json)。此接口不会自动继续/完成Job，
+也不改变QQ/Agent Inbox/Locker消费状态。
+
+
+### 用户 Locker / Interaction Card 增量（2026-10-23）
+
+User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Session Chat History 或 Agent Inbox 的消费语义混用。
+`GET /api/user-lockers` 返回 recipient 的真实来源容器和当前 Workspace IDs；聚合 Locker 只是前端按 Workspace 合并原消息的视图。
+`PUT /api/user-inbox/{id}/read {read:boolean}` 修改原消息 read/unread；没有消费游标。
+`POST .../submit`（Respond 请求）与 `POST .../reject`（仅 requestId/expectedRevision）原子竞争一次性 response，之后只读。
+拒收保留卡片，内部 outbox 使用稳定 QueueID 向来源 Session 发 summaryBody 前 200 字符；返回 Card.rejectionDelivery 显示通知接纳状态，unknown 不盲目重投。
+`DELETE /api/user-inbox/{id}` 仅删除终态用户记录，不通知，留最小 tombstone；内部未确认投递和生产者回应回执保留。
+`GET /api/interaction-cards/{id}/receipt?ownerSessionId=...` 与 MCP `interaction_card(operation=receipt)` 为来源归属读回执，用户删除后仍可核对。
+全部用户入口复用运行中 Automation UserAuth（或受信宿主 principal verifier）；缺认证宿主=503，错/缺 Bearer=401，其他 recipient=404，绝不借用 MCP/Session 身份代答。schema/API/迁移/UI/运行时边界见 `docs/design/User-Inbox-Interaction-Card-Contract.md`。
+
+带 choice trigger 的创建由服务端产生不可变 `Card.trustedChoices[choiceId]`：固定 Trigger revision、Action digest、arguments、targetIds、authorization 和可信 operation 摘要。生产者不得提供该字段。范围外目标403；动态/不可证明目标或旧未绑定 choice 409 incomplete；定义变化409 stale。当前绑定只支持能证明 Session 范围的 explicit Session Operation；无 trigger 的普通卡片不受影响。前端显示可信摘要、目标和参数映射。提交通知 CLI JSON 包含 cardId、responseKind、可选 answer/choiceId、最多200字符 summaryBody；完整正文/附件不转发。unknown 只核对原回执，不能重新 submit。

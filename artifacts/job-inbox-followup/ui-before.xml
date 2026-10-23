@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="24" failures="1" errors="0" time="3.138">
+    <testsuite name="views/JobsView.bulk-search.test.tsx" timestamp="2026-10-22T17:43:02.623Z" hostname="ablaze" tests="24" failures="1" errors="0" skipped="0" time="1.2595411">
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps the opened config revision when WS replaces a dirty unified Job" time="0.1440471">
+            <failure message="expected 8 to be 7 // Object.is equality" type="AssertionError">
+AssertionError: expected 8 to be 7 // Object.is equality
+
+- Expected
++ Received
+
+- 7
++ 8
+
+ ❯ views/JobsView.bulk-search.test.tsx:167:52
+            </failure>
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a pin through lifecycle events and restores ordinary ordering after unpin" time="0.0489313">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows unavailable pin metadata, disables pin, and leaves ordinary filters usable" time="0.0599642">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows metadata failure for an empty list via the list envelope" time="0.0136871">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; clears a cached pin when an update explicitly reports unknown metadata" time="0.0426963">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; matches Completed and Timeout only to their persisted API statuses" time="0.0366521">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads retention settings from the server and saves the edited values" time="0.0502838">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads blank retention days from server defaults" time="0.0950855">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads and saves failed, timeout, cancelled, and log retention independently" time="0.0936135">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a cleared day count blank when saving an enabled rule" time="0.0465802">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows invalid persisted rule feedback and keeps that switch off" time="0.0333912">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows settings load and save errors" time="0.0443692">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; combines case-insensitive name, ID, and description search with status and kind filters" time="0.053046">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps controls and counts outside the dedicated row scroll container" time="0.0293791">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; selects and deselects visible results without opening a detail drawer; row menus stay isolated" time="0.0452082">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; pauses unpaused jobs with paused=true, reports partial failure, and retries only failures" time="0.0635285">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; blocks duplicate bulk submission while per-job pause requests are pending" time="0.0312597">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; cancels batch delete without requests and confirms the displayed quantity" time="0.0369088">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; removes WS-deleted selection before confirmation and retries only a failed DELETE" time="0.0712474">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; supports searching by kind payload ID and description while retaining kind filters" time="0.0319451">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; retains a failed cancellation and prevents duplicate requests" time="0.0621892">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; sorts equal timestamps by ID and persists direction while live updates reorder" time="0.0357998">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="sorts created time and actual kind safely with missing legacy times last" time="0.0394514">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="keeps accepted asynchronous cancellation disabled until the live terminal event" time="0.0493884">
+        </testcase>
+    </testsuite>
+</testsuites>

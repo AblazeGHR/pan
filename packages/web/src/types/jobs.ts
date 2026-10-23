@@ -24,7 +24,11 @@ export type JobStatus =
   | 'completed'
   | 'failed'
   | 'timed_out'
-  | 'cancelled';
+  | 'cancelled'
+  | 'restarting'
+  | 'cleaning'
+  | 'unknown'
+  | 'uncertain';
 
 export type SourceType = 'agent' | 'user' | 'system' | 'plugin';
 
@@ -115,6 +119,11 @@ export type ScheduledTaskAction =
 export type JobTimestamp = number | string;
 
 export interface Job {
+  configRevision?: number;
+  integrity?: { status: 'complete' | 'incomplete'; approvalRequired: boolean; issues: Array<{ actionId: string; position: string; error: string }> };
+  snapshotCleanup?: 'active' | 'pending' | 'cleaned';
+  templateId?: string;
+  templateRevision?: number;
   jobId: string;
   taskId?: string | null;
   kind: JobKind;
@@ -125,6 +134,8 @@ export interface Job {
   target: JobTarget;
   text?: string;
   action?: ScheduledTaskAction;
+  unified?: UnifiedJobProjection;
+  attempts?: Array<{ id: string; runId: string; count: number; status: string; backoffSec: number; sideEffectUncertainty: boolean }>;
   argv?: string[];
   cwd?: string;
   label?: string | null;
@@ -263,4 +274,28 @@ export interface JobPatchInput {
   action?: ScheduledTaskAction;
   maxRuns?: number | null;
   misfirePolicy?: MisfirePolicy;
+}
+
+export type UnifiedTriggerKind = 'immediate' | 'once' | 'interval' | 'cron' | 'event' | 'schedule';
+export type OverlapMode = 'forbid' | 'queue' | 'parallel';
+export interface UnifiedJobConfig {
+  name: string;
+  description?: string;
+  actionId: string;
+  arguments: Record<string, unknown>;
+  schedule: JobScheduleSpec[];
+  trigger?: { kind: UnifiedTriggerKind; query?: Record<string, unknown>; eventTypes?: string[] };
+  recovery?: { enabled: boolean; monitoring: boolean; maxAttempts: number; backoffSec: [number, number, number]; stableResetSec: number };
+  overlap?: { mode: OverlapMode; parallelLimit: number };
+  notification?: { on: Array<'completed'|'failed'|'cancelled'|'unknown'|'uncertain'|'cleaning'>; target: 'job'; sessionIds?: string[] };
+  completion?: { kind: 'ordinary'|'monitoring'; signalType?: string };
+  enabled: boolean;
+  maxRuns?: number | null;
+  misfirePolicy?: MisfirePolicy;
+}
+export interface UnifiedJobProjection {
+  action: { api: 'action_reference' | 'system_action'; actionId: string; arguments: Record<string, unknown> };
+  config: UnifiedJobConfig;
+  legacyKind?: JobKind;
+  compatibility?: { legacyKind: string; migration: 'projection-only' | 'system-executor'; reviewRequired?: boolean; migrationIssues?: string[] };
 }

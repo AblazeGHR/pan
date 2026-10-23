@@ -1,0 +1,23 @@
+{
+  "sourceSha": "a7b3c47c76be408e31661193cf432cad11a46145",
+  "main": "ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e",
+  "practical": "2652ac8e6d0ff312a255666bc5e459890346e6e5",
+  "mainTree": "593ee5d9d4a354fbc52b38553de864cf97cf273b",
+  "practicalTree": "593ee5d9d4a354fbc52b38553de864cf97cf273b",
+  "reportTree": "593ee5d9d4a354fbc52b38553de864cf97cf273b",
+  "mergeCommits": [
+    "f9b1d1810be3705066e872d9e4041bb0c0df259b 62c972415e1d44923bcea70dc0b29296c7b3958f 693287b1afcdf4ecb4d11db5de985210f13bd2dd",
+    "a87fbb31853f49c07cb3e2d72bd1e9fea3b5edfa f9b1d1810be3705066e872d9e4041bb0c0df259b ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e"
+  ],
+  "ancestors": {
+    "62c972415e1d44923bcea70dc0b29296c7b3958f": 0,
+    "693287b1afcdf4ecb4d11db5de985210f13bd2dd": 0,
+    "main": 0
+  },
+  "mainUncommittedMaSkillSha256": "6a67d90f872c677463daa153bdbb8914f560ee6ac1924fe4d6db09b1b82c9f68",
+  "finalCleanup": {
+    "ownedProcessesRemaining": [],
+    "port": 50370,
+    "portReleased": true
+  }
+}

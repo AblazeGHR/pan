@@ -1,0 +1,15 @@
+{
+  "port": 50703,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data",
+  "realProvider": false,
+  "identity": {
+    "pid": 28588,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3891\\test_owned_notification_consum0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "portReleased": true
+}

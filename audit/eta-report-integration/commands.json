@@ -1,0 +1,158 @@
+{
+  "sourceSha": "a7b3c47c76be408e31661193cf432cad11a46145",
+  "commands": [
+    {
+      "name": "python",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_eta_report_coexistence.py",
+        "tests/test_terminal_report_diagnostic.py",
+        "tests/test_runtime_issues.py",
+        "tests/test_session_error_log_worker.py",
+        "tests/test_report_error_context.py",
+        "tests/test_report_reads.py",
+        "tests/test_force_steer.py",
+        "tests/test_locker_independent_review.py",
+        "tests/test_locker_trusted_binding.py",
+        "tests/test_job_inbox_migration_drill.py",
+        "tests/test_job_inbox_boundaries.py",
+        "tests/test_job_action_templates.py",
+        "tests/test_job_system_actions.py",
+        "tests/test_job_completion_recovery.py",
+        "tests/test_agent_inbox.py",
+        "tests/test_automation_retry_parallel.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--junitxml=D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\audit\\eta-report-integration\\python.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "ui",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "exec",
+        "vitest",
+        "run",
+        "--config",
+        "e2e/integration.vite.config.mts",
+        "--no-cache",
+        "src/views/LockerView.test.tsx",
+        "src/views/lockerModel.auth.test.ts",
+        "src/components/jobs/UnifiedJobForm.test.tsx",
+        "src/components/jobs/JobTemplateEditor.test.tsx",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\audit\\eta-report-integration\\ui.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "typecheck",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "exec",
+        "tsc",
+        "-b"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "build",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "exec",
+        "vite",
+        "build",
+        "--config",
+        "e2e/integration.vite.config.mts"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "assets",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\packages\\web",
+      "argv": [
+        "node",
+        "e2e/verify-precompressed-assets.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "http",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_eta_report_integration_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\audit\\eta-report-integration\\http.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "compile",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/core/worker.py",
+        "packages/core/session_error_log.py",
+        "tests/test_eta_report_coexistence.py",
+        "tests/test_eta_report_integration_http.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "diff",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023",
+      "argv": [
+        "git",
+        "diff",
+        "ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e",
+        "HEAD",
+        "--check"
+      ],
+      "exitCode": 2
+    },
+    {
+      "name": "source-diff",
+      "cwd": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023",
+      "argv": [
+        "git",
+        "diff",
+        "ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e",
+        "HEAD",
+        "--check",
+        "--",
+        "packages",
+        "docs",
+        "tests",
+        "audit/eta-report-integration/verify.py"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "originalSourceAuditsUnchanged": true,
+  "firstDriverExitCode": 1,
+  "inheritedEvidenceWhitespace": "Full diff exit2 retained; source-only check separate. No inherited evidence rewritten."
+}

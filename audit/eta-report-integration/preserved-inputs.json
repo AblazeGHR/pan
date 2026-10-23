@@ -1,0 +1,58 @@
+[
+  {
+    "label": "locker",
+    "root": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023",
+    "head": "62c972415e1d44923bcea70dc0b29296c7b3958f",
+    "status": " M audit/locker-binding/browser.json\n M audit/locker-binding/browser.log\n M audit/locker-binding/http-evidence.json\n M audit/locker-binding/trusted-1280.png\n M audit/locker-binding/trusted-320.png\n M audit/locker-binding/trusted-390.png\n",
+    "files": [
+      {
+        "path": "audit/locker-binding/browser.json",
+        "sha256": "2ab86d98d5c3a942e97057fb6510ef13480b0465245501302c168ea1837476cb",
+        "bytes": 1071
+      },
+      {
+        "path": "audit/locker-binding/browser.log",
+        "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+        "bytes": 2
+      },
+      {
+        "path": "audit/locker-binding/http-evidence.json",
+        "sha256": "f1440edcfac865b235c31c4452103960cd9293577123f5a5426b4bb54cf8fdb5",
+        "bytes": 23725
+      },
+      {
+        "path": "audit/locker-binding/trusted-1280.png",
+        "sha256": "826a6394faaabee087827110a89aa771bfabe50b527ec5924d2fa82d8fcec4f6",
+        "bytes": 111961
+      },
+      {
+        "path": "audit/locker-binding/trusted-320.png",
+        "sha256": "a45756f32e3141d0a8984a31d244160db0b49a3e6464320baa5985605412ec6d",
+        "bytes": 52682
+      },
+      {
+        "path": "audit/locker-binding/trusted-390.png",
+        "sha256": "796b6940364b87431766f504009f6d267e7e5426b0259613d51430e15ee3b09a",
+        "bytes": 59042
+      }
+    ]
+  },
+  {
+    "label": "terminal-report",
+    "root": "D:\\project\\pan-worktrees\\terminal-report-diagnostic-20261023",
+    "head": "693287b1afcdf4ecb4d11db5de985210f13bd2dd",
+    "status": " M audit/terminal-report/http/delivered.txt\n M audit/terminal-report/http/evidence.json\n",
+    "files": [
+      {
+        "path": "audit/terminal-report/http/delivered.txt",
+        "sha256": "790affbcb2f416f2e0d75f7d77e6775317bd105606bb02b2f97c89c3bbbcb343",
+        "bytes": 453
+      },
+      {
+        "path": "audit/terminal-report/http/evidence.json",
+        "sha256": "314d872e3f14d1e2a7b8e78f862c68a4421940ede6b9f006033e35f1b645abde",
+        "bytes": 1011
+      }
+    ]
+  }
+]

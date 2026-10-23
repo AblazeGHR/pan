@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "before": "unknown_after_crash",
+  "after": "unknown_after_crash",
+  "originalQueueIdPreserved": true,
+  "dispatchInvoked": false,
+  "businessSideEffectInvoked": false
+}

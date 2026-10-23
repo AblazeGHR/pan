@@ -1,0 +1,511 @@
+{
+  "port": 55478,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3790\\test_unified_event_system_acti0\\owned-unified-profile",
+  "sourceSha": "c5ff36b78d9d1c42fbc76118e12fed83b06c1ed0",
+  "eventRun": {
+    "id": "jexec_d2f1a2c24eaf4b2fab74a5a028b955b0",
+    "runId": "run_7d45217bb5c045ea946605be",
+    "attemptId": "attempt_b4ddf6cc0e314ef7af926ba9",
+    "status": "completed",
+    "actionId": "pause",
+    "actionRevision": 1,
+    "registryRevision": 2,
+    "digest": "10d21e5c86840f57b5055435e353c1fd7aa360b6c842f027a6e860f358cd37f6",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "f25e729eb6ba315f662b4eeb8bd97b5042234b16250320c583b33d82d3c5cb06",
+    "executionKind": "session_operation",
+    "targetIds": [
+      "ses_e8d4bc770f9b29f6"
+    ],
+    "triggerTargetIds": [
+      "ses_e8d4bc770f9b29f6"
+    ],
+    "triggerSelection": {
+      "ids": [
+        "ses_e8d4bc770f9b29f6"
+      ],
+      "candidateCount": 2
+    },
+    "targetResults": [
+      {
+        "sessionId": "ses_e8d4bc770f9b29f6",
+        "ok": true
+      }
+    ],
+    "matched": 1,
+    "succeeded": 1,
+    "failed": 0,
+    "eventId": "evt_99a5cb82ca2944509fe91e0d8116693d"
+  },
+  "legacy": [
+    {
+      "jobId": "job_bb4cd55329f1e5271a06ea89",
+      "kind": "session-message",
+      "operation": "send",
+      "targetSessionId": "ses_98eeead2b90a90f3",
+      "text": "legacy session-message",
+      "name": "legacy session-message",
+      "description": "",
+      "source": {
+        "type": "agent"
+      },
+      "sourceSessionId": null,
+      "creatorSessionId": null,
+      "schedule": {
+        "type": "once",
+        "delaySeconds": 1.0
+      },
+      "nextRunAt": null,
+      "status": "completed",
+      "runCount": 1,
+      "lastRunAt": "2026-10-22T16:52:44.198433Z",
+      "lastDelivery": {
+        "status": "queued",
+        "workerId": "worker-2",
+        "sessionId": "ses_98eeead2b90a90f3"
+      },
+      "lastError": null,
+      "createdAt": 1792687962.9972544,
+      "updatedAt": 1792687964.1984334,
+      "runStartedAt": 1792687964.1889353,
+      "snapshotCleanup": "cleaned",
+      "runId": "run_93d2d9bbd10240b7808625f7",
+      "attempts": [
+        {
+          "id": "attempt_2ad4f46b96574102be4f1367",
+          "runId": "run_93d2d9bbd10240b7808625f7",
+          "count": 1,
+          "actionId": "system_session_message",
+          "actionRevision": 1,
+          "digest": "063375bf60e990609035e3b5b124583d7aa88e359e61143f62cba27ce7a91584",
+          "dispatchKey": "job_bb4cd55329f1e5271a06ea89:2026-10-22T16:52:43.997254Z",
+          "status": "completed",
+          "startedAt": 1792687964.194113,
+          "backoffSec": 0,
+          "receipt": {
+            "status": "queued"
+          },
+          "sideEffectUncertainty": false,
+          "finishedAt": 1792687964.1997707
+        }
+      ],
+      "lastExecution": {
+        "id": "attempt_2ad4f46b96574102be4f1367",
+        "runId": "run_93d2d9bbd10240b7808625f7",
+        "count": 1,
+        "actionId": "system_session_message",
+        "actionRevision": 1,
+        "digest": "063375bf60e990609035e3b5b124583d7aa88e359e61143f62cba27ce7a91584",
+        "dispatchKey": "job_bb4cd55329f1e5271a06ea89:2026-10-22T16:52:43.997254Z",
+        "status": "completed",
+        "startedAt": 1792687964.194113,
+        "backoffSec": 0,
+        "receipt": {
+          "status": "queued"
+        },
+        "sideEffectUncertainty": false,
+        "finishedAt": 1792687964.1997707,
+        "attemptId": "attempt_2ad4f46b96574102be4f1367"
+      },
+      "paused": false,
+      "target": {
+        "sessionId": "ses_98eeead2b90a90f3"
+      },
+      "unified": {
+        "jobId": "job_bb4cd55329f1e5271a06ea89",
+        "legacyKind": "session-message",
+        "action": {
+          "api": "system_action",
+          "actionId": "system_session_message",
+          "arguments": {
+            "sessionId": "ses_98eeead2b90a90f3",
+            "text": "legacy session-message"
+          }
+        },
+        "config": {
+          "name": "legacy session-message",
+          "description": "",
+          "actionId": "system_session_message",
+          "arguments": {
+            "sessionId": "ses_98eeead2b90a90f3",
+            "text": "legacy session-message"
+          },
+          "schedule": {
+            "type": "once",
+            "delaySeconds": 1.0
+          },
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "enabled": false,
+          "maxRuns": null,
+          "misfirePolicy": "fire_now"
+        },
+        "run": {
+          "status": "completed",
+          "runId": "attempt_2ad4f46b96574102be4f1367"
+        },
+        "compatibility": {
+          "legacyKind": "session-message",
+          "migration": "system-executor"
+        }
+      },
+      "pinned": false,
+      "pinMetadataStatus": "available"
+    },
+    {
+      "jobId": "job_6afd53717c18fdad5a5ecc40",
+      "kind": "session-broadcast",
+      "operation": "broadcast",
+      "targetSessionIds": [
+        "ses_98eeead2b90a90f3"
+      ],
+      "text": "legacy session-broadcast",
+      "name": "legacy session-broadcast",
+      "description": "",
+      "source": {
+        "type": "agent"
+      },
+      "sourceSessionId": null,
+      "creatorSessionId": null,
+      "schedule": {
+        "type": "once",
+        "delaySeconds": 1.0
+      },
+      "nextRunAt": null,
+      "status": "completed",
+      "runCount": 1,
+      "lastRunAt": "2026-10-22T16:52:45.248082Z",
+      "lastDelivery": {
+        "status": "queued",
+        "results": [
+          {
+            "status": "queued",
+            "workerId": "worker-2",
+            "sessionId": "ses_98eeead2b90a90f3"
+          }
+        ]
+      },
+      "lastError": null,
+      "createdAt": 1792687964.228333,
+      "updatedAt": 1792687965.2480824,
+      "runStartedAt": 1792687965.2371721,
+      "snapshotCleanup": "cleaned",
+      "runId": "run_5c9bdf886e6343dab6535d66",
+      "attempts": [
+        {
+          "id": "attempt_2564883dd5254d42996604e5",
+          "runId": "run_5c9bdf886e6343dab6535d66",
+          "count": 1,
+          "actionId": "system_session_broadcast",
+          "actionRevision": 1,
+          "digest": "059a603dedd88ce2e5380cd707d08868ad978beb06bc255180e24d726014d4dc",
+          "dispatchKey": "job_6afd53717c18fdad5a5ecc40:2026-10-22T16:52:45.228333Z",
+          "status": "completed",
+          "startedAt": 1792687965.2431624,
+          "backoffSec": 0,
+          "receipt": {
+            "status": "queued"
+          },
+          "sideEffectUncertainty": false,
+          "finishedAt": 1792687965.2491596
+        }
+      ],
+      "lastExecution": {
+        "id": "attempt_2564883dd5254d42996604e5",
+        "runId": "run_5c9bdf886e6343dab6535d66",
+        "count": 1,
+        "actionId": "system_session_broadcast",
+        "actionRevision": 1,
+        "digest": "059a603dedd88ce2e5380cd707d08868ad978beb06bc255180e24d726014d4dc",
+        "dispatchKey": "job_6afd53717c18fdad5a5ecc40:2026-10-22T16:52:45.228333Z",
+        "status": "completed",
+        "startedAt": 1792687965.2431624,
+        "backoffSec": 0,
+        "receipt": {
+          "status": "queued"
+        },
+        "sideEffectUncertainty": false,
+        "finishedAt": 1792687965.2491596,
+        "attemptId": "attempt_2564883dd5254d42996604e5"
+      },
+      "paused": false,
+      "target": {
+        "sessionId": "ses_98eeead2b90a90f3"
+      },
+      "unified": {
+        "jobId": "job_6afd53717c18fdad5a5ecc40",
+        "legacyKind": "session-broadcast",
+        "action": {
+          "api": "system_action",
+          "actionId": "system_session_broadcast",
+          "arguments": {
+            "sessionIds": [
+              "ses_98eeead2b90a90f3"
+            ],
+            "text": "legacy session-broadcast"
+          }
+        },
+        "config": {
+          "name": "legacy session-broadcast",
+          "description": "",
+          "actionId": "system_session_broadcast",
+          "arguments": {
+            "sessionIds": [
+              "ses_98eeead2b90a90f3"
+            ],
+            "text": "legacy session-broadcast"
+          },
+          "schedule": {
+            "type": "once",
+            "delaySeconds": 1.0
+          },
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "enabled": false,
+          "maxRuns": null,
+          "misfirePolicy": "fire_now"
+        },
+        "run": {
+          "status": "completed",
+          "runId": "attempt_2564883dd5254d42996604e5"
+        },
+        "compatibility": {
+          "legacyKind": "session-broadcast",
+          "migration": "system-executor"
+        }
+      },
+      "pinned": false,
+      "pinMetadataStatus": "available"
+    },
+    {
+      "jobId": "job_bd2900628d330a210c1e94ba",
+      "targetSessionId": "ses_98eeead2b90a90f3",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-c",
+        "print(\"owned legacy CLI\")"
+      ],
+      "hideWindow": true,
+      "kind": "background-process",
+      "operation": "run",
+      "creatorSessionId": null,
+      "name": "legacy owned CLI",
+      "description": "",
+      "commandSummary": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -c print(\"owned legacy CLI\")",
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3790\\test_unified_event_system_acti0",
+      "label": null,
+      "status": "completed",
+      "createdAt": 1792687965.2945733,
+      "updatedAt": 1792687965.5554721,
+      "pid": 14892,
+      "processCreatedAt": 1792687965.50824,
+      "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3790\\test_unified_event_system_acti0\\owned-unified-profile\\scheduler\\logs\\job_bd2900628d330a210c1e94ba.log",
+      "notificationState": "pending",
+      "terminalEventId": "job_bd2900628d330a210c1e94ba:terminal",
+      "snapshotCleanup": "cleaned",
+      "runId": "run_f37d04262f8c46878e20bb17",
+      "attempts": [
+        {
+          "id": "attempt_e2b3dec4247d4299b6dae7c0",
+          "runId": "run_f37d04262f8c46878e20bb17",
+          "count": 1,
+          "actionId": "system_background_process",
+          "actionRevision": 1,
+          "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+          "dispatchKey": "job_bd2900628d330a210c1e94ba:initial",
+          "status": "completed",
+          "startedAt": 1792687965.3050277,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "finishedAt": 1792687965.5569158
+        }
+      ],
+      "runnerPid": 44212,
+      "runnerProcessCreatedAt": 1792687965.3391342,
+      "runnerFiletime": "134371615653391345",
+      "runnerClaim": "7e80a14885bc715f7753b27b3736b1d1",
+      "exitCode": 0,
+      "processTreeEnded": true,
+      "lastExecution": {
+        "id": "attempt_e2b3dec4247d4299b6dae7c0",
+        "runId": "run_f37d04262f8c46878e20bb17",
+        "count": 1,
+        "actionId": "system_background_process",
+        "actionRevision": 1,
+        "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+        "dispatchKey": "job_bd2900628d330a210c1e94ba:initial",
+        "status": "completed",
+        "startedAt": 1792687965.3050277,
+        "backoffSec": 0,
+        "receipt": null,
+        "sideEffectUncertainty": false,
+        "finishedAt": 1792687965.5569158,
+        "attemptId": "attempt_e2b3dec4247d4299b6dae7c0"
+      },
+      "paused": false,
+      "source": {
+        "type": "agent"
+      },
+      "target": {
+        "sessionId": "ses_98eeead2b90a90f3"
+      },
+      "unified": {
+        "jobId": "job_bd2900628d330a210c1e94ba",
+        "legacyKind": "background-process",
+        "action": {
+          "api": "system_action",
+          "actionId": "system_background_process",
+          "arguments": {
+            "sessionId": "ses_98eeead2b90a90f3",
+            "argv": [
+              "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+              "-c",
+              "print(\"owned legacy CLI\")"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3790\\test_unified_event_system_acti0",
+            "hideWindow": true
+          }
+        },
+        "config": {
+          "name": "legacy owned CLI",
+          "description": "",
+          "actionId": "system_background_process",
+          "arguments": {
+            "sessionId": "ses_98eeead2b90a90f3",
+            "argv": [
+              "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+              "-c",
+              "print(\"owned legacy CLI\")"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3790\\test_unified_event_system_acti0",
+            "hideWindow": true
+          },
+          "schedule": [],
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "enabled": false,
+          "maxRuns": null,
+          "misfirePolicy": "fire_now"
+        },
+        "run": {
+          "status": "completed",
+          "runId": "attempt_e2b3dec4247d4299b6dae7c0"
+        },
+        "compatibility": {
+          "legacyKind": "background-process",
+          "migration": "system-executor"
+        }
+      },
+      "pinned": false,
+      "pinMetadataStatus": "available"
+    }
+  ],
+  "systemExecution": {
+    "id": "jexec_ba07e225fafe49c8bce355ea5868cec5",
+    "runId": "run_2987c37a426e4de1a4339460",
+    "attemptId": "attempt_1f78fb6f5a1143fbbce273f1",
+    "status": "completed",
+    "actionId": "system_background_process",
+    "actionRevision": 1,
+    "registryRevision": 2,
+    "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+    "argumentsDigest": "85fdae5830737712fff09c12fe176b751f794828dea422c8edc5429486f78e2d",
+    "contextDigest": "7b3f62cf815eb9a3508d4e769706818135a400f7752cd6fb88fc2a451aa037a1",
+    "executionKind": "system_job",
+    "processJobId": "job_10d2ef812c15ce46df4b468d",
+    "createdJobId": "job_10d2ef812c15ce46df4b468d"
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

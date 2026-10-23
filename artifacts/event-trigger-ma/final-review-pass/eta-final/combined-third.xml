@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="8.208" timestamp="2026-10-22T04:07:52.172724+08:00" hostname="ablaze"><testcase classname="tests.test_eta_final_combined" name="test_node_query_pause_production_ui_restart_and_delay_mcp" time="7.683" /></testsuite></testsuites>

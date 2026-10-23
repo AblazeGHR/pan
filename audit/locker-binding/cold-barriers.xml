@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="9" time="18.105" timestamp="2026-10-23T11:24:47.263690+08:00" hostname="ablaze"><testcase classname="tests.test_locker_trusted_binding" name="test_create_writer_barrier" time="0.129" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[approval]" time="0.148" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[admission]" time="0.162" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[effect]" time="0.187" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[revoked_effect]" time="0.202" /><testcase classname="tests.test_locker_trusted_binding" name="test_scope_and_dynamic_targets_fail_closed" time="0.113" /><testcase classname="tests.test_locker_trusted_binding" name="test_old_unbound_migration_has_no_guessed_binding" time="0.054" /><testcase classname="tests.test_locker_trusted_binding" name="test_cold_queued_run_and_unknown_original_receipt[False]" time="8.150"><failure message="AssertionError: timed out">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3913/test_cold_queued_run_and_unkno0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FCDD8F85F0&gt;
+changed = False
+
+    @pytest.mark.parametrize('changed',[False,True])
+    def test_cold_queued_run_and_unknown_original_receipt(tmp_path,monkeypatch,changed):
+        async def run():
+            svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+            store=InteractionStore(tmp_path/'cards.sqlite');card=create(svc,store,request)
+            principal=UserPrincipal('user')
+            store.respond(principal,card['id'],{'requestId':'once','expectedRevision':0,'choiceId':'go'})
+            monkeypatch.setattr(svc.engine,'kick',AsyncMock())
+            append=svc.events.append
+            def lose_receipt(*args):
+                append(*args)
+                raise OSError('original Event committed, receipt lost')
+            monkeypatch.setattr(svc.events,'append',lose_receipt)
+            assert (await store.dispatch(principal,card['id'],adapter))['delivery']['state']=='unknown'
+            async def queued():
+                runs=svc.ledger.read()['runs']
+                return len(runs)==1 and next(iter(runs.values()))['status']=='queued'
+            await until(queued)
+            await svc.close()
+            if changed:
+                svc.engine.actions.put('actions',action([owner.id]))
+            async def pause(sid,args):
+                calls.append(sid);return {'ok':True}
+            restarted=Service(tmp_path/'automation',worker,pause)
+            await restarted.start()
+            try:
+                new_adapter=bind(restarted)
+                reopened=InteractionStore(store.path)
+                assert (await reopened.dispatch(principal,card['id'],new_adapter))['delivery']['state']=='accepted'
+                await restarted.engine.kick()
+                async def done():
+                    runs=restarted.ledger.read()['runs']
+                    return len(runs)==1 and next(iter(runs.values()))['status']==('failed' if changed else 'succeeded')
+                await until(done)
+                assert calls==([] if changed else [target.id])
+                assert len(restarted.events.page()['events'])==1
+            finally:
+                await restarted.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_trusted_binding.py:213:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_trusted_binding.py:192: in run
+    await until(queued)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_cold_queued_run_and_unknown_original_receipt.&lt;locals&gt;.run.&lt;locals&gt;.queued at 0x000001FCDD90CEB0&gt;
+
+    async def until(predicate):
+        for _ in range(500):
+            if await predicate():
+                return
+            await asyncio.sleep(.01)
+&gt;       raise AssertionError('timed out')
+E       AssertionError: timed out
+
+tests\test_automation_core.py:46: AssertionError</failure></testcase><testcase classname="tests.test_locker_trusted_binding" name="test_cold_queued_run_and_unknown_original_receipt[True]" time="8.223"><failure message="AssertionError: timed out">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3913/test_cold_queued_run_and_unkno1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FCDD8FBB60&gt;
+changed = True
+
+    @pytest.mark.parametrize('changed',[False,True])
+    def test_cold_queued_run_and_unknown_original_receipt(tmp_path,monkeypatch,changed):
+        async def run():
+            svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+            store=InteractionStore(tmp_path/'cards.sqlite');card=create(svc,store,request)
+            principal=UserPrincipal('user')
+            store.respond(principal,card['id'],{'requestId':'once','expectedRevision':0,'choiceId':'go'})
+            monkeypatch.setattr(svc.engine,'kick',AsyncMock())
+            append=svc.events.append
+            def lose_receipt(*args):
+                append(*args)
+                raise OSError('original Event committed, receipt lost')
+            monkeypatch.setattr(svc.events,'append',lose_receipt)
+            assert (await store.dispatch(principal,card['id'],adapter))['delivery']['state']=='unknown'
+            async def queued():
+                runs=svc.ledger.read()['runs']
+                return len(runs)==1 and next(iter(runs.values()))['status']=='queued'
+            await until(queued)
+            await svc.close()
+            if changed:
+                svc.engine.actions.put('actions',action([owner.id]))
+            async def pause(sid,args):
+                calls.append(sid);return {'ok':True}
+            restarted=Service(tmp_path/'automation',worker,pause)
+            await restarted.start()
+            try:
+                new_adapter=bind(restarted)
+                reopened=InteractionStore(store.path)
+                assert (await reopened.dispatch(principal,card['id'],new_adapter))['delivery']['state']=='accepted'
+                await restarted.engine.kick()
+                async def done():
+                    runs=restarted.ledger.read()['runs']
+                    return len(runs)==1 and next(iter(runs.values()))['status']==('failed' if changed else 'succeeded')
+                await until(done)
+                assert calls==([] if changed else [target.id])
+                assert len(restarted.events.page()['events'])==1
+            finally:
+                await restarted.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_trusted_binding.py:213:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_trusted_binding.py:192: in run
+    await until(queued)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_cold_queued_run_and_unknown_original_receipt.&lt;locals&gt;.run.&lt;locals&gt;.queued at 0x000001FCDD8C8CA0&gt;
+
+    async def until(predicate):
+        for _ in range(500):
+            if await predicate():
+                return
+            await asyncio.sleep(.01)
+&gt;       raise AssertionError('timed out')
+E       AssertionError: timed out
+
+tests\test_automation_core.py:46: AssertionError</failure></testcase></testsuite></testsuites>

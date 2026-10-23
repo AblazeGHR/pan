@@ -1,0 +1,725 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pan:interaction-card:v1",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "TriggerRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "JobRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobId",
+        "executionOwner"
+      ],
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/Id"
+        },
+        "executionOwner": {
+          "enum": [
+            "legacy-registry",
+            "independent-job-service"
+          ]
+        },
+        "legacyTaskId": {
+          "$ref": "#/$defs/Id"
+        },
+        "runId": {
+          "$ref": "#/$defs/Id"
+        },
+        "stepId": {
+          "$ref": "#/$defs/Id"
+        }
+      }
+    },
+    "Definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "body"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "answerInput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32000
+            }
+          }
+        },
+        "choices": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "triggerRef": {
+                "$ref": "#/$defs/TriggerRef"
+              }
+            }
+          }
+        },
+        "notification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "tag": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "job": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "trigger": {
+              "$ref": "#/$defs/TriggerRef"
+            }
+          }
+        },
+        "summaryBody": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 500
+              }
+            }
+          }
+        }
+      }
+    },
+    "Create": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ownerSessionId",
+        "recipientId",
+        "requestKey",
+        "card"
+      ],
+      "properties": {
+        "ownerSessionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "recipientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/Id"
+        },
+        "card": {
+          "$ref": "#/$defs/Definition"
+        },
+        "producerSessionId": {
+          "$ref": "#/$defs/Id"
+        }
+      }
+    },
+    "Respond": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "expectedRevision"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "choiceId": {
+          "$ref": "#/$defs/Id"
+        }
+      }
+    },
+    "Response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "requestId",
+        "userId",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        },
+        "userId": {
+          "$ref": "#/$defs/Id"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string"
+        },
+        "choiceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "outcome": {
+          "enum": [
+            "submit",
+            "reject"
+          ]
+        }
+      }
+    },
+    "Delivery": {
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "not_requested",
+            "pending",
+            "unavailable",
+            "in_flight",
+            "accepted",
+            "rejected",
+            "unknown"
+          ]
+        },
+        "receiptId": {
+          "$ref": "#/$defs/Id"
+        }
+      }
+    },
+    "Card": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "id",
+        "ownerSessionId",
+        "recipientId",
+        "definition",
+        "revision",
+        "status",
+        "response",
+        "delivery",
+        "createdAt"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "ownerSessionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "recipientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "definition": {
+          "$ref": "#/$defs/Definition"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "open",
+            "responded",
+            "rejected"
+          ]
+        },
+        "response": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Response"
+            }
+          ]
+        },
+        "delivery": {
+          "$ref": "#/$defs/Delivery"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "lockerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "sourceName": {
+          "type": "string"
+        },
+        "rejectionDelivery": {
+          "$ref": "#/$defs/Delivery"
+        },
+        "trustedChoices": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ExecutionBinding"
+          }
+        }
+      }
+    },
+    "Event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "schemaVersion",
+        "source",
+        "occurredAt",
+        "payload"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "type": {
+          "const": "pan.interaction.responded"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "source": {
+          "const": {
+            "type": "core",
+            "id": "pan"
+          }
+        },
+        "occurredAt": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "$ref": "#/$defs/Id"
+            },
+            "ownerSessionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "recipientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "response": {
+              "$ref": "#/$defs/Response"
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "$ref": "#/$defs/TriggerRef"
+            },
+            "executionBinding": {
+              "$ref": "#/$defs/ExecutionBinding"
+            }
+          }
+        }
+      }
+    },
+    "Reject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "expectedRevision"
+      ],
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 32000
+        }
+      }
+    },
+    "Read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read"
+      ],
+      "properties": {
+        "read": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Locker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sessionId",
+        "sourceName",
+        "workspaceIds",
+        "available",
+        "total",
+        "unread"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "sourceName": {
+          "type": "string"
+        },
+        "workspaceIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "CardPage": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "cards",
+        "nextAfter"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Card"
+          }
+        },
+        "nextAfter": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Id"
+            }
+          ]
+        }
+      }
+    },
+    "ProducerReceipt": {
+      "type": "object",
+      "required": [
+        "cardId",
+        "ownerSessionId",
+        "recipientId",
+        "response",
+        "event"
+      ],
+      "properties": {
+        "cardId": {
+          "$ref": "#/$defs/Id"
+        },
+        "ownerSessionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "recipientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Response"
+            }
+          ]
+        },
+        "event": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Event"
+            }
+          ]
+        }
+      }
+    },
+    "ExecutionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "triggerId": {
+          "$ref": "#/$defs/Id"
+        },
+        "actionId": {
+          "$ref": "#/$defs/Id"
+        },
+        "triggerDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "action": {
+          "type": "object"
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "selector": {
+          "type": "object"
+        },
+        "authorization": {
+          "type": "object"
+        },
+        "version": {
+          "const": 1
+        },
+        "triggerRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "triggerId",
+        "triggerRevision",
+        "triggerDigest",
+        "actionId",
+        "actionDigest",
+        "action",
+        "arguments",
+        "selector",
+        "authorization",
+        "summary",
+        "targetIds"
+      ]
+    },
+    "LockerMessage": {
+      "type": "object",
+      "required": [
+        "messageId",
+        "role",
+        "content",
+        "ts"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "messageId": {
+          "$ref": "#/$defs/Id"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "content": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "parts": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "text"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "text"
+                  ],
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "attachment"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "attachmentId",
+                    "displayName"
+                  ],
+                  "properties": {
+                    "attachmentId": {
+                      "type": "string",
+                      "pattern": "^(att_[A-Za-z0-9]{32}|upload_[A-Za-z0-9]{32}(\\.[A-Za-z0-9._-]{1,32})?)$"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/Card"
+}

@@ -40,7 +40,7 @@ Set-Location packages/web
 pnpm install
 pnpm build
 Set-Location ../..
-python main.py
+scripts\start_pan.bat
 ```
 
 On macOS/Linux, activate a virtual environment and run the equivalent steps:
@@ -59,6 +59,8 @@ The default Dashboard URL is <http://127.0.0.1:8768>. `config.json` sets `port` 
 In `config.example.json`, `qq.enabled` defaults to `true`, but this does not install or sign in to a QQ gateway. Set `qq.enabled` to `false` before startup if you do not use QQ. To enable QQ, install `packages/qq/requirements.txt` into the interpreter configured by `qq.python` / `PAN_QQ_PYTHON`, then select and configure a gateway using the [QQ and SnowLuma guide](docs/QQ_PLUGIN_SNOWLUMA.en.md).
 
 For an already prepared checkout, use the helper scripts: Windows `scripts\start_pan.bat` / `scripts\stop.bat`, macOS/Linux `bash scripts/start.sh` / `bash scripts/stop.sh`. Run `python main.py` for a foreground process and press Ctrl+C to exit.
+
+Windows `scripts/setup.bat` and `scripts/start_pan.bat` automatically register the current-user `pan` command. Cloning alone does not run registration. Any branch or a source archive without Git metadata works. Open a new terminal after registration; conflicts warn and allow startup to continue. Direct `python main.py` and module imports do not register. See [Pan CLI](docs/PAN_CLI.md) for ownership checks and safe uninstall.
 
 ## Create your first Session
 

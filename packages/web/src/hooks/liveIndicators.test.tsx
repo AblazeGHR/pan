@@ -99,6 +99,13 @@ function emit(type: string, event: Record<string, unknown>) {
 }
 
 describe('live background Session and Job ingestion', () => {
+  it.each(['thinking', 'codex.diff'])('does not promote a %s cumulative delta into the card body', type => {
+    renderHook(() => useWebSocket());
+    emit('session.updated', { sessionId: 'B', session: summary('B', 1, 'user fallback') });
+    emit('worker.stream', { sessionId: 'B', workerId: 'w1', generation: 0, taskSeq: 1,
+      event: { type, delta: true, stream_text: 'internal detail', content: 'internal detail', diff: 'internal detail' } });
+    expect(useSessionStore.getState().sessions.find(s => s.id === 'B')?.lastMessage).toBe('user fallback');
+  });
   beforeEach(() => {
     for (const key of Object.keys(wsMock.handlers)) delete wsMock.handlers[key];
     apiMock.fetchSessions.mockRejectedValue(new Error('HTTP is unavailable after hydrate'));

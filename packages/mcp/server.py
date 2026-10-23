@@ -33,6 +33,7 @@ Tools exposed:
     - agent_send_force: Urgent delivery (capability-routed Steer first, otherwise restart; no worker → queue)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
+    - agent_inbox: Shared Locker list/read/consume and subscription/mode/backlog/recovery
     - notification_send: Send a Pan system notification to self or managed session
     - reminder_register/list/cancel: Manage durable one-shot reminders
     - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
@@ -416,6 +417,21 @@ def _agent_message_prefix(text: str) -> str:
     if sid or title:
         return f"////by agent : {sid} | {title}\n{text}"
     return text
+
+
+@mcp.tool()
+def system_fields() -> dict:
+    """Discover canonical Event system fields, aliases and Action target rules.
+
+    Read-only contract shared with GET /api/automation/system-fields. Each field
+    declares its type, source, optionality, sensitivity and whether it may be
+    used as an Action target. System fields are trusted host/adapter identity;
+    event payload keys never create or override them, and IDs are never guessed
+    from message text. Input aliases such as session_id are accepted only while
+    admitting an Event; stored Events use canonical camelCase names.
+    完整编排流程见 /pan skill。
+    """
+    return _api("GET", "/api/automation/system-fields")
 
 
 def _worker_unresolvable(worker_id: str) -> dict:
@@ -1930,6 +1946,57 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 
 @mcp.tool()
+def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
+                     recipient_id: str = "", request_key: str = "", card: dict | None = None) -> dict:
+    """Create/get/receipt for a Session-owned user request. Never answer as a user.
+
+    Card supports optional answerInput, choices with optional triggerRef, and
+    notification metadata. A recorded response is not Job/Trigger completion.
+
+    完整编排流程见 /pan skill。
+    """
+    if operation not in {"create", "get", "receipt"}:
+        return {"error": "Only create/get/receipt producer operations are available"}
+    caller, error = _require_caller()
+    if error:
+        return error
+    target = owner_session_id or caller["id"]
+    denied = _check_access(target, caller=caller)
+    if denied:
+        return denied
+    if operation in {"get", "receipt"}:
+        suffix = "/receipt" if operation == "receipt" else ""
+        return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
+    return _api("POST", "/api/interaction-cards", {
+        "ownerSessionId": target, "producerSessionId": caller['id'], "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
+
+
+@mcp.tool()
+def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[str] | None = None,
+                session_id: str | None = None, mode: str = "silent", limit: int = 100) -> dict:
+    """Shared Agent Inbox: list/read/consume/subscriptions/subscribe/mode/backlog/recover.
+
+    Full mode consumes after durable Session Queue acceptance. Subscriptions start
+    at new messages. backlog explicitly forwards old pending messages to the
+    fixed matching full subscribers. Notification never contains message bodies.
+
+    完整编排流程见 /pan skill。
+    """
+    if operation not in {"list", "read", "consume", "subscriptions", "subscribe", "mode", "backlog", "recover"}:
+        return {"error": "unsupported inbox operation"}
+    caller, error = _require_caller()
+    if error:
+        return error
+    target = session_id or caller["id"]
+    denied = _check_access(target)
+    if denied:
+        return denied
+    return _api("POST", "/api/agent-inbox/" + operation, {
+        "lockerId": locker_id, "messageIds": message_ids or [], "sessionId": target,
+        "mode": mode, "limit": limit})
+
+
+@mcp.tool()
 def notification_send(title: str, body: str = "", session_id: str | None = None) -> dict:
     """Send a best-effort Pan system notification; separate from agent_notify.
 
@@ -3078,6 +3145,18 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
     API execution: {kind: api, method: GET, path: /api/sessions|/api/models|/api/workspaces}.
     Command execution: {kind: command, executable: absolute file, cwd: absolute dir,
     args: string array, timeout_sec: 1..30}. A scalar {field} occupies one whole argv.
+    Session Operation execution: {kind: session_operation, operation: pause_everything,
+    selector: {mode: explicit, ids: [...]}, {mode: event, path: payload.sessionIds}, or
+    {mode: query, query: Predicate}}. Predicate: {and: [...]}/{or: [...]}/{not: ...}
+    or {field, op, value}. Fields id/name/adapter (string), managedBy (string|null),
+    readonlySession/pinned (boolean), workspaceIds (string array). eq/ne exact;
+    scalar in uses a nonempty typed list; workspaceIds.contains exact element;
+    name.contains nonempty case-sensitive literal substring. No script/SQL/regex,
+    dotted fields or implicit match-all. Limits depth/nodes/candidates/results:
+    8/64/2048/256, operand arrays 128, text 512 code points; overflow fails.
+    Targets freeze at execution start. Draft cannot execute; user-enabled Trigger
+    automation uses this type; legacy Group build/provider rejects it. Backend
+    template/schema: GET /api/actions/session-operation-template.
     Group fields: optional id, name, action_ids. IDs use lowercase letters/digits/underscores.
     User enables Actions and builds Groups in the core Actions Panel. This tool
     cannot build, unbuild, enable, or execute a draft. Built tools use generic plugins.
@@ -3092,6 +3171,52 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
                 {**({'item': item} if item is not None else {}),
                  **({'id': item_id} if item_id is not None else {}),
                  **({'expectedRevision': expected_revision} if expected_revision is not None else {})})
+
+
+@mcp.tool()
+def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict | None = None,
+                      item_id: str | None = None, expected_revision: int | None = None,
+                      name: str | None = None) -> dict:
+    """Unified Action-reference Job/complete Template drafts (never execute or enable).
+
+    kind: job or template. operation: list, schema, put, runs.
+    config: complete {name, actionId, arguments, schedule, trigger, completion,
+    recovery, overlap, notification, enabled:false}. Arguments are only declared
+    Action fields; empty schema accepts only {}. Templates have no parameter holes.
+    trigger kinds immediate/once/interval/cron/event/schedule; event uses bounded
+    typed Session query. Recovery defaults off and requires monitoring declaration.
+    Overlap forbid/queue/parallel, parallelLimit 1..32 (default3).
+    Template instantiate/enable/repair, cancellation and uncertain recovery are
+    protected user operations. No Bearer, permission or managed bypass here.
+    Unknown creation outcome: list before retry; do not blindly create again.
+
+    完整编排流程见 /pan skill。
+    """
+    if kind not in ('job', 'template'):
+        return {'error': 'kind must be job or template'}
+    path = '/api/jobs/action-jobs' if kind == 'job' else '/api/jobs/job-templates'
+    if operation == 'list': return _api('GET', path)
+    if operation == 'schema': return _api('GET', '/api/jobs/action-jobs/schema')
+    if operation == 'runs' and kind == 'job' and isinstance(item_id, str):
+        from urllib.parse import quote
+        return _api('GET', path + '/' + quote(item_id, safe='') + '/runs')
+    if operation != 'put' or not isinstance(config, dict):
+        return {'error': 'put requires complete config'}
+    if config.get('enabled', False) is not False:
+        return {'error': 'Agent may submit disabled drafts only; enabled must be false'}
+    import copy
+    draft = copy.deepcopy(config); draft['enabled'] = False
+    from urllib.parse import quote
+    if kind == 'job':
+        body = {'config': draft}
+        if item_id:
+            body['expectedRevision'] = expected_revision
+            return _api('PUT', path + '/' + quote(item_id, safe=''), body)
+        return _api('POST', path, body)
+    item = {'name': name or draft.get('name'), 'enabled': False, 'config': draft}
+    if item_id: item['id'] = item_id
+    return _api('PUT' if item_id else 'POST', path + ('/' + quote(item_id, safe='') if item_id else ''),
+                {'item': item, 'expectedRevision': expected_revision if item_id else 0})
 
 
 def main():

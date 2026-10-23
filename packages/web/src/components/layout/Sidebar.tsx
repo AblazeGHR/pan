@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { SidebarPanelContext } from './SidebarPanelContext';
+import { lazy, Suspense, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
@@ -53,6 +54,8 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
   const historySearchPreparing = useHistorySearchViewStore((state) => state.preparing);
   const location = useLocation();
   const navigate = useNavigate();
+  const sidebarPanel = useContext(SidebarPanelContext);
+  const isLockerRoute = location.pathname === '/locker';
   const isEditorRoute = location.pathname === '/editor';
   const { isMobile } = useMediaQuery();
   const showGroupBy = useAppSettingsStore((s) => s.showGroupBy);
@@ -441,7 +444,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
             <div className="mb-2"><ViewEntryGroups isMobile={isMobile} /></div>
 
             {/* Buttons */}
-            <div className="flex gap-1">
+            {!isLockerRoute && <div className="flex gap-1">
               <div className="flex flex-[3] min-w-0 overflow-hidden rounded border border-transparent bg-accent">
                 <Button
                   variant="primary"
@@ -474,9 +477,12 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
                 <Import size={14} />
                 Import
               </Button>
-            </div>
+            </div>}
           </div>
 
+          {isLockerRoute ? (
+            <div ref={sidebarPanel?.[1]} className="flex-1 min-h-0 overflow-hidden" data-testid="locker-sidebar-panel" />
+          ) : <>
           {/* Search + tools bar */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border-muted bg-bg-secondary">
             <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter..." label="session" />
@@ -616,6 +622,7 @@ export function Sidebar({ mobileWorkspaceExpanded = false }: { mobileWorkspaceEx
             <SessionList onSessionClick={handleSessionClick} onSessionMenu={handleSessionMenu} />
           </div>
 
+          </>}
           {/* Session context menu */}
           {menuSession && (
             <SessionMenu

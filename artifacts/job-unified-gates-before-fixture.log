@@ -1,0 +1,1414 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+.........................F.....................................FFFFFFFFF [ 90%]
+FFF.FFFF                                                                 [100%]
+================================== FAILURES ===================================
+________________________ test_notice_to_self_enqueued _________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF97B33E0>
+
+    def test_notice_to_self_enqueued(monkeypatch):
+        """Ͷ�ݸ��Լ���item �� report ��״ + type=notice ��ӣ����� ok + ���м�����"""
+        _cleanup()
+        s = _setup_session("ses_self")
+        saves = []
+    
+        async def fake_save_async(target):
+            saves.append(target.id)
+    
+        monkeypatch.setattr(_sess, "save_async", fake_save_async)
+        spawned = []
+    
+        async def fake_create(session_id):
+            spawned.append(session_id)
+            return _setup_worker(session_id)
+    
+        monkeypatch.setattr(worker, "create_worker", fake_create)
+        _setup_worker("ses_self", worker_id="worker-self")  # �� worker��ֻ����
+    
+        r = asyncio.run(worker.enqueue_notice(
+            "ses_self", "��̨�������", source="agent", source_session_id="ses_self"))
+        assert r["ok"] is True
+        assert r["sessionId"] == "ses_self"
+        assert r["pending"] == 1
+>       assert saves == ["ses_self"], "Ͷ�ݺ���� save_async ����"
+E       AssertionError: Ͷ�ݺ���� save_async ����
+E       assert [] == ['ses_self']
+E         
+E         Right contains one more item: 'ses_self'
+E         Use -v to get more diff
+
+tests\test_agent_notify.py:105: AssertionError
+______ test_hung_start_does_not_block_other_lifecycles_or_http[register] ______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_hung_start_does_not_block0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF984BDA0>
+operation = 'register'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    handle = old.handle
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated', 'headers': []})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:21: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF982F6B0>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_______ test_hung_start_does_not_block_other_lifecycles_or_http[revoke] _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_hung_start_does_not_block1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9BCA930>
+operation = 'revoke'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    handle = old.handle
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated', 'headers': []})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:21: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BC9310>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+___ test_hung_start_does_not_block_other_lifecycles_or_http[session_write] ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_hung_start_does_not_block2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9B4A6F0>
+operation = 'session_write'
+
+    @pytest.mark.parametrize('operation', ['register', 'revoke', 'session_write'])
+    def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatch, operation):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(connection):
+                if connection.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                connection.handle = await svc.plugin_enabled(connection.plugin.id)
+                connection.ready = True
+                if connection.plugin.id == 'observer':
+                    b_started.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            initial = None
+            pending = None
+            try:
+                if operation == 'revoke':
+                    sessions['b'] = session('b', ['observer'])
+                    # Establish B before admitting the blocked A.
+                    saved = sessions.pop('a')
+                    await manager.reconcile()
+                    await within(b_started)
+                    sessions['a'] = saved
+                initial = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                if operation == 'register':
+                    sessions['b'] = session('b', ['observer'])
+                    pending = asyncio.create_task(manager.reconcile())
+                    await within(b_started)
+                elif operation == 'revoke':
+                    old = manager.connections['observer']
+                    handle = old.handle
+                    sessions.pop('b')
+                    pending = asyncio.create_task(manager.reconcile())
+                    await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert handle not in svc.bus.handles
+                    assert not await manager.eligible(old)
+                else:
+                    from packages.web import server
+                    monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
+                    completed = asyncio.Event()
+                    async def next_handler(request):
+                        completed.set()
+                        return Response('saved')
+                    request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated', 'headers': []})
+                    pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                    await within(completed)
+                    response = await asyncio.wait_for(asyncio.shield(pending), .5)
+                    assert response.status_code == 200
+                assert not release.is_set()
+            finally:
+                release.set()
+                await asyncio.gather(*(t for t in (initial, pending) if t), return_exceptions=True)
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:21: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9B63320>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+____________ test_hung_peer_close_does_not_block_other_peer_close _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_hung_peer_close_does_not_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9BF10A0>
+
+    def test_hung_peer_close_does_not_block_other_peer_close(tmp_path, monkeypatch):
+        async def run():
+            sessions = {'a': session('a', ['producer', 'observer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release, b_closed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+            async def start(c):
+                c.ready = True
+            original = adapter.EventConnection.close
+            async def close(c):
+                if c.plugin.id == 'producer':
+                    entered.set()
+                    await release.wait()
+                await original(c)
+                if c.plugin.id == 'observer':
+                    b_closed.set()
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            monkeypatch.setattr(adapter.EventConnection, 'close', close)
+            pending = None
+            try:
+                await manager.reconcile()
+                await until(lambda: len(manager.connections) == 2)
+                sessions.clear()
+                pending = asyncio.create_task(manager.reconcile())
+                await within(entered)
+                await within(b_closed)
+                assert not release.is_set()
+            finally:
+                release.set()
+                if pending:
+                    await pending
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:80: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BF1AC0>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+________________ test_close_fences_inflight_reconcile_snapshot ________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_fences_inflight_rec0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9BF35F0>
+
+    def test_close_fences_inflight_reconcile_snapshot(tmp_path, monkeypatch):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            starts = []
+            original = adapter.io
+            async def io(fn, *args):
+                if fn == manager.desired:
+                    snapshot = fn()
+                    entered.set()
+                    await release.wait()
+                    return snapshot
+                return await original(fn, *args)
+            async def start(c):
+                starts.append(c.generation)
+                c.ready = True
+            monkeypatch.setattr(adapter, 'io', io)
+            monkeypatch.setattr(adapter.EventConnection, 'start', start)
+            pending = asyncio.create_task(manager.reconcile())
+            await within(entered)
+            closing = asyncio.create_task(manager.close())
+            await until(lambda: manager.stopping)
+            release.set()
+            try:
+                await asyncio.gather(pending, closing)
+                assert starts == []
+                assert not manager.connections
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:115: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BF2840>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+___________ test_failed_reader_retires_real_process_without_watcher ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_failed_reader_retires_rea0')
+
+    def test_failed_reader_retires_real_process_without_watcher(tmp_path):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await until(lambda: manager.connections.get('producer') and manager.connections['producer'].ready)
+                c = manager.connections['producer']
+                publish(tmp_path, type='producer.ping', payload={'value': 'x' * 150000})
+                await asyncio.wait_for(asyncio.shield(c.reader), 1)
+                # No watcher was started. Reader failure must own teardown itself.
+                await asyncio.wait_for(c.process.wait(), .5)
+                assert not c.ready and c.handle not in svc.bus.handles
+                assert c.stderr.done()
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:163: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:149: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BF3620>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+____ test_close_intersects_real_start_without_ready_or_process_leak[spawn] ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_intersects_real_sta0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9BF5F40>
+stage = 'spawn'
+
+    @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
+    def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            owned = []
+            original_rpc = adapter.EventConnection.request
+            original_spawn = asyncio.create_subprocess_exec
+            original_ready = svc.plugin_ready
+            async def rpc(c, method, params):
+                if method == stage:
+                    entered.set()
+                    await release.wait()
+                return await original_rpc(c, method, params)
+            async def spawn(*args, **kwargs):
+                process = await original_spawn(*args, **kwargs)
+                owned.append((process.pid, psutil.Process(process.pid).create_time()))
+                if stage == 'spawn':
+                    entered.set()
+                    await release.wait()
+                return process
+            async def ready():
+                if stage == 'plugin_ready':
+                    entered.set()
+                    await release.wait()
+                await original_ready()
+            monkeypatch.setattr(adapter.EventConnection, 'request', rpc)
+            monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+            monkeypatch.setattr(svc, 'plugin_ready', ready)
+            closing = None
+            try:
+                await manager.reconcile()
+                await within(entered)
+                c = manager.connections['producer']
+                closing = asyncio.create_task(manager.close())
+                await until(lambda: manager.stopping)
+                assert not c.ready
+                release.set()
+                await asyncio.wait_for(asyncio.shield(closing), 2)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert not records(tmp_path, 'producer') or not any(r['kind'] == 'ready' for r in records(tmp_path, 'producer'))
+                assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+            finally:
+                release.set()
+                if closing:
+                    await closing
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:170: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BF5850>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_ test_close_intersects_real_start_without_ready_or_process_leak[provider.initialize] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_intersects_real_sta1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9BF2BD0>
+stage = 'provider.initialize'
+
+    @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
+    def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            owned = []
+            original_rpc = adapter.EventConnection.request
+            original_spawn = asyncio.create_subprocess_exec
+            original_ready = svc.plugin_ready
+            async def rpc(c, method, params):
+                if method == stage:
+                    entered.set()
+                    await release.wait()
+                return await original_rpc(c, method, params)
+            async def spawn(*args, **kwargs):
+                process = await original_spawn(*args, **kwargs)
+                owned.append((process.pid, psutil.Process(process.pid).create_time()))
+                if stage == 'spawn':
+                    entered.set()
+                    await release.wait()
+                return process
+            async def ready():
+                if stage == 'plugin_ready':
+                    entered.set()
+                    await release.wait()
+                await original_ready()
+            monkeypatch.setattr(adapter.EventConnection, 'request', rpc)
+            monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+            monkeypatch.setattr(svc, 'plugin_ready', ready)
+            closing = None
+            try:
+                await manager.reconcile()
+                await within(entered)
+                c = manager.connections['producer']
+                closing = asyncio.create_task(manager.close())
+                await until(lambda: manager.stopping)
+                assert not c.ready
+                release.set()
+                await asyncio.wait_for(asyncio.shield(closing), 2)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert not records(tmp_path, 'producer') or not any(r['kind'] == 'ready' for r in records(tmp_path, 'producer'))
+                assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+            finally:
+                release.set()
+                if closing:
+                    await closing
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:170: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9BF7DD0>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_ test_close_intersects_real_start_without_ready_or_process_leak[events.initialize] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_intersects_real_sta2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9C4DB20>
+stage = 'events.initialize'
+
+    @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
+    def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            owned = []
+            original_rpc = adapter.EventConnection.request
+            original_spawn = asyncio.create_subprocess_exec
+            original_ready = svc.plugin_ready
+            async def rpc(c, method, params):
+                if method == stage:
+                    entered.set()
+                    await release.wait()
+                return await original_rpc(c, method, params)
+            async def spawn(*args, **kwargs):
+                process = await original_spawn(*args, **kwargs)
+                owned.append((process.pid, psutil.Process(process.pid).create_time()))
+                if stage == 'spawn':
+                    entered.set()
+                    await release.wait()
+                return process
+            async def ready():
+                if stage == 'plugin_ready':
+                    entered.set()
+                    await release.wait()
+                await original_ready()
+            monkeypatch.setattr(adapter.EventConnection, 'request', rpc)
+            monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+            monkeypatch.setattr(svc, 'plugin_ready', ready)
+            closing = None
+            try:
+                await manager.reconcile()
+                await within(entered)
+                c = manager.connections['producer']
+                closing = asyncio.create_task(manager.close())
+                await until(lambda: manager.stopping)
+                assert not c.ready
+                release.set()
+                await asyncio.wait_for(asyncio.shield(closing), 2)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert not records(tmp_path, 'producer') or not any(r['kind'] == 'ready' for r in records(tmp_path, 'producer'))
+                assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+            finally:
+                release.set()
+                if closing:
+                    await closing
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:170: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9C4C230>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_ test_close_intersects_real_start_without_ready_or_process_leak[plugin_ready] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_intersects_real_sta3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9C4DD30>
+stage = 'plugin_ready'
+
+    @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
+    def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            owned = []
+            original_rpc = adapter.EventConnection.request
+            original_spawn = asyncio.create_subprocess_exec
+            original_ready = svc.plugin_ready
+            async def rpc(c, method, params):
+                if method == stage:
+                    entered.set()
+                    await release.wait()
+                return await original_rpc(c, method, params)
+            async def spawn(*args, **kwargs):
+                process = await original_spawn(*args, **kwargs)
+                owned.append((process.pid, psutil.Process(process.pid).create_time()))
+                if stage == 'spawn':
+                    entered.set()
+                    await release.wait()
+                return process
+            async def ready():
+                if stage == 'plugin_ready':
+                    entered.set()
+                    await release.wait()
+                await original_ready()
+            monkeypatch.setattr(adapter.EventConnection, 'request', rpc)
+            monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+            monkeypatch.setattr(svc, 'plugin_ready', ready)
+            closing = None
+            try:
+                await manager.reconcile()
+                await within(entered)
+                c = manager.connections['producer']
+                closing = asyncio.create_task(manager.close())
+                await until(lambda: manager.stopping)
+                assert not c.ready
+                release.set()
+                await asyncio.wait_for(asyncio.shield(closing), 2)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert not records(tmp_path, 'producer') or not any(r['kind'] == 'ready' for r in records(tmp_path, 'producer'))
+                assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+            finally:
+                release.set()
+                if closing:
+                    await closing
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:170: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9C4DB80>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_ test_close_intersects_real_start_without_ready_or_process_leak[events.ready] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_close_intersects_real_sta4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9C4C1D0>
+stage = 'events.ready'
+
+    @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
+    def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            owned = []
+            original_rpc = adapter.EventConnection.request
+            original_spawn = asyncio.create_subprocess_exec
+            original_ready = svc.plugin_ready
+            async def rpc(c, method, params):
+                if method == stage:
+                    entered.set()
+                    await release.wait()
+                return await original_rpc(c, method, params)
+            async def spawn(*args, **kwargs):
+                process = await original_spawn(*args, **kwargs)
+                owned.append((process.pid, psutil.Process(process.pid).create_time()))
+                if stage == 'spawn':
+                    entered.set()
+                    await release.wait()
+                return process
+            async def ready():
+                if stage == 'plugin_ready':
+                    entered.set()
+                    await release.wait()
+                await original_ready()
+            monkeypatch.setattr(adapter.EventConnection, 'request', rpc)
+            monkeypatch.setattr(asyncio, 'create_subprocess_exec', spawn)
+            monkeypatch.setattr(svc, 'plugin_ready', ready)
+            closing = None
+            try:
+                await manager.reconcile()
+                await within(entered)
+                c = manager.connections['producer']
+                closing = asyncio.create_task(manager.close())
+                await until(lambda: manager.stopping)
+                assert not c.ready
+                release.set()
+                await asyncio.wait_for(asyncio.shield(closing), 2)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert not records(tmp_path, 'producer') or not any(r['kind'] == 'ready' for r in records(tmp_path, 'producer'))
+                assert not [s for s in svc.bus.handles.values() if s['type'] == 'plugin']
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in owned)
+            finally:
+                release.set()
+                if closing:
+                    await closing
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:170: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9CA5130>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+___ test_real_hung_node_handshake_allows_other_registration_and_revocation ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_real_hung_node_handshake_0')
+
+    def test_real_hung_node_handshake_allows_other_registration_and_revocation(tmp_path):
+        async def run():
+            # Hold a real external provider's response, not its Python host task.
+            peer = tmp_path / 'held-peer.mjs'
+            peer.write_text(PROVIDER.read_text().replace('const params = message.params;',
+                "record({kind: 'request', method: message.method});\n"
+                "  if (fs.existsSync(path.join(root, 'hold-' + message.method))) return;\n"
+                "  const params = message.params;"))
+            root = tmp_path / 'plugins/producer'
+            root.mkdir(parents=True)
+            (root / 'hold-provider.initialize').touch()
+            m = manifest()
+            m.mcp_servers[0].args = [str(peer)]
+            m.plugins[1]['events']['definitions'] = [{'type': 'observer.alive', 'schemaVersion': 1,
+                'description': 'Test peer ready fact', 'schema': {'type': 'object'}}]
+            sessions = {'a': session('a', ['producer']), 'b': session('b', ['observer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, m)
+            try:
+                await manager.reconcile()
+                await until(lambda: any(r.get('method') == 'provider.initialize' for r in records(tmp_path, 'producer')))
+                await until(lambda: svc.bus.available('observer.alive'))
+                c = manager.connections['producer']
+                assert not c.ready
+                b = manager.connections['observer']
+                old = b.handle
+                sessions.pop('b')
+                await asyncio.wait_for(manager.reconcile(), .5)
+                assert old not in svc.bus.handles and not svc.bus.available('observer.alive')
+                assert not c.ready and c.process.returncode is None
+            finally:
+                await manager.close()
+                await svc.close()
+                assert not manager.connections and not manager.cleanups and not manager.runners
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:252: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:235: in run
+    svc, manager, _ = await setup(tmp_path, sessions, m)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9CA5A00>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_______ test_real_peer_self_cleanup_without_watch_cycle[reader_cancel] ________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_real_peer_self_cleanup_wi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9CA50A0>
+cause = 'reader_cancel'
+
+    @pytest.mark.parametrize('cause', ['reader_cancel', 'slow_consumer'])
+    def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await manager.settle()
+                c = manager.connections['observer']
+                handle = c.handle
+                identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]
+                if cause == 'reader_cancel':
+                    c.reader.cancel()
+                else:
+                    monkeypatch.setattr(adapter, 'TIMEOUT', .2)
+                    (tmp_path / 'plugins/observer/stall').touch()
+                    publish(tmp_path, type='producer.ping', payload={'value': 1})
+                # No EventRuntime watcher exists in this test. Cleanup must start
+                # on the actual terminal condition rather than a later reconcile.
+                await until(lambda: c.cleanup is not None)
+                await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+                assert c.closed and not c.ready and c.stderr.done() and c.reader.done()
+                assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:301: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:278: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9CA7920>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+_______ test_real_peer_self_cleanup_without_watch_cycle[slow_consumer] ________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_real_peer_self_cleanup_wi1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9C46810>
+cause = 'slow_consumer'
+
+    @pytest.mark.parametrize('cause', ['reader_cancel', 'slow_consumer'])
+    def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await manager.settle()
+                c = manager.connections['observer']
+                handle = c.handle
+                identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]
+                if cause == 'reader_cancel':
+                    c.reader.cancel()
+                else:
+                    monkeypatch.setattr(adapter, 'TIMEOUT', .2)
+                    (tmp_path / 'plugins/observer/stall').touch()
+                    publish(tmp_path, type='producer.ping', payload={'value': 1})
+                # No EventRuntime watcher exists in this test. Cleanup must start
+                # on the actual terminal condition rather than a later reconcile.
+                await until(lambda: c.cleanup is not None)
+                await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+                assert c.closed and not c.ready and c.stderr.done() and c.reader.done()
+                assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:301: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:278: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9C47230>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+________ test_new_snapshot_cannot_be_overwritten_by_slow_old_snapshot _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_new_snapshot_cannot_be_ov0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020AF9C47050>
+
+    def test_new_snapshot_cannot_be_overwritten_by_slow_old_snapshot(tmp_path, monkeypatch):
+        async def run():
+            sessions = {'a': session('a', ['producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            entered, release = asyncio.Event(), asyncio.Event()
+            original = adapter.io
+            first = True
+            async def io(fn, *args):
+                nonlocal first
+                if fn == manager.desired and first:
+                    first = False
+                    snapshot = fn()
+                    entered.set()
+                    await release.wait()
+                    return snapshot
+                return await original(fn, *args)
+            monkeypatch.setattr(adapter, 'io', io)
+            pending = asyncio.create_task(manager.reconcile())
+            try:
+                await within(entered)
+                sessions.clear()
+                await manager.reconcile()
+                release.set()
+                await pending
+                await manager.settle()
+                assert not manager.targets and not manager.connections and not manager.runners
+            finally:
+                release.set()
+                await pending
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:307: in run
+    svc, manager, _ = await setup(tmp_path, sessions, manifest())
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9C477D0>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+______________ test_real_startup_eof_does_not_hot_loop_respawns _______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3822/test_real_startup_eof_does_not0')
+
+    def test_real_startup_eof_does_not_hot_loop_respawns(tmp_path):
+        async def run():
+            peer = tmp_path / 'exit-peer.mjs'
+            peer.write_text('process.exit(0);')
+            m = manifest()
+            m.mcp_servers[0].args = [str(peer)]
+            svc, manager, _ = await setup(tmp_path, {'a': session('a', ['producer'])}, m)
+            settling = None
+            try:
+                await manager.reconcile()
+                settling = asyncio.create_task(manager.settle())
+                await asyncio.wait_for(asyncio.shield(settling), 1)
+                assert not manager.connections and not manager.runners and not manager.cleanups
+                assert any('stdout closed' in d['error'] for d in svc.bus.diagnostics)
+            finally:
+                await manager.close()
+                if settling:
+                    await settling
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_event_lifecycle.py:344: in run
+    svc, manager, _ = await setup(tmp_path, {'a': session('a', ['producer'])}, m)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:74: in setup
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x0000020AF9C45E80>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_notify.py::test_notice_to_self_enqueued - AssertionEr...
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[register]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[revoke]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_start_does_not_block_other_lifecycles_or_http[session_write]
+FAILED tests/test_plugin_event_lifecycle.py::test_hung_peer_close_does_not_block_other_peer_close
+FAILED tests/test_plugin_event_lifecycle.py::test_close_fences_inflight_reconcile_snapshot
+FAILED tests/test_plugin_event_lifecycle.py::test_failed_reader_retires_real_process_without_watcher
+FAILED tests/test_plugin_event_lifecycle.py::test_close_intersects_real_start_without_ready_or_process_leak[spawn]
+FAILED tests/test_plugin_event_lifecycle.py::test_close_intersects_real_start_without_ready_or_process_leak[provider.initialize]
+FAILED tests/test_plugin_event_lifecycle.py::test_close_intersects_real_start_without_ready_or_process_leak[events.initialize]
+FAILED tests/test_plugin_event_lifecycle.py::test_close_intersects_real_start_without_ready_or_process_leak[plugin_ready]
+FAILED tests/test_plugin_event_lifecycle.py::test_close_intersects_real_start_without_ready_or_process_leak[events.ready]
+FAILED tests/test_plugin_event_lifecycle.py::test_real_hung_node_handshake_allows_other_registration_and_revocation
+FAILED tests/test_plugin_event_lifecycle.py::test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]
+FAILED tests/test_plugin_event_lifecycle.py::test_real_peer_self_cleanup_without_watch_cycle[slow_consumer]
+FAILED tests/test_plugin_event_lifecycle.py::test_new_snapshot_cannot_be_overwritten_by_slow_old_snapshot
+FAILED tests/test_plugin_event_lifecycle.py::test_real_startup_eof_does_not_hot_loop_respawns
+17 failed, 63 passed, 1 warning in 13.05s

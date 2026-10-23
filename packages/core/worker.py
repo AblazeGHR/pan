@@ -41,6 +41,8 @@ from . import codex_quota_store as _codex_quota_store
 from . import legal_offline as _offline
 from . import queue_locks as _message_locks
 from . import session_error_log as _error_log
+from .runtime_issues import map_runtime_issue
+from .system_fields import SystemFieldError
 
 READONLY_SESSION_ERROR = (
     "该 session 当前为只读，必须先取消对该 session 的 readonly 设置后才能发送信息、任务或回报"
@@ -204,6 +206,15 @@ class Worker:
 
     字段说明：
     """
+    def __setattr__(self, name, value):
+        previous = self.__dict__.get(name)
+        object.__setattr__(self, name, value)
+        if name == 'status' and previous != value:
+            observer = globals().get('_running_observer')
+            registry = globals().get('workers', {})
+            if observer is not None and registry.get(self.__dict__.get('worker_id')) is self:
+                _observe_running()
+
     worker_id: str
     session_id: str           # Session UUID (ses_<hex>)
     adapter: CliAdapter       # CLI tool adapter instance
@@ -263,6 +274,7 @@ class Worker:
     # persisted Worker identity. It is used only to route live updates to the
     # matching global quota store.
     codex_profile_key: str | None = None
+    _provider_launch_binding: dict | None = None  # only after durable trusted launch receipt
     # Current turn's native plan/diff snapshots for dashboard reconnect replay.
     native_plan: dict | None = None
     native_diff: dict | None = None
@@ -338,6 +350,23 @@ class Worker:
     _direct_steer_pending: bool = False
 
 
+_running_observer = None
+
+
+def set_running_observer(callback):
+    """One synchronous, nonblocking observer; status remains the sole authority."""
+    global _running_observer
+    _running_observer = callback
+
+
+def _observe_running():
+    if _running_observer is not None:
+        try:
+            _running_observer()
+        except Exception:
+            _log.exception('Worker running observer failed')
+
+
 workers: dict[str, Worker] = {}
 _delayed_restarts: dict[str, dict] = {}
 _delayed_restart_revision = 0
@@ -350,9 +379,11 @@ _worker_generations: dict[str, int] = {}
 
 def _register_worker(w: Worker) -> None:
     _workers_by_session[w.session_id] = w
+    _observe_running()
 
 
 def _unregister_worker(w: Worker) -> None:
+    _observe_running()
     _close_raw_capture(w)
     if _workers_by_session.get(w.session_id) is w:
         _workers_by_session.pop(w.session_id, None)
@@ -367,6 +398,7 @@ def _next_worker_generation(session_id: str) -> int:
 def _bump_worker_generation(w: Worker) -> None:
     _cancel_pending_restart(w)
     w.generation += 1
+    w._provider_launch_binding = None
     w.offline_token = uuid.uuid4().hex
     _worker_generations[w.session_id] = max(
         _worker_generations.get(w.session_id, -1), w.generation,
@@ -721,13 +753,32 @@ async def _claim_offline_owner(w: Worker) -> None:
     if s is None:
         return  # Cleanup of a deleted Session must not recreate its metadata.
     identity = _offline.owner(w)
+    pending = getattr(w.process, '_provider_launch', None)
+    launch = None
+    if pending and pending.receipt and pending.receipt['runtimeEpoch'] == _offline.SERVICE_ID:
+        launch = {**pending.receipt,
+                  'sessionId': w.session_id, 'workerId': w.worker_id, 'generation': w.generation}
     async with queue_lock(w.session_id):
         def claim(candidate):
             if (workers.get(w.worker_id) is not w or w.offline_token != identity["token"]
                     or w.generation != identity["generation"]):
                 raise RuntimeError("Runtime changed before owner registration")
             candidate.offline_owner = dict(identity)
+            if launch:
+                candidate.operation_revision += 1
+                candidate.execution_operations[launch['launchId']] = {
+                    **identity, 'id': launch['launchId'], 'kind': 'provider-launch',
+                    'executionSeq': 0,  # process proof is not a resumed task execution
+                    'state': 'completed', 'safeTerminal': True, 'providerLaunchBinding': launch,
+                    'admittedRevision': candidate.operation_revision, 'startedAt': launch['verifiedAt']}
         await _commit_offline(s, claim)
+        if (launch and workers.get(w.worker_id) is w and w.process is not None
+                and getattr(w.process, '_provider_launch', None) is pending
+                and launch['runtimeEpoch'] == _offline.SERVICE_ID
+                and w.generation == identity['generation'] and w.offline_token == identity['token']):
+            # Publication is in-owner and follows the ordered durable commit.
+            pending.owner = w
+            w._provider_launch_binding = launch
 
 
 async def _activate_offline_worker(w: Worker, *, ready_proof: bool = False,
@@ -1634,6 +1685,24 @@ def _error_log_identity(w: Worker, s) -> dict:
     }
 
 
+def _runtime_issue_sample(w: Worker, s, raw: dict) -> dict | None:
+    """Map diagnostics without letting identity rejection erase the error.
+
+    A conflicting alias set is a fail-closed identity decision, not an error
+    logging failure. Returning None keeps the original JSONL/report/status path
+    intact and prevents an Event from acquiring an ambiguous target.
+    """
+    try:
+        return map_runtime_issue(
+            raw,
+            adapter=getattr(getattr(w, "adapter", None), "name", None),
+            metadata={**_error_log_identity(w, s), 'runtimeEpoch': _offline.SERVICE_ID},
+            delivery={"observed": True, "classified": True,
+                      "persisted": False, "delivered": False, "deduped": False})
+    except SystemFieldError:
+        return None
+
+
 async def _record_terminal_error_sample(
     w: Worker, s, status: str, result_text: str | None,
     error_context: dict | None,
@@ -1661,6 +1730,7 @@ async def _record_terminal_error_sample(
         text, source = result_text, "pan.terminal_result"
     else:
         text, source = result_text, "pan.runtime"
+    runtime_issue = _runtime_issue_sample(w, s, raw if isinstance(raw, dict) else {"message": text})
     may_be_assistant = bool(
         status == "error" and result_text
         and w._current_task_last_assistant_text == result_text
@@ -1696,6 +1766,7 @@ async def _record_terminal_error_sample(
         previous_message=previous,
         previous_captured=True,
         raw_diagnostics_source=_raw_capture_source(w),
+        runtime_issue=runtime_issue,
         **_error_log_identity(w, s),
     )
 
@@ -1721,6 +1792,7 @@ async def _record_transient_error_sample(
         if isinstance(extracted, str):
             text = extracted
             source = extracted_source or "cli.error"
+    runtime_issue = _runtime_issue_sample(w, s, event)
     if not text and event.get("item_status"):
         source = "cli.item_status"
     try:
@@ -1762,6 +1834,7 @@ async def _record_transient_error_sample(
         previous_message=previous,
         previous_captured=True,
         dedupe_token=dedupe_token,
+        runtime_issue=runtime_issue,
         **_error_log_identity(w, s),
     )
 
@@ -4431,12 +4504,12 @@ _DELIVERY_QUEUED = "queued"
 _DELIVERY_RESERVED = "reserved"
 _DELIVERY_WRITING = "writing"
 _DELIVERY_SENT = "sent_to_cli"
-# Old states are accepted as migration inputs.  They are deliberately mapped
-# back to queued because the new contract prefers recovery/retry and explicitly
-# accepts the small duplicate window around an uncertain provider hand-off.
+# Old unfinished reservations retain their compatibility retry behavior.
+# Explicit unknown/uncertain outcomes are different: they never authorize replay.
 _DELIVERY_IN_FLIGHT = "in_flight"
 _DELIVERY_WRITE_FAILED = "write_failed"
 _DELIVERY_UNKNOWN = "unknown_after_crash"
+_DELIVERY_UNCERTAIN_STATES = {_DELIVERY_UNKNOWN, "unknown", "uncertain"}
 _DELIVERY_DELETED = "deleted"
 _DELIVERY_STATES = {
     _DELIVERY_QUEUED,
@@ -4447,6 +4520,7 @@ _DELIVERY_STATES = {
     _DELIVERY_WRITE_FAILED,
     _DELIVERY_UNKNOWN,
     _DELIVERY_DELETED,
+    *_DELIVERY_UNCERTAIN_STATES,
 }
 
 _QUEUE_RETRY_BASE_SEC = 1.0
@@ -5185,7 +5259,7 @@ def _has_dispatchable_items(s) -> bool:
         isinstance(item, dict)
         and _delivery_state(item) in {
             _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-            _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+            _DELIVERY_WRITE_FAILED,
         }
         for item in (s.queue_pending or [])
     )
@@ -5326,7 +5400,8 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
     new contract explicitly accepts that duplicate window, so these rows are
     restored to ``queued`` instead of being silently discarded.  A durable
     ``sent_to_cli`` row is the opposite: it records a completed hand-off and
-    can safely be removed during migration.
+    can safely be removed during migration. Explicit unknown/uncertain receipts
+    remain visible and non-dispatchable, including ledger-only recovery.
     """
     changed = _migrate_legacy_task_items(s)
     keep: list = []
@@ -5380,6 +5455,30 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True
             continue
+        if state == _DELIVERY_SENT:
+            _remember_queue_item(s, item, _DELIVERY_SENT)
+            changed = True
+            continue
+        uncertain_state = (state if state in _DELIVERY_UNCERTAIN_STATES else
+                           ledger_state if ledger_state in _DELIVERY_UNCERTAIN_STATES else None)
+        if uncertain_state is not None:
+            # Either durable copy can prove the outcome is unresolved. A stale
+            # queued row must never overwrite that evidence. Preserve extension
+            # fields in each copy and make reconciliation repeatable.
+            if item.get("deliveryState") != uncertain_state:
+                item["deliveryState"] = uncertain_state
+                changed = True
+            if item.get("dispatchState") not in {None, uncertain_state}:
+                item["dispatchState"] = uncertain_state
+                changed = True
+            record = dict(ledger_record or {})
+            record.update(item)
+            if record != ledger_record:
+                s.queue_delivery_ledger[_queue_item_id(item)] = record
+                changed = True
+            _index_queue_item(s, record, state=uncertain_state)
+            keep.append(item)
+            continue
         # The pending row is the retryable source of truth, but a stale ledger
         # reservation must not remain visible after recovery.  Treat the
         # provider boundary as uncertain and normalize both copies to queued;
@@ -5387,16 +5486,12 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
         # window when the hand-off outcome cannot be known.
         if (state == _DELIVERY_QUEUED and ledger_state in {
                 _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-                _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+                _DELIVERY_WRITE_FAILED,
         }):
             item["lastDeliveryState"] = ledger_state
             _queue_item_backoff(item, "reconciled stale queue delivery ledger")
             _remember_queue_item(s, item, _DELIVERY_QUEUED)
             keep.append(item)
-            changed = True
-            continue
-        if state == _DELIVERY_SENT:
-            _remember_queue_item(s, item, _DELIVERY_SENT)
             changed = True
             continue
         # Queue snapshots also run this migration. A reservation still owned
@@ -5413,7 +5508,7 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
             continue
         if state in {
             _DELIVERY_RESERVED, _DELIVERY_WRITING, _DELIVERY_IN_FLIGHT,
-            _DELIVERY_WRITE_FAILED, _DELIVERY_UNKNOWN,
+            _DELIVERY_WRITE_FAILED,
         }:
             item["lastDeliveryState"] = state
             _queue_item_backoff(item, "recovered unfinished CLI hand-off")
@@ -5460,6 +5555,16 @@ def _migrate_queue_delivery_state(s, *, restore_ledger: bool = False) -> bool:
         restored["queueItemId"] = record_id
         restored.setdefault("id", record_id)
         restored.setdefault("createdAt", time.time())
+        if state in _DELIVERY_UNCERTAIN_STATES:
+            # Restore visibility, not execution authority. Keep the original
+            # receipt and its fields intact; normal claims reject this state.
+            if restored.get("dispatchState") not in {None, state}:
+                restored["dispatchState"] = state
+            keep.append(restored)
+            pending_ids.add(record_id)
+            _remember_queue_item(s, restored, state)
+            changed = True
+            continue
         if state != _DELIVERY_QUEUED:
             restored["lastDeliveryState"] = state
             _queue_item_backoff(restored, "recovered unfinished CLI hand-off")
@@ -8490,6 +8595,11 @@ async def _kill_process_tree(w: Worker) -> None:
             except (ProcessLookupError, Exception):
                 pass
         await wait_for_exit(process, "CLI process")
+        launch_cleanup = getattr(process, '_provider_launch_cleanup', None)
+        if launch_cleanup is not None:
+            # The launch Job/handles/private snapshot belong to this lifecycle;
+            # kill/restart must retire them before reporting terminal cleanup.
+            await asyncio.shield(launch_cleanup)
 
     # One-shot mode: w._mcp_proc is the in-flight short-lived provider process
     # (may be None).
@@ -8994,14 +9104,49 @@ async def _spawn_process(session_id: str,
         args = await io(adapter.build_spawn_args, s, extra_args)
         _log_mcp_launch(worker_id=s.worker_id if hasattr(s, "worker_id") else session_id,
                         session=s, args=args)
-        return await asyncio.create_subprocess_exec(
+        from packages.core.adapters.codex import provider_launch
+        pending = None
+        if adapter.name == 'codex':
+            preparation = asyncio.create_task(io(provider_launch.prepare, adapter, s, _sess.SESSION_DIR.parent))
+            try:
+                pending = await asyncio.shield(preparation)
+            except asyncio.CancelledError:
+                # Retire the off-loop write before deleting its owned directory.
+                result = await preparation
+                if result:await io(result.close)
+                raise
+            except Exception:
+                return 'Fixed provider launch configuration unavailable'
+        proc = None
+        try:
+            proc = await asyncio.create_subprocess_exec(
             *args,
             stdout=asyncio.subprocess.PIPE,
             stdin=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
+              **({'env': await io(pending.environment)} if pending else {}),
             **command_window_options(),
-        )
+            )
+            if pending:
+                proc._provider_launch = pending
+                await pending.accept(proc)
+                async def cleanup_launch():
+                    await proc.wait()
+                    await io(pending.close)
+                proc._provider_launch_cleanup = asyncio.create_task(cleanup_launch())
+            return proc
+        except BaseException as exc:
+            if proc:
+                if proc.stdin:proc.stdin.close()
+                if proc.returncode is None:
+                    try:proc.kill()
+                    except ProcessLookupError:pass
+                await proc.wait()
+            if pending:await io(pending.close)
+            if isinstance(exc,asyncio.CancelledError):raise
+            if pending:return 'Fixed provider launch was not confirmed'
+            raise
     except FileNotFoundError as e:
         return format_cli_spawn_error(adapter.name, e)
     except ValueError as e:
@@ -9386,7 +9531,13 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     workers[new_id] = new_w
     _register_worker(new_w)
     new_w._offline_predecessors = set(s.illegal_batches)
-    await _claim_offline_owner(new_w)
+    try:
+        await _claim_offline_owner(new_w)
+    except BaseException:
+        await _kill_process_tree(new_w)
+        workers.pop(new_id,None)
+        _unregister_worker(new_w)
+        raise
     new_w.last_activity = time.monotonic()
     new_w._stdout_task = asyncio.create_task(_read_stdout(new_w))
     new_w._consume_task = asyncio.create_task(_consumer(new_w))
@@ -10879,7 +11030,8 @@ async def enqueue_user_message(session_id: str, text: str,
         if existing is not None:
             state = _delivery_state(existing)
             return {
-                "status": "sent" if state == _DELIVERY_SENT else "queued",
+                "status": (state if state in _DELIVERY_UNCERTAIN_STATES else
+                           "sent" if state == _DELIVERY_SENT else "queued"),
                 "sessionId": session_id,
                 "workerId": None,
                 "queueItemId": _queue_item_id(existing),

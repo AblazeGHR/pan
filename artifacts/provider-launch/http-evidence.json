@@ -1,0 +1,69 @@
+{
+  "port": 62473,
+  "realProviderCalls": 0,
+  "serverPid": 37280,
+  "bindings": [
+    {
+      "version": 1,
+      "identityDomain": "cc-switch-provider:codex",
+      "providerId": "provider-a",
+      "runtimeEpoch": "f9954c166b5241d9b52d5e3d31312336",
+      "launchId": "df21efba0a650f0ee0b7469623bbe1b7",
+      "exportReceiptId": "owned-export-provider-a",
+      "configDigest": "9bf7266214548e744b995d8269836ef94eb9107cf4c8928e8f2e5885d819c08f",
+      "projectionDigest": "de0db7907dd021ea42384ac661e051e0e5f80353ec430ad71e5c5ec9c45c0f23",
+      "processIdentity": {
+        "pid": 34388,
+        "birthToken": "134371516131119816"
+      },
+      "wrapperProcessIdentity": {
+        "pid": 30868,
+        "birthToken": "134371516131371982"
+      },
+      "nativeProcessIdentity": {
+        "pid": 37636,
+        "birthToken": "134371516133829216"
+      },
+      "nativeThreadId": "owned-thread",
+      "verifiedAt": 1792678013.588711,
+      "sessionId": "ses_9bb2a8195f5e986d",
+      "workerId": "worker-1",
+      "generation": 0
+    },
+    {
+      "version": 1,
+      "identityDomain": "cc-switch-provider:codex",
+      "providerId": "provider-b",
+      "runtimeEpoch": "f9954c166b5241d9b52d5e3d31312336",
+      "launchId": "004b60d0006089da9dfa40fb73a8f3ae",
+      "exportReceiptId": "owned-export-provider-b",
+      "configDigest": "5141431df996eb6e898d9972faec4358135cee4853ce8c735d2944c45ccac9a7",
+      "projectionDigest": "a5479f0dd2815de3406b899b261a99d716ab8383c9eb32cdfa4fada38eb4f45c",
+      "processIdentity": {
+        "pid": 5076,
+        "birthToken": "134371516136676064"
+      },
+      "wrapperProcessIdentity": {
+        "pid": 36776,
+        "birthToken": "134371516136857293"
+      },
+      "nativeProcessIdentity": {
+        "pid": 17224,
+        "birthToken": "134371516139288554"
+      },
+      "nativeThreadId": "owned-thread",
+      "verifiedAt": 1792678014.135906,
+      "sessionId": "ses_9bb2a8195f5e986d",
+      "workerId": "worker-1",
+      "generation": 1
+    }
+  ],
+  "providerHits": [
+    "/provider-a",
+    "/provider-b"
+  ],
+  "privateConfigsRemaining": [],
+  "portReleased": true,
+  "providerPortReleased": true,
+  "ownedServerStopped": true
+}

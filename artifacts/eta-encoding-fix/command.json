@@ -1,0 +1,14 @@
+[
+  "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "scripts/run_tests_isolated.py",
+  "--",
+  "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "-m",
+  "pytest",
+  "tests/test_eta_final_combined.py",
+  "tests/test_eta_ledger_growth.py",
+  "-o",
+  "addopts=",
+  "-q",
+  "--junitxml=artifacts/eta-encoding-fix/final.xml"
+]

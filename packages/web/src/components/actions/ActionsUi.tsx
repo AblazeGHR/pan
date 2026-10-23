@@ -127,7 +127,7 @@ export function Switch({
 }
 
 export const inputClass =
-  'w-full rounded-md border border-border-default bg-bg-primary px-2.5 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary transition-colors hover:border-text-tertiary/50 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
+  'w-full min-w-0 rounded-md border border-border-default bg-bg-primary px-2.5 py-1.5 text-sm text-text-primary placeholder:text-text-tertiary transition-colors hover:border-text-tertiary/50 focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
 
 export function Field({
   label,
@@ -191,7 +191,7 @@ export function Section({
             <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
             {description && <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">{description}</p>}
           </div>
-          {actions && <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="ml-auto flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
       <div className={cx('p-4', bodyClassName)}>{children}</div>
@@ -216,7 +216,7 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={label}
-      className="inline-flex min-w-0 rounded-md border border-border-default bg-bg-primary p-0.5"
+      className="inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"
     >
       {options.map((option) => {
         const active = option.value === value;

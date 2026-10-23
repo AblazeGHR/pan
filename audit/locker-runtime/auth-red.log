@@ -1,0 +1,105 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\locker-runtime-wiring-20261023
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____________________ test_real_auth_and_directed_engine ______________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3879/test_real_auth_and_directed_en0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000155F8ED2F60>
+
+    def test_real_auth_and_directed_engine(tmp_path, monkeypatch):
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            owner=session.create('source',workdir=str(tmp_path))
+            target=session.create('target',workdir=str(tmp_path))
+            paused=[]
+            async def pause(sid, arguments):
+                paused.append(sid)
+                return {'ok':True}
+            svc=Service(tmp_path/'automation',worker,pause)
+            await svc.start()
+            app=FastAPI();app.state.automation=svc;register(app)
+            app.state.interaction_trigger_adapter=bind(svc)
+            svc.engine.actions.put('actions',action([target.id]))
+            for tid in ('selected','not-selected'):
+                svc.ledger.put({**trigger(tid),'eventTypes':['pan.interaction.responded']},0,True)
+            auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+            card=get_store().create({'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
+                'card':{'title':'choose','body':'private body','summaryBody':'S'*250,
+                        'choices':[{'id':'go','label':'Go','triggerRef':{'id':'selected','revision':1}}]}})
+            other=get_store().create({'ownerSessionId':owner.id,'recipientId':'someone-else','requestKey':'other',
+                'card':{'title':'other','body':'other secret'}})
+            try:
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                    assert (await client.get('/api/user-lockers')).status_code==401
+                    assert (await client.get('/api/user-lockers',headers={'Authorization':'Bearer wrong'})).status_code==401
+                    assert (await client.get('/api/user-lockers',headers=auth)).status_code==200
+                    assert (await client.get('/api/user-inbox/'+other['id'],headers=auth)).status_code==404
+                    assert (await client.put('/api/user-inbox/'+other['id']+'/read',headers=auth,json={'read':True})).status_code==404
+                    request={'requestId':'once','expectedRevision':0,'choiceId':'go'}
+                    result=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,json=request)
+                    assert result.status_code==200,result.text
+                    assert result.json()['card']['delivery']['state']=='accepted'
+                    again=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,json=request)
+                    assert again.json()['card']['delivery']['state']=='accepted'
+                    async def done():
+                        runs=(await svc.engine.io(svc.ledger.read))['runs']
+                        return len(runs)==1 and next(iter(runs.values()))['status']=='succeeded'
+                    await until(done)
+                    assert paused==[target.id]
+                    assert {r['triggerId'] for r in svc.ledger.read()['runs'].values()}=={'selected'}
+                    assert len(svc.events.page()['events'])==1
+                    # Response notice has separate Queue identity; neither full
+                    # answer nor body is sent. Delete must not add a notice.
+                    queue=session.get(owner.id,load_history=False).queue_pending
+                    assert len(queue)==1
+                    assert len(queue[0]['envelope']['summaryBody'])==200
+                    assert 'private body' not in json.dumps(queue)
+                    await client.delete('/api/user-inbox/'+card['id'],headers=auth)
+                    assert len(session.get(owner.id,load_history=False).queue_pending)==1
+            finally:
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_interaction_runtime.py:69:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        owner=session.create('source',workdir=str(tmp_path))
+        target=session.create('target',workdir=str(tmp_path))
+        paused=[]
+        async def pause(sid, arguments):
+            paused.append(sid)
+            return {'ok':True}
+        svc=Service(tmp_path/'automation',worker,pause)
+        await svc.start()
+        app=FastAPI();app.state.automation=svc;register(app)
+        app.state.interaction_trigger_adapter=bind(svc)
+        svc.engine.actions.put('actions',action([target.id]))
+        for tid in ('selected','not-selected'):
+            svc.ledger.put({**trigger(tid),'eventTypes':['pan.interaction.responded']},0,True)
+        auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+        card=get_store().create({'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
+            'card':{'title':'choose','body':'private body','summaryBody':'S'*250,
+                    'choices':[{'id':'go','label':'Go','triggerRef':{'id':'selected','revision':1}}]}})
+        other=get_store().create({'ownerSessionId':owner.id,'recipientId':'someone-else','requestKey':'other',
+            'card':{'title':'other','body':'other secret'}})
+        try:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+>               assert (await client.get('/api/user-lockers')).status_code==401
+E               assert 503 == 401
+E                +  where 503 = <Response [503 Service Unavailable]>.status_code
+
+tests\test_interaction_runtime.py:41: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_interaction_runtime.py::test_real_auth_and_directed_engine
+1 failed in 0.62s

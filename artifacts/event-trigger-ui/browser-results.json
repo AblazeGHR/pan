@@ -1,0 +1,66 @@
+{
+  "head": "89133274c6d4e4c65748d4d28418912d04bbbeac",
+  "identity": {
+    "pid": 5644,
+    "port": 52516,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-1792610040556",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-1792610040556\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-1792610040556",
+  "results": [
+    {
+      "name": "production UI creates an explicit Session Operation Action",
+      "ok": true
+    },
+    {
+      "name": "disabled draft persists without login; boolean State editor",
+      "ok": true
+    },
+    {
+      "name": "disabled configuration causes no Pause effect on a real fake-CLI worker edge",
+      "ok": true
+    },
+    {
+      "name": "memory login and explicit enable review; real authenticated HTTP",
+      "ok": true
+    },
+    {
+      "name": "real Worker positive-to-zero → Run → Pause Everything persists targets and queue pause",
+      "ok": true
+    },
+    {
+      "name": "queued cancellation and recovered uncertain are visible without replay controls",
+      "ok": true
+    },
+    {
+      "name": "failure records keep literal/Event arguments and individual target outcomes",
+      "ok": true
+    },
+    {
+      "name": "revision conflict preserves edited draft against the real API",
+      "ok": true
+    },
+    {
+      "name": "desktop, 390px and 320px editor geometry has no horizontal overflow",
+      "ok": true
+    },
+    {
+      "name": "Session Operation remains safe to view in existing Actions; refresh drops login",
+      "ok": true
+    },
+    {
+      "name": "production template also creates Event-field targets; disabled Trigger deletion retains history",
+      "ok": true
+    },
+    {
+      "name": "a real revoked Bearer returns 401, clears login and preserves the draft",
+      "ok": true
+    }
+  ],
+  "serverExitCode": 1,
+  "portReleased": true,
+  "checkoutDataUnchanged": true,
+  "ok": true
+}

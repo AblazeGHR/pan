@@ -1,0 +1,14 @@
+[
+  {
+    "file": "red.log",
+    "rawSha256": "6c7059edd82fb81a581d83a4536f4cc9a2699b96cbae9e07a3ef10d348004b31",
+    "committedSha256": "965aee7e72d1ea995d3680583b2cf99be17fd13afb47d9a2ce11ee0dc91b70a2",
+    "normalization": "trailing whitespace and line endings only; original retained in owner-only raw-evidence"
+  },
+  {
+    "file": "red-junit.xml",
+    "rawSha256": "0ce3c5a51aed381e07582a57100801c2015b45c26f25fac36cf2ce29dce69374",
+    "committedSha256": "ee68ef852db91d65e2eb5fa79f7005bb0ecfb7ff3ed91ed9f15b28f38964514f",
+    "normalization": "trailing whitespace and line endings only; original retained in owner-only raw-evidence"
+  }
+]

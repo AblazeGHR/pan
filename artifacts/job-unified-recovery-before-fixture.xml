@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="79" time="8.371" timestamp="2026-10-23T01:15:00.657715+08:00" hostname="ablaze"><testcase classname="tests.test_job_completion_recovery" name="test_completion_and_unknown_are_independent[result0-completed]" time="0.107" /><testcase classname="tests.test_job_completion_recovery" name="test_completion_and_unknown_are_independent[result1-restarting]" time="0.067" /><testcase classname="tests.test_job_completion_recovery" name="test_completion_and_unknown_are_independent[result2-restarting]" time="0.073" /><testcase classname="tests.test_job_completion_recovery" name="test_completion_and_unknown_are_independent[result3-uncertain]" time="0.078" /><testcase classname="tests.test_job_completion_recovery" name="test_completion_and_unknown_are_independent[result4-uncertain]" time="0.100" /><testcase classname="tests.test_job_completion_recovery" name="test_recovery_exhausts_same_run_distinct_attempts" time="0.214" /><testcase classname="tests.test_job_completion_recovery" name="test_system_delivery_confirmation_does_not_resend_receipts" time="0.003" /><testcase classname="tests.test_job_completion_recovery" name="test_unavailable_event_retains_persistent_queue" time="0.064" /><testcase classname="tests.test_job_completion_recovery" name="test_notification_gate_retains_outbox_and_never_reexecutes" time="0.087" /><testcase classname="tests.test_job_completion_recovery" name="test_event_query_is_frozen_across_monitor_attempts" time="0.138" /><testcase classname="tests.test_job_overlap" name="test_parallel_claim_bound_independent_jobs_and_terminal_cleanup" time="0.166" /><testcase classname="tests.test_job_overlap" name="test_queue_is_persistent_bounded_and_disable_cancels_waiting" time="0.103" /><testcase classname="tests.test_job_overlap" name="test_reduce_parallel_limit_rechecks_claim_after_reference_validation" time="0.038" /><testcase classname="tests.test_job_mcp_config" name="test_drafts_preserve_complete_config_and_require_explicit_disabled" time="0.002" /><testcase classname="tests.test_job_mcp_config" name="test_template_revision_and_query_forward_without_overrides" time="0.002" /><testcase classname="tests.test_event_store" name="test_store_duplicate_conflict_retention_capacity_and_paging" time="0.093" /><testcase classname="tests.test_event_store" name="test_commit_precedes_fanout_schema_and_write_failure" time="0.145" /><testcase classname="tests.test_event_store" name="test_crash_after_commit_before_delivery_and_frozen_trigger_set" time="0.103"><failure message="AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3812/test_crash_after_commit_before0')
+
+    @async_test
+    async def test_crash_after_commit_before_delivery_and_frozen_trigger_set(tmp_path):
+        svc,calls=await setup(tmp_path)
+        svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
+        await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'accepted')
+        svc.ledger.put(trigger('new-after-accept'),0,True)
+        assert not calls
+        await svc.close()
+&gt;       recovered,calls=await setup_existing(tmp_path)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_event_store.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_store.py:139: in setup_existing
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.automation.service.Service object at 0x000001298D843260&gt;
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+&gt;       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError</failure></testcase><testcase classname="tests.test_event_store" name="test_partial_run_write_recovery_dedup_and_no_automatic_run_retry" time="0.364" /><testcase classname="tests.test_event_store" name="test_uncertain_preserves_attempt_and_refuses_user_replay" time="0.131"><failure message="AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3812/test_uncertain_preserves_attem0')
+
+    @async_test
+    async def test_uncertain_preserves_attempt_and_refuses_user_replay(tmp_path):
+        entered=asyncio.Event()
+        async def effect(*args):
+            entered.set();await asyncio.Event().wait()
+        svc,_=await setup(tmp_path,effect)
+        await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'uncertain')
+        await asyncio.wait_for(entered.wait(),3)
+        await svc.close()
+&gt;       recovered,calls=await setup_existing(tmp_path)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_event_store.py:179: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_store.py:139: in setup_existing
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.automation.service.Service object at 0x000001298D84A480&gt;
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+&gt;       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError</failure></testcase><testcase classname="tests.test_event_store" name="test_api_bounded_pages_replay_authorization_and_dedup" time="0.220" /><testcase classname="tests.test_event_store" name="test_run_retention_protects_pending_uncertain_and_retained_event" time="0.035" /><testcase classname="tests.test_event_store" name="test_payload_and_bytes_capacity_fail_closed" time="0.038" /><testcase classname="tests.test_event_store" name="test_pending_old_plugin_events_do_not_starve_independent_event" time="1.629" /><testcase classname="tests.test_event_store" name="test_slow_commit_cancellation_settles_and_restart_delivers" time="0.157"><failure message="AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3812/test_slow_commit_cancellation_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001298DCF76E0&gt;
+
+    @async_test
+    async def test_slow_commit_cancellation_settles_and_restart_delivers(tmp_path,monkeypatch):
+        import threading
+        svc,calls=await setup(tmp_path)
+        entered,release=threading.Event(),threading.Event()
+        original=svc.events.append
+        def blocked(*args):
+            entered.set();assert release.wait(3)
+            return original(*args)
+        monkeypatch.setattr(svc.events,'append',blocked)
+        publish_task=asyncio.create_task(svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'cancel-persist'))
+        try:
+            assert await asyncio.to_thread(entered.wait,2)
+            # Unrelated loop work can complete while fsync/commit is blocked.
+            await asyncio.wait_for(asyncio.sleep(0),.1)
+            assert not calls
+            publish_task.cancel()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await publish_task
+            assert svc.events.page()['events'][0]['event']['id']=='cancel-persist'
+        finally:
+            release.set();await svc.close()
+&gt;       recovered,calls=await setup_existing(tmp_path)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_event_store.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_store.py:139: in setup_existing
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.automation.service.Service object at 0x000001298D8BE360&gt;
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+&gt;       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError</failure></testcase><testcase classname="tests.test_event_store" name="test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id" time="0.154" /><testcase classname="tests.test_event_store" name="test_capacity_alarm_visible_without_evicting_uncertain" time="0.137" /><testcase classname="tests.test_event_store" name="test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay" time="0.022"><failure message="AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3812/test_legacy_running_migrates_t0')
+
+    @async_test
+    async def test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay(tmp_path):
+        ledger=Ledger(tmp_path)
+        ledger.put(trigger(),0,True)
+        state=ledger.read()
+        state['runs']['legacy']={'id':'legacy','event':fact('old'),'triggerId':'t','triggerRevision':1,
+                                'actionId':'pause','arguments':{},'status':'running','revision':1,'targetIds':['original']}
+        from packages.actions.store import atomic
+        atomic(ledger.path,state)
+        before=ledger.path.read_bytes()
+        assert ledger.read()['runs']['legacy']['status']=='running' and ledger.path.read_bytes()==before
+&gt;       recovered,calls=await setup_existing(tmp_path)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_event_store.py:342: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_store.py:139: in setup_existing
+    await svc.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.automation.service.Service object at 0x000001298DCC25D0&gt;
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+&gt;       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:145: AttributeError</failure></testcase><testcase classname="tests.test_event_store" name="test_plugin_revocation_while_waiting_for_admission_rejects_old_handle" time="0.101" /><testcase classname="tests.test_event_store" name="test_many_concurrent_same_event_ids_have_one_run_and_attempt" time="0.195" /><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_trigger_contract" time="0.008" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_explicit_idempotence" time="0.004" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_confirmation_keeps_run_and_new_attempt" time="0.030" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields0]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields1]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields2]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields3]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields4]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields5]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields6]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields7]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields8]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields9]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields10]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields11]" time="0.004" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields12]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields13]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields14]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields15]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[None]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[1]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[true]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value3]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value4]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_defaults_and_concurrency_change_need_user_even_disabled" time="0.015" /><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_bounded_independent_and_live_reduction" time="0.179" /><testcase classname="tests.test_automation_retry_parallel" name="test_atomic_claim_fences_concurrent_readers_and_trigger_limit" time="0.072" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_backoff_budget_identities_event_dedup_and_recovery" time="0.121" /><testcase classname="tests.test_automation_retry_parallel" name="test_idempotence_or_policy_cannot_be_promoted_after_first_start" time="0.132" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_change_during_backoff_fails_without_new_effect" time="0.070" /><testcase classname="tests.test_automation_retry_parallel" name="test_wait_cancel_disable_and_reenable_never_replay_history" time="0.116" /><testcase classname="tests.test_automation_retry_parallel" name="test_query_retry_uses_frozen_targets_and_only_failed_targets" time="0.092" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_no_auto_retry_confirm_revision_and_frozen_query" time="0.114" /><testcase classname="tests.test_automation_retry_parallel" name="test_serial_retry_head_order_and_parallel_independent_tail[serial]" time="0.098" /><testcase classname="tests.test_automation_retry_parallel" name="test_serial_retry_head_order_and_parallel_independent_tail[parallel]" time="0.102" /><testcase classname="tests.test_automation_retry_parallel" name="test_disable_running_allows_finish_cancels_queue_and_wait" time="0.063" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_pause_gate_plugin_loss_and_new_generation" time="0.093" /><testcase classname="tests.test_automation_retry_parallel" name="test_cancel_after_finish_commit_preserves_committed_outcome" time="0.061" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_schedule_write_failure_is_uncertain_not_reexecution" time="0.052" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_query_confirmation_reuses_ids_and_successes" time="0.094" /><testcase classname="tests.test_automation_retry_parallel" name="test_manual_confirmation_is_bounded_and_disabled_rejected" time="0.045" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_defaults_cap_and_schema_matches_parser" time="0.020" /><testcase classname="tests.test_automation_retry_parallel" name="test_schema_and_confirmation_api_require_user_and_exact_revision" time="0.203" /><testcase classname="tests.test_automation_retry_parallel" name="test_older_client_updates_preserve_explicit_scheduler_policy" time="0.011" /><testcase classname="tests.test_automation_retry_parallel" name="test_committed_retry_does_not_overlap_unretired_attempt_task" time="0.103" /><testcase classname="tests.test_automation_retry_parallel" name="test_run_capacity_diagnostic_and_waiting_counts_as_pending" time="0.090" /><testcase classname="tests.test_automation_retry_parallel" name="test_event_store_replay_during_backoff_never_resets_attempt" time="0.258" /><testcase classname="tests.test_automation_retry_parallel" name="test_close_after_parallel_claim_before_child_start_creates_no_effect" time="0.060" /><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_empty_snapshot_wake_is_not_lost" time="0.136" /></testsuite></testsuites>

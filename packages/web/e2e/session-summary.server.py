@@ -10,11 +10,13 @@ os.environ["PAN_SESSION_ERROR_LOG_PATH"] = str(fixture.RUNTIME / "errors.jsonl")
 os.environ["PAN_E2E_FAKE_CLI"] = str(Path(__file__).with_name("session-summary.fake.py"))
 os.environ["PAN_E2E_SUMMARY_GATES"] = str(fixture.RUNTIME)
 original_install = fixture._install_test_isolation
-original_server = fixture.uvicorn.Server
+from packages.core.host_server import PanServer
+original_server = PanServer
 
 
 def seed():
     from packages.core import session
+    fixture._write_fixture_files()
     fixture.SESSION_DIR.mkdir(parents=True, exist_ok=True)
     fixture.WORKDIR.mkdir(parents=True, exist_ok=True)
     for name in ["Summary A", "Summary B"]:
@@ -33,6 +35,12 @@ class OwnedServer(original_server):
 
 def install(server):
     original_install(server)
+    # Exercise the integrated production host while keeping its diagnostics
+    # inside this owned fixture, never the checkout's default data directory.
+    import json
+    config = json.loads(fixture.fixture_config.CONFIG_FILE.read_text(encoding="utf-8"))
+    config["logging"] = {"file": str(fixture.RUNTIME / "logs" / "pan.log")}
+    fixture.fixture_config.CONFIG_FILE.write_text(json.dumps(config), encoding="utf-8")
     from packages.core.adapters.cbc.adapter import CbcAdapter
     from packages.core.adapters.cbc import adapter
     adapter.MCP_CONFIG_DIR = fixture.RUNTIME / "mcp-configs"

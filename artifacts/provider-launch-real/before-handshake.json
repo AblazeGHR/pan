@@ -1,0 +1,19 @@
+{
+  "cliVersion": "codex-cli 0.163.0",
+  "cliPath": "D:/node_npm/node_global/node_modules/@openai/codex/bin/codex.js",
+  "actualNativeCLI": true,
+  "receipts": [],
+  "handshake": [
+    {
+      "type": "provider.launch.bootstrap",
+      "launchId": "45c9c9f81416607e03d3a15189ae22ac",
+      "wrapperProcess": {
+        "pid": 2296,
+        "birthToken": "134371524174046539"
+      }
+    },
+    "[codex app-server] WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\\" (codex_home: AbsolutePathBuf(\"C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3743\\\\test_installed_cli_fixed_provi0\\\\unused-global-codex\"))\n"
+  ],
+  "privateConfigsRemaining": [],
+  "ownedWrapperStopped": true
+}

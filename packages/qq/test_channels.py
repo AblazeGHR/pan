@@ -87,6 +87,9 @@ def _noop_media_download(monkeypatch):
         return None
 
     monkeypatch.setattr(ob, "_download", _fail)
+    async def no_notify(*args, **kwargs):
+        return None
+    monkeypatch.setattr(qq, "_notify_pan_inbox", no_notify)
 
 
 # ── FakeBot / FakeEvent ──
@@ -119,6 +122,7 @@ class FakePrivateEvent:
     """OneBot private message event stand-in (not a GroupMessageEvent)."""
 
     def __init__(self, user_id, text, nickname="alice", segments=None):
+        self.message_id = 101
         self._user_id = user_id
         self._text = text
         self._nickname = nickname
@@ -146,6 +150,7 @@ class FakeGroupEvent:
     message_type = "group"
 
     def __init__(self, group_id, text, at_bot=True):
+        self.message_id = 102
         self.group_id = group_id
         self._text = text
         self.message = [
@@ -401,18 +406,19 @@ def test_plugin_get_channel_by_uin_and_reply_routing(monkeypatch, tmp_path):
         assert qq.get_channel_by_uin("1470993983") is ch_b
 
         m1 = QQMessage(scope="user", scope_id="10001", text="hi",
-                       bot_uin="3494144273")
+                       bot_uin="3494144273", message_id="101")
         _run(qq.handle_qq_message(m1))
         m2 = QQMessage(scope="user", scope_id="10001", text="hello",
-                       bot_uin="1470993983")
+                       bot_uin="1470993983", message_id="101")
         _run(qq.handle_qq_message(m2))
         # selective 模式不回复；两个 bot 零调用
         assert bot_a.calls == [] and bot_b.calls == []
         # 同一 target 在两个 bot 下是独立会话文件（方案A 目录分层）
         assert (tmp_path / "history" / "3494144273" / "10001.json").exists()
         assert (tmp_path / "history" / "1470993983" / "10001.json").exists()
-        assert (tmp_path / "inbox" / "3494144273" / "10001.json").exists()
-        assert (tmp_path / "inbox" / "1470993983" / "10001.json").exists()
+        lockers = qq._shared_inbox().list()
+        assert {r["source"]["botId"] for r in lockers} == {"3494144273", "1470993983"}
+        assert len({r["id"] for r in lockers}) == 2
         # 按 bot_uin 读各自的 inbox，每条带 bot_uin 来源
         in_a = _run(qq.api_inbox("10001", bot_uin="3494144273"))
         assert [m.get("bot_uin") for m in in_a["messages"]] == ["3494144273"]

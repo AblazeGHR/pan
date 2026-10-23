@@ -1,0 +1,54 @@
+{
+  "sourceSHA": "6158cd4fdee33586e23d03bfc0a8f6f28573dbe0",
+  "results": [
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "cab1413d9335d3930501eeea30d64c8e39f9d763",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "HEAD",
+        "--",
+        "packages",
+        "tests",
+        "docs"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/interactions"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-c",
+        "from packages.interactions.contracts import SCHEMA; import jsonschema; jsonschema.Draft202012Validator.check_schema(SCHEMA)"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

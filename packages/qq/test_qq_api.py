@@ -33,6 +33,12 @@ def _clear_contacts_cache():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _isolate_inbox_network(monkeypatch, tmp_path):
+    monkeypatch.setattr(qq, "_INBOX_DIR", tmp_path / "qq_inbox")
+    monkeypatch.setattr(qq, "_notify_pan_inbox", AsyncMock())
+
+
 class FakeBot:
     """Minimal OneBot Bot stand-in that records call_api invocations."""
 
@@ -347,7 +353,7 @@ def test_qq_mode_selective_and_invalid(monkeypatch):
 
 def test_selective_writes_inbox_and_history_no_reply(tmp_path, monkeypatch):
     bot = _prepare_handle_test(tmp_path, monkeypatch, "selective")
-    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好")))
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好", raw={"message_id": 101, "time": 123})))
     # selective 模式不自动回复（收发经通道，这里不应调用 send）
     assert bot.calls == []
     # 不建 session / 不 spawn（_sessions 保持空）
@@ -366,7 +372,7 @@ def test_selective_writes_inbox_and_history_no_reply(tmp_path, monkeypatch):
 
 def test_selective_group_at_message_goes_inbox(tmp_path, monkeypatch):
     bot = _prepare_handle_test(tmp_path, monkeypatch, "selective")
-    _run(qq.handle_qq_message(QQMessage(scope="group", scope_id="20002", text="群聊测试")))
+    _run(qq.handle_qq_message(QQMessage(scope="group", scope_id="20002", text="群聊测试", raw={"message_id": 102, "time": 124})))
     assert bot.calls == []
     inbox = _run(qq.api_inbox("20002"))
     assert [m["text"] for m in inbox["messages"]] == ["群聊测试"]
@@ -381,8 +387,8 @@ def test_selective_group_at_message_goes_inbox(tmp_path, monkeypatch):
 def test_inbox_consume_deletes_all(tmp_path):
     qq._HISTORY_DIR = tmp_path / "hist"
     qq._INBOX_DIR = tmp_path / "inbox"
-    _run(qq._append_inbox("10001", "user", "a"))
-    _run(qq._append_inbox("10001", "user", "b"))
+    _run(qq._append_inbox("10001", "user", "a", message_id="native-a"))
+    _run(qq._append_inbox("10001", "user", "b", message_id="native-b"))
     result = _run(qq.api_inbox("10001", limit=10, consume=True))
     assert [m["text"] for m in result["messages"]] == ["a", "b"]
     # 消费即删
@@ -392,8 +398,8 @@ def test_inbox_consume_deletes_all(tmp_path):
 def test_inbox_consume_partial_keeps_rest(tmp_path):
     qq._HISTORY_DIR = tmp_path / "hist"
     qq._INBOX_DIR = tmp_path / "inbox"
-    _run(qq._append_inbox("10001", "user", "a"))
-    _run(qq._append_inbox("10001", "user", "b"))
+    _run(qq._append_inbox("10001", "user", "a", message_id="native-a"))
+    _run(qq._append_inbox("10001", "user", "b", message_id="native-b"))
     result = _run(qq.api_inbox("10001", limit=1, consume=True))
     assert [m["text"] for m in result["messages"]] == ["a"]
     rest = _run(qq.api_inbox("10001", limit=10))
@@ -403,7 +409,7 @@ def test_inbox_consume_partial_keeps_rest(tmp_path):
 def test_inbox_clear(tmp_path):
     qq._HISTORY_DIR = tmp_path / "hist"
     qq._INBOX_DIR = tmp_path / "inbox"
-    _run(qq._append_inbox("10001", "user", "x"))
+    _run(qq._append_inbox("10001", "user", "x", message_id="native-x"))
     result = _run(qq.api_inbox_clear("10001"))
     assert result["ok"] is True
     assert _run(qq.api_inbox("10001"))["messages"] == []
@@ -418,7 +424,7 @@ def test_selective_command_route_still_executes(tmp_path, monkeypatch):
         return client
 
     monkeypatch.setattr(qq, "_get_client", _fake_client)
-    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text=".test hello")))
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text=".test hello", raw={"message_id": 103, "time": 125})))
     # command route 直连外部 HTTP、绕过 LLM → selective 下仍执行并回复
     # processing 提示 + route-ok 均经通道 send（call_api）发出
     assert [c[0] for c in bot.calls] == ["send_private_msg", "send_private_msg"]
@@ -442,7 +448,7 @@ def test_mirror_mode_behavior_unchanged(tmp_path, monkeypatch):
         return "mirror reply"
 
     monkeypatch.setattr(qq, "_send_and_wait", _fake_send_and_wait)
-    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好")))
+    _run(qq.handle_qq_message(QQMessage(scope="user", scope_id="10001", text="你好", raw={"message_id": 101, "time": 123})))
     # 自动回复（现状兼容），经通道 send（call_api）
     assert [c[0] for c in bot.calls] == ["send_private_msg", "send_private_msg"]
     assert bot.calls[0][1]["message"] == "processing, please wait..."
@@ -750,3 +756,22 @@ def test_api_channels_active_fallback(monkeypatch):
     assert result["ok"] is True
     assert len(result["channels"]) == 1
     assert result["channels"][0]["bot_uin"] == "3494144273"
+
+def test_shared_locker_scope_instance_and_native_parts(tmp_path, monkeypatch):
+    from packages.core.agent_inbox import InboxError
+    monkeypatch.setattr(qq, "_INBOX_DIR", tmp_path / "inbox")
+    native = [{"type": "image", "data": {"file": "photo.jpg", "url": "https://synthetic.invalid/photo"}}]
+    _run(qq._append_inbox("7", "user", "photo", bot_uin="b", message_id="native", parts=native, instance_id="one"))
+    _run(qq._append_inbox("7", "group", "group", bot_uin="b", message_id="native", instance_id="one"))
+    _run(qq._append_inbox("7", "user", "other", bot_uin="b", message_id="native", instance_id="two"))
+    result = _run(qq.api_inbox("7", bot_uin="b", target_type="user", instance_id="one"))
+    assert len(result["messages"]) == 1
+    row = result["messages"][0]
+    assert row["envelope"]["nativeParts"] == native
+    assert row["attachments"] == native and row["parts"] == [{"type": "text", "text": "photo"}]
+    again = _run(qq.api_inbox("7", bot_uin="b", target_type="group", instance_id="one"))
+    assert [r["text"] for r in again["messages"]] == ["group"]
+    with pytest.raises(InboxError, match="conflict"):
+        _run(qq._append_inbox("7", "user", "changed", bot_uin="b", message_id="native", instance_id="one"))
+    with pytest.raises(ValueError, match="message_id"):
+        _run(qq._append_inbox("7", "user", "missing", bot_uin="b"))

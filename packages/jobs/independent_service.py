@@ -111,6 +111,8 @@ class JobStore:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
             if "runner_claim" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN runner_claim TEXT")
+            if "execution_audit" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN execution_audit TEXT NOT NULL DEFAULT '{}'")
 
     def create(self, request: dict):
         from packages.jobs.window import validate_hide_window
@@ -148,6 +150,12 @@ class JobStore:
         payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
         now, job_id = time.time(), "job_" + secrets.token_hex(12)
         log_path = str((self.logs / f"{job_id}.log").resolve())
+        from packages.jobs.system_actions import prepare
+        admission = {"jobId":job_id,"kind":"background-process",**payload}
+        # This host has already type-checked every declared process parameter.
+        # Keep its stdlib-only standalone contract; no Pan runtime/schema import.
+        prepare(admission,job_id+':initial',prevalidated=True)
+        audit = {key:admission[key] for key in ('runId','attempts','attemptSnapshot','snapshotCleanup')}
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if idem:
@@ -161,8 +169,8 @@ class JobStore:
                     return self.get(row["id"])
             if not isinstance(name, str) or not name or len(name) > 200:
                 raise ServiceError(400, "name must contain 1 to 200 characters")
-            db.execute("INSERT INTO jobs(id,payload,status,created,updated,log_path,idempotency_key,payload_hash) VALUES(?,?,?,?,?,?,?,?)",
-                       (job_id, payload_json, "starting", now, now, log_path, idem, payload_hash))
+            db.execute("INSERT INTO jobs(id,payload,status,created,updated,log_path,idempotency_key,payload_hash,execution_audit) VALUES(?,?,?,?,?,?,?,?,?)",
+                       (job_id, payload_json, "starting", now, now, log_path, idem, payload_hash,json.dumps(audit)))
             db.execute("COMMIT")
         # The durable starting record exists before any runner can execute.
         runner_env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_") and k.upper() != "PYTHONPATH"}
@@ -187,7 +195,13 @@ class JobStore:
 
     def set_unknown(self, job_id):
         with self.connect() as db:
-            db.execute("UPDATE jobs SET status='UNKNOWN', updated=? WHERE id=? AND status IN ('starting','running')", (time.time(), job_id))
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute("SELECT execution_audit FROM jobs WHERE id=? AND status IN ('starting','running')",(job_id,)).fetchone()
+            if row:
+                from packages.jobs.system_actions import finish
+                audit=json.loads(row['execution_audit']);finish(audit,'uncertain')
+                db.execute("UPDATE jobs SET status='UNKNOWN',execution_audit=?,updated=? WHERE id=?",(json.dumps(audit),time.time(),job_id))
+            db.execute('COMMIT')
 
     def get(self, job_id):
         with self.connect() as db:
@@ -203,7 +217,8 @@ class JobStore:
 
     def _public(self, row):
         p = json.loads(row["payload"])
-        return {"jobId": row["id"], "kind": "background-process", "executionOwner": "independent-job-service", "status": row["status"],
+        audit=json.loads(row['execution_audit']);audit.pop('attemptSnapshot',None)
+        result = {**audit,"jobId": row["id"], "kind": "background-process", "executionOwner": "independent-job-service", "status": row["status"],
                 "argv": p["argv"], "cwd": p["cwd"], "label": p["label"],
                 "hideWindow": p.get("hideWindow", True),
                 "name": p.get("name"), "description": p.get("description"),
@@ -212,6 +227,9 @@ class JobStore:
                 "runnerPid": row["runner_pid"], "runnerFiletime": row["runner_filetime"],
                 "exitCode": row["exit_code"], "logPath": row["log_path"],
                 "notificationState": row["notification_state"]}
+        from packages.jobs.unified import project
+        result['unified']=project(result)
+        return result
 
     def request_cancel(self, job_id):
         job = self.get(job_id)

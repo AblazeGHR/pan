@@ -1,0 +1,315 @@
+{
+  "port": 51362,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data",
+  "realProvider": false,
+  "identity": {
+    "pid": 35580,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "directAgentNotifyDenied": true,
+  "durableQueueIds": [
+    "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+    "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17"
+  ],
+  "actualFakeCLIReceived": [
+    {
+      "kind": "received",
+      "pid": 35960,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3895\\test_owned_notification_consum0\\data\\workdirs\\review-source",
+      "text": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nsessionId: null\ntaskId: null\nworkerId: null",
+      "at": 1792724699.5757833
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nsessionId: null\ntaskId: null\nworkerId: null",
+      "queueItemIds": [
+        "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+        "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17"
+      ],
+      "kind": "report",
+      "queueEnvelopes": [
+        {
+          "id": "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+          "queueItemId": "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+          "type": "notice",
+          "kind": "report",
+          "source": "interaction",
+          "sourcePluginId": "interaction",
+          "clientMessageId": "inbox_60ceeae9c502470eb19304626197e35a63a17ccc6240982b8f1b5216baec8278",
+          "messageId": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+          "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+          "text": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "result": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "sourceMessageId": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+          "inboxSource": {
+            "pluginId": "interaction",
+            "scope": "user",
+            "peerId": "ses_d34fd9e20ee3748a"
+          },
+          "sourceIdentityKind": "native",
+          "channel": "interaction",
+          "channelTarget": "user:ses_d34fd9e20ee3748a",
+          "qqTarget": "user:ses_d34fd9e20ee3748a",
+          "targetType": "user",
+          "targetId": "ses_d34fd9e20ee3748a",
+          "botUin": "",
+          "canReply": true,
+          "revision": 1,
+          "createdAt": 1792724699.3401475,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "inboxNotification": false,
+          "envelope": {
+            "type": "interaction.submitted",
+            "cardId": "card_434941572361a57b9281023b71767335d410b4f15e6ebfc6025baf5c709bee40",
+            "id": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+            "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+            "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+          },
+          "inboxContent": {
+            "text": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+            "envelope": {
+              "type": "interaction.submitted",
+              "cardId": "card_434941572361a57b9281023b71767335d410b4f15e6ebfc6025baf5c709bee40",
+              "id": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+              "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+              "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+            }
+          },
+          "position": 0,
+          "autoReportAdmission": {
+            "version": 1,
+            "origin": {
+              "kind": "plugin",
+              "pluginId": "interaction"
+            },
+            "enabled": false
+          }
+        },
+        {
+          "id": "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17",
+          "queueItemId": "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17",
+          "type": "notice",
+          "kind": "report",
+          "source": "interaction",
+          "sourcePluginId": "interaction",
+          "clientMessageId": "inbox_1ba45b26201ab57a1269ac1f787a51d5182a0e6e9355c97b1046ad6e22257730",
+          "messageId": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+          "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+          "text": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "result": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "sourceMessageId": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+          "inboxSource": {
+            "pluginId": "interaction",
+            "scope": "user",
+            "peerId": "ses_d34fd9e20ee3748a"
+          },
+          "sourceIdentityKind": "native",
+          "channel": "interaction",
+          "channelTarget": "user:ses_d34fd9e20ee3748a",
+          "qqTarget": "user:ses_d34fd9e20ee3748a",
+          "targetType": "user",
+          "targetId": "ses_d34fd9e20ee3748a",
+          "botUin": "",
+          "canReply": true,
+          "revision": 1,
+          "createdAt": 1792724699.44619,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "inboxNotification": false,
+          "envelope": {
+            "type": "interaction.rejected",
+            "cardId": "card_b29fca3c37f80918bf27a6c0993df1b0616aa2e1b0515141bc1a73bfcb367526",
+            "id": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+            "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+            "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+          },
+          "inboxContent": {
+            "text": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+            "envelope": {
+              "type": "interaction.rejected",
+              "cardId": "card_b29fca3c37f80918bf27a6c0993df1b0616aa2e1b0515141bc1a73bfcb367526",
+              "id": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+              "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+              "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+            }
+          },
+          "position": 1,
+          "autoReportAdmission": {
+            "version": 1,
+            "origin": {
+              "kind": "plugin",
+              "pluginId": "interaction"
+            },
+            "enabled": false
+          }
+        }
+      ],
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "clientMessageId": "inbox_60ceeae9c502470eb19304626197e35a63a17ccc6240982b8f1b5216baec8278",
+      "channel": "interaction",
+      "envelope": {
+        "type": "interaction.submitted",
+        "cardId": "card_434941572361a57b9281023b71767335d410b4f15e6ebfc6025baf5c709bee40",
+        "id": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+        "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "messageId": "pan:d8ed9388e9c84ebd9d486e6d2e631ee0",
+      "ts": "2026-10-23T11:04:59.575849",
+      "deliveryKeys": [
+        "report:anon:44575075eb04",
+        "report:anon:a8898e86c91d"
+      ]
+    }
+  ],
+  "runIds": [
+    "run_2319a4a7f8bc4dfe94ab29c32fb07eaa"
+  ],
+  "deliveryLedger": {
+    "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5": {
+      "id": "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+      "queueItemId": "q_78b813a4c68e22d067c29498b9716a192f26e019ea40cc249566b0e72229dbc5",
+      "type": "notice",
+      "kind": "report",
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "clientMessageId": "inbox_60ceeae9c502470eb19304626197e35a63a17ccc6240982b8f1b5216baec8278",
+      "messageId": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+      "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+      "text": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+      "result": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+      "sourceMessageId": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+      "inboxSource": {
+        "pluginId": "interaction",
+        "scope": "user",
+        "peerId": "ses_d34fd9e20ee3748a"
+      },
+      "sourceIdentityKind": "native",
+      "channel": "interaction",
+      "channelTarget": "user:ses_d34fd9e20ee3748a",
+      "qqTarget": "user:ses_d34fd9e20ee3748a",
+      "targetType": "user",
+      "targetId": "ses_d34fd9e20ee3748a",
+      "botUin": "",
+      "canReply": true,
+      "revision": 1,
+      "createdAt": 1792724699.3401475,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "inboxNotification": false,
+      "envelope": {
+        "type": "interaction.submitted",
+        "cardId": "card_434941572361a57b9281023b71767335d410b4f15e6ebfc6025baf5c709bee40",
+        "id": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+        "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "inboxContent": {
+        "text": "Interaction submitted: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+        "envelope": {
+          "type": "interaction.submitted",
+          "cardId": "card_434941572361a57b9281023b71767335d410b4f15e6ebfc6025baf5c709bee40",
+          "id": "submission_e358c6b128b6db439ff3fdf065194d9a030099261ba5d819dc20d0da62c8a430",
+          "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+          "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+        }
+      },
+      "position": 0,
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792724699.5627391,
+      "receiptAt": 1792724699.5758653,
+      "deliveredAt": 1792724699.5758653
+    },
+    "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17": {
+      "id": "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17",
+      "queueItemId": "q_dd4f4243f1dd0d08b0791ce73c59198464e53dd4879658653513c7bc7911ad17",
+      "type": "notice",
+      "kind": "report",
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "clientMessageId": "inbox_1ba45b26201ab57a1269ac1f787a51d5182a0e6e9355c97b1046ad6e22257730",
+      "messageId": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+      "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+      "text": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+      "result": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+      "sourceMessageId": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+      "inboxSource": {
+        "pluginId": "interaction",
+        "scope": "user",
+        "peerId": "ses_d34fd9e20ee3748a"
+      },
+      "sourceIdentityKind": "native",
+      "channel": "interaction",
+      "channelTarget": "user:ses_d34fd9e20ee3748a",
+      "qqTarget": "user:ses_d34fd9e20ee3748a",
+      "targetType": "user",
+      "targetId": "ses_d34fd9e20ee3748a",
+      "botUin": "",
+      "canReply": true,
+      "revision": 1,
+      "createdAt": 1792724699.44619,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "inboxNotification": false,
+      "envelope": {
+        "type": "interaction.rejected",
+        "cardId": "card_b29fca3c37f80918bf27a6c0993df1b0616aa2e1b0515141bc1a73bfcb367526",
+        "id": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+        "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "inboxContent": {
+        "text": "Interaction rejected: SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+        "envelope": {
+          "type": "interaction.rejected",
+          "cardId": "card_b29fca3c37f80918bf27a6c0993df1b0616aa2e1b0515141bc1a73bfcb367526",
+          "id": "rejection_1f6893a8151a0ddbc0f4a4c54c3720f1e3bc487b1b40cf9ee0b06191ebbdfcba",
+          "lockerId": "ulocker_0b9057186742ba9a33fcf5157604fde4696609d761602af814c68825e4c3f8a0",
+          "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+        }
+      },
+      "position": 1,
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792724699.56275,
+      "receiptAt": 1792724699.575875,
+      "deliveredAt": 1792724699.575875
+    }
+  },
+  "restartNoReplay": true,
+  "portReleased": true
+}

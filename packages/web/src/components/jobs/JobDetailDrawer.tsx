@@ -29,6 +29,10 @@ function statusColor(status: string): string {
     case 'starting':
       return 'border-accent/50 bg-accent/10 text-accent';
     case 'scheduled':
+    case 'restarting':
+    case 'cleaning':
+    case 'unknown':
+    case 'uncertain':
     case 'partial':
     case 'undeliverable':
       return 'border-warning/50 bg-warning/10 text-warning';
@@ -174,6 +178,8 @@ export function JobDetailDrawer({
   onChangeTarget,
   onEdit,
   onToggleEntryEnabled,
+  onRetry,
+  onConfirmRecovery,
 }: {
   job: Job;
   kindLabel: string;
@@ -189,6 +195,8 @@ export function JobDetailDrawer({
   onChangeTarget: () => void;
   onEdit: () => void;
   onToggleEntryEnabled: (entryId: string) => void;
+  onRetry?: () => void;
+  onConfirmRecovery?: () => void;
 }) {
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -206,6 +214,7 @@ export function JobDetailDrawer({
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
   const canRunNow = job.action?.api === 'shell'
+    || Boolean(job.unified && !job.unified.compatibility && job.enabled)
     || job.action?.api === 'resume_legal_running'
     || job.action?.api === 'send_qq'
     || hasTarget;
@@ -213,11 +222,11 @@ export function JobDetailDrawer({
     (job.kind === 'session-message' || job.kind === 'session-broadcast')
     && ['completed', 'failed', 'cancelled'].includes(job.status)
   );
-  const canChangeTarget = (job.kind === 'scheduled-task'
+  const canChangeTarget = !(job.unified && !job.unified.compatibility) && ((job.kind === 'scheduled-task'
     && job.action?.api !== 'resume_legal_running'
     && job.action?.api !== 'send_qq')
     || (job.kind === 'session-message' && !terminalMessage)
-    || job.kind === 'background-process';
+    || job.kind === 'background-process');
   const canEdit = !terminalMessage;
   const schedule = scheduleEntries(job.schedule);
   const legacyScheduleText = !Array.isArray(job.schedule) && job.schedule != null
@@ -281,7 +290,9 @@ export function JobDetailDrawer({
 
             {/* Action group */}
             <div className="flex flex-wrap items-center gap-1.5">
-              {onCancel && job.kind !== 'scheduled-task' && ['pending', 'scheduled', 'starting', 'running'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
+              {job.status === 'failed' && onRetry && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onRetry}>Confirm failed Run retry</button>}
+              {['unknown','uncertain'].includes(job.status) && onConfirmRecovery && <button className="rounded border border-warning/50 px-2 py-1 text-xs text-warning" onClick={onConfirmRecovery}>Confirm uncertain Run recovery</button>}
+              {onCancel && (job.kind !== 'scheduled-task' || job.unified && !job.unified.compatibility) && ['pending', 'scheduled', 'starting', 'running', 'restarting'].includes(job.status) && <button type="button" onClick={onCancel} disabled={cancelling} className="rounded border border-warning/50 px-2 py-1 text-xs text-warning disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel job'}</button>}
               {isScheduledTask && (
                 <button
                   type="button"
@@ -334,6 +345,20 @@ export function JobDetailDrawer({
               )}
             </div>
 
+            {job.unified && <Section title="Unified execution">
+              {job.unified.compatibility && <p className="text-xs text-warning">Legacy compatibility record: existing execution and editor are retained. The unified projection is disabled and requires explicit review before creating a separate Job. {job.unified.compatibility.migrationIssues?.join('; ')}</p>}
+              <KV label="Action reference">{job.unified.config.actionId}</KV>
+              <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
+              <KV label="Snapshot cleanup">{job.snapshotCleanup ?? 'none'}</KV>
+              {job.templateId && <KV label="Template origin">{job.templateId} · revision {job.templateRevision}</KV>}
+              {job.integrity?.status === 'incomplete' && <p role="alert" className="text-danger text-xs break-words">Incomplete: {job.integrity.issues.map((issue) => `${issue.actionId} at ${issue.position}: ${issue.error}`).join('; ')}</p>}
+              {job.integrity?.approvalRequired && <p role="alert" className="text-warning text-xs">Reference repair requires user confirmation; execution is disabled.</p>}
+              <KV label="Trigger">{job.unified.config.trigger?.kind ?? 'schedule'}</KV>
+              <KV label="Completion">{job.unified.config.completion?.kind ?? 'ordinary'}</KV>
+              <KV label="Recovery">{job.unified.config.recovery?.enabled ? 'enabled' : 'off'}</KV>
+              <KV label="Overlap">{job.unified.config.overlap?.mode ?? 'forbid'} · limit {job.unified.config.overlap?.parallelLimit ?? 3}</KV>
+              {job.attempts?.map((attempt) => <div key={attempt.id} className="rounded border border-border-default p-2 text-xs break-all">Run {attempt.runId}<br />Attempt {attempt.count}: <StatusBadge status={attempt.status} />{attempt.sideEffectUncertainty && <p>Side effect uncertain; automatic replay blocked.</p>}</div>)}
+            </Section>}
             {/* 1. Overview */}
             <Section title="Overview">
               {job.description && (

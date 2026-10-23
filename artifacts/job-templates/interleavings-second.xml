@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="34" time="17.713" timestamp="2026-10-22T12:53:26.351229+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra0]" time="0.015" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra1]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra2]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra3]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra4]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra5]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra6]" time="0.028" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra7]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra8]" time="0.007" /><testcase classname="tests.test_job_action_templates" name="test_job_fields_are_declared_only[extra9]" time="0.006" /><testcase classname="tests.test_job_action_templates" name="test_complete_fields_defaults_and_template_revision" time="0.012" /><testcase classname="tests.test_job_action_templates" name="test_instantiate_copy_revision_display_only_and_idempotence" time="0.098" /><testcase classname="tests.test_job_action_templates" name="test_reserved_creation_recovers_after_template_delete_and_write_failure" time="0.043" /><testcase classname="tests.test_job_action_templates" name="test_template_edit_delete_while_job_write_blocked_uses_admitted_copy" time="0.041" /><testcase classname="tests.test_job_action_templates" name="test_delete_before_snapshot_atomic_admission_blocks_all_effects" time="0.069" /><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]" time="0.105" /><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]" time="0.153" /><testcase classname="tests.test_job_action_templates" name="test_cancel_exception_shutdown_and_recovery_remove_snapshots" time="0.218" /><testcase classname="tests.test_job_action_templates" name="test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only" time="0.055" /><testcase classname="tests.test_job_action_templates" name="test_snapshot_io_does_not_hold_job_registry_or_block_event_loop" time="0.079" /><testcase classname="tests.test_job_action_templates" name="test_snapshot_write_or_post_effect_checkpoint_failure_never_replays" time="0.128" /><testcase classname="tests.test_job_action_templates" name="test_terminal_job_write_failure_after_cleanup_recovers_same_run_once" time="0.067" /><testcase classname="tests.test_job_action_templates" name="test_fixed_template_action_capability_idempotence_and_group_gate" time="0.069" /><testcase classname="tests.test_job_action_templates" name="test_running_template_instantiation_uses_private_context_after_template_delete" time="0.083" /><testcase classname="tests.test_job_action_templates" name="test_reference_graph_cycle_rejected_and_template_restore_does_not_enable" time="0.041" /><testcase classname="tests.test_job_action_templates" name="test_api_permissions_unknown_fields_legacy_aliases_and_repair" time="0.192" /><testcase classname="tests.test_job_action_templates" name="test_reference_replacement_failed_publication_protects_old_and_new" time="0.083" /><testcase classname="tests.test_job_action_templates" name="test_cancel_while_snapshot_commit_inflight_settles_before_cleanup" time="0.048" /><testcase classname="tests.test_job_action_templates" name="test_close_during_claim_never_starts_effect" time="0.039" /><testcase classname="tests.test_job_action_templates" name="test_duplicate_profile_owner_cannot_recover_or_close_active_execution" time="0.063" /><testcase classname="tests.test_job_action_templates" name="test_notification_retry_is_independent_of_effect_and_snapshot" time="0.060" /><testcase classname="tests.test_job_action_templates" name="test_shared_scheduler_entry_and_misfire_do_not_replay_effects" time="0.091" /><testcase classname="tests.test_job_action_templates" name="test_disabled_and_high_risk_action_gates_block_job_effects" time="0.072"><failure message="ValueError: Invalid Session Operation">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3611/test_disabled_and_high_risk_ac0')
+
+    @async_test
+    async def test_disabled_and_high_risk_action_gates_block_job_effects(tmp_path):
+        rt,calls=await setup(tmp_path)
+        try:
+            job=rt.create(config(),True)
+            for patch in ({'enabled':False},{'effect':'high_risk'}):
+&gt;               rt.actions.put('actions',{**action(),**patch})
+
+tests\test_job_action_templates.py:515: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\actions\store.py:212: in put
+    return self.mutate(change, expected)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\actions\store.py:169: in mutate
+    result = change(state)
+             ^^^^^^^^^^^^^
+packages\actions\store.py:195: in change
+    item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
+           ^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+raw = {'id': 'pause', 'name': 'Pause selected', 'enabled': True, 'effect': 'high_risk', ...}
+automation = True
+
+    def validate_action(raw, automation=True):
+        if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent'}:
+            raise ValueError('Unknown Action fields')
+        from .session_query import validate_action_query
+        validate_action_query(raw)
+        action = copy.deepcopy(raw)
+        identifier(action.get('id'))
+        if not isinstance(action.get('name'), str) or not action['name'].strip():
+            raise ValueError('Action name is required')
+        action.setdefault('description', action['name'])
+        if not isinstance(action['description'], str) or not action['description'].strip():
+            raise ValueError('Action description is required')
+        action.setdefault('enabled', False)
+        action.setdefault('idempotent', False)
+        if type(action['idempotent']) is not bool:
+            raise ValueError('Action idempotent must be boolean')
+        action.setdefault('effect', 'read')
+        action.setdefault('output_format', 'json')
+        if (type(action['enabled']) is not bool or not isinstance(action['effect'], str) or action['effect'] not in EFFECTS
+                or not isinstance(action['output_format'], str) or action['output_format'] not in {'json', 'text'}):
+            raise ValueError('Invalid Action enabled, effect or output format')
+        schema = action.get('input_schema')
+        if not isinstance(schema, dict) or schema.get('type') != 'object' or schema.get('additionalProperties') is not False:
+            raise ValueError('Input schema must be an object with additionalProperties false')
+        # No external schema retrieval and no ambiguous reference expansion.
+        def check_refs(value):
+            if isinstance(value, dict):
+                if any(k in value for k in ('$ref', '$dynamicRef', '$recursiveRef')):
+                    raise ValueError('Schema references are not supported')
+                for child in value.values():
+                    check_refs(child)
+            elif isinstance(value, list):
+                for child in value:
+                    check_refs(child)
+        check_refs(schema)
+        try:
+            jsonschema.Draft202012Validator.check_schema(schema)
+        except jsonschema.SchemaError as exc:
+            raise ValueError('Invalid input schema: ' + exc.message) from exc
+        for field in schema.get('properties', {}).values():
+            if isinstance(field, dict) and 'default' in field:
+                try:
+                    jsonschema.Draft202012Validator(field).validate(field['default'])
+                except jsonschema.ValidationError as exc:
+                    raise ValueError('Invalid input default: ' + exc.message) from exc
+        ex = action.get('execution')
+        if not isinstance(ex, dict):
+            raise ValueError('Execution is required')
+        if ex.get('kind') == 'api':
+            if (set(ex) != {'kind', 'method', 'path'} or ex['method'] != 'GET'
+                    or not isinstance(ex['path'], str) or ex['path'] not in API_ROUTES or action['effect'] != 'read'):
+                raise ValueError('API Actions require a fixed allowed GET route and read effect')
+        elif ex.get('kind') == 'command':
+            if set(ex) - {'kind', 'executable', 'args', 'cwd', 'timeout_sec'}:
+                raise ValueError('Unknown command fields')
+            executable = ex.get('executable')
+            if not isinstance(executable, str) or not Path(executable).is_absolute() or not Path(executable).is_file():
+                raise ValueError('Command executable must be an existing absolute file')
+            # A shell/script launcher defeats argv isolation, especially on Windows.
+            if Path(executable).suffix.lower() in {'.bat', '.cmd', '.ps1', '.sh'} or Path(executable).stem.lower() in {'cmd', 'powershell', 'pwsh', 'bash', 'sh', 'wscript', 'cscript'}:
+                raise ValueError('Shell and script launchers are not allowed')
+            if not isinstance(ex.get('args'), list) or any(not isinstance(a, str) or '\x00' in a for a in ex['args']):
+                raise ValueError('Command args must be a string array')
+            if not isinstance(ex.get('cwd'), str) or not Path(ex['cwd']).is_absolute() or not Path(ex['cwd']).is_dir():
+                raise ValueError('Command cwd must be an existing absolute directory')
+            if type(ex.get('timeout_sec', 30)) is not int or not 1 &lt;= ex.get('timeout_sec', 30) &lt;= 30:
+                raise ValueError('Command timeout must be between 1 and 30 seconds')
+            properties = schema.get('properties', {})
+            for arg in ex['args']:
+                if '{' in arg or '}' in arg:
+                    match = re.fullmatch(r'\{([a-zA-Z][a-zA-Z0-9_]*)\}', arg)
+                    if (not match or match[1] not in properties or not isinstance(properties[match[1]], dict)
+                            or properties[match[1]].get('type') not in ('string', 'number', 'integer', 'boolean')):
+                        raise ValueError('Command input placeholders must occupy a complete argv element and reference a scalar field')
+                    if match[1] not in schema.get('required', []) and 'default' not in properties[match[1]]:
+                        raise ValueError('Command placeholders require a required field or default')
+        elif ex.get('kind') == 'job_template' and automation:
+            if (set(ex) != {'kind', 'templateId', 'templateRevision'}
+                    or not isinstance(ex['templateId'], str) or not ex['templateId'].startswith('jtpl_')
+                    or type(ex['templateRevision']) is not int or ex['templateRevision'] &lt; 1
+                    or action['effect'] != 'write_local' or schema.get('properties', {})
+                    or schema.get('required', [])):
+                raise ValueError('Job Template Action requires a fixed template/revision and no input fields')
+        elif ex.get('kind') == 'session_operation' and automation:
+            if set(ex) != {'kind', 'operation', 'selector'} or ex['operation'] != 'pause_everything' or action['effect'] != 'write_local':
+&gt;               raise ValueError('Invalid Session Operation')
+E               ValueError: Invalid Session Operation
+
+packages\actions\store.py:132: ValueError</failure></testcase><testcase classname="tests.test_job_action_http" name="test_complete_template_reference_snapshot_and_recovery_http" time="15.171" /></testsuite></testsuites>

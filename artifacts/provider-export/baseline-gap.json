@@ -1,0 +1,10 @@
+{
+  "baseline": "5f44bbf5e2da8a3af1f20c65d2ac53d6c3fcc236",
+  "baselineRequiresInjectedSource": true,
+  "baselinePrivateProtocolPresent": false,
+  "externalSource": "D:\\project\\cc-switch-pan",
+  "externalSourceSha": "324014cd149c4a12e73b689fde092505c83d89e1",
+  "commandWhitelistHasLaunchExport": false,
+  "versionAdvertisesPrivateExport": false,
+  "evidenceKind": "read-only source audit, not real account/CLI invocation"
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "eventId": "se_1f8e146499db5277a1c9162d32e8ccd4",
+  "timestamp": "2026-10-22T07:12:07.875427+00:00",
+  "kind": "terminal_error",
+  "terminal": true,
+  "adapter": "codex",
+  "model": "gpt-6.1-sol",
+  "sessionId": "ses_3c3de21f40f6fdb3",
+  "workerId": "worker-2",
+  "generation": 0,
+  "taskSeq": 20,
+  "taskId": null,
+  "executionSeq": 1,
+  "queueItemId": "q_5a3dc6d20c1a484db445d5c1850afca6",
+  "sourceSessionId": "ses_ca08acfab30d97fd",
+  "panStatus": "error",
+  "errorText": "Selected model is at capacity. Please try a different model.",
+  "errorTextSource": "codex_error_payload",
+  "cli": {
+    "raw": {
+      "type": "result",
+      "is_error": true,
+      "cancelled": false,
+      "turn_status": "failed",
+      "result": "Selected model is at capacity. Please try a different model.",
+      "error_source": "codex_error_payload",
+      "error": {
+        "message": "Selected model is at capacity. Please try a different model.",
+        "codexErrorInfo": "serverOverloaded",
+        "additionalDetails": null,
+        "misalignment": null
+      },
+      "error_text": "Selected model is at capacity. Please try a different model."
+    }
+  }
+}

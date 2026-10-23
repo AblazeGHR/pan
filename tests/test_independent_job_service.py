@@ -48,6 +48,30 @@ def test_owned_job_query_failure_does_not_confirm_empty():
     assert runner._owned_job_empty(Guard()) is False
 
 
+def test_system_action_admission_sql_failure_and_unknown_cleanup(tmp_path,monkeypatch):
+    store=JobStore(str(tmp_path/'owned'))
+    spawned=[]
+    monkeypatch.setattr(subprocess,'Popen',lambda *a,**k:spawned.append(a))
+    with store.connect() as db:
+        db.execute("CREATE TRIGGER reject_admission BEFORE INSERT ON jobs BEGIN SELECT RAISE(ABORT,'owned admission failure'); END")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.create(_request([sys.executable,'-c','print(1)']))
+    assert not spawned and not store.list()['jobs']
+    with store.connect() as db:db.execute('DROP TRIGGER reject_admission')
+    job=store.create(_request([sys.executable,'-c','print(1)']))
+    assert len(spawned)==1 and job['attempts'][0]['actionId']=='system_background_process'
+    assert 'attemptSnapshot' not in job and job['unified']['config']['recovery']['enabled'] is False
+    with store.connect() as db:
+        private=json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
+        assert private['attemptSnapshot']['arguments']['argv']==[sys.executable,'-c','print(1)']
+    store.set_unknown(job['jobId'])
+    terminal=store.get(job['jobId'])
+    assert terminal['status']=='UNKNOWN' and terminal['snapshotCleanup']=='cleaned'
+    assert terminal['attempts'][0]['status']=='uncertain'
+    with store.connect() as db:
+        assert 'attemptSnapshot' not in json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
+
+
 def _service(root):
     store = JobStore(str(root))
     store.recover()
@@ -102,6 +126,10 @@ def test_immediate_completion_and_outbox_ack_are_durable_and_idempotent(tmp_path
         job = client.start(_request([sys.executable, "-c", "pass"]))
         terminal = _wait(client, job["jobId"])
         assert terminal["status"] == "completed"
+        assert terminal['snapshotCleanup']=='cleaned'
+        assert terminal['attempts'][0]['status']=='completed'
+        assert terminal['attempts'][0]['snapshotCleanup']=='cleaned'
+        assert 'attemptSnapshot' not in terminal
         events = client.events()["events"]
         assert len(events) == 1
         event = events[0]
@@ -166,6 +194,8 @@ def test_cancel_proves_and_terminates_the_owned_process_tree(tmp_path):
         client.cancel(job["jobId"])
         cancelled = _wait(client, job["jobId"], timeout=8)
         assert cancelled["status"] == "cancelled"
+        assert cancelled['snapshotCleanup']=='cleaned'
+        assert cancelled['attempts'][0]['status']=='cancelled'
         assert any(e["eventId"] == job["jobId"] + ":terminal" and e["status"] == "cancelled"
                    for e in client.events()["events"])
     finally:
@@ -215,7 +245,7 @@ def test_service_restart_keeps_live_runner_and_does_not_repeat_execution(tmp_pat
 
 
 @pytest.mark.skipif(os.name != "nt", reason="taskkill /T is a Windows-only lifecycle check")
-def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task(tmp_path):
+def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task(tmp_path, monkeypatch):
     """A prestarted service and its task are siblings of the simulated Pan host."""
     from urllib.request import urlopen
     with socket.socket() as sock:
@@ -226,9 +256,26 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
     repo = os.path.dirname(os.path.dirname(__file__))
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_") and k.upper() != "PYTHONPATH"}
     env["PYTHONPATH"] = repo
+    from packages.jobs import independent_client
+    original_urlopen = independent_client.urlopen
+    requests = []
+    def observed_urlopen(request, **kwargs):
+        started = time.monotonic()
+        entry = {"method": request.method, "url": request.full_url, "timeout": kwargs.get('timeout')}
+        try:
+            return original_urlopen(request, **kwargs)
+        except Exception as exc:
+            entry['error'] = repr(exc)
+            raise
+        finally:
+            entry['elapsed'] = time.monotonic() - started
+            requests.append(entry)
+            (tmp_path / 'http-requests.json').write_text(json.dumps(requests, indent=2), encoding='utf-8')
+    monkeypatch.setattr(independent_client, 'urlopen', observed_urlopen)
+    service_log = (tmp_path / 'independent-service.log').open('w', encoding='utf-8')
     service = subprocess.Popen(
         [sys.executable, "-m", "packages.jobs.independent_service", "--root", str(root), "--port", str(port)],
-        cwd=repo, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        cwd=repo, env=env, stdin=subprocess.DEVNULL, stdout=service_log, stderr=service_log,
         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
     )
     client = IndependentJobClient(f"http://127.0.0.1:{port}", timeout=1)
@@ -242,7 +289,19 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
         else: raise AssertionError("independent service did not become ready")
         marker = tmp_path / "survived-host-tree-kill"
         code = "import pathlib,time; time.sleep(1.5); pathlib.Path(r'" + str(marker) + "').write_text('done')"
-        job = client.start(_request([sys.executable, "-c", code]))
+        try:
+            job = client.start(_request([sys.executable, "-c", code]))
+        except Exception as exc:
+            # Preserve one POST and its original timeout. A lost response may
+            # already have admitted a Job; diagnostics must never retry it.
+            state = {"serviceReturncode": service.poll(), "requests": requests}
+            database = root / 'jobs.sqlite3'
+            if database.exists():
+                with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as db:
+                    state['durableJobs'] = db.execute('SELECT id,status,runner_pid FROM jobs').fetchall()
+            service_log.flush()
+            exc.add_note(json.dumps(state) + '\n' + (tmp_path / 'independent-service.log').read_text(encoding='utf-8', errors='replace')[-8000:])
+            raise
         # This is a separate simulated Pan process. It has no service/task children.
         host = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -265,6 +324,7 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
             except subprocess.TimeoutExpired:
                 # Terminate only the explicitly spawned service PID.
                 service.kill(); service.wait(timeout=5)
+        service_log.close()
 
 
 def test_unknown_jobs_are_not_retryable(tmp_path):

@@ -1,0 +1,17 @@
+{
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4074",
+  "shutdown": {
+    "returncodeBeforeCleanup": null,
+    "forcedTerminate": false,
+    "exitResponse": {
+      "ok": true
+    },
+    "returncodeAfterCleanup": 0
+  },
+  "cleanup": {
+    "port": 57490,
+    "serverExited": true,
+    "listenerClosed": true
+  },
+  "remainingOwnedCommandMatches": []
+}

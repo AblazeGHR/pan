@@ -1,0 +1,219 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________ test_node_query_pause_production_ui_restart_and_delay_mcp __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3575/test_node_query_pause_producti0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FF882C9350>
+
+    def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'combined-profile')
+        rt.data_root.mkdir()
+        m = manifest()
+        mf = tmp_path / 'plugins.json'
+        mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}))
+        (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}))
+        evidence = {'port':h.PORT,'root':str(rt.data_root),'processes':[]}
+        def capture():
+            if rt.process and rt.process.poll() is None:
+                for p in [psutil.Process(rt.process.pid), *psutil.Process(rt.process.pid).children(recursive=True)]:
+                    evidence['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline()})
+        def stopped():
+            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time()!=p['created'] for p in evidence['processes'])
+        def view():
+            return rt.request('GET','/api/automation')
+        def binding(enabled):
+            return {'pluginBindings':[{'plugin_id':'producer','enabled':enabled,'mode':'gateway'}]}
+        def ready():
+            return any(d['type']=='producer.ping' and d['available'] for d in view()['definitions'])
+        def create(name):
+            return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})
+        try:
+            rt.start()
+            target, control, owner = [create(n) for n in ('combined-target','combined-control','combined-owner')]
+            for s in (target,control):
+                assert 'error' not in h._spawn(rt,s['id'])
+            item = rt.request('POST',f"/api/sessions/{target['id']}/queue",json={'text':'combined-blocked','locked':True,'clientMessageId':'combined'})['item']
+            a = query_action(leaf('name','eq','combined-target'))
+            a['name'] = 'Combined query pause'
+            rt.request('POST','/api/actions/actions',json={'item':a})
+            token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text()})['token']
+            t = {**trigger(),'eventTypes':['producer.ping']}
+            rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers={'Authorization':'Bearer '+token})
+            rt.request('PATCH',f"/api/sessions/{owner['id']}",json=binding(True))
+            h._wait_for(ready,label='Node ready')
+            capture()
+            publish(rt.data_root,type='producer.ping',payload={'value':1},event_id='combined-event')
+            def done():
+                return next((r for r in view()['runs'].values() if r['event']['id']=='combined-event' and r['status']=='succeeded'),None)
+            run = h._wait_for(done,label='Node -> query -> Pause')
+            assert run['targetIds']==[target['id']] and run['selection']['matched']==1
+            assert run['event']['source']=={'type':'plugin','id':'producer'}
+            rt.request('PATCH',f"/api/sessions/{target['id']}/queue/{item['queueItemId']}/lock",json={'locked':False})
+            h._enqueue(rt,control['id'],'combined-control-delivered','control')
+            h._wait_for(lambda:h._received(rt,text='combined-control-delivered'),label='control actual CLI handoff')
+            queue=rt.request('GET',f"/api/sessions/{target['id']}/queue")
+            assert queue['queuePaused'] and any(i['queueItemId']==item['queueItemId'] for i in queue['items'])
+            assert not h._received(rt,text='combined-blocked')
+            OUT.mkdir(parents=True,exist_ok=True)
+            browser_input=OUT/'browser-input.json'
+            browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}))
+            browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())
+            (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr)
+>           assert browser.returncode==0, browser.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E
+E             ExpectError: expect(locator).toBeVisible() failed
+E
+E             Locator: getByRole('heading', { name: 'Combined query pause', exact: true })
+E             Expected: visible
+E             Timeout: 5000ms
+E             Error: element(s) not found
+E
+E             Call log:
+E               - Expect "toBeVisible" getByRole('heading', { name: 'Combined query pause', exact: true }) with timeout 5000ms
+E               - waiting for getByRole('heading', { name: 'Combined query pause', exact: true })
+E
+E                 at captureRawStack (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+E                 at callMatcherAsStep (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+E                 at Object.toBeVisible (D:\project\pan-worktrees\event-trigger-ui-20261022\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+E                 at D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\e2e\eta-final-combined.mjs:14:85 {
+E               matcherResult: {
+E                 message: 'expect(locator).toBeVisible() failed\n' +
+E                   '\n' +
+E                   "Locator: getByRole('heading', { name: 'Combined query pause', exact: true })\n" +
+E                   'Expected: visible\n' +
+E                   'Timeout: 5000ms\n' +
+E                   'Error: element(s) not found\n' +
+E                   '\n' +
+E                   'Call log:\n' +
+E                   `  - Expect "toBeVisible" getByRole('heading', { name: 'Combined query pause', exact: true }) with timeout 5000ms\n` +
+E                   "  - waiting for getByRole('heading', { name: 'Combined query pause', exact: true })\n",
+E                 pass: false,
+E                 actual: undefined,
+E                 name: 'toBeVisible',
+E                 expected: 'visible',
+E                 log: [
+E                   `  - Expect "toBeVisible" getByRole('heading', { name: 'Combined query pause', exact: true }) with timeout 5000ms`,
+E                   "  - waiting for getByRole('heading', { name: 'Combined query pause', exact: true })"
+E                 ],
+E                 timeout: 5000,
+E                 ariaSnapshot: '- complementary:\n' +
+E                   '  - heading "Pan" [level=1]\n' +
+E                   '  - button "App settings"\n' +
+E                   '  - button "Switch to light theme"\n' +
+E                   '  - button "Collapse sidebar"\n' +
+E                   '  - navigation "�������":\n' +
+E                   '    - button "��һ��������"\n' +
+E                   '    - link "Terminal":\n' +
+E                   '      - /url: /react/terminals\n' +
+E                   '    - link "Actions":\n' +
+E                   '      - /url: /react/actions\n' +
+E                   '    - link "Automation":\n' +
+E                   '      - /url: /react/automation\n' +
+E                   '    - button "��һ��������" [disabled]\n' +
+E                   '  - button "New"\n' +
+E                   '  - button "New with settings"\n' +
+E                   '  - button "Import"\n' +
+E                   '  - textbox "Search sessions":\n' +
+E                   '    - /placeholder: Filter...\n' +
+E                   '  - button "Special filters"\n' +
+E                   `  - 'button "Sort sessions: recent"': recent\n` +
+E                   '  - button "Collapse all groups"\n' +
+E                   '  - button "Drag combined-control"\n' +
+E                   '  - text: combined-control combined-control-delivered 3 deepseek-v4-flash (x0.17) ��/combined-profile/workdirs\n' +
+E                   '  - group "Session quick actions":\n' +
+E                   `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+E                   `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings �� Notification"'\n` +
+E                   '  - img "1 unread done. Double-click to mark as read.": "1"\n' +
+E                   '  - img "Adapter cbc": cbc\n' +
+E                   '  - button "Session actions"\n' +
+E                   '  - button "Drag combined-owner"\n' +
+E                   '  - text: combined-owner 0 deepseek-v4-flash (x0.17) ��/combined-profile/workdirs\n' +
+E                   '  - group "Session quick actions":\n' +
+E                   `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+E                   `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings �� Notification"'\n` +
+E                   '  - img "Adapter cbc": cbc\n' +
+E                   '  - button "Session actions"\n' +
+E                   '  - button "Drag combined-target"\n' +
+E                   '  - text: combined-target 0 deepseek-v4-flash (x0.17) ��/combined-profile/workdirs\n' +
+E                   '  - group "Session quick actions":\n' +
+E                   `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+E                   `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+E                   `    - 'button "Notification: off. msgBridge is off; click to enable the defaults in AppSettings �� Notification"'\n` +
+E                   '  - img "1 queued pending message(s). Read-only; it changes only with the real queue.": "1"\n' +
+E                   '  - img "Adapter cbc": cbc\n' +
+E                   '  - button "Session actions"\n' +
+E                   '- button "��������"\n' +
+E                   '- button "ȫ��"\n' +
+E                   '- main:\n' +
+E                   '  - main "Actions Panel":\n' +
+E                   '    - heading "Actions & Groups" [level=1]\n' +
+E                   '    - paragraph: Define an Action once. Share it across Groups, then build a Group to use it in a Session.\n' +
+E                   '    - text: Updated 04:07 revision 1\n' +
+E                   '    - button "Refresh"\n' +
+E                   '    - group "Registry view":\n' +
+E                   '      - button "Actions 1" [pressed]\n' +
+E                   '      - button "Groups 0"\n' +
+E                   '    - text: Actions are reusable definitions.\n' +
+E                   '    - button "New Action"\n' +
+E                   '    - textbox "Search Actions"\n' +
+E                   '    - group "Filter Actions":\n' +
+E                   '      - button "All" [pressed]\n' +
+E                   '      - button "Enabled"\n' +
+E                   '      - button "Draft"\n' +
+E                   '    - text: 1 of 1 Actions Name Type Effect Status Used in Actions\n' +
+E                   '    - list "Actions":\n' +
+E                   '      - listitem:\n' +
+E                   '        - button "Combined query pause"\n' +
+E                   '        - paragraph: Combined query pause\n' +
+E                   '        - paragraph: Session Operation\n' +
+E                   '        - paragraph: Pause Everything �� Session query\n' +
+E                   '        - text: Write local Enabled ��\n' +
+E                   '        - button "Edit Combined query pause"\n' +
+E                   '        - button "More actions for Combined query pause"\n' +
+E                   '- complementary'
+E               }
+E             }
+E
+E             Node.js v24.15.0
+E
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/eta-final-combined.mjs', 'http://127.0.0.1:49891', 'D:\\project\\pan-...     - button "More actions for Combined query pause"\\n\' +\n      \'- complementary\'\n  }\n}\n\nNode.js v24.15.0\n').returncode
+
+tests\test_eta_final_combined.py:78: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_eta_final_combined.py::test_node_query_pause_production_ui_restart_and_delay_mcp
+1 failed, 5 warnings in 9.04s

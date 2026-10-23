@@ -1,0 +1,728 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="11" time="11.228" timestamp="2026-10-23T11:55:29.711713+08:00" hostname="ablaze"><testcase classname="tests.test_event_trigger_reliability" name="test_revoke_during_action_preparation_defers_same_attempt[action_read]" time="0.091"><failure message="AssertionError: assert ['selected'] == []&#10;  &#10;  Left contains one more item: 'selected'&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_revoke_during_action_prep0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023066A2D940&gt;
+stage = 'action_read'
+
+    @async_test
+    @pytest.mark.parametrize('stage', ['action_read', 'target_checkpoint'])
+    async def test_revoke_during_action_preparation_defers_same_attempt(tmp_path, monkeypatch, stage):
+        engine, calls, handle = await setup(tmp_path)
+        engine.ledger.put(trigger(), 0, True)
+        entered, release, retired = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        original = engine.io
+        blocked = False
+        async def io(fn, *args, **kw):
+            nonlocal blocked
+            value = await original(fn, *args, **kw)
+            if not blocked and ((stage == 'action_read' and fn == engine.actions.read) or
+                                (stage == 'target_checkpoint' and fn == engine.ledger.update and 'targetIds' in kw)):
+                blocked = True
+                entered.set()
+                await release.wait()
+            return value
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.match(event())
+            await wait(entered)
+            owner = engine.tasks['t']
+            owner.add_done_callback(lambda _: retired.set())
+            await engine.bus.deactivate(handle)
+            release.set()
+            await wait(retired)
+            row = next(iter(engine.ledger.read()['runs'].values()))
+&gt;           assert calls == []
+E           AssertionError: assert ['selected'] == []
+E
+E             Left contains one more item: 'selected'
+E             Use -v to get more diff
+
+tests\test_event_trigger_reliability.py:59: AssertionError</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_revoke_during_action_preparation_defers_same_attempt[target_checkpoint]" time="0.053"><failure message="AssertionError: assert ['selected'] == []&#10;  &#10;  Left contains one more item: 'selected'&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_revoke_during_action_prep1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023066A2FA80&gt;
+stage = 'target_checkpoint'
+
+    @async_test
+    @pytest.mark.parametrize('stage', ['action_read', 'target_checkpoint'])
+    async def test_revoke_during_action_preparation_defers_same_attempt(tmp_path, monkeypatch, stage):
+        engine, calls, handle = await setup(tmp_path)
+        engine.ledger.put(trigger(), 0, True)
+        entered, release, retired = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        original = engine.io
+        blocked = False
+        async def io(fn, *args, **kw):
+            nonlocal blocked
+            value = await original(fn, *args, **kw)
+            if not blocked and ((stage == 'action_read' and fn == engine.actions.read) or
+                                (stage == 'target_checkpoint' and fn == engine.ledger.update and 'targetIds' in kw)):
+                blocked = True
+                entered.set()
+                await release.wait()
+            return value
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.match(event())
+            await wait(entered)
+            owner = engine.tasks['t']
+            owner.add_done_callback(lambda _: retired.set())
+            await engine.bus.deactivate(handle)
+            release.set()
+            await wait(retired)
+            row = next(iter(engine.ledger.read()['runs'].values()))
+&gt;           assert calls == []
+E           AssertionError: assert ['selected'] == []
+E
+E             Left contains one more item: 'selected'
+E             Use -v to get more diff
+
+tests\test_event_trigger_reliability.py:59: AssertionError</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_publication_does_not_block_same_peer_delivery_ack" time="0.530"><failure message="TimeoutError">fut = &lt;Future cancelled&gt;, timeout = 0.5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+
+        Coroutine will be wrapped in Task.
+
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+
+        If the wait is cancelled, the task is also cancelled.
+
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+
+
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+
+            if fut.done():
+                return fut.result()
+
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_publication_does_not_bloc0')
+
+    @async_test
+    async def test_publication_does_not_block_same_peer_delivery_ack(tmp_path):
+        blocked, release, ack_read = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        async def publish(*args):
+            blocked.set()
+            await release.wait()
+            return {'persisted': True}
+        async def eligible(c):
+            return True
+        diagnostics = []
+        manager = SimpleNamespace(service=SimpleNamespace(bus=SimpleNamespace(publish_async=publish)),
+            eligible=eligible, stopping=False, diagnostic=lambda *x: diagnostics.append(x))
+        c = EventConnection(manager, SimpleNamespace(id='dual', events={'subscriptions':['x']}), None, {}, 'r')
+        c.handle, c.ready = object(), True
+        stream = asyncio.StreamReader()
+        c.process = SimpleNamespace(stdout=stream)
+        writes = []
+        sent = asyncio.Event()
+        async def write(message):
+            writes.append(message)
+            sent.set()
+        c.write = write
+        # Avoid OS cleanup: this test owns only in-memory transport tasks.
+        c.retire = lambda **kw: c.invalidate()
+        reader = asyncio.create_task(c.read())
+        delivery = asyncio.create_task(c.deliver({'type':'x','id':'delivery'}))
+        try:
+            await wait(sent)
+            rid = writes[0]['id']
+            stream.feed_data((json.dumps({'jsonrpc':'2.0','id':'pub','method':'events.publish',
+                'params':{'generation':c.generation,'type':'dual.x','payload':{}}})+'\n').encode())
+            await wait(blocked)
+            stream.feed_data((json.dumps({'jsonrpc':'2.0','id':rid,'result':{'accepted':True}})+'\n').encode())
+            # This timeout is a watchdog, not a scheduling sleep. The release remains held.
+&gt;           await asyncio.wait_for(asyncio.shield(delivery), .5)
+
+tests\test_event_trigger_reliability.py:116:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x00000230668C30C0&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_one_scheduler_io_failure_recovers_without_external_kick[read]" time="3.042"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x0000023066732960&gt;, timeout = 3
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+
+        Coroutine will be wrapped in Task.
+
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+
+        If the wait is cancelled, the task is also cancelled.
+
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+
+
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+
+            if fut.done():
+                return fut.result()
+
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;asyncio.locks.Event object at 0x0000023066988950 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_one_scheduler_io_failure_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230669986B0&gt;
+operation = 'read'
+
+    @async_test
+    @pytest.mark.parametrize('operation', ['read', 'claim'])
+    async def test_one_scheduler_io_failure_recovers_without_external_kick(tmp_path, monkeypatch, operation):
+        completed, failed = asyncio.Event(), asyncio.Event()
+        async def execute(*args):
+            completed.set()
+            return {'ok':True}
+        engine, _, _ = await setup(tmp_path, execute)
+        engine.ledger.put(trigger(), 0, True)
+        # Admission happened already. Only scheduling is faulted, not matching.
+        engine.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, actionId='pause',
+            event=event(), status='queued', admitted=True, arguments={}))
+        original = engine.io
+        injected = False
+        async def io(fn, *args, **kw):
+            nonlocal injected
+            if not injected and asyncio.current_task() is engine.tasks.get('t') and fn == getattr(engine.ledger, operation):
+                injected = True
+                failed.set()
+                raise OSError('one-shot scheduler disk fault')
+            return await original(fn, *args, **kw)
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.kick()
+            await wait(failed)
+&gt;           await wait(completed)
+
+tests\test_event_trigger_reliability.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_trigger_reliability.py:21: in wait
+    await asyncio.wait_for(signal.wait(), 3)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x00000230669E0740&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_one_scheduler_io_failure_recovers_without_external_kick[claim]" time="3.074"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x0000023066732A40&gt;, timeout = 3
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+
+        Coroutine will be wrapped in Task.
+
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+
+        If the wait is cancelled, the task is also cancelled.
+
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+
+
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+
+            if fut.done():
+                return fut.result()
+
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;asyncio.locks.Event object at 0x00000230668AF7F0 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_one_scheduler_io_failure_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230669989E0&gt;
+operation = 'claim'
+
+    @async_test
+    @pytest.mark.parametrize('operation', ['read', 'claim'])
+    async def test_one_scheduler_io_failure_recovers_without_external_kick(tmp_path, monkeypatch, operation):
+        completed, failed = asyncio.Event(), asyncio.Event()
+        async def execute(*args):
+            completed.set()
+            return {'ok':True}
+        engine, _, _ = await setup(tmp_path, execute)
+        engine.ledger.put(trigger(), 0, True)
+        # Admission happened already. Only scheduling is faulted, not matching.
+        engine.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, actionId='pause',
+            event=event(), status='queued', admitted=True, arguments={}))
+        original = engine.io
+        injected = False
+        async def io(fn, *args, **kw):
+            nonlocal injected
+            if not injected and asyncio.current_task() is engine.tasks.get('t') and fn == getattr(engine.ledger, operation):
+                injected = True
+                failed.set()
+                raise OSError('one-shot scheduler disk fault')
+            return await original(fn, *args, **kw)
+        monkeypatch.setattr(engine, 'io', io)
+        try:
+            await engine.kick()
+            await wait(failed)
+&gt;           await wait(completed)
+
+tests\test_event_trigger_reliability.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_trigger_reliability.py:21: in wait
+    await asyncio.wait_for(signal.wait(), 3)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x0000023066700140&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_maintenance_and_readmission_preserve_current_event_dedup" time="0.125" /><testcase classname="tests.test_event_trigger_reliability" name="test_retained_run_rejects_different_fact_after_event_expiry[queued]" time="0.086"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_retained_run_rejects_diff0')
+status = 'queued'
+
+    @async_test
+    @pytest.mark.parametrize('status', ['queued', 'retry_wait', 'uncertain', 'succeeded'])
+    async def test_retained_run_rejects_different_fact_after_event_expiry(tmp_path, status):
+        svc = local_service(tmp_path)
+        svc.ledger.put(trigger(), 0, True)
+        clock = [1000.0]
+        svc.events.clock = lambda: clock[0]
+        e = fact()
+        svc.events.append(e, [])
+        svc.events.delivery(e['id'], done=True)
+        svc.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, event=e, status=status,
+            finishedAt='unknown'))
+        clock[0] += RETENTION_SECONDS + 1
+        await svc.maintenance()
+        before = svc.ledger.path.read_bytes()
+&gt;       with pytest.raises(ValueError, match='different fact'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_event_trigger_reliability.py:229: Failed</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_retained_run_rejects_different_fact_after_event_expiry[retry_wait]" time="0.084"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_retained_run_rejects_diff1')
+status = 'retry_wait'
+
+    @async_test
+    @pytest.mark.parametrize('status', ['queued', 'retry_wait', 'uncertain', 'succeeded'])
+    async def test_retained_run_rejects_different_fact_after_event_expiry(tmp_path, status):
+        svc = local_service(tmp_path)
+        svc.ledger.put(trigger(), 0, True)
+        clock = [1000.0]
+        svc.events.clock = lambda: clock[0]
+        e = fact()
+        svc.events.append(e, [])
+        svc.events.delivery(e['id'], done=True)
+        svc.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, event=e, status=status,
+            finishedAt='unknown'))
+        clock[0] += RETENTION_SECONDS + 1
+        await svc.maintenance()
+        before = svc.ledger.path.read_bytes()
+&gt;       with pytest.raises(ValueError, match='different fact'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_event_trigger_reliability.py:229: Failed</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_retained_run_rejects_different_fact_after_event_expiry[uncertain]" time="0.108"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_retained_run_rejects_diff2')
+status = 'uncertain'
+
+    @async_test
+    @pytest.mark.parametrize('status', ['queued', 'retry_wait', 'uncertain', 'succeeded'])
+    async def test_retained_run_rejects_different_fact_after_event_expiry(tmp_path, status):
+        svc = local_service(tmp_path)
+        svc.ledger.put(trigger(), 0, True)
+        clock = [1000.0]
+        svc.events.clock = lambda: clock[0]
+        e = fact()
+        svc.events.append(e, [])
+        svc.events.delivery(e['id'], done=True)
+        svc.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, event=e, status=status,
+            finishedAt='unknown'))
+        clock[0] += RETENTION_SECONDS + 1
+        await svc.maintenance()
+        before = svc.ledger.path.read_bytes()
+&gt;       with pytest.raises(ValueError, match='different fact'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_event_trigger_reliability.py:229: Failed</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_retained_run_rejects_different_fact_after_event_expiry[succeeded]" time="0.082"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_retained_run_rejects_diff3')
+status = 'succeeded'
+
+    @async_test
+    @pytest.mark.parametrize('status', ['queued', 'retry_wait', 'uncertain', 'succeeded'])
+    async def test_retained_run_rejects_different_fact_after_event_expiry(tmp_path, status):
+        svc = local_service(tmp_path)
+        svc.ledger.put(trigger(), 0, True)
+        clock = [1000.0]
+        svc.events.clock = lambda: clock[0]
+        e = fact()
+        svc.events.append(e, [])
+        svc.events.delivery(e['id'], done=True)
+        svc.ledger.append(dict(id='r', triggerId='t', triggerRevision=1, event=e, status=status,
+            finishedAt='unknown'))
+        clock[0] += RETENTION_SECONDS + 1
+        await svc.maintenance()
+        before = svc.ledger.path.read_bytes()
+&gt;       with pytest.raises(ValueError, match='different fact'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_event_trigger_reliability.py:229: Failed</failure></testcase><testcase classname="tests.test_event_trigger_reliability" name="test_cancel_backoff_head_wakes_serial_tail" time="3.093"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x0000023063FB3680&gt;, timeout = 3
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+
+        Coroutine will be wrapped in Task.
+
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+
+        If the wait is cancelled, the task is also cancelled.
+
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+
+
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+
+            if fut.done():
+                return fut.result()
+
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;asyncio.locks.Event object at 0x0000023066881430 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3932/test_cancel_backoff_head_wakes0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023066868D70&gt;
+
+    @async_test
+    async def test_cancel_backoff_head_wakes_serial_tail(tmp_path, monkeypatch):
+        tail, timer = asyncio.Event(), asyncio.Event()
+        async def execute(*args):
+            tail.set()
+            return {'ok':True}
+        engine, _, _ = await setup(tmp_path, execute)
+        engine.ledger.put(trigger(), 0, True)
+        engine.ledger.clock = lambda: 1000.0
+        for rid in ['head','tail']:
+            engine.ledger.append(dict(id=rid, triggerId='t', triggerRevision=1, actionId='pause',
+                event=event(rid), status='queued', admitted=True, arguments={}))
+        engine.ledger.update('head', status='retry_wait', nextAttemptAt=datetime.fromtimestamp(1060,timezone.utc).isoformat())
+        original = engine.io
+        async def io(fn, *args, **kw):
+            result = await original(fn, *args, **kw)
+            if fn == engine.ledger.read and asyncio.current_task() is engine.tasks.get('t'):
+                timer.set()
+            return result
+        monkeypatch.setattr(engine, 'io', io)
+        app = FastAPI()
+        svc = SimpleNamespace(engine=engine, ledger=engine.ledger, auth=SimpleNamespace(authorized=lambda _:True))
+        app.state.automation = svc
+        install(SimpleNamespace(app=app))
+        try:
+            await engine.kick()
+            await wait(timer)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                response = await client.post('/api/automation/runs/head/cancel',json={'expectedRevision':2})
+            assert response.status_code == 200
+&gt;           await wait(tail)
+
+tests\test_event_trigger_reliability.py:266:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_event_trigger_reliability.py:21: in wait
+    await asyncio.wait_for(signal.wait(), 3)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x0000023062C8AE40&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase></testsuite></testsuites>

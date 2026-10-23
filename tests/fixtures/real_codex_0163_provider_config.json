@@ -1,0 +1,28 @@
+{
+  "model_provider": "owned",
+  "model_providers": {
+    "owned": {
+      "name": "Owned",
+      "base_url": "http://127.0.0.1:1/v1",
+      "model_catalog_url": null,
+      "env_key": null,
+      "env_key_instructions": null,
+      "experimental_bearer_token": null,
+      "auth": null,
+      "gateway_oauth": null,
+      "aws": null,
+      "wire_api": "responses",
+      "capabilities": null,
+      "query_params": null,
+      "http_headers": null,
+      "env_http_headers": null,
+      "request_max_retries": null,
+      "stream_max_retries": null,
+      "stream_idle_timeout_ms": null,
+      "websocket_connect_timeout_ms": null,
+      "requires_openai_auth": false,
+      "supports_websockets": false,
+      "supports_standalone_web_search": false
+    }
+  }
+}

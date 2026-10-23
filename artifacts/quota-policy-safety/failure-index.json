@@ -1,0 +1,49 @@
+{
+  "initial": {
+    "sourceSha": "115e7db2c298ed29b5c0904001689138cbe25eb3",
+    "sourceChanges": "only added two new regression tests before product/fixture changes",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_quota_policy_safety.py",
+      "-q",
+      "--junitxml=artifacts/quota-policy-safety/before-fix.xml"
+    ],
+    "exitCode": 1,
+    "counts": {
+      "tests": 2,
+      "failures": 2
+    },
+    "causes": [
+      "disabled account with quota was still ranked first",
+      "completed old-running TA still received wake_ta"
+    ]
+  },
+  "maTask": {
+    "sourceSha": "edafe0a9c23d9880629f75d53d3ff23b6168e59f",
+    "sourceChanges": "only added monitor task-retarget regression",
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_quota_policy_safety.py::test_monitor_does_not_retarget_a_new_ma_task_after_creation",
+      "-q",
+      "--junitxml=artifacts/quota-policy-safety/ma-task-before-fix.xml"
+    ],
+    "exitCode": 1,
+    "counts": {
+      "tests": 1,
+      "failures": 1
+    },
+    "cause": "quota monitor adopted a new unrelated MA task at threshold"
+  },
+  "final": "verification.json",
+  "allProviderCallsAreFake": true
+}

@@ -1,0 +1,59 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (1 test) 3ms
+ ✓ components/session/SessionItem.test.tsx (23 tests) 183ms
+ ✓ views/LockerView.test.tsx (15 tests) 1181ms
+stderr | components/layout/Sidebar.test.tsx > Sidebar session navigation from Jobs > opens the clicked session in Chat from Jobs, including when it is already selected
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session navigation from Jobs > closes an open mobile Sidebar after navigating from Jobs to Chat
+[sessionStore] selectSession fresh-history fetch failed jobs-session
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > opens the clicked session in Chat from the Terminal route
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > opens the clicked session in Chat from a plugin panel route
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > opens the clicked session in Chat from the Manage route
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > returns to Chat when re-clicking the already selected session from the Terminal route
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > returns to Chat again after navigating away and re-clicking the same session
+[sessionStore] selectSession fresh-history fetch failed nav-a
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > stays on the chat route without stacking navigation when a card is clicked there
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > does not navigate when a card quick action is used from the Terminal route
+[sessionStore] loadSessions failed
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route
+[sessionStore] loadSessions failed
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > does not navigate when the store selects a session in the background
+[sessionStore] selectSession fresh-history fetch failed nav-a
+
+stderr | components/layout/Sidebar.test.tsx > Sidebar session card activation returns to Chat from any non-chat route > closes an open mobile Sidebar after navigating from the Terminal route to Chat
+[sessionStore] selectSession fresh-history fetch failed nav-b
+
+ ✓ components/layout/Sidebar.test.tsx (31 tests) 1555ms
+stderr | components/session/SessionList.drag.test.tsx > SessionList drag interactions (mock demo) > a plain click on the drag gutter selects the session (threshold)
+[sessionStore] selectSession fresh-history fetch failed A
+
+ ✓ components/session/SessionList.drag.test.tsx (38 tests) 3728ms
+   ✓ manager-tree drag interactions (mock demo) > center drop on a root mocks "root manages dragged session" in the tree 384ms
+   ✓ manager-tree drag interactions (mock demo) > edge drop on a top-level slot moves a child out of its group 414ms
+   ✓ manager-tree drag interactions (mock demo) > ghost lights BOTH when the slot belongs to another level/group 520ms
+
+ Test Files  5 passed (5)
+      Tests  108 passed (108)
+   Start at  21:41:16
+   Duration  6.19s (transform 756ms, setup 38ms, collect 2.53s, tests 6.65s, environment 2.87s, prepare 754ms)
+
+JUNIT report written to D:/project/pan-worktrees/locker-product-integration-20261023/audit/locker-product-integration-20261023/vitest-final.xml

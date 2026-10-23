@@ -280,6 +280,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _log(f"[Pan] Character manifest not loaded: {e}")
 
+    from packages.core.inbox_service import recover as recover_inbox
+    await recover_inbox(_plugin_manifest())
+    from packages.interactions.api import get_store as interaction_store
+    from packages.core.inbox_service import SessionQueue
+    await interaction_store().deliver_rejections(SessionQueue())
+    await interaction_store().deliver_responses(SessionQueue())
+    await interaction_store().recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
+
     qq_config = load_config().get("qq") or {}
     await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
 
@@ -291,7 +299,7 @@ async def lifespan(app: FastAPI):
     # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
     from packages.plugins.ipc import plugin_lifespan
     from packages.plugins.panels import panel_lifespan
-    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed), panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
+    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed) as plugin_runtime, panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
         async with terminal_tools_api.terminal_tools_lifespan(app):
             async with terminal_ws.websocket_lifespan(app):
                 tailscale = _tailscale_controller()
@@ -300,12 +308,33 @@ async def lifespan(app: FastAPI):
                     await tailscale.operation(tailscale.startup)
                     lan = _lan_controller()
                     await lan.operation("startup")
+                    from packages.automation.service import Service as AutomationService
+                    automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
+                    app.state.automation = automation
                     try:
+                        await automation.start()
+                        from packages.interactions.runtime import bind as bind_interactions
+                        if getattr(app.state, 'interaction_trigger_adapter', None) is None:
+                            app.state.interaction_trigger_adapter = bind_interactions(automation)
+                        from packages.interactions.runtime import recover as recover_interactions
+                        await recover_interactions(interaction_store(), app.state.interaction_trigger_adapter)
+                        await automation.engine.kick()
+                        await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
+                        app.state.plugin_events = plugin_runtime.events
                         yield
                     finally:
-                        from packages.web.native_file_picker import native_file_picker
-                        native_file_picker.close()
-                        await lan.shutdown()
+                        try:
+                            app.state.plugin_events = None
+                            app.state.interaction_trigger_adapter = None
+                            try:
+                                await plugin_runtime.unbind_events()
+                            finally:
+                                await automation.close()
+                        finally:
+                            app.state.automation = None
+                            from packages.web.native_file_picker import native_file_picker
+                            native_file_picker.close()
+                            await lan.shutdown()
                 finally:
                     result = await tailscale.operation(tailscale.shutdown)
                     if not result["ok"]:
@@ -363,6 +392,30 @@ _character_manager: CharacterManager | None = None
 
 
 app = FastAPI(title="Pan", lifespan=lifespan)
+
+
+class PluginEventBindingsMiddleware:
+    """Reconcile Session mutations without relaying response bodies or tasks."""
+
+    def __init__(self, application):
+        self.app = application
+
+    async def __call__(self, scope, receive, send):
+        async def response(message):
+            events = getattr(app.state, 'plugin_events', None)
+            if (message['type'] == 'http.response.start' and events
+                    and scope['method'] in {'POST', 'PUT', 'PATCH', 'DELETE'}
+                    and scope['path'].startswith('/api/sessions')):
+                try:
+                    await events.reconcile()
+                except Exception as exc:
+                    events.diagnostic('runtime', 'binding reconciliation: ' + str(exc))
+            await send(message)
+
+        await self.app(scope, receive, response if scope['type'] == 'http' else send)
+
+
+app.add_middleware(PluginEventBindingsMiddleware)
 
 
 async def _reminder_loop():
@@ -3787,6 +3840,13 @@ async def api_runtime_diagnostics():
     return {**_runtime_diag.runtime.snapshot(),
             "tasks": _runtime_diag.runtime.task_stacks(),
             "threads": _runtime_diag.runtime.thread_stacks()}
+
+
+@app.get("/api/diagnostics/runtime-issues/schema")
+async def api_runtime_issue_schema():
+    """Stable RuntimeIssue/Event classification contract; read-only."""
+    from packages.core.runtime_issues import runtime_issue_schema
+    return runtime_issue_schema()
 
 
 @app.get("/api/main/restart/status")
@@ -10704,6 +10764,8 @@ app.include_router(scheduler_api.router)
 from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启动期循环
 
 jobs_api.bind(broadcast=broadcast)
+from packages.jobs.action_api import router as action_jobs_router
+app.include_router(action_jobs_router)
 app.include_router(jobs_api.router)
 
 # ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
@@ -10896,7 +10958,11 @@ async def api_start_qq_plugin(plugin_id: str):
     if plugin_id != selected:
         raise HTTPException(status_code=409, detail="select this QQ plugin before starting it")
     try:
-        return await asyncio.to_thread(gateway_plugins.start, plugin_id)
+        result = await asyncio.to_thread(gateway_plugins.start, plugin_id)
+        if result.get("ok"):
+            from packages.core.inbox_service import get_inbox
+            get_inbox().set_available("qq", True)
+        return result
     except (ValueError, OSError, psutil.Error) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -10904,6 +10970,10 @@ async def api_start_qq_plugin(plugin_id: str):
 @app.post("/api/settings/qq-plugins/{plugin_id}/stop")
 async def api_stop_qq_plugin(plugin_id: str):
     try:
+        from packages.core.inbox_service import get_inbox
+        selected = (load_config().get("qq") or {}).get("plugin_id") or (load_config().get("qq") or {}).get("channel") or "napcat"
+        if plugin_id == selected:
+            get_inbox().set_available("qq", False)
         return await asyncio.to_thread(gateway_plugins.stop, plugin_id)
     except (ValueError, OSError, psutil.Error) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -11765,6 +11835,8 @@ async def api_config_reload(data: dict | None = None):
                 plugin_entry["errors"] = plug_errors
                 errors.extend(f"plugin: {e}" for e in plug_errors)
             else:
+                from packages.core.inbox_service import reconcile_sources
+                reconcile_sources(cfg)
                 plugin_entry["applied"] = True
                 plugin_entry["sessionTemplates"] = len(cfg.session_templates)
                 plugin_entry["mcpServers"] = len(cfg.mcp_servers)
@@ -12222,6 +12294,12 @@ async def api_session_manual_report(session_id: str, data: dict):
             "alreadyReported": result["alreadyReported"]}
 
 
+from packages.web.agent_inbox_api import register as _register_agent_inbox_api
+_register_agent_inbox_api(app)
+from packages.interactions.api import register as _register_interaction_card_api
+_register_interaction_card_api(app)
+
+
 # ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
 # 订阅**字段**保持平行（qq_subscriptions / wechat_subscriptions，老数据不动），
 # 但订阅/解绑/通知的**处理逻辑**在此泛化为通道无关：_channel_subscribe /
@@ -12266,6 +12344,14 @@ async def _channel_subscribe(channel: str, data: dict) -> dict:
     target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     _channel_subscriptions(s, channel).add(target_key)
     await sess.save_async(s)
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_patterns
+        box = get_inbox()
+        sync_qq_patterns(box)
+        for locker in box.list():
+            source = locker["source"]
+            if source["pluginId"] == "qq" and source["scope"] == target_type and source["peerId"] == target_id and (not bot_uin or source["botId"] == bot_uin):
+                box.subscribe(locker["id"], s.id, "full")
     subs = _channel_subscriptions(s, channel)
     return {
         "sessionId": session_id,
@@ -12289,6 +12375,16 @@ async def _channel_unsubscribe(channel: str, data: dict) -> dict:
     target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
     _channel_subscriptions(s, channel).discard(target_key)
     await sess.save_async(s)
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_patterns
+        box = get_inbox()
+        sync_qq_patterns(box)
+        for locker in box.list():
+            source = locker["source"]
+            if source["pluginId"] == "qq" and source["scope"] == target_type and source["peerId"] == target_id and (not bot_uin or source["botId"] == bot_uin):
+                remaining = _channel_subscriptions(s, "qq")
+                if f"{target_type}:{target_id}" not in remaining and f"{target_type}:{target_id}@{source['botId']}" not in remaining:
+                    box.subscribe(locker["id"], s.id, "silent")
     subs = _channel_subscriptions(s, channel)
     return {
         "sessionId": session_id,
@@ -12312,6 +12408,21 @@ async def _channel_notify(channel: str, data: dict) -> dict:
     target_id = (data.get("target_id") or "").strip()
     if not target_id or target_type not in ("user", "group"):
         return {"error": "target_type(user|group) and target_id are required"}
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_subscriptions
+        box = get_inbox()
+        lid = data.get("lockerId")
+        if not lid or not any(r["id"] == lid for r in box.list()):
+            return {"ok": False, "error": "durable lockerId required; notify does not ingest body"}
+        source = next(r["source"] for r in box.list() if r["id"] == lid)
+        if source["pluginId"] != "qq" or source["scope"] != target_type or source["peerId"] != target_id or (data.get("bot_uin") and source["botId"] != str(data["bot_uin"])):
+            return {"ok": False, "error": "locker source mismatch"}
+        if "qq" not in _plugin_catalog().plugins:
+            box.set_available("qq", False)
+            return {"ok": False, "status": "unavailable"}
+        sync_qq_subscriptions(box, lid)
+        result = await box.forward(lid)
+        return {"ok": True, **result}
     can_reply = data.get("can_reply")
     delivered = await worker.enqueue_channel_reminder(
         channel,
@@ -13991,6 +14102,8 @@ def _ensure_manifest_fresh() -> None:
     try:
         if _character_manager.manifest_changed():
             _character_manager.reload_manifest()
+            from packages.core.inbox_service import reconcile_sources
+            reconcile_sources(_character_manager._manifest_config)
     except Exception:
         _log("[Pan] Manifest hot-reload check failed (non-fatal)")
 
@@ -14654,6 +14767,8 @@ else:
 # ── Static files ──
 from packages.actions.api import install as _install_action_api
 _install_action_api(sys.modules[__name__])
+from packages.automation.api import install as _install_automation_api
+_install_automation_api(sys.modules[__name__])
 
 
 STATIC_DIR = _WEB_DIR / "static"

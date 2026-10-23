@@ -18,7 +18,7 @@ def denied(winerror):
     return error
 
 
-@pytest.mark.parametrize("winerror", [5, 32, 33])
+@pytest.mark.parametrize("winerror", [None, 5, 32, 33])
 def test_session_evidence_read_survives_short_replace_lock(monkeypatch, winerror):
     path = Mock()
     path.read_text.side_effect = [denied(winerror), '{"deliveryState":"sent_to_cli"}']
@@ -29,7 +29,7 @@ def test_session_evidence_read_survives_short_replace_lock(monkeypatch, winerror
     assert waits == [.01]
 
 
-@pytest.mark.parametrize("winerror", [None, 123])
+@pytest.mark.parametrize("winerror", [123])
 def test_session_evidence_read_preserves_other_permission_errors(monkeypatch, winerror):
     path = Mock()
     error = denied(winerror)

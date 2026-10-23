@@ -1,0 +1,380 @@
+{
+  "port": 51323,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile",
+  "pid": 34824,
+  "createTime": 1792728020.180199,
+  "command": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+    "--port",
+    "51323",
+    "--data-root",
+    "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile"
+  ],
+  "run": {
+    "id": "run_b98ad0651b73483ab5a58a62d900f3d9",
+    "triggerId": "t",
+    "triggerRevision": 2,
+    "actionId": "pause",
+    "event": {
+      "id": "evt_3f114237b5c74419a8114e4183924c1a",
+      "type": "workers.all_idle",
+      "schemaVersion": 1,
+      "source": {
+        "type": "core",
+        "id": "workers"
+      },
+      "occurredAt": "2026-10-23T04:00:23.249501+00:00",
+      "payload": {
+        "runningCount": 0
+      }
+    },
+    "createdAt": "2026-10-23T04:00:23.269841+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {},
+    "revision": 7,
+    "attempts": [
+      {
+        "id": "att_54076a7fcf9748cd82fce60aaa4a80bf",
+        "number": 1,
+        "status": "succeeded",
+        "startedAt": "2026-10-23T04:00:23.293693+00:00",
+        "targetIds": [
+          "ses_4a03c353bcadef2f"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_4a03c353bcadef2f",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_d7ff879d841142dd87a0b2ab5543325b",
+                "queueItemId": "q_d7ff879d841142dd87a0b2ab5543325b",
+                "kind": "task",
+                "text": "must-stay-queued",
+                "createdAt": 1792728023.170256,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": true,
+                  "lockManual": true,
+                  "lockSource": "manual",
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 2,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-23T04:00:23.321239+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "finishedAt": "2026-10-23T04:00:23.340759+00:00",
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_4a03c353bcadef2f",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_d7ff879d841142dd87a0b2ab5543325b",
+                  "queueItemId": "q_d7ff879d841142dd87a0b2ab5543325b",
+                  "kind": "task",
+                  "text": "must-stay-queued",
+                  "createdAt": 1792728023.170256,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": true,
+                    "lockManual": true,
+                    "lockSource": "manual",
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 2,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        }
+      }
+    ],
+    "attemptCount": 1,
+    "retryPolicy": {
+      "enabled": false,
+      "maxAttempts": 3
+    },
+    "startedAt": "2026-10-23T04:00:23.293693+00:00",
+    "activeAttemptId": "att_54076a7fcf9748cd82fce60aaa4a80bf",
+    "retryEligible": false,
+    "actionDigest": "05750d789b4387a3404fbd340fba3aa14db7885c7c02a70dbc0b1a697508786a",
+    "targetIds": [
+      "ses_4a03c353bcadef2f"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_4a03c353bcadef2f",
+        "ok": true,
+        "items": [
+          {
+            "id": "q_d7ff879d841142dd87a0b2ab5543325b",
+            "queueItemId": "q_d7ff879d841142dd87a0b2ab5543325b",
+            "kind": "task",
+            "text": "must-stay-queued",
+            "createdAt": 1792728023.170256,
+            "source": "user",
+            "meta": {
+              "seq": 1,
+              "taskId": null,
+              "revision": 1,
+              "dispatchState": "queued",
+              "locked": true,
+              "lockManual": true,
+              "lockSource": "manual",
+              "illegalBatchId": null,
+              "lockAutoReport": false,
+              "steerPending": false,
+              "steerError": null
+            }
+          }
+        ],
+        "queueRevision": 2,
+        "agentReportsPaused": false,
+        "queuePaused": true
+      }
+    ],
+    "selection": {
+      "mode": "query",
+      "matchedAt": "2026-10-23T04:00:23.321239+00:00",
+      "candidateCount": 3,
+      "matched": 1
+    },
+    "result": {
+      "ok": true,
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0,
+      "targets": [
+        {
+          "sessionId": "ses_4a03c353bcadef2f",
+          "ok": true,
+          "items": [
+            {
+              "id": "q_d7ff879d841142dd87a0b2ab5543325b",
+              "queueItemId": "q_d7ff879d841142dd87a0b2ab5543325b",
+              "kind": "task",
+              "text": "must-stay-queued",
+              "createdAt": 1792728023.170256,
+              "source": "user",
+              "meta": {
+                "seq": 1,
+                "taskId": null,
+                "revision": 1,
+                "dispatchState": "queued",
+                "locked": true,
+                "lockManual": true,
+                "lockSource": "manual",
+                "illegalBatchId": null,
+                "lockAutoReport": false,
+                "steerPending": false,
+                "steerError": null
+              }
+            }
+          ],
+          "queueRevision": 2,
+          "agentReportsPaused": false,
+          "queuePaused": true
+        }
+      ]
+    },
+    "finishedAt": "2026-10-23T04:00:23.340759+00:00"
+  },
+  "eventPage": {
+    "events": [
+      {
+        "seq": 1,
+        "event": {
+          "id": "evt_52027a4f5be143b5a19a4e56214f92e4",
+          "type": "workers.all_idle",
+          "schemaVersion": 1,
+          "source": {
+            "type": "core",
+            "id": "workers"
+          },
+          "occurredAt": "2026-10-23T04:00:23.112084+00:00",
+          "payload": {
+            "runningCount": 0
+          }
+        },
+        "targets": [],
+        "receivedAt": 1792728023.1142972,
+        "status": "delivered",
+        "deliveryCount": 1,
+        "lastError": null
+      },
+      {
+        "seq": 2,
+        "event": {
+          "id": "evt_3f114237b5c74419a8114e4183924c1a",
+          "type": "workers.all_idle",
+          "schemaVersion": 1,
+          "source": {
+            "type": "core",
+            "id": "workers"
+          },
+          "occurredAt": "2026-10-23T04:00:23.249501+00:00",
+          "payload": {
+            "runningCount": 0
+          }
+        },
+        "targets": [
+          {
+            "id": "t",
+            "name": "t",
+            "eventTypes": [
+              "workers.all_idle"
+            ],
+            "actionId": "pause",
+            "arguments": {},
+            "enabled": true,
+            "executionMode": "serial",
+            "maxConcurrency": 1,
+            "retry": {
+              "enabled": false,
+              "maxAttempts": 3
+            },
+            "revision": 2,
+            "createdBy": {
+              "type": "agent",
+              "id": null
+            },
+            "createdAt": "2026-10-23T04:00:21.621413+00:00",
+            "updatedAt": "2026-10-23T04:00:23.191453+00:00"
+          }
+        ],
+        "receivedAt": 1792728023.2527242,
+        "status": "delivered",
+        "deliveryCount": 1,
+        "lastError": null
+      }
+    ],
+    "nextAfter": 2,
+    "storage": {
+      "events": 2,
+      "bytes": 752,
+      "pending": 0,
+      "databaseBytes": 24576,
+      "maxEvents": 100000,
+      "maxBytes": 268435456,
+      "retentionSeconds": 604800,
+      "overduePending": 0,
+      "physicalCapacityBytes": 335544320,
+      "warning": false,
+      "full": false
+    }
+  },
+  "queue": {
+    "items": [
+      {
+        "id": "q_d7ff879d841142dd87a0b2ab5543325b",
+        "queueItemId": "q_d7ff879d841142dd87a0b2ab5543325b",
+        "kind": "task",
+        "text": "must-stay-queued",
+        "createdAt": 1792728023.170256,
+        "source": "user",
+        "meta": {
+          "seq": 1,
+          "taskId": null,
+          "revision": 1,
+          "dispatchState": "queued",
+          "locked": false,
+          "lockManual": false,
+          "lockSource": null,
+          "illegalBatchId": null,
+          "lockAutoReport": false,
+          "steerPending": false,
+          "steerError": null
+        }
+      }
+    ],
+    "queueRevision": 3,
+    "agentReportsPaused": false,
+    "queuePaused": true
+  },
+  "targetId": "ses_4a03c353bcadef2f",
+  "unselectedId": "ses_ab9f93bd74cd440e",
+  "sentinelUnchanged": true,
+  "fakeRecords": [
+    {
+      "kind": "init",
+      "pid": 39444,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-target",
+      "at": 1792728021.504372,
+      "stdinEncoding": "utf-8",
+      "stdoutEncoding": "utf-8"
+    },
+    {
+      "kind": "init",
+      "pid": 41148,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-control",
+      "at": 1792728021.5293336,
+      "stdinEncoding": "utf-8",
+      "stdoutEncoding": "utf-8"
+    },
+    {
+      "kind": "init",
+      "pid": 4272,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-source",
+      "at": 1792728021.5553267,
+      "stdinEncoding": "utf-8",
+      "stdoutEncoding": "utf-8"
+    },
+    {
+      "kind": "received",
+      "pid": 4272,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-source",
+      "text": "default-off-probe",
+      "at": 1792728023.1108112
+    },
+    {
+      "kind": "received",
+      "pid": 4272,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-source",
+      "text": "enabled-source-probe",
+      "at": 1792728023.2480047
+    },
+    {
+      "kind": "received",
+      "pid": 41148,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_actual_running_event_pers0\\owned-profile\\workdirs\\auto-control",
+      "text": "unselected-control-delivered",
+      "at": 1792728023.4655015
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

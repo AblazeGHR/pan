@@ -456,8 +456,10 @@ def test_resume_legal_running_keeps_per_fire_client_message_id_stable(
         "action": {"api": "resume_legal_running"},
     }
 
-    first = asyncio.run(jobs._run_job_action(job, None, "task:entry:fire-1"))
-    retried = asyncio.run(jobs._run_job_action(job, None, "task:entry:fire-1"))
+    # Exercise the retained business sender below the new durable admission
+    # boundary. The unified dispatcher itself never replays an unknown effect.
+    first = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
+    retried = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
 
     assert first["status"] == retried["status"] == "dispatched"
     assert len(fake_worker) == 2  # the normal sender receives its durable idempotency key

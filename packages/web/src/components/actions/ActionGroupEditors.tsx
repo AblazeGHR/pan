@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/uiStore';
+import { SessionOperationFields } from './SessionOperationFields';
 import type { Action, ActionGroup, InputSchema } from '@/types/actions';
 import {
   EFFECT_LABELS,
@@ -15,6 +16,7 @@ import {
   type ActionEditorState,
   type GroupEditorState,
   isEditorDirty,
+  sessionOperationError,
 } from '@/components/actions/actionsModel';
 import {
   Badge,
@@ -208,6 +210,7 @@ export function ActionEditorPage({
   const nameError = attempted && !action.name.trim() ? 'Name is required.' : '';
   const descriptionError = attempted && !action.description.trim() ? 'Description is required.' : '';
   const schemaError = state.schemaError;
+  const operationError = attempted ? sessionOperationError(action) : '';
 
   useEffect(() => {
     if (state.schemaError) setAdvancedOpen(true);
@@ -262,7 +265,7 @@ export function ActionEditorPage({
 
   function submit() {
     setAttempted(true);
-    if (!action.name.trim() || !action.description.trim() || schemaError) return;
+    if (busy || !action.name.trim() || !action.description.trim() || schemaError || state.executionError || sessionOperationError(action)) return;
     onSave();
   }
 
@@ -349,13 +352,13 @@ export function ActionEditorPage({
                 </div>
                 <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border-default bg-bg-primary px-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-text-primary">Enable for build</p>
+                    <p className="text-sm font-medium text-text-primary">{action.execution.kind === 'session_operation' ? 'Enable for automation' : 'Enable for build'}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-text-tertiary">
-                      Disabled Actions stay in the registry but cannot be included in a release.
+                      {action.execution.kind === 'session_operation' ? 'Only enabled Actions can execute through a Trigger. Group build is unavailable.' : 'Disabled Actions stay in the registry but cannot be included in a release.'}
                     </p>
                   </div>
                   <Switch
-                    label="Enable for build"
+                    label={action.execution.kind === 'session_operation' ? 'Enable for automation' : 'Enable for build'}
                     checked={action.enabled}
                     onChange={(enabled) => patchDraft({ enabled })}
                   />
@@ -366,12 +369,17 @@ export function ActionEditorPage({
                 title="Behavior"
                 description="The effect is disclosed to the Agent and enforced by the build gate."
               >
+                <div className="flex flex-wrap gap-4 pb-3 text-xs">
+                  <label><input type="checkbox" checked={Boolean(action.monitoring)} onChange={(e) => patchDraft({ monitoring: e.target.checked, recoverable: e.target.checked && Boolean(action.recoverable) })} /> Explicit monitoring capability</label>
+                  <label><input type="checkbox" disabled={!action.monitoring} checked={Boolean(action.recoverable)} onChange={(e) => patchDraft({ recoverable: e.target.checked })} /> Allow declared Job recovery</label>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Effect" htmlFor="action-effect" hint={EFFECT_HINTS[action.effect]}>
                     <Select
                       id="action-effect"
                       label="Effect"
                       value={action.effect}
+                      disabled={action.execution.kind === 'session_operation'}
                       onChange={(value) => patchDraft({ effect: value as Action['effect'] })}
                     >
                       <option value="read">Read</option>
@@ -554,13 +562,20 @@ export function ActionEditorPage({
                     options={[
                       { value: 'api' as const, label: 'Internal API', icon: <Braces size={12} /> },
                       { value: 'command' as const, label: 'Command', icon: <Terminal size={12} /> },
+                      { value: 'session_operation' as const, label: 'Session Operation', icon: <Layers size={12} /> },
+                      { value: 'job_template' as const, label: 'Create Job', icon: <Layers size={12} /> },
                     ]}
                     onChange={(kind) =>
                       patchDraft({
+                        ...(kind === 'session_operation' ? { effect: 'write_local' as const } : {}),
+                        ...(kind === 'job_template' ? { effect: 'write_local' as const, input_schema: { type: 'object' as const, properties: {}, additionalProperties: false as const } } : {}),
                         execution:
                           kind === 'api'
                             ? { kind: 'api', method: 'GET', path: '/api/sessions' }
-                            : { kind: 'command', executable: '', args: [], cwd: '', timeout_sec: 30 },
+                            : kind === 'job_template' ? { kind, templateId: '', templateRevision: 1 }
+                            : kind === 'session_operation'
+                              ? { kind, operation: 'pause_everything', selector: { mode: 'explicit', ids: [] } }
+                              : { kind: 'command', executable: '', args: [], cwd: '', timeout_sec: 30 },
                       })
                     }
                   />
@@ -601,7 +616,18 @@ export function ActionEditorPage({
                       </datalist>
                     </Field>
                   </div>
-                ) : (
+                ) : action.execution.kind === 'session_operation' ? <>
+                  <SessionOperationFields value={action.execution} rawText={state.executionText} rawError={state.executionError}
+                    onChange={(execution) => onChange({ ...state, executionText: undefined, executionError: undefined, draft: { ...action, execution } })}
+                    onRawChange={(executionText, executionError) => onChange({ ...state, executionText, executionError,
+                      draft: !executionError && action.execution.kind === 'session_operation' ? { ...action, execution: { ...action.execution, selector: { mode: 'query', query: JSON.parse(executionText) } } } : action })} />
+                  {state.executionError && <p role="alert" className="mt-2 text-xs text-danger">{state.executionError}</p>}
+                  {operationError && <p role="alert" className="mt-2 text-xs text-danger">{operationError}</p>}
+                </> : action.execution.kind === 'system_job' ? <p className="text-xs text-text-secondary">Product-managed system Action: {action.execution.operation}. Edit its declared parameters in a Job or Template.</p> : action.execution.kind === 'job_template' ? <div className="space-y-3">
+                  <p className="text-xs text-text-secondary">Fixed complete Template only. Success means Job created, not Job execution completed. No parameter overlays.</p>
+                  <Field label="Template ID"><input className={inputClass} value={action.execution.templateId} onChange={(e) => { if (action.execution.kind === 'job_template') patchDraft({ execution: { ...action.execution, templateId: e.target.value } }); }} /></Field>
+                  <Field label="Template revision"><input className={inputClass} type="number" min={1} value={action.execution.templateRevision} onChange={(e) => { if (action.execution.kind === 'job_template') patchDraft({ execution: { ...action.execution, templateRevision: Number(e.target.value) } }); }} /></Field>
+                </div> : (
                   <div className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field label="Executable" required htmlFor="action-executable">
@@ -696,7 +722,7 @@ export function ActionEditorPage({
                 <ul className="space-y-2.5 text-xs text-text-secondary">
                   <li className="flex items-start gap-2">
                     <span className={cx('mt-1 size-1.5 shrink-0 rounded-full', action.enabled ? 'bg-success' : 'bg-text-tertiary')} />
-                    {action.enabled ? 'Enabled Actions can be built.' : 'Draft Actions are excluded until enabled.'}
+                    {action.execution.kind === 'session_operation' ? 'Automation only. Session Operation cannot be built into a Group.' : action.enabled ? 'Enabled Actions can be built.' : 'Draft Actions are excluded until enabled.'}
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-1 size-1.5 shrink-0 rounded-full bg-text-tertiary" />
@@ -713,8 +739,7 @@ export function ActionEditorPage({
 
               <Section title="Agent contract">
                 <p className="text-xs leading-relaxed text-text-secondary">
-                  When a built Group exposes this Action, the Agent receives the name, description,
-                  input schema and effect. Changes require saving and rebuilding the Group.
+                  {action.execution.kind === 'session_operation' ? 'Triggers reference this Action directly. Saving changes affects later execution starts without a Group rebuild. Existing Group releases and loaded pins remain unchanged.' : 'When a built Group exposes this Action, the Agent receives the name, description, input schema and effect. Changes require saving and rebuilding the Group.'}
                 </p>
                 <dl className="mt-3 space-y-2 text-[11px]">
                   <div className="flex items-center justify-between gap-2">
@@ -860,7 +885,7 @@ export function GroupEditorPage({
               {error}
             </div>
           )}
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div className="space-y-4">
               <Section
                 title="Group identity"

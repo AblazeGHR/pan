@@ -1,0 +1,1315 @@
+{
+  "port": 51323,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile",
+  "processes": [
+    {
+      "pid": 41524,
+      "created": 1792728024.5358763,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 32316,
+      "created": 1792728024.5423298,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40492,
+      "created": 1792728024.5589588,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 10032,
+      "created": 1792728025.7456198,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 40736,
+      "created": 1792728025.7766013,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 39140,
+      "created": 1792728025.9345913,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 36192,
+      "created": 1792728025.9389808,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41468,
+      "created": 1792728025.9520068,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 39228,
+      "created": 1792728026.0222309,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 11500,
+      "created": 1792728026.045594,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 15176,
+      "created": 1792728025.780609,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41712,
+      "created": 1792728025.7962425,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 42120,
+      "created": 1792728025.7549295,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 4956,
+      "created": 1792728025.769114,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 41524,
+      "created": 1792728024.5358763,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 32316,
+      "created": 1792728024.5423298,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40492,
+      "created": 1792728024.5589588,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 10032,
+      "created": 1792728025.7456198,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 40736,
+      "created": 1792728025.7766013,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 39140,
+      "created": 1792728025.9345913,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 36192,
+      "created": 1792728025.9389808,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41468,
+      "created": 1792728025.9520068,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 39228,
+      "created": 1792728026.0222309,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 11500,
+      "created": 1792728026.045594,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 15176,
+      "created": 1792728025.780609,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41712,
+      "created": 1792728025.7962425,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 42120,
+      "created": 1792728025.7549295,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 4956,
+      "created": 1792728025.769114,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 27076,
+      "created": 1792728028.2814064,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 35364,
+      "created": 1792728028.2862036,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 33784,
+      "created": 1792728028.3004944,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 35324,
+      "created": 1792728029.133506,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 36012,
+      "created": 1792728029.1415453,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39048,
+      "created": 1792728029.1555843,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 42412,
+      "created": 1792728029.2260334,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 42904,
+      "created": 1792728029.2482176,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 27076,
+      "created": 1792728028.2814064,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 35364,
+      "created": 1792728028.2862036,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 33784,
+      "created": 1792728028.3004944,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 35324,
+      "created": 1792728029.133506,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 36012,
+      "created": 1792728029.1415453,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39048,
+      "created": 1792728029.1555843,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 42412,
+      "created": 1792728029.2260334,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 42904,
+      "created": 1792728029.2482176,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 19884,
+      "created": 1792728029.9505105,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 7040,
+      "created": 1792728029.956154,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 11716,
+      "created": 1792728029.9729693,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 15336,
+      "created": 1792728030.80035,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40560,
+      "created": 1792728030.809754,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 34332,
+      "created": 1792728030.824088,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 22548,
+      "created": 1792728030.9005897,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40832,
+      "created": 1792728030.9221003,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 19884,
+      "created": 1792728029.9505105,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 7040,
+      "created": 1792728029.956154,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 11716,
+      "created": 1792728029.9729693,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\automation_http_server.py",
+        "--port",
+        "51323",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_node_durable_event_http_r0\\owned-store-profile"
+      ]
+    },
+    {
+      "pid": 15336,
+      "created": 1792728030.80035,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40560,
+      "created": 1792728030.809754,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 34332,
+      "created": 1792728030.824088,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 22548,
+      "created": 1792728030.9005897,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 40832,
+      "created": 1792728030.9221003,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    }
+  ],
+  "state": {
+    "revision": 16,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": true,
+        "maxConcurrency": 1,
+        "executionMode": "serial",
+        "retry": {
+          "enabled": false,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-23T04:00:25.893415+00:00",
+        "updatedAt": "2026-10-23T04:00:25.893421+00:00"
+      }
+    },
+    "runs": {
+      "run_c4a113be6ba947b99735084c24271e15": {
+        "id": "run_c4a113be6ba947b99735084c24271e15",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "pause",
+        "event": {
+          "id": "durable-node",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-23T04:00:26.135629+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-23T04:00:26.147003+00:00",
+        "status": "uncertain",
+        "admitted": true,
+        "arguments": {},
+        "state": {},
+        "revision": 9,
+        "attempts": [
+          {
+            "id": "att_e6eccea08f3345cca17e8bf458538aa1",
+            "number": 1,
+            "status": "uncertain",
+            "startedAt": "2026-10-23T04:00:26.155815+00:00",
+            "targetIds": [
+              "ses_1955dc5bd831343d"
+            ],
+            "targetResults": [
+              {
+                "sessionId": "ses_1955dc5bd831343d",
+                "ok": true,
+                "items": [
+                  {
+                    "id": "q_d88b2f838adb44b5a8729f9e346d005b",
+                    "queueItemId": "q_d88b2f838adb44b5a8729f9e346d005b",
+                    "kind": "task",
+                    "text": "durable-blocked",
+                    "createdAt": 1792728025.8284745,
+                    "source": "user",
+                    "meta": {
+                      "seq": 1,
+                      "taskId": null,
+                      "revision": 1,
+                      "dispatchState": "queued",
+                      "locked": true,
+                      "lockManual": true,
+                      "lockSource": "manual",
+                      "illegalBatchId": null,
+                      "lockAutoReport": false,
+                      "steerPending": false,
+                      "steerError": null
+                    }
+                  }
+                ],
+                "queueRevision": 2,
+                "agentReportsPaused": false,
+                "queuePaused": true
+              }
+            ],
+            "selection": {
+              "mode": "query",
+              "matchedAt": "2026-10-23T04:00:26.165769+00:00",
+              "candidateCount": 3,
+              "matched": 1
+            },
+            "finishedAt": "2026-10-23T04:00:30.783242+00:00",
+            "result": {
+              "ok": true,
+              "matched": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "targets": [
+                {
+                  "sessionId": "ses_1955dc5bd831343d",
+                  "ok": true,
+                  "items": [
+                    {
+                      "id": "q_d88b2f838adb44b5a8729f9e346d005b",
+                      "queueItemId": "q_d88b2f838adb44b5a8729f9e346d005b",
+                      "kind": "task",
+                      "text": "durable-blocked",
+                      "createdAt": 1792728025.8284745,
+                      "source": "user",
+                      "meta": {
+                        "seq": 1,
+                        "taskId": null,
+                        "revision": 1,
+                        "dispatchState": "queued",
+                        "locked": true,
+                        "lockManual": true,
+                        "lockSource": "manual",
+                        "illegalBatchId": null,
+                        "lockAutoReport": false,
+                        "steerPending": false,
+                        "steerError": null
+                      }
+                    }
+                  ],
+                  "queueRevision": 2,
+                  "agentReportsPaused": false,
+                  "queuePaused": true
+                }
+              ]
+            },
+            "error": "Service interrupted; no automatic replay"
+          }
+        ],
+        "attemptCount": 1,
+        "retryPolicy": {
+          "enabled": false,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-23T04:00:26.155815+00:00",
+        "activeAttemptId": "att_e6eccea08f3345cca17e8bf458538aa1",
+        "retryEligible": false,
+        "actionDigest": "f2e564d22d8e9a87d68eeaf2c6002da88b4e312ca675cf9a275a54cb3c908753",
+        "targetIds": [
+          "ses_1955dc5bd831343d"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_1955dc5bd831343d",
+            "ok": true,
+            "items": [
+              {
+                "id": "q_d88b2f838adb44b5a8729f9e346d005b",
+                "queueItemId": "q_d88b2f838adb44b5a8729f9e346d005b",
+                "kind": "task",
+                "text": "durable-blocked",
+                "createdAt": 1792728025.8284745,
+                "source": "user",
+                "meta": {
+                  "seq": 1,
+                  "taskId": null,
+                  "revision": 1,
+                  "dispatchState": "queued",
+                  "locked": true,
+                  "lockManual": true,
+                  "lockSource": "manual",
+                  "illegalBatchId": null,
+                  "lockAutoReport": false,
+                  "steerPending": false,
+                  "steerError": null
+                }
+              }
+            ],
+            "queueRevision": 2,
+            "agentReportsPaused": false,
+            "queuePaused": true
+          }
+        ],
+        "selection": {
+          "mode": "query",
+          "matchedAt": "2026-10-23T04:00:26.165769+00:00",
+          "candidateCount": 3,
+          "matched": 1
+        },
+        "result": {
+          "ok": true,
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "targets": [
+            {
+              "sessionId": "ses_1955dc5bd831343d",
+              "ok": true,
+              "items": [
+                {
+                  "id": "q_d88b2f838adb44b5a8729f9e346d005b",
+                  "queueItemId": "q_d88b2f838adb44b5a8729f9e346d005b",
+                  "kind": "task",
+                  "text": "durable-blocked",
+                  "createdAt": 1792728025.8284745,
+                  "source": "user",
+                  "meta": {
+                    "seq": 1,
+                    "taskId": null,
+                    "revision": 1,
+                    "dispatchState": "queued",
+                    "locked": true,
+                    "lockManual": true,
+                    "lockSource": "manual",
+                    "illegalBatchId": null,
+                    "lockAutoReport": false,
+                    "steerPending": false,
+                    "steerError": null
+                  }
+                }
+              ],
+              "queueRevision": 2,
+              "agentReportsPaused": false,
+              "queuePaused": true
+            }
+          ]
+        },
+        "finishedAt": "2026-10-23T04:00:30.783242+00:00",
+        "error": "Service interrupted; no automatic replay"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 2,
+        "bytes": 707,
+        "pending": 0,
+        "databaseBytes": 24576,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 1,
+        "bytes": 4252,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "pan.interaction.responded",
+        "source": {
+          "type": "core",
+          "id": "pan"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "recipientId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "response": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "requestId",
+                "userId",
+                "createdAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "choiceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "outcome": {
+                  "enum": [
+                    "submit",
+                    "reject"
+                  ]
+                }
+              }
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "executionBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "triggerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "actionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "triggerDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "actionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "action": {
+                  "type": "object"
+                },
+                "arguments": {
+                  "type": "object"
+                },
+                "selector": {
+                  "type": "object"
+                },
+                "authorization": {
+                  "type": "object"
+                },
+                "version": {
+                  "const": 1
+                },
+                "triggerRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "targetIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "triggerId",
+                "triggerRevision",
+                "triggerDigest",
+                "actionId",
+                "actionDigest",
+                "action",
+                "arguments",
+                "selector",
+                "authorization",
+                "summary",
+                "targetIds"
+              ]
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "eventPage": {
+    "events": [
+      {
+        "seq": 1,
+        "event": {
+          "id": "durable-node",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-23T04:00:26.135629+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "targets": [
+          {
+            "id": "t",
+            "name": "t",
+            "eventTypes": [
+              "producer.ping"
+            ],
+            "actionId": "pause",
+            "arguments": {},
+            "enabled": true,
+            "maxConcurrency": 1,
+            "executionMode": "serial",
+            "retry": {
+              "enabled": false,
+              "maxAttempts": 3
+            },
+            "revision": 1,
+            "createdBy": {
+              "type": "user"
+            },
+            "createdAt": "2026-10-23T04:00:25.893415+00:00",
+            "updatedAt": "2026-10-23T04:00:25.893421+00:00"
+          }
+        ],
+        "receivedAt": 1792728026.1372805,
+        "status": "delivered",
+        "deliveryCount": 2,
+        "lastError": null
+      },
+      {
+        "seq": 2,
+        "event": {
+          "id": "evt_d5f1ae3c1c124a829c57a2a4aadccdb7",
+          "type": "workers.all_idle",
+          "schemaVersion": 1,
+          "source": {
+            "type": "core",
+            "id": "workers"
+          },
+          "occurredAt": "2026-10-23T04:00:26.266092+00:00",
+          "payload": {
+            "runningCount": 0
+          }
+        },
+        "targets": [],
+        "receivedAt": 1792728026.27738,
+        "status": "delivered",
+        "deliveryCount": 1,
+        "lastError": null
+      }
+    ],
+    "nextAfter": 2,
+    "storage": {
+      "events": 2,
+      "bytes": 707,
+      "pending": 0,
+      "databaseBytes": 24576,
+      "maxEvents": 100000,
+      "maxBytes": 268435456,
+      "retentionSeconds": 604800,
+      "overduePending": 0,
+      "physicalCapacityBytes": 335544320,
+      "warning": false,
+      "full": false
+    }
+  },
+  "receipt": {
+    "kind": "publication",
+    "jsonrpc": "2.0",
+    "id": "plugin-1",
+    "result": {
+      "event": {
+        "id": "durable-node",
+        "type": "producer.ping",
+        "schemaVersion": 1,
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "occurredAt": "2026-10-23T04:00:26.135629+00:00",
+        "payload": {
+          "value": 1
+        }
+      },
+      "duplicate": false,
+      "persisted": true,
+      "accepted": true,
+      "rejected": []
+    }
+  },
+  "duplicateReceipt": {
+    "kind": "publication",
+    "jsonrpc": "2.0",
+    "id": "plugin-1",
+    "result": {
+      "event": {
+        "id": "durable-node",
+        "type": "producer.ping",
+        "schemaVersion": 1,
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "occurredAt": "2026-10-23T04:00:26.135629+00:00",
+        "payload": {
+          "value": 1
+        }
+      },
+      "duplicate": true,
+      "persisted": true,
+      "accepted": true,
+      "rejected": []
+    }
+  },
+  "persistedRow": [
+    "durable-node",
+    1,
+    1
+  ],
+  "queue": {
+    "items": [
+      {
+        "id": "q_d88b2f838adb44b5a8729f9e346d005b",
+        "queueItemId": "q_d88b2f838adb44b5a8729f9e346d005b",
+        "kind": "task",
+        "text": "durable-blocked",
+        "createdAt": 1792728025.8284745,
+        "source": "user",
+        "meta": {
+          "seq": 1,
+          "taskId": null,
+          "revision": 1,
+          "dispatchState": "queued",
+          "locked": false,
+          "lockManual": false,
+          "lockSource": null,
+          "illegalBatchId": null,
+          "lockAutoReport": false,
+          "steerPending": false,
+          "steerError": null
+        }
+      }
+    ],
+    "queueRevision": 3,
+    "agentReportsPaused": false,
+    "queuePaused": true
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

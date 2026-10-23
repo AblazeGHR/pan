@@ -61,8 +61,13 @@ def _err(code: str, message: str):
 
 
 def _view(job: dict) -> dict:
+    from packages.jobs.action_runtime import for_root, is_action_job
+    runtime=for_root(_job_root())
+    if is_action_job(job) and runtime:
+        job=runtime.view(job)
     value, status = pins.snapshot(_job_root())
-    return {**background_jobs.job_public_view(job),
+    from packages.jobs.unified import project
+    return {**background_jobs.job_public_view(job),'unified':project(job),
             **pins.presentation(job["jobId"], value, status)}
 
 
@@ -137,8 +142,13 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
             job = pan_bridge.public_job(item)
             if job["jobId"] not in local_ids:
                 jobs.append(background_jobs.job_public_view(job))
+    from packages.jobs.action_runtime import for_root, is_action_job
+    runtime=for_root(_job_root())
+    if runtime:
+        jobs=[await asyncio.to_thread(runtime.view,j) if is_action_job(j) else j for j in jobs]
     pinned, pin_status = pins.snapshot(_job_root())
-    jobs = [{**job, **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
+    from packages.jobs.unified import project
+    jobs = [{**job, 'unified':project(job), **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:
@@ -793,7 +803,7 @@ async def get_job(job_id: str):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
-    return _ok(job=_view(job))
+    return _ok(job=await asyncio.to_thread(_view,job))
 
 
 # ── 管理 ──
@@ -825,6 +835,9 @@ async def patch_job(job_id: str, data: dict):
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
     job = _find_job(job_id)
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job):
+        return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
         return _err("not_found", f"job {job_id} not found")
     if job.get("executionOwner") == "independent-job-service":
@@ -1069,6 +1082,9 @@ async def patch_job(job_id: str, data: dict):
 @router.delete("/{job_id}")
 async def delete_job(job_id: str):
     job = _find_job(job_id)
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job):
+        return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
         return _err("not_found", f"job {job_id} not found")
     if job.get("executionOwner") == "independent-job-service":
@@ -1107,6 +1123,9 @@ async def job_runs(job_id: str, limit: int = 100):
 async def run_job_now(job_id: str):
     """手动触发一次：scheduled-task 走兼容层 run_now；message 类到点重投。"""
     job = _find_job(job_id)
+    from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job):
+        return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
         return _err("not_found", f"job {job_id} not found")
     if job.get("kind") != background_jobs.SCHEDULED_TASK_KIND:

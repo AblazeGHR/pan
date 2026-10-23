@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="15" failures="5" errors="0" time="2.622">
+    <testsuite name="components/automation/fields.test.tsx" timestamp="2026-10-21T19:20:31.461Z" hostname="ablaze" tests="3" failures="3" errors="0" skipped="0" time="0.0795508">
+        <testcase classname="components/automation/fields.test.tsx" name="keeps the surviving literal display equal to the condition after deleting its predecessor" time="0.0623896">
+            <failure message="expected &apos;11&apos; to be &apos;22&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;11&apos; to be &apos;22&apos; // Object.is equality
+
+Expected: &quot;22&quot;
+Received: &quot;11&quot;
+
+ ❯ components/automation/fields.test.tsx:17:85
+            </failure>
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="syncs an external literal and clears obsolete custom validity" time="0.0051804">
+            <failure message="expected &apos;11e&apos; to be &apos;33&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;11e&apos; to be &apos;33&apos; // Object.is equality
+
+Expected: &quot;33&quot;
+Received: &quot;11e&quot;
+
+ ❯ components/automation/fields.test.tsx:26:23
+            </failure>
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="retains unfinished invalid text on the surviving condition and on unrelated rerenders" time="0.0114286">
+            <failure message="expected &apos;11&apos; to be &apos;22e&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;11&apos; to be &apos;22e&apos; // Object.is equality
+
+Expected: &quot;22e&quot;
+Received: &quot;11&quot;
+
+ ❯ components/automation/fields.test.tsx:34:26
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-21T19:20:31.472Z" hostname="ablaze" tests="12" failures="2" errors="0" skipped="0" time="0.6607017">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs" time="0.1794859">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.0767105">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.0930061">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.0475996">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0004403">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0006987">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.0908836">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0276102">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0003446">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.0309991">
+            <failure message="expected &quot;bound &quot; to be called 1 times, but got 0 times" type="AssertionError">
+AssertionError: expected &quot;bound &quot; to be called 1 times, but got 0 times
+ ❯ views/AutomationView.test.tsx:159:19
+            </failure>
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.0256662">
+            <failure message="expected &apos;11&apos; to be &apos;22&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;11&apos; to be &apos;22&apos; // Object.is equality
+
+Expected: &quot;22&quot;
+Received: &quot;11&quot;
+
+ ❯ views/AutomationView.test.tsx:181:85
+            </failure>
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.0865869">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -16,6 +16,14 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.client.sse import sse_client
 
 
+def provider_entry(descriptor, session):
+    """Resolve command/env with the same manifest interpolation as tool providers."""
+    from packages.core.adapters.mcp import build_mcp_servers
+    owner = SimpleNamespace(id=session.id, name=session.name,
+                            adapter_config={'mcp_servers': [descriptor]})
+    return next(iter(build_mcp_servers(owner).values()))
+
+
 class McpProvider:
     def __init__(self, descriptor: dict, session, data_dir=None):
         from packages.core.adapters.mcp import build_mcp_servers
@@ -119,14 +127,11 @@ class ApiProvider:
 
     async def _rpc(self, method, params):
         if not self.process:
-            from packages.core.adapters.mcp import build_mcp_servers
             ref = self.spec.get("command_ref")
             if ref not in self.catalog.servers:
                 raise ValueError(f"Unknown API provider command_ref: {ref}")
             descriptor = self.catalog.servers[ref]
-            owner = SimpleNamespace(id=self.session.id, name=self.session.name,
-                                    adapter_config={"mcp_servers": [descriptor]})
-            entry = next(iter(build_mcp_servers(owner).values()))
+            entry = provider_entry(descriptor, self.session)
             self.process = await asyncio.create_subprocess_exec(
                 entry["command"], *entry.get("args", []), cwd=entry.get("cwd"),
                 env={**os.environ, **entry.get("env", {}), "PAN_AGENT_SESSION_ID": self.session.id,

@@ -1,0 +1,19 @@
+PASS compact Action list and Automation share one fresh registry read across routes
+PASS full panel edits Session Operation and commits mutation response without registry refetch
+PASS Duplicate preserves operation, independent targets and original immutable Group release
+PASS new full-panel Session Operation creation and Group build rejection coexist with legacy build
+PASS Automation Pause template mutates shared registry once with no ledger or registry read
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(await page.locator('main').last().evaluate((e) => e.scrollWidth <= e.clientWidth + 1))
+
+    at file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:195:99
+    at async check (file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:63:34)
+    at async file:///D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/e2e/eta-action-panel.e2e.mjs:182:3 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

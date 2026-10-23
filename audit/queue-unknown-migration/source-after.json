@@ -1,0 +1,27 @@
+{
+  "sourcePracticalHead": "2652ac8e6d0ff312a255666bc5e459890346e6e5",
+  "mainRef": "ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e",
+  "practicalRef": "2652ac8e6d0ff312a255666bc5e459890346e6e5",
+  "sourceTrackedStatus": "",
+  "sourceConfigHashUnchanged": true,
+  "sampleFilePostcheck": {
+    "unchanged": 268,
+    "changedSinceSample": 2
+  },
+  "activeSourceChanges": [
+    {
+      "key": "136f355a06fced57391f64f22e23d60829bb100c7b5509c850e7f04850b44bfb",
+      "suffix": ".jsonl",
+      "samplePrefixEqualNow": true,
+      "sizeDelta": 22082
+    },
+    {
+      "key": "2eaebd351bbf98fd3bdf02bb2da50f0f9abc3d918a8cd5403995c236473accc0",
+      "suffix": ".json",
+      "samplePrefixEqualNow": false,
+      "sizeDelta": -10037
+    }
+  ],
+  "sourceOpenModes": "rb only; source stat; git read commands",
+  "limits": "active source; no global transaction snapshot; changes not attributed by hashes alone"
+}

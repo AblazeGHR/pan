@@ -1,0 +1,131 @@
+{
+  "sourceSha": "861da58744196eaab19e774d488ab8a3e7b64b7e",
+  "branch": "feature/event-trigger-core-20261022",
+  "cwd": "D:\\project\\pan-worktrees\\event-trigger-core-20261022",
+  "python": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "encoding": {
+    "utf8Mode": 0,
+    "stdoutEncoding": "gbk",
+    "localeEncoding": "cp936",
+    "PYTHONUTF8": null,
+    "PYTHONIOENCODING": null
+  },
+  "providerCalls": 0,
+  "accountSwitches": 0,
+  "existingServiceOperations": 0,
+  "checks": [
+    {
+      "name": "diff-check",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "b1f1100b",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "seconds": 0.044,
+      "log": "diff-check.log"
+    },
+    {
+      "name": "final-policy",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_policy_idle.py",
+        "tests/test_quota_policy.py",
+        "tests/test_quota_policy_safety.py",
+        "-q",
+        "--junitxml=artifacts/quota-policy-idle/final-policy.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 9.572,
+      "log": "final-policy.log",
+      "junit": "final-policy.xml",
+      "counts": {
+        "tests": 143,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "final-compat",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_action_templates.py::test_disabled_and_high_risk_action_gates_block_job_effects",
+        "tests/test_session_query.py::test_recovery_preserves_frozen_targets_and_never_requeries",
+        "tests/test_automation_concurrency.py::test_disable_between_claim_and_dependency_deferral_cancels",
+        "tests/test_automation_concurrency.py::test_kick_read_inflight_at_close_must_not_spawn",
+        "tests/test_automation_retry_parallel.py::test_retry_pause_gate_plugin_loss_and_new_generation",
+        "-q",
+        "--junitxml=artifacts/quota-policy-idle/final-compat.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 1.293,
+      "log": "final-compat.log",
+      "junit": "final-compat.xml",
+      "counts": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "final-http",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_quota_policy_http.py",
+        "-q",
+        "--junitxml=artifacts/quota-policy-idle/final-http.xml"
+      ],
+      "exitCode": 0,
+      "seconds": 5.973,
+      "log": "final-http.log",
+      "junit": "final-http.xml",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "compile",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/automation/quota_policy.py",
+        "packages/automation/quota_identity.py",
+        "packages/automation/api.py",
+        "packages/core/runtime_issues.py",
+        "packages/core/session_error_log.py",
+        "packages/jobs/action_runtime.py",
+        "tests/test_quota_policy.py",
+        "tests/test_quota_policy_http.py",
+        "tests/test_quota_policy_safety.py",
+        "tests/test_quota_policy_idle.py"
+      ],
+      "exitCode": 0,
+      "seconds": 0.096,
+      "log": "compile.log"
+    }
+  ]
+}

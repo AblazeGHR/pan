@@ -1,0 +1,100 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/event-trigger-ui-20261022/packages/web/src
+
+ ❯ components/automation/fields.test.tsx (3 tests | 3 failed) 80ms
+   × keeps the surviving literal display equal to the condition after deleting its predecessor 62ms
+     → expected '11' to be '22' // Object.is equality
+   × syncs an external literal and clears obsolete custom validity 5ms
+     → expected '11e' to be '33' // Object.is equality
+   × retains unfinished invalid text on the surviving condition and on unrelated rerenders 11ms
+     → expected '11' to be '22e' // Object.is equality
+ ❯ views/AutomationView.test.tsx (12 tests | 2 failed) 661ms
+   × guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty 31ms
+     → expected "bound " to be called 1 times, but got 0 times
+   × posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase 26ms
+     → expected '11' to be '22' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  components/automation/fields.test.tsx > keeps the surviving literal display equal to the condition after deleting its predecessor
+AssertionError: expected '11' to be '22' // Object.is equality
+
+Expected: "22"
+Received: "11"
+
+ ❯ components/automation/fields.test.tsx:17:85
+     15|   render(<Harness />);
+     16|   fireEvent.click(screen.getByRole('button', { name: 'Remove condition…
+     17|   expect((screen.getByLabelText('Compare value (JSON)') as HTMLInputEl…
+       |                                                                                     ^
+     18|   expect(JSON.parse(screen.getByTestId('condition').textContent!)).toM…
+     19| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  components/automation/fields.test.tsx > syncs an external literal and clears obsolete custom validity
+AssertionError: expected '11e' to be '33' // Object.is equality
+
+Expected: "33"
+Received: "11e"
+
+ ❯ components/automation/fields.test.tsx:26:23
+     24|   expect(input.checkValidity()).toBe(false);
+     25|   rerender(<ConditionEditor value={compare(33)} onChange={() => {}} />…
+     26|   expect(input.value).toBe('33'); expect(input.checkValidity()).toBe(t…
+       |                       ^
+     27| });
+     28| it('retains unfinished invalid text on the surviving condition and on …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  components/automation/fields.test.tsx > retains unfinished invalid text on the surviving condition and on unrelated rerenders
+AssertionError: expected '11' to be '22e' // Object.is equality
+
+Expected: "22e"
+Received: "11"
+
+ ❯ components/automation/fields.test.tsx:34:26
+     32|   fireEvent.click(screen.getByRole('button', { name: 'Remove condition…
+     33|   const survivor = screen.getByLabelText('Compare value (JSON)') as HT…
+     34|   expect(survivor.value).toBe('22e'); expect(survivor.checkValidity())…
+       |                          ^
+     35| });
+     36|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  views/AutomationView.test.tsx > guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty
+AssertionError: expected "bound " to be called 1 times, but got 0 times
+ ❯ views/AutomationView.test.tsx:159:19
+    157|   await openNew();
+    158|   fireEvent.click(screen.getByRole('button', { name: 'New Trigger' }));
+    159|   expect(confirm).toHaveBeenCalledTimes(1);
+       |                   ^
+    160|   expect((screen.getByLabelText('Trigger name') as HTMLInputElement).v…
+    161|   fireEvent.click(screen.getByRole('button', { name: 'Edit Existing' }…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  views/AutomationView.test.tsx > posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase
+AssertionError: expected '11' to be '22' // Object.is equality
+
+Expected: "22"
+Received: "11"
+
+ ❯ views/AutomationView.test.tsx:181:85
+    179|   fireEvent.click(await screen.findByRole('button', { name: 'Edit Exis…
+    180|   fireEvent.click(screen.getByRole('button', { name: 'Remove condition…
+    181|   expect((screen.getByLabelText('Compare value (JSON)') as HTMLInputEl…
+       |                                                                                     ^
+    182|   snapshot.triggers[saved.id]!.revision = 2; rejectStatus = 409;
+    183|   fireEvent.click(screen.getByRole('button', { name: 'Save disabled dr…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 10 passed (15)
+   Start at  03:20:28
+   Duration  2.60s (transform 102ms, setup 22ms, collect 503ms, tests 740ms, environment 1.21s, prepare 231ms)
+
+JUNIT report written to D:/project/pan-worktrees/event-trigger-ui-20261022/artifacts/event-trigger-ui-review/before.xml

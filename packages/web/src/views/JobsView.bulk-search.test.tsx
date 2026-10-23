@@ -7,6 +7,8 @@ import { useJobStore } from '@/stores/jobStore';
 import type { Job, JobKind } from '@/types/jobs';
 
 const api = vi.hoisted(() => ({
+  updateActionJob: vi.fn(),
+  fetchActionRegistry: vi.fn(), fetchCompleteJobTemplates: vi.fn(),
   fetchJobs: vi.fn(),
   fetchJob: vi.fn(),
   fetchJobKinds: vi.fn(),
@@ -21,6 +23,9 @@ const api = vi.hoisted(() => ({
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
 vi.mock('@/services/api', () => ({
+  updateActionJob: api.updateActionJob,
+  fetchActionRegistry: api.fetchActionRegistry,
+  fetchCompleteJobTemplates: api.fetchCompleteJobTemplates,
   fetchJobs: api.fetchJobs,
   fetchJob: api.fetchJob,
   fetchJobKinds: api.fetchJobKinds,
@@ -147,8 +152,25 @@ function retentionResponse(
 }
 
 describe('JobsView search, status filters, and bulk actions', () => {
+  it('keeps the opened config revision when WS replaces a dirty unified Job', async () => {
+    const initial = scheduledJob({ name: 'Unified revision draft', enabled: true, configRevision: 7,
+      unified: { action: { api: 'action_reference', actionId: 'a', arguments: {} }, config: {
+        name: 'Unified revision draft', actionId: 'a', arguments: {}, schedule: [], trigger: { kind: 'immediate' }, enabled: true } } });
+    api.fetchJobs.mockResolvedValue([initial]); api.updateActionJob.mockResolvedValue(initial);
+    renderView();
+    fireEvent.click(await screen.findByText('Unified revision draft'));
+    fireEvent.click(await screen.findByRole('button', { name: /^Edit$/ }));
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Kept user draft' } });
+    act(() => useJobStore.getState().upsertJob({ ...initial, configRevision: 8 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save unified Job' }));
+    await waitFor(() => expect(api.updateActionJob).toHaveBeenCalled());
+    expect(api.updateActionJob.mock.calls[0]?.[2]).toBe(7);
+    expect(api.updateActionJob.mock.calls[0]?.[1].name).toBe('Kept user draft');
+  });
   beforeEach(() => {
     vi.resetAllMocks();
+    api.fetchActionRegistry.mockResolvedValue({ actions: [] });
+    api.fetchCompleteJobTemplates.mockResolvedValue([]);
     wsHandlers.clear();
     api.fetchJobs.mockResolvedValue([]);
     api.fetchJob.mockResolvedValue(undefined);
@@ -488,7 +510,7 @@ describe('JobsView search, status filters, and bulk actions', () => {
       'true',
     );
     expect(screen.getByRole('textbox', { name: 'Name' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create job' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save unified Job' })).toBeTruthy();
   });
 
   it('selects and deselects visible results without opening a detail drawer; row menus stay isolated', async () => {

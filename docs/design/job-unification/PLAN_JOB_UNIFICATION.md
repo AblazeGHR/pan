@@ -1,5 +1,10 @@
 # Job 统一计划（PLAN_JOB_UNIFICATION）
 
+> 2026-10-23：以下用途 kind 方案保留为历史兼容设计。当前新建 Job 的权威产品
+> 契约为 [Action 引用统一配置](../Event-Trigger-Action-v0.4-job-templates.md#unified-execution-contract-2026-10-23)：
+> Action/参数/Trigger/Recovery/Overlap/Notification/Completion；kind 仅兼容/内部能力。
+> 旧入口实际执行也经过 System Action Attempt/snapshot 生命周期，不只是查询投影。
+
 - 版本：v0.1 草案（2026-09-25，由 DISCUSSION.md A-H 节八项已定决策整理而成）
 - 状态：**待立项**——前置条件是 integrate/pr1 验收并合入 main；TA 非 scheduler 修复与本计划并行
 - 契约源：本文件。DISCUSSION.md 保留为决策过程存档，冲突时以本文件为准。

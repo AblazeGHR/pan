@@ -1,0 +1,125 @@
+{
+  "port": 64435,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3661\\test_quota_policy_owned_http_d0\\owned-quota-http",
+  "providerCalls": 0,
+  "switches": 0,
+  "restarts": 0,
+  "serverPid": 15152,
+  "job": {
+    "jobId": "job_bdff2206e53d0021483adb83",
+    "kind": "scheduled-task",
+    "taskId": "sch_c802fffc311d",
+    "name": "Quota once",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "quota_query"
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_4e621bcf",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": null,
+        "lastFireAt": null,
+        "kind": "once",
+        "at": "2026-10-22T16:59:21"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": null,
+    "lastFireAt": null,
+    "lastStatus": null,
+    "lastError": null,
+    "runCount": 0,
+    "maxRuns": null,
+    "status": "completed",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792659560.0,
+    "updatedAt": 1792659561.5396938,
+    "quotaPolicy": {
+      "contractVersion": 2,
+      "epoch": 2,
+      "purpose": "once",
+      "maSessionId": "owned-ma",
+      "expectedAccountId": null
+    },
+    "quotaResult": {
+      "status": "unknown",
+      "thresholdReached": false
+    },
+    "operation": "run",
+    "target": {
+      "sessionId": null
+    },
+    "pinned": false,
+    "pinMetadataStatus": "available"
+  },
+  "policy": {
+    "version": 2,
+    "revision": 6,
+    "epoch": 3,
+    "mode": "manual",
+    "maSessionId": "owned-ma",
+    "seen": {},
+    "cases": {},
+    "excluded": [],
+    "capacityRetried": [],
+    "commands": {},
+    "quota": {
+      "status": "unknown",
+      "observedAt": 1792659561.587946,
+      "currentAccountId": null,
+      "accounts": []
+    },
+    "jobs": {
+      "once": "job_bdff2206e53d0021483adb83"
+    },
+    "disabledAccountIds": [
+      "disabled-account-three"
+    ],
+    "accountConfigRevision": 1,
+    "rankedAccounts": [],
+    "adapter": "unavailable",
+    "diagnostics": []
+  },
+  "restartedServerPid": 32908,
+  "recovered": {
+    "version": 2,
+    "revision": 6,
+    "epoch": 3,
+    "mode": "manual",
+    "maSessionId": "owned-ma",
+    "seen": {},
+    "cases": {},
+    "excluded": [],
+    "capacityRetried": [],
+    "commands": {},
+    "quota": {
+      "status": "unknown",
+      "observedAt": 1792659563.1577508,
+      "currentAccountId": null,
+      "accounts": []
+    },
+    "jobs": {
+      "once": "job_bdff2206e53d0021483adb83"
+    },
+    "disabledAccountIds": [
+      "disabled-account-three"
+    ],
+    "accountConfigRevision": 1,
+    "rankedAccounts": [],
+    "adapter": "unavailable",
+    "diagnostics": []
+  },
+  "portReleased": true,
+  "ownedServerStopped": true
+}

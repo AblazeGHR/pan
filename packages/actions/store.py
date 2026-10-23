@@ -9,6 +9,7 @@ import re
 import sys
 import tempfile
 import threading
+import time
 import uuid
 
 import jsonschema
@@ -19,12 +20,22 @@ API_ROUTES = {'/api/sessions', '/api/models', '/api/workspaces'}
 EFFECTS = {'read', 'write_local', 'write_external', 'high_risk'}
 
 
+class PersistenceError(OSError):
+    """Storage failure, distinct from user authorization PermissionError."""
+
+
 def root():
     from packages.core import session
     return session.SESSION_DIR.parent / 'actions'
 
 
 def atomic(path, value):
+    try:_atomic(path,value)
+    except OSError as exc:
+        raise PersistenceError('Action registry persistence failed: '+str(exc)) from exc
+
+
+def _atomic(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
     try:
@@ -32,7 +43,13 @@ def atomic(path, value):
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(name, path)
+        for attempt in range(10):
+            try:
+                os.replace(name, path)
+                break
+            except PermissionError:
+                if attempt == 9:raise
+                time.sleep(.01)  # Off-loop, bounded90ms; never truncate canonical state.
     finally:
         if os.path.exists(name):
             os.unlink(name)
@@ -44,9 +61,12 @@ def identifier(value):
     return value
 
 
-def validate_action(raw):
-    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format'}:
+def validate_action(raw, automation=True):
+    if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent', 'system', 'monitoring', 'recoverable'}:
         raise ValueError('Unknown Action fields')
+    from .session_query import validate_action_query
+    from packages.core.system_fields import system_target_name
+    validate_action_query(raw)
     action = copy.deepcopy(raw)
     identifier(action.get('id'))
     if not isinstance(action.get('name'), str) or not action['name'].strip():
@@ -55,6 +75,16 @@ def validate_action(raw):
     if not isinstance(action['description'], str) or not action['description'].strip():
         raise ValueError('Action description is required')
     action.setdefault('enabled', False)
+    action.setdefault('idempotent', False)
+    action.setdefault('system', False)
+    action.setdefault('monitoring', False)
+    action.setdefault('recoverable', False)
+    if type(action['monitoring']) is not bool or type(action['recoverable']) is not bool or (action['recoverable'] and not action['monitoring']):
+        raise ValueError('Recoverable Actions must explicitly declare monitoring capability')
+    if type(action['system']) is not bool:
+        raise ValueError('Action system must be boolean')
+    if type(action['idempotent']) is not bool:
+        raise ValueError('Action idempotent must be boolean')
     action.setdefault('effect', 'read')
     action.setdefault('output_format', 'json')
     if (type(action['enabled']) is not bool or not isinstance(action['effect'], str) or action['effect'] not in EFFECTS
@@ -87,7 +117,10 @@ def validate_action(raw):
     ex = action.get('execution')
     if not isinstance(ex, dict):
         raise ValueError('Execution is required')
-    if ex.get('kind') == 'api':
+    if ex.get('kind') == 'system_job' and automation:
+        from packages.jobs.system_actions import validate
+        validate(action)
+    elif ex.get('kind') == 'api':
         if (set(ex) != {'kind', 'method', 'path'} or ex['method'] != 'GET'
                 or not isinstance(ex['path'], str) or ex['path'] not in API_ROUTES or action['effect'] != 'read'):
             raise ValueError('API Actions require a fixed allowed GET route and read effect')
@@ -115,8 +148,36 @@ def validate_action(raw):
                     raise ValueError('Command input placeholders must occupy a complete argv element and reference a scalar field')
                 if match[1] not in schema.get('required', []) and 'default' not in properties[match[1]]:
                     raise ValueError('Command placeholders require a required field or default')
+    elif ex.get('kind') == 'job_template' and automation:
+        if (set(ex) != {'kind', 'templateId', 'templateRevision'}
+                or not isinstance(ex['templateId'], str) or not ex['templateId'].startswith('jtpl_')
+                or type(ex['templateRevision']) is not int or ex['templateRevision'] < 1
+                or action['effect'] != 'write_local' or schema.get('properties', {})
+                or schema.get('required', [])):
+            raise ValueError('Job Template Action requires a fixed template/revision and no input fields')
+    elif ex.get('kind') == 'session_operation' and automation:
+        if set(ex) != {'kind', 'operation', 'selector'} or ex['operation'] != 'pause_everything' or action['effect'] != 'write_local':
+            raise ValueError('Invalid Session Operation')
+        selector = ex['selector']
+        if not isinstance(selector, dict):
+            raise ValueError('Invalid Session selector')
+        if selector.get('mode') == 'explicit':
+            if set(selector) != {'mode', 'ids'} or not isinstance(selector['ids'], list) or any(not isinstance(i, str) or not i for i in selector['ids']):
+                raise ValueError('Invalid explicit Session IDs')
+        elif selector.get('mode') == 'event':
+            if set(selector) != {'mode', 'path'} or not isinstance(selector['path'], str) or not selector['path']:
+                raise ValueError('Invalid Event selector path')
+            if selector['path'] == 'system' or selector['path'].startswith('system.'):
+                system_target_name(selector['path'])
+        elif selector.get('mode') == 'query':
+            if set(selector) != {'mode', 'query'}:
+                raise ValueError('Query selector requires only mode and query')
+            from .session_query import validate_query
+            validate_query(selector['query'])
+        else:
+            raise ValueError('Unknown Session selector mode')
     else:
-        raise ValueError('Execution kind must be api or command')
+        raise ValueError('Execution kind must be api, command or session_operation')
     return action
 
 
@@ -128,20 +189,28 @@ class Store:
     def read(self):
         if not self.path.exists():
             return {'revision': 0, 'actions': {}, 'groups': {}, 'retired_plugins': []}
-        return json.loads(self.path.read_text(encoding='utf-8'))
+        for attempt in range(10):
+            try:return json.loads(self.path.read_text(encoding='utf-8'))
+            except PermissionError as exc:
+                if attempt==9:raise PersistenceError('Action registry read failed: '+str(exc)) from exc
+                time.sleep(.01)
 
-    def mutate(self, change, expected=None):
+    def mutate(self, change, expected=None, *, versioned=True):
         with _lock:
             state = self.read()
             if expected is not None and (type(expected) is not int or state['revision'] != expected):
                 raise ValueError('Action registry changed; reload before saving')
             result = change(state)
-            state['revision'] += 1
+            if versioned:
+                state['revision'] += 1
             atomic(self.path, state)
             return result
 
-    def put(self, kind, raw, expected=None, draft=False, create=False):
+    def put(self, kind, raw, expected=None, draft=False, create=False, authorized=False):
         def change(state):
+            if kind == 'actions':
+                from .session_query import validate_action_query
+                validate_action_query(raw)
             value = copy.deepcopy(raw)
             if isinstance(value, dict) and 'id' not in value:
                 # Allocate under the same registry writer as publication. Names
@@ -158,9 +227,23 @@ class Store:
             if create and isinstance(value, dict) and value.get('id') in state[kind]:
                 raise ValueError('ID already exists; update the existing item by ID')
             item = validate_action(value) if kind == 'actions' else self.validate_group(value, state)
+            if kind == 'actions' and (item.get('system') or state['actions'].get(item['id'], {}).get('system')):
+                raise PermissionError('System Actions are product-managed')
             if draft and kind == 'actions':
                 item['enabled'] = False
+            if kind == 'actions':
+                old = state['actions'].get(item['id'])
+                if (item['execution']['kind'] == 'job_template'
+                        or (old and old['execution']['kind'] == 'job_template')):
+                    if not authorized and (item['enabled'] or (old and old['enabled'])):
+                        raise PermissionError('User Bearer required for delegated template Action enable/edit')
             state[kind][item['id']] = item
+            if kind == 'actions':
+                from packages.jobs.action_templates import check_action_graph
+                # Only complete fixed capabilities can be persisted, including drafts.
+                check_action_graph(state, item)
+                revisions = state.setdefault('actionRevisions', {})
+                revisions[item['id']] = revisions.get(item['id'], 0)+1
             return copy.deepcopy(item)
         return self.mutate(change, expected)
 
@@ -175,13 +258,22 @@ class Store:
             raise ValueError('Group must reference unique existing Actions')
         return {**copy.deepcopy(raw), **{k: v for k, v in state['groups'].get(gid, {}).items() if k in {'build', 'last_build'}}}
 
-    def delete(self, kind, item_id, expected=None):
+    def delete(self, kind, item_id, expected=None, *, authorized=False, confirm_references=False):
         def change(state):
             item = state[kind].get(item_id)
             if not item:
                 raise ValueError('Item not found')
+            if kind == 'actions' and item.get('system'):
+                raise PermissionError('System Actions cannot be deleted')
             if kind == 'actions' and any(item_id in g['action_ids'] for g in state['groups'].values()):
                 raise ValueError('Action is referenced by a Group; remove its references first')
+            if kind == 'actions':
+                from packages.jobs.action_templates import references
+                if references(state, item_id) and (not authorized or not confirm_references):
+                    raise PermissionError('User Bearer and confirmReferences required to delete referenced Action')
+                generations = state.setdefault('actionGenerations', {})
+                generations[item_id] = generations.get(item_id, 0)+1
+                state.setdefault('actionRevisions', {})[item_id] = state.get('actionRevisions', {}).get(item_id, 0)+1
             if kind == 'groups' and item.get('build'):
                 raise ValueError('Unbuild the Group before deleting it')
             del state[kind][item_id]
@@ -192,7 +284,7 @@ class Store:
             group = state['groups'].get(gid)
             if not group:
                 raise ValueError('Group not found')
-            actions = [validate_action(state['actions'][i]) for i in group['action_ids']]
+            actions = [validate_action(state['actions'][i], automation=False) for i in group['action_ids']]
             if not actions or any(not a['enabled'] for a in actions):
                 raise ValueError('Build requires at least one Action and all selected Actions enabled')
             if any(a['effect'] == 'high_risk' for a in actions):

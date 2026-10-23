@@ -255,6 +255,13 @@ def run(root, job_id):
         job = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not job: return 2
     payload = json.loads(job["payload"])
+    audit=json.loads(job['execution_audit'])
+    snapshot=audit.get('attemptSnapshot')
+    if snapshot:
+        from packages.jobs.system_actions import validate
+        validate(snapshot['definition'])
+        params=snapshot['arguments']
+        payload.update(argv=params['argv'],cwd=params['cwd'],hideWindow=params['hideWindow'],targetSessionId=params['sessionId'])
     runner_pid = os.getpid()
     runner_filetime = _identity(runner_pid)
     claim = secrets.token_hex(16)
@@ -315,8 +322,12 @@ def run(root, job_id):
     with _connect(root) as db:
         db.execute("BEGIN IMMEDIATE")
         # Terminal fact and durable outbox entry share one transaction.
-        db.execute("UPDATE jobs SET status=?,exit_code=?,updated=? WHERE id=? AND status IN ('starting','running')",
-                   (final_status, exit_code, time.time(), job_id))
+        current=db.execute('SELECT execution_audit FROM jobs WHERE id=?',(job_id,)).fetchone()
+        from packages.jobs.system_actions import finish
+        audit=json.loads(current['execution_audit'])
+        finish(audit,'uncertain' if final_status=='UNKNOWN' else final_status,{'status':final_status,'exitCode':exit_code})
+        db.execute("UPDATE jobs SET status=?,exit_code=?,execution_audit=?,updated=? WHERE id=? AND status IN ('starting','running')",
+                   (final_status, exit_code, json.dumps(audit),time.time(), job_id))
         actual = db.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
         if actual == final_status and final_status != "UNKNOWN":
             db.execute("INSERT OR IGNORE INTO outbox(event_id,job_id,payload,created) VALUES(?,?,?,?)",

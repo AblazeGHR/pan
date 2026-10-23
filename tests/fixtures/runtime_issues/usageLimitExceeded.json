@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "eventId": "se_9434f64c9f4055ab9a79f92bcf55e77b",
+  "timestamp": "2026-10-22T04:58:06.973789+00:00",
+  "kind": "terminal_error",
+  "terminal": true,
+  "adapter": "codex",
+  "model": "gpt-6.1-sol",
+  "sessionId": "ses_ca08acfab30d97fd",
+  "workerId": "worker-1",
+  "generation": 10,
+  "taskSeq": 183,
+  "taskId": null,
+  "executionSeq": 2,
+  "queueItemId": "q_fc13df7f2d624c9e807edb6f75db4b8e",
+  "sourceSessionId": null,
+  "panStatus": "error",
+  "errorText": "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:33 PM.",
+  "errorTextSource": "codex_error_payload",
+  "cli": {
+    "raw": {
+      "type": "result",
+      "is_error": true,
+      "cancelled": false,
+      "turn_status": "failed",
+      "result": "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:33 PM.",
+      "error_source": "codex_error_payload",
+      "error": {
+        "message": "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:33 PM.",
+        "codexErrorInfo": "usageLimitExceeded",
+        "additionalDetails": null,
+        "misalignment": null
+      },
+      "error_text": "You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:33 PM."
+    }
+  }
+}

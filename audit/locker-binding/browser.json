@@ -1,0 +1,40 @@
+{
+  "chromiumVersion": "153.0.8010.12",
+  "sizes": [
+    {
+      "width": 1280,
+      "scrollWidth": 1280,
+      "trustedBox": {
+        "x": 505,
+        "y": 424.59375,
+        "width": 742,
+        "height": 114
+      }
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390,
+      "trustedBox": {
+        "x": 161,
+        "y": 568.59375,
+        "width": 196,
+        "height": 226
+      }
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320,
+      "trustedBox": {
+        "x": 161,
+        "y": 608.59375,
+        "width": 126,
+        "height": 322
+      }
+    }
+  ],
+  "errors": [],
+  "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+  "targetId": "ses_c0626d1feb955ab9",
+  "trustedSummary": "Keep target running · 可信执行\n\npause_everything · Action pause · Trigger selected r1\n\nSession: ses_c0626d1feb955ab9\n\n授权来源: ses_d912cd4ea63a1b90 · self_or_managed\n\n参数映射: {}\n\nAction digest: cdca795c31427246e52bdf9d1489ad48721ab9987c10fadd02895383b9c192cb",
+  "approvedInProductionPanel": true
+}

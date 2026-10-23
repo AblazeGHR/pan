@@ -115,6 +115,10 @@ def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tm
     result = runtime.request("POST", "/api/sessions/wake", json={"sessionIds": [sid], "clientMessageId": "wake-job-crash"})
     assert result["ok"]
     _wait_for(lambda: any(jid in row["text"] for row in _received(runtime, cwd=s["workdir"])))
+    # The fixture CLI can log the read before Pan's original-ID receipt write
+    # commits. Wait for that durable boundary without resending the message.
+    _wait_for(lambda: durable(runtime, sid)["queue_delivery_ledger"][pending["id"]]["deliveryState"] == "sent_to_cli",
+              label="original notification receipt persisted")
     after = durable(runtime, sid)
     receipt = after["queue_delivery_ledger"][pending["id"]]
     assert receipt["deliveryState"] == "sent_to_cli"

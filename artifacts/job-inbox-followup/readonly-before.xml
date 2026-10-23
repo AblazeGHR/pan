@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.586" timestamp="2026-10-23T01:47:44.181983+08:00" hostname="ablaze"><testcase classname="tests.test_job_inbox_boundaries" name="test_inbox_and_job_notices_both_refuse_readonly_session" time="0.035"><failure message="AssertionError: assert ('accepted' == 'rejected'&#10;  &#10;  - rejected&#10;  + accepted)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3839/test_inbox_and_job_notices_bot0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000027A3595EAE0&gt;
+
+    def test_inbox_and_job_notices_both_refuse_readonly_session(tmp_path,monkeypatch):
+        from unittest.mock import AsyncMock
+        from packages.core import session,worker
+        from packages.core.inbox_service import SessionQueue
+        target=session.create('readonly-boundary',workdir=str(tmp_path));target.readonly_session=True;session.save(target)
+        monkeypatch.setattr(worker,'_wake_worker',AsyncMock())
+        monkeypatch.setattr(worker,'_bcast',AsyncMock())
+        async def run():
+            inbox=await SessionQueue().put(target.id,'q_owned',{'id':'m_owned','content':{'text':'not allowed'},
+                'source':{'pluginId':'qq','scope':'user','peerId':'7'}})
+            result=await worker.enqueue_notice(target.id,'Job status',source='automation',event_id='job-result:owned',notice_kind='job_result')
+            assert inbox['status']=='rejected' and result['ok'] is False
+            assert not target.queue_pending
+&gt;       asyncio.run(run())
+
+tests\test_job_inbox_boundaries.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        inbox=await SessionQueue().put(target.id,'q_owned',{'id':'m_owned','content':{'text':'not allowed'},
+            'source':{'pluginId':'qq','scope':'user','peerId':'7'}})
+        result=await worker.enqueue_notice(target.id,'Job status',source='automation',event_id='job-result:owned',notice_kind='job_result')
+&gt;       assert inbox['status']=='rejected' and result['ok'] is False
+E       AssertionError: assert ('accepted' == 'rejected'
+E         
+E         - rejected
+E         + accepted)
+
+tests\test_job_inbox_boundaries.py:54: AssertionError</failure></testcase></testsuite></testsuites>

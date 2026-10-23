@@ -1,3 +1,4 @@
+import { SessionDragGutter } from './SessionDragGutter';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@/types';
 import { WorkerDot } from '@/components/worker/WorkerDot';
@@ -181,16 +182,19 @@ export const SessionItem = memo(function SessionItem({
   // Preview comes from the summary endpoint's lastMessage (the list carries no
   // history now); fall back to the last local history message when present.
   const messages = session.history || [];
-  const lastContent = messages.length > 0 ? messages[messages.length - 1]?.content : undefined;
+  const lastContent = typeof session.lastDisplayPreview === 'string' || session.lastMessage
+    ? undefined : messages.findLast(message => ['user', 'assistant', 'system'].includes(message.role)
+      && message.content.trim())?.content;
   // stripMarkdown + 截断的成本不低，而卡片会因 isActive / isSelected / 拖拽反馈
   // 等无关 props 变化重渲染。按来源文本缓存：内容不变则跳过重复计算。
   const preview = useMemo(() => {
-    const source = session.lastMessage || lastContent;
+    const source = typeof session.lastDisplayPreview === 'string'
+      ? session.lastMessage ?? session.lastDisplayPreview : session.lastMessage || lastContent;
     if (!source) return null;
     const text = stripMarkdown(source);
     if (!text) return null;
     return text.length > 50 ? `${text.slice(0, 50)}...` : text;
-  }, [session.lastMessage, lastContent]);
+  }, [session.lastMessage, session.lastDisplayPreview, lastContent]);
   // A cold summary intentionally uses null/undefined for an unknown total.
   // Only a loaded local message list can provide a conservative fallback;
   // never turn an unloaded empty list into a misleading zero.
@@ -348,19 +352,15 @@ export const SessionItem = memo(function SessionItem({
           column around the centered indicator as a visual affordance.
           Clicking without moving still selects the session (drag threshold). */}
       {dragEnabled && !isPending && !multiSelectMode ? (
-        <span
+        <SessionDragGutter
           data-testid="drag-handle"
           role="button"
           aria-label={`Drag ${session.name}`}
           title={session.workerStatus ?? 'offline'}
           onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
-          className="drag-gutter relative z-[5] shrink-0 flex items-center justify-center w-5 self-stretch -my-2 -ml-1 -mr-1 cursor-grab active:cursor-grabbing select-none touch-none hover:bg-bg-hover/60 rounded-l-sm"
         >
-          <span aria-hidden="true" className="drag-matrix pointer-events-none absolute inset-x-0 top-[10px] bottom-[10px] rounded-sm" />
-          <span className="relative z-[1] flex items-center">
-            <WorkerDot status={session.workerStatus} illegalOffline={session.illegalOffline} />
-          </span>
-        </span>
+          <WorkerDot status={session.workerStatus} illegalOffline={session.illegalOffline} />
+        </SessionDragGutter>
       ) : (
         <WorkerDot status={session.workerStatus} illegalOffline={session.illegalOffline} />
       )}

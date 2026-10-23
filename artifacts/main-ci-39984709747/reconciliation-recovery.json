@@ -1,0 +1,8 @@
+{
+  "collectorExit": 1,
+  "collectionErrors": [],
+  "failure": "Nested resumption directory repository-root resolution",
+  "offlineReconcileExit": 0,
+  "repositoryRootFix": "HERE.parents[2]",
+  "noRemoteRerun": true
+}

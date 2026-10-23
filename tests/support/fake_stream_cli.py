@@ -73,8 +73,9 @@ def _gate_for(text: str) -> str | None:
 
 def main() -> None:
     # The provider wire is UTF-8 regardless of Windows ANSI/pipe defaults.
-    sys.stdin.reconfigure(encoding="utf-8")
-    sys.stdout.reconfigure(encoding="utf-8")
+    if os.environ.get('PAN_E2E_TAKEOVER_PROBE') != '1':
+        sys.stdin.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8")
     pid = os.getpid()
     _append({"kind": "init", "pid": pid, "cwd": os.getcwd(), "at": time.time(),
              "stdinEncoding": sys.stdin.encoding, "stdoutEncoding": sys.stdout.encoding})
@@ -114,6 +115,17 @@ def main() -> None:
             _emit({"type": "system", "subtype": "running",
                    "session_id": session_id,
                    "_requestId": f"run-{pid}"})
+        if "RUNTIME_ISSUE_CAPACITY" in text:
+            # Deterministic native-shaped provider failure for the system-fields
+            # closed loop. No provider/account is contacted.
+            print(json.dumps({
+                "type": "result", "is_error": True,
+                "result": "Selected model is at capacity. Please try a different model.",
+                "error": {"code": "model_capacity_exceeded",
+                          "message": "Selected model is at capacity."},
+                "status": 429,
+            }), flush=True)
+            continue
         gate = _gate_for(text)
         while gate and not Path(gate).exists():
             time.sleep(0.01)

@@ -1,0 +1,126 @@
+{
+  "sourceSha": "f36592ece507ff708f9b65a66bafff36b863dda5",
+  "baseMainSha": "c277d76ab7dbdaffc5947984756290762cbf5166",
+  "originalCiSha": "0156f008b149d59641ccc0176721c8e2b5ae59d8",
+  "run": 39913304619,
+  "localPython": "3.14.5",
+  "localExitCode": 0,
+  "finalJobId": "job_d9c99dc334726253abeffa0c",
+  "suite": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "1",
+    "tests": "503",
+    "time": "273.880",
+    "timestamp": "2026-10-23T16:27:05.980830+08:00",
+    "hostname": "ablaze"
+  },
+  "originalFailureIdentities": [
+    {
+      "classname": "tests.test_automation_retry_http",
+      "name": "test_node_parallel_finite_retries_and_uncertain_confirmation_http",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_docs_terminology",
+      "name": "test_no_banned_legacy_terms",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_eta_final_combined",
+      "name": "test_node_query_pause_production_ui_restart_and_delay_mcp",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_eventloop_history_offload",
+      "name": "test_http_policies_stream_in_the_request_task_without_body_relay",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_interaction_card_http",
+      "name": "test_http_mcp_user_response_and_directed_trigger",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_job_unified_http",
+      "name": "test_unified_event_system_actions_legacy_and_production_ui",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_jobs_completed_retention",
+      "name": "test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_locker_runtime_http",
+      "name": "test_product_locker_login_choice_pause_restart",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_mcp_handbook.TestDescriptionCallChain",
+      "name": "test_every_tool_ends_with_pan_skill_pointer",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_plugin_event_lifecycle",
+      "name": "test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_plugin_qq_integration",
+      "name": "test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_plugin_session_config",
+      "name": "test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_takeover_lifecycle_http",
+      "name": "test_http_first_terminal_survives_real_reader_conflict_without_resend",
+      "final": "passed"
+    },
+    {
+      "classname": "tests.test_user_locker_browser",
+      "name": "test_locker_browser_http_mcp",
+      "final": "passed"
+    }
+  ],
+  "ownedTreeChecks": 20,
+  "ownedTreeChecksWithRemainingProcesses": 0,
+  "remote": [
+    {
+      "matrix": "pytest-results-3.12",
+      "suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "13",
+        "skipped": "61",
+        "tests": "5507",
+        "time": "1964.788",
+        "timestamp": "2026-10-23T06:46:01.356623+00:00",
+        "hostname": "runnervmdaln5"
+      },
+      "sha256": "dc3b9782567736861ac2c238fff6ad9b2e375fd8b5d4f508ccc296208c1f062e"
+    },
+    {
+      "matrix": "pytest-results-3.14",
+      "suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "12",
+        "skipped": "61",
+        "tests": "5507",
+        "time": "1943.817",
+        "timestamp": "2026-10-23T06:46:01.422224+00:00",
+        "hostname": "runnervmdaln5"
+      },
+      "sha256": "af7a7c827fe449ceacec087d1cb70f5acf9befc49eb0eb871130f8c057bb4753"
+    }
+  ],
+  "remoteIdentityMultisetsMatch": true,
+  "fullLocalMatrixRun": false,
+  "candidateRemoteCiRun": false
+}

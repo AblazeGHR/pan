@@ -1,0 +1,28 @@
+{
+  "sourceSha": "57fd6df6940c0b6a2d9a92491450b26bf241a106",
+  "port": 51323,
+  "fakeCLI": "D:\\project\\pan-worktrees\\event-trigger-reliability-fix-20261023\\tests\\support\\session_error_fake_cli.py",
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3937\\test_native_terminal_report_su0\\data",
+  "status": "error",
+  "nativeDiagnostic": true,
+  "coldReload": true,
+  "mcpSubscribeAssign": true,
+  "managerConsumed": true,
+  "queueItemId": "q_a9cfce1f5cae4edbb224c6afc1c11646",
+  "ownedPidBirths": {
+    "28144": 1792728033.190333,
+    "6176": 1792728033.1963875,
+    "38352": 1792728033.2099934,
+    "4012": 1792728035.031247,
+    "26132": 1792728035.037102,
+    "42568": 1792728035.0516098,
+    "10844": 1792728035.5738451,
+    "1400": 1792728035.5788207,
+    "12632": 1792728035.592524,
+    "41144": 1792728036.7473571,
+    "39524": 1792728036.7565389,
+    "2664": 1792728036.7707725
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

@@ -1,0 +1,10 @@
+PASS compact Action list and Automation share one fresh registry read across routes
+PASS full panel edits Session Operation and commits mutation response without registry refetch
+PASS Duplicate preserves operation, independent targets and original immutable Group release
+PASS new full-panel Session Operation creation and Group build rejection coexist with legacy build
+PASS Automation Pause template mutates shared registry once with no ledger or registry read
+PASS late registry GET cannot replace edited targets or newer mutation; explicit Refresh converges
+PASS server-discovered query template is disabled; structured nested editor and raw errors remain safe
+PASS real HTTP and production UI query → frozen target → Pause Everything → Run selection diagnostics
+PASS zero-match query succeeds honestly; malformed predicates fail closed before creation
+PASS query Duplicate retains nested typed predicates and creates an independent disabled-capable editor

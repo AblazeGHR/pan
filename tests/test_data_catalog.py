@@ -105,7 +105,7 @@ def test_catalog_lists_registered_categories_without_creating_missing_paths(
     categories = {item["id"]: item for item in result["categories"]}
     expected = {
         "sessions-history", "attachments", "jobs-records", "jobs-logs", "jobs-runs",
-        "workspaces", "workdirs", "qq-history", "qq-inbox", "qq-media",
+        "workspaces", "workdirs", "qq-history", "qq-inbox", "qq-media", "agent-inbox", "user-inbox",
         "wechat-history-queues",
         "characters-memory", "mcp-config", "kimi-isolated-home", "codex-quota-cache",
         "pan-logs", "startup-recovery", "retention-status", "config", "external-provider-auth",
@@ -118,6 +118,8 @@ def test_catalog_lists_registered_categories_without_creating_missing_paths(
     assert categories["workdirs"]["policyStatus"] == "data_retention_policy"
     assert categories["jobs-runs"]["policyStatus"] == "jobs_api_managed"
     assert categories["qq-inbox"]["policyStatus"] == "not_auto_cleanable"
+    assert categories["agent-inbox"]["policyStatus"] == "not_auto_cleanable"
+    assert categories["user-inbox"]["policyStatus"] == "not_auto_cleanable"
     assert all("path" in entry for item in result["categories"] for entry in item["paths"])
     assert not project.exists()
     assert result["notice"].startswith("仅列出代码登记的路径")

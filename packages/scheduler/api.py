@@ -225,6 +225,8 @@ def _emit(event: dict) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            close = getattr(result, 'close', None)
+            if callable(close):close()
             return
         loop.create_task(_drain(result))
 

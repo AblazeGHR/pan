@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { SidebarPanelContext } from './components/layout/SidebarPanelContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { WorkspaceRail } from './components/layout/WorkspaceRail';
 import { ToastContainer } from './components/ui/Toast';
@@ -26,6 +27,7 @@ const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
 ));
 
 export function Layout() {
+  const sidebarPanel = useState<HTMLElement | null>(null);
   useEffect(() => { void usePluginPanelStore.getState().load(); }, []);
   // Event-driven catalog refresh: a plugin may be installed/removed while Pan
   // is in the background. Returning focus re-reads the real registry so new
@@ -161,6 +163,7 @@ export function Layout() {
   useGlobalShortcuts(navigate);
 
   return (
+    <SidebarPanelContext.Provider value={sidebarPanel}>
     <div
       className="h-screen supports-[height:100dvh]:h-dvh bg-bg-primary text-text-primary overflow-hidden"
       style={{
@@ -249,6 +252,7 @@ export function Layout() {
       <EditorConfirmationModal />
       <ReimportConfirmationModal />
     </div>
+    </SidebarPanelContext.Provider>
   );
 }
 

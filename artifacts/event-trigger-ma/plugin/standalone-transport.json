@@ -1,0 +1,345 @@
+{
+  "mode": "standalone",
+  "runs": {
+    "run_1428e07c23d244b7ae75cb682adf3b37": {
+      "id": "run_1428e07c23d244b7ae75cb682adf3b37",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "owned-event",
+        "type": "producer.ping",
+        "schemaVersion": 1,
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "occurredAt": "2026-10-21T19:35:08.307284+00:00",
+        "payload": {
+          "value": 7
+        }
+      },
+      "createdAt": "2026-10-21T19:35:08.309965+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 7,
+      "startedAt": "2026-10-21T19:35:08.318991+00:00",
+      "actionDigest": "eb609115c714f73cdc9a12e9a7afda135644af23c8070f975e46f5d62afd090e",
+      "action": {
+        "id": "pause",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "output_format": "json"
+      },
+      "targetIds": [
+        "selected"
+      ],
+      "targetResults": [
+        {
+          "sessionId": "selected",
+          "ok": true
+        }
+      ],
+      "result": {
+        "ok": true,
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "targets": [
+          {
+            "sessionId": "selected",
+            "ok": true
+          }
+        ]
+      },
+      "finishedAt": "2026-10-21T19:35:08.335022+00:00"
+    },
+    "run_c51f46e7b8eb425686d9c672ca03cba4": {
+      "id": "run_c51f46e7b8eb425686d9c672ca03cba4",
+      "triggerId": "t",
+      "triggerRevision": 1,
+      "actionId": "pause",
+      "event": {
+        "id": "after-enable",
+        "type": "producer.ping",
+        "schemaVersion": 1,
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "occurredAt": "2026-10-21T19:35:08.572987+00:00",
+        "payload": {
+          "value": 8
+        }
+      },
+      "createdAt": "2026-10-21T19:35:08.573355+00:00",
+      "status": "succeeded",
+      "admitted": true,
+      "arguments": {},
+      "state": {},
+      "revision": 7,
+      "startedAt": "2026-10-21T19:35:08.585503+00:00",
+      "actionDigest": "eb609115c714f73cdc9a12e9a7afda135644af23c8070f975e46f5d62afd090e",
+      "action": {
+        "id": "pause",
+        "name": "Pause selected",
+        "enabled": true,
+        "effect": "write_local",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "execution": {
+          "kind": "session_operation",
+          "operation": "pause_everything",
+          "selector": {
+            "mode": "explicit",
+            "ids": [
+              "selected"
+            ]
+          }
+        },
+        "description": "Pause selected",
+        "output_format": "json"
+      },
+      "targetIds": [
+        "selected"
+      ],
+      "targetResults": [
+        {
+          "sessionId": "selected",
+          "ok": true
+        }
+      ],
+      "result": {
+        "ok": true,
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "targets": [
+          {
+            "sessionId": "selected",
+            "ok": true
+          }
+        ]
+      },
+      "finishedAt": "2026-10-21T19:35:08.604586+00:00"
+    }
+  },
+  "oldGeneration": "745f7f1196ff4b6d8ebdd470166b8c93",
+  "newGeneration": "dd3ffc093f4e449c91c1353e2c54cd4f",
+  "records": {
+    "producer": [
+      {
+        "kind": "started",
+        "pid": 22728,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "producer",
+        "generation": "745f7f1196ff4b6d8ebdd470166b8c93",
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "Owned external fact",
+            "schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      },
+      {
+        "kind": "ready",
+        "generation": "745f7f1196ff4b6d8ebdd470166b8c93"
+      },
+      {
+        "kind": "publication",
+        "jsonrpc": "2.0",
+        "id": "plugin-1",
+        "result": {
+          "event": {
+            "id": "owned-event",
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "source": {
+              "type": "plugin",
+              "id": "producer"
+            },
+            "occurredAt": "2026-10-21T19:35:08.307284+00:00",
+            "payload": {
+              "value": 7
+            }
+          },
+          "rejected": [],
+          "accepted": true
+        }
+      },
+      {
+        "kind": "started",
+        "pid": 27724,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "producer",
+        "generation": "dd3ffc093f4e449c91c1353e2c54cd4f",
+        "definitions": [
+          {
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "description": "Owned external fact",
+            "schema": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "type": "integer"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        ],
+        "subscriptions": []
+      },
+      {
+        "kind": "ready",
+        "generation": "dd3ffc093f4e449c91c1353e2c54cd4f"
+      },
+      {
+        "kind": "publication",
+        "jsonrpc": "2.0",
+        "id": "plugin-1",
+        "result": {
+          "event": {
+            "id": "after-enable",
+            "type": "producer.ping",
+            "schemaVersion": 1,
+            "source": {
+              "type": "plugin",
+              "id": "producer"
+            },
+            "occurredAt": "2026-10-21T19:35:08.572987+00:00",
+            "payload": {
+              "value": 8
+            }
+          },
+          "rejected": [],
+          "accepted": true
+        }
+      }
+    ],
+    "observer": [
+      {
+        "kind": "started",
+        "pid": 40092,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "observer",
+        "generation": "b559e6e69449460d8c803b3260fe49c8",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "b559e6e69449460d8c803b3260fe49c8"
+      },
+      {
+        "kind": "delivery",
+        "generation": "b559e6e69449460d8c803b3260fe49c8",
+        "event": {
+          "id": "owned-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:35:08.307284+00:00",
+          "payload": {
+            "value": 7
+          }
+        }
+      }
+    ],
+    "other": [
+      {
+        "kind": "started",
+        "pid": 50132,
+        "role": "events"
+      },
+      {
+        "kind": "registered",
+        "protocol_version": "pan-events/v1",
+        "plugin_id": "other",
+        "generation": "b3d5cf40f4d840c5aeb5cd587e0838cc",
+        "definitions": [],
+        "subscriptions": [
+          "producer.ping"
+        ]
+      },
+      {
+        "kind": "ready",
+        "generation": "b3d5cf40f4d840c5aeb5cd587e0838cc"
+      },
+      {
+        "kind": "delivery",
+        "generation": "b3d5cf40f4d840c5aeb5cd587e0838cc",
+        "event": {
+          "id": "owned-event",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-21T19:35:08.307284+00:00",
+          "payload": {
+            "value": 7
+          }
+        }
+      }
+    ]
+  }
+}

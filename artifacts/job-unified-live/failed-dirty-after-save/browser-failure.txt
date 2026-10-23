@@ -1,0 +1,101 @@
+Pan
+Chat
+Editor
+Jobs
+Terminal
+Actions
+Automation
+New
+Import
+recent
+Unified-control
+Unified production UI message
+18
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+4
+cbc
+Unified-match-added-later
+0
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+cbc
+Unified-match-original
+0
+deepseek-v4-flash (x0.17)
+…/owned-unified-profile/workdirs
+cbc
+工作区
+全部
+3
+无工作区
+3
+新建工作区
+全部
+Jobs
+Jobs
+New Job
+Settings
+All
+Active
+Scheduled
+Completed
+Failed
+Timeout
+Undeliverable
+Kind
+All kinds
+后台进程
+定时消息
+群发消息
+定时任务
+服务生命周期
+Refresh
+Search
+Sort by 
+Active first
+Updated time
+Created time
+Kind
+Descending
+Pinned jobs first
+7 of 7 jobs
+Select jobs
+Unified Event Job
+Cancel job
+pending
+定时任务
+system → no target
+last completed
+Unified production UI message
+completed
+定时任务
+system → no target
+last completed
+unified owned CLI
+completed
+后台进程
+agent → ses_db335f9a0983ff6e
+runs undefined
+log: C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3792\test_unified_event_system_acti0\owned-unified-profile\scheduler\logs\job_39bed878760f08a51bc20278.log
+legacy owned CLI
+completed
+后台进程
+agent → ses_db335f9a0983ff6e
+runs undefined
+log: C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3792\test_unified_event_system_acti0\owned-unified-profile\scheduler\logs\job_3b61fe9f856109234b68d091.log
+unified owned CLI
+completed
+定时任务
+system → no target
+last completed
+legacy session-broadcast
+completed
+群发消息
+agent → ses_db335f9a0983ff6e
+last queued
+legacy session-message
+completed
+定时消息
+agent → ses_db335f9a0983ff6e
+last queued

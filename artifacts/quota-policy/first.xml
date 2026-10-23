@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="19" time="1.080" timestamp="2026-10-22T15:55:41.592710+08:00" hostname="ablaze"><testcase classname="tests.test_quota_policy" name="test_actual_latest_quota_and_capacity_fixture_keep_native_fields" time="0.011" /><testcase classname="tests.test_quota_policy" name="test_normalize_unknown_failure_stale_resets_and_rank" time="0.002" /><testcase classname="tests.test_quota_policy" name="test_capacity_retry_once_correlates_terminal_then_switches_and_orders_restarts" time="0.085" /><testcase classname="tests.test_quota_policy" name="test_unknown_or_stale_or_old_worker_never_switches" time="0.050" /><testcase classname="tests.test_quota_policy" name="test_uncertain_receipt_and_restart_never_repeat_side_effects" time="0.048" /><testcase classname="tests.test_quota_policy" name="test_cbc_keeps_session_and_does_not_query_accounts" time="0.046" /><testcase classname="tests.test_quota_policy" name="test_monitor_job_persistent_unique_95_and_manual_late_notice_fenced" time="0.012"><failure message="KeyError: '_misfire'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3631/test_monitor_job_persistent_un0')
+
+    @async_test
+    async def test_monitor_job_persistent_unique_95_and_manual_late_notice_fenced(tmp_path):
+        rt,f=await setup(tmp_path)
+&gt;       job=await rt.create_monitor();same=await rt.create_monitor()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_quota_policy.py:131:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\automation\quota_policy.py:286: in create_monitor
+    return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\plugins\lifecycle.py:92: in io
+    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\session.py:2683: in await_persistence
+    return await asyncio.shield(future)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\automation\quota_policy.py:295: in ensure_job
+    job=_job_from_payload({'name':'Quota '+purpose,'enabled':True,'action':{'api':'quota_query'},'_schedule_specs':specs})
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+payload = {'name': 'Quota monitor95', 'enabled': True, 'action': {'api': 'quota_query'}, '_schedule_specs': [{'kind': 'interval', 'intervalSec': 60}]}
+
+    def _job_from_payload(payload: dict) -&gt; dict:
+        """create_task 的 payload（已过校验，带 ``_normalized_schedule`` 等内参）→ job 记录。"""
+        now_ts = time.time()
+        created_iso = payload.get("created_at") or iso(_now())
+        specs = payload.get("_schedule_specs")
+        if specs is not None:
+            # 多 entry 路径（/api/jobs POST）：列表里每项一个 entry
+&gt;           entries = [_spec_to_entry(raw, default_misfire=payload["_misfire"],
+                                                           ^^^^^^^^^^^^^^^^^^^
+                                      created_iso=created_iso) for raw in specs]
+E           KeyError: '_misfire'
+
+packages\scheduler\store.py:290: KeyError</failure></testcase><testcase classname="tests.test_quota_policy" name="test_all_exhausted_has_one_durable_reset_query_job_and_unknown_is_not_threshold" time="0.028"><failure message="KeyError: '_misfire'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3631/test_all_exhausted_has_one_dur0')
+
+    @async_test
+    async def test_all_exhausted_has_one_durable_reset_query_job_and_unknown_is_not_threshold(tmp_path):
+        rt,f=await setup(tmp_path)
+        for r in f.accounts:r['fiveHour']['usedPercent']=100
+        assert (await rt.consume(issue('codex_quota_exhausted')))['status']=='waiting_reset'
+&gt;       await rt.dispatch()
+
+tests\test_quota_policy.py:150:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\automation\quota_policy.py:227: in dispatch
+    job=await io(self.ensure_job,state,'reset',command['arguments']['at'])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\plugins\lifecycle.py:92: in io
+    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\session.py:2683: in await_persistence
+    return await asyncio.shield(future)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\automation\quota_policy.py:295: in ensure_job
+    job=_job_from_payload({'name':'Quota '+purpose,'enabled':True,'action':{'api':'quota_query'},'_schedule_specs':specs})
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+payload = {'name': 'Quota reset', 'enabled': True, 'action': {'api': 'quota_query'}, '_schedule_specs': [{'kind': 'once', 'at': '2026-10-22T15:59:02.512266'}]}
+
+    def _job_from_payload(payload: dict) -&gt; dict:
+        """create_task 的 payload（已过校验，带 ``_normalized_schedule`` 等内参）→ job 记录。"""
+        now_ts = time.time()
+        created_iso = payload.get("created_at") or iso(_now())
+        specs = payload.get("_schedule_specs")
+        if specs is not None:
+            # 多 entry 路径（/api/jobs POST）：列表里每项一个 entry
+&gt;           entries = [_spec_to_entry(raw, default_misfire=payload["_misfire"],
+                                                           ^^^^^^^^^^^^^^^^^^^
+                                      created_iso=created_iso) for raw in specs]
+E           KeyError: '_misfire'
+
+packages\scheduler\store.py:290: KeyError</failure></testcase><testcase classname="tests.test_quota_policy" name="test_default_adapter_fail_closed_and_snapshot_write_failure_no_effect" time="0.048" /><testcase classname="tests.test_runtime_issues" name="test_codex_quota_structured_sample_maps_without_guessing" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_codex_capacity_is_separate_from_quota" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_cbc_429_is_distinct_from_codex_quota" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_structured_fields_beat_conflicting_text" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_tool_failure_does_not_become_quota" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_strict_adapter_text_and_unknown" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_correlation_and_delivery_are_separate_and_dedupable" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_sensitive_fields_are_redacted_and_raw_bounded" time="0.003" /><testcase classname="tests.test_runtime_issues" name="test_schema_is_versioned_and_exposes_three_layers" time="0.002" /><testcase classname="tests.test_runtime_issues" name="test_session_error_record_carries_projection_without_changing_kind" time="0.002" /></testsuite></testsuites>

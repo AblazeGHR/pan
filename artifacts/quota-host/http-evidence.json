@@ -1,0 +1,86 @@
+{
+  "port": 57924,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3698\\test_owned_host_configuration_0\\host-http",
+  "realProviderCalls": 0,
+  "realEffects": 0,
+  "serverPid": 26300,
+  "restartedServerPid": 21204,
+  "policy": {
+    "version": 2,
+    "revision": 6,
+    "epoch": 3,
+    "mode": "automatic",
+    "maSessionId": "fixture-ma",
+    "seen": {},
+    "cases": {},
+    "excluded": [],
+    "capacityRetried": [],
+    "commands": {},
+    "quota": {
+      "status": "unknown",
+      "observedAt": 1792674153.7840378,
+      "currentAccountId": null,
+      "accounts": []
+    },
+    "jobs": {
+      "once": "job_2c328dcd035c2e9aa13cd1e1"
+    },
+    "disabledAccountIds": [],
+    "accountConfigRevision": 0,
+    "host": {
+      "enabled": false,
+      "sessionRoles": {
+        "explicit-target": "ta"
+      }
+    },
+    "hostObservation": {
+      "observedAt": 1792674152.083258,
+      "managed": {
+        "status": "known",
+        "defaultAccountId": "managed-a",
+        "accountIds": [
+          "managed-a",
+          "managed-b"
+        ]
+      },
+      "native": {
+        "status": "known",
+        "accountId": "native-fixture",
+        "profileKey": "fixture-profile",
+        "windows": {
+          "fiveHour": {
+            "usedPercent": 25,
+            "resetsAt": 1792675949.0,
+            "durationSeconds": 18000,
+            "providerKey": "primary"
+          },
+          "week": {
+            "usedPercent": 70,
+            "resetsAt": 1792760549.0,
+            "durationSeconds": 604800,
+            "providerKey": "secondary"
+          }
+        },
+        "observedAt": 1792674149.0,
+        "receivedAt": 1792674149.0,
+        "source": "app-server-push",
+        "providerUpdatedAt": null,
+        "timestampMeaning": "local Pan observation/receipt, not provider update"
+      },
+      "binding": "unknown",
+      "reason": "managed_native_binding_and_all_account_windows_unavailable"
+    },
+    "rankedAccounts": [],
+    "adapter": "unavailable",
+    "diagnostics": []
+  },
+  "cliCommands": [
+    [
+      "auth",
+      "status",
+      "--json"
+    ]
+  ],
+  "portReleased": true,
+  "ownedServerStopped": true
+}

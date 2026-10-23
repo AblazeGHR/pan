@@ -1,0 +1,24 @@
+@@@@by agent : interaction | unknown
+status: null
+type: notice
+result:
+Interaction submitted: {"answer":"ANSWER-SECRET","cardId":"card_7265b75202b4a06e6b3095bdd038fa15600c94dbe9f01f4ee0c92da8dccd5db2","choiceId":"pause","responseKind":"submit","summaryBody":"combined summary"}
+sessionId: null
+taskId: null
+workerId: null
+
+@@@@by agent : ses_b33a0cc87e77176b | child
+status: error
+type: report
+result:
+Synthetic assistant work summary; not an error diagnosis.
+errorSource: codex_error_payload
+errorCode: serverOverloaded
+errorText:
+Selected model is at capacity. Please try a different model.
+lastMessageRole: assistant
+lastMessage:
+Synthetic assistant work summary; not an error diagnosis.
+sessionId: ses_b33a0cc87e77176b
+taskId: fixture-task
+workerId: worker-1

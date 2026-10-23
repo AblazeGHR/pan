@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (2 tests) 3ms
+ ✓ views/LockerView.test.tsx (17 tests) 1050ms
+
+ Test Files  2 passed (2)
+      Tests  19 passed (19)
+   Start at  22:00:59
+   Duration  3.05s (transform 271ms, setup 17ms, collect 561ms, tests 1.05s, environment 482ms, prepare 241ms)
+

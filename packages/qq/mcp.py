@@ -15,7 +15,7 @@ Tools exposed:
     - qq_read_conversation: 读取某 QQ 会话的落盘对话记录（本地持久化）
     - qq_list_contacts: 列出最近的 QQ 联系人/群（NapCat get_recent_contact，best-effort）
     - qq_read_inbox: 读取某 QQ 会话的待处理消息队列（selective 模式专用）
-    - qq_bind: 绑定当前 Pan session 到 QQ 会话，订阅其 inbox 更新提醒
+    - qq_bind: 绑定当前 Pan session 到 QQ 会话，订阅其新消息全文（持久入 Queue 后共享消费）
     - qq_unbind: 解绑，停止 inbox 更新提醒
 
 Environment variables:
@@ -209,10 +209,11 @@ async def qq_list_contacts() -> dict:
 @mcp.tool()
 async def qq_read_inbox(
     target_id: str | int, limit: int = 30, consume: bool = False,
-    bot_uin: str | None = None,
+    bot_uin: str | None = None, target_type: str = "", instance_id: str = "",
 ) -> dict:
     """读取某 QQ 会话的待处理消息（inbox），selective 模式（PAN_QQ_MODE=selective）
-    下由编排者（meta-agent/worker）消费。
+    下由编排者共享读取/消费。已有 qq_bind 映射全文订阅，全文落入 Queue 即共享消费；
+    notification 模式只提醒不消费，历史积压需显式 backlog。
 
     【必填参数·参数名以此为准】
       - target_id: QQ 号（私聊）或群号（群聊），参数名是 target_id（不是 targetId）
@@ -236,7 +237,8 @@ async def qq_read_inbox(
             在两个 bot 各是独立会话（按 bot 隔离落盘）；缺省读默认 bot
 
     调用链：本工具 → GET {PAN_QQ_API_URL}/api/qq/inbox?target_id=&limit=&consume=&bot_uin=
-    → packages/qq/plugin.py 读 data/qq_inbox/<bot_uin>/<target_id>.json。
+    → packages/qq/plugin.py 读共享 Agent Inbox Locker。
+    target_type(user/group) 与 instance_id 可选，用于精确区分来源。
     返回 {"target_id": ..., "messages": [{id, text, time, bot_uin?}, ...]}。
     """
     if limit <= 0:
@@ -248,6 +250,12 @@ async def qq_read_inbox(
     }
     if bot_uin:
         params["bot_uin"] = str(bot_uin)
+    if target_type:
+        if target_type not in {"user", "group"}:
+            return {"error": "target_type must be user or group"}
+        params["target_type"] = target_type
+    if instance_id:
+        params["instance_id"] = instance_id
     return await _api("GET", "/api/qq/inbox", params)
 
 
@@ -255,7 +263,7 @@ async def qq_read_inbox(
 async def qq_bind(
     target_type: str, target_id: str | int, bot_uin: str | None = None
 ) -> dict:
-    """绑定当前 Pan session 到某 QQ 会话，订阅其 inbox 更新提醒。
+    """绑定当前 Pan session 到某 QQ 会话，订阅其新消息全文（持久入 Queue 后共享消费）。
 
     【必填参数·参数名以此为准】
       - target_type: "user"(私聊) 或 "group"(群聊)

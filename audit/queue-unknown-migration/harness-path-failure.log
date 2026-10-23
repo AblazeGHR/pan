@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\queue-unknown-migration-fix-20261023\audit\practical-data-gate\run_gate.py", line 392, in <module>
+    if not args.reuse_copy:snapshot()
+                           ^^^^^^^^^^
+  File "D:\project\pan-worktrees\queue-unknown-migration-fix-20261023\audit\practical-data-gate\run_gate.py", line 108, in snapshot
+    DATA.mkdir(parents=True,exist_ok=True)
+  File "E:\software\miniforge\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+OSError: [WinError 123] �ļ�����Ŀ¼��������﷨����ȷ��: 'C:\\Users\\14709\\AppData\\Local\\Temp\\Pan-queue-unknown-gate-ca5d662d18654a7b8b319f91b237584b\n\\compatibility-final\\data'

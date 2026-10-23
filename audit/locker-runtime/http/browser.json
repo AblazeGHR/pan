@@ -1,0 +1,21 @@
+{
+  "chromiumVersion": "153.0.8010.12",
+  "sizes": [
+    {
+      "width": 1280,
+      "scrollWidth": 1280
+    },
+    {
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "width": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "errors": [],
+  "realLogin": true,
+  "choiceSubmit": true,
+  "rejectDelete": true
+}

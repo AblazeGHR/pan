@@ -1,5 +1,90 @@
 # Pan 测试隔离约定
 
+## Legacy Queue unresolved outcome migration
+
+`tests/test_queue_unknown_migration.py` checks native `unknown_after_crash` and
+explicit `unknown`/`uncertain` receipts in pending rows, detached ledgers and
+conflicting queued/ledger copies. Migration and repeated cold initialization
+preserve the original Queue ID, extension fields and unresolved state; these
+rows cannot claim, retry, spawn recovery or become queued on duplicate input.
+Ordinary queued/pending and legacy unfinished reservations retain their existing
+compatibility behavior. Run together with `test_queue_migration.py`,
+`test_unified_server_queue.py` and `test_delivery_semantics.py` through the
+isolated runner. Actual practical-data verification is copy-only; see
+`audit/queue-unknown-migration/REPORT.md` for source SHA, hashes and rollback limits.
+
+## Locker production wiring targeted acceptance
+
+`test_interaction_runtime.py` exercises the real Automation UserAuth and directed
+Event Store binding, privacy, stale Trigger admission, lost receipt reconciliation
+and a temporary-copy SQLite upgrade without rewriting unknown recipients.
+`test_locker_runtime_http.py` uses the owned composition HTTP launcher, real MCP,
+production Chromium at 1280/390/320px and fakeCLI only. It logs in with its temporary
+profile key, selects one of two matching Triggers, observes a persistent Run and
+the existing Pause business state, checks source Queue notices, reject/delete and
+restart without replay. Run via `scripts/run_tests_isolated.py`; the fixture refuses
+8767/8768. Build React first. Exact commands, exit codes, red evidence and retained
+PID/birth cleanup are in `audit/locker-runtime/REPORT.md`. This is not validation of
+real providers, user-profile migration, or human acceptance.
+
+## Unified Job targeted acceptance
+
+Job configuration/System Actions use the existing registry and runners. Focused
+fixtures are `test_job_completion_recovery.py`, `test_job_overlap.py`,
+`test_job_system_actions.py`, `test_job_action_templates.py`,
+`test_independent_job_service.py`, and `test_action_persistence.py`. They cover
+typed config, frozen Run targets, bounded monitoring recovery/parallel claims,
+unknown receipts, all terminal snapshot cleanup and atomic-storage faults.
+Run through the isolated entry below, never against a user Job profile.
+
+`tests/test_job_unified_http.py` starts an owned fakeCLI Pan instance on the
+isolated runner's assigned non8767/8768 port. It consumes the built production
+web bundle and invokes `packages/web/e2e/job-unified-live.mjs` with the temporary
+local key only in its child environment. It verifies real event→query→Pause,
+compatibility sends/processes/scheduled execution, monitoring JSON completion,
+complete Template instantiate and production Chromium at1280/390/320px. Its
+finally block saves retained PID/birth cleanup and port-release evidence.
+`test_job_action_http.py` remains the companion reference/snapshot/permission
+acceptance. Build React before these tests; do not replace their HTTP routes with
+browser mocks. Test logs/JSON/child decoding explicitly use UTF-8.
+
+Exact frozen-source commands and the current acceptance matrix are in
+[`job-unified-completion-report.md`](../artifacts/job-unified-completion-report.md).
+Passing these fixtures does not claim real model/account operations, actual main
+service restart, user-profile migration or overall human acceptance.
+
+Codex fixed-provider launch tests additionally use an owned `CODEX_HOME`, local
+fake provider and app-server fixture; `PAN_CODEX_FIXED_PROVIDER_LAUNCH` defaults
+off and must never be applied to a real profile for these tests. The fixture
+asserts process `-c` provider overrides and thread receipts while retaining its
+own native-history sentinel. Offline CLI schema generation is not a paid turn or
+an account/config identity attestation. Test source injection cannot be replaced
+with a public verified flag. See `tests/test_provider_launch.py` and its owned HTTP
+launcher for process/ACL/Job cleanup assertions.
+
+Installed native compatibility is a separate explicit opt-in, never an account
+test. Set `TEST_REAL_CODEX_JS` to the installed codex.js and run
+`python scripts/verify_provider_launch_real.py` after freezing source. It runs
+the isolated runner, actual installed app-server and real Pan wrapper against
+an owned loopback Responses server, with a fresh file-auth-only CODEX_HOME and
+scrubbed environment. It verifies start/resume/materialized native branch,
+concurrent global-config change, durable bindings and retained-handle cleanup.
+No credentials or paid models are required. Evidence is under
+`artifacts/provider-launch-real`. Without explicit opt-in this one external-CLI
+integration test is skipped; its strict native-shape/buffering unit tests still
+run. The tests never replace the product CODEX_HOME contract or production
+provider exporter with a client-supplied verification flag.
+
+Private export follow-up uses `scripts/verify_provider_export.py` with the same
+explicit `TEST_REAL_CODEX_JS` opt-in. It consumes an injected synthetic protocol
+owner through the production Bridge/prepare path, generates random test bearer
+material only in owner-only temporary files/environment and verifies actual
+installed-CLI loopback requests. Reports retain only boolean credential matches;
+do not capture request headers, private bundle bytes or environment values.
+The current cc-switch source does not implement this export capability; the
+fixture is not evidence of an upstream atomic exporter. Contract and exact
+upstream patch locations: `docs/design/provider-private-export-v0.3.md`.
+
 ## 默认入口
 
 从 Job、Agent Worker 或已配置的 Pan 终端运行测试时，使用统一入口：

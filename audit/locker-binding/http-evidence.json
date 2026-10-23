@@ -1,0 +1,351 @@
+{
+  "port": 61751,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data",
+  "realProvider": false,
+  "sourceSha": "55dfb2006e574eee9d311a406fcd8be7a161b05b",
+  "productionIndexSha256": "df3fb4507c4fa4a83136c321816f19882d434f0bbbe7957aad3102f18b6ffed6",
+  "identity": {
+    "pid": 35676,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "directAgentNotifyDenied": true,
+  "outOfScopeChoiceDenied": true,
+  "durableQueueIds": [
+    "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+    "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53"
+  ],
+  "actualResponseNotices": [
+    {
+      "answer": "ANSWER-SECRET",
+      "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+      "choiceId": "pause",
+      "responseKind": "submit",
+      "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+    },
+    {
+      "cardId": "card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53",
+      "responseKind": "reject",
+      "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+    }
+  ],
+  "actualFakeCLIReceived": [
+    {
+      "kind": "received",
+      "pid": 39544,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3920\\test_owned_notification_consum0\\data\\workdirs\\review-source",
+      "text": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}\nsessionId: null\ntaskId: null\nworkerId: null",
+      "at": 1792726300.8383808
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}\nsessionId: null\ntaskId: null\nworkerId: null",
+      "queueItemIds": [
+        "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+        "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53"
+      ],
+      "kind": "report",
+      "queueEnvelopes": [
+        {
+          "id": "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+          "queueItemId": "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+          "type": "notice",
+          "kind": "report",
+          "source": "interaction",
+          "sourcePluginId": "interaction",
+          "clientMessageId": "inbox_30ab40a7ce414370de2511deb7f43a85a93f10b70d8f6589abdebc3cb01a3d7f",
+          "messageId": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+          "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+          "text": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+          "result": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+          "sourceMessageId": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+          "inboxSource": {
+            "pluginId": "interaction",
+            "scope": "user",
+            "peerId": "ses_d912cd4ea63a1b90"
+          },
+          "sourceIdentityKind": "native",
+          "channel": "interaction",
+          "channelTarget": "user:ses_d912cd4ea63a1b90",
+          "qqTarget": "user:ses_d912cd4ea63a1b90",
+          "targetType": "user",
+          "targetId": "ses_d912cd4ea63a1b90",
+          "botUin": "",
+          "canReply": true,
+          "revision": 1,
+          "createdAt": 1792726300.5470994,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "inboxNotification": false,
+          "envelope": {
+            "type": "interaction.submitted",
+            "answer": "ANSWER-SECRET",
+            "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+            "choiceId": "pause",
+            "id": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+            "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+            "responseKind": "submit",
+            "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+          },
+          "inboxContent": {
+            "text": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+            "envelope": {
+              "type": "interaction.submitted",
+              "answer": "ANSWER-SECRET",
+              "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+              "choiceId": "pause",
+              "id": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+              "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+              "responseKind": "submit",
+              "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+            }
+          },
+          "position": 0,
+          "autoReportAdmission": {
+            "version": 1,
+            "origin": {
+              "kind": "plugin",
+              "pluginId": "interaction"
+            },
+            "enabled": false
+          }
+        },
+        {
+          "id": "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53",
+          "queueItemId": "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53",
+          "type": "notice",
+          "kind": "report",
+          "source": "interaction",
+          "sourcePluginId": "interaction",
+          "clientMessageId": "inbox_1ef49333472ad5b7ea152863f6b55577b4bfed65ed2abed159c7b2c6e5b2823d",
+          "messageId": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+          "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+          "text": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+          "result": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+          "sourceMessageId": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+          "inboxSource": {
+            "pluginId": "interaction",
+            "scope": "user",
+            "peerId": "ses_d912cd4ea63a1b90"
+          },
+          "sourceIdentityKind": "native",
+          "channel": "interaction",
+          "channelTarget": "user:ses_d912cd4ea63a1b90",
+          "qqTarget": "user:ses_d912cd4ea63a1b90",
+          "targetType": "user",
+          "targetId": "ses_d912cd4ea63a1b90",
+          "botUin": "",
+          "canReply": true,
+          "revision": 1,
+          "createdAt": 1792726300.7378292,
+          "deliveryState": "writing",
+          "dispatchState": "queued",
+          "inboxNotification": false,
+          "envelope": {
+            "type": "interaction.rejected",
+            "cardId": "card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53",
+            "id": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+            "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+            "responseKind": "reject",
+            "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+          },
+          "inboxContent": {
+            "text": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+            "envelope": {
+              "type": "interaction.rejected",
+              "cardId": "card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53",
+              "id": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+              "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+              "responseKind": "reject",
+              "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+            }
+          },
+          "position": 1,
+          "autoReportAdmission": {
+            "version": 1,
+            "origin": {
+              "kind": "plugin",
+              "pluginId": "interaction"
+            },
+            "enabled": false
+          }
+        }
+      ],
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "clientMessageId": "inbox_30ab40a7ce414370de2511deb7f43a85a93f10b70d8f6589abdebc3cb01a3d7f",
+      "channel": "interaction",
+      "envelope": {
+        "type": "interaction.submitted",
+        "answer": "ANSWER-SECRET",
+        "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+        "choiceId": "pause",
+        "id": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+        "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+        "responseKind": "submit",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "messageId": "pan:91d32012ce4c442fa5d9a923f082eb21",
+      "ts": "2026-10-23T11:31:40.838490",
+      "deliveryKeys": [
+        "report:anon:31c7dba51948",
+        "report:anon:d6100b158a19"
+      ]
+    }
+  ],
+  "runIds": [
+    "run_48016654c8e94b058023d326f846574d"
+  ],
+  "deliveryLedger": {
+    "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b": {
+      "id": "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+      "queueItemId": "q_b30af0378fc882aa992cd69c87da2b0192506a8ecb00c073a8323af428726c4b",
+      "type": "notice",
+      "kind": "report",
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "clientMessageId": "inbox_30ab40a7ce414370de2511deb7f43a85a93f10b70d8f6589abdebc3cb01a3d7f",
+      "messageId": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+      "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+      "text": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+      "result": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+      "sourceMessageId": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+      "inboxSource": {
+        "pluginId": "interaction",
+        "scope": "user",
+        "peerId": "ses_d912cd4ea63a1b90"
+      },
+      "sourceIdentityKind": "native",
+      "channel": "interaction",
+      "channelTarget": "user:ses_d912cd4ea63a1b90",
+      "qqTarget": "user:ses_d912cd4ea63a1b90",
+      "targetType": "user",
+      "targetId": "ses_d912cd4ea63a1b90",
+      "botUin": "",
+      "canReply": true,
+      "revision": 1,
+      "createdAt": 1792726300.5470994,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "inboxNotification": false,
+      "envelope": {
+        "type": "interaction.submitted",
+        "answer": "ANSWER-SECRET",
+        "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+        "choiceId": "pause",
+        "id": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+        "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+        "responseKind": "submit",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "inboxContent": {
+        "text": "Interaction submitted: {\"answer\":\"ANSWER-SECRET\",\"cardId\":\"card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+        "envelope": {
+          "type": "interaction.submitted",
+          "answer": "ANSWER-SECRET",
+          "cardId": "card_08df2a4d7029436f66d3cac14c446efceac6ae9c21d2094e4e27682384480ce9",
+          "choiceId": "pause",
+          "id": "submission_c9986a0eac33d6657fdc700b1180d9d6f59f597fce54b55d995f4af7ae40f5f8",
+          "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+          "responseKind": "submit",
+          "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+        }
+      },
+      "position": 0,
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792726300.8231862,
+      "receiptAt": 1792726300.8385015,
+      "deliveredAt": 1792726300.8385015
+    },
+    "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53": {
+      "id": "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53",
+      "queueItemId": "q_a8ee611790876bd788e2e17e386fa12516a723fcfecc98f290e3798213c2af53",
+      "type": "notice",
+      "kind": "report",
+      "source": "interaction",
+      "sourcePluginId": "interaction",
+      "clientMessageId": "inbox_1ef49333472ad5b7ea152863f6b55577b4bfed65ed2abed159c7b2c6e5b2823d",
+      "messageId": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+      "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+      "text": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+      "result": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+      "sourceMessageId": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+      "inboxSource": {
+        "pluginId": "interaction",
+        "scope": "user",
+        "peerId": "ses_d912cd4ea63a1b90"
+      },
+      "sourceIdentityKind": "native",
+      "channel": "interaction",
+      "channelTarget": "user:ses_d912cd4ea63a1b90",
+      "qqTarget": "user:ses_d912cd4ea63a1b90",
+      "targetType": "user",
+      "targetId": "ses_d912cd4ea63a1b90",
+      "botUin": "",
+      "canReply": true,
+      "revision": 1,
+      "createdAt": 1792726300.7378292,
+      "deliveryState": "sent_to_cli",
+      "dispatchState": "sent_to_cli",
+      "inboxNotification": false,
+      "envelope": {
+        "type": "interaction.rejected",
+        "cardId": "card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53",
+        "id": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+        "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+        "responseKind": "reject",
+        "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      },
+      "inboxContent": {
+        "text": "Interaction rejected: {\"cardId\":\"card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53\",\"responseKind\":\"reject\",\"summaryBody\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\"}",
+        "envelope": {
+          "type": "interaction.rejected",
+          "cardId": "card_2905b1ddf632049a66658e5888c73d9d18f66a7317cb6936b9d46d75afcc5e53",
+          "id": "rejection_b865a4d8039df680ff2a7eab9785b6f00b05f83cf78a95f701595bfb8375cd37",
+          "lockerId": "ulocker_9b5a6dda29bec7b06e09f60dfc71859459c89581cded2e8f5fafa42aa22ea1ba",
+          "responseKind": "reject",
+          "summaryBody": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+        }
+      },
+      "position": 1,
+      "autoReportAdmission": {
+        "version": 1,
+        "origin": {
+          "kind": "plugin",
+          "pluginId": "interaction"
+        },
+        "enabled": false
+      },
+      "reservedBy": "worker-1",
+      "reservedGeneration": 0,
+      "reservedAt": 1792726300.8231957,
+      "receiptAt": 1792726300.83851,
+      "deliveredAt": 1792726300.83851
+    }
+  },
+  "restartNoReplay": true,
+  "portReleased": true
+}

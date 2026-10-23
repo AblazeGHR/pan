@@ -19,7 +19,7 @@ QQ bot HTTP API（挂载在 NoneBot fastapi driver server_app，默认 127.0.0.1
 
 双模式（PAN_QQ_MODE）:
   mirror    默认。收到 QQ 消息 → 绑定 session → 派发 worker → 自动回复（现状兼容）。
-  selective 监听/选择性发送。QQ 消息只写 history + data/qq_inbox/<target_id>.json
+  selective 监听/选择性发送。QQ 消息写独立 history + 共享 Agent Inbox Locker
             （待处理队列），不建 session、不 spawn、不自动回复；由 meta-agent 经
             MCP 工具 qq_read_inbox（读 inbox）→ 决策 → qq_send_message（回复）。
             command-routes（绕过 LLM 的确定路由）在两种模式下都立即执行。
@@ -588,7 +588,10 @@ async def handle_qq_message(msg: QQMessage) -> None:
     # 结合 history 判断），见下方 command route 分支。
     if _qq_mode() == "selective":
         await _append_inbox(
-            scope_id, scope, text, msg.sender_nickname, bot_uin=msg.bot_uin
+            scope_id, scope, text, msg.sender_nickname, bot_uin=msg.bot_uin,
+            message_id=msg.inbox_message_id(),
+            instance_id=msg.instance_id, source_time=(msg.raw or {}).get("time", ""),
+            parts=(msg.raw or {}).get("message", []),
         )
 
     # Lazy-load command routes on first use (lets the bot start before Core
@@ -832,77 +835,34 @@ async def _append_history(
                     pass
 
 
-# ── inbox（selective 模式待处理队列）──
-#
-# selective 模式（PAN_QQ_MODE=selective）下，QQ 收到的消息不自动回复，而是按
-# target_id（私聊 user_id / 群 group_id）追加到 data/qq_inbox/<target_id>.json
-# 待处理队列，由 meta-agent 经 MCP 工具 qq_read_inbox / GET /api/qq/inbox 读取
-# 并决定是否回复（消费即删）。路径消毒 / 锁 / 上限沿用 qq_history 的实现。
-
+# ── Shared Agent Inbox; old JSON is import-only, never a second live store. ──
 _INBOX_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "qq_inbox"
-_INBOX_MAX_ENTRIES = 500
-_inbox_lock = asyncio.Lock()
 
 
-def _inbox_path(target_id: str, bot_uin: str | int | None = None) -> Path:
-    """Sanitized inbox file path — same rule as _history_path（方案A bot 目录分层）."""
-    safe = "".join(c for c in str(target_id) if c.isalnum() or c in "-_")
-    if bot_uin:
-        bot = "".join(c for c in str(bot_uin) if c.isalnum() or c in "-_")
-        return _INBOX_DIR / bot / f"{safe}.json"
-    return _INBOX_DIR / f"{safe}.json"
-
-
-async def _load_inbox(
-    target_id: str, bot_uin: str | int | None = None
-) -> list[dict]:
-    """Load a target's pending inbox queue (list of {id,target_id,scope,role,text,time[,bot_uin]})."""
-    try:
-        data = json.loads(_inbox_path(target_id, bot_uin).read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except (OSError, json.JSONDecodeError):
-        return []
+def _shared_inbox():
+    from packages.core.inbox_service import get_inbox, migrate_qq
+    box = get_inbox(_INBOX_DIR.parent)
+    migrate_qq(box, _INBOX_DIR)
+    return box
 
 
 async def _append_inbox(
     target_id: str, scope: str, text: str, nickname: str = "",
-    bot_uin: str | int | None = None,
+    bot_uin: str | int | None = None, *, message_id: str = "", parts=None, instance_id: str = "qq", source_time="",
 ) -> None:
-    """Append one pending QQ message to a target's inbox (selective mode).
-
-    Scope is "user" (private) or "group"; role is always "user" — inbox 只收
-    上行 QQ 消息，编排者的回复经 api_send 走 history，不回流 inbox。
-
-    bot_uin 可选：多账号部署时标注该消息由哪个 bot 收到，编排者读 inbox 时
-    据此决定用哪个 bot 回复（谁收到谁回）；None 不写字段（旧记录兼容）。
-
-    落盘后 best-effort 通知 Pan Core（/api/qq/notify）：若该 QQ 会话被某个
-    Pan session 订阅（qq_subscriptions），订阅者会收到一条 `@@@@by qq` 提醒。
-    """
-    if not text:
-        return
-    async with _inbox_lock:
-        _migrate_legacy_file(_inbox_path(target_id), _inbox_path(target_id, bot_uin))
-        messages = await _load_inbox(target_id, bot_uin)
-        entry = {
-            "id": f"{int(time.time() * 1000)}-{len(messages)}",
-            "target_id": target_id,
-            "scope": scope,
-            "role": "user",
-            "text": text,
-            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        if bot_uin:
-            entry["bot_uin"] = str(bot_uin)
-        messages.append(entry)
-        if len(messages) > _INBOX_MAX_ENTRIES:
-            messages = messages[-_INBOX_MAX_ENTRIES:]
-        _inbox_path(target_id, bot_uin).parent.mkdir(parents=True, exist_ok=True)
-        _inbox_path(target_id, bot_uin).write_text(
-            json.dumps(messages, ensure_ascii=False, indent=1),
-            encoding="utf-8",
-        )
-    await _notify_pan_inbox(scope, target_id, nickname, text, bot_uin)
+    from packages.core.inbox_service import qq_source
+    if not message_id:
+        raise ValueError("OneBot message_id required for new QQ inbox messages")
+    box = _shared_inbox()
+    lid = box.locker(qq_source(bot_uin, scope, target_id, instance_id))["id"]
+    content = {"text": text, "nickname": nickname, "parts": [{"type": "text", "text": text}],
+               "envelope": {"protocol": "onebot/v11", "sourceMessageId": str(message_id), "nativeParts": parts or []},
+               "attachments": [dict(p) for p in (parts or []) if isinstance(p, dict) and p.get("type") not in {"text", "at"}],
+               "target_id": str(target_id), "scope": scope, "role": "user", "time": str(source_time or "unknown")}
+    if bot_uin:
+        content["bot_uin"] = str(bot_uin)
+    box.receive(lid, str(message_id), content)
+    await _notify_pan_inbox(scope, target_id, nickname, text, bot_uin, locker_id=lid)
 
 
 def _pan_core_url() -> str:
@@ -916,23 +876,21 @@ def _pan_core_url() -> str:
 
 async def _notify_pan_inbox(
     scope: str, target_id: str, nickname: str, text: str,
-    bot_uin: str | int | None = None,
+    bot_uin: str | int | None = None, *, locker_id: str = "",
 ) -> None:
     """Best-effort 通知 Pan Core：QQ inbox 有新消息。
 
     供 qq_subscriptions 订阅者（绑定该 QQ 会话的 Pan session）消费。bot_uin
     可选（多账号来源标注）。仅当 Pan Core 可达时推送；失败只打印警告，
-    不影响 inbox 落盘（通知是异步增强，inbox 文件才是真源）。
+    不影响 Locker 落盘（SQLite 是待处理消息真源）。
     """
     try:
         url = f"{_pan_core_url()}/api/qq/notify"
         client = await _get_client()
         payload = {
+            "lockerId": locker_id,
             "target_type": scope,
             "target_id": str(target_id),
-            "nickname": nickname,
-            "text": text,
-            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
         if bot_uin:
             payload["bot_uin"] = str(bot_uin)
@@ -957,57 +915,54 @@ def _resolve_read_bot_uin(bot_uin: str | int | None) -> str | None:
 
 async def api_inbox(
     target_id: str, limit: int = 30, consume: bool = False,
-    bot_uin: str | int | None = None,
+    bot_uin: str | int | None = None, target_type: str = "", instance_id: str = "",
 ) -> dict:
-    """Read a target's pending inbox messages, oldest first.
+    """Read shared pending Locker content; consume=True atomically consumes unclaimed rows.
 
-    bot_uin 定位 bot 隔离的 inbox 文件（方案A：<dir>/<bot_uin>/<target_id>.json）；
-    缺省用默认通道的 bot_uin，单通道旧数据走旧路径。consume=True → 读取后即从
-    队列删除（消费即删，落盘回写），避免编排者重复处理。
+    Optional target_type/instance_id disambiguate colliding user/group IDs and
+    plugin instances. Legacy calls retain a merged FIFO view for the selected bot.
+    History and consumed identity tombstones are independent of this view.
     """
     target_id = str(target_id)
-    bot = _resolve_read_bot_uin(bot_uin)
-    if limit is None or limit <= 0:
-        limit = _INBOX_MAX_ENTRIES
-    async with _inbox_lock:
-        messages = await _load_inbox(target_id, bot)
-        take = messages[:limit]
-        if consume:
-            messages = messages[limit:]
-            _inbox_path(target_id, bot).parent.mkdir(parents=True, exist_ok=True)
-            _inbox_path(target_id, bot).write_text(
-                json.dumps(messages, ensure_ascii=False, indent=1),
-                encoding="utf-8",
-            )
-    out = []
-    for m in take:
-        item = {"id": m.get("id"), "text": m.get("text"), "time": m.get("time")}
-        # bot_uin：多账号来源标注；旧记录无此字段则不返回（向后兼容）
-        if m.get("bot_uin"):
-            item["bot_uin"] = str(m["bot_uin"])
-        out.append(item)
-    return {"target_id": target_id, "messages": out}
+    bot = _resolve_read_bot_uin(bot_uin) or ""
+    box = _shared_inbox()
+    selected = [r for r in box.list() if r["source"]["pluginId"] == "qq"
+                and r["source"]["peerId"] == target_id and r["source"]["botId"] == bot
+                and (not target_type or r["source"]["scope"] == target_type)
+                and (not instance_id or r["source"]["instanceId"] == instance_id)]
+    rows = []
+    for locker in selected:
+        rows.extend(box.read(locker["id"], limit=min(500, max(1, limit or 500))))
+    rows.sort(key=lambda r: r["sequence"])
+    rows = rows[:min(500, max(1, limit or 500))]
+    if consume:
+        consumed = set()
+        for locker in selected:
+            consumed.update(box.consume(locker["id"], [r["id"] for r in rows if r["lockerId"] == locker["id"]])["consumed"])
+        rows = [r for r in rows if r["id"] in consumed]
+    return {"target_id": target_id, "messages": [{**r["content"], "id": r["id"],
+            "lockerId": r["lockerId"], "sourceMessageId": r["sourceMessageId"],
+            "identityKind": r["identityKind"]} for r in rows]}
 
 
 async def api_inbox_clear(
     target_id: str, bot_uin: str | int | None = None
 ) -> dict:
-    """Delete a target's inbox file (clear all pending messages).
+    """Consume unclaimed pending messages; preserve content/identity records.
 
     bot_uin 语义同 api_inbox（缺省默认通道 bot；None 走旧路径）。
     """
     target_id = str(target_id)
-    bot = _resolve_read_bot_uin(bot_uin)
-    async with _inbox_lock:
-        try:
-            p = _inbox_path(target_id, bot)
-            if p.exists():
-                p.unlink()
-            return {"ok": True, "target_id": target_id, "cleared": True}
-        except OSError as e:
-            return {"ok": False, "error": {
-                "code": "clear_failed",
-                "message": f"{type(e).__name__}: {e}"}}
+    bot = _resolve_read_bot_uin(bot_uin) or ""
+    box = _shared_inbox()
+    for locker in box.list():
+        if locker["source"]["pluginId"] == "qq" and locker["source"]["peerId"] == target_id and locker["source"]["botId"] == bot:
+            # Compatibility clear consumes pending rows; durable identity tombstones stay.
+            for row in box.read(locker["id"], limit=500):
+                result = box.consume(locker["id"], [row["id"]])
+                if result["busy"]:
+                    return {"ok": False, "error": {"code": "delivery_busy"}}
+    return {"ok": True, "target_id": target_id, "cleared": True}
 
 
 async def api_send(
@@ -1178,9 +1133,10 @@ def _register_qq_api(app) -> None:
 
     @app.get("/api/qq/inbox")
     async def _route_qq_inbox(
-        target_id: str, limit: int = 30, consume: int = 0, bot_uin: str = ""
+        target_id: str, limit: int = 30, consume: int = 0, bot_uin: str = "",
+        target_type: str = "", instance_id: str = ""
     ):
-        return await api_inbox(target_id, limit, bool(consume), bot_uin or None)
+        return await api_inbox(target_id, limit, bool(consume), bot_uin or None, target_type, instance_id)
 
     @app.delete("/api/qq/inbox")
     async def _route_qq_inbox_clear(target_id: str, bot_uin: str = ""):

@@ -1,5 +1,6 @@
 import type { Action, ActionGroup, ActionRegistry, InputSchema } from '@/types/actions';
 import type { PluginMode, Session } from '@/types';
+import { validateSessionQuery } from './sessionQueryModel';
 
 export type GroupDraft = Pick<ActionGroup, 'id' | 'name' | 'action_ids'>;
 
@@ -11,6 +12,8 @@ export type ActionEditorState = {
   draft: Action;
   schemaText: string;
   schemaError: string;
+  executionText?: string;
+  executionError?: string;
 };
 
 export type GroupEditorState = {
@@ -82,7 +85,7 @@ export function groupEditorState(group: GroupDraft, mode: 'new' | 'edit'): Group
 
 export function isEditorDirty(editor: EditorState): boolean {
   return editor.kind === 'action'
-    ? serializeAction(editor.draft, editor.schemaText) !== editor.snapshot
+    ? serializeAction(editor.draft, editor.schemaText) !== editor.snapshot || editor.executionText !== undefined
     : serializeGroup(editor.draft) !== editor.snapshot;
 }
 
@@ -129,13 +132,26 @@ export function effectTone(effect: Action['effect']): 'neutral' | 'accent' | 'wa
 }
 
 export function executionLabel(action: Action): string {
-  return action.execution.kind === 'api' ? 'Internal API' : 'Command';
+  return action.execution.kind === 'job_template' ? 'Create Job from Template' : action.execution.kind === 'system_job' ? 'System Action' : action.execution.kind === 'api' ? 'Internal API' : action.execution.kind === 'session_operation' ? 'Session Operation' : 'Command';
+}
+
+export function sessionOperationError(action: Action): string {
+  if (action.execution.kind !== 'session_operation') return '';
+  if (action.effect !== 'write_local') return 'Session Operation requires the Write local effect.';
+  const selector = action.execution.selector;
+  if (selector.mode === 'query') return validateSessionQuery(selector.query);
+  return selector.mode === 'event' && !/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$/.test(selector.path)
+    ? 'Enter a valid target Event dictionary path.' : '';
 }
 
 export function actionRoute(action: Action): string {
-  return action.execution.kind === 'api'
-    ? `${action.execution.method} ${action.execution.path}`
-    : action.execution.executable;
+  const execution = action.execution;
+  if (execution.kind === 'api') return `${execution.method} ${execution.path}`;
+  if (execution.kind === 'command') return execution.executable;
+  if (execution.kind === 'system_job') return `Product executor · ${execution.operation}`;
+  if (execution.kind === 'job_template') return `Complete Template ${execution.templateId} · revision ${execution.templateRevision}`;
+  const selector = execution.selector;
+  return `Pause Everything · ${selector.mode === 'explicit' ? `${selector.ids.length} Sessions` : selector.mode === 'query' ? 'Session query' : `Event: ${selector.path}`}`;
 }
 
 export function pluginIdFor(groupId: string): string {
@@ -180,7 +196,7 @@ export function sessionIsRunning(session: Session | null | undefined): boolean {
 export function buildGate(
   actionIds: readonly string[],
   actions: readonly Action[],
-): { kind: 'empty' | 'missing' | 'disabled' | 'high_risk'; message: string } | null {
+): { kind: 'empty' | 'missing' | 'disabled' | 'high_risk' | 'automation_only'; message: string } | null {
   if (!actionIds.length) return { kind: 'empty', message: 'Select at least one Action before building.' };
   const selected = actionIds
     .map((id) => actions.find((action) => action.id === id))
@@ -188,6 +204,13 @@ export function buildGate(
   if (selected.length !== actionIds.length) {
     return { kind: 'missing', message: 'One or more selected Actions no longer exist. Remove them and save.' };
   }
+  const automationOnly = selected.filter((action) => action.execution.kind === 'session_operation');
+  const jobsOnly = selected.filter((action) => action.execution.kind === 'system_job' || action.execution.kind === 'job_template');
+  if (jobsOnly.length) return { kind: 'automation_only', message: `${jobsOnly.map((action) => action.name).join(', ')}: Job capabilities cannot be built into a legacy Group release.` };
+  if (automationOnly.length) return {
+    kind: 'automation_only',
+    message: `${automationOnly.map((action) => action.name).join(', ')}: Session Operation is automation only and cannot be built into a Group.`,
+  };
   const disabled = selected.filter((action) => !action.enabled);
   if (disabled.length) {
     return {

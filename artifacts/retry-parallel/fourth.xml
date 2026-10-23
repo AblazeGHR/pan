@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="44" time="27.069" timestamp="2026-10-22T11:47:16.683915+08:00" hostname="ablaze"><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_trigger_contract" time="0.014" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_explicit_idempotence" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_confirmation_keeps_run_and_new_attempt" time="0.024" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields0]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields1]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields2]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields3]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields4]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields5]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields6]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields7]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields8]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields9]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields10]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields11]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields12]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields13]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields14]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields15]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[None]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[1]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[true]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value3]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value4]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_defaults_and_concurrency_change_need_user_even_disabled" time="0.014" /><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_bounded_independent_and_live_reduction" time="0.150"><failure message="AssertionError: assert (('pause', '3') == ('pause', '2')&#10;  &#10;  At index 1 diff: '3' != '2'&#10;  Use -v to get more diff)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3599/test_parallel_bounded_independ0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001ECC9ED2EB0&gt;
+
+    @async_test
+    async def test_parallel_bounded_independent_and_live_reduction(tmp_path,monkeypatch):
+        entered=asyncio.Queue();release={};active=set();maximum=0
+        async def execute(a,args,e,progress):
+            nonlocal maximum
+            key=(a['id'],e['id']);active.add(key);maximum=max(maximum,sum(k[0]=='pause' for k in active))
+            release[key]=asyncio.Event();await entered.put(key)
+            try:
+                await release[key].wait();return {'ok':True}
+            finally:active.remove(key)
+        engine,_,_=await setup(tmp_path,execute)
+        snapshot,release_snapshot=asyncio.Event(),asyncio.Event()
+        original=engine.io
+        async def io(fn,*args,**kw):
+            result=await original(fn,*args,**kw)
+            if (fn==engine.ledger.read and asyncio.current_task() is engine.tasks.get('t')
+                    and not snapshot.is_set() and any(r['status']=='succeeded' for r in result['runs'].values())):
+                snapshot.set();await release_snapshot.wait()
+            return result
+        monkeypatch.setattr(engine,'io',io)
+        engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=2),0,True)
+        try:
+            for i in range(4):await engine.match(event(str(i)))
+            first=[await asyncio.wait_for(entered.get(),2) for _ in range(2)]
+            assert maximum==2 and len(active)==2
+            engine.actions.put('actions',{**action(),'id':'other'})
+            engine.ledger.put({**trigger('other'),'actionId':'other'},0,True)
+            await engine.match(event('independent'))
+            independent=await asyncio.wait_for(entered.get(),2)
+            assert independent==('other','independent') and len(active)==3
+            with pytest.raises(Conflict,match='Running Run count'):
+                engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=1),1,True)
+            release[first[0]].set()
+            await asyncio.wait_for(snapshot.wait(),2)
+            # Keep the second slot occupied until the confirmed reduction commits.
+            engine.ledger.put(trigger(executionMode='parallel',maxConcurrency=1),1,True)
+            await engine.kick()
+            release_snapshot.set()
+            assert entered.empty() and len([k for k in active if k[0]=='pause'])==1
+            release[first[1]].set()
+            successor=await asyncio.wait_for(entered.get(),2)
+&gt;           assert successor==('pause','2') and maximum==2
+E           AssertionError: assert (('pause', '3') == ('pause', '2')
+E
+E             At index 1 diff: '3' != '2'
+E             Use -v to get more diff)
+
+tests\test_automation_retry_parallel.py:125: AssertionError</failure></testcase><testcase classname="tests.test_automation_retry_parallel" name="test_atomic_claim_fences_concurrent_readers_and_trigger_limit" time="0.070" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_backoff_budget_identities_event_dedup_and_recovery" time="0.088" /><testcase classname="tests.test_automation_retry_parallel" name="test_idempotence_or_policy_cannot_be_promoted_after_first_start" time="0.122" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_change_during_backoff_fails_without_new_effect" time="0.079" /><testcase classname="tests.test_automation_retry_parallel" name="test_wait_cancel_disable_and_reenable_never_replay_history" time="0.104" /><testcase classname="tests.test_automation_retry_parallel" name="test_query_retry_uses_frozen_targets_and_only_failed_targets" time="0.101" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_no_auto_retry_confirm_revision_and_frozen_query" time="0.073" /><testcase classname="tests.test_automation_retry_parallel" name="test_serial_retry_head_order_and_parallel_independent_tail[serial]" time="0.080" /><testcase classname="tests.test_automation_retry_parallel" name="test_serial_retry_head_order_and_parallel_independent_tail[parallel]" time="0.076" /><testcase classname="tests.test_automation_retry_parallel" name="test_disable_running_allows_finish_cancels_queue_and_wait" time="0.067" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_pause_gate_plugin_loss_and_new_generation" time="0.079" /><testcase classname="tests.test_automation_retry_parallel" name="test_cancel_after_finish_commit_preserves_committed_outcome" time="0.056" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_schedule_write_failure_is_uncertain_not_reexecution" time="0.045" /><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_query_confirmation_reuses_ids_and_successes" time="0.104" /><testcase classname="tests.test_automation_retry_parallel" name="test_manual_confirmation_is_bounded_and_disabled_rejected" time="0.046" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_defaults_cap_and_schema_matches_parser" time="0.018" /><testcase classname="tests.test_automation_retry_parallel" name="test_schema_and_confirmation_api_require_user_and_exact_revision" time="0.133" /><testcase classname="tests.test_automation_retry_http" name="test_node_parallel_finite_retries_and_uncertain_confirmation_http" time="24.793" /></testsuite></testsuites>

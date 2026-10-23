@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="25.457" timestamp="2026-10-23T22:15:22.292736+08:00" hostname="ablaze"><testcase classname="tests.test_locker_product_live" name="test_locker_messages_cards_real_service_browser_cli_restart" time="25.092" /></testsuite></testsuites>

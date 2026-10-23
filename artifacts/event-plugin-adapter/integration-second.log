@@ -1,0 +1,75 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-plugin-adapter-20261022
+.......F                                                                 [100%]
+================================== FAILURES ===================================
+_________________ test_real_http_plugin_lifecycle_and_restart _________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3533/test_real_http_plugin_lifecycl0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000029215F32F30>
+
+    def test_real_http_plugin_lifecycle_and_restart(tmp_path, monkeypatch):
+        assert harness.PORT not in {8767, 8768}
+        monkeypatch.setattr(harness, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')
+        runtime = harness._PanRuntime(tmp_path / 'owned-data')
+        runtime.data_root.mkdir()
+        sentinel = tmp_path / 'simulated-practical/sentinel'
+        sentinel.parent.mkdir()
+        sentinel.write_bytes(b'untouched')
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(sentinel.parent))
+        m = manifest()
+        file = tmp_path / 'plugins.json'
+        file.write_text(json.dumps({'mcp_servers': [asdict(s) for s in m.mcp_servers], 'plugins': m.plugins}))
+        (runtime.data_root / 'config.json').write_text(json.dumps({'plugin_manifests': [str(file)], 'scheduler': {'enabled': False}}))
+        evidence = {'port': harness.PORT, 'dataRoot': str(runtime.data_root), 'processes': []}
+        def capture():
+            if runtime.process and runtime.process.poll() is None:
+                for p in [psutil.Process(runtime.process.pid), *psutil.Process(runtime.process.pid).children(recursive=True)]:
+                    evidence['processes'].append({'pid': p.pid, 'createTime': p.create_time(), 'command': p.cmdline()})
+        def stopped():
+            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time() != p['createTime'] for p in evidence['processes'])
+        def view():
+            return runtime.request('GET', '/api/automation')
+        def bindings(pid, enabled=True):
+            return [{'plugin_id': pid, 'enabled': enabled, 'mode': 'gateway'}]
+        try:
+            runtime.start()
+            def create(name):
+                return runtime.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+            target = create('target')
+            control = create('unselected')
+            owner = create('event-owner')
+            observer = create('event-observer')
+            runtime.request('POST', '/api/actions/actions', json={'item': action([target['id']])})
+            key = (runtime.data_root / 'automation/user.key').read_text()
+            token = runtime.request('POST', '/api/automation/login', json={'key': key})['token']
+            runtime.request('POST', '/api/automation/triggers', json={'item': {**trigger(), 'eventTypes': ['producer.ping']}, 'expectedRevision': 0}, headers={'Authorization': 'Bearer ' + token})
+            # Independent subscribers are live before producer admission.
+            runtime.request('PATCH', f"/api/sessions/{observer['id']}", json={'pluginBindings': [*bindings('observer'), *bindings('other')]})
+            runtime.request('PATCH', f"/api/sessions/{owner['id']}", json={'pluginBindings': bindings('producer')})
+            capture()
+>           assert any(d['type'] == 'producer.ping' and d['available'] for d in view()['definitions'])
+E           assert False
+E            +  where False = any(<generator object test_real_http_plugin_lifecycle_and_restart.<locals>.<genexpr> at 0x0000029215F93C60>)
+
+tests\test_plugin_events_http.py:53: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:319
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:656
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:712
+  D:\project\pan-worktrees\event-plugin-adapter-20261022\tests\test_real_queue_http_e2e.py:712: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_events_http.py::test_real_http_plugin_lifecycle_and_restart
+1 failed, 7 passed, 4 warnings in 9.87s

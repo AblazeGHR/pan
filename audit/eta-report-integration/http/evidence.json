@@ -1,0 +1,42 @@
+{
+  "sourceSha": "a7b3c47c76be408e31661193cf432cad11a46145",
+  "port": 50370,
+  "fakeCLI": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\tests\\support\\session_error_fake_cli.py",
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data",
+  "identity": {
+    "pid": 40292,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3930\\test_trusted_locker_and_error_0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\eta-job-report-integration-20261023\\tests\\support\\session_error_fake_cli.py"
+  },
+  "trustedRunId": "run_15740f6e92e2494490aec589eb1e7b17",
+  "cardId": "card_7265b75202b4a06e6b3095bdd038fa15600c94dbe9f01f4ee0c92da8dccd5db2",
+  "trustedPause": true,
+  "runtimeIssueAlongsideReport": "ri_f18a53ff9319b594ca741a33dff81c81",
+  "originalQueueIds": [
+    "q_f8ab46017b0c1ef5d63c4c97c218ab9e4d0c3fec8b3551979857579f11e45330",
+    "q_1f0fea806e584a1898f8c02796436657"
+  ],
+  "originalIdsConsumed": true,
+  "status": "error",
+  "nativeDiagnostic": true,
+  "coldReload": true,
+  "mcpSubscribeAssign": true,
+  "managerConsumed": true,
+  "queueItemId": "q_1f0fea806e584a1898f8c02796436657",
+  "ownedPidBirths": {
+    "40292": 1792727341.1000435,
+    "38876": 1792727341.1047199,
+    "3292": 1792727346.569756,
+    "42320": 1792727346.5757527,
+    "9920": 1792727347.1257381,
+    "8356": 1792727347.1306584,
+    "40744": 1792727348.3189623,
+    "26892": 1792727348.3261297
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

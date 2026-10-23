@@ -1,0 +1,1487 @@
+{
+  "port": 57905,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile",
+  "processes": [
+    {
+      "pid": 34440,
+      "created": 1792655851.292483,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 36736,
+      "created": 1792655851.302162,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 24824,
+      "created": 1792655851.31556,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 17220,
+      "created": 1792655852.5538137,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37536,
+      "created": 1792655852.601519,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 20916,
+      "created": 1792655860.0689776,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 19272,
+      "created": 1792655860.0744195,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37456,
+      "created": 1792655860.086954,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 37752,
+      "created": 1792655860.1557393,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 32420,
+      "created": 1792655860.1610034,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 29768,
+      "created": 1792655860.174024,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 34680,
+      "created": 1792655852.6054745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37516,
+      "created": 1792655852.6195571,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37648,
+      "created": 1792655852.560917,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 19452,
+      "created": 1792655852.574914,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 34440,
+      "created": 1792655851.292483,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 36736,
+      "created": 1792655851.302162,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 24824,
+      "created": 1792655851.31556,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 17220,
+      "created": 1792655852.5538137,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37536,
+      "created": 1792655852.601519,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 32684,
+      "created": 1792655860.4445324,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 37236,
+      "created": 1792655860.448432,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 24476,
+      "created": 1792655860.4610407,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 32392,
+      "created": 1792655860.5285273,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 37448,
+      "created": 1792655860.5343747,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 33068,
+      "created": 1792655860.5480113,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 34680,
+      "created": 1792655852.6054745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37516,
+      "created": 1792655852.6195571,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37648,
+      "created": 1792655852.560917,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 19452,
+      "created": 1792655852.574914,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 34440,
+      "created": 1792655851.292483,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 36736,
+      "created": 1792655851.302162,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 24824,
+      "created": 1792655851.31556,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 17220,
+      "created": 1792655852.5538137,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37536,
+      "created": 1792655852.601519,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 3948,
+      "created": 1792655860.7034724,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 13648,
+      "created": 1792655860.7098804,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 7692,
+      "created": 1792655860.7225368,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 36872,
+      "created": 1792655860.7886126,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 17812,
+      "created": 1792655860.7939377,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 4512,
+      "created": 1792655860.8103292,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 34680,
+      "created": 1792655852.6054745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37516,
+      "created": 1792655852.6195571,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 37648,
+      "created": 1792655852.560917,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 19452,
+      "created": 1792655852.574914,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 32368,
+      "created": 1792655861.304135,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 9204,
+      "created": 1792655861.3097332,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 17540,
+      "created": 1792655861.333804,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 32368,
+      "created": 1792655861.304135,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 9204,
+      "created": 1792655861.3097332,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 17540,
+      "created": 1792655861.333804,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\event-trigger-core-20261022\\tests\\support\\automation_http_server.py",
+        "--port",
+        "57905",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3633\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    }
+  ],
+  "cleanupActions": [
+    {
+      "pid": 3948,
+      "created": 1792655860.7034724,
+      "action": "terminate owned retained descendant"
+    },
+    {
+      "pid": 13648,
+      "created": 1792655860.7098804,
+      "action": "terminate owned retained descendant"
+    },
+    {
+      "pid": 7692,
+      "created": 1792655860.7225368,
+      "action": "terminate owned retained descendant"
+    },
+    {
+      "pid": 36872,
+      "created": 1792655860.7886126,
+      "action": "terminate owned retained descendant"
+    },
+    {
+      "pid": 17812,
+      "created": 1792655860.7939377,
+      "action": "terminate owned retained descendant"
+    },
+    {
+      "pid": 4512,
+      "created": 1792655860.8103292,
+      "action": "terminate owned retained descendant"
+    }
+  ],
+  "templateId": "jtpl_de0a5508e44d4490b4191c15",
+  "pauseExecution": {
+    "id": "jexec_96b7ef423c6548b8a30de500cad97d29",
+    "status": "completed",
+    "actionId": "pause",
+    "actionRevision": 1,
+    "registryRevision": 1,
+    "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "7226c6fc9972e731314b63f35476c1ae3895861c3cfaa3011d3dc34833ca9cea",
+    "matched": 1,
+    "succeeded": 1,
+    "failed": 0
+  },
+  "capabilityRun": {
+    "id": "run_404526c8fbd24fa5b6573c1eb0421774",
+    "triggerId": "t",
+    "triggerRevision": 1,
+    "actionId": "instantiate",
+    "event": {
+      "id": "evt_c53e5e96bd8240dcb23c94d7a26cad10",
+      "type": "workers.all_idle",
+      "schemaVersion": 1,
+      "source": {
+        "type": "core",
+        "id": "workers"
+      },
+      "occurredAt": "2026-10-22T07:57:38.222593+00:00",
+      "payload": {
+        "runningCount": 0
+      }
+    },
+    "createdAt": "2026-10-22T07:57:38.252270+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {},
+    "revision": 5,
+    "attempts": [
+      {
+        "id": "att_e456ae5b8bbc492a86fcd5f6f64793a9",
+        "number": 1,
+        "status": "succeeded",
+        "startedAt": "2026-10-22T07:57:38.278832+00:00",
+        "finishedAt": "2026-10-22T07:57:38.317664+00:00",
+        "result": {
+          "ok": true,
+          "jobId": "job_e913ce5276b2f8e9135b136b",
+          "created": true,
+          "jobCompleted": false,
+          "templateId": "jtpl_de0a5508e44d4490b4191c15",
+          "templateRevision": 1
+        }
+      }
+    ],
+    "attemptCount": 1,
+    "retryPolicy": {
+      "enabled": false,
+      "maxAttempts": 3
+    },
+    "startedAt": "2026-10-22T07:57:38.278832+00:00",
+    "activeAttemptId": "att_e456ae5b8bbc492a86fcd5f6f64793a9",
+    "retryEligible": false,
+    "actionDigest": "dc001aeb118b3604826740f876114b8d058322aad2966e4d14aac44407c50637",
+    "result": {
+      "ok": true,
+      "jobId": "job_e913ce5276b2f8e9135b136b",
+      "created": true,
+      "jobCompleted": false,
+      "templateId": "jtpl_de0a5508e44d4490b4191c15",
+      "templateRevision": 1
+    },
+    "finishedAt": "2026-10-22T07:57:38.317664+00:00"
+  },
+  "missing": {
+    "jobId": "job_13355dd8a772428b29e7055c",
+    "kind": "scheduled-task",
+    "taskId": "sch_3c9e9cd3dc9c",
+    "name": "fixed Pause Job",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "action_reference",
+      "actionId": "pause",
+      "arguments": {}
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_44a24efa",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": "2026-10-22T16:57:35",
+        "lastFireAt": null,
+        "kind": "interval",
+        "interval_sec": 3600,
+        "intervalSec": 3600,
+        "anchor": "2026-10-22T15:57:35"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": "2026-10-22T16:57:35",
+    "lastFireAt": null,
+    "lastStatus": "completed",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "scheduled",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792655855.0,
+    "updatedAt": 1792655855.1080759,
+    "config": {
+      "name": "fixed Pause Job",
+      "actionId": "pause",
+      "arguments": {},
+      "enabled": false,
+      "schedule": [
+        {
+          "kind": "interval",
+          "intervalSec": 3600
+        }
+      ],
+      "description": "",
+      "maxRuns": null,
+      "misfirePolicy": "fire_now"
+    },
+    "configRevision": 1,
+    "referenceGeneration": 0,
+    "creationFingerprint": "26e33b306b94b47d8a18ad7e1f47c84cb744b9059fea078e0b9bf49cdf2bca94",
+    "creationEventPending": false,
+    "templateId": "jtpl_de0a5508e44d4490b4191c15",
+    "templateRevision": 1,
+    "operation": "run",
+    "lastExecution": {
+      "id": "jexec_96b7ef423c6548b8a30de500cad97d29",
+      "status": "completed",
+      "actionId": "pause",
+      "actionRevision": 1,
+      "registryRevision": 1,
+      "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+      "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "contextDigest": "7226c6fc9972e731314b63f35476c1ae3895861c3cfaa3011d3dc34833ca9cea",
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0
+    },
+    "terminalEventId": "jexec_96b7ef423c6548b8a30de500cad97d29",
+    "terminalEventEmittedFor": "jexec_96b7ef423c6548b8a30de500cad97d29",
+    "target": {
+      "sessionId": null
+    },
+    "integrity": {
+      "status": "incomplete",
+      "issues": [
+        {
+          "actionId": "pause",
+          "position": "/config/actionId",
+          "error": "Missing Action reference: pause"
+        }
+      ],
+      "approvalRequired": true
+    }
+  },
+  "restored": {
+    "jobId": "job_13355dd8a772428b29e7055c",
+    "kind": "scheduled-task",
+    "taskId": "sch_3c9e9cd3dc9c",
+    "name": "fixed Pause Job",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "action_reference",
+      "actionId": "pause",
+      "arguments": {}
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_44a24efa",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": "2026-10-22T16:57:35",
+        "lastFireAt": null,
+        "kind": "interval",
+        "interval_sec": 3600,
+        "intervalSec": 3600,
+        "anchor": "2026-10-22T15:57:35"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": "2026-10-22T16:57:35",
+    "lastFireAt": null,
+    "lastStatus": "completed",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "scheduled",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792655855.0,
+    "updatedAt": 1792655855.1080759,
+    "config": {
+      "name": "fixed Pause Job",
+      "actionId": "pause",
+      "arguments": {},
+      "enabled": false,
+      "schedule": [
+        {
+          "kind": "interval",
+          "intervalSec": 3600
+        }
+      ],
+      "description": "",
+      "maxRuns": null,
+      "misfirePolicy": "fire_now"
+    },
+    "configRevision": 1,
+    "referenceGeneration": 0,
+    "creationFingerprint": "26e33b306b94b47d8a18ad7e1f47c84cb744b9059fea078e0b9bf49cdf2bca94",
+    "creationEventPending": false,
+    "templateId": "jtpl_de0a5508e44d4490b4191c15",
+    "templateRevision": 1,
+    "operation": "run",
+    "lastExecution": {
+      "id": "jexec_96b7ef423c6548b8a30de500cad97d29",
+      "status": "completed",
+      "actionId": "pause",
+      "actionRevision": 1,
+      "registryRevision": 1,
+      "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+      "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "contextDigest": "7226c6fc9972e731314b63f35476c1ae3895861c3cfaa3011d3dc34833ca9cea",
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0
+    },
+    "terminalEventId": "jexec_96b7ef423c6548b8a30de500cad97d29",
+    "terminalEventEmittedFor": "jexec_96b7ef423c6548b8a30de500cad97d29",
+    "target": {
+      "sessionId": null
+    },
+    "integrity": {
+      "status": "complete",
+      "issues": [],
+      "approvalRequired": true
+    }
+  },
+  "commandExecution": {
+    "id": "jexec_e0b416acb39b4b7b8d921cddf4370d1d",
+    "status": "completed",
+    "actionId": "hold",
+    "actionRevision": 1,
+    "registryRevision": 5,
+    "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "5aab92e202796dd5bb33b3e8541a252e11867ec1b3a59dee0f3184cd0340e6ec"
+  },
+  "cancelExecution": {
+    "id": "jexec_669c94187bf143fc9558e87ad692fac2",
+    "status": "cancelled",
+    "actionId": "hold",
+    "actionRevision": 4,
+    "registryRevision": 8,
+    "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "7e0b469519b3cfb0ddbe098c6dec1b8128988f1bcd6ab07536dda7b9c158316d"
+  },
+  "recovered": {
+    "id": "jexec_a098f08350be4d9b9d9b68d9962fdd69",
+    "status": "uncertain",
+    "actionId": "hold",
+    "actionRevision": 4,
+    "registryRevision": 8,
+    "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "86930b3d3d2e1025152507edbffb61d51a1c5e566b319043c79b4ac3bc3bed33"
+  },
+  "scheduled": {
+    "id": "jexec_a12ab602df5b4408bba28fe01eb5d713",
+    "status": "completed",
+    "actionId": "pause",
+    "actionRevision": 3,
+    "registryRevision": 8,
+    "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "c0befcde8a556f2f2bfd697b4568c01d761e98e2e5c5c91095d44cbb4e6f21ef",
+    "matched": 1,
+    "succeeded": 1,
+    "failed": 0
+  },
+  "trace": [
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 29768,
+      "at": 1792655860.2072458
+    },
+    {
+      "kind": "finish",
+      "label": "original",
+      "pid": 29768,
+      "at": 1792655860.3502188
+    },
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 33068,
+      "at": 1792655860.582287
+    },
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 4512,
+      "at": 1792655860.8435926
+    }
+  ],
+  "snapshotCountAtEnd": 0,
+  "jobs": [
+    {
+      "jobId": "job_b4933c40fc154ee28dfea880",
+      "kind": "scheduled-task",
+      "taskId": "sch_6878eaf5a8cb",
+      "name": "actual scheduled Pause",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_60f3253a",
+          "misfirePolicy": "fire_now",
+          "enabled": false,
+          "nextFireAt": null,
+          "lastFireAt": null,
+          "kind": "once",
+          "at": "2026-10-22T15:57:45"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "completed",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655862.0,
+      "updatedAt": 1792655862.451643,
+      "config": {
+        "name": "actual scheduled Pause",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "once",
+            "at": "2026-10-22T15:57:45.443786"
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 1,
+      "referenceGeneration": 1,
+      "creationFingerprint": "43ce8392dc3c671089321396a0fde15e6048617f444aebd2182d13d801b254fd",
+      "creationEventPending": false,
+      "operation": "run",
+      "lastExecution": {
+        "id": "jexec_a12ab602df5b4408bba28fe01eb5d713",
+        "status": "completed",
+        "actionId": "pause",
+        "actionRevision": 3,
+        "registryRevision": 8,
+        "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "c0befcde8a556f2f2bfd697b4568c01d761e98e2e5c5c91095d44cbb4e6f21ef",
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "terminalEventId": "jexec_a12ab602df5b4408bba28fe01eb5d713",
+      "terminalEventEmittedFor": "jexec_a12ab602df5b4408bba28fe01eb5d713",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      }
+    },
+    {
+      "jobId": "job_fcf87560dcc641f8992e52fe",
+      "kind": "scheduled-task",
+      "taskId": "sch_04f52fe5073c",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_5075bbf6",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-22T16:57:40",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-22T15:57:40"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-22T16:57:40",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655860.0,
+      "updatedAt": 1792655860.0180833,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "e7323bf01486c49ef7c783eb48f58e097f206741e7a5dab083dfe7d0b37c7250",
+      "creationEventPending": false,
+      "operation": "run",
+      "lastExecution": {
+        "id": "jexec_e0b416acb39b4b7b8d921cddf4370d1d",
+        "status": "completed",
+        "actionId": "hold",
+        "actionRevision": 1,
+        "registryRevision": 5,
+        "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "5aab92e202796dd5bb33b3e8541a252e11867ec1b3a59dee0f3184cd0340e6ec"
+      },
+      "terminalEventId": "jexec_e0b416acb39b4b7b8d921cddf4370d1d",
+      "terminalEventEmittedFor": "jexec_e0b416acb39b4b7b8d921cddf4370d1d",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": true
+      }
+    },
+    {
+      "jobId": "job_f0a0b8ea7c984b91a1bcdcef",
+      "kind": "scheduled-task",
+      "taskId": "sch_70c63fdeca59",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_562eb70f",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-22T16:57:40",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-22T15:57:40"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-22T16:57:40",
+      "lastFireAt": null,
+      "lastStatus": "uncertain",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "uncertain",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655860.0,
+      "updatedAt": 1792655860.6811438,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 1,
+      "referenceGeneration": 1,
+      "creationFingerprint": "309e50f2f8395698c663daae477c22a9bd2559bb4645d630dd1faa3677872bfc",
+      "creationEventPending": false,
+      "operation": "run",
+      "lastExecution": {
+        "id": "jexec_a098f08350be4d9b9d9b68d9962fdd69",
+        "status": "uncertain",
+        "actionId": "hold",
+        "actionRevision": 4,
+        "registryRevision": 8,
+        "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "86930b3d3d2e1025152507edbffb61d51a1c5e566b319043c79b4ac3bc3bed33"
+      },
+      "terminalEventId": "jexec_a098f08350be4d9b9d9b68d9962fdd69",
+      "terminalEventEmittedFor": "jexec_a098f08350be4d9b9d9b68d9962fdd69",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      }
+    },
+    {
+      "jobId": "job_57920e4cbb004ab98e8817f3",
+      "kind": "scheduled-task",
+      "taskId": "sch_c3e8d9093ad8",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_8a2b2bfd",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-22T16:57:40",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-22T15:57:40"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-22T16:57:40",
+      "lastFireAt": null,
+      "lastStatus": "cancelled",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "cancelled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655860.0,
+      "updatedAt": 1792655860.4226823,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 2,
+      "referenceGeneration": 1,
+      "creationFingerprint": "5aaa1d9757846490efef5b3b32910f329d7b745a83fff25a6a818c9490c38ed0",
+      "creationEventPending": false,
+      "operation": "run",
+      "lastExecution": {
+        "id": "jexec_669c94187bf143fc9558e87ad692fac2",
+        "status": "cancelled",
+        "actionId": "hold",
+        "actionRevision": 4,
+        "registryRevision": 8,
+        "digest": "3bebe524fa9ca2cd57abb493c0c528da8c5e6797a32b163d116c23de2b6086b6",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "7e0b469519b3cfb0ddbe098c6dec1b8128988f1bcd6ab07536dda7b9c158316d"
+      },
+      "terminalEventId": "jexec_669c94187bf143fc9558e87ad692fac2",
+      "terminalEventEmittedFor": "jexec_669c94187bf143fc9558e87ad692fac2",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      }
+    },
+    {
+      "jobId": "job_e913ce5276b2f8e9135b136b",
+      "kind": "scheduled-task",
+      "taskId": "sch_40957a9f4690",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_a55c45b2",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-22T16:57:38",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-22T15:57:38"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-22T16:57:38",
+      "lastFireAt": null,
+      "lastStatus": null,
+      "lastError": null,
+      "runCount": 0,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655858.0,
+      "updatedAt": 1792655858.2987237,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "26e33b306b94b47d8a18ad7e1f47c84cb744b9059fea078e0b9bf49cdf2bca94",
+      "creationEventPending": false,
+      "templateId": "jtpl_de0a5508e44d4490b4191c15",
+      "templateRevision": 1,
+      "operation": "run",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": true
+      }
+    },
+    {
+      "jobId": "job_13355dd8a772428b29e7055c",
+      "kind": "scheduled-task",
+      "taskId": "sch_3c9e9cd3dc9c",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": true,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_44a24efa",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-22T16:57:35",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-22T15:57:35"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-22T16:57:35",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792655855.0,
+      "updatedAt": 1792655859.980319,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": true,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now"
+      },
+      "configRevision": 3,
+      "referenceGeneration": 1,
+      "creationFingerprint": "26e33b306b94b47d8a18ad7e1f47c84cb744b9059fea078e0b9bf49cdf2bca94",
+      "creationEventPending": false,
+      "templateId": "jtpl_de0a5508e44d4490b4191c15",
+      "templateRevision": 1,
+      "lastExecution": {
+        "id": "jexec_96b7ef423c6548b8a30de500cad97d29",
+        "status": "completed",
+        "actionId": "pause",
+        "actionRevision": 1,
+        "registryRevision": 1,
+        "digest": "422955c4c2056e1c82ce6a89eaa529b734deacf28e3fef26692d434f599ba216",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "7226c6fc9972e731314b63f35476c1ae3895861c3cfaa3011d3dc34833ca9cea",
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "operation": "run",
+      "terminalEventEmittedFor": "jexec_96b7ef423c6548b8a30de500cad97d29",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      }
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

@@ -19,8 +19,8 @@ OUTPUT_LIMIT = 512 * 1024
 RESULT_LIMIT = 1024 * 1024  # Leave JSON-RPC framing headroom below the generic 2 MiB reader.
 
 
-async def execute(action, arguments):
-    action = validate_action(action)
+async def execute(action, arguments, *, before_effect=None):
+    action = await asyncio.to_thread(validate_action, action, automation=False)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action is disabled or requires an approval policy')
     jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
@@ -35,6 +35,8 @@ async def execute(action, arguments):
         if url.scheme != 'http' or url.hostname not in {'127.0.0.1', '::1'} or url.username or url.password or url.path not in {'', '/'} or url.query or url.fragment:
             raise ValueError('Internal API requires an explicit local Pan HTTP endpoint')
         async with asyncio.timeout(30), httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
+            if before_effect:
+                await before_effect()
             async with client.stream('GET', base.rstrip('/') + ex['path'], params=values) as response:
                 response.raise_for_status()
                 content = bytearray()
@@ -47,6 +49,8 @@ async def execute(action, arguments):
         argv = [str(values[a[1:-1]]) if a.startswith('{') and a.endswith('}') else a for a in ex['args']]
         from packages.jobs.window import command_window_options
         windows = os.name == 'nt'
+        if before_effect:
+            await before_effect()
         process = await asyncio.create_subprocess_exec(
             *([sys.executable, '-m', 'packages.actions.command_runner'] if windows else [ex['executable'], *argv]),
             cwd=str(Path(__file__).resolve().parents[2]) if windows else ex['cwd'],
@@ -69,7 +73,9 @@ async def execute(action, arguments):
                 await process.stdin.drain()
                 process.stdin.close()
             out, err, _ = await asyncio.wait_for(asyncio.gather(bounded(process.stdout), bounded(process.stderr), process.wait()), ex.get('timeout_sec', 30))
-        except BaseException:
+        except BaseException as primary:
+            from packages.jobs import process_wait
+            owned = process_wait.capture(process) if windows else []
             if windows:
                 if process.returncode is None:
                     process.kill()  # Closing the helper's Job handle kills its entire command tree.
@@ -78,13 +84,27 @@ async def execute(action, arguments):
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            await asyncio.wait_for(process.wait(), 5)
+            try:
+                async with asyncio.timeout(5):
+                    await process.wait()
+                    if owned:
+                        await asyncio.to_thread(process_wait.wait, owned, 5)
+            except Exception as cleanup_error:
+                if isinstance(primary, asyncio.CancelledError):
+                    raise primary from cleanup_error
+                raise process_wait.CleanupUnconfirmed('Command cleanup could not be confirmed') from cleanup_error
             raise
         if process.returncode:
             raise RuntimeError(f'Command exited {process.returncode}: {err[:2000]}')
         result = out if action['output_format'] == 'text' else json.loads(out)
     reply = {'content': [{'type': 'text', 'text': result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)}],
             **({'structuredContent': result} if isinstance(result, dict) else {}), 'isError': False}
+    if ex['kind']=='command':
+        tree_ended=windows
+        if not windows:
+            try:os.killpg(process.pid,0)
+            except ProcessLookupError:tree_ended=True
+        reply['processTreeEnded']=tree_ended
     if len(json.dumps(reply, ensure_ascii=False).encode('utf-8')) > RESULT_LIMIT:
         raise ValueError('Action output exceeds 1 MiB encoded result limit')
     return reply

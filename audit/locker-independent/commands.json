@@ -1,0 +1,230 @@
+{
+  "reviewedCandidate": "e863eb16a5f80d637842e7de2bf0a52a5bf0365a",
+  "reviewedProductSource": "980fae907a077476e193f1aa9dd556b0ea906a24",
+  "localSource": "939ea97c00abed1c0f43700b90c221247028a4da",
+  "commands": [
+    {
+      "name": "red",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_review.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "-s",
+        "--junitxml=audit/locker-independent/red.xml"
+      ],
+      "exitCode": 1,
+      "source": "e863eb16a5f80d637842e7de2bf0a52a5bf0365a + initial independent 4-case tests",
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "4",
+        "skipped": "0",
+        "tests": "4",
+        "time": "2.597",
+        "timestamp": "2026-10-23T11:00:33.816265+08:00",
+        "hostname": "ablaze"
+      }
+    },
+    {
+      "name": "green",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_review.py",
+        "tests/test_interaction_runtime.py",
+        "tests/test_interaction_cards.py",
+        "tests/test_user_locker_lifecycle.py",
+        "-k",
+        "not fixed_choice_must_not_execute_changed_action",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-independent/green.xml"
+      ],
+      "exitCode": 0,
+      "source": "Final receipt repair + tests before adding copy-migration case",
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "32",
+        "time": "3.480",
+        "timestamp": "2026-10-23T11:02:53.926635+08:00",
+        "hostname": "ablaze"
+      }
+    },
+    {
+      "name": "final",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_review.py",
+        "tests/test_interaction_runtime.py",
+        "tests/test_interaction_cards.py",
+        "tests/test_user_locker_lifecycle.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "-s",
+        "--junitxml=audit/locker-independent/final.xml"
+      ],
+      "exitCode": 1,
+      "source": "939ea97c00abed1c0f43700b90c221247028a4da",
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "3",
+        "skipped": "0",
+        "tests": "36",
+        "time": "5.493",
+        "timestamp": "2026-10-23T11:05:52.774755+08:00",
+        "hostname": "ablaze"
+      }
+    },
+    {
+      "name": "http",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-independent/http.xml"
+      ],
+      "exitCode": 0,
+      "source": "Final product and HTTP test bytes before source commit; later change was migration test only",
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "1",
+        "time": "8.073",
+        "timestamp": "2026-10-23T11:04:55.024566+08:00",
+        "hostname": "ablaze"
+      }
+    },
+    {
+      "name": "ui",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "exec",
+        "vitest",
+        "run",
+        "src/views/lockerModel.auth.test.ts",
+        "src/views/LockerView.test.tsx",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023\\audit\\locker-independent\\ui.xml"
+      ],
+      "exitCode": 0,
+      "source": "939ea97c00abed1c0f43700b90c221247028a4da"
+    },
+    {
+      "name": "http-fixture-failure",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-independent/http.xml"
+      ],
+      "exitCode": 1,
+      "source": "Earlier independent fixture version; see REPORT.md, not a product red test"
+    },
+    {
+      "name": "http-projection-failure",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-independent/http.xml"
+      ],
+      "exitCode": 1,
+      "source": "Earlier independent fixture version; see REPORT.md, not a product red test"
+    },
+    {
+      "name": "http-batch-failure",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-independent/http.xml"
+      ],
+      "exitCode": 1,
+      "source": "Earlier independent fixture version; see REPORT.md, not a product red test"
+    }
+  ],
+  "sha256": {
+    "packages\\interactions\\store.py": "c0b77ed8e72330e19f7a5ff3ec70a69c98962b1cee643d42565aa73447612ce3",
+    "tests\\test_locker_independent_review.py": "ed466042d734cd628b20f235fdb4c1e57b4203eba13d0b811505aa0f14e542e1",
+    "tests\\test_locker_independent_http.py": "87aeddbe30f0dffe41f0e755584a1533695a662b610039e215e07e2ed0adc4f1",
+    "audit\\locker-independent\\final.xml": "f10679ad6f6dae6b15d0610684c2eb6e38ecfabb5956321176029f4804c2157d",
+    "audit\\locker-independent\\green.xml": "4e7ea3f5927ec7f92b1e2bb13ae959db1b6899cc863e098452cb693d28c3a92f",
+    "audit\\locker-independent\\http-batch-failure.xml": "42b698e312a60037d440c85a8b2e3ae1066c0cb05afee2750055d69df6a1b7cf",
+    "audit\\locker-independent\\http-fixture-failure.xml": "e1c9f4290106dcc33500770b90d33aecdb9a976878010d7941e77e9117101f14",
+    "audit\\locker-independent\\http-projection-failure.xml": "b0be448d788636255afdd10c1909cc57b104d3b8543fd37f4dfaefa2bc1d094d",
+    "audit\\locker-independent\\http.xml": "adc79e81ed8e64a10a65b4f0d596e892555fc46fa96c13aa4afcb74d246250d0",
+    "audit\\locker-independent\\red.xml": "1d88e003e00db13944fe858da9aa6070c6a32aa5fbb9622a543cd748e5124991",
+    "audit\\locker-independent\\ui.xml": "98ecfc335800520050625d45e9ce6350ccd5db0f3933f17163e51097314891dc",
+    "audit\\locker-independent\\final.log": "df5cd2122f697d40495b5c387559d2740cd237c1ec63889c4cb65a7bb9871801",
+    "audit\\locker-independent\\green.log": "7aef6c3139c9dbddb65712bf384a5245abca2192cde6ded9623409e74d7ea150",
+    "audit\\locker-independent\\http-batch-failure.log": "4a29af9c5766613236773d9293a741f8e09f866e4f6799fd9f8f4b36bcec9e58",
+    "audit\\locker-independent\\http-fixture-failure.log": "78ace2d7080212619491c47e9fdd95109a71e27689f2400dc262a36896068236",
+    "audit\\locker-independent\\http-projection-failure.log": "53ec17ec1ea215e78829dc76983e3385046427f539811e9bad286ce8885b46b4",
+    "audit\\locker-independent\\http.log": "68e6ebb8983dcaf4ba21a18ed50afaecfa0a45921873e2308a27c963ce0df639",
+    "audit\\locker-independent\\red.log": "7d902c642f3c5da3d8a5a04284612f66b8b1725526e8be8fb2c96bb9c0430998",
+    "audit\\locker-independent\\ui.log": "a57d2c51c0e9acc4e7f5a514b30ecf6c2d30dd6a612b5c26756a8c3e93956587",
+    "audit\\locker-independent\\http-evidence.json": "7091791752e02a70711958a245e9c0ad6264f98aa8eb2dd0734776f59e817014",
+    "audit\\locker-independent\\raw-logs.zip": "1e9e21c5c06320a61ff5bbea6b57847ccd6cd8b3d4e09369901a47c286054c60"
+  }
+}

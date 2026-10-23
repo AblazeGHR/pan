@@ -9,18 +9,37 @@ def install(server, root):
     import traceback
     from packages.core import worker
     from packages.core import session as session_store
+    @server.app.get('/__test/takeover-tasks')
+    async def task_stacks():
+        import asyncio
+        result=[]
+        for task in asyncio.all_tasks():
+            frames=[]
+            coro=task.get_coro()
+            while coro is not None:
+                frame=getattr(coro,'cr_frame',None) or getattr(coro,'gi_frame',None)
+                if frame is not None:
+                    frames.append({'file':frame.f_code.co_filename,'line':frame.f_lineno,'function':frame.f_code.co_name})
+                coro=getattr(coro,'cr_await',None) or getattr(coro,'gi_yieldfrom',None)
+            result.append({'task':task.get_name(),'frames':frames})
+        return result
     persist_terminal = worker._persist_terminal_state
     async def terminal(*args, **kwargs):
         reader = None
         replace = os.replace
         if (root / 'hold-terminal-reader').exists():
             metadata_path = session_store._path(args[0].session_id)
-            reader = metadata_path.open('rb')
             def observed_replace(source, target):
+                nonlocal reader
+                # Acquire the real conflicting reader at the actual atomic
+                # write boundary, rather than racing unrelated async saves
+                # while the terminal coroutine is still waiting for its lock.
+                if Path(target) == metadata_path and reader is None:
+                    reader = metadata_path.open('rb')
                 try:
                     return replace(source, target)
                 except PermissionError as exc:
-                    if Path(target) == metadata_path and not reader.closed:
+                    if Path(target) == metadata_path and reader is not None and not reader.closed:
                         with (root / 'reader-conflicts.jsonl').open('a', encoding='utf-8') as handle:
                             handle.write(json.dumps({'winerror': exc.winerror, 'target': str(target)}) + '\n')
                         reader.close()

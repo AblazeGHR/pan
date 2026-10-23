@@ -137,10 +137,14 @@ def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monk
     assert normalized_again == normalized and problem is None
     sender = AsyncMock(return_value={"ok": True, "message_id": "legacy-message-1"})
     monkeypatch.setitem(background_jobs._scheduled_task_hooks, "qq_send", sender)
-    result = asyncio.run(background_jobs._run_job_action(
-        {"action": action, "text": "scheduled without Worker"}, None, "original-dispatch-key"))
+    job = background_jobs._create({'jobId': 'job_legacy_qq', 'kind': 'scheduled-task',
+        'status': 'scheduled', 'action': action, 'text': 'scheduled without Worker'})
+    result = asyncio.run(background_jobs._run_job_action(job, None, "original-dispatch-key"))
     assert result["status"] == "completed" and result["messageId"] == "legacy-message-1"
     assert result["dispatchKey"] == "original-dispatch-key"
+    settled = background_jobs.get(job['jobId'])
+    assert settled['snapshotCleanup'] == 'cleaned' and 'attemptSnapshot' not in settled
+    assert settled['attempts'][-1]['dispatchKey'] == 'original-dispatch-key'
     sender.assert_awaited_once_with(target_type="private", target_id="123456", text="scheduled without Worker", bot_uin="999999")
 
 

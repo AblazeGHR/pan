@@ -1,0 +1,7 @@
+Baseline 0156f008; docs read from Git objects, no checkout changes.
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+  File "D:\project\pan-worktrees\cli-auto-register-20261023\tests/test_docs_terminology.py", line 70, in test_no_banned_legacy_terms
+    assert not matches, (
+           ^^^^^^^^^^^
+AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）

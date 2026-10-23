@@ -19,6 +19,7 @@ import {
   formatTime,
   groupEditorState,
   isEditorDirty,
+  sessionOperationError,
   pluginIdFor,
   shortVersion,
   usedByGroups,
@@ -131,6 +132,7 @@ export default function ActionsView() {
   }
 
   function openAction(action: Action) {
+    if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
     setEditor(actionEditorState(action, 'edit'));
     setEditorError('');
   }
@@ -177,6 +179,7 @@ export default function ActionsView() {
   async function saveAction() {
     if (!editor || editor.kind !== 'action') return;
     const { draft, schemaError } = editor;
+    if (editor.executionError || sessionOperationError(draft)) { setEditorError(editor.executionError || sessionOperationError(draft)); return; }
     if (!draft.name.trim() || !draft.description.trim() || schemaError) {
       setEditorError('Name, description and a valid input schema are required.');
       return;
@@ -318,6 +321,7 @@ export default function ActionsView() {
   }
 
   function requestDeleteAction(action: Action) {
+    if (action.system) { notify('System Actions cannot be deleted.', 'error'); return; }
     const usage = usedByGroups(registry, action.id);
     if (usage.length) {
       notify(
@@ -866,7 +870,7 @@ function ActionRow({
               <span className={action.enabled ? 'text-success' : 'text-text-tertiary'}>
                 {action.enabled ? 'Enabled' : 'Draft'}
               </span>
-              <span>{action.execution.kind === 'api' ? 'API' : 'Command'}</span>
+              <span>{executionLabel(action)}</span>
               <span>{EFFECT_LABELS[action.effect]}</span>
               <span>{groups.length} {groups.length === 1 ? 'Group' : 'Groups'}</span>
             </div>

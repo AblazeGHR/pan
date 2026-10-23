@@ -1,0 +1,95 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-unified-inbox-followup-20261023
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3841/test_jobs_templates_and_inbox_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000024A568895E0>
+
+    def test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak(tmp_path,monkeypatch):
+        assert h.PORT not in (8767,8768)
+        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
+        rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+        root=Path(__file__).resolve().parents[1]
+        (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},
+            'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')
+        OUT.mkdir(parents=True,exist_ok=True)
+        evidence={'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],encoding='utf-8').strip(),'port':h.PORT}
+        try:
+            rt.start()
+            evidence['identity']=rt.request('GET','/__test/job-inbox-identity')
+            assert Path(evidence['identity']['sessions']).parent==rt.data_root
+            assert Path(evidence['identity']['inbox']).is_relative_to(rt.data_root)
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
+            def create(name):return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})
+            target=create('combined-paused-target');control=create('combined-control')
+            for s in (target,control):assert 'error' not in h._spawn(rt,s['id'])
+            rt.request('PATCH',f"/api/sessions/{target['id']}/queue/paused",json={'paused':True})
+            def route(mid,text,peer='7'):
+                return rt.request('POST','/api/plugins/qq/route',json={'source':{'instanceId':'owned','botId':'synthetic','scope':'user','peerId':peer},
+                    'sourceMessageId':mid,'content':{'text':text},'target':{'kind':'agent_inbox'}})
+            seed=route('seed','OLD_SILENT');lid=seed['message']['lockerId']
+            rt.request('POST','/api/agent-inbox/subscribe',json={'lockerId':lid,'sessionId':target['id'],'mode':'full'})
+            full=route('full','INBOX_FULL_BODY');route('full','INBOX_FULL_BODY')
+            notice_seed=route('notice-seed','SILENT_NOTICE_SEED','8');notice_lid=notice_seed['message']['lockerId']
+            rt.request('POST','/api/agent-inbox/subscribe',json={'lockerId':notice_lid,'sessionId':target['id'],'mode':'notification'})
+            notice=route('notice','INBOX_NOTICE_SECRET','8')
+            cfg={'name':'Job beside Locker','actionId':'system_session_message','arguments':{'sessionId':target['id'],'text':'JOB_BUSINESS'},
+                 'schedule':[],'trigger':{'kind':'immediate'},'enabled':True,
+                 'notification':{'target':'job','on':['completed'],'sessionIds':[target['id']]}}
+            response=httpx.post(rt.base_url+'/api/jobs/action-jobs',json={'config':cfg},trust_env=False)
+            assert response.status_code==401
+            nested=httpx.post(rt.base_url+'/api/jobs/job-templates',json={'item':{'name':'nested enable','enabled':False,'config':cfg},'expectedRevision':0},trust_env=False)
+            assert nested.status_code==401
+            job=rt.request('POST','/api/jobs/action-jobs',json={'config':cfg},headers=auth)['job']
+            def disk():return json.loads((rt.data_root/'sessions'/f"{target['id']}.json").read_text(encoding='utf-8'))
+            def notices():return [r for r in disk()['queue_pending'] if r.get('noticeKind')=='job_result']
+            h._wait_for(lambda:len(notices())==1,label='durable Job result beside Inbox deliveries')
+            rows=disk()['queue_pending']
+            assert sum(r.get('messageId')==full['message']['id'] for r in rows)==1
+            assert sum(r.get('messageId')==notice['message']['id'] for r in rows)==1
+            assert 'INBOX_NOTICE_SECRET' not in json.dumps(rows)
+            assert all('JOB_BUSINESS' not in r.get('result','') for r in notices())
+            assert rt.request('POST','/api/agent-inbox/read',json={'lockerId':lid})['messages'][0]['sourceMessageId']=='seed'
+            assert len(rt.request('POST','/api/agent-inbox/read',json={'lockerId':notice_lid})['messages'])==2
+            assert not h._received(rt,text='JOB_BUSINESS') and not h._received(rt,text='INBOX_FULL_BODY')
+            # Template grant can be enabled while copied Jobs stay disabled.
+            template=rt.request('POST','/api/jobs/job-templates',json={'item':{'name':'disabled instance','enabled':True,
+                'config':{**cfg,'enabled':False}},'expectedRevision':0},headers=auth)['item']
+            body={'expectedRevision':template['revision'],'idempotencyKey':'owned-fixed'}
+            copied=rt.request('POST',f"/api/jobs/job-templates/{template['id']}/instantiate",json=body,headers=auth)['job']
+            assert not copied['enabled']
+            # Repeated recovery does not consume silent messages or duplicate receipts.
+            rt.request('POST','/api/agent-inbox/recover',json={'lockerId':lid})
+            assert len(notices())==1
+            evidence.update(queueIds=[r['id'] for r in rows],jobId=job['jobId'],lockerId=lid,
+                            templateRevision=template['revision'],disabledCopyId=copied['jobId'],pauseBlocked=True)
+            rt.request('PATCH',f"/api/sessions/{target['id']}/queue/paused",json={'paused':False})
+>           h._wait_for(lambda:h._received(rt,text='INBOX_FULL_BODY') and h._received(rt,text='JOB_BUSINESS'),label='both ordinary paths reach owned fakeCLI')
+
+tests\test_job_inbox_http.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = <function test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak.<locals>.<lambda> at 0x0000024A56B6BD80>
+timeout = 15.0, label = 'both ordinary paths reach owned fakeCLI'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+>       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for both ordinary paths reach owned fakeCLI: []
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_inbox_http.py::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak
+1 failed in 18.26s

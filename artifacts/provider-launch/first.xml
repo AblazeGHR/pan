@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="9" time="4.901" timestamp="2026-10-22T21:34:03.504854+08:00" hostname="ablaze"><testcase classname="tests.test_provider_launch" name="test_actual_wrapper_child_loads_fixed_config_and_persists_binding" time="0.903"><failure message="AssertionError: Fixed provider launch was not confirmed&#10;assert not True&#10; +  where True = isinstance('Fixed provider launch was not confirmed', str)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3716/test_actual_wrapper_child_load0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E068F3B5C0&gt;
+provider = ('http://127.0.0.1:58621', [])
+
+    @async_test
+    async def test_actual_wrapper_child_loads_fixed_config_and_persists_binding(tmp_path,monkeypatch,provider):
+        url,hits=provider;a,s,selected,root=setup(tmp_path,monkeypatch,url)
+&gt;       proc=await spawn(a,s);pending=proc._provider_launch
+             ^^^^^^^^^^^^^^^^
+
+tests\test_provider_launch.py:76:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+a = &lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000001E068FBF4D0&gt;
+s = Session(id='ses_c8330a843479bf24', name='owned-launch', adapter='codex', model=None, permission_mode=None, pan_access=...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+    async def spawn(a,s):
+        proc=await worker._spawn_process(s.id,a)
+&gt;       assert not isinstance(proc,str),proc
+E       AssertionError: Fixed provider launch was not confirmed
+E       assert not True
+E        +  where True = isinstance('Fixed provider launch was not confirmed', str)
+
+tests\test_provider_launch.py:62: AssertionError</failure></testcase><testcase classname="tests.test_provider_launch" name="test_binding_save_failure_never_publishes_and_no_branch_inheritance" time="0.500"><failure message="AssertionError: Fixed provider launch was not confirmed&#10;assert not True&#10; +  where True = isinstance('Fixed provider launch was not confirmed', str)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3716/test_binding_save_failure_neve0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E068F3B490&gt;
+provider = ('http://127.0.0.1:58625', [])
+
+    @async_test
+    async def test_binding_save_failure_never_publishes_and_no_branch_inheritance(tmp_path,monkeypatch,provider):
+        url,hits=provider;a,s,selected,root=setup(tmp_path,monkeypatch,url)
+&gt;       proc=await spawn(a,s)
+             ^^^^^^^^^^^^^^^^
+
+tests\test_provider_launch.py:101:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+a = &lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000001E0690C7B10&gt;
+s = Session(id='ses_6c57b628b3b82ac3', name='owned-launch', adapter='codex', model=None, permission_mode=None, pan_access=...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+    async def spawn(a,s):
+        proc=await worker._spawn_process(s.id,a)
+&gt;       assert not isinstance(proc,str),proc
+E       AssertionError: Fixed provider launch was not confirmed
+E       assert not True
+E        +  where True = isinstance('Fixed provider launch was not confirmed', str)
+
+tests\test_provider_launch.py:62: AssertionError</failure></testcase><testcase classname="tests.test_provider_launch" name="test_next_spawn_has_own_receipt_and_no_task_transfer" time="0.501"><failure message="AssertionError: Fixed provider launch was not confirmed&#10;assert not True&#10; +  where True = isinstance('Fixed provider launch was not confirmed', str)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3716/test_next_spawn_has_own_receip0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E0690832F0&gt;
+provider = ('http://127.0.0.1:58628', [])
+
+    @async_test
+    async def test_next_spawn_has_own_receipt_and_no_task_transfer(tmp_path,monkeypatch,provider):
+        url,hits=provider;a,s,selected,root=setup(tmp_path,monkeypatch,url)
+&gt;       first=await spawn(a,s);old=first._provider_launch.receipt
+              ^^^^^^^^^^^^^^^^
+
+tests\test_provider_launch.py:119:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+a = &lt;packages.core.adapters.codex.adapter.CodexAdapter object at 0x000001E06906F6F0&gt;
+s = Session(id='ses_1db37d4d01af9fb8', name='owned-launch', adapter='codex', model=None, permission_mode=None, pan_access=...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+
+    async def spawn(a,s):
+        proc=await worker._spawn_process(s.id,a)
+&gt;       assert not isinstance(proc,str),proc
+E       AssertionError: Fixed provider launch was not confirmed
+E       assert not True
+E        +  where True = isinstance('Fixed provider launch was not confirmed', str)
+
+tests\test_provider_launch.py:62: AssertionError</failure></testcase><testcase classname="tests.test_provider_launch" name="test_default_disabled_no_source_calls_or_private_files" time="0.003" /><testcase classname="tests.test_provider_launch" name="test_unsupported_credentials_and_untrusted_values_do_not_claim_binding[env_key]" time="0.515" /><testcase classname="tests.test_provider_launch" name="test_unsupported_credentials_and_untrusted_values_do_not_claim_binding[auth]" time="0.503" /><testcase classname="tests.test_provider_launch" name="test_unsupported_credentials_and_untrusted_values_do_not_claim_binding[unknown]" time="0.517" /><testcase classname="tests.test_provider_launch" name="test_unsupported_credentials_and_untrusted_values_do_not_claim_binding[disabled]" time="0.520" /><testcase classname="tests.test_provider_launch" name="test_unsupported_credentials_and_untrusted_values_do_not_claim_binding[native_control]" time="0.521" /></testsuite></testsuites>

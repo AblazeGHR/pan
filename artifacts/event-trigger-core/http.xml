@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="3.174" timestamp="2026-10-22T02:47:05.609149+08:00" hostname="ablaze"><testcase classname="tests.test_automation_http" name="test_real_running_event_pause_blocks_queue" time="2.800" /></testsuite></testsuites>

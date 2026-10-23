@@ -1,0 +1,22 @@
+{
+  "protocol": "pan-capability/v1",
+  "plugin_id": "observer",
+  "provider": {
+    "transport": "stdio_jsonrpc",
+    "command_ref": "event-example-process"
+  },
+  "capabilities": [
+    {
+      "id": "observer.echo",
+      "export_key": "echo",
+      "description": "Echo supplied arguments without side effects",
+      "contract_version": "1",
+      "input_schema": {
+        "type": "object"
+      },
+      "execution": {
+        "operation": "echo"
+      }
+    }
+  ]
+}

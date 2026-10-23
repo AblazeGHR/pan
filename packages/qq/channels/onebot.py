@@ -361,6 +361,8 @@ class OneBotChannel(QQChannel):
             at_bot=True,
             bot_uin=str(getattr(bot, "self_id", "") or ""),
             raw=getattr(event, "model_dump", lambda: None)(),
+            message_id=str(event.message_id),
+            instance_id=self.config.name,
         )
         await self._dispatch(msg)
 

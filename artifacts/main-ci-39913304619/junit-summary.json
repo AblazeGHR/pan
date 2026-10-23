@@ -1,0 +1,1047 @@
+[
+  {
+    "file": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39913304619\\artifacts\\pytest-results-3.12\\pytest-results.xml",
+    "tests": 5507,
+    "failures": [
+      {
+        "classname": "tests.test_docs_terminology",
+        "name": "test_no_banned_legacy_terms",
+        "type": "failure",
+        "message": "AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）\nassert not ['child-agent']",
+        "text": "def test_no_banned_legacy_terms():\n        for rel in NORMATIVE_DOCS:\n            lines = _doc(rel).splitlines()\n            for lineno, line in enumerate(lines, start=1):\n                # 允许“旧称呼映射”说明行本身引用旧词（用于向读者解释历史文档）\n                if \"旧称呼映射\" in line or \"legacy\" in line.lower():\n                    continue\n                for pattern, reason in BANNED_PATTERNS:\n                    matches = re.findall(pattern, line)\n>                   assert not matches, (\n                        f\"{rel}:{lineno}: 检出旧称呼 {reason}（{matches}）\"\n                    )\nE                   AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）\nE                   assert not ['child-agent']\n\ntests\\test_docs_terminology.py:70: AssertionError"
+      },
+      {
+        "classname": "tests.test_eta_final_combined",
+        "name": "test_node_query_pause_production_ui_restart_and_delay_mcp",
+        "type": "failure",
+        "message": "AssertionError: timed out waiting for queued resumed once: False",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_node_query_pause_producti0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C17889E0>\n\n    def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypatch):\n        assert h.PORT not in {8767, 8768}\n        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')\n        rt = h._PanRuntime(tmp_path / 'combined-profile')\n        rt.data_root.mkdir()\n        m = manifest()\n        mf = tmp_path / 'plugins.json'\n        mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}),encoding='utf-8')\n        (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}),encoding='utf-8')\n        evidence = {'port':h.PORT,'root':str(rt.data_root),'processes':[],\n                    'testedSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True,encoding='utf-8').strip(),\n                    'buildIndexSha256':__import__('hashlib').sha256((h.ROOT/'packages/web/dist/index.html').read_bytes()).hexdigest()}\n        def capture():\n            if rt.process and rt.process.poll() is None:\n                for p in [psutil.Process(rt.process.pid), *psutil.Process(rt.process.pid).children(recursive=True)]:\n                    evidence['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline()})\n        def stopped():\n            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time()!=p['created'] for p in evidence['processes'])\n        def view():\n            return rt.request('GET','/api/automation')\n        def binding(enabled):\n            return {'pluginBindings':[{'plugin_id':'producer','enabled':enabled,'mode':'gateway'}]}\n        def ready():\n            return any(d['type']=='producer.ping' and d['available'] for d in view()['definitions'])\n        def create(name):\n            return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})\n        try:\n            rt.start()\n            target, control, owner = [create(n) for n in ('combined-target','combined-control','combined-owner')]\n            for s in (target,control):\n                assert 'error' not in h._spawn(rt,s['id'])\n            item = rt.request('POST',f\"/api/sessions/{target['id']}/queue\",json={'text':'combined-blocked','locked':True,'clientMessageId':'combined'})['item']\n            a = query_action(leaf('name','eq','combined-target'))\n            a['name'] = 'Combined query pause'\n            rt.request('POST','/api/actions/actions',json={'item':a})\n            token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text(encoding='utf-8')})['token']\n            t = {**trigger(),'eventTypes':['producer.ping']}\n            rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers={'Authorization':'Bearer '+token})\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(True))\n            h._wait_for(ready,label='Node ready')\n            capture()\n            publish(rt.data_root,type='producer.ping',payload={'value':1},event_id='combined-event')\n            def done():\n                return next((r for r in view()['runs'].values() if r['event']['id']=='combined-event' and r['status']=='succeeded'),None)\n            run = h._wait_for(done,label='Node -> query -> Pause')\n            assert run['targetIds']==[target['id']] and run['selection']['matched']==1\n            assert run['event']['source']=={'type':'plugin','id':'producer'}\n            rt.request('PATCH',f\"/api/sessions/{target['id']}/queue/{item['queueItemId']}/lock\",json={'locked':False})\n            h._enqueue(rt,control['id'],'combined-control-delivered','control')\n            h._wait_for(lambda:h._received(rt,text='combined-control-delivered'),label='control actual CLI handoff')\n            queue=rt.request('GET',f\"/api/sessions/{target['id']}/queue\")\n            assert queue['queuePaused'] and any(i['queueItemId']==item['queueItemId'] for i in queue['items'])\n            assert not h._received(rt,text='combined-blocked')\n            OUT.mkdir(parents=True,exist_ok=True)\n            browser_input=OUT/'browser-input.json'\n            browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}),encoding='utf-8')\n            browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())\n            (OUT/'browser.log').write_text(browser.stdout+'\\n'+browser.stderr,encoding='utf-8')\n            assert browser.returncode==0, browser.stderr\n            assert 'UTF-8 \\U0001f9ea' in browser.stdout\n            # Same shared server keeps delayed-restart MCP management gates intact.\n            monkeypatch.setattr(mcp_server,'_pan_api_url',rt.base_url)\n            monkeypatch.setattr(mcp_server,'_caller_identity',lambda:{'id':owner['id'],'managed':[],'panAccess':{'restrictToManaged':True}})\n            denied=mcp_server.agent_restart_delayed(target['id'])\n            assert not denied['ok'] and denied['error']['code']=='permission_denied'\n            monkeypatch.setattr(mcp_server,'_caller_identity',lambda:None)\n            # Actual MCP stdio client on the same plugin/query/UI HTTP instance.\n            from mcp import ClientSession, StdioServerParameters\n            from mcp.client.stdio import stdio_client\n            async def delay_stdio():\n                params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],\n                    env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':control['id']},cwd=str(h.ROOT))\n                async with stdio_client(params) as (read,write):\n                    async with ClientSession(read,write) as client:\n                        await client.initialize()\n                        response=await client.call_tool('agent_restart_delayed',{'session_id':control['id']})\n                        assert not response.isError\n                        return response.structuredContent or json.loads(response.content[0].text)\n            delayed=asyncio.run(delay_stdio())\n            assert delayed['ok'],delayed\n            h._wait_for(lambda:rt.request('GET',f\"/api/sessions/{control['id']}/worker/delayed-restart\")['delayedRestart']['status']=='completed',label='delayed restart coexists')\n            oldgen=[r for r in records(rt.data_root,'producer') if r['kind']=='ready'][-1]['generation']\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(False))\n            assert not ready() and view()['triggers']['t']['enabled']\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(True))\n            h._wait_for(ready,label='re-enabled Node')\n            h._wait_for(lambda:[r for r in records(rt.data_root,'producer') if r['kind']=='ready'][-1]['generation']!=oldgen,label='generation replaced')\n            before=len([r for r in records(rt.data_root,'producer') if r['kind']=='publication'])\n            publish(rt.data_root,type='producer.ping',payload={'value':2},event_id='stale',generation=oldgen)\n            h._wait_for(lambda:len([r for r in records(rt.data_root,'producer') if r['kind']=='publication'])>before,label='stale generation receipt')\n            assert [r for r in records(rt.data_root,'producer') if r['kind']=='publication'][-1].get('error')\n            assert len(view()['runs'])==1\n            # Stop own instance, then inject persisted crash fixtures into own ledger.\n            capture();rt.stop();h._wait_for(stopped,label='first process cleanup')\n            path=rt.data_root/'automation/registry.json'\n            state=json.loads(path.read_text(encoding='utf-8'))\n            for rid,status in [('restart-queued','queued'),('restart-running','running')]:\n                state['runs'][rid]={**run,'id':rid,'status':status,'revision':1,'event':{**run['event'],'id':rid}}\n            state['runs']['restart-queued'].pop('targetIds',None)\n            path.write_text(json.dumps(state),encoding='utf-8')\n            rt.start();capture();h._wait_for(ready,label='restart Node admission')\n>           h._wait_for(lambda:view()['runs']['restart-queued']['status']=='succeeded',label='queued resumed once')\n\ntests\\test_eta_final_combined.py:125: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\npredicate = <function test_node_query_pause_production_ui_restart_and_delay_mcp.<locals>.<lambda> at 0x000001C3C18A7E20>\ntimeout = 15.0, label = 'queued resumed once'\n\n    def _wait_for(predicate, *, timeout: float = 15.0, label: str = \"condition\"):\n        deadline = time.monotonic() + timeout\n        last = None\n        while time.monotonic() < deadline:\n            try:\n                value = predicate()\n                if value:\n                    return value\n                last = value\n            except Exception as exc:  # startup/race polling only\n                last = exc\n            time.sleep(0.025)\n>       raise AssertionError(f\"timed out waiting for {label}: {last!r}\")\nE       AssertionError: timed out waiting for queued resumed once: False\n\ntests\\test_real_queue_http_e2e.py:55: AssertionError"
+      },
+      {
+        "classname": "tests.test_eventloop_history_offload",
+        "name": "test_http_policies_stream_in_the_request_task_without_body_relay",
+        "type": "failure",
+        "message": "AssertionError: HTTP policies created task/stream relay objects\nassert [<Task finish... result=None>] == [<Task pendin...ents.py:181]>]\n  \n  At index 0 diff: <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None> != <Task pending name='Task-5782' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:181]>\n  \n  Full diff:\n    [\n  -     <Task pending name='Task-5782' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:181]>,\n  +     <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None>,\n    ]",
+        "text": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C3E411C0>\n\n    def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch):\n        \"\"\"Header/log policies must not create per-request task/stream graphs.\"\"\"\n        monkeypatch.setattr(server, '_log', lambda line: None)\n        monkeypatch.setattr(server, '_LOG_SKIP', [])\n    \n        async def run():\n            owner = asyncio.current_task()\n            seen = []\n            messages = []\n            never = asyncio.Event()\n    \n            async def endpoint(scope, receive, send):\n                seen.append(asyncio.current_task())\n                await send({'type': 'http.response.start', 'status': 200, 'headers': []})\n                await send({'type': 'http.response.body', 'body': b'first', 'more_body': True})\n                await send({'type': 'http.response.body', 'body': b'last', 'more_body': False})\n    \n            async def receive():\n                await never.wait()\n    \n            async def send(message):\n                messages.append(message)\n    \n            stack = endpoint\n            for middleware in reversed(server.app.user_middleware):\n                stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)\n            await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',\n                         'query_string': b'', 'headers': [], 'http_version': '1.1',\n                         'scheme': 'http', 'server': ('test', 80)}, receive, send)\n            assert seen == [owner], 'HTTP policies created task/stream relay objects'\n            assert [(m.get('body'), m.get('more_body')) for m in messages[1:]] == [\n                (b'first', True), (b'last', False)]\n            assert dict(messages[0]['headers'])[b'cache-control'] == b'no-cache, no-store, must-revalidate'\n    \n>       asyncio.run(run())\n\ntests\\test_eventloop_history_offload.py:61: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:195: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:118: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:691: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    async def run():\n        owner = asyncio.current_task()\n        seen = []\n        messages = []\n        never = asyncio.Event()\n    \n        async def endpoint(scope, receive, send):\n            seen.append(asyncio.current_task())\n            await send({'type': 'http.response.start', 'status': 200, 'headers': []})\n            await send({'type': 'http.response.body', 'body': b'first', 'more_body': True})\n            await send({'type': 'http.response.body', 'body': b'last', 'more_body': False})\n    \n        async def receive():\n            await never.wait()\n    \n        async def send(message):\n            messages.append(message)\n    \n        stack = endpoint\n        for middleware in reversed(server.app.user_middleware):\n            stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)\n        await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',\n                     'query_string': b'', 'headers': [], 'http_version': '1.1',\n                     'scheme': 'http', 'server': ('test', 80)}, receive, send)\n>       assert seen == [owner], 'HTTP policies created task/stream relay objects'\nE       AssertionError: HTTP policies created task/stream relay objects\nE       assert [<Task finish... result=None>] == [<Task pendin...ents.py:181]>]\nE         \nE         At index 0 diff: <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None> != <Task pending name='Task-5782' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:181]>\nE         \nE         Full diff:\nE           [\nE         -     <Task pending name='Task-5782' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:181]>,\nE         +     <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None>,\nE           ]\n\ntests\\test_eventloop_history_offload.py:56: AssertionError"
+      },
+      {
+        "classname": "tests.test_interaction_card_http",
+        "name": "test_http_mcp_user_response_and_directed_trigger",
+        "type": "failure",
+        "message": "KeyError('card') [single exception in ExceptionGroup]",
+        "text": "+ Exception Group Traceback (most recent call last):\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 139, in test_http_mcp_user_response_and_directed_trigger\n  |     run_http_mcp(tmp_path)\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 82, in run_http_mcp\n  |     card=asyncio.run(mcp_create())\n  |          ^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py\", line 195, in run\n  |     return runner.run(main)\n  |            ^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py\", line 118, in run\n  |     return self._loop.run_until_complete(task)\n  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py\", line 691, in run_until_complete\n  |     return future.result()\n  |            ^^^^^^^^^^^^^^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 70, in mcp_create\n  |     async with stdio_client(params) as (read,write):\n  |                ^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\contextlib.py\", line 231, in __aexit__\n  |     await self.gen.athrow(value)\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 183, in stdio_client\n  |     anyio.create_task_group() as tg,\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n  |     raise BaseExceptionGroup(\n  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n  +-+---------------- 1 ----------------\n    | Exception Group Traceback (most recent call last):\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 189, in stdio_client\n    |     yield read_stream, write_stream\n    |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 71, in mcp_create\n    |     async with ClientSession(read,write) as client:\n    |                ^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\shared\\session.py\", line 238, in __aexit__\n    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)\n    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n    |     raise BaseExceptionGroup(\n    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n    +-+---------------- 1 ----------------\n      | Traceback (most recent call last):\n      |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 78, in mcp_create\n      |     card=json.loads(result.content[0].text)['card']\n      |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^\n      | KeyError: 'card'\n      +------------------------------------"
+      },
+      {
+        "classname": "tests.test_job_unified_http",
+        "name": "test_unified_event_system_actions_legacy_and_production_ui",
+        "type": "failure",
+        "message": "AssertionError: assert not {'jexec_72e6d2b6ed8d45c9831ded2cac1618ab': {'definition': {'id': 'system_session_message', 'name': 'session-message', ...\\\\test_unified_event_system_acti0\\\\owned-unified-profile\\\\scheduler', ...}, 'actionId': 'system_session_message', ...}}\n +  where {'jexec_72e6d2b6ed8d45c9831ded2cac1618ab': {'definition': {'id': 'system_session_message', 'name': 'session-message', ...\\\\test_unified_event_system_acti0\\\\owned-unified-profile\\\\scheduler', ...}, 'actionId': 'system_session_message', ...}} = <built-in method get of dict object at 0x000001C3C2D922C0>('jobExecutions')\n +    where <built-in method get of dict object at 0x000001C3C2D922C0> = {'revision': 2, 'actions': {'system_background_process': {'id': 'system_background_process', 'name': 'background-proce...description': 'Product executor: scheduled-task', 'system': True, ...}, ...}, 'groups': {}, 'retired_plugins': [], ...}.get",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_unified_event_system_acti0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C2D4D970>\n\n    def test_unified_event_system_actions_legacy_and_production_ui(tmp_path,monkeypatch):\n        assert h.PORT not in (8767,8768)\n        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')\n        rt=h._PanRuntime(tmp_path/'owned-unified-profile');rt.data_root.mkdir()\n        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')\n        OUT.mkdir(parents=True,exist_ok=True)\n        identities={}\n        evidence={'port':h.PORT,'profile':str(rt.data_root),'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True,encoding='utf-8').strip()}\n        def capture():\n            if rt.process and rt.process.poll() is None:\n                for proc in [psutil.Process(rt.process.pid),*psutil.Process(rt.process.pid).children(recursive=True)]:\n                    try:identities[proc.pid]=proc.create_time()\n                    except psutil.Error:pass\n        def get_job(jid):return rt.request('GET','/api/jobs/'+jid)['job']\n        def done(jid):return h._wait_for(lambda:(j if j.get('status')=='completed' and not j.get('execution') else None) if (j:=get_job(jid)) else None,label='unified Job completion')\n        try:\n            rt.start()\n            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')\n            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}\n            def create(name):return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})\n            target=create('Unified-match-original');control=create('Unified-control')\n            for session in (target,control):assert 'error' not in h._spawn(rt,session['id'])\n            a=action();a['name']='Unified Event query Pause';a['execution']['selector']={'mode':'event','path':'jobSelection.ids'}\n            rt.request('POST','/api/actions/actions',json={'item':a})\n            cfg={'name':'Unified Event Job','actionId':'pause','arguments':{},'enabled':True,'schedule':[],\n                 'trigger':{'kind':'event','eventTypes':['workers.all_idle'],'query':{'field':'name','op':'contains','value':'Unified-match'}}}\n            event_job=rt.request('POST','/api/jobs/action-jobs',json={'config':cfg},headers=auth)['job']\n            h._enqueue(rt,control['id'],'unified-event-edge','unified-event-edge')\n            def event_done():\n                job=get_job(event_job['jobId'])\n                return job if job.get('lastExecution',{}).get('status')=='completed' else None\n            settled=h._wait_for(event_done,label='real Worker running edge -> Event Store -> unified Job query -> Pause')\n            assert settled['lastExecution']['triggerTargetIds']==[target['id']]\n            assert settled['lastExecution']['targetIds']==[target['id']]\n            assert rt.request('GET',f\"/api/sessions/{target['id']}/queue\")['queuePaused']\n            rt.request('PUT','/api/jobs/action-jobs/'+event_job['jobId'],json={'config':{**cfg,'enabled':False},'expectedRevision':1},headers=auth)\n            create('Unified-match-added-later')\n            rt.request('PATCH',f\"/api/sessions/{target['id']}\",json={'name':'renamed-after-freeze'})\n            assert get_job(event_job['jobId'])['lastExecution']['targetIds']==[target['id']]\n            evidence['eventRun']=settled['lastExecution']\n            # The old API remains a compatibility adapter, with real queue receipts.\n            old=[]\n            for kind in ('session-message','session-broadcast'):\n                target_spec={'sessionId':control['id']} if kind=='session-message' else {'sessionIds':[control['id']]}\n                job=rt.request('POST','/api/jobs',json={'kind':kind,'name':'legacy '+kind,'target':target_spec,'text':'legacy '+kind,'schedule':{'type':'once','delaySeconds':1}})['job']\n                finished=done(job['jobId']);assert finished['attempts'][-1]['status']=='completed'\n                assert finished['snapshotCleanup']=='cleaned';old.append(finished)\n            process=rt.request('POST','/api/jobs',json={'kind':'background-process','name':'legacy owned CLI','target':{'sessionId':control['id']},\n                'argv':[sys.executable,'-c','print(\"owned legacy CLI\")'],'cwd':str(tmp_path)})['job']\n            capture();finished=done(process['jobId']);assert finished['snapshotCleanup']=='cleaned';old.append(finished)\n            # New System Action uses the same native runner and waits for its terminal receipt.\n            new_cfg={'name':'unified owned CLI','actionId':'system_background_process','arguments':{'sessionId':control['id'],\n                'argv':[sys.executable,'-c','print(\"owned unified CLI\")'],'cwd':str(tmp_path)},'schedule':[],\n                'trigger':{'kind':'immediate'},'enabled':True}\n            new=rt.request('POST','/api/jobs/action-jobs',json={'config':new_cfg},headers=auth)['job']\n            capture();new_done=done(new['jobId']);assert new_done['snapshotCleanup']=='cleaned'\n            evidence.update(legacy=old,systemExecution=new_done['lastExecution'])\n            monitor_cfg={**new_cfg,'name':'unified owned monitor','completion':{'kind':'monitoring','signalType':'owned.done'},\n                'recovery':{'enabled':True,'monitoring':True,'maxAttempts':3,'backoffSec':[0,0,0],'stableResetSec':300},\n                'arguments':{**new_cfg['arguments'],'argv':[sys.executable,'-c','print(\\'{\"panJobCompletion\":{\"type\":\"owned.done\",\"completed\":true}}\\')']}}\n            monitor=rt.request('POST','/api/jobs/action-jobs',json={'config':monitor_cfg},headers=auth)['job']\n            capture();monitor_done=done(monitor['jobId'])\n            assert len(monitor_done['attempts'])==1 and monitor_done['snapshotCleanup']=='cleaned'\n            evidence['monitorExecution']=monitor_done['lastExecution']\n            scheduled=rt.request('POST','/api/jobs',json={'kind':'scheduled-task','name':'legacy scheduled send',\n                'target':{'sessionId':control['id']},'text':'scheduled compatibility','action':{'api':'send_session'},\n                'schedule':[{'kind':'once','at':(datetime.now()+timedelta(seconds=2)).isoformat()}]})['job']\n            old_scheduled=done(scheduled['jobId'])\n            assert old_scheduled['attempts'][-1]['actionId']=='system_scheduled_task'\n            evidence['legacyScheduled']=old_scheduled['lastExecution']\n            input_file=OUT/'browser-input.json';input_file.write_text(json.dumps({'controlId':control['id']}),encoding='utf-8')\n            browser=subprocess.run(['node','packages/web/e2e/job-unified-live.mjs',rt.base_url,str(input_file.resolve()),str(OUT.resolve())],\n                env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90,**command_window_options())\n            (OUT/'browser.log').write_text(browser.stdout+'\\n'+browser.stderr,encoding='utf-8')\n            assert browser.returncode==0,browser.stderr\n            registry=json.loads((rt.data_root/'actions/registry.json').read_text(encoding='utf-8'))\n>           assert not registry.get('jobExecutions')\nE           AssertionError: assert not {'jexec_72e6d2b6ed8d45c9831ded2cac1618ab': {'definition': {'id': 'system_session_message', 'name': 'session-message', ...\\\\test_unified_event_system_acti0\\\\owned-unified-profile\\\\scheduler', ...}, 'actionId': 'system_session_message', ...}}\nE            +  where {'jexec_72e6d2b6ed8d45c9831ded2cac1618ab': {'definition': {'id': 'system_session_message', 'name': 'session-message', ...\\\\test_unified_event_system_acti0\\\\owned-unified-profile\\\\scheduler', ...}, 'actionId': 'system_session_message', ...}} = <built-in method get of dict object at 0x000001C3C2D922C0>('jobExecutions')\nE            +    where <built-in method get of dict object at 0x000001C3C2D922C0> = {'revision': 2, 'actions': {'system_background_process': {'id': 'system_background_process', 'name': 'background-proce...description': 'Product executor: scheduled-task', 'system': True, ...}, ...}, 'groups': {}, 'retired_plugins': [], ...}.get\n\ntests\\test_job_unified_http.py:95: AssertionError"
+      },
+      {
+        "classname": "tests.test_jobs_completed_retention",
+        "name": "test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs",
+        "type": "failure",
+        "message": "KeyError: 'targetSessionId'",
+        "text": "retention_env = (WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_log_cleanup_is_independen0/j...('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_log_cleanup_is_independen0/config.json'))\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3BABE5EB0>\n\n    def test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs(\n            retention_env, monkeypatch):\n        root, _ = retention_env\n        now = 1_000_000.0\n        logs = root / \"logs\"\n        logs.mkdir(parents=True, exist_ok=True)\n        expired = logs / \"job_expired.log\"\n        expired.write_text(\"old\", encoding=\"utf-8\")\n        _set_mtime(expired, now - 86400)\n        recent = logs / \"job_recent.log\"\n        recent.write_text(\"new\", encoding=\"utf-8\")\n        _set_mtime(recent, now - 86400 + 1)\n        running_log = logs / \"job_running.log\"\n        running_log.write_text(\"active\", encoding=\"utf-8\")\n        _set_mtime(running_log, now - 10 * 86400)\n        starting_log = logs / \"job_starting.log\"\n        starting_log.write_text(\"starting\", encoding=\"utf-8\")\n        _set_mtime(starting_log, now - 10 * 86400)\n        scheduled_log = logs / \"job_scheduled.log\"\n        scheduled_log.write_text(\"scheduled\", encoding=\"utf-8\")\n        _set_mtime(scheduled_log, now - 10 * 86400)\n        active_runner_log = logs / \"job_active_runner.log\"\n        active_runner_log.write_text(\"runner\", encoding=\"utf-8\")\n        _set_mtime(active_runner_log, now - 10 * 86400)\n        _record(root, \"job_expired\", status=\"completed\", updated_at=0,\n                logPath=str(expired))\n        _record(root, \"job_recent\", status=\"failed\", updated_at=0, logPath=str(recent))\n        _record(root, \"job_running\", status=\"running\", updated_at=0,\n                logPath=str(running_log))\n>       _record(root, \"job_starting\", status=\"starting\", updated_at=0,\n                logPath=str(starting_log))\n\ntests\\test_jobs_completed_retention.py:611: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\ntests\\test_jobs_completed_retention.py:58: in _record\n    return jobs._create(record, registry_root=root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\background_jobs.py:263: in _create\n    _write_job(path, job, created=True)\npackages\\core\\background_jobs.py:99: in _write_job\n    sync(job, created)\npackages\\jobs\\system_actions.py:156: in sync\n    prepare(job, job['jobId'] + ':initial')\npackages\\jobs\\system_actions.py:105: in prepare\n    params = arguments(job)\n             ^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\njob = {'jobId': 'job_starting', 'kind': 'background-process', 'status': 'starting', 'updatedAt': 0, ...}\n\n    def arguments(job):\n        kind = job['kind']\n        if kind == 'background-process':\n>           return {'sessionId': job['targetSessionId'], 'argv': copy.deepcopy(job['argv']),\n                                 ^^^^^^^^^^^^^^^^^^^^^^\n                    'cwd': job['cwd'], 'hideWindow': job.get('hideWindow', True)}\nE           KeyError: 'targetSessionId'\n\npackages\\jobs\\system_actions.py:78: KeyError"
+      },
+      {
+        "classname": "tests.test_locker_runtime_http",
+        "name": "test_product_locker_login_choice_pause_restart",
+        "type": "failure",
+        "message": "assert 0 == 1\n +  where 0 = len([])",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_product_locker_login_choi0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C337B8C0>\n\n    def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):\n        assert h.PORT not in {8767,8768}, 'Use the isolated test runner random port'\n        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')\n        rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()\n        root=Path(__file__).resolve().parents[1]\n        (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},\n            'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')\n        OUT.mkdir(parents=True,exist_ok=True)\n        evidence={'port':h.PORT,'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],encoding='utf-8').strip()}\n        identities={}\n        def stop():\n            if rt.process and rt.process.poll() is None:\n                root_process=psutil.Process(rt.process.pid)\n                for process in [root_process,*root_process.children(recursive=True)]:\n                    try:identities[process.pid]=process.create_time()\n                    except psutil.Error:pass\n            rt.stop()\n            live=[]\n            for pid,born in identities.items():\n                try:\n                    process=psutil.Process(pid)\n                    if abs(process.create_time()-born)<.01 and process.status() not in {'terminated',psutil.STATUS_ZOMBIE,psutil.STATUS_DEAD}:\n                        process.terminate();live.append(process)\n                except psutil.Error:pass\n            _,live=psutil.wait_procs(live,timeout=3)\n            for process in live:\n                try:process.kill()\n                except psutil.Error:pass\n            _,live=psutil.wait_procs(live,timeout=3)\n            return [p.pid for p in live]\n        try:\n            rt.start()\n            evidence['identity']=rt.request('GET','/__test/job-inbox-identity')\n            assert Path(evidence['identity']['sessions']).parent==rt.data_root\n            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')\n            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}\n            owner=rt.request('POST','/api/sessions',json={'name':'source','adapter':'cbc','mcpServers':[]})\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}/queue/paused\",json={'paused':True})\n            target=rt.request('POST','/api/sessions',json={'name':'pause-target','adapter':'cbc','mcpServers':[]})\n            assert 'error' not in h._spawn(rt,target['id'])\n            rt.request('POST','/api/actions/actions',json={'item':action([target['id']])})\n            for tid in ('selected','never-selected'):\n                rt.request('POST','/api/automation/triggers',headers=auth,json={'item':{**trigger(tid),\n                    'eventTypes':['pan.interaction.responded']},'expectedRevision':0})\n            async def create_mcp():\n                from mcp import ClientSession,StdioServerParameters\n                from mcp.client.stdio import stdio_client\n                params=StdioServerParameters(command=os.sys.executable,args=['-m','packages.mcp.server'],cwd=str(root),\n                    env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':owner['id']})\n                async with stdio_client(params) as (read,write):\n                    async with ClientSession(read,write) as client:\n                        await client.initialize()\n                        result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'user',\n                            'request_key':'product','card':{'title':'Production wiring','body':'Never forwarded body',\n                            'summaryBody':'Safe summary','choices':[{'id':'pause','label':'Pause',\n                            'triggerRef':{'id':'selected','revision':1}}]}})\n                        assert not result.isError\n                        return json.loads(result.content[0].text)['card']\n            card=asyncio.run(create_mcp())\n            assert httpx.get(rt.base_url+'/api/user-lockers',trust_env=False).status_code==401\n            browser=subprocess.run(['node','packages/web/e2e/locker-runtime.mjs',rt.base_url,str(OUT.resolve()),owner['id']],\n                env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)\n            (OUT/'browser.log').write_text(browser.stdout+'\\n'+browser.stderr,encoding='utf-8')\n            assert browser.returncode==0,browser.stderr\n            result=rt.request('GET',f\"/api/user-inbox/{card['id']}\",headers=auth)['card']\n            assert result['delivery']['state']=='accepted'\n            payload={'expectedRevision':0,'requestId':result['response']['requestId'],'choiceId':'pause'}\n            rt.request('POST',f\"/api/user-inbox/{card['id']}/submit\",headers=auth,json=payload)\n            def complete():\n                runs=rt.request('GET','/api/automation')['runs']\n                return list(runs.values()) if len(runs)==1 and next(iter(runs.values()))['status']=='succeeded' else None\n            runs=h._wait_for(complete,label='selected real Run completes Pause')\n            assert runs[0]['triggerId']=='selected'\n            assert rt.request('GET',f\"/api/sessions/{target['id']}/queue\")['queuePaused']\n            rt.request('POST','/api/send',json={'sessionId':target['id'],'text':'blocked-after-pause','source':'user'})\n            blocked=rt.request('GET',f\"/api/sessions/{target['id']}/queue\")\n            assert blocked['queuePaused'] and any(n.get('text')=='blocked-after-pause' for n in blocked['items'])\n            notices=rt.request('GET',f\"/api/sessions/{owner['id']}/queue\")['items']\n>           assert len([n for n in notices if n.get('text')=='Interaction submitted: Safe summary'])==1\nE           assert 0 == 1\nE            +  where 0 = len([])\n\ntests\\test_locker_runtime_http.py:94: AssertionError"
+      },
+      {
+        "classname": "tests.test_mcp_handbook.TestDescriptionCallChain",
+        "name": "test_every_tool_ends_with_pan_skill_pointer",
+        "type": "failure",
+        "message": "AssertionError: interaction_card\nassert False\n +  where False = <built-in method endswith of str object at 0x000001C3BABF0ED0>('完整编排流程见 /pan skill。')\n +    where <built-in method endswith of str object at 0x000001C3BABF0ED0> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInput, choices with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.'.endswith\n +      where 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInput, choices with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.' = <built-in method rstrip of str object at 0x000001C3BB6E4030>()\n +        where <built-in method rstrip of str object at 0x000001C3BB6E4030> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInpu...ces with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.\\n    '.rstrip",
+        "text": "self = <test_mcp_handbook.TestDescriptionCallChain object at 0x000001C3BD3634D0>\n\n    def test_every_tool_ends_with_pan_skill_pointer(self):\n        for tool in TOOLS:\n            doc = tool.__doc__ or \"\"\n>           assert doc.rstrip().endswith(SKILL_POINTER), tool.__name__\nE           AssertionError: interaction_card\nE           assert False\nE            +  where False = <built-in method endswith of str object at 0x000001C3BABF0ED0>('完整编排流程见 /pan skill。')\nE            +    where <built-in method endswith of str object at 0x000001C3BABF0ED0> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInput, choices with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.'.endswith\nE            +      where 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInput, choices with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.' = <built-in method rstrip of str object at 0x000001C3BB6E4030>()\nE            +        where <built-in method rstrip of str object at 0x000001C3BB6E4030> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\n    Card supports optional answerInpu...ces with optional triggerRef, and\\n    notification metadata. A recorded response is not Job/Trigger completion.\\n    '.rstrip\n\ntests\\test_mcp_handbook.py:101: AssertionError"
+      },
+      {
+        "classname": "tests.test_plugin_event_lifecycle",
+        "name": "test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]",
+        "type": "failure",
+        "message": "assert False\n +  where False = all(<generator object test_real_peer_self_cleanup_without_watch_cycle.<locals>.run.<locals>.<genexpr> at 0x000001C3C396C660>)",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_real_peer_self_cleanup_wi0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C2BA1910>\ncause = 'reader_cancel'\n\n    @pytest.mark.parametrize('cause', ['reader_cancel', 'slow_consumer'])\n    def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause):\n        async def run():\n            sessions = {'a': session('a', ['observer', 'producer'])}\n            svc, manager, _ = await setup(tmp_path, sessions, manifest())\n            try:\n                await manager.reconcile()\n                await manager.settle()\n                c = manager.connections['observer']\n                handle = c.handle\n                identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]\n                if cause == 'reader_cancel':\n                    c.reader.cancel()\n                else:\n                    monkeypatch.setattr(adapter, 'TIMEOUT', .2)\n                    (tmp_path / 'plugins/observer/stall').touch()\n                    publish(tmp_path, type='producer.ping', payload={'value': 1})\n                # No EventRuntime watcher exists in this test. Cleanup must start\n                # on the actual terminal condition rather than a later reconcile.\n                await until(lambda: c.cleanup is not None)\n                await asyncio.wait_for(asyncio.shield(c.cleanup), .5)\n                assert c.closed and not c.ready and c.stderr.done() and c.reader.done()\n                assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers\n                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)\n            finally:\n                await manager.close()\n                await svc.close()\n>       asyncio.run(run())\n\ntests\\test_plugin_event_lifecycle.py:301: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:195: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:118: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:691: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    async def run():\n        sessions = {'a': session('a', ['observer', 'producer'])}\n        svc, manager, _ = await setup(tmp_path, sessions, manifest())\n        try:\n            await manager.reconcile()\n            await manager.settle()\n            c = manager.connections['observer']\n            handle = c.handle\n            identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]\n            if cause == 'reader_cancel':\n                c.reader.cancel()\n            else:\n                monkeypatch.setattr(adapter, 'TIMEOUT', .2)\n                (tmp_path / 'plugins/observer/stall').touch()\n                publish(tmp_path, type='producer.ping', payload={'value': 1})\n            # No EventRuntime watcher exists in this test. Cleanup must start\n            # on the actual terminal condition rather than a later reconcile.\n            await until(lambda: c.cleanup is not None)\n            await asyncio.wait_for(asyncio.shield(c.cleanup), .5)\n            assert c.closed and not c.ready and c.stderr.done() and c.reader.done()\n            assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers\n>           assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)\nE           assert False\nE            +  where False = all(<generator object test_real_peer_self_cleanup_without_watch_cycle.<locals>.run.<locals>.<genexpr> at 0x000001C3C396C660>)\n\ntests\\test_plugin_event_lifecycle.py:297: AssertionError"
+      },
+      {
+        "classname": "tests.test_plugin_qq_integration",
+        "name": "test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+        "type": "failure",
+        "message": "KeyError: 'jobId'",
+        "text": "upstream = []\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3BF6D7650>\n\n    def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch):\n        from packages.core import background_jobs, qq_reports\n        async def run():\n            session = sess.create(name=\"qq-background\", adapter=\"codex\", adapter_config={\n                \"plugin_bindings\": [{\"plugin_id\": \"qq\", \"enabled\": False, \"mode\": \"gateway\"}], \"mcp_servers\": []})\n            session.qq_report_targets = {\"user:123456@999999\"}\n            session.qq_report_outbox = {\"old-attempt\": {\"state\": \"attempted\", \"target\": \"user:123456@999999\", \"text\": \"never replay\"},\n                                       \"queued-before-upgrade\": {\"state\": \"pending\", \"target\": \"user:123456@999999\", \"text\": \"pending report\"}}\n            sess.save(session)\n            monkeypatch.setattr(srv, \"_qq_plugin_client\", None)\n            monkeypatch.setitem(background_jobs._scheduled_task_hooks, \"qq_send\", srv._send_scheduled_qq)\n            try:\n                result = await background_jobs._run_job_action({\"text\": \"scheduled QQ\", \"action\": {\"api\": \"send_qq\",\n                    \"args\": {\"targetType\": \"user\", \"targetId\": \"123456\", \"botUin\": \"999999\"}}}, None, \"old-job-fire\")\n                assert result[\"status\"] == \"completed\"\n                assert result[\"messageId\"] == \"fixture-message\"\n                qq_reports.start(srv._send_scheduled_qq, [session])\n                await asyncio.gather(*list(qq_reports._tasks.values()))\n                assert session.qq_report_outbox[\"old-attempt\"][\"state\"] == \"attempted\"\n                assert session.qq_report_outbox[\"queued-before-upgrade\"][\"state\"] == \"sent\"\n                qq_reports.start(srv._send_scheduled_qq, [session])\n                if qq_reports._tasks:\n                    await asyncio.gather(*list(qq_reports._tasks.values()))\n                assert [body[\"text\"] for _, _, body in upstream] == [\"scheduled QQ\", \"pending report\"]\n            finally:\n                await qq_reports.stop()\n                if srv._qq_plugin_client:\n                    await srv._qq_plugin_client.aclose()\n>       asyncio.run(run())\n\ntests\\test_plugin_qq_integration.py:141: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:195: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:118: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:691: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\ntests\\test_plugin_qq_integration.py:125: in run\n    result = await background_jobs._run_job_action({\"text\": \"scheduled QQ\", \"action\": {\"api\": \"send_qq\",\npackages\\core\\background_jobs.py:2132: in _run_job_action\n    return await invoke(job, dispatch_key, effect, registry_root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\jobs\\system_actions.py:182: in invoke\n    frozen = await io(claim)\n             ^^^^^^^^^^^^^^^\npackages\\plugins\\lifecycle.py:92: in io\n    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\session.py:2683: in await_persistence\n    return await asyncio.shield(future)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\threads.py:25: in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\concurrent\\futures\\thread.py:59: in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    def claim():\n>       with jobs._lock, jobs._job_lock(job['jobId'], registry_root):\n                                        ^^^^^^^^^^^^\nE       KeyError: 'jobId'\n\npackages\\jobs\\system_actions.py:170: KeyError"
+      },
+      {
+        "classname": "tests.test_plugin_session_config",
+        "name": "test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+        "type": "failure",
+        "message": "KeyError: 'jobId'",
+        "text": "manager = <packages.core.character.CharacterManager object at 0x000001C3C3A37E00>\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C3C3A37A40>\n\n    def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch):\n        from packages.jobs.actions import normalize_scheduled_qq_action\n        from packages.core import background_jobs\n        action = {\"api\": \"send_qq\", \"args\": {\"targetType\": \"user\", \"targetId\": \"123456\", \"botUin\": \"999999\"}}\n        normalized, problem = normalize_scheduled_qq_action(copy.deepcopy(action))\n        assert problem is None\n        assert normalized == action\n        Catalog(manager._manifest_config).compile([binding(mode=\"pan_native\")])\n        normalized_again, problem = normalize_scheduled_qq_action(action)\n        assert normalized_again == normalized and problem is None\n        sender = AsyncMock(return_value={\"ok\": True, \"message_id\": \"legacy-message-1\"})\n        monkeypatch.setitem(background_jobs._scheduled_task_hooks, \"qq_send\", sender)\n>       result = asyncio.run(background_jobs._run_job_action(\n            {\"action\": action, \"text\": \"scheduled without Worker\"}, None, \"original-dispatch-key\"))\n\ntests\\test_plugin_session_config.py:140: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:195: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py:118: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py:691: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\npackages\\core\\background_jobs.py:2132: in _run_job_action\n    return await invoke(job, dispatch_key, effect, registry_root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\jobs\\system_actions.py:182: in invoke\n    frozen = await io(claim)\n             ^^^^^^^^^^^^^^^\npackages\\plugins\\lifecycle.py:92: in io\n    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\session.py:2683: in await_persistence\n    return await asyncio.shield(future)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\threads.py:25: in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\concurrent\\futures\\thread.py:59: in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    def claim():\n>       with jobs._lock, jobs._job_lock(job['jobId'], registry_root):\n                                        ^^^^^^^^^^^^\nE       KeyError: 'jobId'\n\npackages\\jobs\\system_actions.py:170: KeyError"
+      },
+      {
+        "classname": "tests.test_takeover_lifecycle_http",
+        "name": "test_http_first_terminal_survives_real_reader_conflict_without_resend",
+        "type": "failure",
+        "message": "AssertionError: assert 'utf-8' == 'gbk'\n  \n  - gbk\n  + utf-8",
+        "text": "runtime = <test_real_queue_http_e2e._PanRuntime object at 0x000001C3C87CEA50>\n\n    @pytest.mark.usefixtures('narrow_console')\n    def test_http_first_terminal_survives_real_reader_conflict_without_resend(runtime):\n        s = _create(runtime, 'takeover-reader-conflict')\n        sid = s['id']\n        _spawn(runtime, sid)\n        _wait_for(lambda: runtime.request('GET', f'/api/sessions/{sid}').get('cliSessionId'))\n        (runtime.data_root / 'hold-terminal-reader').touch()\n        _enqueue(runtime, sid, 'establish-native-session', 'first')\n        _wait_for(lambda: durable(runtime, sid)['last_result'])\n        value = durable(runtime, sid)\n        assert value['last_result']['status'] == 'done' and value['result_cursor'] == 1\n        assert value['legal_offline'] and not value['queue_pending']\n        conflicts = [json.loads(line) for line in (runtime.data_root / 'reader-conflicts.jsonl').read_text().splitlines()]\n        assert [row['winerror'] for row in conflicts] == [5]\n        received = [row for row in runtime.fake_records() if row['kind'] == 'received' and row['cwd'] == s['workdir']]\n        assert len(received) == 1 and received[0]['text'] == 'establish-native-session'\n        init = [row for row in runtime.fake_records() if row['kind'] == 'init' and row['cwd'] == s['workdir']][-1]\n>       assert init['stdinEncoding'] == init['stdoutEncoding'] == 'gbk'\nE       AssertionError: assert 'utf-8' == 'gbk'\nE         \nE         - gbk\nE         + utf-8\n\ntests\\test_takeover_lifecycle_http.py:43: AssertionError"
+      },
+      {
+        "classname": "tests.test_user_locker_browser",
+        "name": "test_locker_browser_http_mcp",
+        "type": "failure",
+        "message": "KeyError('card') [single exception in ExceptionGroup]",
+        "text": "+ Exception Group Traceback (most recent call last):\n  |   File \"D:\\a\\pan\\pan\\tests\\test_user_locker_browser.py\", line 5, in test_locker_browser_http_mcp\n  |     run_http_mcp(tmp_path,browser=True)\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 82, in run_http_mcp\n  |     card=asyncio.run(mcp_create())\n  |          ^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py\", line 195, in run\n  |     return runner.run(main)\n  |            ^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\runners.py\", line 118, in run\n  |     return self._loop.run_until_complete(task)\n  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\asyncio\\base_events.py\", line 691, in run_until_complete\n  |     return future.result()\n  |            ^^^^^^^^^^^^^^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 70, in mcp_create\n  |     async with stdio_client(params) as (read,write):\n  |                ^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\contextlib.py\", line 231, in __aexit__\n  |     await self.gen.athrow(value)\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 183, in stdio_client\n  |     anyio.create_task_group() as tg,\n  |     ^^^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n  |     raise BaseExceptionGroup(\n  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n  +-+---------------- 1 ----------------\n    | Exception Group Traceback (most recent call last):\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 189, in stdio_client\n    |     yield read_stream, write_stream\n    |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 71, in mcp_create\n    |     async with ClientSession(read,write) as client:\n    |                ^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\mcp\\shared\\session.py\", line 238, in __aexit__\n    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)\n    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n    |     raise BaseExceptionGroup(\n    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n    +-+---------------- 1 ----------------\n      | Traceback (most recent call last):\n      |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 78, in mcp_create\n      |     card=json.loads(result.content[0].text)['card']\n      |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^\n      | KeyError: 'card'\n      +------------------------------------"
+      }
+    ],
+    "skips": [
+      {
+        "classname": "tests.test_addressing_compat",
+        "name": "test_send_session_oneshot_worker_delivers",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_addressing_compat.py:125: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_addressing_compat",
+        "name": "test_send_session_force_live_oneshot_restarts_without_stream_spawn",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_addressing_compat.py:226: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_native_bridge",
+        "name": "test_retired_oneshot_cbc_capability_declaration",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_native_bridge.py:766: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_basic_no_mcp_no_resume",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:68: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:75: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_system_prompt_no_cli_id",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:82: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_system_prompt_skipped_when_resumed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:89: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_resume_and_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:101: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_effort_and_permission",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:111: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_prompt_is_last_arg",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:122: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_runtime_argv_avoids_cmd_shim",
+        "type": "skipped",
+        "message": "claude not on PATH",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:138: claude not on PATH"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_basic",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:159: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_with_model_resume_effort_system_prompt",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:188: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_system_prompt_only_when_fresh",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:215: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_with_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:230: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_extract_oneshot_error",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:469: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_session_exists_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:570: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_parse_history_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:577: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_get_raw_usage_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:588: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_get_session_title_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:602: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_write_and_restore_custom_title_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:608: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_fork_session_probe_and_cleanup",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:625: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_list_sessions_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:643: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_retired_oneshot_claude_capability_declaration",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:678: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_retired_oneshot_excludes_stream_input_protocol",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:683: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_docs_terminology",
+        "name": "test_skill_sync_copy_matches_source",
+        "type": "skipped",
+        "message": "同步副本不存在（gitignored，仅本地 checkout 维护）",
+        "text": "D:\\a\\pan\\pan\\tests\\test_docs_terminology.py:92: 同步副本不存在（gitignored，仅本地 checkout 维护）"
+      },
+      {
+        "classname": "tests.test_independent_job_deployment",
+        "name": "test_external_user_host_survives_real_pan_graceful_and_job_tree_exit",
+        "type": "skipped",
+        "message": "explicit opt-in required to register an owned temporary Windows task",
+        "text": "D:\\a\\pan\\pan\\tests\\test_independent_job_deployment.py:64: explicit opt-in required to register an owned temporary Windows task"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_parse_kimi_history_from_test_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:199: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_get_raw_usage_from_test_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:211: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_fork_kimi_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:223: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_provider_launch_export_real_codex",
+        "name": "test_installed_cli_private_bearer_export_start_and_resume",
+        "type": "skipped",
+        "message": "explicit installed-CLI integration opt-in required",
+        "text": "D:\\a\\pan\\pan\\tests\\test_provider_launch_export_real_codex.py:29: explicit installed-CLI integration opt-in required"
+      },
+      {
+        "classname": "tests.test_provider_launch_real_codex",
+        "name": "test_installed_cli_fixed_provider_start_resume_and_materialized_branch",
+        "type": "skipped",
+        "message": "requires explicit owned installed-CLI integration opt-in",
+        "text": "D:\\a\\pan\\pan\\tests\\test_provider_launch_real_codex.py:92: requires explicit owned installed-CLI integration opt-in"
+      },
+      {
+        "classname": "tests.test_report_error_context",
+        "name": "test_oneshot_error_empty_result_report_carries_last_assistant_message",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_report_error_context.py:273: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_report_error_context",
+        "name": "test_error_report_keeps_existing_error_result_and_adds_context",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_report_error_context.py:295: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_scheduler_cron",
+        "name": "test_cron_honours_timezone_argument",
+        "type": "skipped",
+        "message": "zoneinfo 无 tz 数据库，本用例跳过",
+        "text": "D:\\a\\pan\\pan\\tests\\test_scheduler_cron.py:248: zoneinfo 无 tz 数据库，本用例跳过"
+      },
+      {
+        "classname": "tests.test_session_error_log_e2e",
+        "name": "test_oneshot_structured_error",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_session_error_log_e2e.py:393: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_session_prompts",
+        "name": "test_retired_oneshot_adapters_consume_effective_prompt",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_session_prompts.py:238: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_task_id_inheritance",
+        "name": "test_report_uses_the_task_id_carried_by_the_current_input",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_task_id_inheritance.py:144: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_terminal_broadcast",
+        "name": "test_oneshot_uses_same_terminal_result_idle_pair",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_broadcast.py:147: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_terminal_durable_ma",
+        "name": "test_same_service_detach_reconnect_revokes_old_connection_tokens",
+        "type": "skipped",
+        "message": "actual ancestor Job restricts detach",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_durable_ma.py:69: actual ancestor Job restricts detach"
+      },
+      {
+        "classname": "tests.test_terminal_durable_ma",
+        "name": "test_detached_shell_survives_real_service_host_exit_and_reconnect",
+        "type": "skipped",
+        "message": "actual ancestor Job disallows breakaway; detach safely refused",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_durable_ma.py:221: actual ancestor Job disallows breakaway; detach safely refused"
+      },
+      {
+        "classname": "tests.test_unified_server_queue",
+        "name": "test_one_shot_spawn_success_dequeues_after_argv_handoff",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_unified_server_queue.py:535: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_unified_server_queue",
+        "name": "test_one_shot_spawn_failure_requeues_same_item",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_unified_server_queue.py:565: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_keeps_existing_binding_on_mismatch",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:110: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_captures_binding_when_empty",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:134: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_keeps_binding_when_no_init_event",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:155: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_surfaces_cbc_error_on_exit0",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:178: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_global_watchdog",
+        "name": "test_global_watchdog_tick_skips_active_oneshot_worker",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_global_watchdog.py:141: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_calls_enrich_and_accumulates_usage",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:115: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_enrich_none_tolerated",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:170: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_enrich_exception_tolerated",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:195: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_claude_bridges_result_usage_cache",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:222: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_mcp_with_explicit_oneshot_goes_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:85: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_without_mcp_goes_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:102: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_only_adapter_clamps_stream_to_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:123: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_only_adapter_explicit_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:130: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_apply_output_mode_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:150: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_apply_output_mode_oneshot_only_rejects_stream",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:178: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_mcp_idle_worker_reclaimed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:332: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_mcp_running_worker_not_timeout_killed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:367: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_consumer_oneshot_refreshes_last_activity_on_idle",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:800: Oneshot mode retired by user; implementation retained"
+      }
+    ]
+  },
+  {
+    "file": "D:\\project\\pan-worktrees\\main-ci-39913304619\\.validation\\ci39913304619\\artifacts\\pytest-results-3.14\\pytest-results.xml",
+    "tests": 5507,
+    "failures": [
+      {
+        "classname": "tests.test_automation_retry_http",
+        "name": "test_node_parallel_finite_retries_and_uncertain_confirmation_http",
+        "type": "failure",
+        "message": "AssertionError: timed out waiting for owned shutdown kills blocked command tree: False",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_node_parallel_finite_retr0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001927045B690>\n\n    def test_node_parallel_finite_retries_and_uncertain_confirmation_http(tmp_path,monkeypatch):\n        assert h.PORT not in {8767,8768}\n        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')\n        rt=h._PanRuntime(tmp_path/'owned-profile');rt.data_root.mkdir()\n        m=manifest();mf=tmp_path/'plugins.json'\n        mf.write_text(json.dumps({'mcp_servers':[{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers],'plugins':m.plugins}),encoding='utf-8')\n        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}),encoding='utf-8')\n        cli=tmp_path/'owned-action-cli';cli.mkdir();(cli/'fixture.marker').write_text('retry-fixture',encoding='utf-8')\n        evidence={'port':h.PORT,'root':str(rt.data_root),'processes':[]}\n        def capture():\n            if rt.process and rt.process.poll() is None:\n                for p in [psutil.Process(rt.process.pid),*psutil.Process(rt.process.pid).children(recursive=True)]:\n                    evidence['processes'].append(dict(pid=p.pid,created=p.create_time(),command=p.cmdline()))\n        def stopped():\n            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time()!=p['created'] for p in evidence['processes'])\n        def view():return rt.request('GET','/api/automation')\n        def login():\n            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')\n            return {'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}\n        def trace():\n            path=cli/'trace.jsonl'\n            return [json.loads(r) for r in path.read_text(encoding='utf-8').splitlines()] if path.exists() else []\n        def send(i):\n            before=sum(r['kind']=='publication' for r in records(rt.data_root,'producer'))\n            publish(rt.data_root,type='producer.ping',payload={'value':i},event_id='retry-'+str(i))\n            # The example producer has one atomic command mailbox, not a queue.\n            # Wait for consumption before replacing it with the next publication.\n            h._wait_for(lambda:sum(r['kind']=='publication' for r in records(rt.data_root,'producer'))>before,label='owned publication receipt')\n        try:\n            rt.start()\n            def create(name):return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})\n            owner,control=[create(n) for n in ('retry-owner','retry-control')]\n            assert 'error' not in h._spawn(rt,control['id'])\n            a={'id':'retry_command','name':'Owned idempotent retry fixture','enabled':True,'idempotent':True,'effect':'write_local',\n               'input_schema':{'type':'object','properties':{'key':{'type':'integer'}},'required':['key'],'additionalProperties':False},\n               'execution':{'kind':'command','executable':str(Path(sys.executable).resolve()),'args':[str(Path(__file__).parent/'support/retry_action.py'),str(cli),'{key}'],'cwd':str(cli),'timeout_sec':30}}\n            rt.request('POST','/api/actions/actions',json={'item':a})\n            t={**trigger(),'actionId':'retry_command','eventTypes':['producer.ping'],'executionMode':'parallel','maxConcurrency':2,\n               'retry':{'enabled':True},'arguments':{'key':{'from':'event','path':'payload.value'}}}\n            auth=login();rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers=auth)\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json={'pluginBindings':[{'plugin_id':'producer','enabled':True,'mode':'gateway'}]})\n            h._wait_for(lambda:any(d['type']=='producer.ping' and d['available'] for d in view()['definitions']),label='owned real Node ready')\n            for i in (1,2,3):send(i)\n            def full():\n                state=view()\n                return state if len(state['runs'])==3 and sum(r['status']=='running' and r['attemptCount']==2 for r in state['runs'].values())==2 else None\n            held=h._wait_for(full,label='two blocked real retry attempts at Trigger cap')\n            assert sum(r['status']=='running' for r in held['runs'].values())==2\n            assert all(r['attemptCount']<=2 for r in held['runs'].values())\n            capture()\n            h._enqueue(rt,control['id'],'retry-independent-fake-cli','control')\n            h._wait_for(lambda:h._received(rt,text='retry-independent-fake-cli'),label='independent real queue while Action slots blocked')\n            rt.request('POST','/api/automation/logout',headers=auth)\n            (cli/'release').write_text('go',encoding='utf-8')\n            h._wait_for(lambda:all(r['status']=='succeeded' for r in view()['runs'].values()),label='automatic retries finish after token logout')\n            succeeded=view()\n            assert all(r['attemptCount']==2 and [a['status'] for a in r['attempts']]==['failed','succeeded'] for r in succeeded['runs'].values())\n            for i in (1,2,3):send(i)\n            h._wait_for(lambda:sum(r['kind']=='publication' for r in records(rt.data_root,'producer'))>=6,label='old Event resend receipts')\n            assert len(view()['runs'])==3 and len(trace())==12\n            # Interrupt a fourth owned command via service shutdown. Recovery must\n            # retain uncertain until an independent user confirmation, not replay.\n            (cli/'release').unlink()\n            send(4)\n            h._wait_for(lambda:any(r['event']['id']=='retry-4' and r['status']=='running' and r['attemptCount']==2 for r in view()['runs'].values()),label='owned active command for shutdown')\n>           capture();rt.stop();h._wait_for(stopped,label='owned shutdown kills blocked command tree')\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests\\test_automation_retry_http.py:80: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\npredicate = <function test_node_parallel_finite_retries_and_uncertain_confirmation_http.<locals>.stopped at 0x0000019270F0E820>\ntimeout = 15.0, label = 'owned shutdown kills blocked command tree'\n\n    def _wait_for(predicate, *, timeout: float = 15.0, label: str = \"condition\"):\n        deadline = time.monotonic() + timeout\n        last = None\n        while time.monotonic() < deadline:\n            try:\n                value = predicate()\n                if value:\n                    return value\n                last = value\n            except Exception as exc:  # startup/race polling only\n                last = exc\n            time.sleep(0.025)\n>       raise AssertionError(f\"timed out waiting for {label}: {last!r}\")\nE       AssertionError: timed out waiting for owned shutdown kills blocked command tree: False\n\ntests\\test_real_queue_http_e2e.py:55: AssertionError"
+      },
+      {
+        "classname": "tests.test_docs_terminology",
+        "name": "test_no_banned_legacy_terms",
+        "type": "failure",
+        "message": "AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）\nassert not ['child-agent']",
+        "text": "def test_no_banned_legacy_terms():\n        for rel in NORMATIVE_DOCS:\n            lines = _doc(rel).splitlines()\n            for lineno, line in enumerate(lines, start=1):\n                # 允许“旧称呼映射”说明行本身引用旧词（用于向读者解释历史文档）\n                if \"旧称呼映射\" in line or \"legacy\" in line.lower():\n                    continue\n                for pattern, reason in BANNED_PATTERNS:\n                    matches = re.findall(pattern, line)\n>                   assert not matches, (\n                        f\"{rel}:{lineno}: 检出旧称呼 {reason}（{matches}）\"\n                    )\nE                   AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）\nE                   assert not ['child-agent']\n\ntests\\test_docs_terminology.py:70: AssertionError"
+      },
+      {
+        "classname": "tests.test_eta_final_combined",
+        "name": "test_node_query_pause_production_ui_restart_and_delay_mcp",
+        "type": "failure",
+        "message": "AssertionError: timed out waiting for queued resumed once: False",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_node_query_pause_producti0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001927261BB60>\n\n    def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypatch):\n        assert h.PORT not in {8767, 8768}\n        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')\n        rt = h._PanRuntime(tmp_path / 'combined-profile')\n        rt.data_root.mkdir()\n        m = manifest()\n        mf = tmp_path / 'plugins.json'\n        mf.write_text(json.dumps({'mcp_servers': [{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers], 'plugins':m.plugins}),encoding='utf-8')\n        (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}),encoding='utf-8')\n        evidence = {'port':h.PORT,'root':str(rt.data_root),'processes':[],\n                    'testedSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True,encoding='utf-8').strip(),\n                    'buildIndexSha256':__import__('hashlib').sha256((h.ROOT/'packages/web/dist/index.html').read_bytes()).hexdigest()}\n        def capture():\n            if rt.process and rt.process.poll() is None:\n                for p in [psutil.Process(rt.process.pid), *psutil.Process(rt.process.pid).children(recursive=True)]:\n                    evidence['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline()})\n        def stopped():\n            return all(not psutil.pid_exists(p['pid']) or psutil.Process(p['pid']).create_time()!=p['created'] for p in evidence['processes'])\n        def view():\n            return rt.request('GET','/api/automation')\n        def binding(enabled):\n            return {'pluginBindings':[{'plugin_id':'producer','enabled':enabled,'mode':'gateway'}]}\n        def ready():\n            return any(d['type']=='producer.ping' and d['available'] for d in view()['definitions'])\n        def create(name):\n            return rt.request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})\n        try:\n            rt.start()\n            target, control, owner = [create(n) for n in ('combined-target','combined-control','combined-owner')]\n            for s in (target,control):\n                assert 'error' not in h._spawn(rt,s['id'])\n            item = rt.request('POST',f\"/api/sessions/{target['id']}/queue\",json={'text':'combined-blocked','locked':True,'clientMessageId':'combined'})['item']\n            a = query_action(leaf('name','eq','combined-target'))\n            a['name'] = 'Combined query pause'\n            rt.request('POST','/api/actions/actions',json={'item':a})\n            token = rt.request('POST','/api/automation/login',json={'key':(rt.data_root/'automation/user.key').read_text(encoding='utf-8')})['token']\n            t = {**trigger(),'eventTypes':['producer.ping']}\n            rt.request('POST','/api/automation/triggers',json={'item':t,'expectedRevision':0},headers={'Authorization':'Bearer '+token})\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(True))\n            h._wait_for(ready,label='Node ready')\n            capture()\n            publish(rt.data_root,type='producer.ping',payload={'value':1},event_id='combined-event')\n            def done():\n                return next((r for r in view()['runs'].values() if r['event']['id']=='combined-event' and r['status']=='succeeded'),None)\n            run = h._wait_for(done,label='Node -> query -> Pause')\n            assert run['targetIds']==[target['id']] and run['selection']['matched']==1\n            assert run['event']['source']=={'type':'plugin','id':'producer'}\n            rt.request('PATCH',f\"/api/sessions/{target['id']}/queue/{item['queueItemId']}/lock\",json={'locked':False})\n            h._enqueue(rt,control['id'],'combined-control-delivered','control')\n            h._wait_for(lambda:h._received(rt,text='combined-control-delivered'),label='control actual CLI handoff')\n            queue=rt.request('GET',f\"/api/sessions/{target['id']}/queue\")\n            assert queue['queuePaused'] and any(i['queueItemId']==item['queueItemId'] for i in queue['items'])\n            assert not h._received(rt,text='combined-blocked')\n            OUT.mkdir(parents=True,exist_ok=True)\n            browser_input=OUT/'browser-input.json'\n            browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}),encoding='utf-8')\n            browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())\n            (OUT/'browser.log').write_text(browser.stdout+'\\n'+browser.stderr,encoding='utf-8')\n            assert browser.returncode==0, browser.stderr\n            assert 'UTF-8 \\U0001f9ea' in browser.stdout\n            # Same shared server keeps delayed-restart MCP management gates intact.\n            monkeypatch.setattr(mcp_server,'_pan_api_url',rt.base_url)\n            monkeypatch.setattr(mcp_server,'_caller_identity',lambda:{'id':owner['id'],'managed':[],'panAccess':{'restrictToManaged':True}})\n            denied=mcp_server.agent_restart_delayed(target['id'])\n            assert not denied['ok'] and denied['error']['code']=='permission_denied'\n            monkeypatch.setattr(mcp_server,'_caller_identity',lambda:None)\n            # Actual MCP stdio client on the same plugin/query/UI HTTP instance.\n            from mcp import ClientSession, StdioServerParameters\n            from mcp.client.stdio import stdio_client\n            async def delay_stdio():\n                params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],\n                    env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':control['id']},cwd=str(h.ROOT))\n                async with stdio_client(params) as (read,write):\n                    async with ClientSession(read,write) as client:\n                        await client.initialize()\n                        response=await client.call_tool('agent_restart_delayed',{'session_id':control['id']})\n                        assert not response.isError\n                        return response.structuredContent or json.loads(response.content[0].text)\n            delayed=asyncio.run(delay_stdio())\n            assert delayed['ok'],delayed\n            h._wait_for(lambda:rt.request('GET',f\"/api/sessions/{control['id']}/worker/delayed-restart\")['delayedRestart']['status']=='completed',label='delayed restart coexists')\n            oldgen=[r for r in records(rt.data_root,'producer') if r['kind']=='ready'][-1]['generation']\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(False))\n            assert not ready() and view()['triggers']['t']['enabled']\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}\",json=binding(True))\n            h._wait_for(ready,label='re-enabled Node')\n            h._wait_for(lambda:[r for r in records(rt.data_root,'producer') if r['kind']=='ready'][-1]['generation']!=oldgen,label='generation replaced')\n            before=len([r for r in records(rt.data_root,'producer') if r['kind']=='publication'])\n            publish(rt.data_root,type='producer.ping',payload={'value':2},event_id='stale',generation=oldgen)\n            h._wait_for(lambda:len([r for r in records(rt.data_root,'producer') if r['kind']=='publication'])>before,label='stale generation receipt')\n            assert [r for r in records(rt.data_root,'producer') if r['kind']=='publication'][-1].get('error')\n            assert len(view()['runs'])==1\n            # Stop own instance, then inject persisted crash fixtures into own ledger.\n            capture();rt.stop();h._wait_for(stopped,label='first process cleanup')\n            path=rt.data_root/'automation/registry.json'\n            state=json.loads(path.read_text(encoding='utf-8'))\n            for rid,status in [('restart-queued','queued'),('restart-running','running')]:\n                state['runs'][rid]={**run,'id':rid,'status':status,'revision':1,'event':{**run['event'],'id':rid}}\n            state['runs']['restart-queued'].pop('targetIds',None)\n            path.write_text(json.dumps(state),encoding='utf-8')\n            rt.start();capture();h._wait_for(ready,label='restart Node admission')\n>           h._wait_for(lambda:view()['runs']['restart-queued']['status']=='succeeded',label='queued resumed once')\n\ntests\\test_eta_final_combined.py:125: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\npredicate = <function test_node_query_pause_production_ui_restart_and_delay_mcp.<locals>.<lambda> at 0x0000019272521220>\ntimeout = 15.0, label = 'queued resumed once'\n\n    def _wait_for(predicate, *, timeout: float = 15.0, label: str = \"condition\"):\n        deadline = time.monotonic() + timeout\n        last = None\n        while time.monotonic() < deadline:\n            try:\n                value = predicate()\n                if value:\n                    return value\n                last = value\n            except Exception as exc:  # startup/race polling only\n                last = exc\n            time.sleep(0.025)\n>       raise AssertionError(f\"timed out waiting for {label}: {last!r}\")\nE       AssertionError: timed out waiting for queued resumed once: False\n\ntests\\test_real_queue_http_e2e.py:55: AssertionError"
+      },
+      {
+        "classname": "tests.test_eventloop_history_offload",
+        "name": "test_http_policies_stream_in_the_request_task_without_body_relay",
+        "type": "failure",
+        "message": "AssertionError: HTTP policies created task/stream relay objects\nassert [<Task finish... result=None>] == [<Task pendin...ents.py:181]>]\n  \n  At index 0 diff: <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None> != <Task pending name='Task-5219' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:181]>\n  \n  Full diff:\n    [\n  -     <Task pending name='Task-5219' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:181]>,\n  +     <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None>,\n    ]",
+        "text": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000192723A8D00>\n\n    def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch):\n        \"\"\"Header/log policies must not create per-request task/stream graphs.\"\"\"\n        monkeypatch.setattr(server, '_log', lambda line: None)\n        monkeypatch.setattr(server, '_LOG_SKIP', [])\n    \n        async def run():\n            owner = asyncio.current_task()\n            seen = []\n            messages = []\n            never = asyncio.Event()\n    \n            async def endpoint(scope, receive, send):\n                seen.append(asyncio.current_task())\n                await send({'type': 'http.response.start', 'status': 200, 'headers': []})\n                await send({'type': 'http.response.body', 'body': b'first', 'more_body': True})\n                await send({'type': 'http.response.body', 'body': b'last', 'more_body': False})\n    \n            async def receive():\n                await never.wait()\n    \n            async def send(message):\n                messages.append(message)\n    \n            stack = endpoint\n            for middleware in reversed(server.app.user_middleware):\n                stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)\n            await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',\n                         'query_string': b'', 'headers': [], 'http_version': '1.1',\n                         'scheme': 'http', 'server': ('test', 80)}, receive, send)\n            assert seen == [owner], 'HTTP policies created task/stream relay objects'\n            assert [(m.get('body'), m.get('more_body')) for m in messages[1:]] == [\n                (b'first', True), (b'last', False)]\n            assert dict(messages[0]['headers'])[b'cache-control'] == b'no-cache, no-store, must-revalidate'\n    \n>       asyncio.run(run())\n\ntests\\test_eventloop_history_offload.py:61: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:205: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:128: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:720: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    async def run():\n        owner = asyncio.current_task()\n        seen = []\n        messages = []\n        never = asyncio.Event()\n    \n        async def endpoint(scope, receive, send):\n            seen.append(asyncio.current_task())\n            await send({'type': 'http.response.start', 'status': 200, 'headers': []})\n            await send({'type': 'http.response.body', 'body': b'first', 'more_body': True})\n            await send({'type': 'http.response.body', 'body': b'last', 'more_body': False})\n    \n        async def receive():\n            await never.wait()\n    \n        async def send(message):\n            messages.append(message)\n    \n        stack = endpoint\n        for middleware in reversed(server.app.user_middleware):\n            stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)\n        await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',\n                     'query_string': b'', 'headers': [], 'http_version': '1.1',\n                     'scheme': 'http', 'server': ('test', 80)}, receive, send)\n>       assert seen == [owner], 'HTTP policies created task/stream relay objects'\nE       AssertionError: HTTP policies created task/stream relay objects\nE       assert [<Task finish... result=None>] == [<Task pendin...ents.py:181]>]\nE         \nE         At index 0 diff: <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None> != <Task pending name='Task-5219' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:181]>\nE         \nE         Full diff:\nE           [\nE         -     <Task pending name='Task-5219' coro=<test_http_policies_stream_in_the_request_task_without_body_relay.<locals>.run() running at D:\\a\\pan\\pan\\tests\\test_eventloop_history_offload.py:56> cb=[_run_until_complete_cb() at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:181]>,\nE         +     <Task finished name='starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro' coro=<TaskHandle._run_coro() done, defined at C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_core\\_tasks.py:322> result=None>,\nE           ]\n\ntests\\test_eventloop_history_offload.py:56: AssertionError"
+      },
+      {
+        "classname": "tests.test_interaction_card_http",
+        "name": "test_http_mcp_user_response_and_directed_trigger",
+        "type": "failure",
+        "message": "KeyError('card') [single exception in ExceptionGroup]",
+        "text": "+ Exception Group Traceback (most recent call last):\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 139, in test_http_mcp_user_response_and_directed_trigger\n  |     run_http_mcp(tmp_path)\n  |     ~~~~~~~~~~~~^^^^^^^^^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 82, in run_http_mcp\n  |     card=asyncio.run(mcp_create())\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py\", line 205, in run\n  |     return runner.run(main)\n  |            ~~~~~~~~~~^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py\", line 128, in run\n  |     return self._loop.run_until_complete(task)\n  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py\", line 720, in run_until_complete\n  |     return future.result()\n  |            ~~~~~~~~~~~~~^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 70, in mcp_create\n  |     async with stdio_client(params) as (read,write):\n  |                ~~~~~~~~~~~~^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\contextlib.py\", line 235, in __aexit__\n  |     await self.gen.athrow(value)\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 183, in stdio_client\n  |     anyio.create_task_group() as tg,\n  |     ~~~~~~~~~~~~~~~~~~~~~~~^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n  |     raise BaseExceptionGroup(\n  |         \"unhandled errors in a TaskGroup\", self._exceptions\n  |     ) from None\n  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n  +-+---------------- 1 ----------------\n    | Exception Group Traceback (most recent call last):\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 189, in stdio_client\n    |     yield read_stream, write_stream\n    |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 71, in mcp_create\n    |     async with ClientSession(read,write) as client:\n    |                ~~~~~~~~~~~~~^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\shared\\session.py\", line 238, in __aexit__\n    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)\n    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n    |     raise BaseExceptionGroup(\n    |         \"unhandled errors in a TaskGroup\", self._exceptions\n    |     ) from None\n    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n    +-+---------------- 1 ----------------\n      | Traceback (most recent call last):\n      |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 78, in mcp_create\n      |     card=json.loads(result.content[0].text)['card']\n      |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^\n      | KeyError: 'card'\n      +------------------------------------"
+      },
+      {
+        "classname": "tests.test_jobs_completed_retention",
+        "name": "test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs",
+        "type": "failure",
+        "message": "KeyError: 'targetSessionId'",
+        "text": "retention_env = (WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_log_cleanup_is_independen0/j...('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_log_cleanup_is_independen0/config.json'))\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019272A0BB60>\n\n    def test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs(\n            retention_env, monkeypatch):\n        root, _ = retention_env\n        now = 1_000_000.0\n        logs = root / \"logs\"\n        logs.mkdir(parents=True, exist_ok=True)\n        expired = logs / \"job_expired.log\"\n        expired.write_text(\"old\", encoding=\"utf-8\")\n        _set_mtime(expired, now - 86400)\n        recent = logs / \"job_recent.log\"\n        recent.write_text(\"new\", encoding=\"utf-8\")\n        _set_mtime(recent, now - 86400 + 1)\n        running_log = logs / \"job_running.log\"\n        running_log.write_text(\"active\", encoding=\"utf-8\")\n        _set_mtime(running_log, now - 10 * 86400)\n        starting_log = logs / \"job_starting.log\"\n        starting_log.write_text(\"starting\", encoding=\"utf-8\")\n        _set_mtime(starting_log, now - 10 * 86400)\n        scheduled_log = logs / \"job_scheduled.log\"\n        scheduled_log.write_text(\"scheduled\", encoding=\"utf-8\")\n        _set_mtime(scheduled_log, now - 10 * 86400)\n        active_runner_log = logs / \"job_active_runner.log\"\n        active_runner_log.write_text(\"runner\", encoding=\"utf-8\")\n        _set_mtime(active_runner_log, now - 10 * 86400)\n        _record(root, \"job_expired\", status=\"completed\", updated_at=0,\n                logPath=str(expired))\n        _record(root, \"job_recent\", status=\"failed\", updated_at=0, logPath=str(recent))\n        _record(root, \"job_running\", status=\"running\", updated_at=0,\n                logPath=str(running_log))\n>       _record(root, \"job_starting\", status=\"starting\", updated_at=0,\n                logPath=str(starting_log))\n\ntests\\test_jobs_completed_retention.py:611: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\ntests\\test_jobs_completed_retention.py:58: in _record\n    return jobs._create(record, registry_root=root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\background_jobs.py:263: in _create\n    _write_job(path, job, created=True)\npackages\\core\\background_jobs.py:99: in _write_job\n    sync(job, created)\npackages\\jobs\\system_actions.py:156: in sync\n    prepare(job, job['jobId'] + ':initial')\npackages\\jobs\\system_actions.py:105: in prepare\n    params = arguments(job)\n             ^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\njob = {'jobId': 'job_starting', 'kind': 'background-process', 'status': 'starting', 'updatedAt': 0, ...}\n\n    def arguments(job):\n        kind = job['kind']\n        if kind == 'background-process':\n>           return {'sessionId': job['targetSessionId'], 'argv': copy.deepcopy(job['argv']),\n                                 ^^^^^^^^^^^^^^^^^^^^^^\n                    'cwd': job['cwd'], 'hideWindow': job.get('hideWindow', True)}\nE           KeyError: 'targetSessionId'\n\npackages\\jobs\\system_actions.py:78: KeyError"
+      },
+      {
+        "classname": "tests.test_locker_runtime_http",
+        "name": "test_product_locker_login_choice_pause_restart",
+        "type": "failure",
+        "message": "assert 0 == 1\n +  where 0 = len([])",
+        "text": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_product_locker_login_choi0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019276EBD7F0>\n\n    def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):\n        assert h.PORT not in {8767,8768}, 'Use the isolated test runner random port'\n        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')\n        rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()\n        root=Path(__file__).resolve().parents[1]\n        (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},\n            'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')\n        OUT.mkdir(parents=True,exist_ok=True)\n        evidence={'port':h.PORT,'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],encoding='utf-8').strip()}\n        identities={}\n        def stop():\n            if rt.process and rt.process.poll() is None:\n                root_process=psutil.Process(rt.process.pid)\n                for process in [root_process,*root_process.children(recursive=True)]:\n                    try:identities[process.pid]=process.create_time()\n                    except psutil.Error:pass\n            rt.stop()\n            live=[]\n            for pid,born in identities.items():\n                try:\n                    process=psutil.Process(pid)\n                    if abs(process.create_time()-born)<.01 and process.status() not in {'terminated',psutil.STATUS_ZOMBIE,psutil.STATUS_DEAD}:\n                        process.terminate();live.append(process)\n                except psutil.Error:pass\n            _,live=psutil.wait_procs(live,timeout=3)\n            for process in live:\n                try:process.kill()\n                except psutil.Error:pass\n            _,live=psutil.wait_procs(live,timeout=3)\n            return [p.pid for p in live]\n        try:\n            rt.start()\n            evidence['identity']=rt.request('GET','/__test/job-inbox-identity')\n            assert Path(evidence['identity']['sessions']).parent==rt.data_root\n            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')\n            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}\n            owner=rt.request('POST','/api/sessions',json={'name':'source','adapter':'cbc','mcpServers':[]})\n            rt.request('PATCH',f\"/api/sessions/{owner['id']}/queue/paused\",json={'paused':True})\n            target=rt.request('POST','/api/sessions',json={'name':'pause-target','adapter':'cbc','mcpServers':[]})\n            assert 'error' not in h._spawn(rt,target['id'])\n            rt.request('POST','/api/actions/actions',json={'item':action([target['id']])})\n            for tid in ('selected','never-selected'):\n                rt.request('POST','/api/automation/triggers',headers=auth,json={'item':{**trigger(tid),\n                    'eventTypes':['pan.interaction.responded']},'expectedRevision':0})\n            async def create_mcp():\n                from mcp import ClientSession,StdioServerParameters\n                from mcp.client.stdio import stdio_client\n                params=StdioServerParameters(command=os.sys.executable,args=['-m','packages.mcp.server'],cwd=str(root),\n                    env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':owner['id']})\n                async with stdio_client(params) as (read,write):\n                    async with ClientSession(read,write) as client:\n                        await client.initialize()\n                        result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'user',\n                            'request_key':'product','card':{'title':'Production wiring','body':'Never forwarded body',\n                            'summaryBody':'Safe summary','choices':[{'id':'pause','label':'Pause',\n                            'triggerRef':{'id':'selected','revision':1}}]}})\n                        assert not result.isError\n                        return json.loads(result.content[0].text)['card']\n            card=asyncio.run(create_mcp())\n            assert httpx.get(rt.base_url+'/api/user-lockers',trust_env=False).status_code==401\n            browser=subprocess.run(['node','packages/web/e2e/locker-runtime.mjs',rt.base_url,str(OUT.resolve()),owner['id']],\n                env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)\n            (OUT/'browser.log').write_text(browser.stdout+'\\n'+browser.stderr,encoding='utf-8')\n            assert browser.returncode==0,browser.stderr\n            result=rt.request('GET',f\"/api/user-inbox/{card['id']}\",headers=auth)['card']\n            assert result['delivery']['state']=='accepted'\n            payload={'expectedRevision':0,'requestId':result['response']['requestId'],'choiceId':'pause'}\n            rt.request('POST',f\"/api/user-inbox/{card['id']}/submit\",headers=auth,json=payload)\n            def complete():\n                runs=rt.request('GET','/api/automation')['runs']\n                return list(runs.values()) if len(runs)==1 and next(iter(runs.values()))['status']=='succeeded' else None\n            runs=h._wait_for(complete,label='selected real Run completes Pause')\n            assert runs[0]['triggerId']=='selected'\n            assert rt.request('GET',f\"/api/sessions/{target['id']}/queue\")['queuePaused']\n            rt.request('POST','/api/send',json={'sessionId':target['id'],'text':'blocked-after-pause','source':'user'})\n            blocked=rt.request('GET',f\"/api/sessions/{target['id']}/queue\")\n            assert blocked['queuePaused'] and any(n.get('text')=='blocked-after-pause' for n in blocked['items'])\n            notices=rt.request('GET',f\"/api/sessions/{owner['id']}/queue\")['items']\n>           assert len([n for n in notices if n.get('text')=='Interaction submitted: Safe summary'])==1\nE           assert 0 == 1\nE            +  where 0 = len([])\n\ntests\\test_locker_runtime_http.py:94: AssertionError"
+      },
+      {
+        "classname": "tests.test_mcp_handbook.TestDescriptionCallChain",
+        "name": "test_every_tool_ends_with_pan_skill_pointer",
+        "type": "failure",
+        "message": "AssertionError: interaction_card\nassert False\n +  where False = <built-in method endswith of str object at 0x000001927297F990>('完整编排流程见 /pan skill。')\n +    where <built-in method endswith of str object at 0x000001927297F990> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.'.endswith\n +      where 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.' = <built-in method rstrip of str object at 0x000001926C025350>()\n +        where <built-in method rstrip of str object at 0x000001926C025350> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.\\n'.rstrip",
+        "text": "self = <test_mcp_handbook.TestDescriptionCallChain object at 0x000001926CE2A210>\n\n    def test_every_tool_ends_with_pan_skill_pointer(self):\n        for tool in TOOLS:\n            doc = tool.__doc__ or \"\"\n>           assert doc.rstrip().endswith(SKILL_POINTER), tool.__name__\nE           AssertionError: interaction_card\nE           assert False\nE            +  where False = <built-in method endswith of str object at 0x000001927297F990>('完整编排流程见 /pan skill。')\nE            +    where <built-in method endswith of str object at 0x000001927297F990> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.'.endswith\nE            +      where 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.' = <built-in method rstrip of str object at 0x000001926C025350>()\nE            +        where <built-in method rstrip of str object at 0x000001926C025350> = 'Create/get/receipt for a Session-owned user request. Never answer as a user.\\n\\nCard supports optional answerInput, choices with optional triggerRef, and\\nnotification metadata. A recorded response is not Job/Trigger completion.\\n'.rstrip\n\ntests\\test_mcp_handbook.py:101: AssertionError"
+      },
+      {
+        "classname": "tests.test_plugin_qq_integration",
+        "name": "test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+        "type": "failure",
+        "message": "KeyError: 'jobId'",
+        "text": "upstream = []\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019272BD3D90>\n\n    def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch):\n        from packages.core import background_jobs, qq_reports\n        async def run():\n            session = sess.create(name=\"qq-background\", adapter=\"codex\", adapter_config={\n                \"plugin_bindings\": [{\"plugin_id\": \"qq\", \"enabled\": False, \"mode\": \"gateway\"}], \"mcp_servers\": []})\n            session.qq_report_targets = {\"user:123456@999999\"}\n            session.qq_report_outbox = {\"old-attempt\": {\"state\": \"attempted\", \"target\": \"user:123456@999999\", \"text\": \"never replay\"},\n                                       \"queued-before-upgrade\": {\"state\": \"pending\", \"target\": \"user:123456@999999\", \"text\": \"pending report\"}}\n            sess.save(session)\n            monkeypatch.setattr(srv, \"_qq_plugin_client\", None)\n            monkeypatch.setitem(background_jobs._scheduled_task_hooks, \"qq_send\", srv._send_scheduled_qq)\n            try:\n                result = await background_jobs._run_job_action({\"text\": \"scheduled QQ\", \"action\": {\"api\": \"send_qq\",\n                    \"args\": {\"targetType\": \"user\", \"targetId\": \"123456\", \"botUin\": \"999999\"}}}, None, \"old-job-fire\")\n                assert result[\"status\"] == \"completed\"\n                assert result[\"messageId\"] == \"fixture-message\"\n                qq_reports.start(srv._send_scheduled_qq, [session])\n                await asyncio.gather(*list(qq_reports._tasks.values()))\n                assert session.qq_report_outbox[\"old-attempt\"][\"state\"] == \"attempted\"\n                assert session.qq_report_outbox[\"queued-before-upgrade\"][\"state\"] == \"sent\"\n                qq_reports.start(srv._send_scheduled_qq, [session])\n                if qq_reports._tasks:\n                    await asyncio.gather(*list(qq_reports._tasks.values()))\n                assert [body[\"text\"] for _, _, body in upstream] == [\"scheduled QQ\", \"pending report\"]\n            finally:\n                await qq_reports.stop()\n                if srv._qq_plugin_client:\n                    await srv._qq_plugin_client.aclose()\n>       asyncio.run(run())\n\ntests\\test_plugin_qq_integration.py:141: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:205: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:128: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:720: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\ntests\\test_plugin_qq_integration.py:125: in run\n    result = await background_jobs._run_job_action({\"text\": \"scheduled QQ\", \"action\": {\"api\": \"send_qq\",\npackages\\core\\background_jobs.py:2132: in _run_job_action\n    return await invoke(job, dispatch_key, effect, registry_root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\jobs\\system_actions.py:182: in invoke\n    frozen = await io(claim)\n             ^^^^^^^^^^^^^^^\npackages\\plugins\\lifecycle.py:92: in io\n    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\session.py:2683: in await_persistence\n    return await asyncio.shield(future)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\threads.py:26: in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\concurrent\\futures\\thread.py:86: in run\n    result = ctx.run(self.task)\n             ^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\concurrent\\futures\\thread.py:73: in run\n    return fn(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    def claim():\n>       with jobs._lock, jobs._job_lock(job['jobId'], registry_root):\n                                        ^^^^^^^^^^^^\nE       KeyError: 'jobId'\n\npackages\\jobs\\system_actions.py:170: KeyError"
+      },
+      {
+        "classname": "tests.test_plugin_session_config",
+        "name": "test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+        "type": "failure",
+        "message": "KeyError: 'jobId'",
+        "text": "manager = <packages.core.character.CharacterManager object at 0x0000019272C07950>\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019273F5A040>\n\n    def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch):\n        from packages.jobs.actions import normalize_scheduled_qq_action\n        from packages.core import background_jobs\n        action = {\"api\": \"send_qq\", \"args\": {\"targetType\": \"user\", \"targetId\": \"123456\", \"botUin\": \"999999\"}}\n        normalized, problem = normalize_scheduled_qq_action(copy.deepcopy(action))\n        assert problem is None\n        assert normalized == action\n        Catalog(manager._manifest_config).compile([binding(mode=\"pan_native\")])\n        normalized_again, problem = normalize_scheduled_qq_action(action)\n        assert normalized_again == normalized and problem is None\n        sender = AsyncMock(return_value={\"ok\": True, \"message_id\": \"legacy-message-1\"})\n        monkeypatch.setitem(background_jobs._scheduled_task_hooks, \"qq_send\", sender)\n>       result = asyncio.run(background_jobs._run_job_action(\n            {\"action\": action, \"text\": \"scheduled without Worker\"}, None, \"original-dispatch-key\"))\n\ntests\\test_plugin_session_config.py:140: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:205: in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py:128: in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py:720: in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\npackages\\core\\background_jobs.py:2132: in _run_job_action\n    return await invoke(job, dispatch_key, effect, registry_root)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\jobs\\system_actions.py:182: in invoke\n    frozen = await io(claim)\n             ^^^^^^^^^^^^^^^\npackages\\plugins\\lifecycle.py:92: in io\n    return await await_persistence(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\npackages\\core\\session.py:2683: in await_persistence\n    return await asyncio.shield(future)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\threads.py:26: in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\concurrent\\futures\\thread.py:86: in run\n    result = ctx.run(self.task)\n             ^^^^^^^^^^^^^^^^^^\nC:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\concurrent\\futures\\thread.py:73: in run\n    return fn(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n    def claim():\n>       with jobs._lock, jobs._job_lock(job['jobId'], registry_root):\n                                        ^^^^^^^^^^^^\nE       KeyError: 'jobId'\n\npackages\\jobs\\system_actions.py:170: KeyError"
+      },
+      {
+        "classname": "tests.test_takeover_lifecycle_http",
+        "name": "test_http_first_terminal_survives_real_reader_conflict_without_resend",
+        "type": "failure",
+        "message": "AssertionError: assert 'utf-8' == 'gbk'\n  \n  - gbk\n  + utf-8",
+        "text": "runtime = <test_real_queue_http_e2e._PanRuntime object at 0x000001927BF913D0>\n\n    @pytest.mark.usefixtures('narrow_console')\n    def test_http_first_terminal_survives_real_reader_conflict_without_resend(runtime):\n        s = _create(runtime, 'takeover-reader-conflict')\n        sid = s['id']\n        _spawn(runtime, sid)\n        _wait_for(lambda: runtime.request('GET', f'/api/sessions/{sid}').get('cliSessionId'))\n        (runtime.data_root / 'hold-terminal-reader').touch()\n        _enqueue(runtime, sid, 'establish-native-session', 'first')\n        _wait_for(lambda: durable(runtime, sid)['last_result'])\n        value = durable(runtime, sid)\n        assert value['last_result']['status'] == 'done' and value['result_cursor'] == 1\n        assert value['legal_offline'] and not value['queue_pending']\n        conflicts = [json.loads(line) for line in (runtime.data_root / 'reader-conflicts.jsonl').read_text().splitlines()]\n        assert [row['winerror'] for row in conflicts] == [5]\n        received = [row for row in runtime.fake_records() if row['kind'] == 'received' and row['cwd'] == s['workdir']]\n        assert len(received) == 1 and received[0]['text'] == 'establish-native-session'\n        init = [row for row in runtime.fake_records() if row['kind'] == 'init' and row['cwd'] == s['workdir']][-1]\n>       assert init['stdinEncoding'] == init['stdoutEncoding'] == 'gbk'\nE       AssertionError: assert 'utf-8' == 'gbk'\nE         \nE         - gbk\nE         + utf-8\n\ntests\\test_takeover_lifecycle_http.py:43: AssertionError"
+      },
+      {
+        "classname": "tests.test_user_locker_browser",
+        "name": "test_locker_browser_http_mcp",
+        "type": "failure",
+        "message": "KeyError('card') [single exception in ExceptionGroup]",
+        "text": "+ Exception Group Traceback (most recent call last):\n  |   File \"D:\\a\\pan\\pan\\tests\\test_user_locker_browser.py\", line 5, in test_locker_browser_http_mcp\n  |     run_http_mcp(tmp_path,browser=True)\n  |     ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 82, in run_http_mcp\n  |     card=asyncio.run(mcp_create())\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py\", line 205, in run\n  |     return runner.run(main)\n  |            ~~~~~~~~~~^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\runners.py\", line 128, in run\n  |     return self._loop.run_until_complete(task)\n  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\asyncio\\base_events.py\", line 720, in run_until_complete\n  |     return future.result()\n  |            ~~~~~~~~~~~~~^^\n  |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 70, in mcp_create\n  |     async with stdio_client(params) as (read,write):\n  |                ~~~~~~~~~~~~^^^^^^^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\contextlib.py\", line 235, in __aexit__\n  |     await self.gen.athrow(value)\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 183, in stdio_client\n  |     anyio.create_task_group() as tg,\n  |     ~~~~~~~~~~~~~~~~~~~~~~~^^\n  |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n  |     raise BaseExceptionGroup(\n  |         \"unhandled errors in a TaskGroup\", self._exceptions\n  |     ) from None\n  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n  +-+---------------- 1 ----------------\n    | Exception Group Traceback (most recent call last):\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\client\\stdio\\__init__.py\", line 189, in stdio_client\n    |     yield read_stream, write_stream\n    |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 71, in mcp_create\n    |     async with ClientSession(read,write) as client:\n    |                ~~~~~~~~~~~~~^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\mcp\\shared\\session.py\", line 238, in __aexit__\n    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)\n    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |   File \"C:\\hostedtoolcache\\windows\\Python\\3.14.9\\x64\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py\", line 847, in __aexit__\n    |     raise BaseExceptionGroup(\n    |         \"unhandled errors in a TaskGroup\", self._exceptions\n    |     ) from None\n    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)\n    +-+---------------- 1 ----------------\n      | Traceback (most recent call last):\n      |   File \"D:\\a\\pan\\pan\\tests\\test_interaction_card_http.py\", line 78, in mcp_create\n      |     card=json.loads(result.content[0].text)['card']\n      |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^\n      | KeyError: 'card'\n      +------------------------------------"
+      }
+    ],
+    "skips": [
+      {
+        "classname": "tests.test_addressing_compat",
+        "name": "test_send_session_oneshot_worker_delivers",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_addressing_compat.py:125: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_addressing_compat",
+        "name": "test_send_session_force_live_oneshot_restarts_without_stream_spawn",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_addressing_compat.py:226: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_native_bridge",
+        "name": "test_retired_oneshot_cbc_capability_declaration",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_native_bridge.py:766: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_basic_no_mcp_no_resume",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:68: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:75: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_system_prompt_no_cli_id",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:82: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_system_prompt_skipped_when_resumed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:89: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_resume_and_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:101: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_with_effort_and_permission",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:111: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_cbc_oneshot_args",
+        "name": "test_oneshot_args_prompt_is_last_arg",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_cbc_oneshot_args.py:122: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_runtime_argv_avoids_cmd_shim",
+        "type": "skipped",
+        "message": "claude not on PATH",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:138: claude not on PATH"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_basic",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:159: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_with_model_resume_effort_system_prompt",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:188: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_system_prompt_only_when_fresh",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:215: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_oneshot_args_with_mcp",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:230: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_extract_oneshot_error",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:469: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_session_exists_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:570: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_parse_history_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:577: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_get_raw_usage_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:588: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_get_session_title_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:602: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_write_and_restore_custom_title_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:608: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_fork_session_probe_and_cleanup",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:625: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_list_sessions_probe",
+        "type": "skipped",
+        "message": "claude probe dir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:643: claude probe dir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_retired_oneshot_claude_capability_declaration",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:678: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_claude_adapter",
+        "name": "test_retired_oneshot_excludes_stream_input_protocol",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_claude_adapter.py:683: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_docs_terminology",
+        "name": "test_skill_sync_copy_matches_source",
+        "type": "skipped",
+        "message": "同步副本不存在（gitignored，仅本地 checkout 维护）",
+        "text": "D:\\a\\pan\\pan\\tests\\test_docs_terminology.py:92: 同步副本不存在（gitignored，仅本地 checkout 维护）"
+      },
+      {
+        "classname": "tests.test_independent_job_deployment",
+        "name": "test_external_user_host_survives_real_pan_graceful_and_job_tree_exit",
+        "type": "skipped",
+        "message": "explicit opt-in required to register an owned temporary Windows task",
+        "text": "D:\\a\\pan\\pan\\tests\\test_independent_job_deployment.py:64: explicit opt-in required to register an owned temporary Windows task"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_parse_kimi_history_from_test_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:199: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_get_raw_usage_from_test_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:211: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_kimi_adapter",
+        "name": "test_fork_kimi_session",
+        "type": "skipped",
+        "message": "kimi test workdir absent (machine-local data)",
+        "text": "D:\\a\\pan\\pan\\tests\\test_kimi_adapter.py:223: kimi test workdir absent (machine-local data)"
+      },
+      {
+        "classname": "tests.test_provider_launch_export_real_codex",
+        "name": "test_installed_cli_private_bearer_export_start_and_resume",
+        "type": "skipped",
+        "message": "explicit installed-CLI integration opt-in required",
+        "text": "D:\\a\\pan\\pan\\tests\\test_provider_launch_export_real_codex.py:29: explicit installed-CLI integration opt-in required"
+      },
+      {
+        "classname": "tests.test_provider_launch_real_codex",
+        "name": "test_installed_cli_fixed_provider_start_resume_and_materialized_branch",
+        "type": "skipped",
+        "message": "requires explicit owned installed-CLI integration opt-in",
+        "text": "D:\\a\\pan\\pan\\tests\\test_provider_launch_real_codex.py:92: requires explicit owned installed-CLI integration opt-in"
+      },
+      {
+        "classname": "tests.test_report_error_context",
+        "name": "test_oneshot_error_empty_result_report_carries_last_assistant_message",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_report_error_context.py:273: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_report_error_context",
+        "name": "test_error_report_keeps_existing_error_result_and_adds_context",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_report_error_context.py:295: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_scheduler_cron",
+        "name": "test_cron_honours_timezone_argument",
+        "type": "skipped",
+        "message": "zoneinfo 无 tz 数据库，本用例跳过",
+        "text": "D:\\a\\pan\\pan\\tests\\test_scheduler_cron.py:248: zoneinfo 无 tz 数据库，本用例跳过"
+      },
+      {
+        "classname": "tests.test_session_error_log_e2e",
+        "name": "test_oneshot_structured_error",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_session_error_log_e2e.py:393: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_session_prompts",
+        "name": "test_retired_oneshot_adapters_consume_effective_prompt",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_session_prompts.py:238: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_task_id_inheritance",
+        "name": "test_report_uses_the_task_id_carried_by_the_current_input",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_task_id_inheritance.py:144: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_terminal_broadcast",
+        "name": "test_oneshot_uses_same_terminal_result_idle_pair",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_broadcast.py:147: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_terminal_durable_ma",
+        "name": "test_same_service_detach_reconnect_revokes_old_connection_tokens",
+        "type": "skipped",
+        "message": "actual ancestor Job restricts detach",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_durable_ma.py:69: actual ancestor Job restricts detach"
+      },
+      {
+        "classname": "tests.test_terminal_durable_ma",
+        "name": "test_detached_shell_survives_real_service_host_exit_and_reconnect",
+        "type": "skipped",
+        "message": "actual ancestor Job disallows breakaway; detach safely refused",
+        "text": "D:\\a\\pan\\pan\\tests\\test_terminal_durable_ma.py:221: actual ancestor Job disallows breakaway; detach safely refused"
+      },
+      {
+        "classname": "tests.test_unified_server_queue",
+        "name": "test_one_shot_spawn_success_dequeues_after_argv_handoff",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_unified_server_queue.py:535: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_unified_server_queue",
+        "name": "test_one_shot_spawn_failure_requeues_same_item",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_unified_server_queue.py:565: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_keeps_existing_binding_on_mismatch",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:110: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_captures_binding_when_empty",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:134: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_keeps_binding_when_no_init_event",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:155: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_cli_session_binding",
+        "name": "test_consumer_oneshot_surfaces_cbc_error_on_exit0",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_cli_session_binding.py:178: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_global_watchdog",
+        "name": "test_global_watchdog_tick_skips_active_oneshot_worker",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_global_watchdog.py:141: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_calls_enrich_and_accumulates_usage",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:115: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_enrich_none_tolerated",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:170: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_enrich_exception_tolerated",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:195: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_oneshot_usage",
+        "name": "test_oneshot_claude_bridges_result_usage_cache",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_oneshot_usage.py:222: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_mcp_with_explicit_oneshot_goes_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:85: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_without_mcp_goes_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:102: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_only_adapter_clamps_stream_to_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:123: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_oneshot_only_adapter_explicit_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:130: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_apply_output_mode_oneshot",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:150: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_output_mode",
+        "name": "test_apply_output_mode_oneshot_only_rejects_stream",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_output_mode.py:178: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_mcp_idle_worker_reclaimed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:332: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_mcp_running_worker_not_timeout_killed",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:367: Oneshot mode retired by user; implementation retained"
+      },
+      {
+        "classname": "tests.test_worker_watchdog",
+        "name": "test_consumer_oneshot_refreshes_last_activity_on_idle",
+        "type": "skipped",
+        "message": "Oneshot mode retired by user; implementation retained",
+        "text": "D:\\a\\pan\\pan\\tests\\test_worker_watchdog.py:800: Oneshot mode retired by user; implementation retained"
+      }
+    ]
+  }
+]

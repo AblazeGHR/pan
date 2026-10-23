@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/eta-job-report-integration-20261023/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (1 test) 4ms
+ ✓ components/jobs/UnifiedJobForm.test.tsx (7 tests) 216ms
+ ✓ components/jobs/JobTemplateEditor.test.tsx (4 tests) 291ms
+ ✓ views/LockerView.test.tsx (13 tests) 728ms
+
+ Test Files  4 passed (4)
+      Tests  25 passed (25)
+   Start at  11:48:35
+   Duration  2.76s (transform 290ms, setup 26ms, collect 1.14s, tests 1.24s, environment 1.69s, prepare 532ms)
+
+JUNIT report written to D:/project/pan-worktrees/eta-job-report-integration-20261023/audit/eta-report-integration/ui.xml

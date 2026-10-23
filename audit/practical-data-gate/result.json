@@ -1,0 +1,127 @@
+{
+  "candidateSha": "cfd5c71ace2e33ffe898328be699e2dec672e04d",
+  "privateCopyRetained": "C:\\Users\\14709\\AppData\\Local\\Temp\\Pan-queue-unknown-gate-ca5d662d18654a7b8b319f91b237584b",
+  "results": [
+    {
+      "name": "sessions_queue_load_upgrade_reload",
+      "status": "passed",
+      "details": {
+        "sessionCount": 96,
+        "historyRecordsRead": 62980,
+        "queuePendingCount": 1,
+        "deliveryLedgerCount": 1231,
+        "unknownOrSteerPendingRows": 0,
+        "queueStates": {
+          "queued": 1
+        },
+        "metadataFilesUpgradedOnCopy": 96,
+        "queuesAndLedgersExactAcrossTwoSaves": true,
+        "historyBytesUnchanged": true,
+        "actualQueueMigrationSessionsChanged": 0,
+        "secondMigrationStable": true
+      },
+      "seconds": 5.656999999999925
+    },
+    {
+      "name": "legacy_unknown_queue_remains_nonretryable",
+      "status": "passed",
+      "details": {
+        "synthetic": true,
+        "before": "unknown_after_crash",
+        "after": "unknown_after_crash",
+        "originalQueueIdPreserved": true,
+        "dispatchInvoked": false,
+        "businessSideEffectInvoked": false
+      },
+      "seconds": 0.0
+    },
+    {
+      "name": "jobs_and_scheduler_no_enable_no_dispatch",
+      "status": "passed",
+      "details": {
+        "jobs": 48,
+        "kinds": {
+          "main-lifecycle": 10,
+          "background-process": 32,
+          "scheduled-task": 4,
+          "session-message": 2
+        },
+        "statuses": {
+          "completed": 32,
+          "cancelled": 5,
+          "failed": 10,
+          "running": 1
+        },
+        "unknownFieldsKeptInProjection": 846,
+        "legacySchedulerMigrated": 0,
+        "secondMigration": 0,
+        "registryBytesUnchangedByRead": true,
+        "scheduledTaskViews": 4
+      },
+      "seconds": 0.32799999999997453
+    },
+    {
+      "name": "action_group_template_initialize",
+      "status": "passed",
+      "details": {
+        "originalActions": 2,
+        "originalGroups": 0,
+        "templates": 0,
+        "productSystemActionsAdded": 5,
+        "repeatInstallStable": true,
+        "originalDefinitionsPreserved": true
+      },
+      "seconds": 0.015000000000100044
+    },
+    {
+      "name": "legacy_qq_agent_inbox_copy_migration",
+      "status": "passed",
+      "details": {
+        "legacyFiles": 11,
+        "legacyRecords": 1349,
+        "newAgentInboxMessages": 1349,
+        "lockers": 11,
+        "repeatImportNoDuplicate": true,
+        "consumptionNotInvoked": true,
+        "sourceCopyJsonBytesUnchanged": true
+      },
+      "seconds": 16.062999999999874
+    },
+    {
+      "name": "legacy_qq_history_loader",
+      "status": "passed",
+      "details": {
+        "historyFiles": 15,
+        "historyRecords": 1534,
+        "readOnlyLoader": true,
+        "executionBoundary": "exact source AST functions; optional NoneBot host not imported"
+      },
+      "seconds": 0.06200000000012551
+    },
+    {
+      "name": "absent_new_stores_first_init",
+      "status": "passed",
+      "details": {
+        "sourceUserLockerAbsent": true,
+        "sourceEventStoreAbsent": true,
+        "sourceTriggerLedgerAbsent": true,
+        "emptyFirstInitializeAndRepeatSafe": true,
+        "noSyntheticLegacyRowsRepresentedAsReal": true
+      },
+      "seconds": 0.06299999999987449
+    }
+  ],
+  "guardCounters": {
+    "sourceReadOpens": 812
+  },
+  "sourcePostcheck": {
+    "unchangedFiles": 268,
+    "activeChangedFiles": 2,
+    "missingNow": 0,
+    "taskSourceWrites": 0,
+    "proof": "source opened rb only; all candidate source access denied; SQLite source mode=ro only; no source loader invoked"
+  },
+  "globalSnapshot": false,
+  "fullServiceStarted": false,
+  "networkOrProvidersInvoked": false
+}

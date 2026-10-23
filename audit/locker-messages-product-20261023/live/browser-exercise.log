@@ -1,0 +1,18 @@
+{
+  "phase": "exercise",
+  "passed": 10,
+  "checks": [
+    "real UserAuth login and production Locker APIs, no interception",
+    "real dedicated messages and Cards stably mixed; same Locker, two sources; no fake Card wrapper",
+    "Markdown attachment click downloads actual protected bytes",
+    "actual WorkspaceRail filters ordinary messages and Cards together",
+    "manual unread persists through real refresh without a consumption cursor",
+    "source Read all writes the original ordinary-message row",
+    "real choice submit, no-choice BTW submit, reason/no-reason rejection and terminal deletion",
+    "deleted source retains its ordinary record and unavailable Locker",
+    "1440/768/390/320 light/dark production layout without horizontal overflow",
+    "logout, captured late GET, successor login and actual 401 leave no old-user rows or sources"
+  ],
+  "errors": []
+}
+

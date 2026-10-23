@@ -1,0 +1,13 @@
+{
+  "sourceSha": "cd92067b5140694751417fd9be29b8d517e661c0",
+  "argv": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_locker_product_live.py",
+    "--junitxml=D:\\project\\pan-worktrees\\locker-product-integration-20261023\\audit\\locker-messages-product-20261023\\screenshot-live.xml"
+  ],
+  "exit": 0,
+  "seconds": 26.2
+}

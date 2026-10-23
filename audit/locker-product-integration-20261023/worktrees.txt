@@ -1,0 +1,1080 @@
+worktree D:/project/Pan
+HEAD 2652ac8e6d0ff312a255666bc5e459890346e6e5
+branch refs/heads/practical
+
+worktree D:/project/Pan/data/workdirs/eta-main-practical-integration-20261023-clean
+HEAD 4f05741a838e8d1ff71f40a4a62afbc7a350b482
+branch refs/heads/integration/eta-system-fields-practical-prep-20261023
+
+worktree D:/project/Pan/data/workdirs/HISTORY_SEARCH_SMA_CODEX/integration
+HEAD 43fc677a622c7cc0c2e049c231ca9a65cab56745
+branch refs/heads/feature/history-search-integration
+
+worktree D:/project/Pan/data/workdirs/HISTORY_SEARCH_SMA_CODEX/ta-worktrees/history-search-ids-luna-max-20260927
+HEAD b553e92940e856ad76c066b950746e72a8121b50
+branch refs/heads/feature/history-search-ids-luna-max-20260927
+
+worktree D:/project/Pan/data/workdirs/HISTORY_SEARCH_SMA_CODEX/ta-worktrees/history-search-session-ui-luna-xhigh-20260927
+HEAD d4bbc33811891448704821c1c3d7193a33379d15
+branch refs/heads/feature/history-search-session-ui-luna-xhigh-20260927
+
+worktree D:/project/Pan/data/workdirs/system-fields-registry-20261023-b
+HEAD 921ef4dbe25789b5552d1676c37cd8574cac91af
+branch refs/heads/feature/system-fields-registry-20261023-b
+
+worktree D:/project/Pan-main
+HEAD c9c9fe92160bd257eb4b7d53b0669fa85aa1cf2a
+branch refs/heads/main
+
+worktree D:/project/Pan-main/.codebuddy/worktrees/jobs-unification-p1
+HEAD f485983b38291c658e502e48bc21ef470139a786
+branch refs/heads/worktree-jobs-unification-p1
+
+worktree D:/project/pan-worktrees/action-panel-perf-ui-20261021
+HEAD 9848dad1b648f4ce895688c3bcf0a70a0491024a
+branch refs/heads/feature/action-panel-perf-ui-20261021
+
+worktree D:/project/pan-worktrees/agent-inbox-locker-20261023
+HEAD 6a4cd9e6f9b38d69d59e11dbf00bfec1cf003440
+branch refs/heads/feature/agent-inbox-locker-20261023
+
+worktree D:/project/pan-worktrees/background-job-guidance-20261007
+HEAD 92770472624077264c7210e49ca6ba8f74888f7a
+branch refs/heads/docs/background-job-guidance-20261007
+
+worktree D:/project/pan-worktrees/cbc-hook-channel-20261014
+HEAD 49df71191cef2ed7cdb62a161d171639b658b3f9
+branch refs/heads/fix/cbc-hook-channel-20261014
+
+worktree D:/project/pan-worktrees/cbc-model-multiplier-20261020
+HEAD e0b1917095be082c3b9462fccd790ed888da9555
+branch refs/heads/feature/cbc-model-multiplier-20261020
+
+worktree D:/project/pan-worktrees/cbc-model-multiplier-integration-20261021
+HEAD a3bd4053c5b7173a114032dad396706d6adbce46
+branch refs/heads/cbc-model-multiplier-integration
+
+worktree D:/project/pan-worktrees/cbc-steer-20261016
+HEAD f80912aac6cf81488b59ac835b09cd8cac87838c
+branch refs/heads/research/cbc-steer-20261016
+
+worktree D:/project/pan-worktrees/cbc-terminal-sol-20261013
+HEAD 1db8d9bd893be7f764619e12bcd2d09a5f3eba00
+branch refs/heads/research/cbc-terminal-sol-20261013
+
+worktree D:/project/pan-worktrees/cbc-worker-tui-settings-20261017
+HEAD acca1de8a512ef8f4ad283bd97f374e857d26129
+branch refs/heads/feature/cbc-worker-tui-settings-20261017
+
+worktree D:/project/pan-worktrees/cbc-worker-tui-settings-verify-20261017
+HEAD 23fe61bdc969916a939a99c3610359bdf844ec7e
+detached
+
+worktree D:/project/pan-worktrees/cc-switch-console-leak-20261021
+HEAD 18261dabce8981c4854c87c7898756d4e81a7c7b
+branch refs/heads/fix/cc-switch-console-leak-20261021
+
+worktree D:/project/pan-worktrees/cc-switch-panel-cache-20261019
+HEAD f7b5fd5b1398eb328e69861a6d9bc2d717657109
+branch refs/heads/fix/cc-switch-panel-cache-20261019
+
+worktree D:/project/pan-worktrees/cc-switch-panel-direct-20261018
+HEAD a7a6b9486dae0067789fc077b096763f16f9613a
+branch refs/heads/fix/cc-switch-panel-direct-20261018
+
+worktree D:/project/pan-worktrees/chat-raw-view-20261002
+HEAD 1757fd54672b6c5a4e8a3faabcd843bbdf13e044
+branch refs/heads/feature/chat-raw-view-20261002
+
+worktree D:/project/pan-worktrees/chat-scroll-stability-20261001
+HEAD 8e036f8d92102c2d03471fee8d87077a68032633
+branch refs/heads/codex/chat-scroll-stability-20261001
+
+worktree D:/project/pan-worktrees/ci-check-20261017
+HEAD e6f1f84c94cd22be28d5386bbb2bf1317a24ae2f
+branch refs/heads/fix/ci-check-20261017
+
+worktree D:/project/pan-worktrees/ci-gh-314-20261019
+HEAD ccc1ca5b65c4c896dd16934a132a6a169c7b16ce
+branch refs/heads/fix/ci-gh-314-20261019
+
+worktree D:/project/pan-worktrees/ci-hidden-49df7119-20261015
+HEAD 49df71191cef2ed7cdb62a161d171639b658b3f9
+detached
+
+worktree D:/project/pan-worktrees/ci-integration-20261017
+HEAD 18d8a94d2f73687cec250080463ebf3838760de6
+branch refs/heads/integration/ci-repair-20261017
+
+worktree D:/project/pan-worktrees/cli-auto-register-20261023
+HEAD c277d76ab7dbdaffc5947984756290762cbf5166
+branch refs/heads/feature/cli-auto-register-20261023
+
+worktree D:/project/pan-worktrees/codex-branch-lineage-20261021
+HEAD 7e30d6499fe711988088638e2d938a9e85c50ed1
+branch refs/heads/fix/codex-branch-lineage-20261021
+
+worktree D:/project/pan-worktrees/codex-import-directory-20261002
+HEAD f5d4dfa4be85070f7f5d256f929b4f5f33e25a27
+branch refs/heads/feature/codex-import-directory-20261002
+
+worktree D:/project/pan-worktrees/codex-large-resume-20261010
+HEAD 6919bf98c6adf08fbc7fd78c77ec714e6628a085
+branch refs/heads/fix/codex-large-resume-20261010
+
+worktree D:/project/pan-worktrees/codex-native-control-integration-20261010
+HEAD 1ad4fb1fada6ecdd8af7e9e747ee78ce5568ccfc
+branch refs/heads/integrate/codex-native-control-20261010
+
+worktree D:/project/pan-worktrees/codex-native-control-tests-20261010
+HEAD 7b17268bb35a00ab69e3547d35f8c410fec2594e
+branch refs/heads/fix/codex-native-control-tests-20261010
+
+worktree D:/project/pan-worktrees/codex-native-passthrough-20261011
+HEAD b80b272ce6dfb005335d77300ddef6aca730a19b
+branch refs/heads/feat/codex-native-passthrough-20261011
+
+worktree D:/project/pan-worktrees/codex-native-recovery-20261010
+HEAD c237311902d6af5913ef0e8382f90e44efe7110c
+branch refs/heads/fix/codex-native-recovery-20261010
+
+worktree D:/project/pan-worktrees/codex-native-restart-20261011
+HEAD 0412231fcaeec08128671bcf31b85c39d89ac59b
+branch refs/heads/fix/codex-native-restart-20261011
+
+worktree D:/project/pan-worktrees/codex-reimport-origins-20261010
+HEAD 86125d1799deeb2d6222f0af35442256fafa089c
+branch refs/heads/fix/codex-reimport-origins-20261010
+
+worktree D:/project/pan-worktrees/codex-session-mode-20261010
+HEAD b01fc674f4d30c4fe0de128dde41ed5a4e29da9c
+branch refs/heads/fix/codex-session-mode-20261010
+
+worktree D:/project/pan-worktrees/codex-takeover-restart-lock-20261001
+HEAD 0de486fc778d1d2a880b24b77afe7de91957e811
+branch refs/heads/fix/codex-takeover-restart-lock-20261001
+
+worktree D:/project/pan-worktrees/cold-shell-baseline-20261007-839d5ff3
+HEAD 839d5ff3b494ce4a76c8ababd03c2fd9828be162
+detached
+
+worktree D:/project/pan-worktrees/combined-queue-force-multiplier-integration-20261021
+HEAD 89fdf69a63240cc5918242f257a425da51b477ca
+branch refs/heads/integration/combined-queue-force-multiplier-20261021
+
+worktree D:/project/pan-worktrees/composer-attachment-editor-20261005
+HEAD 009f726e3396544a388c7f947c72c04698b14065
+branch refs/heads/feature/composer-attachment-editor-20261005
+
+worktree D:/project/pan-worktrees/composer-attachment-editor-integration-20261005
+HEAD 0099e3e465e8994ba8327917057de9e0de96ab10
+branch refs/heads/integrate/composer-attachment-editor-20261005
+
+worktree D:/project/pan-worktrees/composer-url-node-20261017
+HEAD ae515e45de9fdf78cc124a4b038045f8744abc95
+branch refs/heads/feature/composer-url-node-20261017
+
+worktree D:/project/pan-worktrees/delayed-restart-mcp-20261022
+HEAD 4ae711249af41a555a7a088e8fdfabcbafc75f43
+branch refs/heads/feature/delayed-restart-mcp-20261022
+
+worktree D:/project/pan-worktrees/delayed-restart-running-20261018
+HEAD 2d82ec120ab35643569aa872886211c464131942
+branch refs/heads/fix/delayed-restart-running-20261018
+
+worktree D:/project/pan-worktrees/delayed-restart-running-verify-20261018
+HEAD 2d82ec120ab35643569aa872886211c464131942
+detached
+
+worktree D:/project/pan-worktrees/desktop-collapsed-entry-20261017
+HEAD 5d2239abf7de2e0b71d39e2618ed266023924aba
+branch refs/heads/fix/desktop-collapsed-entry-20261017
+
+worktree D:/project/pan-worktrees/desktop-collapsed-entry-verify-20261017
+HEAD 5d2239abf7de2e0b71d39e2618ed266023924aba
+detached
+
+worktree D:/project/pan-worktrees/details-set-legal-running-20260930
+HEAD cf1a3bfbad99e27b3361f0b9ac69409efe24d0ae
+branch refs/heads/feature/details-set-legal-running-20260930
+
+worktree D:/project/pan-worktrees/draft-persistence-20261005
+HEAD 534b84310f83f9c1bfb4bc1f1a88bf113fe0e38d
+branch refs/heads/feature/draft-persistence-20261005
+
+worktree D:/project/pan-worktrees/error-report-context-20261016
+HEAD e5718a69cc90fe9030256f1eb30b6f2c6098736b
+branch refs/heads/fix/error-report-context-20261016
+
+worktree D:/project/pan-worktrees/eta-job-report-integration-20261023
+HEAD 57fd6df6940c0b6a2d9a92491450b26bf241a106
+branch refs/heads/integration/eta-job-report-20261023
+
+worktree D:/project/pan-worktrees/event-plugin-adapter-20261022
+HEAD 838fe1673a40a81b15b640a5102aef3e960874a3
+branch refs/heads/feature/event-plugin-adapter-20261022
+
+worktree D:/project/pan-worktrees/event-trigger-core-20261022
+HEAD 886842338c623b73bac8f16a12f4675879664674
+branch refs/heads/feature/event-trigger-core-20261022
+
+worktree D:/project/pan-worktrees/event-trigger-integration-20261022
+HEAD ffb048b0747dd545060420f275e7a49f510cc20d
+branch refs/heads/integration/event-trigger-v01-20261022
+
+worktree D:/project/pan-worktrees/event-trigger-reliability-20261023
+HEAD 07150f5935672faa12d937447994290795cff268
+branch refs/heads/audit/event-trigger-reliability-20261023
+
+worktree D:/project/pan-worktrees/event-trigger-reliability-fix-20261023
+HEAD 259030968d7bbf231fa587265609a916f1cd137d
+branch refs/heads/fix/event-trigger-reliability-20261023
+
+worktree D:/project/pan-worktrees/event-trigger-ui-20261022
+HEAD 86699961b40af5e710e62bc04f64f0e857cee15f
+branch refs/heads/feature/event-trigger-ui-20261022
+
+worktree D:/project/pan-worktrees/frontend-lint-codex-20261006
+HEAD d067047861c0cfbd020826c0a8937c261a0905c9
+branch refs/heads/fix/frontend-lint-codex-20261006
+
+worktree D:/project/pan-worktrees/github-ci-20261006
+HEAD 35aa4b5b75536d4d740c9a2044cbfb3b3248d7ed
+branch refs/heads/fix/github-ci-20261006
+
+worktree D:/project/pan-worktrees/github-ci-current-head-fix-20260930
+HEAD d6a741278ce2927bde82704e131f8f743280e41e
+branch refs/heads/fix/github-ci-current-head-20260930
+
+worktree D:/project/pan-worktrees/github-ci-direct-20261019
+HEAD 8c10b2fc3d11585efaa755075fe2aacfbfc1d669
+branch refs/heads/integration/github-ci-direct-20261019
+
+worktree D:/project/pan-worktrees/groupby-settings-appearance-20261001
+HEAD e9e11260774383c7f3c45782edd171927a82cedb
+branch refs/heads/feature/groupby-settings-appearance-20261001
+
+worktree D:/project/pan-worktrees/handoff-retarget-jobs-20260927
+HEAD ab9ad34bb776512dda4ce8fd8ff732f3d0457853
+branch refs/heads/feature/handoff-retarget-jobs-20260927
+
+worktree D:/project/pan-worktrees/hang-diagnostics-20261021
+HEAD 4d3b1cf1261eb2c0cb324aa1a955dfac5b79ba2c
+branch refs/heads/fix/hang-diagnostics-20261021
+
+worktree D:/project/pan-worktrees/hidden-ci-repair-20261015
+HEAD 62cb0dc07c131d05ca1dd1a279f8b8ac4d33ea80
+branch refs/heads/fix/hidden-ci-repair-20261015
+
+worktree D:/project/pan-worktrees/history-search-content-index-20261002
+HEAD 88bef46b648f6beb089c19f2cc9874e1133cb816
+branch refs/heads/feature/history-search-content-index-20261002
+
+worktree D:/project/pan-worktrees/history-search-first-query-perf-20261002
+HEAD 75748f928dc795ffb7e0e307c90a4f183869d662
+branch refs/heads/feature/history-search-first-query-perf-20261002
+
+worktree D:/project/pan-worktrees/history-search-fts5-luna-max-20260927
+HEAD 000a9d32fb4ef763485a9a63990efb04b3a74b50
+branch refs/heads/feature/history-search-fts5-luna-max-20260927
+
+worktree D:/project/pan-worktrees/history-search-global-ui-luna-max-20260929
+HEAD 1991868f95b4d113025963969e955434966249a4
+branch refs/heads/feature/history-search-global-ui-luna-max-20260929
+
+worktree D:/project/pan-worktrees/history-search-incremental-index-luna-max-20260929
+HEAD 14cebb331d1aa05848810c1710d95d120a2e9443
+branch refs/heads/feature/history-search-incremental-index-luna-max-20260929
+
+worktree D:/project/pan-worktrees/history-search-integration-e2e-20260929
+HEAD c7d0075f008f7d6cac949d15949497c4d0d4eb75
+branch refs/heads/verify/history-search-integration-e2e-20260929
+
+worktree D:/project/pan-worktrees/history-search-isolated-e2e-sol-medium-20260929
+HEAD 913ed2a5374aff5a10afd905fed58f7f3ab5b916
+branch refs/heads/feature/history-search-isolated-e2e-sol-medium-20260929
+
+worktree D:/project/pan-worktrees/history-search-legacy-backfill-20261002
+HEAD 6f5ef0a40c932e1c7c332359bf56b479a8089769
+branch refs/heads/feature/history-search-legacy-backfill-20261002
+
+worktree D:/project/pan-worktrees/history-search-main-combined-e2e-sol-medium-20260930
+HEAD 3fcf440e079b45e4f7ca240c4f5c90190561bbdc
+branch refs/heads/feature/history-search-main-combined-e2e-sol-medium-20260930
+
+worktree D:/project/pan-worktrees/history-search-main-compat-sol-medium-20260930
+HEAD 3fcf440e079b45e4f7ca240c4f5c90190561bbdc
+branch refs/heads/feature/history-search-main-compat-sol-medium-20260930
+
+worktree D:/project/pan-worktrees/history-search-overviews-filter-20261002
+HEAD 43fc677a622c7cc0c2e049c231ca9a65cab56745
+branch refs/heads/feature/history-search-overviews-filter-20261002
+
+worktree D:/project/pan-worktrees/history-search-preparation-errors-20261002
+HEAD 340274397ace3b8b9f295686e2746c9e1fcb4caf
+branch refs/heads/feature/history-search-preparation-errors-20261002
+
+worktree D:/project/pan-worktrees/history-search-scan-completion-20261002
+HEAD 03fb895686453dd8f6338bf44d0d3e8c60d33918
+branch refs/heads/feature/history-search-scan-completion-20261002
+
+worktree D:/project/pan-worktrees/history-search-settings-test-sol-medium-20261002
+HEAD ba54cf5df15557a359efd3eb4cf57794fcd5bdcc
+branch refs/heads/feature/history-search-settings-test-sol-medium-20261002
+
+worktree D:/project/pan-worktrees/history-search-shared-collapse-20261002
+HEAD 46194571b56ad91c44bf519bc98d9554df9af1de
+branch refs/heads/feature/history-search-shared-collapse-20261002
+
+worktree D:/project/pan-worktrees/illegal-lock-queue-20261018
+HEAD e3ad69526f3e293b95c8f6b127b5691bc801972d
+branch refs/heads/feature/illegal-lock-queue-20261018
+
+worktree D:/project/pan-worktrees/illegal-queue-lock-discussion-20261017
+HEAD 2c5b4655eedc7d994099e3460ab31e7dc0aac7b5
+branch refs/heads/feature/illegal-queue-lock-discussion-20261017
+
+worktree D:/project/pan-worktrees/independent-job-service-20261009
+HEAD 4b166bd3e14527c9d5eb91c832232367c8bb8eae
+branch refs/heads/feature/independent-job-service-20261009
+
+worktree D:/project/pan-worktrees/integrate-jobs-conditional-api-20260930
+HEAD 16452601e2cf45a669b9d9494f98f65cbdcaea70
+branch refs/heads/integrate/jobs-conditional-api-20260930
+
+worktree D:/project/pan-worktrees/integrate-jobs-list-20260926
+HEAD 176647aa8dd24a96691422041262777f98badf9d
+branch refs/heads/integrate/jobs-list-20260926
+
+worktree D:/project/pan-worktrees/integrate-shortcuts-20261019
+HEAD dc4ae92641772dd1c6634f072e221216bd0fe880
+branch refs/heads/integrate/shortcuts-20261019
+
+worktree D:/project/pan-worktrees/job-child-window-policy-20261010
+HEAD b01396a8108e31cf97eae440579ace7736467832
+branch refs/heads/fix/job-child-window-policy-20261010
+
+worktree D:/project/pan-worktrees/job-ci-trial-20261015
+HEAD 4a4872ec5fe284b10b354a4780e1a745f54834f5
+detached
+
+worktree D:/project/pan-worktrees/job-descendant-hidden-20261013
+HEAD 08589480847130e8e04ecbb3341c06595ca614ae
+branch refs/heads/research/job-descendant-hidden-20261013
+
+worktree D:/project/pan-worktrees/job-detail-drawer-width-codex-luna-high-20260926
+HEAD 173b5c90adf5f09a0a5972749267e9653db9012f
+branch refs/heads/fix/job-detail-drawer-width-codex-luna-high-20260926
+
+worktree D:/project/pan-worktrees/job-hidden-runner-20261015
+HEAD a36ed92fc7271c4c2f4440044817e124f564988b
+branch refs/heads/fix/job-hidden-runner-20261015
+
+worktree D:/project/pan-worktrees/job-hidden-trial-20261015
+HEAD 4a4872ec5fe284b10b354a4780e1a745f54834f5
+branch refs/heads/trial/job-hidden-20261015
+
+worktree D:/project/pan-worktrees/job-inbox-independent-review-20261023
+HEAD ddf146bcc36039e98776e359cbdf700c05d86a84
+branch refs/heads/review/job-inbox-independent-20261023
+
+worktree D:/project/pan-worktrees/job-inbox-panel-composition-20261023
+HEAD 1ca7cbd3d19635064fd50cfbcde3a633a260c83a
+branch refs/heads/feature/job-inbox-panel-composition-20261023
+
+worktree D:/project/pan-worktrees/job-info-jbadge-verify-20261017
+HEAD 16e46252ec64482b81514f37371493aef7eec866
+detached
+
+worktree D:/project/pan-worktrees/job-info-skill-20261017
+HEAD 16e46252ec64482b81514f37371493aef7eec866
+branch refs/heads/feature/job-info-skill-20261017
+
+worktree D:/project/pan-worktrees/job-lifecycle-prevention-20261016
+HEAD 3cc83149adc0098ce9d74b75441028ada02b8465
+branch refs/heads/fix/job-lifecycle-prevention-20261016
+
+worktree D:/project/pan-worktrees/job-pin-20261011
+HEAD 973495ed7cb521b2c5f7d7feb09c07363b838837
+branch refs/heads/feature/job-pin-20261011
+
+worktree D:/project/pan-worktrees/job-schedule-shape-luna-high-20260926
+HEAD 405b75fb8814a594ef6e776f4c32e4e3f43faaf4
+branch refs/heads/fix/job-schedule-shape-luna-high-20260926
+
+worktree D:/project/pan-worktrees/job-template-resume-legal-running-20260926
+HEAD f70a9d16ea90828dfc64467d4eba79607185acb2
+branch refs/heads/feature/job-template-resume-legal-running-20260926
+
+worktree D:/project/pan-worktrees/job-unification-gui-design-20260925
+HEAD f485983b38291c658e502e48bc21ef470139a786
+branch refs/heads/design/job-unification-gui-20260925
+
+worktree D:/project/pan-worktrees/job-unified-inbox-followup-20261023
+HEAD 4e51ec704bd3d2d04c6913da7c8f90f76fbc93f7
+branch refs/heads/feature/job-unified-inbox-followup-20261023
+
+worktree D:/project/pan-worktrees/job-window-default-20261010
+HEAD f99ae2b70fecd5250558a6b8dd1f6cbc5597bdb9
+branch refs/heads/fix/job-window-default-20261010
+
+worktree D:/project/pan-worktrees/jobs-completed-retention-20260927
+HEAD 3c60a350e5238fee4db11e15cc391eda1893bbe5
+branch refs/heads/feature/jobs-completed-retention-20260927
+
+worktree D:/project/pan-worktrees/jobs-list-bulk-search-luna-xhigh-20260926
+HEAD 7c54cac7be5ea0b1c311e049b8a72ad20c335487
+branch refs/heads/feature/jobs-list-bulk-search-luna-xhigh-20260926
+
+worktree D:/project/pan-worktrees/jobs-p4-cleanup-20260925
+HEAD 776748ebd50edd9b37b75384fb8a04b62667e96e
+branch refs/heads/worktree-jobs-p4
+
+worktree D:/project/pan-worktrees/jobs-sidebar-session-navigation-luna-high-20260926
+HEAD 141068fdb68b37c1325c90000d382ae39549b636
+branch refs/heads/fix/jobs-sidebar-session-navigation-luna-high-20260926
+
+worktree D:/project/pan-worktrees/leading-main-baseline-20261004
+HEAD c682ef1a3848c7fa6d4d8df696baaeb2b8060900
+detached
+
+worktree D:/project/pan-worktrees/leading-state-refresh-20261003
+HEAD e6a5e84e4d814e752bd73560354523d558b16edb
+branch refs/heads/perf/leading-state-refresh-20261003
+
+worktree D:/project/pan-worktrees/legal-offline-final-integration-20261019
+HEAD e4078c186c7e89afc007fd28f24ec6973d2ef117
+branch refs/heads/integration/legal-offline-final-20261019
+
+worktree D:/project/pan-worktrees/legal-offline-illegal-lock-ma-20261018
+HEAD c12e3449def0eb834246e706e1b8cbc78d23aca3
+branch refs/heads/integration/legal-offline-illegal-lock-ma-20261018
+
+worktree D:/project/pan-worktrees/legal-offline-illegal-lock-review-20261018
+HEAD e160782e636d828427e9262e952a1f25c09117b9
+branch refs/heads/review/legal-offline-illegal-lock-20261018
+
+worktree D:/project/pan-worktrees/legal-offline-sticky-wake-integration-20261021
+HEAD d062b99714447f455a8976015ac371639f82d4c5
+branch refs/heads/integration/legal-offline-sticky-wake-20261021
+
+worktree D:/project/pan-worktrees/locker-chat-mock-20261023
+HEAD 7d0bfee7fd2f9f0a8abe2dc0980e287a167eba6f
+branch refs/heads/design/locker-chat-mock-20261023
+
+worktree D:/project/pan-worktrees/locker-product-integration-20261023
+HEAD 8a77a6215f8d9d134619d5fe983fc4ffcf97eaf3
+branch refs/heads/integrate/locker-product-20261023
+
+worktree D:/project/pan-worktrees/locker-runtime-independent-review-20261023
+HEAD 1b81fc66068b23018085c9aa0c09472e8dbbb0c8
+branch refs/heads/review/locker-runtime-independent-20261023
+
+worktree D:/project/pan-worktrees/locker-runtime-wiring-20261023
+HEAD e863eb16a5f80d637842e7de2bf0a52a5bf0365a
+branch refs/heads/fix/locker-runtime-wiring-20261023
+
+worktree D:/project/pan-worktrees/locker-trusted-binding-20261023
+HEAD 62c972415e1d44923bcea70dc0b29296c7b3958f
+branch refs/heads/fix/locker-trusted-binding-20261023
+
+worktree D:/project/pan-worktrees/ma-assign-ta-report-labels-20261002
+HEAD 39ed425c4c2a981f054e004f77be9d61aa4ec78e
+branch refs/heads/feature/ma-assign-ta-report-labels-20261002
+
+worktree D:/project/pan-worktrees/ma-labels-single-nav-integration-20261003
+HEAD 64a11a003d457555e0f2db8caf941675fd001d16
+branch refs/heads/integrate/ma-labels-single-nav-20261003
+
+worktree D:/project/pan-worktrees/main-ci-39913304619
+HEAD c9c9fe92160bd257eb4b7d53b0669fa85aa1cf2a
+branch refs/heads/fix/main-ci-39913304619
+
+worktree D:/project/pan-worktrees/main-integration-20260925
+HEAD 776748ebd50edd9b37b75384fb8a04b62667e96e
+detached
+
+worktree D:/project/pan-worktrees/manual-report-any-completion-20261016
+HEAD ddd9d113fbbe8686b06779d8dd1bf45f6d7c3fa3
+branch refs/heads/feature/manual-report-any-completion-20261016
+
+worktree D:/project/pan-worktrees/manual-task-report-20261013
+HEAD c981dbe533e96612dc7170cc8d968c8a8c9b8a73
+branch refs/heads/feature/manual-task-report-20261013
+
+worktree D:/project/pan-worktrees/mcp-remote-integration
+HEAD 19ac8be45d8a15ad48242ad95f593f6253fd6cd1
+branch refs/heads/feat/mcp-remote-integration
+
+worktree D:/project/pan-worktrees/memory-character-pause-20261010
+HEAD ae2f51bdf80b829691eca2f8a244e6c4e4ccd7bc
+branch refs/heads/feature/memory-character-pause-20261010
+
+worktree D:/project/pan-worktrees/memory-character-pause-integration-20261010
+HEAD b388d1469ba08cdef77abd3228c5548dacb7cde6
+branch refs/heads/integrate/memory-character-pause-20261010
+
+worktree D:/project/pan-worktrees/message-bookmarks-20261014
+HEAD 315a05393725167be850dee0b542774279b28287
+branch refs/heads/feature/message-bookmarks-20261014
+
+worktree D:/project/pan-worktrees/mobile-queue-actions-20261007
+HEAD 1536400db0102cada92a8ff1561a8bca09dcd836
+branch refs/heads/feature/mobile-queue-actions-20261007
+
+worktree D:/project/pan-worktrees/mobile-topbar-compact-20261011
+HEAD 6f294441ea0f4e7fc781989e6508462f596c89ad
+branch refs/heads/feature/mobile-topbar-compact-20261011
+
+worktree D:/project/pan-worktrees/native-agent-control-20261010
+HEAD c6e504c0206b8d0de52f757bda145f4b09bae871
+branch refs/heads/feat/native-agent-control-20261010
+
+worktree D:/project/pan-worktrees/native-perf-baseline-20261011
+HEAD 25f29ecc9b3b19676fd2865276623eceb052a3de
+detached
+
+worktree D:/project/pan-worktrees/native-tui-sync-20261020
+HEAD af411c5194748fdc2d1e360f63d5e89e731212b5
+branch refs/heads/fix/native-tui-sync-20261020
+
+worktree D:/project/pan-worktrees/native-tui-sync-integration-20261020
+HEAD eea3a1b8de745434922a7d9ddd8ddd273fa2bc06
+branch refs/heads/integration/native-tui-sync-20261020
+
+worktree D:/project/pan-worktrees/nav-scroll-repro-baseline-20261002
+HEAD 06628ca55a863eaa1df745e901b96919ae850c95
+detached
+
+worktree D:/project/pan-worktrees/nav-scroll-repro-pr5-20261002
+HEAD 06628ca55a863eaa1df745e901b96919ae850c95
+detached
+
+worktree D:/project/pan-worktrees/nav-search-default-on-20261017
+HEAD c21c950a02759b753a7cd50df342860f89be88e4
+branch refs/heads/fix/nav-search-default-on-20261017
+
+worktree D:/project/pan-worktrees/nav-search-default-verify-20261017
+HEAD c21c950a02759b753a7cd50df342860f89be88e4
+detached
+
+worktree D:/project/pan-worktrees/navigation-first-click-baseline-20261002
+HEAD f44cb7aed3692f7b917f40f2dad7be5f8dfb7b0b
+detached
+
+worktree D:/project/pan-worktrees/navigation-full-original-20261007
+HEAD 626350a570ce14344e491a258dab98dd8e471697
+detached
+
+worktree D:/project/pan-worktrees/navigation-full-rejected-20261007
+HEAD 626350a570ce14344e491a258dab98dd8e471697
+detached
+
+worktree D:/project/pan-worktrees/navigation-open-browser-baseline-20261007
+HEAD 899e60b7d86e337984b8be14ca24decd5fd2ccb9
+detached
+
+worktree D:/project/pan-worktrees/navigation-open-nearest-20261007
+HEAD e27b52b5ee330f4d47abc946b0e8e1e97b04d0ea
+branch refs/heads/feature/navigation-open-nearest-20261007
+
+worktree D:/project/pan-worktrees/navigation-paging-baseline-20261007
+HEAD 3b8938acca4cdeea2748a8c6e8d1d78808729ffc
+detached
+
+worktree D:/project/pan-worktrees/navigation-profile-baseline-20261007
+HEAD 87a09c6a8485ba0c50f6ffb845b95d3e3be6200e
+detached
+
+worktree D:/project/pan-worktrees/navigation-terminal-marker-20261005
+HEAD 2a2ca7b1f7c713edfa15f6cd0eafdf6f89214c14
+branch refs/heads/fix/navigation-terminal-marker-20261005
+
+worktree D:/project/pan-worktrees/network-list-baseline-20261007-c79402fa
+HEAD c79402fa42c7d5ea1dcfdcfd6416abf857a0a8a3
+detached
+
+worktree D:/project/pan-worktrees/new-session-basic-advanced-20260930
+HEAD 789ee4b552ed852e2d15b0217820aaacdfe13aa7
+branch refs/heads/feature/new-session-basic-advanced-20260930
+
+worktree D:/project/pan-worktrees/no-workspace-view-20261003
+HEAD fb3e3c839861861b5e4ce223f10ab9f9bbf0fc45
+branch refs/heads/feature/no-workspace-view-20261003
+
+worktree D:/project/pan-worktrees/notification-closed-sol-20261013
+HEAD 6aeae7b3a9c7f86e14683e497b8cf6bc91afb3e4
+branch refs/heads/feature/notification-closed-sol-20261013
+
+worktree D:/project/pan-worktrees/notification-qq-contact-search-20261007
+HEAD 6c2ae74fccb9896b3155e118c638cd9331b48b7c
+branch refs/heads/feature/notification-qq-contact-search-20261007
+
+worktree D:/project/pan-worktrees/notification-workspace-jump-20261014
+HEAD e0b78f35c6d7cac5c014d0d1155f4f6cd6229b5a
+branch refs/heads/fix/notification-workspace-jump-20261014
+
+worktree D:/project/pan-worktrees/notion-mcp-fixes-20261012
+HEAD afca93978ac12b1ce7c206de25af9e9523550944
+branch refs/heads/fix/notion-mcp-auth-20261012
+
+worktree D:/project/pan-worktrees/notion-oauth-exp-20261011
+HEAD b80b272ce6dfb005335d77300ddef6aca730a19b
+branch refs/heads/research/notion-oauth-20261011
+
+worktree D:/project/pan-worktrees/pan-done-baseline-20261018
+HEAD ae515e45de9fdf78cc124a4b038045f8744abc95
+detached
+
+worktree D:/project/pan-worktrees/pan-perf-baseline-20261013
+HEAD add07f49d1d2ec02d04e2f571dfe6d8019ddfac1
+detached
+
+worktree D:/project/pan-worktrees/pan-skill-background-20261017
+HEAD c8195dc384cfcd76e8a6e32274eafc0c93dbcef4
+branch refs/heads/docs/pan-skill-background-20261017
+
+worktree D:/project/pan-worktrees/pan-ux-performance-audit-20260930
+HEAD adb6b3a3bcb21ea7374b671f7a92a8d51b45313f
+branch refs/heads/audit/pan-ux-performance-20260930
+
+worktree D:/project/pan-worktrees/pause-report-icon-20261021
+HEAD a4e1afddecf6191bb70a47f9040da921238b49ed
+branch refs/heads/fix/pause-report-icon-20261021
+
+worktree D:/project/pan-worktrees/plan-plugin-manager-20261017
+HEAD 044f022a81b3a9b1f5d163c2d2b17ee52ec2f1f6
+branch refs/heads/feature/plan-plugin-manager-20261017
+
+worktree D:/project/pan-worktrees/pr6-terminal-20261002
+HEAD 475395c3dddabdcb74c31932bd747932a8b3c1da
+branch refs/heads/audit/pr6-terminal-20261002
+
+worktree D:/project/pan-worktrees/pr6-terminal-source-20261002
+HEAD 387a43ec4dfe699498bb0b95d7ceef212f905b99
+detached
+
+worktree D:/project/pan-worktrees/practical-data-gate-20261023
+HEAD 360608a3cb9e50cb52d725df475d6d8a7929803f
+branch refs/heads/audit/practical-data-gate-20261023
+
+worktree D:/project/pan-worktrees/practical-terminal-deployment-20261006
+HEAD 1fc0196d41541f25d5d10ccae657684dc797c513
+branch refs/heads/fix/practical-terminal-deployment-20261006
+
+worktree D:/project/pan-worktrees/qq-contact-report-20261007
+HEAD 839d5ff3b494ce4a76c8ababd03c2fd9828be162
+branch refs/heads/feature/qq-contact-report-20261007
+
+worktree D:/project/pan-worktrees/queue-agent-source-20261021
+HEAD 05a91528f5b58467976ffaa3122babeb5a497a68
+branch refs/heads/feature/queue-agent-source-20261021
+
+worktree D:/project/pan-worktrees/queue-composer-edit-20261003
+HEAD c682ef1a3848c7fa6d4d8df696baaeb2b8060900
+branch refs/heads/feature/queue-composer-edit-20261003
+
+worktree D:/project/pan-worktrees/queue-draft-attachments-20261018
+HEAD 9943cb6d90069a699c03f11af6d530f60d5afe96
+branch refs/heads/fix/queue-draft-attachments-20261018
+
+worktree D:/project/pan-worktrees/queue-draft-attachments-ma-20261018
+HEAD 5d20e72bf44f8cdb46bf8629f4772fb3b393863a
+branch refs/heads/integration/queue-draft-attachments-ma-20261018
+
+worktree D:/project/pan-worktrees/queue-item-locking-integration-20260929
+HEAD 4136aeecdf6b1441d493b651b91464732733ca3f
+branch refs/heads/integration/queue-item-locking-20260929
+
+worktree D:/project/pan-worktrees/queue-message-preview-cbc-high-20260926
+HEAD 4275f81d32012f83dd4c5ccbc3d3522ff09473dd
+branch refs/heads/feature/queue-message-preview-cbc-high-20260926
+
+worktree D:/project/pan-worktrees/queue-opaque-header-20260929
+HEAD 3727afe4a1452120a3ae50309d43be59a23a8f4e
+branch refs/heads/fix/queue-opaque-header-20260929
+
+worktree D:/project/pan-worktrees/queue-optimistic-steer-layout-20261007
+HEAD f6cb3c31251ff0791b8f8c5d5cf8255f0aa2d609
+branch refs/heads/feature/queue-optimistic-steer-layout-20261007
+
+worktree D:/project/pan-worktrees/queue-pause-layout-20261007
+HEAD 1f34354e14fb48f14e7fc1cb0bbd7b9768b306f5
+branch refs/heads/feature/queue-pause-layout-20261007
+
+worktree D:/project/pan-worktrees/queue-pause-reports-20260929
+HEAD a2e8d1577dc6cd096eeec9c2085d10651da93b1a
+branch refs/heads/feature/queue-pause-reports-20260929
+
+worktree D:/project/pan-worktrees/queue-send-latency-20261014
+HEAD 097a356efa840247a7802141636fa0f1f53bfc9f
+branch refs/heads/fix/queue-send-latency-20261014
+
+worktree D:/project/pan-worktrees/queue-ui-polish-20261005
+HEAD 362d47ff0cd926275dab96b1b54aff7b256ef109
+branch refs/heads/feature/queue-ui-polish-20261005
+
+worktree D:/project/pan-worktrees/queue-unknown-migration-fix-20261023
+HEAD 0156f008b149d59641ccc0176721c8e2b5ae59d8
+branch refs/heads/fix/queue-unknown-migration-20261023
+
+worktree D:/project/pan-worktrees/release-033-ci-20261017
+HEAD 2c5b4655eedc7d994099e3460ab31e7dc0aac7b5
+branch refs/heads/fix/release-033-ci-20261017
+
+worktree D:/project/pan-worktrees/release-ci-032-20261013
+HEAD cad1851ac09cf6784e3a9cf9bfde09763ecb22fe
+branch refs/heads/fix/release-ci-032-20261013
+
+worktree D:/project/pan-worktrees/release-v0.3.2-20261003
+HEAD 9d474b0235873019af67f4a94dc59a1731d03be9
+branch refs/heads/verify/release-v0.3.2-20261003
+
+worktree D:/project/pan-worktrees/remote-mcp-parity-integration-20261021
+HEAD b6502ea940b3d852b7e6824f6c2d4e66fe7666fc
+branch refs/heads/integration/remote-mcp-parity-20261021
+
+worktree D:/project/pan-worktrees/remote-mcp-unification-20261019
+HEAD 550c8128133ca6a4263f0f868d4430b447fc16a8
+branch refs/heads/fix/remote-mcp-unification-20261019
+
+worktree D:/project/pan-worktrees/rewind-ui-message-id-20261006
+HEAD 420f627ca370faac0f80c6cd473fbf23e2483407
+branch refs/heads/fix/rewind-ui-message-id-20261006
+
+worktree D:/project/pan-worktrees/runtime-owner-stuck-20261022
+HEAD f09eb2a27083c35da52f5dde2326e603cc15ac99
+branch refs/heads/fix/runtime-owner-stuck-20261022
+
+worktree D:/project/pan-worktrees/scepter-consolidation-20261021
+HEAD bd8efe113e65eb758c56aa3ec4c76bfd2669fd34
+branch refs/heads/integration/scepter-consolidation-20261021
+
+worktree D:/project/pan-worktrees/scheduled-broadcast-backend-20260918
+HEAD e36820524e6ca75dbf71ef792fd600a6b31a7cd5
+branch refs/heads/feature/scheduled-broadcast-backend-20260918
+
+worktree D:/project/pan-worktrees/scheduled-qq-job-template-20260930
+HEAD 606e0771edc8e1588e46581551cd0c7f922bf677
+branch refs/heads/feature/scheduled-qq-job-template-20260930
+
+worktree D:/project/pan-worktrees/search-default-types-20261016
+HEAD 41216a7dd430766131b2a67cc5db7d5628f3eb4c
+branch refs/heads/fix/search-default-types-20261016
+
+worktree D:/project/pan-worktrees/search-editor-unread-20261011
+HEAD 5e9532f00b1eb5aec827a5a710a7f141d8017dae
+branch refs/heads/feature/search-editor-unread-20261011
+
+worktree D:/project/pan-worktrees/search-navigation-drag-20261005
+HEAD 9e75a8cfd3f34308cc74d153153c8c428dd3f1f8
+branch refs/heads/feature/search-navigation-drag-20261005
+
+worktree D:/project/pan-worktrees/select-lifecycle-actions-20261015
+HEAD 55d8f31cc3653b4dab00e640595a0ed43309c985
+branch refs/heads/feature/select-lifecycle-actions-20261015
+
+worktree D:/project/pan-worktrees/selected-session-actions-20261011
+HEAD 9b0f464221bc332f661c229c1cde5909df63952d
+branch refs/heads/feature/selected-session-actions-20261011
+
+worktree D:/project/pan-worktrees/session-card-chat-route-20261018
+HEAD c891b9e3345b1223e5e8c1c3fffd4910ef131ebf
+branch refs/heads/fix/session-card-chat-route-20261018
+
+worktree D:/project/pan-worktrees/session-click-latency-20261002
+HEAD d01e78153b37facf461ce71c623c09bfad6749ad
+branch refs/heads/codex/session-click-latency-20261002
+
+worktree D:/project/pan-worktrees/session-cold-load-20261002
+HEAD 8766fc57c2dbadc3c5abbd9e403cf684f94b3ab8
+branch refs/heads/codex/session-cold-load-20261002
+
+worktree D:/project/pan-worktrees/session-collapse-persistence-20261005
+HEAD cc162fd4d5eb8c1fbf2d9a64fb5dab2001b321e2
+branch refs/heads/feature/session-collapse-persistence-20261005
+
+worktree D:/project/pan-worktrees/session-empty-preview-height-20261017
+HEAD e51b4ba50e22db464b8d45c5f3f1f2d4d99b5d4c
+branch refs/heads/fix/session-empty-preview-height-20261017
+
+worktree D:/project/pan-worktrees/session-error-log-integration-20261019
+HEAD ac96f8b67f78a5760c2e9cca2048e46c397e2cb9
+branch refs/heads/integration/session-error-log-20261019
+
+worktree D:/project/pan-worktrees/session-filter-layer-20261003
+HEAD 8af6d2964dec30823505ccb1c721db9f7c1b99f1
+branch refs/heads/fix/session-filter-layer-20261003
+
+worktree D:/project/pan-worktrees/session-filter-menu-20261018
+HEAD 52614cd4a3184f3e7b3befb4c9f50f08383c25f3
+branch refs/heads/feature/session-filter-menu-20261018
+
+worktree D:/project/pan-worktrees/session-filter-menu-ma-20261018
+HEAD 52614cd4a3184f3e7b3befb4c9f50f08383c25f3
+branch refs/heads/integration/session-filter-menu-20261018
+
+worktree D:/project/pan-worktrees/session-legal-worker-indicator-20260930
+HEAD 11cf1bbb86dcbe4e06a27e36b29c944d798a560c
+branch refs/heads/feature/session-legal-worker-indicator-20260930
+
+worktree D:/project/pan-worktrees/session-persistence-hardening-20261003
+HEAD f82e3bba5e0bdd5e55ad8320614accb2c98dd5d3
+branch refs/heads/fix/session-persistence-hardening-20261003
+
+worktree D:/project/pan-worktrees/session-rename-20261013
+HEAD 96e93a7398bd2d6b5dae98f152015a9e5a1aec6e
+branch refs/heads/fix/session-rename-20261013
+
+worktree D:/project/pan-worktrees/session-running-illegal-filters-20260930
+HEAD 9001c6a9280d02e0a39fcdc8bec89a2389454216
+branch refs/heads/feature/session-running-illegal-filters-20260930
+
+worktree D:/project/pan-worktrees/session-save-deadlock-20261003
+HEAD 4f10916b19b0ae65e31676ef888c11d5288a3137
+branch refs/heads/fix/session-save-deadlock-20261003
+
+worktree D:/project/pan-worktrees/session-summary-regression-20261021
+HEAD d2790e6d2f8349dd53fc4040fbc6960d832705d2
+branch refs/heads/fix/session-summary-regression-20261021
+
+worktree D:/project/pan-worktrees/session-template-advanced-ui-20260930
+HEAD 24d9c48bc130591cab7be8cb0073cc7bcc2cb2bb
+branch refs/heads/feature/session-template-advanced-ui-20260930
+
+worktree D:/project/pan-worktrees/session-worker-mismatch-indicator-fix-20260930
+HEAD dc3b84caa04676025d4a710694805771467706b7
+branch refs/heads/fix/session-worker-mismatch-indicator-20260930
+
+worktree D:/project/pan-worktrees/settings-integration-20261019
+HEAD 52ba3a3a1b29fca88ca503982085e9196c411ec8
+branch refs/heads/integration/settings-categories-20261019
+
+worktree D:/project/pan-worktrees/shortcut-capture-20261020
+HEAD 794d63ae1c6f082f494c30360b01372d788cbd79
+branch refs/heads/fix/shortcut-capture-20261020
+
+worktree D:/project/pan-worktrees/shortcut-capture-integration-20261020
+HEAD 6e479f205a81f85b9c76f1779e1141ee498517db
+branch refs/heads/integration/shortcut-capture-20261020
+
+worktree D:/project/pan-worktrees/single-message-nav-20261002
+HEAD 09c6abbc24968721ceffdb9b6c7437ca0d599c60
+branch refs/heads/feature/single-message-nav-20261002
+
+worktree D:/project/pan-worktrees/source-aware-auto-report-20261019
+HEAD 840c11b13e7258d1d005deb489cd9a4eb6858ad6
+branch refs/heads/feature/source-aware-auto-report-20261019
+
+worktree D:/project/pan-worktrees/source-aware-auto-report-integration-20261021
+HEAD 4e3170e8ae1e69d67d616f3a1c8c73a7cb4a38e1
+branch refs/heads/integration/source-aware-auto-report-20261021
+
+worktree D:/project/pan-worktrees/system-message-label-20261005
+HEAD f944a5f3d95fbafb600a1433cc82261e66e6483e
+branch refs/heads/feature/system-message-label-20261005
+
+worktree D:/project/pan-worktrees/t062-queue-edit-send-20260920
+HEAD c6a5c932b9d98ef4061363c35240693b5114a759
+branch refs/heads/fix/t062-queue-edit-send-20260920
+
+worktree D:/project/pan-worktrees/tailscale-fallback-access-20261007
+HEAD c79402fa42c7d5ea1dcfdcfd6416abf857a0a8a3
+branch refs/heads/feature/tailscale-fallback-access-20261007
+
+worktree D:/project/pan-worktrees/terminal-api-implement-20261004
+HEAD 8b86dba8bc7bdd14a903b2314c099fe43806ad48
+branch refs/heads/implement/terminal-api-20261004
+
+worktree D:/project/pan-worktrees/terminal-backend-implement-20261003
+HEAD eabc000c673c374f6876680a35b97866b307075b
+branch refs/heads/implement/terminal-backend-20261003
+
+worktree D:/project/pan-worktrees/terminal-backend-review-20261003
+HEAD c3162854e791f3e74907b72ac39d5fd27a1127b8
+branch refs/heads/review/terminal-backend-20261003
+
+worktree D:/project/pan-worktrees/terminal-cbc-explore-20261003
+HEAD db5b84abfad45312df31bbf877e32bce90450352
+branch refs/heads/explore/terminal-cbc-20261003
+
+worktree D:/project/pan-worktrees/terminal-codex-explore-20261003
+HEAD 03b04bb06d6aa413ad300d9cff741a43c28177b7
+branch refs/heads/explore/terminal-codex-20261003
+
+worktree D:/project/pan-worktrees/terminal-composition-20261003
+HEAD 7e6b30cb6cbf652a58b3ba62cc01330a74439af6
+branch refs/heads/audit/terminal-composition-20261003
+
+worktree D:/project/pan-worktrees/terminal-composition-r2-20261003
+HEAD 3a579da64c249af35fb20fbfcab6340263d10fa6
+branch refs/heads/audit/terminal-composition-r2-20261003
+
+worktree D:/project/pan-worktrees/terminal-composition-r2-review-20261003
+HEAD 326a646e7adecbc0673de07428a52eaa7f8fce70
+branch refs/heads/review/terminal-composition-r2-20261003
+
+worktree D:/project/pan-worktrees/terminal-composition-review-20261003
+HEAD cabacc7fe80b4f0a3cd1f9f05db8d9e5d45f752c
+branch refs/heads/review/terminal-composition-20261003
+
+worktree D:/project/pan-worktrees/terminal-contract-explore-20261003
+HEAD 0d69665093e9a73fe4fa045bc38e8d9b16dce437
+branch refs/heads/explore/terminal-contract-20261003
+
+worktree D:/project/pan-worktrees/terminal-core-implement-20261003
+HEAD 4b2d52a3d37dde4dad596fa999fd9beba24d5074
+branch refs/heads/implement/terminal-core-20261003
+
+worktree D:/project/pan-worktrees/terminal-emulator-implement-20261003
+HEAD 63e5f90db3a5d7090c0af519c081efb64292c7a2
+branch refs/heads/implement/terminal-emulator-20261003
+
+worktree D:/project/pan-worktrees/terminal-emulator-review-20261003
+HEAD 417137fb2df5b4892e39c40809fa85d9a8fb69a8
+branch refs/heads/review/terminal-emulator-20261003
+
+worktree D:/project/pan-worktrees/terminal-final-integration-ma-20261004
+HEAD bf95c2d4a726a87e021205b77755a7b95ca4e5b5
+branch refs/heads/integrate/terminal-ma-final-20261004
+
+worktree D:/project/pan-worktrees/terminal-ipc-implement-20261003
+HEAD 2bc99b9b61bab8041928544d9f8ad8fccb989d22
+branch refs/heads/implement/terminal-ipc-20261003
+
+worktree D:/project/pan-worktrees/terminal-ipc-review-20261003
+HEAD 9f37d5c1e14f0ac3357caae1fae505136eb9b160
+branch refs/heads/review/terminal-ipc-20261003
+
+worktree D:/project/pan-worktrees/terminal-launcher-implement-20261003
+HEAD da3fddac88dbd78086281f09fc3472afb283bc46
+branch refs/heads/implement/terminal-launcher-20261003
+
+worktree D:/project/pan-worktrees/terminal-launcher-review-20261003
+HEAD 549f00bc6e08caec3b71895e4b4073ad5b24c2a4
+branch refs/heads/review/terminal-launcher-20261003
+
+worktree D:/project/pan-worktrees/terminal-lifecycle-explore-20261003
+HEAD 3045e60320e74010fb35a26fddfa2aa876a4ce9e
+branch refs/heads/explore/terminal-lifecycle-20261003
+
+worktree D:/project/pan-worktrees/terminal-mcp-ma-20261004
+HEAD b48f616899fcc876f4993e4be4ece8a27e420ffc
+branch refs/heads/implement/terminal-mcp-ma-20261004
+
+worktree D:/project/pan-worktrees/terminal-premerge-baseline-ma-20261006
+HEAD 362d47ff0cd926275dab96b1b54aff7b256ef109
+detached
+
+worktree D:/project/pan-worktrees/terminal-report-diagnostic-20261023
+HEAD 693287b1afcdf4ecb4d11db5de985210f13bd2dd
+branch refs/heads/fix/terminal-report-diagnostic-20261023
+
+worktree D:/project/pan-worktrees/terminal-runner-implement-20261003
+HEAD a48e729d02d075e47dc44c6bbd44672f9c5fe179
+branch refs/heads/implement/terminal-runner-20261003
+
+worktree D:/project/pan-worktrees/terminal-runner-observability-20261003
+HEAD 29d535bc2a8d3492e2afe074fe7b53a6483da010
+branch refs/heads/implement/terminal-runner-observability-20261003
+
+worktree D:/project/pan-worktrees/terminal-runner-observability-review-20261003
+HEAD 7141d4dd8a46dbbf60a114e7b6be6fdb3bfb34a5
+branch refs/heads/review/terminal-runner-observability-20261003
+
+worktree D:/project/pan-worktrees/terminal-runner-review-20261003
+HEAD ed5ab75bb8fbfb44bc1b013ec40c0ae8dbcbaaa1
+branch refs/heads/review/terminal-runner-20261003
+
+worktree D:/project/pan-worktrees/terminal-service-hygiene-ds-20261003
+HEAD 7f3ed5cefe58767c96c5cbd72c5fdf7e6e5f2b8c
+branch refs/heads/implement/terminal-service-hygiene-ds-20261003
+
+worktree D:/project/pan-worktrees/terminal-service-implement-20261003
+HEAD 4f5241ce276fe64efb7729b91fc8c9a1da1fd0d7
+branch refs/heads/implement/terminal-service-20261003
+
+worktree D:/project/pan-worktrees/terminal-service-ma-20261003
+HEAD 3dafe3f8cbcca9c05979beb831d2c45e6d5c809c
+branch refs/heads/audit/terminal-service-ma-20261003
+
+worktree D:/project/pan-worktrees/terminal-service-review-20261003
+HEAD d790540812d5e25ed6651ed149e35adf244e8f98
+branch refs/heads/review/terminal-service-20261003
+
+worktree D:/project/pan-worktrees/terminal-ws-implement-20261004
+HEAD a52f9deb1d30085f6055b1ff2b06d1a16349fabe
+branch refs/heads/implement/terminal-ws-20261004
+
+worktree D:/project/pan-worktrees/ui-actions-search-20261015
+HEAD 081ea7d8491f8e3d674ee889431731e7c369af9f
+branch refs/heads/integration/ui-actions-search-20261015
+
+worktree D:/project/pan-worktrees/ui-batch-integration-20261011
+HEAD de863c4bc11aab29873e0391073088d749513ac4
+branch refs/heads/integration/ui-batch-20261011
+
+worktree D:/project/pan-worktrees/unread-done-20261003
+HEAD 568ef90cca10ed075fad62aeeb2a8460ea99284a
+branch refs/heads/feature/unread-done-20261003
+
+worktree D:/project/pan-worktrees/unread-queue-badge-style-20261003
+HEAD b0a34714b9d42e099744567c042527d69ec40682
+branch refs/heads/feature/unread-queue-badge-style-20261003
+
+worktree D:/project/pan-worktrees/user-guide-refresh-20261013
+HEAD add07f49d1d2ec02d04e2f571dfe6d8019ddfac1
+branch refs/heads/docs/user-guide-refresh-20261013
+
+worktree D:/project/pan-worktrees/user-inbox-interaction-contract-20261023
+HEAD ba847160a01daf0049bb84575c427317ab7db236
+branch refs/heads/feature/user-inbox-interaction-contract-20261023
+
+worktree D:/project/pan-worktrees/ux-next-stage-20261003
+HEAD 330f8a58cd0391feb2df5f4c274c48910e8f8ef1
+branch refs/heads/codex/ux-next-stage-20261003
+
+worktree D:/project/pan-worktrees/ux-perf-review-20260930
+HEAD 85e5b52a081fdecc957e37728f9f005ed6016659
+branch refs/heads/audit/ux-perf-review-20260930
+
+worktree D:/project/pan-worktrees/ux-state-audit-20261003
+HEAD 4af89c694e37fd0d2c1e378e9ad51e5c9edaafdd
+branch refs/heads/codex/ux-state-audit-20261003
+
+worktree D:/project/pan-worktrees/view-entry-groups-20261007
+HEAD 899e60b7d86e337984b8be14ca24decd5fd2ccb9
+branch refs/heads/feature/view-entry-groups-20261007
+
+worktree D:/project/pan-worktrees/windows-notification-center-20261016
+HEAD b0971bd3c08fd918ed3ffd70b9372cb14973e41f
+branch refs/heads/feature/windows-notification-center-20261016
+
+worktree D:/project/pan-worktrees/windows-toast-delivery-20261017
+HEAD c5118d85c8fb28d4261a83d9609c0078713b6e7e
+branch refs/heads/fix/windows-toast-delivery-20261017
+
+worktree D:/project/pan-worktrees/worker-delayed-restart-20261007
+HEAD e58e3a9846613fc5c574ad735a69ea6c741b05a4
+branch refs/heads/feature/worker-delayed-restart-20261007
+
+worktree D:/project/pan-worktrees/worker-history-freshness-20261003
+HEAD f1ccd81a078f7569e70d759720967cf39e10f704
+branch refs/heads/fix/worker-history-freshness-20261003
+
+worktree D:/project/pan-worktrees/worker-indicator-restart-state-20260930
+HEAD fe5bccf844ca43e4b9b46bf73149cc8a2809f4e4
+branch refs/heads/fix/worker-indicator-restart-state-20260930
+
+worktree D:/project/pan-worktrees/workspace-management-agent-20261002
+HEAD a06a0dff9cbb2c644b55e844c82a470ede67dd59
+branch refs/heads/feature/workspace-management-agent-20261002
+
+worktree D:/project/pan-worktrees/workspace-own-search-20261015
+HEAD 8199e38fafdf9eb6c9af0acfaedbff1a4c180508
+branch refs/heads/feature/workspace-own-search-20261015
+
+worktree D:/project/pan-worktrees/workspace-shared-search-20261013
+HEAD 57305401dc16222042432d215d6f099c938e2017
+branch refs/heads/feature/workspace-shared-search-20261013
+

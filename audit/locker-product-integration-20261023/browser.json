@@ -1,0 +1,210 @@
+{
+  "checks": [
+    "production route with shared Sidebar slot, real WorkspaceRail, Markdown and scoped opaque attachment",
+    "real WorkspaceRail handle, workspace and ungrouped aggregate switching",
+    "draft survives source/aggregate filters; shared drag gutter reorders sources, aggregate has no drag",
+    "trusted choice target, BTW, real submit payload, terminal readonly",
+    "reject reason mapped to answer",
+    "terminal deletion via DELETE",
+    "Read all writes original message identity",
+    "server state reloaded",
+    "1440/768/390/320 themes, no horizontal overflow, shared narrow source drawer",
+    "failure plus real Refresh retry",
+    "Navigate to chat selects the designated source Session through real sessionStore"
+  ],
+  "errors": [],
+  "requests": [
+    {
+      "path": "/api/settings/ui",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/workspaces",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/cli/status",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/plugins/panels",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/list",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST",
+      "body": {
+        "tabId": "1eb35c5d-7703-4dd9-a209-6b5a659dfd0e"
+      }
+    },
+    {
+      "path": "/api/user-lockers",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox/approval/read",
+      "method": "PUT",
+      "body": {
+        "read": true
+      }
+    },
+    {
+      "path": "/api/user-inbox/answer/read",
+      "method": "PUT",
+      "body": {
+        "read": true
+      }
+    },
+    {
+      "path": "/api/automation/login",
+      "method": "POST",
+      "body": {
+        "key": "fake-only"
+      }
+    },
+    {
+      "path": "/api/user-lockers",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox/old/read",
+      "method": "PUT",
+      "body": {
+        "read": true
+      }
+    },
+    {
+      "path": "/api/user-inbox/approval/submit",
+      "method": "POST",
+      "body": {
+        "requestId": "8a14deb7-39ec-436a-a246-e79bc6117582",
+        "expectedRevision": 0,
+        "answer": "Review only.",
+        "choiceId": "approve"
+      }
+    },
+    {
+      "path": "/api/user-inbox/answer/reject",
+      "method": "POST",
+      "body": {
+        "requestId": "01ab7c1f-332e-4224-b927-8b4ff1d8ad6d",
+        "expectedRevision": 0,
+        "answer": "Keep this scoped to the preview."
+      }
+    },
+    {
+      "path": "/api/user-inbox/answer",
+      "method": "DELETE",
+      "body": null
+    },
+    {
+      "path": "/api/settings/ui",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/workspaces",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/cli/status",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/main/startup-recovery",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/plugins/panels",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/sessions",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/list",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST",
+      "body": {
+        "tabId": "ab6e6c1c-812b-4a3c-bc35-4432fe4a183f"
+      }
+    },
+    {
+      "path": "/api/user-lockers",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-lockers",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-lockers",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/user-inbox",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/sessions/ses_two/history",
+      "method": "GET",
+      "body": null
+    }
+  ],
+  "port": 64575
+}

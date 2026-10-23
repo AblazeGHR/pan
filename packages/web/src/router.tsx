@@ -10,7 +10,9 @@ const ManageView = lazy(() => import('./views/ManageView'));
 const JobsView = lazy(() => import('./views/JobsView'));
 const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
+const LockerView = lazy(() => import('./views/LockerView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
+const AutomationView = lazy(() => import('./views/AutomationView'));
 
 function deferredRoute(view: React.ReactNode) {
   return <Suspense fallback={<div className="p-4 text-sm text-text-tertiary">Loading...</div>}>{view}</Suspense>;
@@ -25,7 +27,9 @@ export const router = createBrowserRouter(
       path: '/',
       element: <App />,
       children: [
+        { path: 'locker', element: deferredRoute(<LockerView />) },
         { path: 'actions', element: deferredRoute(<ActionsView />) },
+        { path: 'automation', element: deferredRoute(<AutomationView />) },
         {
           index: true,
           element: <ChatRoute />,

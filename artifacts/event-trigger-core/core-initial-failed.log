@@ -1,0 +1,142 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+FFFFFFFFFF                                                               [100%]
+================================== FAILURES ===================================
+_________________ test_running_edge_durable_pause_and_dedupe __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_serial_cross_trigger_dynamic_and_disable ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_disable_cancels_queued_running_continues ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_state_cache_mapping_errors_and_skip ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_append_failure_no_effect_and_loop_responsive ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_recover_queued_uncertain_and_unavailable ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ test_bus_plugin_identity_fanout_full_and_deactivate _____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________ test_session_targets_checkpoint_partial_and_event_selector __________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_http_user_boundary_revision_token_expiry ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_shutdown_interrupted_is_uncertain ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_automation_core.py:67
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:67: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:105
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:105: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:139
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:139: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:159
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:159: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:181
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:181: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:196
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:196: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:218
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:218: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:246
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:246: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:264
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:264: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests\test_automation_core.py:293
+  D:\project\pan-worktrees\event-trigger-core-20261022\tests\test_automation_core.py:293: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_automation_core.py::test_running_edge_durable_pause_and_dedupe
+FAILED tests/test_automation_core.py::test_serial_cross_trigger_dynamic_and_disable
+FAILED tests/test_automation_core.py::test_disable_cancels_queued_running_continues
+FAILED tests/test_automation_core.py::test_state_cache_mapping_errors_and_skip
+FAILED tests/test_automation_core.py::test_append_failure_no_effect_and_loop_responsive
+FAILED tests/test_automation_core.py::test_recover_queued_uncertain_and_unavailable
+FAILED tests/test_automation_core.py::test_bus_plugin_identity_fanout_full_and_deactivate
+FAILED tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector
+FAILED tests/test_automation_core.py::test_http_user_boundary_revision_token_expiry
+FAILED tests/test_automation_core.py::test_shutdown_interrupted_is_uncertain
+10 failed, 11 warnings in 0.50s

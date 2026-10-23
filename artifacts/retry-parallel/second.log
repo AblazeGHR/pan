@@ -1,0 +1,39 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-core-20261022
+...........................F............................................ [ 69%]
+...............................                                          [100%]
+================================== FAILURES ===================================
+________ test_retry_backoff_budget_identities_event_dedup_and_recovery ________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3596/test_retry_backoff_budget_iden0')
+
+    @async_test
+    async def test_retry_backoff_budget_identities_event_dedup_and_recovery(tmp_path):
+        calls=[]
+        async def execute(*args):calls.append(len(calls));return {'ok':False}
+        engine,_,_=await setup(tmp_path,execute)
+        clock=[1000.0];engine.ledger.clock=lambda:clock[0]
+        engine.actions.put('actions',{**action(),'idempotent':True})
+        engine.ledger.put(trigger(retry={'enabled':True}),0,True)
+        try:
+            await engine.match(event())
+            first=(await wait_status(engine,'retry_wait'))[0]
+            assert first['attemptCount']==1 and first['attempts'][0]['status']=='failed'
+            assert datetime.fromisoformat(first['nextAttemptAt']).timestamp()==1001
+            await engine.kick();await asyncio.sleep(0)
+            assert len(calls)==1
+            # A new Engine recovers the persisted wait without losing count/time.
+            await engine.close()
+            from packages.automation.engine import Engine
+            engine=Engine(engine.ledger,engine.bus,engine.actions,execute,engine.state_reader)
+            await engine.start()
+            assert len(calls)==1
+            clock[0]=1001;await engine.kick()
+            second=(await wait_status(engine,'retry_wait'))[0]
+>           assert second['attemptCount']==2 and datetime.fromisoformat(second['nextAttemptAt']).timestamp()==1003
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'nextAttemptAt'
+
+tests\test_automation_retry_parallel.py:157: KeyError
+=========================== short test summary info ===========================
+FAILED tests/test_automation_retry_parallel.py::test_retry_backoff_budget_identities_event_dedup_and_recovery
+1 failed, 102 passed in 10.27s

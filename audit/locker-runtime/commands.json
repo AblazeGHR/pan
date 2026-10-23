@@ -1,0 +1,91 @@
+{
+  "sourceSha": "980fae907a077476e193f1aa9dd556b0ea906a24",
+  "python": "E:\\software\\miniforge\\python.exe",
+  "commands": [
+    {
+      "name": "python",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023",
+      "args": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_interaction_runtime.py",
+        "tests/test_interaction_cards.py",
+        "tests/test_interaction_card_api.py",
+        "tests/test_user_locker_lifecycle.py",
+        "tests/test_agent_inbox.py",
+        "tests/test_job_inbox_migration_drill.py",
+        "tests/test_job_inbox_boundaries.py",
+        "tests/test_job_action_templates.py",
+        "tests/test_job_completion_recovery.py",
+        "tests/test_job_system_actions.py",
+        "tests/test_job_overlap.py",
+        "tests/test_automation_retry_parallel.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-runtime/python.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "ui",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023\\packages\\web",
+      "args": [
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "exec",
+        "vitest",
+        "run",
+        "views/LockerView.test.tsx",
+        "views/lockerModel.auth.test.ts",
+        "components/jobs/UnifiedJobForm.test.tsx",
+        "components/jobs/JobTemplateEditor.test.tsx",
+        "shortcuts/registry.test.ts",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023\\audit\\locker-runtime\\ui.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "build",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023\\packages\\web",
+      "args": [
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "build"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "http",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023",
+      "args": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_runtime_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-runtime/http.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "diff",
+      "cwd": "D:\\project\\pan-worktrees\\locker-runtime-wiring-20261023",
+      "args": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

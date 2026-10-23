@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="25.771" timestamp="2026-10-23T01:27:15.023859+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_http" name="test_complete_template_reference_snapshot_and_recovery_http" time="2.483"><failure message="AssertionError: POST /api/actions/actions: 401 {&quot;detail&quot;:&quot;[WinError 5] 拒绝访问。: 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3826\\\\test_complete_template_referen0\\\\owned-job-profile\\\\actions\\\\tmplxbaxazw.tmp' -&gt; 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3826\\\\test_complete_template_referen0\\\\owned-job-profile\\\\actions\\\\registry.json'&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401 Unauthorized]&gt;.status_code">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3826/test_complete_template_referen0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000013CCF97EB40&gt;
+
+    def test_complete_template_reference_snapshot_and_recovery_http(tmp_path,monkeypatch):
+        assert h.PORT not in {8767,8768}
+        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        rt=h._PanRuntime(tmp_path/'owned-job-profile');rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
+        cli=tmp_path/'owned-command';cli.mkdir();(cli/'fixture.marker').write_text('job-action-fixture',encoding='utf-8')
+        evidence={'port':h.PORT,'root':str(rt.data_root),'processes':[],'cleanupActions':[]}
+        out=Path('artifacts/job-templates');out.mkdir(parents=True,exist_ok=True)
+        def capture():
+            if rt.process and rt.process.poll() is None:
+                parent=psutil.Process(rt.process.pid)
+                for p in [parent,*parent.children(recursive=True)]:
+                    try:evidence['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline()})
+                    except psutil.Error:pass
+        def remaining():
+            live=[]
+            for p in evidence['processes']:
+                try:
+                    process=psutil.Process(p['pid'])
+                    if abs(process.create_time()-p['created'])&lt;.01:live.append(process)
+                except psutil.Error:pass
+            return list({p.pid:p for p in live}.values())
+        def stop():
+            capture();rt.stop()
+            # The generic harness stops its owned server/fakeCLI. Also retire only
+            # retained descendants captured from this fixture (Action command trees).
+            for p in remaining():
+                try:
+                    evidence['cleanupActions'].append({'pid':p.pid,'created':p.create_time(),'action':'terminate owned retained descendant'})
+                    p.terminate()
+                except psutil.Error:pass
+            gone,alive=psutil.wait_procs(remaining(),timeout=3)
+            for p in alive:
+                # Retained Process objects keep original creation identity.
+                if p.is_running():p.kill()
+            h._wait_for(lambda:not remaining(),label='all owned Job command/Worker descendants stopped')
+        def request(method,path,**kwargs):return rt.request(method,path,**kwargs)
+        def login():
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            return {'Authorization':'Bearer '+request('POST','/api/automation/login',json={'key':key})['token']}
+        def call(method,path,body=None,auth=None):
+            return httpx.request(method,rt.base_url+path,json=body,headers=auth,trust_env=False,timeout=15)
+        def all_jobs():return request('GET','/api/jobs/action-jobs')['jobs']
+        def get_job(jid):return next(j for j in all_jobs() if j['jobId']==jid)
+        def done(jid,status='completed'):
+            return h._wait_for(lambda:(j if j.get('lastExecution',{}).get('status')==status and not j.get('execution') else None) if (j:=get_job(jid)) else None,label='Job terminal '+status)
+        def registry():return json.loads((rt.data_root/'actions/registry.json').read_text(encoding='utf-8'))
+        def trace():
+            p=cli/'trace.jsonl'
+            return [json.loads(line) for line in p.read_text(encoding='utf-8').splitlines()] if p.exists() else []
+        try:
+            rt.start();auth=login()
+            def create(name):return request('POST','/api/sessions',json={'name':name,'adapter':'cbc','model':'deepseek-v4-flash','mcpServers':[]})
+            target,control=[create(n) for n in ('job-target','job-control')]
+            for s in (target,control):assert 'error' not in h._spawn(rt,s['id'])
+            pending=request('POST',f"/api/sessions/{target['id']}/queue",json={'text':'job-must-stay-queued','locked':True,'clientMessageId':'job-locked'})['item']
+            a=action([target['id']]);request('POST','/api/actions/actions',json={'item':a})
+            schema=request('GET','/api/jobs/action-jobs/schema?actionId=pause')
+            assert schema['config']['properties']['arguments']['additionalProperties'] is False
+            cfg=config();cfg['name']='fixed Pause Job'
+            template=request('POST','/api/jobs/job-templates',json={'item':{'name':'complete','enabled':True,'config':cfg},'expectedRevision':0},headers=auth)['item']
+            path='/api/jobs/job-templates/'+template['id']+'/instantiate';body={'expectedRevision':1,'idempotencyKey':'owned-http'}
+            assert call('POST',path,body).status_code==401
+            assert call('POST',path,{**body,'overrides':{'arguments':{'text':'inject'}}},auth).status_code==400
+            job=request('POST',path,json=body,headers=auth)['job']
+            assert request('POST',path,json=body,headers=auth)['job']['jobId']==job['jobId']
+            jobpath='/api/jobs/action-jobs/'+job['jobId']
+            assert not call('POST','/api/jobs/'+job['jobId']+'/run-now').json()['ok']
+            request('POST',jobpath+'/run-now',json={'expectedRevision':1},headers=auth)
+            paused=done(job['jobId'])
+            assert not registry().get('jobExecutions') and 'definition' not in paused['lastExecution']
+            request('PATCH',f"/api/sessions/{target['id']}/queue/{pending['queueItemId']}/lock",json={'locked':False})
+            h._enqueue(rt,control['id'],'job-control-works','control-initial')
+            h._wait_for(lambda:h._received(rt,text='job-control-works'),label='control fakeCLI consumes')
+            h._wait_for(lambda:all(s.get('workerStatus')!='running' for s in request('GET','/api/sessions')['sessions']),label='clean idle edge before enabling template Trigger')
+            assert request('GET',f"/api/sessions/{target['id']}/queue")['queuePaused'] and not h._received(rt,text='job-must-stay-queued')
+            instantiate={**action(),'id':'instantiate','idempotent':True,'execution':{'kind':'job_template','templateId':template['id'],'templateRevision':1}}
+            assert call('POST','/api/actions/actions',{'item':instantiate}).status_code==401
+&gt;           request('POST','/api/actions/actions',json={'item':instantiate},headers=auth)
+
+tests\test_job_action_http.py:93: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_action_http.py:51: in request
+    def request(method,path,**kwargs):return rt.request(method,path,**kwargs)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;tests.test_real_queue_http_e2e._PanRuntime object at 0x0000013CCF97FBF0&gt;
+method = 'POST', path = '/api/actions/actions'
+kwargs = {'json': {'item': {'id': 'instantiate', 'name': 'Pause selected', 'enabled': True, 'effect': 'write_local', ...}}, 'headers': {'Authorization': 'Bearer OWNED_TEST_TOKEN_REDACTED'}}
+
+    def request(self, method: str, path: str, **kwargs) -&gt; dict:
+        with httpx.Client(
+            base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+        ) as client:
+            response = client.request(method, path, **kwargs)
+&gt;       assert response.status_code == 200, f"{method} {path}: {response.status_code} {response.text}"
+E       AssertionError: POST /api/actions/actions: 401 {"detail":"[WinError 5] 拒绝访问。: 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3826\\\\test_complete_template_referen0\\\\owned-job-profile\\\\actions\\\\tmplxbaxazw.tmp' -&gt; 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-3826\\\\test_complete_template_referen0\\\\owned-job-profile\\\\actions\\\\registry.json'"}
+E       assert 401 == 200
+E        +  where 401 = &lt;Response [401 Unauthorized]&gt;.status_code
+
+tests\test_real_queue_http_e2e.py:244: AssertionError</failure></testcase><testcase classname="tests.test_job_unified_http" name="test_unified_event_system_actions_legacy_and_production_ui" time="22.573" /></testsuite></testsuites>

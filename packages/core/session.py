@@ -486,7 +486,11 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
     projection["history_total"] = (total + 1) if isinstance(total, int) else None
 
     changed = True
-    if role == "user":
+    if not preview.strip():
+        # Empty provider blocks still advance the history cursor, but have no
+        # displayable body with which to replace an established preview.
+        changed = False
+    elif role == "user":
         projection["last_user_preview"] = preview
         projection["last_display_preview"] = preview
         projection["last_main_role"] = role
@@ -500,15 +504,10 @@ def _apply_summary_message(projection: dict, message: object, *, bump: bool = Tr
         projection["last_main_role"] = role
     elif role == "thinking":
         projection["last_thinking_preview"] = preview
-        # Thinking/tool rows are auxiliary. They may be used only before any
-        # user/assistant/system preview exists and must never overwrite the
-        # established assistant (or other main-role) preview.
-        if not projection.get("last_main_role"):
-            projection["last_display_preview"] = preview
+        # Auxiliary previews remain available separately; they are not bodies
+        # for the Session card, even before the first main-role message.
     elif role == "tool":
         projection["last_tool_preview"] = preview
-        if not projection.get("last_main_role"):
-            projection["last_display_preview"] = preview
     else:
         # Unknown roles still count toward historyTotal, but cannot become a
         # user-visible summary preview.
@@ -3826,11 +3825,21 @@ _all_loaded: bool = False
 
 
 @_store_serialized
-def list_all(*, load_history: bool = True) -> list[Session]:
+def list_all(*, load_history: bool = True, limit: int | None = None) -> list[Session]:
     global _all_loaded
+    if limit is not None and (type(limit) is not int or limit < 1):
+        raise ValueError('Session candidate limit must be a positive integer')
+    if limit is not None and len(_cache) > limit:
+        raise ValueError('Session query candidate limit exceeded')
     if not _all_loaded:
         if SESSION_DIR.exists():
-            for f in sorted(SESSION_DIR.iterdir()):
+            paths = []
+            for path in SESSION_DIR.iterdir():
+                if path.suffix == '.json':
+                    paths.append(path)
+                    if limit is not None and len(paths) > limit:
+                        raise ValueError('Session query candidate limit exceeded')
+            for f in sorted(paths):
                 if f.suffix == ".json":
                     try:
                         data = json.loads(f.read_text(encoding="utf-8"))
@@ -3847,6 +3856,8 @@ def list_all(*, load_history: bool = True) -> list[Session]:
                     except (json.JSONDecodeError, OSError):
                         pass
         _all_loaded = True
+    if limit is not None and len(_cache) > limit:
+        raise ValueError('Session query candidate limit exceeded')
     if load_history:
         # A previous summary=1 request may have populated shallow cache entries.
         # Hydrate those entries only when a caller explicitly asks for full

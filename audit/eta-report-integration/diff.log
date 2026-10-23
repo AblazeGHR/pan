@@ -1,0 +1,845 @@
+artifacts/event-plugin-adapter/REPORT.md:3: trailing whitespace.
++Worktree: `D:/project/pan-worktrees/event-plugin-adapter-20261022`
+artifacts/event-plugin-adapter/REPORT.md:4: trailing whitespace.
++Branch: `feature/event-plugin-adapter-20261022`
+artifacts/event-plugin-adapter/REPORT.md:5: trailing whitespace.
++Assignment baseline: `b295773d325c0b543f865953ad9ccf2aaf43e4b4`
+artifacts/event-plugin-adapter/action-compat.log:7: trailing whitespace.
++
+artifacts/event-plugin-adapter/first.log:6: trailing whitespace.
++
+artifacts/event-plugin-adapter/http-third.log:6: trailing whitespace.
++
+artifacts/event-plugin-adapter/integration-first.log:33: trailing whitespace.
++
+artifacts/event-plugin-adapter/integration-second.log:57: trailing whitespace.
++
+artifacts/event-plugin-adapter/regression.log:7: trailing whitespace.
++
+artifacts/event-plugin-rework/REPORT.md:3: trailing whitespace.
++Worktree: `D:/project/pan-worktrees/event-plugin-adapter-20261022`
+artifacts/event-plugin-rework/REPORT.md:4: trailing whitespace.
++Branch: `feature/event-plugin-adapter-20261022`
+artifacts/event-plugin-rework/after-barriers.log:6: trailing whitespace.
++
+artifacts/event-plugin-rework/after-first.log:68: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/after-first.log:111: trailing whitespace.
++
+artifacts/event-plugin-rework/after-first.log:121: trailing whitespace.
++
+artifacts/event-plugin-rework/after-first.xml:63: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/after-first.xml:106: trailing whitespace.
++
+artifacts/event-plugin-rework/barriers-final.log:6: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:10: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:12: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:16: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:18: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:21: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:41: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:42: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:45: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:48: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:54: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:59: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.log:66: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:73: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:146: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.log:177: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:181: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:184: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:199: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:201: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:205: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:207: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:210: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:230: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:231: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:234: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:237: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:243: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:315: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.log:344: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:348: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:351: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:366: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:368: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:372: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:374: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:377: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:397: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:398: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:401: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:404: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:410: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:482: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.log:512: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:516: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:519: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:534: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:536: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:540: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:542: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:545: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:565: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:566: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:569: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:572: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:578: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:583: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.log:590: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:597: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:645: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:108:
+artifacts/event-plugin-rework/before-corrected.log:676: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:680: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:683: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:730: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:142:
+artifacts/event-plugin-rework/before-corrected.log:770: trailing whitespace.
++E
+artifacts/event-plugin-rework/before-corrected.log:781: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:783: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:787: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:789: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:792: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:812: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:813: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:816: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:819: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:825: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:830: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.log:841: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:845: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:877: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:162:
+artifacts/event-plugin-rework/before-corrected.log:906: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:910: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:913: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.log:925: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:5: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:7: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:11: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:13: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:16: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:36: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:37: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:40: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:43: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:49: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:54: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.xml:61: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:68: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:141: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.xml:172: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:176: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:179: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:191: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:193: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:197: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:199: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:202: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:222: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:223: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:226: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:229: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:235: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:307: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.xml:336: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:340: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:343: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:355: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:357: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:361: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:363: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:366: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:386: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:387: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:390: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:393: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:399: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:471: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before-corrected.xml:501: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:505: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:508: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:520: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:522: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:526: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:528: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:531: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:551: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:552: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:555: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:558: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:564: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:569: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.xml:576: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:583: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:631: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:108:
+artifacts/event-plugin-rework/before-corrected.xml:662: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:666: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:669: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:713: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:142:
+artifacts/event-plugin-rework/before-corrected.xml:753: trailing whitespace.
++E
+artifacts/event-plugin-rework/before-corrected.xml:761: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:763: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:767: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:769: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:772: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:792: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:793: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:796: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:799: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:805: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:810: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before-corrected.xml:821: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:825: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:857: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:162:
+artifacts/event-plugin-rework/before-corrected.xml:886: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:890: trailing whitespace.
++
+artifacts/event-plugin-rework/before-corrected.xml:893: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:10: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:12: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:16: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:18: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:21: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:41: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:42: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:45: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:48: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:54: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:59: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.log:66: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:73: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:146: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.log:177: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:181: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:184: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:199: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:201: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:205: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:207: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:210: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:230: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:231: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:234: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:237: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:243: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:315: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.log:344: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:348: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:351: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:424: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.log:467: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:480: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:482: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:486: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:488: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:491: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:511: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:512: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:515: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:518: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:524: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:529: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.log:536: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:543: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:591: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:108:
+artifacts/event-plugin-rework/before.log:622: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:626: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:629: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:676: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:142:
+artifacts/event-plugin-rework/before.log:716: trailing whitespace.
++E
+artifacts/event-plugin-rework/before.log:727: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:729: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:733: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:735: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:738: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:758: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:759: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:762: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:765: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:771: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:776: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.log:787: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:791: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:823: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:162:
+artifacts/event-plugin-rework/before.log:852: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:856: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:859: trailing whitespace.
++
+artifacts/event-plugin-rework/before.log:871: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:5: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:7: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:11: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:13: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:16: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:36: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:37: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:40: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:43: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:49: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:54: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.xml:61: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:68: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:141: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.xml:172: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:176: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:179: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:191: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:193: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:197: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:199: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:202: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:222: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:223: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:226: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:229: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:235: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:307: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.xml:336: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:340: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:343: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:413: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:73:
+artifacts/event-plugin-rework/before.xml:456: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:466: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:468: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:472: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:474: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:477: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:497: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:498: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:501: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:504: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:510: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:515: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.xml:522: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:529: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:577: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:108:
+artifacts/event-plugin-rework/before.xml:608: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:612: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:615: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:659: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:142:
+artifacts/event-plugin-rework/before.xml:699: trailing whitespace.
++E
+artifacts/event-plugin-rework/before.xml:707: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:709: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:713: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:715: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:718: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:738: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:739: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:742: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:745: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:751: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:756: trailing whitespace.
++C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488:
+artifacts/event-plugin-rework/before.xml:767: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:771: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:803: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:162:
+artifacts/event-plugin-rework/before.xml:832: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:836: trailing whitespace.
++
+artifacts/event-plugin-rework/before.xml:839: trailing whitespace.
++
+artifacts/event-plugin-rework/startup-diagnosis.log:69: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/startup-diagnosis.log:162: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/startup-diagnosis.log:224: trailing whitespace.
++tests\test_plugin_events.py:234:
+artifacts/event-plugin-rework/startup-diagnosis.log:253: trailing whitespace.
++
+artifacts/event-plugin-rework/transport-first.log:69: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.log:161: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.log:253: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.log:313: trailing whitespace.
++tests\test_plugin_events.py:233:
+artifacts/event-plugin-rework/transport-first.log:352: trailing whitespace.
++
+artifacts/event-plugin-rework/transport-first.xml:64: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.xml:153: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.xml:242: trailing whitespace.
++tests\test_plugin_events.py:155:
+artifacts/event-plugin-rework/transport-first.xml:299: trailing whitespace.
++tests\test_plugin_events.py:233:
+artifacts/event-plugin-rework/transport-second.log:6: trailing whitespace.
++
+artifacts/event-trigger-ma/FINAL-ACCEPTANCE.md:15: new blank line at EOF.
+artifacts/event-trigger-ma/final-review-failed/ma-combined.xml:128: trailing whitespace.
++tests\test_eta_final_combined.py:146:
+artifacts/job-inbox-followup/before.log:26: trailing whitespace.
++E
+artifacts/job-inbox-followup/before.xml:18: trailing whitespace.
++E
+artifacts/job-inbox-followup/build.log:9: trailing whitespace.
++[plugin vite:reporter]
+artifacts/job-inbox-followup/failed-browser-scope/browser.txt:53: trailing whitespace.
++Sort by
+artifacts/job-inbox-followup/failed-formatted-receipt/command.log:71: trailing whitespace.
++tests\test_job_inbox_http.py:75:
+artifacts/job-inbox-followup/http/browser.log:2: new blank line at EOF.
+artifacts/job-inbox-followup/readonly-before.log:24: trailing whitespace.
++tests\test_job_inbox_boundaries.py:56:
+artifacts/job-inbox-followup/readonly-before.log:43: trailing whitespace.
++E
+artifacts/job-inbox-followup/readonly-before.xml:19: trailing whitespace.
++tests\test_job_inbox_boundaries.py:56:
+artifacts/job-inbox-followup/readonly-before.xml:38: trailing whitespace.
++E
+artifacts/job-templates/baseline.xml:6: trailing whitespace.
++artifacts\job-templates\baseline_probe.py:10:
+artifacts/job-templates/core-first.xml:30: trailing whitespace.
++tests\test_job_action_templates.py:162:
+artifacts/job-templates/core-first.xml:71: trailing whitespace.
++tests\test_job_action_templates.py:162:
+artifacts/job-templates/core-first.xml:98: trailing whitespace.
++tests\test_job_action_templates.py:221:
+artifacts/job-templates/core-first.xml:126: trailing whitespace.
++
+artifacts/job-templates/interleavings-first.xml:13: trailing whitespace.
++E
+artifacts/job-templates/interleavings-second.xml:11: trailing whitespace.
++tests\test_job_action_templates.py:515:
+artifacts/job-unified-build.log:9: trailing whitespace.
++[plugin vite:reporter]
+artifacts/job-unified-compat-before-fixture.xml:13: trailing whitespace.
++tests\test_automation_retry_parallel.py:436:
+artifacts/job-unified-compat-before-fixture.xml:45: trailing whitespace.
++tests\test_automation_retry_parallel.py:511:
+artifacts/job-unified-gates-before-fixture.log:14: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.log:17: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.log:20: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.log:24: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.log:27: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.log:36: trailing whitespace.
++E
+artifacts/job-unified-gates-before-fixture.log:106: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.log:208: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.log:310: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.log:386: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:109:
+artifacts/job-unified-gates-before-fixture.log:461: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:143:
+artifacts/job-unified-gates-before-fixture.log:521: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:163:
+artifacts/job-unified-gates-before-fixture.log:616: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.log:711: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.log:806: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.log:901: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.log:996: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.log:1072: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:252:
+artifacts/job-unified-gates-before-fixture.log:1144: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:301:
+artifacts/job-unified-gates-before-fixture.log:1216: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:301:
+artifacts/job-unified-gates-before-fixture.log:1291: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:335:
+artifacts/job-unified-gates-before-fixture.log:1353: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:357:
+artifacts/job-unified-gates-before-fixture.xml:8: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.xml:11: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.xml:14: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.xml:18: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.xml:21: trailing whitespace.
++
+artifacts/job-unified-gates-before-fixture.xml:30: trailing whitespace.
++E
+artifacts/job-unified-gates-before-fixture.xml:97: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.xml:196: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.xml:295: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:74:
+artifacts/job-unified-gates-before-fixture.xml:368: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:109:
+artifacts/job-unified-gates-before-fixture.xml:440: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:143:
+artifacts/job-unified-gates-before-fixture.xml:497: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:163:
+artifacts/job-unified-gates-before-fixture.xml:589: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.xml:681: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.xml:773: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.xml:865: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.xml:957: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:216:
+artifacts/job-unified-gates-before-fixture.xml:1030: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:252:
+artifacts/job-unified-gates-before-fixture.xml:1099: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:301:
+artifacts/job-unified-gates-before-fixture.xml:1168: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:301:
+artifacts/job-unified-gates-before-fixture.xml:1240: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:335:
+artifacts/job-unified-gates-before-fixture.xml:1299: trailing whitespace.
++tests\test_plugin_event_lifecycle.py:357:
+artifacts/job-unified-live/browser.log:2: new blank line at EOF.
+artifacts/job-unified-live/failed-browser-label/junit-working.xml:69: trailing whitespace.
++E
+artifacts/job-unified-live/failed-browser-label/junit-working.xml:73: trailing whitespace.
++E
+artifacts/job-unified-live/failed-browser-label/junit-working.xml:79: trailing whitespace.
++E
+artifacts/job-unified-live/failed-browser-label/junit-working.xml:81: trailing whitespace.
++E
+artifacts/job-unified-live/failed-dirty-after-save/browser-failure.txt:55: trailing whitespace.
++Sort by
+artifacts/job-unified-live/failed-dirty-after-save/junit-working.xml:69: trailing whitespace.
++E
+artifacts/job-unified-live/failed-dirty-after-save/junit-working.xml:73: trailing whitespace.
++E
+artifacts/job-unified-live/failed-dirty-after-save/junit-working.xml:78: trailing whitespace.
++E
+artifacts/job-unified-live/failed-dirty-after-save/junit-working.xml:80: trailing whitespace.
++E
+artifacts/job-unified-live/failed-registry-sharing/command.log:89: trailing whitespace.
++tests\test_job_action_http.py:93:
+artifacts/job-unified-live/failed-registry-sharing/junit.xml:84: trailing whitespace.
++tests\test_job_action_http.py:93:
+artifacts/job-unified-live/failed-textarea-label/junit-working.xml:69: trailing whitespace.
++E
+artifacts/job-unified-live/failed-textarea-label/junit-working.xml:73: trailing whitespace.
++E
+artifacts/job-unified-live/failed-textarea-label/junit-working.xml:81: trailing whitespace.
++E
+artifacts/job-unified-live/failed-textarea-label/junit-working.xml:83: trailing whitespace.
++E
+artifacts/job-unified-recovery-before-fixture.xml:14: trailing whitespace.
++tests\test_event_store.py:124:
+artifacts/job-unified-recovery-before-fixture.xml:52: trailing whitespace.
++tests\test_event_store.py:179:
+artifacts/job-unified-recovery-before-fixture.xml:105: trailing whitespace.
++tests\test_event_store.py:284:
+artifacts/job-unified-recovery-before-fixture.xml:145: trailing whitespace.
++tests\test_event_store.py:342:
+artifacts/runtime-issues/unit-first.xml:5: trailing whitespace.
++E
+evidence/composition-ui-final.xml:265: trailing whitespace.
++No routes matched location &quot;/&quot;
+evidence/locker-browser-retry.xml:6: trailing whitespace.
++tests\test_user_locker_browser.py:5:
+evidence/locker-browser-retry.xml:104: trailing whitespace.
++

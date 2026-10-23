@@ -7,6 +7,7 @@
 | 标准 MCP | 产品已有 MCP server | 连接描述符和插件声明 |
 | pan-capability/v1 + stdio | 产品只有 CLI，或希望隔离内部能力与 Agent 工具 | JSON 能力文档和 JSON-RPC helper |
 | pan-capability/v1 + HTTP | 产品已有 HTTP API | 固定 endpoint、路由、方法及输入 Schema |
+| pan-events/v1 + stdio | 插件需发布事实或实时订阅其他事件 | [事件声明、握手及生命周期](EVENTS.md) |
 
 本地新增 helper 使用 stdio，不为它再搭本地 HTTP 执行服务。已有 HTTP/SSE MCP 或 HTTP API 可继续使用原协议。面板浏览器调用的是已有 Pan Web API，与 helper 的本地传输是不同层。
 

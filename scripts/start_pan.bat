@@ -8,8 +8,10 @@ REM Bootstrap with the checkout interpreter when present. launcher.start then
 REM applies config.json python > PAN_PYTHON > .venv > PATH and re-execs itself
 REM when the configured interpreter differs from this bootstrap process.
 if exist "%PAN_ROOT%\.venv\Scripts\python.exe" (
+    "%PAN_ROOT%\.venv\Scripts\python.exe" "%PAN_ROOT%\scripts\register_pan_cli.py" auto --root "%PAN_ROOT%"
     "%PAN_ROOT%\.venv\Scripts\python.exe" -m packages.core.launcher start --root "%PAN_ROOT%"
 ) else (
+    python "%PAN_ROOT%\scripts\register_pan_cli.py" auto --root "%PAN_ROOT%"
     python -m packages.core.launcher start --root "%PAN_ROOT%"
 )
 set "PAN_EXIT=%ERRORLEVEL%"

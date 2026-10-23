@@ -1,0 +1,26 @@
+{
+  "sourceSha": "32bdba7abd8e92ce31df1eecec94311812409eb5",
+  "port": 52070,
+  "identity": {
+    "pid": 44928,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3841\\test_jobs_templates_and_inbox_0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3841\\test_jobs_templates_and_inbox_0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3841\\test_jobs_templates_and_inbox_0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3841\\test_jobs_templates_and_inbox_0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3841\\test_jobs_templates_and_inbox_0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\job-unified-inbox-followup-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "queueIds": [
+    "q_28936fbb413be73ce5406557763f5527de8893cb3e474abc2bb02da24b923885",
+    "q_fefb2ab1c138fbab8b9e58c2d666cf4cb3c4c946859ef6f4ad45c8dc5a94feae",
+    "q_2ee3a060319c47c1838ccfd350b78da0",
+    "q_afc046c79aaa4d8aaf83851c4222037d"
+  ],
+  "jobId": "job_8b169d6585cc4ca3b1c00ea7",
+  "lockerId": "locker_8e188ecee469450cbf0f5261fb70f2d9fe6288aa4ad21aa51174032936e56013",
+  "templateRevision": 1,
+  "disabledCopyId": "job_c074774ef3bcd34a4a75bb65",
+  "pauseBlocked": true,
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

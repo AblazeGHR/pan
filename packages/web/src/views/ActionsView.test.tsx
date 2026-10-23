@@ -6,6 +6,7 @@ import { actionRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
 import type { Session } from '@/types';
+import { useSessionOperationTemplateStore } from '@/stores/sessionOperationTemplateStore';
 
 vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
 const invoke = vi.mocked(actionRequest);
@@ -52,8 +53,10 @@ beforeEach(() => {
   nextId = 1;
   invoke.mockReset();
   resetActionCachesForTests();
+  useSessionOperationTemplateStore.setState({ data: null, error: '' });
   invoke.mockImplementation(async (path, method = 'GET', body) => {
     if (path === 'actions' && method === 'GET') return structuredClone(registry);
+    if (path === 'actions/session-operation-template') return { item: {}, queryFields: {}, queryPredicateSchema: {}, limits: { depth: 8, nodes: 64, values: 128, textLength: 512, candidates: 2048, results: 256 } };
     if (path === 'mcp/servers') {
       return {
         servers: [
@@ -176,6 +179,86 @@ describe('Action Panel cache and lists', () => {
 });
 
 describe('Action create, edit and duplicate', () => {
+  it('edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query', async () => {
+    registry.actions[0] = { ...structuredClone(source), effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'query', query: { field: 'name', op: 'eq', value: 'Original' } } } };
+    await renderList(); fireEvent.click(screen.getByRole('button', { name: 'Edit List Sessions' }));
+    fireEvent.change(screen.getByLabelText('Query condition type'), { target: { value: 'and' } });
+    fireEvent.change(screen.getByLabelText('Query field'), { target: { value: 'readonlySession' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add query condition' }));
+    fireEvent.change(screen.getAllByLabelText('Query field')[1]!, { target: { value: 'workspaceIds' } });
+    fireEvent.change(screen.getAllByLabelText('Query operator')[1]!, { target: { value: 'contains' } });
+    fireEvent.change(screen.getByLabelText('Query text value'), { target: { value: 'ws_exact' } });
+    invoke.mockRejectedValueOnce(new Error('Action registry revision changed'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced query JSON' }));
+    fireEvent.change(screen.getByLabelText('Query JSON'), { target: { value: '{unfinished' } });
+    const count = invoke.mock.calls.filter(([, m]) => m === 'PUT').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    expect(invoke.mock.calls.filter(([, m]) => m === 'PUT')).toHaveLength(count);
+    await useActionRegistryStore.getState().ensureRegistry({ force: true });
+    expect((screen.getByLabelText('Query JSON') as HTMLTextAreaElement).value).toBe('{unfinished');
+    const query = { and: [{ field: 'readonlySession', op: 'eq', value: false }, { field: 'workspaceIds', op: 'contains', value: 'ws_exact' }] };
+    fireEvent.change(screen.getByLabelText('Query JSON'), { target: { value: JSON.stringify(query) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit List Sessions' });
+    expect(registry.actions[0]?.execution).toMatchObject({ selector: { mode: 'query', query } });
+  });
+  it('edits, duplicates and saves a Session Operation without changing its original or Group release', async () => {
+    const pause: Action = { ...structuredClone(source), id: 'pause', name: 'Pause selected', effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1', 'missing'] } } };
+    registry.actions.push(pause);
+    registry.groups = [makeBuiltGroup()];
+    const groupBefore = structuredClone(registry.groups);
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Pause selected' }));
+    expect(screen.getByRole('heading', { name: 'Pause selected' })).toBeTruthy();
+    expect((screen.getByLabelText('Effect') as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getAllByText(/Not in current Session list/).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit Pause selected' });
+    expect(registry.actions.find((a) => a.id === 'pause')?.execution).toEqual({ kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'event', path: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Pause selected' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Duplicate Action/ }));
+    await screen.findByRole('heading', { name: 'Pause selected copy' });
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'explicit' } });
+    fireEvent.change(screen.getByLabelText('Session ID to add'), { target: { value: 's2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Session ID' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+    await screen.findByRole('button', { name: 'Edit Pause selected copy' });
+    expect(registry.actions.find((a) => a.name === 'Pause selected copy')?.execution).toMatchObject({ selector: { mode: 'explicit', ids: ['s2'] } });
+    expect(registry.actions.find((a) => a.id === 'pause')?.execution).toMatchObject({ selector: { mode: 'event', path: 'payload.targets' } });
+    expect(registry.groups).toEqual(groupBefore);
+    expect(invoke.mock.calls.filter(([path, method]) => path === 'actions' && (!method || method === 'GET'))).toHaveLength(1);
+  });
+  it('creates Session Operation in the new editor and rejects invalid Event targets without posting', async () => {
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: 'New Action' }));
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'New pause' } });
+    fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Pause targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Session Operation' }));
+    expect((screen.getByLabelText('Effect') as HTMLSelectElement).value).toBe('write_local');
+    fireEvent.change(screen.getByLabelText('Target source'), { target: { value: 'event' } });
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload..targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
+    expect(screen.getByRole('alert').textContent).toContain('valid target Event');
+    expect(invoke.mock.calls.some(([, method]) => method === 'POST')).toBe(false);
+    fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload.targets' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
+    await screen.findByRole('button', { name: 'Edit New pause' });
+    expect(registry.actions.find((a) => a.name === 'New pause')?.execution).toMatchObject({ kind: 'session_operation', selector: { path: 'payload.targets' } });
+  });
+  it('blocks Group build for enabled Session Operation while preserving membership and build APIs', async () => {
+    registry.actions[0] = { ...structuredClone(source), effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1'] } } };
+    registry.groups = [makeBuiltGroup({ build: undefined })];
+    await renderList();
+    fireEvent.click(screen.getByRole('button', { name: /^Groups/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Tools' }));
+    expect((screen.getByRole('button', { name: 'Build Group' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByText(/Session Operation is automation only/).length).toBeGreaterThan(0);
+    expect(invoke.mock.calls.some(([path]) => path?.endsWith('/build'))).toBe(false);
+  });
   it('creates an Action without a client ID and returns to the list', async () => {
     await renderList();
     fireEvent.click(screen.getByRole('button', { name: 'New Action' }));

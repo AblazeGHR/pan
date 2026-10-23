@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "check": "static-only",
+  "plugins": [
+    {
+      "id": "producer",
+      "source": "pan_api",
+      "modes": [
+        "standalone",
+        "pan_native",
+        "gateway"
+      ],
+      "panels": [],
+      "capabilities": 1,
+      "agentCapabilities": null
+    },
+    {
+      "id": "observer",
+      "source": "pan_api",
+      "modes": [
+        "standalone",
+        "pan_native",
+        "gateway"
+      ],
+      "panels": [],
+      "capabilities": 1,
+      "agentCapabilities": null
+    }
+  ]
+}

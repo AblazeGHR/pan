@@ -1,0 +1,82 @@
+
+> pan-web@ build D:\project\pan-worktrees\locker-product-integration-20261023\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 2535 modules transformed.
+rendering chunks...
+[33m[plugin vite:reporter] 
+(!) D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src/router.tsx is dynamically imported by D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src/utils/session-deeplink.ts but also statically imported by D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src/main.tsx, dynamic import will not move module into another chunk.
+[39m
+computing gzip size...
+[2m../dist/[22m[32mindex.html                                 [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:   0.39 kB[22m
+[2m../dist/[22m[35massets/MarkdownRenderer-BEHUn5zE.css       [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:   0.61 kB[22m
+[2m../dist/[22m[35massets/ActionsView-5rGcqsPE.css            [39m[1m[2m  2.11 kB[22m[1m[22m[2m │ gzip:   0.75 kB[22m
+[2m../dist/[22m[35massets/xterm-6GBZ9nXN.css                  [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:   1.92 kB[22m
+[2m../dist/[22m[35massets/LockerView-BUcmVoxN.css             [39m[1m[2m  9.71 kB[22m[1m[22m[2m │ gzip:   2.06 kB[22m
+[2m../dist/[22m[35massets/index-t1BeNpq3.css                  [39m[1m[2m116.51 kB[22m[1m[22m[2m │ gzip:  19.59 kB[22m
+[2m../dist/[22m[36massets/check-CHMpbWfU.js                   [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:   0.28 kB[22m[2m │ map:     0.86 kB[22m
+[2m../dist/[22m[36massets/arrow-left-BJgg7b52.js              [39m[1m[2m  0.39 kB[22m[1m[22m[2m │ gzip:   0.30 kB[22m[2m │ map:     0.99 kB[22m
+[2m../dist/[22m[36massets/user-round-CeF3YM6F.js              [39m[1m[2m  0.40 kB[22m[1m[22m[2m │ gzip:   0.31 kB[22m[2m │ map:     1.03 kB[22m
+[2m../dist/[22m[36massets/play-CDPLaX3m.js                    [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:   0.32 kB[22m[2m │ map:     0.96 kB[22m
+[2m../dist/[22m[36massets/pause-BP0LosIT.js                   [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:   0.31 kB[22m[2m │ map:     1.12 kB[22m
+[2m../dist/[22m[36massets/copy-DEQah4iH.js                    [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:   0.34 kB[22m[2m │ map:     1.10 kB[22m
+[2m../dist/[22m[36massets/download-DPXQjx9l.js                [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:   0.33 kB[22m[2m │ map:     1.12 kB[22m
+[2m../dist/[22m[36massets/globe-n57oTILi.js                   [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:   0.33 kB[22m[2m │ map:     1.13 kB[22m
+[2m../dist/[22m[36massets/external-link-D4lDwXcb.js           [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:   0.34 kB[22m[2m │ map:     1.16 kB[22m
+[2m../dist/[22m[36massets/useSessionWorkspace-DKp71gry.js     [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:   0.32 kB[22m[2m │ map:     2.35 kB[22m
+[2m../dist/[22m[36massets/file-CUuH14IN.js                    [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:   0.35 kB[22m[2m │ map:     1.10 kB[22m
+[2m../dist/[22m[36massets/shield-check-IgTS8Co5.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:   0.39 kB[22m[2m │ map:     1.20 kB[22m
+[2m../dist/[22m[36massets/refresh-cw-CcHT3o3L.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:   0.36 kB[22m[2m │ map:     1.28 kB[22m
+[2m../dist/[22m[36massets/clipboard-Bka3b3-h.js               [39m[1m[2m  0.61 kB[22m[1m[22m[2m │ gzip:   0.39 kB[22m[2m │ map:     2.05 kB[22m
+[2m../dist/[22m[36massets/terminal-5KaI6WoJ.js                [39m[1m[2m  0.86 kB[22m[1m[22m[2m │ gzip:   0.45 kB[22m[2m │ map:     2.12 kB[22m
+[2m../dist/[22m[36massets/FreshnessStatus-B84S4JfO.js         [39m[1m[2m  1.20 kB[22m[1m[22m[2m │ gzip:   0.66 kB[22m[2m │ map:     3.59 kB[22m
+[2m../dist/[22m[36massets/MessageTimestamp-CidapqOq.js        [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:   0.74 kB[22m[2m │ map:     4.75 kB[22m
+[2m../dist/[22m[36massets/qqContactSearch-BzgROIgc.js         [39m[1m[2m  1.33 kB[22m[1m[22m[2m │ gzip:   0.74 kB[22m[2m │ map:     3.03 kB[22m
+[2m../dist/[22m[36massets/JobUserAuthorization-DUennCrB.js    [39m[1m[2m  1.60 kB[22m[1m[22m[2m │ gzip:   0.88 kB[22m[2m │ map:     3.52 kB[22m
+[2m../dist/[22m[36massets/ManageView-BuqbQHCk.js              [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:   0.87 kB[22m[2m │ map:     4.81 kB[22m
+[2m../dist/[22m[36massets/PluginSelection-CdcxfQbi.js         [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:   0.94 kB[22m[2m │ map:     4.95 kB[22m
+[2m../dist/[22m[36massets/DetailPanel-C5y6HhTI.js             [39m[1m[2m  2.57 kB[22m[1m[22m[2m │ gzip:   1.17 kB[22m[2m │ map:     6.71 kB[22m
+[2m../dist/[22m[36massets/CodeEditor-Bw60ZqTA.js              [39m[1m[2m  2.59 kB[22m[1m[22m[2m │ gzip:   1.28 kB[22m[2m │ map:     8.25 kB[22m
+[2m../dist/[22m[36massets/automationStore-BWP5ygcp.js         [39m[1m[2m  2.71 kB[22m[1m[22m[2m │ gzip:   1.30 kB[22m[2m │ map:     8.60 kB[22m
+[2m../dist/[22m[36massets/codexRateLimits-D0VsjuO0.js         [39m[1m[2m  2.75 kB[22m[1m[22m[2m │ gzip:   1.14 kB[22m[2m │ map:    11.09 kB[22m
+[2m../dist/[22m[36massets/NativeTerminal-D79cbmcc.js          [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:   1.66 kB[22m[2m │ map:    11.90 kB[22m
+[2m../dist/[22m[36massets/editorFileLinks-DKDr_Tqm.js         [39m[1m[2m  3.73 kB[22m[1m[22m[2m │ gzip:   1.73 kB[22m[2m │ map:    16.56 kB[22m
+[2m../dist/[22m[36massets/nativeControlStore-Bp26Uvmo.js      [39m[1m[2m  4.29 kB[22m[1m[22m[2m │ gzip:   1.59 kB[22m[2m │ map:    15.11 kB[22m
+[2m../dist/[22m[36massets/DirectoryInput-CMs7Xrey.js          [39m[1m[2m  5.13 kB[22m[1m[22m[2m │ gzip:   1.95 kB[22m[2m │ map:    18.33 kB[22m
+[2m../dist/[22m[36massets/actionRegistryStore-3BETqQCf.js     [39m[1m[2m  6.12 kB[22m[1m[22m[2m │ gzip:   1.75 kB[22m[2m │ map:    27.48 kB[22m
+[2m../dist/[22m[36massets/JobRetentionSettings-unWbhg59.js    [39m[1m[2m  6.61 kB[22m[1m[22m[2m │ gzip:   2.53 kB[22m[2m │ map:    17.94 kB[22m
+[2m../dist/[22m[36massets/PostboxModal-Cf0bjUWp.js            [39m[1m[2m  9.77 kB[22m[1m[22m[2m │ gzip:   3.44 kB[22m[2m │ map:    34.40 kB[22m
+[2m../dist/[22m[36massets/GlobalHistorySearch-CzqEKwe6.js     [39m[1m[2m 11.16 kB[22m[1m[22m[2m │ gzip:   3.90 kB[22m[2m │ map:    40.69 kB[22m
+[2m../dist/[22m[36massets/EditorDirectoryRoots-1DinyowF.js    [39m[1m[2m 11.55 kB[22m[1m[22m[2m │ gzip:   4.21 kB[22m[2m │ map:    36.75 kB[22m
+[2m../dist/[22m[36massets/EditorView-DyUaahUG.js              [39m[1m[2m 13.25 kB[22m[1m[22m[2m │ gzip:   4.56 kB[22m[2m │ map:    38.20 kB[22m
+[2m../dist/[22m[36massets/SessionDetailsModal-DdqNajFx.js     [39m[1m[2m 13.69 kB[22m[1m[22m[2m │ gzip:   4.67 kB[22m[2m │ map:    45.29 kB[22m
+[2m../dist/[22m[36massets/SessionHistorySearch-4dFZPjFA.js    [39m[1m[2m 14.25 kB[22m[1m[22m[2m │ gzip:   5.07 kB[22m[2m │ map:    45.81 kB[22m
+[2m../dist/[22m[36massets/monaco-vendor-fGo_w72f.js           [39m[1m[2m 14.96 kB[22m[1m[22m[2m │ gzip:   5.18 kB[22m[2m │ map:    48.03 kB[22m
+[2m../dist/[22m[36massets/TerminalPanel-hdKB4evq.js           [39m[1m[2m 16.02 kB[22m[1m[22m[2m │ gzip:   6.13 kB[22m[2m │ map:    42.24 kB[22m
+[2m../dist/[22m[36massets/ScheduleListEditor-DyH3Rw5H.js      [39m[1m[2m 16.81 kB[22m[1m[22m[2m │ gzip:   5.36 kB[22m[2m │ map:    58.19 kB[22m
+[2m../dist/[22m[36massets/PluginPanelView-Bt3a9tRh.js         [39m[1m[2m 16.89 kB[22m[1m[22m[2m │ gzip:   6.65 kB[22m[2m │ map:    57.34 kB[22m
+[2m../dist/[22m[36massets/ImportModal-Ce9znv6i.js             [39m[1m[2m 17.64 kB[22m[1m[22m[2m │ gzip:   4.30 kB[22m[2m │ map:    62.97 kB[22m
+[2m../dist/[22m[36massets/LockerView-QT97Wwby.js              [39m[1m[2m 23.12 kB[22m[1m[22m[2m │ gzip:   7.68 kB[22m[2m │ map:    75.47 kB[22m
+[2m../dist/[22m[36massets/AutomationView-CEq_xUIW.js          [39m[1m[2m 25.65 kB[22m[1m[22m[2m │ gzip:   7.79 kB[22m[2m │ map:    63.74 kB[22m
+[2m../dist/[22m[36massets/NewJobForm-xUv0cg6p.js              [39m[1m[2m 25.87 kB[22m[1m[22m[2m │ gzip:   7.44 kB[22m[2m │ map:    87.76 kB[22m
+[2m../dist/[22m[36massets/ManageModal-Dm2Tov8N.js             [39m[1m[2m 27.73 kB[22m[1m[22m[2m │ gzip:   8.08 kB[22m[2m │ map:    93.27 kB[22m
+[2m../dist/[22m[36massets/SessionOperationFields-CsRloI8W.js  [39m[1m[2m 28.00 kB[22m[1m[22m[2m │ gzip:   9.04 kB[22m[2m │ map:    72.80 kB[22m
+[2m../dist/[22m[36massets/NewSessionModal-IuCDbsNC.js         [39m[1m[2m 28.64 kB[22m[1m[22m[2m │ gzip:   8.23 kB[22m[2m │ map:    87.60 kB[22m
+[2m../dist/[22m[36massets/MarkdownRenderer-CrsL1tl6.js        [39m[1m[2m 35.78 kB[22m[1m[22m[2m │ gzip:  11.88 kB[22m[2m │ map:   131.42 kB[22m
+[2m../dist/[22m[36massets/JobsView-CPOrDljs.js                [39m[1m[2m 66.13 kB[22m[1m[22m[2m │ gzip:  17.11 kB[22m[2m │ map:   182.75 kB[22m
+[2m../dist/[22m[36massets/ActionsView-CgEfM_Cq.js             [39m[1m[2m 72.23 kB[22m[1m[22m[2m │ gzip:  18.24 kB[22m[2m │ map:   203.79 kB[22m
+[2m../dist/[22m[36massets/AppSettingsModal-ChKaRICq.js        [39m[1m[2m109.45 kB[22m[1m[22m[2m │ gzip:  28.95 kB[22m[2m │ map:   296.21 kB[22m
+[2m../dist/[22m[36massets/ChatView-uCw3CN6F.js                [39m[1m[2m242.35 kB[22m[1m[22m[2m │ gzip:  72.82 kB[22m[2m │ map:   962.45 kB[22m
+[2m../dist/[22m[36massets/react-vendor-DZ42Ocw1.js            [39m[1m[2m288.18 kB[22m[1m[22m[2m │ gzip:  92.33 kB[22m[2m │ map: 1,477.37 kB[22m
+[2m../dist/[22m[36massets/xterm-XOw-FC4b.js                   [39m[1m[2m334.26 kB[22m[1m[22m[2m │ gzip:  84.78 kB[22m[2m │ map:   697.29 kB[22m
+[2m../dist/[22m[36massets/index-WjMp3VAa-pc2.js               [39m[1m[2m414.48 kB[22m[1m[22m[2m │ gzip: 121.01 kB[22m[2m │ map: 1,702.73 kB[22m
+[2m../dist/[22m[36massets/markdown-vendor-B3UHhm0a.js         [39m[1m[33m602.56 kB[39m[22m[2m │ gzip: 181.56 kB[22m[2m │ map: 2,598.33 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 7.13s[39m
+Verified 94 compressed production assets

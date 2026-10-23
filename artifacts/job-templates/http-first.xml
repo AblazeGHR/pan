@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="14.473" timestamp="2026-10-22T12:41:18.445561+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_http" name="test_complete_template_reference_snapshot_and_recovery_http" time="14.171" /></testsuite></testsuites>

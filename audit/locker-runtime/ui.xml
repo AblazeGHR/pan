@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="25" failures="0" errors="0" time="2.505">
+    <testsuite name="shortcuts/registry.test.ts" timestamp="2026-10-23T02:49:51.510Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.004015">
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; uses pluginId/panelId identities and never array positions" time="0.0015718">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; skips malformed/duplicate panels without throwing" time="0.000703">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; adds and removes actions from the live store without disturbing others" time="0.0006331">
+        </testcase>
+        <testcase classname="shortcuts/registry.test.ts" name="dynamic panel shortcut registry &gt; keeps the full action set in stable groups with safe defaults" time="0.0004255">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/lockerModel.auth.test.ts" timestamp="2026-10-23T02:49:51.512Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0030071">
+        <testcase classname="views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0023972">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-23T02:49:51.512Z" hostname="ablaze" tests="9" failures="0" errors="0" skipped="0" time="0.4645458">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; aggregates by Workspace with original identity and time order" time="0.0079331">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows independent Locker sources and Workspace projection" time="0.0759647">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice once, becomes readonly, then deletes" time="0.0426287">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects without answer, preserves card, allows delete and unread toggle" time="0.0398231">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; pages visible messages without another container and reads server response after refresh" time="0.0936176">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows unavailable authentication instead of granting Agent user rights" time="0.013978">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.0623949">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.0628437">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.0643065">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/JobTemplateEditor.test.tsx" timestamp="2026-10-23T02:49:51.513Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.2708191">
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="fixed instantiate reuses idempotency key after an unknown result and never overlays editor fields" time="0.1149279">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="dirty configuration cannot be used as an instantiate overlay" time="0.0353437">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="template deletion uses the selected revision only after explicit confirmation" time="0.0560577">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="saves Template capability independently from disabled copied Job execution and rotates key only on confirmed revision" time="0.0639354">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/UnifiedJobForm.test.tsx" timestamp="2026-10-23T02:49:51.514Z" hostname="ablaze" tests="7" failures="0" errors="0" skipped="0" time="0.1665558">
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; preserves a missing Action ID and shows the exact repair location" time="0.0472161">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; creates from Action reference with conservative explicit policies, without kind selector" time="0.016914">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; refuses extra body for an empty Action schema and keeps the draft" time="0.0210909">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; rejects malformed query instead of keeping an earlier valid query" time="0.0162368">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; requires monitoring declaration before recovery and persists backoff/reset fields" time="0.0238101">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 401" time="0.0245258">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 409" time="0.0159188">
+        </testcase>
+    </testsuite>
+</testsuites>

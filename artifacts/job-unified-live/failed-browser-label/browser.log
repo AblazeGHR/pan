@@ -1,0 +1,16 @@
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.selectOption: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel('Action reference', { exact: true })[22m
+
+    at fill (D:\project\pan-worktrees\event-trigger-core-20261022\packages\web\e2e\job-unified-live.mjs:20:60)
+    at async file:///D:/project/pan-worktrees/event-trigger-core-20261022/packages/web/e2e/job-unified-live.mjs:26:3 {
+  log: [ "  - waiting for getByLabel('Action reference', { exact: true })" ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.15.0

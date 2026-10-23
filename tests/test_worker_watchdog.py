@@ -410,7 +410,8 @@ def _setup_managed_pair():
     return child, mgr
 
 
-def test_watchdog_task_timeout_reports_zombie(monkeypatch):
+@pytest.mark.parametrize('report_delay', [0, .1])
+def test_watchdog_task_timeout_reports_zombie(monkeypatch, report_delay):
     """watchdog running 卡死超时 kill → 被管+订阅 session 收到 zombie 报告。"""
     _cleanup()
     monkeypatch.setattr(_sess, "save_async", _noop_save_async)
@@ -423,6 +424,11 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     # Keep the assertion focused on report enqueue; under receipt-ack semantics
     # an immediately recovered manager may consume the report in the same tick.
     monkeypatch.setattr(worker, "_wake_worker", no_wake)
+    original_report = worker._enqueue_zombie_report
+    async def delayed_report(*args, **kwargs):
+        await asyncio.sleep(report_delay)
+        return await original_report(*args, **kwargs)
+    monkeypatch.setattr(worker, '_enqueue_zombie_report', delayed_report)
 
     async def fake_kill(worker_id, *, recover=False):
         killed.append(worker_id)
@@ -436,7 +442,12 @@ def test_watchdog_task_timeout_reports_zombie(monkeypatch):
     orig_kill = worker.kill_worker
     worker.kill_worker = fake_kill
     try:
-        asyncio.run(_run_watchdog(w))
+        async def wait_for_timeout_completion():
+            # Report enqueue includes owned asynchronous persistence. Observe
+            # this one-shot watchdog's terminal event instead of cancelling it
+            # after a fixed number of scheduling ticks mid-report.
+            await asyncio.wait_for(worker._watchdog(w), timeout=1)
+        asyncio.run(wait_for_timeout_completion())
     finally:
         worker.kill_worker = orig_kill
         worker._WATCHDOG_TICK_SEC = 30.0

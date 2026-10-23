@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="15" failures="1" errors="0" time="2.583">
+    <testsuite name="views/ActionsView.test.tsx" timestamp="2026-10-21T19:02:44.150Z" hostname="ablaze" tests="9" failures="0" errors="0" skipped="0" time="0.4554569">
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; edits API drafts whose valid object schema omits properties" time="0.1010675">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; creates an Action with typed input fields and fixed command argv" time="0.0681953">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; edits shared references through Group selection and displays build metadata" time="0.0323153">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; keeps user edits and shows write errors" time="0.0499389">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="core Actions Panel &gt; ignores stale Session loads and uses shared plugin bindings with English modes" time="0.0469954">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; keeps a committed creation ID when the follow-up catalog read fails" time="0.0490825">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; shows three regions and saves the generated identity on later edits" time="0.0542439">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; does not submit malformed advanced JSON and keeps the text for repair" time="0.0319145">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Actions navigation and creation states &gt; explains an empty Session list in the Group binding context" time="0.0209106">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-21T19:02:44.158Z" hostname="ablaze" tests="6" failures="1" errors="0" skipped="0" time="0.3450622">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs" time="0.1101884">
+            <failure message="Unable to find a label with the text of: Parameter name
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;main[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto max-w-5xl space-y-5&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0mEvents → Triggers → Actions[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mclass[39m=[32m&quot;rounded border border-border-default p-2 text-sm&quot;[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/actions&quot;[39m
+            [36m&gt;[39m
+              [0mManage Actions[0m
+            [36m&lt;/a&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [36m&gt;[39m
+              [0mRefresh[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;p[39m
+          [33mclass[39m=[32m&quot;text-xs text-text-secondary&quot;[39m
+          [33mrole[39m=[32m&quot;status&quot;[39m
+        [36m&gt;[39m
+          [0mSnapshot fetched 2026/10/22 03:02:43. Manual refresh; no live updates.[0m
+        [36m&lt;/p&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Automation login&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;mb-2 font-medium&quot;[39m
+          [36m&gt;[39m
+            [0mUser authorization[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mb-3 text-sm text-text-secondary&quot;[39m
+          [36m&gt;[39m
+            [0mLocal key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;form[39m
+            [33mclass[39m=[32m&quot;flex min-w-0 flex-wrap items-end gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;label[39m
+              [33mclass[39m=[32m&quot;min-w-0 flex-1 basis-48 text-sm&quot;[39m
+            [36m&gt;[39m
+              [0mLocal user key[0m
+              [36m&lt;input[39m
+                [33mautocomplete[39m=[32m&quot;off&quot;[39m
+                [33mclass[39m=[32m&quot;mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm&quot;[39m
+                [33mrequired[39m=[32m&quot;&quot;[39m
+                [33mtype[39m=[32m&quot;password&quot;[39m
+                [33mvalue[39m=[32m&quot;&quot;[39m
+              [36m/&gt;[39m
+            [36m&lt;/label&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [33mtype[39m=[32m&quot;submit&quot;[39m
+            [36m&gt;[39m
+              [0mLog in[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/form&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;nav[39m
+          [33maria-label[39m=[32m&quot;Automation sections&quot;[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mTriggers[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mRuns[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mDiagnostics[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/nav&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Triggers&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 space-y-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;h2[39m
+              [33mclass[39m=[32m&quot;text-lg font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mTriggers[0m
+            [36m&lt;/h2&gt;[39m
+            [36m&lt;div[39m
+              [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;button[39m
+                [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [36m&gt;[39m
+                [0mPause Everything template[0m
+              [36m&lt;/button&gt;[39m
+              [36m&lt;button[39m
+                [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+              [36m&gt;[39m
+                [0mNew Trigger[0m
+              [36m&lt;/button&gt;[39m
+            [36m&lt;/div&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;section[39m
+            [33maria-label[39m=[32m&quot;Trigger editor&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;div[39m
+ ..." type="TestingLibraryElementError">
+TestingLibraryElementError: Unable to find a label with the text of: Parameter name
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;main
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto max-w-5xl space-y-5&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Automation
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;mt-1 text-sm text-text-secondary&quot;
+            &gt;
+              Events → Triggers → Actions
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;flex flex-wrap gap-2&quot;
+          &gt;
+            &lt;a
+              class=&quot;rounded border border-border-default p-2 text-sm&quot;
+              data-discover=&quot;true&quot;
+              href=&quot;/actions&quot;
+            &gt;
+              Manage Actions
+            &lt;/a&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            &gt;
+              Refresh
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/header&gt;
+        &lt;p
+          class=&quot;text-xs text-text-secondary&quot;
+          role=&quot;status&quot;
+        &gt;
+          Snapshot fetched 2026/10/22 03:02:43. Manual refresh; no live updates.
+        &lt;/p&gt;
+        &lt;section
+          aria-label=&quot;Automation login&quot;
+          class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+        &gt;
+          &lt;h2
+            class=&quot;mb-2 font-medium&quot;
+          &gt;
+            User authorization
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mb-3 text-sm text-text-secondary&quot;
+          &gt;
+            Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.
+          &lt;/p&gt;
+          &lt;form
+            class=&quot;flex min-w-0 flex-wrap items-end gap-2&quot;
+          &gt;
+            &lt;label
+              class=&quot;min-w-0 flex-1 basis-48 text-sm&quot;
+            &gt;
+              Local user key
+              &lt;input
+                autocomplete=&quot;off&quot;
+                class=&quot;mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm&quot;
+                required=&quot;&quot;
+                type=&quot;password&quot;
+                value=&quot;&quot;
+              /&gt;
+            &lt;/label&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              type=&quot;submit&quot;
+            &gt;
+              Log in
+            &lt;/button&gt;
+          &lt;/form&gt;
+        &lt;/section&gt;
+        &lt;nav
+          aria-label=&quot;Automation sections&quot;
+          class=&quot;flex flex-wrap gap-2&quot;
+        &gt;
+          &lt;button
+            aria-pressed=&quot;true&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+          &gt;
+            Triggers
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Runs
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Diagnostics
+          &lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;section
+          aria-label=&quot;Triggers&quot;
+          class=&quot;min-w-0 space-y-4&quot;
+        &gt;
+          &lt;div
+            class=&quot;flex flex-wrap items-center justify-between gap-2&quot;
+          &gt;
+            &lt;h2
+              class=&quot;text-lg font-semibold&quot;
+            &gt;
+              Triggers
+            &lt;/h2&gt;
+            &lt;div
+              class=&quot;flex flex-wrap gap-2&quot;
+            &gt;
+              &lt;button
+                class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              &gt;
+                Pause Everything template
+              &lt;/button&gt;
+              &lt;button
+                class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+              &gt;
+                New Trigger
+              &lt;/button&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+          &lt;section
+            aria-label=&quot;Trigger editor&quot;
+            class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+          &gt;
+            &lt;div
+ ...
+ ❯ Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ getAllByLabelText ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/queries/label-text.js:111:38
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ views/AutomationView.test.tsx:52:27
+            </failure>
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.0764918">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.1084232">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.0480005">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0004706">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0009329">
+        </testcase>
+    </testsuite>
+</testsuites>

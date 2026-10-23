@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.566" timestamp="2026-10-22T17:13:28.306905+08:00" hostname="ablaze"><testcase classname="tests.test_quota_policy_idle" name="test_normal_restart_idle_resumes_frozen_task_exactly_once" time="0.089"><failure message="assert 0 == 1&#10; +  where 0 = len([])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3674/test_normal_restart_idle_resum0')
+
+    @async_test
+    async def test_normal_restart_idle_resumes_frozen_task_exactly_once(tmp_path):
+        rt,f=await setup(tmp_path);idle_after_restart(f)
+        await rt.consume(issue('codex_quota_exhausted'));await rt.dispatch();await rt.dispatch()
+        assert f.workers[0]['status']=='idle'
+        assert any(c['operation']=='restart_worker' and c['status']=='completed'
+                   and c['successor']['sessionId']=='ta' for c in rt.store.read()['commands'].values())
+        await rt.progress_restarts();await rt.dispatch();await rt.dispatch()
+        wakes=[c for c in f.effects if c['operation']=='wake_ta']
+&gt;       assert len(wakes)==1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests\test_quota_policy_idle.py:30: AssertionError</failure></testcase></testsuite></testsuites>

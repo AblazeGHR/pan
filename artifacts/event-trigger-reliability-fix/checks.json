@@ -1,0 +1,22 @@
+{
+  "testedSourceSha": "0de4d769659ccd38afb27a0cd67b696d1c11b94a",
+  "finalJUnit": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "224",
+    "time": "48.682",
+    "timestamp": "2026-10-23T12:02:07.135566+08:00",
+    "hostname": "ablaze"
+  },
+  "compileallExitCode": 0,
+  "sourceDiffCheckExitCode": 0,
+  "initialArtifactDiffCheck": "failed on pytest trailing whitespace; raw bytes retained, display text normalized",
+  "finalStagedDiffCheckExitCode": 0,
+  "rawEvidenceSha256Verified": true,
+  "protectedServicesAccessed": false,
+  "mainAdvanced": false,
+  "practicalAdvanced": false,
+  "pushRelease": false
+}

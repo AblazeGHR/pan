@@ -1,0 +1,17 @@
+{
+  "checkedAt": 1792674243.1466265,
+  "checks": [
+    {
+      "evidence": "http-evidence.json",
+      "port": 57924,
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "evidence": "compat-http-evidence.json",
+      "port": 57874,
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    }
+  ]
+}

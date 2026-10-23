@@ -1,0 +1,36 @@
+{
+  "instance": {
+    "pid": 39636,
+    "port": 65348,
+    "cwd": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023",
+    "roots": {
+      "data": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data",
+      "sessions": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\sessions",
+      "config": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\config.json",
+      "jobs": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\background_jobs",
+      "scheduler": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\background_jobs",
+      "terminal": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\terminals",
+      "gateway": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\qq_plugins\\manifest.json",
+      "inbox": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\agent_inbox\\inbox.sqlite",
+      "attachments": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\attachments",
+      "workdirs": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\workdirs",
+      "errorLog": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\logs\\session-errors.jsonl",
+      "mcpConfigs": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\mcp-configs"
+    },
+    "fakeCLI": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\tests\\support\\fake_stream_cli.py",
+    "nonce": "ee00391f774d75f3bff95c8c8eb85767"
+  },
+  "interaction": {
+    "pid": 39636,
+    "cardPath": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\user_inbox\\cards.sqlite",
+    "receiptPath": "D:\\project\\pan-worktrees\\user-inbox-interaction-contract-20261023\\evidence\\locker-panel-20261023\\final-runtime\\test_locker_browser_http_mcp0\\profile\\data\\synthetic-trigger.sqlite",
+    "auth": "synthetic-test-only",
+    "trigger": "synthetic-test-only"
+  },
+  "ownerSessionId": "ses_7bc3f4dfa8dec825",
+  "cardId": "card_07b1922efed77e6a58ddf3359ef02f544778c775cfd66ee3988ae7603db7eb2a",
+  "eventId": "evt_d7d8c5ec26f94648c0d57f8d4df91af83a49d77a23ca34f9826d6b9709622a90",
+  "receiptId": "receipt_2bf05c43babcaae513efcc7d8e5049961143ee4207312e9a61708867e2a2d4d9",
+  "mcpProducerOnly": true,
+  "oneResponse": true
+}

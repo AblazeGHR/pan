@@ -38,7 +38,7 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 0. 快速开始（30 秒冷启动）
 
-**主服务用户 CLI（Windows）**：稳定安装可显式注册 `pan`，支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。稳定安装的 PATH 不应指向临时 TA 树；注册与同步由任务授权决定。
+**主服务用户 CLI（Windows）**：Windows setup.bat / start_pan.bat 自动注册 `pan`（单纯 clone 不触发；任意分支或无 Git 可用；冲突警告不阻断启动），支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。稳定安装的 PATH 不应指向临时 TA 树；注册与同步由任务授权决定。
 
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
@@ -53,6 +53,23 @@ restart，unbuild 只被启用该 Group 的 live running Session 阻塞，错误
 idle 允许并清理 bindings。API 首批只允许固定的三个内部 GET 路由，命令用固定
 executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝。不得自动
 重试结果不明的副作用。字段与完整范围见 `docs/plugins/ACTIONS.md`。
+Session Operation 后端支持 explicit/event/query。query 为七字段白名单、有界
+and/or/not 与 typed eq/ne/in/contains；name.contains 为区分大小写字面子串，
+workspaceIds.contains 为精确元素。深度/节点/候选/结果上限 8/64/2048/256，
+执行开始一次查询、固定目标后落盘；不提供脚本/SQL/正则或 Agent 权限旁路。
+`GET /api/actions/session-operation-template` 返回 disabled 模板、谓词 schema
+及限制；`action_drafts` 可保存但不能启用/执行，旧 Group/provider 不接受该类型。
+参数完整定义见 `docs/design/Event-Trigger-Action-v0.1-core-contract.md`。
+持久事件阶段：生产插件 await `bus.publish_async`，成功回执 `persisted:true`
+只证明 Event 已落盘，不证明 Action 成功。默认保留7天，Event+Trigger 在保留期内
+去重；pending/uncertain 不自动丢弃，failed/uncertain Action 不自动重试。
+有界查询、Bearer 重放与容量状态见 [HTTP API](references/http-api.md) 和
+`docs/design/Event-Trigger-Action-v0.2-event-store.md`。
+有限重试/调度后端：Trigger 默认 serial；parallel 默认3、上限32，修改并发需用户
+Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允许 failed
+自动有限重试（默认总3次，退避落盘）；uncertain 不自动重试，独立用户确认入口
+`confirm-recovery` 需 Bearer、expectedRevision、confirm:true。Agent仍仅关闭草稿。
+后端 schema/字段及恢复风险见 `docs/design/Event-Trigger-Action-v0.3-retry-scheduling.md`。
 
 1. MCP 工具接线（命名空间 `mcp__pan__`，G2 实测 2026-08-17）：
    - **`--mcp-config` 路径（MA 常态）**：由 Pan adapter 自动注入 `data/mcp-configs/<session_id>.mcp.json`，工具 **direct connected，直接调用即可，无需 ToolSearch**。"工具列表里没看到"≠未连接，先直接试调一次。
@@ -87,7 +104,7 @@ executable + argv，输入只替换整个 scalar 参数；high-risk build 拒绝
 
 | 概念 | 说明 |
 |------|------|
-| **MA（meta-agent）** | 编排角色：负责 Pan 编排元任务（拆解、派发、监督、验收、合并），不亲自承担可派发的执行工作。MA 以 Session 身份存在（如 `SMA` 模板创建的会话），实际运行在 Worker 进程中（MA Worker） |
+| **MA（meta-agent）** | 编排角色：对用户目标的闭环负责，亲自理解需求、判断依赖、独立验收和决定下一步；按需委派实施。MA 以 Session 身份存在（如 `SMA` 模板创建的会话），实际运行在 Worker 进程中（MA Worker） |
 | **TA（task-agent）** | 执行角色：承接具体开发、测试、调查或文档任务。TA 同样以 Session 身份存在、运行在 Worker 进程中（TA Worker）；由 MA 经 `agent_assign` 派发任务 |
 | **Session** | 持久编排对象（身份层）：承载 MA 或 TA 身份，持久身份（`ses_<16hex>`），拥有收件箱（`queue_pending`）、agentLevel、managedBy 链。投递/编排语义（`agent_assign` / `agent_send` / 报告投递）都以 session_id 寻址；独立于 Worker 生命周期 |
 | **Worker** | 物理执行体（进程层）：临时的 cbc/kimi/opencode/claude/codex CLI 子进程，实际运行某个 MA 或 TA 的 Session。可被 kill、回收、随时重建（进程是顺带的）；**MA 与 TA 都运行在 Worker 中，不要把 Worker 与 TA 划等号** |

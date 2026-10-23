@@ -1,0 +1,142 @@
+{
+  "identity": {
+    "pid": 5644,
+    "port": 52516,
+    "checkout": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022",
+    "runtime": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-1792610040556",
+    "sessionDir": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\packages\\web\\test-results\\automation-1792610040556\\sessions",
+    "fakeCli": "D:\\project\\pan-worktrees\\event-trigger-ui-20261022\\tests\\support\\frontend_stream_cli.py"
+  },
+  "fixtures": {
+    "Selected target": "ses_3c32f8e5d29c2ae4",
+    "Control target": "ses_d45a6e27b54ef3d0",
+    "Event producer": "ses_2b00bb47b977cc97"
+  },
+  "run": {
+    "id": "run_78cecb2897b44aa6949b48d6672e27d0",
+    "triggerId": "trg_3d8d7c4af7384bbd80465e09ebc4b439",
+    "triggerRevision": 2,
+    "actionId": "action_6a642f50793d4354b7807836",
+    "event": {
+      "id": "evt_591ddd13599e4d87b631f7fc2bc8f381",
+      "type": "workers.all_idle",
+      "schemaVersion": 1,
+      "source": {
+        "type": "core",
+        "id": "workers"
+      },
+      "occurredAt": "2026-10-21T19:14:09.299567+00:00",
+      "payload": {
+        "runningCount": 0
+      }
+    },
+    "createdAt": "2026-10-21T19:14:09.311563+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {
+      "workers.runningCount": 0
+    },
+    "revision": 7,
+    "startedAt": "2026-10-21T19:14:09.364032+00:00",
+    "actionDigest": "5cb0ae418ffb51a07209230e19b59ac84c1e870b3ee531763049351a88b0c0da",
+    "action": {
+      "name": "Browser pause",
+      "description": "Pause Everything for selected Sessions through the existing Session operation.",
+      "enabled": true,
+      "effect": "write_local",
+      "output_format": "json",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "execution": {
+        "kind": "session_operation",
+        "operation": "pause_everything",
+        "selector": {
+          "mode": "explicit",
+          "ids": [
+            "ses_3c32f8e5d29c2ae4"
+          ]
+        }
+      },
+      "id": "action_6a642f50793d4354b7807836"
+    },
+    "targetIds": [
+      "ses_3c32f8e5d29c2ae4"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_3c32f8e5d29c2ae4",
+        "ok": true,
+        "items": [
+          {
+            "id": "fixture-pending",
+            "queueItemId": "fixture-pending",
+            "kind": "task",
+            "text": "fixture pending",
+            "createdAt": 0,
+            "source": "user",
+            "meta": {
+              "seq": null,
+              "taskId": null,
+              "revision": 1,
+              "dispatchState": "queued",
+              "locked": true,
+              "lockManual": false,
+              "lockSource": "manual",
+              "illegalBatchId": null,
+              "lockAutoReport": false,
+              "steerPending": false,
+              "steerError": null
+            }
+          }
+        ],
+        "queueRevision": 1,
+        "agentReportsPaused": false,
+        "queuePaused": true
+      }
+    ],
+    "result": {
+      "ok": true,
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0,
+      "targets": [
+        {
+          "sessionId": "ses_3c32f8e5d29c2ae4",
+          "ok": true,
+          "items": [
+            {
+              "id": "fixture-pending",
+              "queueItemId": "fixture-pending",
+              "kind": "task",
+              "text": "fixture pending",
+              "createdAt": 0,
+              "source": "user",
+              "meta": {
+                "seq": null,
+                "taskId": null,
+                "revision": 1,
+                "dispatchState": "queued",
+                "locked": true,
+                "lockManual": false,
+                "lockSource": "manual",
+                "illegalBatchId": null,
+                "lockAutoReport": false,
+                "steerPending": false,
+                "steerError": null
+              }
+            }
+          ],
+          "queueRevision": 1,
+          "agentReportsPaused": false,
+          "queuePaused": true
+        }
+      ]
+    },
+    "finishedAt": "2026-10-21T19:14:09.434428+00:00"
+  },
+  "noPageErrors": true
+}

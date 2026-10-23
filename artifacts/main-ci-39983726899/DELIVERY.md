@@ -1,0 +1,7 @@
+# Exact5273145c CI evidence
+
+Run39983726899 attempt1 on5273145c13bea729ea4db90d51f1313ddb36dd89 concluded failure. Python3.12 job120517371781 succeeded:5557 total,5496 passed,61 skipped. Python3.14 job120517371704 failed:5557 total,5495 passed,1 failed,61 skipped. The sole failure was tests.test_worker_watchdog::test_watchdog_task_timeout_reports_zombie, expected one killed worker but observed none. Its captured log already entered stream_task_timeout. Both test identity multisets match; both skip multisets equal the original61 baseline with no additions/removals; all original14 passed in both legs.
+
+Complete metadata, JUnit ZIPs, per-job/run logs, annotations, original collector terminal output and resumption provenance are retained here. Collection completed successfully but offline reconciliation initially used the wrong ancestor from the nested resumption directory. Corrected offline reconciliation exited0; no remote rerun was needed. Archived reconcile.py supports direct ZIP input and was independently executed with exit0. gatePassed remains false for the actual source result.
+
+The deterministic delayed-report reproduction, test synchronization repair, expanded99-pass/3-existing-skip validation and root-cause limitations are documented in ../main-ci-39984709747/DELIVERY.md. The production watchdog timeout/owner/kill/report behavior was not changed. This older run must not be used as a gate for81415706 or its follow-up candidate.

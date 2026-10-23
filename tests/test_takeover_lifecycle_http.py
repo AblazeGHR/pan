@@ -31,7 +31,12 @@ def test_http_first_terminal_survives_real_reader_conflict_without_resend(runtim
     _wait_for(lambda: runtime.request('GET', f'/api/sessions/{sid}').get('cliSessionId'))
     (runtime.data_root / 'hold-terminal-reader').touch()
     _enqueue(runtime, sid, 'establish-native-session', 'first')
-    _wait_for(lambda: durable(runtime, sid)['last_result'])
+    try:
+        _wait_for(lambda: durable(runtime, sid)['last_result'])
+    except AssertionError:
+        (runtime.data_root/'timeout-task-stacks.json').write_text(
+            json.dumps(runtime.request('GET','/__test/takeover-tasks'),indent=2),encoding='utf-8')
+        raise
     value = durable(runtime, sid)
     assert value['last_result']['status'] == 'done' and value['result_cursor'] == 1
     assert value['legal_offline'] and not value['queue_pending']
