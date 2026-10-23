@@ -45,17 +45,6 @@ def test_registration_unicode_spaces_unrelated_conflict_and_exact_uninstall(tmp_
         registration.register(directory, root, Path(sys.executable), search_path="")
 
 
-def test_registration_user_path_refuses_task_branch_before_mutation(tmp_path, monkeypatch):
-    if os.name != "nt":
-        pytest.skip("Windows user PATH")
-    registration = registration_module()
-    (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts/pan_cli.py").write_text("# entry")
-    monkeypatch.setattr(registration.subprocess, "check_output", lambda *a, **kw: "feature/task")
-    monkeypatch.setattr(registration, "user_path", lambda *a: pytest.fail("must not access real user PATH"))
-    with pytest.raises(ValueError, match="practical"):
-        registration.register(tmp_path / "bin", tmp_path, Path(sys.executable), change_path=True)
-
 
 def test_user_registration_path_readback_and_missing_entry(tmp_path, monkeypatch):
     if os.name != "nt":
@@ -63,7 +52,6 @@ def test_user_registration_path_readback_and_missing_entry(tmp_path, monkeypatch
     registration = registration_module()
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts/pan_cli.py").write_text("# entry")
-    monkeypatch.setattr(registration.subprocess, "check_output", lambda *a, **kw: "practical")
     stored = [str(tmp_path / "existing bin")]
     def fake_path(value=None):
         if value is not None:
@@ -233,3 +221,167 @@ def test_non_windows_console_path_does_not_use_native_apis(monkeypatch):
     sentinel = object()
     monkeypatch.setattr(exit_module, "start_console_exit", lambda port, strategy: sentinel)
     assert host.start_input(8765, lambda: "offline") is sentinel
+
+@pytest.fixture
+def isolated_registration(tmp_path, monkeypatch):
+    registration = registration_module()
+    stored = [str(tmp_path / "existing")]
+    def storage(value=None):
+        if value is not None:
+            stored[0] = value
+        return stored[0]
+    monkeypatch.setattr(registration, "user_path", storage)
+    monkeypatch.setattr(registration, "notify_environment", lambda: None)
+    monkeypatch.setattr(registration.subprocess, "check_output", lambda *a, **kw: pytest.fail("Git must never be invoked"))
+    root = tmp_path / "任意分支 no git"
+    (root / "scripts").mkdir(parents=True)
+    (root / "scripts/pan_cli.py").write_text("# entry")
+    return registration, stored, root, tmp_path / "用户 CLI bin"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows automatic registration")
+def test_auto_no_git_idempotent_checkout_conflict_and_uninstall(isolated_registration, capsys):
+    reg, stored, root, directory = isolated_registration
+    before = stored[0]
+    assert reg.auto_register(root, Path(sys.executable), directory=directory, search_path="") == 0
+    snapshot = {p.name: p.read_bytes() for p in directory.iterdir()}
+    assert reg.auto_register(root, Path(sys.executable), directory=directory, search_path="") == 0
+    assert stored[0] == before + os.pathsep + str(directory)
+    other = root.parent / "other checkout"
+    (other / "scripts").mkdir(parents=True)
+    (other / "scripts/pan_cli.py").write_text("# entry")
+    assert reg.auto_register(other, Path(sys.executable), directory=directory, search_path="") == 0
+    assert "another checkout" in capsys.readouterr().err
+    assert snapshot == {p.name: p.read_bytes() for p in directory.iterdir()}
+    reg.unregister(directory, change_path=True)
+    assert stored[0] == before
+    assert not list(directory.iterdir())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows automatic registration")
+def test_auto_permission_failure_rolls_back_and_allows_start(isolated_registration, monkeypatch, capsys):
+    reg, stored, root, directory = isolated_registration
+    before = stored[0]
+    def denied(value=None):
+        if value is not None:
+            raise PermissionError("HKCU denied")
+        return before
+    monkeypatch.setattr(reg, "user_path", denied)
+    assert reg.auto_register(root, Path(sys.executable), directory=directory, search_path="") == 0
+    assert "HKCU denied" in capsys.readouterr().err
+    assert stored[0] == before
+    assert not list(directory.iterdir())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows automatic registration")
+def test_auto_checks_persistent_path_and_modified_shims(isolated_registration, capsys):
+    reg, stored, root, directory = isolated_registration
+    foreign = root.parent / "foreign command"
+    foreign.mkdir()
+    (foreign / "pan.exe").write_bytes(b"unrelated")
+    stored[0] = str(foreign)
+    assert reg.auto_register(root, Path(sys.executable), directory=directory, search_path="") == 0
+    assert "Unrelated" in capsys.readouterr().err
+    assert not directory.exists()
+    stored[0] = ""
+    reg.auto_register(root, Path(sys.executable), directory=directory, search_path="")
+    (directory / "pan.ps1").write_bytes(b"edited")
+    reg.auto_register(root, Path(sys.executable), directory=directory, search_path="")
+    assert "conflict" in capsys.readouterr().err
+    with pytest.raises(ValueError, match="conflict"):
+        reg.unregister(directory, change_path=True)
+    assert (directory / "pan.ps1").read_bytes() == b"edited"
+    assert stored[0] == str(directory)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows user PATH")
+def test_uninstall_retains_preexisting_path(isolated_registration):
+    reg, stored, root, directory = isolated_registration
+    stored[0] = str(directory)
+    reg.register(directory, root, Path(sys.executable), change_path=True, search_path="")
+    reg.unregister(directory, change_path=True)
+    assert stored[0] == str(directory)
+
+
+def test_registration_import_has_no_side_effects(monkeypatch):
+    monkeypatch.setattr(Path, "mkdir", lambda *a, **kw: pytest.fail("import must not create shims"))
+    registration_module()
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows batch entry")
+@pytest.mark.parametrize("deny", [False, True])
+def test_start_batch_registration_then_launcher_without_service(tmp_path, deny):
+    import subprocess
+    import shutil
+    repo = Path(__file__).parents[1]
+    root = tmp_path / "安装 Pan"
+    scripts = root / "scripts"
+    scripts.mkdir(parents=True)
+    shutil.copyfile(repo / "scripts/start_pan.bat", scripts / "start_pan.bat")
+    (scripts / "pan_cli.py").write_text("# entry")
+    core = root / "packages/core"
+    core.mkdir(parents=True)
+    (root / "packages/__init__.py").write_text("")
+    (core / "__init__.py").write_text("")
+    # A fixture launcher proves batch continuation without opening any port.
+    (core / "launcher.py").write_text(
+        "from pathlib import Path\nPath('launcher-reached').write_text('yes')\nraise SystemExit(7)\n")
+    wrapper = f'''import runpy
+from pathlib import Path
+import sys
+reg = runpy.run_path({str(repo / 'scripts/register_pan_cli.py')!r})
+state = Path({str(tmp_path / 'fake-user-path')!r})
+def storage(value=None):
+    if value is not None:
+        if {deny!r}:
+            raise PermissionError('isolated HKCU denied')
+        state.write_text(value, encoding='utf-8')
+    return state.read_text(encoding='utf-8') if state.exists() else ''
+fn = reg['auto_register']
+fn.__globals__['user_path'] = storage
+fn.__globals__['notify_environment'] = lambda: None
+raise SystemExit(fn(Path(sys.argv[-1]), Path(sys.executable), search_path=''))
+'''
+    (scripts / "register_pan_cli.py").write_text(wrapper, encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_") and k.upper() != "PYTHONPATH"}
+    env["LOCALAPPDATA"] = str(tmp_path / "隔离 App Data")
+    env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
+    result = subprocess.run(["cmd.exe", "/d", "/c", str(scripts / "start_pan.bat")],
+                            cwd=tmp_path, env=env, capture_output=True, timeout=20)
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert (root / "launcher-reached").read_text() == "yes"
+    manifest = Path(env["LOCALAPPDATA"]) / "Pan/bin" / "pan-cli-registration.json"
+    assert manifest.exists() is not deny
+    if deny:
+        assert b"isolated HKCU denied" in result.stderr
+    else:
+        assert str(root) == json.loads(manifest.read_text(encoding="utf-8"))["root"]
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows user PATH")
+def test_uninstall_permission_failure_retains_owned_files(isolated_registration, monkeypatch):
+    reg, stored, root, directory = isolated_registration
+    reg.register(directory, root, Path(sys.executable), change_path=True, search_path="")
+    snapshot = {p.name: p.read_bytes() for p in directory.iterdir()}
+    def denied(value=None):
+        if value is not None:
+            raise PermissionError("HKCU denied")
+        return stored[0]
+    monkeypatch.setattr(reg, "user_path", denied)
+    with pytest.raises(PermissionError, match="denied"):
+        reg.unregister(directory, change_path=True)
+    assert snapshot == {p.name: p.read_bytes() for p in directory.iterdir()}
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows automatic registration")
+def test_auto_directory_permission_failure(isolated_registration, monkeypatch, capsys):
+    reg, stored, root, directory = isolated_registration
+    before = stored[0]
+    original = Path.mkdir
+    def denied(path, *args, **kwargs):
+        if path == directory:
+            raise PermissionError("shim directory denied")
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "mkdir", denied)
+    assert reg.auto_register(root, Path(sys.executable), directory=directory, search_path="") == 0
+    assert "shim directory denied" in capsys.readouterr().err
+    assert stored[0] == before
+    assert not directory.exists()

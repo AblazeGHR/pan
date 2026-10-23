@@ -40,7 +40,11 @@ Windows 独立启动时，stdout/stderr 始终写入 `data/logs/pan-console.out.
 
 ## 注册与卸载
 
-注册是独立的显式维护脚本。它生成带 UTF-8 BOM 的 `pan.ps1`、ASCII `pan.cmd` 与精确内容所有权清单，支持空格和中文路径。发现 PATH 中其它 pan 可执行文件、无所有权的同名文件、被编辑的注册文件或不同目标注册时拒绝覆盖。
+Windows 正常安装 `scripts/setup.bat` 在解释器准备后自动注册；已安装环境首次执行 `scripts/start_pan.bat` 也会在调用 launcher 前自动注册，以后每次执行幂等核验。默认目录是 `%LOCALAPPDATA%/Pan/bin`，只写 HKCU PATH，并广播环境变更；请打开新终端使用 `pan`，已有终端的 PATH 不会被改写。单纯 `git clone` 不执行代码，因此不会注册。直接 `pip install -r ...`、`python main.py`、`python -m packages.core.launcher`、Worker/Job 及模块导入不触发注册；手工安装的 Windows 用户应使用 `scripts/start_pan.bat` 完成首次启动。POSIX 安装入口不注册 Windows shim。
+
+自动注册失败（同名命令、其他 checkout、文件修改、权限不足等）输出明确警告，安装和服务启动继续。解决冲突后重跑 setup/start 即可；不会覆盖另一 checkout 的注册，也不会自动切换解释器或接管其注册。需要迁移时，先按下面的卸载命令显式移除原注册，再从目标安装运行 setup/start。
+
+仍提供独立维护脚本以供审阅和安全卸载。它生成带 UTF-8 BOM 的 `pan.ps1`、ASCII `pan.cmd` 与精确内容所有权清单，支持空格和中文路径。发现 PATH 中其它 pan 可执行文件、无所有权的同名文件、被编辑的注册文件或不同目标注册时拒绝覆盖。
 
 审阅只在临时目录验证，不传 `--user-path`：
 
@@ -50,7 +54,7 @@ python scripts/register_pan_cli.py register --root 'D:/稳定安装路径' --pyt
 python scripts/register_pan_cli.py unregister --bin-dir "$env:TEMP/Pan CLI 临时 bin"
 ```
 
-MA 验收并同步最终 practical 后，从稳定 checkout 注册，不能把用户 PATH 指向任务工作树。`--user-path` 要求目标 Git 分支为 practical，只写 HKCU 的 PATH 并读回确认，不改系统 PATH。解释器使用安装实际可用的绝对路径：
+注册不读取 Git 元数据、不限制分支名；普通克隆、任意分支、detached HEAD 或没有 `.git` 的源码安装均可使用。应选择长期保留的安装目录（不要注册即将删除的临时工作树）。`--user-path` 只写 HKCU PATH 并读回确认，不改系统 PATH。解释器使用安装实际可用的绝对路径：
 
 ```powershell
 python D:/project/Pan/scripts/register_pan_cli.py register --root D:/project/Pan --python 'C:/实际Python/python.exe' --bin-dir "$env:LOCALAPPDATA/Pan/bin" --user-path

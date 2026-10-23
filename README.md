@@ -42,7 +42,7 @@ Set-Location packages/web
 pnpm install
 pnpm build
 Set-Location ../..
-python main.py
+scripts\start_pan.bat
 ```
 
 macOS/Linux 先激活虚拟环境，再执行相同的依赖与前端安装步骤：
@@ -62,7 +62,7 @@ python main.py
 
 已完成安装的环境也可使用仓库中的入口脚本：Windows `scripts\start_pan.bat` / `scripts\stop.bat`，macOS/Linux `bash scripts/start.sh` / `bash scripts/stop.sh`。前台运行可用 `python main.py`，按 Ctrl+C 退出。
 
-Windows 可显式注册用户级 `pan` 命令：start、exit、restart、debug、status、logs、doctor、show/hide console 及 help/version。隐藏启动确认 ready 后返回，合法退出使用 `pan exit`（主服务 Ctrl+C 不构成安全退出授权）。窗口控制和稳定安装的注册/卸载步骤见 [Pan CLI](docs/PAN_CLI.md)。
+Windows 的 `scripts/setup.bat` 和 `scripts/start_pan.bat` 自动注册当前用户 `pan` 命令（只 clone 不触发；任意分支或无 Git 均可用；新终端生效，冲突警告不阻止启动）：start、exit、restart、debug、status、logs、doctor、show/hide console 及 help/version。隐藏启动确认 ready 后返回，合法退出使用 `pan exit`（主服务 Ctrl+C 不构成安全退出授权）。窗口控制和稳定安装的注册/卸载步骤见 [Pan CLI](docs/PAN_CLI.md)。
 
 ## 第一个 Session
 

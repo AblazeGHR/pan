@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="1" tests="4" time="0.147" timestamp="2026-10-23T14:48:53.437929+08:00" hostname="ablaze"><testcase classname="tests.test_docs_terminology" name="test_normative_docs_exist" time="0.011" /><testcase classname="tests.test_docs_terminology" name="test_no_banned_legacy_terms" time="0.009"><failure message="AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）&#10;assert not ['child-agent']">def test_no_banned_legacy_terms():
+        for rel in NORMATIVE_DOCS:
+            lines = _doc(rel).splitlines()
+            for lineno, line in enumerate(lines, start=1):
+                # 允许“旧称呼映射”说明行本身引用旧词（用于向读者解释历史文档）
+                if "旧称呼映射" in line or "legacy" in line.lower():
+                    continue
+                for pattern, reason in BANNED_PATTERNS:
+                    matches = re.findall(pattern, line)
+&gt;                   assert not matches, (
+                        f"{rel}:{lineno}: 检出旧称呼 {reason}（{matches}）"
+                    )
+E                   AssertionError: docs/skills/pan/references/http-api.md:372: 检出旧称呼 旧称呼 child-agent（应改为 TA）（['child-agent']）
+E                   assert not ['child-agent']
+
+tests\test_docs_terminology.py:70: AssertionError</failure></testcase><testcase classname="tests.test_docs_terminology" name="test_ma_worker_clarification_present" time="0.003" /><testcase classname="tests.test_docs_terminology" name="test_skill_sync_copy_matches_source" time="0.002"><skipped type="pytest.skip" message="同步副本不存在（gitignored，仅本地 checkout 维护）">D:\project\pan-worktrees\cli-auto-register-20261023\tests\test_docs_terminology.py:92: 同步副本不存在（gitignored，仅本地 checkout 维护）</skipped></testcase></testsuite></testsuites>
