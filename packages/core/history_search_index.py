@@ -14,6 +14,7 @@ import json
 import re
 import secrets
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
@@ -26,6 +27,7 @@ MAX_HISTORY_SEARCH_LIMIT = 100
 MAX_HISTORY_SEARCH_QUERY_LENGTH = 512
 _SNIPPET_RADIUS = 42
 _BUSY_TIMEOUT_MS = 10_000
+_SCHEMA_INITIALIZATION_LOCK = threading.RLock()
 SEARCH_ROLES = ('user', 'assistant', 'tool', 'thinking')
 BODY_ROLES = ('user', 'assistant')
 _SCHEMA_VERSION = 4
@@ -216,6 +218,17 @@ def _connect(path: Path) -> sqlite3.Connection:
 
 
 def _ensure_schema(connection: sqlite3.Connection) -> None:
+    if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
+        return
+    # Concurrent first requests share one owned initializer instead of each
+    # exhausting SQLite's busy budget behind a slow cold schema build. Warm
+    # indexes remain on the read-only fast path. SQLite still fences writers
+    # in other processes, and the version is rechecked under its write lock.
+    with _SCHEMA_INITIALIZATION_LOCK:
+        _initialize_schema(connection)
+
+
+def _initialize_schema(connection: sqlite3.Connection) -> None:
     if connection.execute('PRAGMA user_version').fetchone()[0] == _SCHEMA_VERSION:
         return
     # Only the disposable index is migrated, never canonical history. Recheck

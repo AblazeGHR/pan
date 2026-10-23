@@ -138,6 +138,32 @@ def test_concurrent_partition_enable_and_eviction_preserve_results(tmp_path, mon
     assert search(path, session, roles=('user', 'assistant', 'tool', 'thinking'))['totalMatches'] == 4
 
 
+def test_concurrent_cold_schema_creation_waits_for_owned_initializer(tmp_path, monkeypatch):
+    from packages.core import history_search_index as index
+    import threading
+    import time
+    entered = threading.Event()
+    original = index.install_query_schema
+    def delayed_schema(connection):
+        entered.set()
+        time.sleep(.1)
+        original(connection)
+    monkeypatch.setattr(index, 'install_query_schema', delayed_schema)
+    path = tmp_path / 'cold.sqlite'
+    def initialize():
+        with sqlite3.connect(path, timeout=.02) as db:
+            index._ensure_schema(db)
+            assert db.execute('PRAGMA user_version').fetchone()[0] == index._SCHEMA_VERSION
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        owner = pool.submit(initialize)
+        assert entered.wait(2)
+        waiters = [pool.submit(initialize) for _ in range(3)]
+        owner.result()
+        for waiter in waiters:
+            waiter.result()
+    assert search(path, make_session([row('user', 'needle', 1)]))['totalMatches'] == 1
+
+
 def test_existing_disposable_schema_rebuilt_without_modifying_history(tmp_path):
     path = tmp_path / 'index.sqlite3'
     with sqlite3.connect(path) as db:
