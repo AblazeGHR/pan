@@ -1,0 +1,77 @@
+{
+  "sourceSha": "3ba59d258b08665557befc207c70d443e1af591b",
+  "cwd": "D:\\project\\pan-worktrees\\terminal-report-diagnostic-20261023",
+  "commands": [
+    {
+      "name": "python",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_report_diagnostic.py",
+        "tests/test_report_error_context.py",
+        "tests/test_report_subscription.py",
+        "tests/test_report_reads.py",
+        "tests/test_manual_task_report.py",
+        "tests/test_session_error_log.py",
+        "tests/test_session_error_log_worker.py",
+        "tests/test_force_steer.py",
+        "tests/test_self_queue.py",
+        "tests/test_auto_force_sources.py",
+        "tests/test_usage_enrichment_commit.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--junitxml=audit/terminal-report/python.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "http",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_report_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/terminal-report/http.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "compile",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "compileall",
+        "-q",
+        "packages/core/worker.py",
+        "packages/core/session_error_log.py",
+        "tests/test_terminal_report_diagnostic.py",
+        "tests/test_terminal_report_http.py",
+        "tests/support/session_error_fake_cli.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "140455976b7c60097fafdd4dc3f8e3b18a699ccc",
+        "HEAD",
+        "--check"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

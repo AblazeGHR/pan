@@ -1,0 +1,243 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\terminal-report-diagnostic-20261023
+........................ss.............................................. [ 21%]
+........................................................................ [ 43%]
+..................................................F..F.F....F........... [ 64%]
+FF...................................................................... [ 86%]
+..............................................                           [100%]
+================================== FAILURES ===================================
+_________________ test_schema_and_full_chinese_multiline_text _________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3914/test_schema_and_full_chinese_m0')
+
+    def test_schema_and_full_chinese_multiline_text(tmp_path):
+        error_text = ("��һ�У����η��� 429\n�ڶ��У����Ժ�����\n" + ("���ĸ���" * 20000))
+        session = _FakeSession(history=[
+            {"role": "user", "content": "��ִ������", "messageId": "pan:user"},
+        ])
+        event_id = _record(
+            session=session,
+            error_text=error_text,
+            error_text_source="pan.runtime",
+            cli_raw={
+                "type": "result", "is_error": True, "result": "���ضϵ������ı�",
+                "error": {"message": "���δ���", "code": "rate_limit",
+                          "status": 429, "retryable": True},
+            },
+        )
+>       assert event_id
+E       assert None
+
+tests\test_session_error_log.py:77: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+____________ test_cli_raw_payload_is_kept_separate_from_pan_fields ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3914/test_cli_raw_payload_is_kept_s0')
+
+    def test_cli_raw_payload_is_kept_separate_from_pan_fields(tmp_path):
+        _record(
+            kind="terminal_error",
+            error_text="Pan �ն˽��",
+            error_text_source="pan.terminal_result",
+            pan_status="error",
+            cli_raw={
+                "type": "error", "error": {
+                    "type": "rate_limit", "code": "429", "status": 429,
+                    "retryable": True, "message": "��ʵ CLI ����",
+                },
+            },
+        )
+>       record = _read_records(tmp_path / "logs" / "session-errors.jsonl")[0]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_session_error_log.py:148: IndexError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+__________ test_out_of_order_distinct_transient_events_are_all_kept ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3914/test_out_of_order_distinct_tra0')
+
+    def test_out_of_order_distinct_transient_events_are_all_kept(tmp_path):
+        for token in ("first", "second", "third"):
+            _record(
+                kind="transient_provider_error",
+                terminal=False,
+                dedupe_token=token,
+                cli_raw={"type": "error", "error": {"message": token}},
+                error_text=token,
+                error_text_source="cli.error",
+            )
+        records = _read_records(tmp_path / "logs" / "session-errors.jsonl")
+>       assert [record["cli"]["error"]["message"] for record in records] == [
+            "first", "second", "third",
+        ]
+E       AssertionError: assert [] == ['first', 'second', 'third']
+E
+E         Right contains 3 more items, first extra item: 'first'
+E         Use -v to get more diff
+
+tests\test_session_error_log.py:181: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+___________ test_credentials_are_redacted_but_diagnostic_text_kept ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3914/test_credentials_are_redacted_0')
+
+    def test_credentials_are_redacted_but_diagnostic_text_kept(tmp_path):
+        _record(
+            cli_raw={
+                "type": "result",
+                "error": {
+                    "message": "request failed: Authorization: Bearer abc123secret\n"
+                               "api_key=sk-abcdefghijklmnopqrstuvwxyz",
+                    "api_key": "sk-live-secret",
+                    "headers": {"Cookie": "session=topsecret"},
+                },
+                "argv": ["--token", "should-not-be-collected"],
+            },
+        )
+>       record = _read_records(tmp_path / "logs" / "session-errors.jsonl")[0]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_session_error_log.py:260: IndexError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 342, in record_session_error
+    prepared = _prepare_record(
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+_ test_codex_result_error_preserves_raw_payload_and_never_impersonates_assistant _
+
+    def test_codex_result_error_preserves_raw_payload_and_never_impersonates_assistant():
+        s = sess.create("codex-raw-unit")
+        sess.append_history(s, {"role": "assistant", "content": "partial answer"})
+        w = worker.Worker(worker_id="worker-codex", session_id=s.id,
+                          adapter=_NamedAdapter(), status="running", generation=2)
+        w._current_seq = 3
+        w._current_task_last_assistant_text = "partial answer"
+        raw_error = {
+            "message": "stream disconnected",
+            "code": "rate_limit",
+            "codexErrorInfo": {"responseStreamDisconnected": {"httpStatusCode": 429}},
+        }
+        asyncio.run(worker._record_terminal_error_sample(
+            w, s, "error", "partial answer",
+            {
+                "origin": "worker.stream.result",
+                "cli_raw": {
+                    "type": "result", "is_error": True, "result": "partial answer",
+                    "error": raw_error, "error_source": "codex_error_payload",
+                },
+            },
+        ))
+>       record = _records(session_error_log.path())[0]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_session_error_log_worker.py:98: IndexError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 391, in record_session_error_async
+    prepared = _prepare_record(**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+___________________ test_tool_item_failure_is_non_terminal ____________________
+
+    def test_tool_item_failure_is_non_terminal():
+        s = sess.create("tool-failure-unit")
+        w = worker.Worker(worker_id="worker-tool", session_id=s.id,
+                          adapter=_NamedAdapter(), status="running")
+        asyncio.run(worker._record_transient_error_sample(
+            w,
+            {
+                "type": "codex.item_error",
+                "item_type": "commandexecution",
+                "item_id": "item-1",
+                "item_status": "failed",
+                "item": {"type": "commandExecution", "id": "item-1",
+                         "error": "tool failed normally"},
+                "error": {"message": "tool failed normally"},
+            },
+            "tool_failure",
+        ))
+>       record = _records(session_error_log.path())[0]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_session_error_log_worker.py:127: IndexError
+------------------------------ Captured log call ------------------------------
+WARNING  packages.core.session_error_log:session_error_log.py:694 session-error-log: append failed (TypeError); sample lost, task continues
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 391, in record_session_error_async
+    prepared = _prepare_record(**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\terminal-report-diagnostic-20261023\packages\core\session_error_log.py", line 477, in _prepare_record
+    source = cli_error_source(cli_raw, cli.get("errorSource"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_report_reads.py::test_real_http_mcp_report_handoff_metadata_only
+  tests\test_report_reads.py:313: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_report_error_context.py:273: Oneshot mode retired by user; implementation retained
+SKIPPED [1] tests\test_report_error_context.py:295: Oneshot mode retired by user; implementation retained
+6 failed, 326 passed, 2 skipped, 2 warnings in 15.05s

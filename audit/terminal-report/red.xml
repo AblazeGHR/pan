@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.319" timestamp="2026-10-23T11:11:34.698983+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_report_diagnostic" name="test_native_error_plus_assistant_result_persists_and_renders" time="0.131"><failure message="KeyError: 'errorText'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000154742FA450&gt;
+
+    def test_native_error_plus_assistant_result_persists_and_renders(monkeypatch):
+        child,manager,_=_setup_managed_pair()
+        event=FIXTURE['event']
+        try:
+            _run_stream_worker(child,[_event_line(_assistant_event(event['result'])),_event_line(event)],seq=8)
+            report=manager.queue_pending[0]
+            assert report['status']=='error'
+&gt;           assert report['errorText']==event['error']['message']
+                   ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'errorText'
+
+tests\test_terminal_report_diagnostic.py:21: KeyError</failure></testcase></testsuite></testsuites>
