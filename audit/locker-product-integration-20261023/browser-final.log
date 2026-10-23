@@ -1,0 +1,18 @@
+{
+  "passed": 11,
+  "checks": [
+    "production route with shared Sidebar slot, real WorkspaceRail, Markdown and scoped opaque attachment",
+    "real WorkspaceRail handle, workspace and ungrouped aggregate switching",
+    "draft survives source/aggregate filters; shared drag gutter reorders sources, aggregate has no drag",
+    "trusted choice target, BTW, real submit payload, terminal readonly",
+    "reject reason mapped to answer",
+    "terminal deletion via DELETE",
+    "Read all writes original message identity",
+    "server state reloaded",
+    "1440/768/390/320 themes, no horizontal overflow, shared narrow source drawer",
+    "failure plus real Refresh retry",
+    "Navigate to chat selects the designated source Session through real sessionStore"
+  ],
+  "errors": [],
+  "port": 64575
+}

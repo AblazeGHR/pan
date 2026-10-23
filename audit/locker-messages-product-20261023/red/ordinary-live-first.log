@@ -1,0 +1,87 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________ test_locker_messages_cards_real_service_browser_cli_restart _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4005/test_locker_messages_cards_rea0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027EDD776C40>
+
+    def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkeypatch):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(h, 'PORT', port)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', ROOT/'tests/support/locker_product_http_server.py')
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_LOCKER_NONCE', nonce)
+        monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
+        rt = h._PanRuntime(tmp_path/'profile/data')
+        rt.data_root.mkdir(parents=True)
+        (rt.data_root/'config.json').write_text(json.dumps({'scheduler': {'enabled': True},
+            'memory': {'enabled': False}, 'plugin_manifests': [str(ROOT/'manifest.json'), str(ROOT/'packages/mcp/manifest.json')]}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        proof = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding='utf-8').strip(),
+                 'port': port, 'profile': str(rt.data_root), 'apiInterception': False}
+        fixture_headers = {'x-locker-fixture': nonce}
+        def browser(phase, fixture, key):
+            fixture_path = OUT/'fixture.json'
+            fixture_path.write_text(json.dumps(fixture, indent=2), encoding='utf-8')
+            result = subprocess.run(['node', str(ROOT/'packages/web/e2e/locker-product-live.mjs'),
+                rt.base_url, str(OUT), str(fixture_path), phase], cwd=ROOT,
+                env={**os.environ, 'PAN_TEST_JOB_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=110)
+            (OUT/f'browser-{phase}.log').write_text(result.stdout+'\n'+result.stderr, encoding='utf-8')
+            assert result.returncode == 0, result.stdout+'\n'+result.stderr
+        try:
+            rt.start()
+            ident = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(ident['sessions']).parent == rt.data_root
+            assert Path(ident['fakeCLI']).resolve() == h.FAKE_CLI.resolve()
+            proof['identity'] = ident
+            key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
+            def source(name):
+                directory = rt.data_root/'workdirs'/name
+                directory.mkdir(parents=True)
+                obj = rt.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(directory)})
+                assert obj.get('id'), obj
+                rt.request('PATCH', f"/api/sessions/{obj['id']}/queue/paused", json={'paused': True})
+                return obj
+>           one = source('Design agent with a long dedicated Locker source name')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_locker_product_live.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'Design agent with a long dedicated Locker source name'
+
+    def source(name):
+        directory = rt.data_root/'workdirs'/name
+        directory.mkdir(parents=True)
+        obj = rt.request('POST', '/api/sessions', json={'name': name, 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(directory)})
+>       assert obj.get('id'), obj
+E       AssertionError: {'error': 'Session name cannot contain spaces'}
+E       assert None
+E        +  where None = <built-in method get of dict object at 0x0000027EDD8DC900>('id')
+E        +    where <built-in method get of dict object at 0x0000027EDD8DC900> = {'error': 'Session name cannot contain spaces'}.get
+
+tests\test_locker_product_live.py:54: AssertionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests\test_real_queue_http_e2e.py:359
+  D:\project\pan-worktrees\locker-product-integration-20261023\tests\test_real_queue_http_e2e.py:359: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:696
+  D:\project\pan-worktrees\locker-product-integration-20261023\tests\test_real_queue_http_e2e.py:696: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests\test_real_queue_http_e2e.py:752
+  D:\project\pan-worktrees\locker-product-integration-20261023\tests\test_real_queue_http_e2e.py:752: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_locker_product_live.py::test_locker_messages_cards_real_service_browser_cli_restart

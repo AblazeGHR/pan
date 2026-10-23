@@ -1,0 +1,30 @@
+{
+  "sourceSha": "44bd35da23fd7d496ddc01b9ed0ba65b2497af9d",
+  "commands": [
+    {
+      "name": "layout-build",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 22.37
+    },
+    {
+      "name": "layout-live",
+      "argv": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_locker_product_live.py",
+        "--junitxml=D:\\project\\pan-worktrees\\locker-product-integration-20261023\\audit\\locker-messages-product-20261023\\layout-live.xml"
+      ],
+      "exit": 0,
+      "seconds": 26.71
+    }
+  ]
+}

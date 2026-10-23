@@ -430,6 +430,10 @@
         "expectedRevision": {
           "type": "integer",
           "minimum": 0
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 32000
         }
       }
     },
@@ -617,6 +621,104 @@
         "summary",
         "targetIds"
       ]
+    },
+    "LockerMessage": {
+      "type": "object",
+      "required": [
+        "messageId",
+        "role",
+        "content",
+        "ts"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "messageId": {
+          "$ref": "#/$defs/Id"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "content": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "parts": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "additionalProperties": true,
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "text"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "text"
+                  ],
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "attachment"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "attachmentId",
+                    "displayName"
+                  ],
+                  "properties": {
+                    "attachmentId": {
+                      "type": "string",
+                      "pattern": "^(att_[A-Za-z0-9]{32}|upload_[A-Za-z0-9]{32}(\\.[A-Za-z0-9._-]{1,32})?)$"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   },
   "$ref": "#/$defs/Card"

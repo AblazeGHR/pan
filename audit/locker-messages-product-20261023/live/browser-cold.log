@@ -1,0 +1,10 @@
+{
+  "phase": "cold",
+  "passed": 2,
+  "checks": [
+    "real UserAuth login and production Locker APIs, no interception",
+    "cold restart retains ordinary/Card states, source deletion metadata; ordinary terminal cleanup"
+  ],
+  "errors": []
+}
+

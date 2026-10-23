@@ -1,0 +1,50 @@
+..FFF...F.F............................                                  [100%]
+================================== FAILURES ===================================
+________________________ test_reject_delete_tombstone _________________________
+tests\test_user_locker_lifecycle.py:52: in test_reject_delete_tombstone
+    message=next(iter(queue.rows.values()))['message']
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   StopIteration
+____________ test_cold_recovery_after_queue_commit_and_user_delete ____________
+tests\test_user_locker_lifecycle.py:69: in test_cold_recovery_after_queue_commit_and_user_delete
+    with pytest.raises(asyncio.CancelledError): asyncio.run(store.deliver_rejections(queue))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE CancelledError
+__________________________ test_unknown_not_replayed __________________________
+tests\test_user_locker_lifecycle.py:78: in test_unknown_not_replayed
+    queue=Missing(); asyncio.run(store.deliver_rejections(queue)); asyncio.run(store.deliver_rejections(queue)); assert queue.puts==1
+                                                                                                                 ^^^^^^^^^^^^^^^^^^^^
+E   assert 0 == 1
+E    +  where 0 = <test_user_locker_lifecycle.test_unknown_not_replayed.<locals>.Missing object at 0x000002B0C5BCF620>.puts
+____________ test_rejection_partial_failure_and_parallel_dispatch _____________
+tests\test_user_locker_lifecycle.py:154: in test_rejection_partial_failure_and_parallel_dispatch
+    assert len(queue.rows)==2 and queue.puts==3
+E   assert (0 == 2)
+E    +  where 0 = len({})
+E    +    where {} = <test_user_locker_lifecycle.test_rejection_partial_failure_and_parallel_dispatch.<locals>.Partial object at 0x000002B0C5BCF770>.rows
+________________ test_optional_inputs_and_no_implicit_approval ________________
+tests\test_interaction_cards.py:42: in test_optional_inputs_and_no_implicit_approval
+    with pytest.raises(InteractionError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE InteractionError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_interaction_card_api.py::test_mcp_producer_permissions_and_no_user_response_tool
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_user_locker_lifecycle.py::test_reject_delete_tombstone - St...
+FAILED tests/test_user_locker_lifecycle.py::test_cold_recovery_after_queue_commit_and_user_delete
+FAILED tests/test_user_locker_lifecycle.py::test_unknown_not_replayed - asser...
+FAILED tests/test_user_locker_lifecycle.py::test_rejection_partial_failure_and_parallel_dispatch
+FAILED tests/test_interaction_cards.py::test_optional_inputs_and_no_implicit_approval

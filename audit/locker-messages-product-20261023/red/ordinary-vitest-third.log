@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src
+
+ ✓ views/LockerView.test.tsx (18 tests) 1033ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  22:11:40
+   Duration  2.99s (transform 216ms, setup 12ms, collect 478ms, tests 1.03s, environment 463ms, prepare 110ms)
+

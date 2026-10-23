@@ -1,0 +1,122 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+ExpectError: expect(page).toHaveURL(expected) failed
+
+Expected: "http://127.0.0.1:57002/react/"
+Received: "http://127.0.0.1:57002/react"
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveURL" with timeout 5000ms
+    - locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>
+    - unexpected value "http://127.0.0.1:57002/react/locker"
+    13 × locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>
+       - unexpected value "http://127.0.0.1:57002/react"
+
+    at captureRawStack (D:\project\pan-worktrees\locker-product-integration-20261023\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+    at callMatcherAsStep (D:\project\pan-worktrees\locker-product-integration-20261023\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+    at Object.toHaveURL (D:\project\pan-worktrees\locker-product-integration-20261023\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+    at D:\project\pan-worktrees\locker-product-integration-20261023\packages\web\e2e\locker-product-fake.mjs:96:21 {
+  matcherResult: {
+    name: 'toHaveURL',
+    expected: 'http://127.0.0.1:57002/react/',
+    message: 'expect(page).toHaveURL(expected) failed\n' +
+      '\n' +
+      'Expected: "http://127.0.0.1:57002/react/"\n' +
+      'Received: "http://127.0.0.1:57002/react"\n' +
+      'Timeout:  5000ms\n' +
+      '\n' +
+      'Call log:\n' +
+      '  - Expect "toHaveURL" with timeout 5000ms\n' +
+      '    - locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>\n' +
+      '    - unexpected value "http://127.0.0.1:57002/react/locker"\n' +
+      '    13 × locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>\n' +
+      '       - unexpected value "http://127.0.0.1:57002/react"\n',
+    pass: false,
+    actual: 'http://127.0.0.1:57002/react',
+    log: [
+      '  - Expect "toHaveURL" with timeout 5000ms',
+      '    - locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>',
+      '    - unexpected value "http://127.0.0.1:57002/react/locker"',
+      '    13 × locator resolved to <html lang="zh" class="dark" data-theme="light">…</html>',
+      '       - unexpected value "http://127.0.0.1:57002/react"'
+    ],
+    timeout: 5000,
+    ariaSnapshot: '- complementary:\n' +
+      '  - heading "Pan" [level=1]\n' +
+      '  - button "App settings"\n' +
+      '  - button "Switch to light theme"\n' +
+      '  - button "Collapse sidebar"\n' +
+      '  - navigation "界面入口":\n' +
+      '    - button "上一组界面入口" [disabled]\n' +
+      '    - link "Chat":\n' +
+      '      - /url: /react\n' +
+      '    - link "Editor":\n' +
+      '      - /url: /react/editor\n' +
+      '    - link "Jobs":\n' +
+      '      - /url: /react/jobs\n' +
+      '    - button "下一组界面入口"\n' +
+      '  - button "New"\n' +
+      '  - button "New with settings"\n' +
+      '  - button "Import"\n' +
+      '  - textbox "Search sessions":\n' +
+      '    - /placeholder: Filter...\n' +
+      '  - button "Special filters"\n' +
+      `  - 'button "Sort sessions: recent"': recent\n` +
+      '  - button "Collapse all groups"\n' +
+      '  - button "Drag Source one"\n' +
+      '  - text: Source one Workspace A 0\n' +
+      '  - group "Session quick actions":\n' +
+      `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+      `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Notification: off. Notification state is loading or unavailable" [disabled]'\n` +
+      '  - img "Adapter codex": codex\n' +
+      '  - button "Session actions"\n' +
+      '  - button "Drag Source two"\n' +
+      '  - text: Source two Workspace A 0\n' +
+      '  - group "Session quick actions":\n' +
+      `    - 'button "Pin: off. Not pinned; click to pin"'\n` +
+      `    - 'button "Readonly: off. Readonly unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Stop report: off. Stop report unavailable: this Session has no direct manager" [disabled]'\n` +
+      `    - 'button "Notification: off. Notification state is loading or unavailable" [disabled]'\n` +
+      '  - img "Adapter codex": codex\n' +
+      '  - button "Session actions"\n' +
+      '- button "收起侧边栏"\n' +
+      '- button "全部"\n' +
+      '- main:\n' +
+      `  - 'button "Copy session name: Source two"': Source two\n` +
+      '  - group "Chat view":\n' +
+      '    - button "Switch to TUI view" [pressed]\n' +
+      '    - button "Switch to Bubble view"\n' +
+      '    - button "Switch to Raw view"\n' +
+      '  - button "Terminal TUI": Upgrades\n' +
+      '  - text: ses_two\n' +
+      '  - button "Start"\n' +
+      '  - text: No messages yet. Start a conversation.\n' +
+      '  - complementary "Chat search and navigation":\n' +
+      '    - button "Open chat tools sidebar"\n' +
+      '  - separator "调整输入区高度"\n' +
+      '  - text: 服务端队列 0\n' +
+      '  - button "New locked message": new locked msg\n' +
+      '  - button "Lock all queued messages" [disabled]: Lock all\n' +
+      '  - button "Unlock all queued messages" [disabled]: Unlock all\n' +
+      '  - button "Pause reports" [disabled]\n' +
+      '  - button "Pause everything" [disabled]\n' +
+      '  - text: 队列为空\n' +
+      '  - button "Session settings"\n' +
+      '  - button "发送队列": Queue\n' +
+      '  - text: 发送队列\n' +
+      '  - button "deepseek-v4-flash"\n' +
+      '  - button\n' +
+      '  - button "Thinking"\n' +
+      '  - button "添加附件"\n' +
+      '  - textbox "消息输入框"\n' +
+      '  - button "Send"\n' +
+      '- complementary'
+  }
+}
+
+Node.js v24.15.0

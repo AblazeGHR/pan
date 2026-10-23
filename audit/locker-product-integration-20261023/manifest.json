@@ -1,0 +1,55 @@
+{
+  "validatedSource": "8a77a6215f8d9d134619d5fe983fc4ffcf97eaf3",
+  "main": "c9c9fe92160bd257eb4b7d53b0669fa85aa1cf2a",
+  "practical": "2652ac8e6d0ff312a255666bc5e459890346e6e5",
+  "mergeBase": "c9c9fe92160bd257eb4b7d53b0669fa85aa1cf2a",
+  "branch": "integrate/locker-product-20261023",
+  "mockReference": "bfa9c680fe07d485785c7ebae27eeb6420193f61",
+  "checks": {
+    "typescript": {
+      "exit": 0
+    },
+    "build": {
+      "exit": 0,
+      "compressedAssets": 94
+    },
+    "vitest": {
+      "exit": 0,
+      "passed": 108,
+      "skipped": 0
+    },
+    "pytest": {
+      "exit": 0,
+      "passed": 41,
+      "skipped": 0
+    },
+    "chromium": {
+      "exit": 0,
+      "groups": 11,
+      "pageErrors": [],
+      "port": 64575,
+      "listenerAfterRun": false
+    }
+  },
+  "scope": "compatible Card product frontend; ordinary Locker message contract missing",
+  "artifacts": {
+    "1440-dark.png": "adfa4266b918a3497d55810743c963fbe8a5585777f8434e89223fd2c9dada56",
+    "1440-light.png": "2b785e1bdb824563fefb54748105abfd3d4bc6db00acf9a6798333c965e18c3a",
+    "320-dark.png": "ef619d96019148f6e5c3f27fb8dcd5225f8b2eb612e2420022845391df2ab420",
+    "320-light.png": "f0e75e2d5475005eb7b888c20a932f6753f99a163f52fed2e62077a8e87d94dd",
+    "320-source-drawer.png": "9acd36b1a8d6e70e1704c9242a13bf5e4813dbca5ef7db99b779951b90a4bfd7",
+    "390-dark.png": "29dd126ad7997e6340e34427ede7615e0f7aeef8c32f185c96b23ec4bce6ab59",
+    "390-light.png": "210eb8c3bc48141d725336e907c6a53b2e827a09e13b67dbcccf8da2b2b03cdf",
+    "768-dark.png": "a57b0df17b17c135f01985166256abfb105436d935728225fc60bfdf53774628",
+    "768-light.png": "745c5fcd18b1376b523c2375db5bbcc7732e9270ab5e9724f539ed738881d85c",
+    "browser-failure.png": "9a907275f9e3cb147d8168dbaec4df4cf888738f46c9c80b6e144f78b21b74da",
+    "browser-final.log": "a0d8f5b743d5c6cc45cee6b7f2110c1e8a8f76251ca3d15dea5fcdb343f4c4cc",
+    "build-final.log": "318755bdcf0f601af76678e11041bbc3e7f6924f29203dbcd0327dee224c9959",
+    "desktop-dark.png": "162c931f5a40211a48766b5799261f2ff49e5bf77e61acc1c02b7a3862a8b035",
+    "python-final.log": "ed360bc47fc7a00dc2d5e58b28f6156acf4cb0fb1f55d11494ab7c5d68db1324",
+    "python-final.xml": "1b5a2a386696f11c90a07be800c79f15d69f7c3c7797be4ad2248a50cb8df61b",
+    "typecheck-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "vitest-final.log": "8cfb23f3cb9eb8019fba563c4d8ff7d80739b90911a5c2bc6e8eebbedaa03087",
+    "vitest-final.xml": "0668f1fab14c27734315a13959c1db3e1d67a2ab659a088111e8647255013b1d"
+  }
+}

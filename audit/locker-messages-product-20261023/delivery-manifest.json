@@ -1,0 +1,113 @@
+{
+  "sourceSha": "cd92067b5140694751417fd9be29b8d517e661c0",
+  "main": "818f6b849d31cac98f03766ad1a6eb7788f5ea58",
+  "practical": "2652ac8e6d0ff312a255666bc5e459890346e6e5",
+  "integrationBase": "818f6b849d31cac98f03766ad1a6eb7788f5ea58",
+  "mergeBase": "818f6b849d31cac98f03766ad1a6eb7788f5ea58",
+  "branch": "integrate/locker-product-20261023",
+  "job": {
+    "id": "job_32e745a3608996a570031bc5",
+    "status": "completed",
+    "exit": 0,
+    "processTreeEnded": true,
+    "notificationState": "delivered"
+  },
+  "tests": {
+    "vitest": {
+      "tests": 147,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "python": {
+      "tests": 69,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "live": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "layout-live": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "screenshot-live": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "cleanup": {
+    "finalPort": 50629,
+    "listenerClosedAfterRun": true,
+    "remainingOwnedProcesses": [],
+    "proof": {
+      "portReleased": true,
+      "ownedProcesses": [],
+      "serverExited": true
+    }
+  },
+  "preservedSystemFields": true,
+  "artifactHashes": {
+    "background-job.log": "4a4dd776af49359ae5612f7c1469420d96172001e95f86758b3f05c6cafbf1cd",
+    "build.log": "2e23ee8e3789e4f9818014a55d9ea5ce18ce2aa80387fc087721cf7d757f4575",
+    "commands.json": "ad93a1d06570e7692de3bf78fbbce73cf4c049e8b52706248ea84ebe79df6367",
+    "layout-build.log": "803eca7e30db736d41313c93f106a57d7dcd827b94e0925c38f40aee12becc23",
+    "layout-commands.json": "9a7fec5dc2d6511fcdef85a9ceac1631ad8594cab46f801c6a61c6b9bbafd7cf",
+    "layout-live.log": "77ca90636969cd3b4869a6048a58b062437001f1faf3ade21e07ffc8c8c449e5",
+    "layout-live.xml": "ffc645aaf9cccbda0dc1101196a3fbf3dc5ba9f3c12e2252c2e7906ebf388561",
+    "live-first.xml": "7e6f80b6912a3d17ffb98dcc7492b0e64f46498217675688b331edce5a7ee6c9",
+    "live-fourth.xml": "640a0d46889aacd0fc75d10f527c052d3f63c6406307de0a9a2587d1bce9db78",
+    "live-second.xml": "f6f8035a96b1a5f74e59289d7716ec23067aa81bd9218b9a8bfa471a507c27f2",
+    "live-third.xml": "c0c3b25be0210edf517c2a1dc186397f6e9c0bb0eac2080ebaf75232a2244b5a",
+    "live.log": "77ca90636969cd3b4869a6048a58b062437001f1faf3ade21e07ffc8c8c449e5",
+    "live.xml": "28ed2ece06cfdc3701f4451a6810611b120b2e7fec1d96d00ecd618d92baf6fd",
+    "pre-layout-live-evidence.json": "be9465df7b67890cbd53deab513dc56cd9c94bdc64456673548ae1befd678c01",
+    "python.log": "9e8f1aff221046289210a5f7868a5d4be35dad256558db413b762b0c28b8dbf5",
+    "python.xml": "a5a102582a91fd01bce509a20416648a4a7e48025ee39b523bbf44f2ca543851",
+    "README.md": "afae6c22af9a25b713f619116716e006ccdf66f7ee7de7599f14590d2fcebae1",
+    "screenshot-commands.json": "4ac9e59c5e24ac2b6197968a3f041324697f37ca8ab81b4d3052bc65bab8dc0b",
+    "screenshot-live.log": "77ca90636969cd3b4869a6048a58b062437001f1faf3ade21e07ffc8c8c449e5",
+    "screenshot-live.xml": "0e05c360c2609d80262e2e17cbf68fed0cea62dd46ec9980555a4eacb7434128",
+    "typescript.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "unit-first.xml": "bc3636feef0201a3e3c04d89a3032ddce07686b96cea4803a00c8133af18a88e",
+    "verify.py": "a96baeee97455aa3c46ba21efc130bac8934c55f259e59735ae382b8893bf060",
+    "vitest.log": "3d68c6f40b32efbd6e0b34ed719c9b5305250b7e2eb1985d2deee5ee093847a1",
+    "vitest.xml": "8adc9703814afcefb2bf0a63ba40e5b3f93f235b76294ad06c6dd0ea9b0236cb",
+    "live/1440-dark.png": "b4e671aca9b41cefa758ffdf8ca791e33338a2dcef2c7597d917cd84a3f20663",
+    "live/1440-light.png": "7495a1900c367ed4f5c455e7d4b7d9e1d90cc18f42fb67fb8b88a2fefe1d780d",
+    "live/320-dark.png": "de10f126ab7505f43e3498a3e47a7fea827cb39fedcb7b628c48cbd8a217d98c",
+    "live/320-light.png": "8b4025c7ae4fa804508e663c016171f77ea9dbe6d49096f4279a487f0cda6b47",
+    "live/390-dark.png": "b23a4514df98000ae3a5d59cc9c114f4e2f57efb31057cc809746f10eee05e63",
+    "live/390-light.png": "6aebfb02a2e7987bb5ce21287714c66f4d745daa8c96e66108b9ed9cceaa8107",
+    "live/768-dark.png": "821c1f98a3ec35059878d515b94ad01197aa30715587c696137d231269d354fa",
+    "live/768-light.png": "a4c5d13e67ad37f7f6c9805e0e6312db7a32961f979e6d87692977757fa682f7",
+    "live/browser-cold.json": "e4e52dc403f84c691dfd4ebe467238a6bae2bd1a98a0b791d445a8e81f067bbb",
+    "live/browser-cold.log": "6abfeac47c96ada68a24bcf9fb35448142a56fcf1d60c6864e652beff8ea94c1",
+    "live/browser-exercise.json": "db7a354f2aab9f023bb76aa5115cfea9216c93c6f3a4ed5b52a6c6f615724632",
+    "live/browser-exercise.log": "25ff1b62a048a3991c1550e6153dec85269aa07b6f371d825d1fcba9b4360727",
+    "live/evidence.json": "807ca85a043cc79d7a554d2e7331c0a58df7fb17872e458d6fda0ef5cefaecc4",
+    "live/fixture.json": "1962fd5cddbb8254f02e09d69df6cac90202d28ebb29c7612c84c7a54ab57ab6",
+    "live/initial-cold-1440.png": "476d60936b007218ac1d8f1d8604a54a4b171774e4dc2385b853152df6bd32cf",
+    "live/initial-exercise-1440.png": "5ccb28cd825f0597a787ab03676d529dbdf3116c0fe95399d86538b2e0f11db8",
+    "live/server.log": "ed86cba5ac36b5a2850bdf0d4254e0e460469c166a10643e7cbf31c94a2f7187",
+    "red/ordinary-build-first.log": "07cfb7629580fc668fa0209140a5f0df35b33ba07f1fb67b27baa0b7c4842f2b",
+    "red/ordinary-live-first.log": "4563595c4ec2f2a5ee8bacb3d3cc14306f6fb264436ef2cb3951b8129b415ca8",
+    "red/ordinary-live-fourth.log": "77ca90636969cd3b4869a6048a58b062437001f1faf3ade21e07ffc8c8c449e5",
+    "red/ordinary-live-second.log": "a7c99cfbbd9a3f2d9d9409bff19a6254c76817d9b2783c46a69f799111f9f7c9",
+    "red/ordinary-live-third.log": "b409b756ee4636fc3d05f1138d65b2d8c95028df9a6de29f02d92016880b450c",
+    "red/ordinary-python-first.log": "678605ab6488a7421b1593cd1d920bf26b3788f3f2cb59d157032fd9849166fe",
+    "red/ordinary-vitest-first.log": "b5754ebed430aa172c7f43eddc34fc255e798162a208470cd184f54518cd21d3",
+    "red/ordinary-vitest-second.log": "8c12c3d9735275c48237f47cf8384114eb8618c70873dc3af6d9a2e619181810",
+    "red/ordinary-vitest-third.log": "08c06dd5c83f123826a2356d2754469cb7dff2897ff0d9dd0bd62c3470b7a4cb"
+  },
+  "productSourceSha": "44bd35da23fd7d496ddc01b9ed0ba65b2497af9d",
+  "fullGateSourceSha": "0c4509e7ec6694deecdd491a18d95547df4fb1e0"
+}

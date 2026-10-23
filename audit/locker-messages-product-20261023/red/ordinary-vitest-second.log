@@ -1,0 +1,23 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/locker-product-integration-20261023/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (2 tests) 3ms
+ ✓ views/LockerView.test.tsx (17 tests) 1139ms
+stdout | components/chat/MarkdownRenderer.test.tsx > MarkdownRenderer > renders list bullets structure and hljs spans
+UL: <ul>
+<li>item one</li>
+<li>item two</li>
+</ul>
+LI: <li>item one</li>
+HLJS_KEYWORD: <span class="hljs-keyword">const</span>
+CODE: <code class="text-xs font-mono leading-relaxed hljs language-js"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;
+</code>
+
+ ✓ components/chat/MarkdownRenderer.test.tsx (35 tests) 5937ms
+   ✓ MarkdownRenderer > preserves the entire large plain paragraph, selection text, and subsequent rich Markdown 4024ms
+
+ Test Files  3 passed (3)
+      Tests  54 passed (54)
+   Start at  22:10:22
+   Duration  8.81s (transform 471ms, setup 24ms, collect 1.72s, tests 7.08s, environment 1.52s, prepare 413ms)
+

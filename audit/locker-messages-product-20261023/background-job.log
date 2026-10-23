@@ -1,0 +1,6 @@
+typescript: exit=0
+build: exit=0
+vitest: exit=0
+python: exit=0
+live: exit=0
+Candidate checks complete; real fixture cleanup is recorded in live/evidence.json

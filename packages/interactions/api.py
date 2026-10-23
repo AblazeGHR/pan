@@ -62,7 +62,11 @@ def register(app):
                 exists=db.execute('SELECT 1 FROM cards WHERE id=?',(cid,)).fetchone()
             if exists:
                 return {'card':store.create(data)}
-            return {'card':await asyncio.to_thread(create_trusted,getattr(app.state,'automation',None),store,data)}
+            card=await asyncio.to_thread(create_trusted,getattr(app.state,'automation',None),store,data)
+            source=session.get(data['ownerSessionId'],load_history=False)
+            if source:
+                store.remember_source(source.id,data['recipientId'],source.name,session.effective_workspace_ids(source))
+            return {'card':card}
         except InteractionError as exc:
             raise failure(exc) from exc
 
@@ -96,17 +100,80 @@ def register(app):
         principal=await user(request)
         store=get_store()
         with store.db() as db:
-            rows=db.execute('SELECT l.owner,count(c.id) AS total,coalesce(sum(1-c.is_read),0) AS unread FROM user_lockers l LEFT JOIN cards c ON c.owner=l.owner AND c.recipient=l.recipient WHERE l.recipient=? GROUP BY l.owner',
-                            (principal.id,)).fetchall()
+            rows=db.execute("""SELECT l.owner,l.source_name,l.workspace_ids,
+                (SELECT count(*) FROM cards c WHERE c.owner=l.owner AND c.recipient=l.recipient)+
+                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient) AS total,
+                (SELECT count(*) FROM cards c WHERE c.owner=l.owner AND c.recipient=l.recipient AND c.is_read=0)+
+                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient AND m.is_read=0) AS unread
+                FROM user_lockers l WHERE l.recipient=?""", (principal.id,)).fetchall()
         from .contracts import identity
+        import json
         result=[]
         for row in rows:
             source=session.get(row['owner'],load_history=False)
+            name=source.name if source else row['source_name'] or row['owner']
+            workspaces=session.effective_workspace_ids(source) if source else json.loads(row['workspace_ids'])
+            if source:
+                store.remember_source(row['owner'],principal.id,name,workspaces)
             result.append({'id':identity('ulocker_',[principal.id,row['owner']]),'sessionId':row['owner'],
-                           'sourceName':source.name if source else row['owner'],
-                           'workspaceIds':session.effective_workspace_ids(source) if source else [],
+                           'sourceName':name,'workspaceIds':workspaces,
                            'available':source is not None,'total':row['total'],'unread':row['unread']})
         return {'lockers':result}
+
+    @app.get('/api/user-locker-messages')
+    async def messages(request:Request,limit:int=100,after:str | None=None):
+        principal=await user(request)
+        try:
+            return {'schemaVersion':1,**get_store().list_messages(principal,limit=limit,after=after)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.get('/api/user-locker-messages/{message_id}')
+    async def message(message_id:str,request:Request):
+        principal=await user(request)
+        try:
+            return {'message':get_store().get_message(principal,message_id)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.put('/api/user-locker-messages/{message_id}/read')
+    async def message_read(message_id:str,data:dict,request:Request):
+        principal=await user(request)
+        if set(data)!={'read'}:
+            raise HTTPException(422,detail={'code':'invalid'})
+        try:
+            return {'message':get_store().mark_message_read(principal,message_id,data['read'])}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.delete('/api/user-locker-messages/{message_id}')
+    async def message_delete(message_id:str,request:Request):
+        principal=await user(request)
+        try:
+            return get_store().delete_message(principal,message_id)
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
+    @app.get('/api/user-locker-messages/{message_id}/attachments/{attachment_id}')
+    async def message_attachment(message_id:str,attachment_id:str,request:Request):
+        principal=await user(request)
+        try:
+            item=get_store().get_message(principal,message_id)
+            from .locker_messages import attachment_ids
+            if attachment_id not in attachment_ids(item['message']):
+                raise InteractionError('not_found','Attachment is not part of this Locker message')
+            from packages.web import server
+            # Same opaque registry validation as Chat, with no cross-source
+            # allowance. Message ownership remains valid if its Session is gone.
+            error=server._attachment_id_error(item['ownerSessionId'],attachment_id)
+            if error:
+                raise InteractionError('not_found',error['code'])
+            record=server._attachment_record(item['ownerSessionId'],attachment_id)
+            from starlette.responses import FileResponse
+            return FileResponse(record['path'],filename=record.get('displayName') or 'attachment',
+                                media_type=record.get('mimeType') or 'application/octet-stream')
+        except InteractionError as exc:
+            raise failure(exc) from exc
 
     @app.put('/api/user-inbox/{card_id}/read')
     async def mark_read(card_id:str,data:dict,request:Request):

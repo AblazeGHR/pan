@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="5.335" timestamp="2026-10-23T22:06:05.319076+08:00" hostname="ablaze"><testcase classname="tests.test_locker_product_live" name="test_locker_messages_cards_real_service_browser_cli_restart" time="4.797"><failure message="KeyError: 'messages'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4006/test_locker_messages_cards_rea0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000272B242E8B0&gt;
+
+    def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkeypatch):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(h, 'PORT', port)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', ROOT/'tests/support/locker_product_http_server.py')
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_LOCKER_NONCE', nonce)
+        monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
+        rt = h._PanRuntime(tmp_path/'profile/data')
+        rt.data_root.mkdir(parents=True)
+        (rt.data_root/'config.json').write_text(json.dumps({'scheduler': {'enabled': True},
+            'memory': {'enabled': False}, 'plugin_manifests': [str(ROOT/'manifest.json'), str(ROOT/'packages/mcp/manifest.json')]}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        proof = {'sourceSha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding='utf-8').strip(),
+                 'port': port, 'profile': str(rt.data_root), 'apiInterception': False}
+        fixture_headers = {'x-locker-fixture': nonce}
+        def browser(phase, fixture, key):
+            fixture_path = OUT/'fixture.json'
+            fixture_path.write_text(json.dumps(fixture, indent=2), encoding='utf-8')
+            result = subprocess.run(['node', str(ROOT/'packages/web/e2e/locker-product-live.mjs'),
+                rt.base_url, str(OUT), str(fixture_path), phase], cwd=ROOT,
+                env={**os.environ, 'PAN_TEST_JOB_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=110)
+            (OUT/f'browser-{phase}.log').write_text(result.stdout+'\n'+result.stderr, encoding='utf-8')
+            assert result.returncode == 0, result.stdout+'\n'+result.stderr
+        try:
+            rt.start()
+            ident = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(ident['sessions']).parent == rt.data_root
+            assert Path(ident['fakeCLI']).resolve() == h.FAKE_CLI.resolve()
+            proof['identity'] = ident
+            key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
+            def source(name):
+                directory = rt.data_root/'workdirs'/name
+                directory.mkdir(parents=True)
+                obj = rt.request('POST', '/api/sessions', json={'name': name.replace(' ', '-'), 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(directory)})
+                assert obj.get('id'), obj
+                rt.request('PATCH', f"/api/sessions/{obj['id']}/queue/paused", json={'paused': True})
+                return obj
+            one = source('Design agent with a long dedicated Locker source name')
+            two = source('Archived review source with a long name')
+            empty = source('No dedicated Locker content')
+            target = source('Owned Pause target')
+            workspace = rt.request('POST', '/api/workspaces', json={'name': 'Workspace A'})['workspace']
+            for obj in (one, two):
+                assert rt.request('PUT', f"/api/sessions/{obj['id']}/workspaces", json={'workspaceIds': [workspace['id']]})['ok']
+            rt.request('POST', '/api/actions/actions', json={'item': action([target['id']])})
+            rt.request('POST', '/api/automation/triggers', headers=auth,
+                json={'item': {**trigger('locker-live-pause'), 'eventTypes': ['pan.interaction.responded']}, 'expectedRevision': 0})
+            attachment = httpx.post(rt.base_url+f"/api/sessions/{one['id']}/attachments?filename=review.txt",
+                content=b'owned attachment bytes', trust_env=False).json()
+            def accept(sid, mid, ts, body, parts=None):
+                message = {'messageId': mid, 'role': 'assistant', 'content': body, 'ts': ts,
+                    'parts': parts or [{'type': 'text', 'text': body}], 'futureMetadata': {'retained': True}}
+                return rt.request('POST', '/__test/locker/accept', headers=fixture_headers,
+                    json={'sourceSessionId': sid, 'recipientId': 'user', 'message': message})['message']
+            ordinary = accept(one['id'], 'dedicated-one', '2026-10-23T00:00:00Z', '## Ordinary Locker message\n\n**Markdown**, no Chat copy.\n\n```ts\nconst locker = true;\n```',
+                [{'type': 'text', 'text': '## Ordinary Locker message\n\n**Markdown**, no Chat copy.\n\n```ts\nconst locker = true;\n```'},
+                 {'type': 'attachment', 'attachmentId': attachment['attachmentId'], 'displayName': 'review.txt', 'mimeType': 'text/plain'}])
+            archived = accept(two['id'], 'dedicated-two', '2026-10-23T00:01:00Z', '## Archived Locker message\n\nStill readable after source deletion.')
+            def card(key_name, **fields):
+                return rt.request('POST', '/api/interaction-cards', json={'ownerSessionId': one['id'], 'recipientId': 'user',
+                    'requestKey': key_name, 'card': {'title': key_name, 'body': 'Full body retained only in Locker.', 'summaryBody': 'Summary '*60, **fields}})['card']
+            approval = card('Approve real Pause', choices=[{'id': 'pause', 'label': 'Approve Pause', 'triggerRef': {'id': 'locker-live-pause', 'revision': 1}}, {'id': 'keep', 'label': 'Keep running'}])
+            reply = card('Answer without choices')
+            reason = card('Reject with reason')
+            silent = card('Reject without reason')
+            assert rt.request('GET', '/api/user-inbox', headers=auth)['cards'][0]['definition']['body'] == 'Full body retained only in Locker.'
+&gt;           assert not rt.request('GET', f"/api/sessions/{one['id']}/history")['messages'], 'Dedicated records must not enter Chat'
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'messages'
+
+tests\test_locker_product_live.py:86: KeyError</failure></testcase></testsuite></testsuites>
