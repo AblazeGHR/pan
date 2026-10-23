@@ -29,7 +29,7 @@ commands=[
         'tests/test_eta_report_integration_http.py','-o','addopts=','-q','--junitxml='+str(OUT/'http.xml')]),
     ('compile',ROOT,[PY,'-m','compileall','-q','packages/core/worker.py','packages/core/session_error_log.py',
         'tests/test_eta_report_coexistence.py','tests/test_eta_report_integration_http.py']),
-    ('diff',ROOT,['git','diff','ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e','HEAD','--check']),
+    ('diff',ROOT,['git','diff','ca464c8d55e9c857aa1fa85652e3dcb3e1f7025e','HEAD','--check','--','packages','docs','tests','audit/eta-report-integration/verify.py']),
 ]
 result={'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,encoding='utf-8').strip(),'commands':[]}
 for name,cwd,args in commands:

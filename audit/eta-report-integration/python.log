@@ -1,0 +1,19 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\eta-job-report-integration-20261023
+..............................................ss........................ [ 25%]
+........................................................................ [ 50%]
+........................................................................ [ 75%]
+........................................................................ [100%]
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_report_reads.py::test_real_http_mcp_report_handoff_metadata_only
+  tests\test_report_reads.py:313: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_report_error_context.py:273: Oneshot mode retired by user; implementation retained
+SKIPPED [1] tests\test_report_error_context.py:295: Oneshot mode retired by user; implementation retained
+286 passed, 2 skipped, 2 warnings in 21.78s
