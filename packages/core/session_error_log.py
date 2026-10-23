@@ -114,13 +114,15 @@ _SECRET_KEY_RE = re.compile(
     r"client[-_]?secret|credential)s?$"
 )
 _SECRET_TEXT_PATTERNS = (
+    (re.compile(r"(?i)(\b(?:bearer|basic)\s+)[^\s,;\"']+"),
+     r"\1***redacted***"),
     (re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s,;\"']+"),
      r"\1***redacted***"),
     (re.compile(r"(?i)(x-api-key\s*:\s*)[^\s,;\"']+"),
      r"\1***redacted***"),
-    (re.compile(r"(?i)((?:api[_-]?key|access[_-]?token|refresh[_-]?token)"
-                r"\s*[=:]\s*)[^\s,;\"'}]+"),
+    (re.compile(r'''(?i)((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|client[_-]?secret|secret)["']?\s*[=:]\s*["']?)[^\s,;"'}]+'''),
      r"\1***redacted***"),
+    (re.compile(r"(?i)(https?://)[^/\s:@]+:[^/\s@]+@"), r"\1***redacted***@"),
     (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"), "sk-***redacted***"),
     (re.compile(r"(?i)(cookie\s*:\s*)[^\r\n]+"), r"\1***redacted***"),
 )
@@ -212,7 +214,7 @@ def sanitize(value: Any, *, key: str | None = None) -> Any:
     return value
 
 
-def cli_error_fields(event: Any) -> tuple[Any, str | None, str | None]:
+def cli_error_fields(event: Any, *, text_only: bool = False) -> tuple[Any, str | None, str | None]:
     """Extract the provider's own error object/text from one raw CLI event.
 
     Returns ``(raw_error, error_text, error_source)``.  Nothing is synthesized
@@ -223,6 +225,14 @@ def cli_error_fields(event: Any) -> tuple[Any, str | None, str | None]:
     error = event.get("error")
     if isinstance(error, dict):
         message = error.get("message") or error.get("data") or error.get("error_text")
+        if text_only:
+            # Report projection is an allowlist, never a dump of an opaque
+            # provider error object (which may contain credentials/context).
+            if isinstance(message, str) and message.strip():
+                return error, message, "cli.error"
+            text = event.get("error_text")
+            return error, text if isinstance(text, str) and text.strip() else None, (
+                "cli.error_text" if isinstance(text, str) and text.strip() else None)
         if isinstance(message, (dict, list)):
             message = json.dumps(message, ensure_ascii=False, default=str)
         if message is not None and str(message).strip():
@@ -234,6 +244,45 @@ def cli_error_fields(event: Any) -> tuple[Any, str | None, str | None]:
     if isinstance(text, str) and text.strip():
         return error, text, "cli.error_text"
     return error, None, None
+
+
+def cli_error_provenance(event: Any, fallback: str | None) -> str | None:
+    """Wrapper's explicit provenance, shared by archival and report views."""
+    source = event.get('error_source') if isinstance(event, dict) else None
+    return sanitize(source) if isinstance(source, str) and source.strip() else fallback
+
+
+def report_text(value: str, limit: int = 1200) -> tuple[str, bool]:
+    """Same credential normalization as the sample log, then bounded output."""
+    text = sanitize(value).strip()
+    if len(text) <= limit:
+        return text, False
+    marker = "\n...[truncated]...\n"
+    head = (limit-len(marker))//2
+    return text[:head] + marker + text[-(limit-len(marker)-head):], True
+
+
+def terminal_report_fields(event: Any) -> dict:
+    """One terminal event's native facts only; no history/text classification."""
+    error, text, source = cli_error_fields(event, text_only=True)
+    code = None
+    if isinstance(error, dict):
+        code = error.get('code')
+        if code is None:
+            code = error.get('codexErrorInfo')
+    if isinstance(code, str):
+        code = report_text(code, 128)[0]
+    elif type(code) is int and len(str(code)) > 128:
+        code = report_text(str(code), 128)[0]
+    elif type(code) is not int:
+        code = None
+    if code is not None and source is None:
+        source = 'cli.error'
+    if source is not None:
+        source = report_text(cli_error_provenance(event, source), 128)[0]
+    bounded, truncated = report_text(text) if text else (None, False)
+    return dict(errorText=bounded, errorCode=code, errorSource=source,
+                errorTextTruncated=truncated)
 
 
 def previous_message_snapshot(session: Any) -> dict | None:
@@ -432,8 +481,9 @@ def _prepare_record(
         cli["errorSource"] = cli_error_source
     if cli_raw is not None:
         cli["raw"] = sanitize(cli_raw)
-        if isinstance(cli_raw, dict) and cli_raw.get("error_source"):
-            cli["errorSource"] = str(cli_raw["error_source"])
+        source = cli_error_provenance(cli_raw, cli.get("errorSource"))
+        if source is not None:
+            cli["errorSource"] = source
     if cli_error_events:
         cli["errorEvents"] = sanitize(cli_error_events)
 

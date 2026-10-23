@@ -1,0 +1,34 @@
+{
+  "sourceSha": "573841cce8148afaff9946b32461e6d7d03b0a1f",
+  "cwd": "D:\\project\\pan-worktrees\\terminal-report-diagnostic-20261023",
+  "commands": [
+    {
+      "name": "python",
+      "argv": [
+        "E:\\software\\miniforge\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "E:\\software\\miniforge\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_terminal_report_diagnostic.py",
+        "tests/test_report_error_context.py",
+        "tests/test_report_subscription.py",
+        "tests/test_report_reads.py",
+        "tests/test_manual_task_report.py",
+        "tests/test_session_error_log.py",
+        "tests/test_session_error_log_worker.py",
+        "tests/test_force_steer.py",
+        "tests/test_self_queue.py",
+        "tests/test_auto_force_sources.py",
+        "tests/test_usage_enrichment_commit.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--junitxml=audit/terminal-report/python.xml"
+      ],
+      "exitCode": 1
+    }
+  ]
+}
