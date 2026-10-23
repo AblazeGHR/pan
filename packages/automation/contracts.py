@@ -18,6 +18,19 @@ class EventDefinition(TypedDict):
     available: bool
 
 
+class SystemFields(TypedDict, total=False):
+    sessionId: str
+    sourceSessionId: str
+    workspaceId: str
+    workerId: str
+    taskId: str
+    executionId: str
+    attemptId: str
+    queueItemId: str
+    threadId: str
+    turnId: str
+
+
 class Event(TypedDict):
     id: str
     type: str
@@ -25,6 +38,7 @@ class Event(TypedDict):
     schemaVersion: int
     occurredAt: str
     payload: Any
+    system: NotRequired[SystemFields]
 
 
 class SessionSelector(TypedDict):

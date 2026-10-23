@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 import jsonschema
 
+from packages.core.system_fields import canonical_system
+
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -77,7 +79,7 @@ class Bus:
                     queue.task_done()
         self.subscribers[name] = (handle, queue, asyncio.create_task(consume()))
 
-    def prepare(self, handle, event_type, payload, event_id=None):
+    def prepare(self, handle, event_type, payload, event_id=None, *, system=None):
         if len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')) > 65536:
             raise ValueError('Event payload exceeds 64 KiB')
         if event_id is not None and (not isinstance(event_id, str) or not event_id or len(event_id) > 128):
@@ -87,16 +89,24 @@ class Bus:
         if not source or not definition or definition['source'] != source or not definition['available']:
             raise ValueError('Runtime is not eligible to publish this Event')
         jsonschema.Draft202012Validator(definition['schema']).validate(payload)
+        # System fields are trusted runtime identity, not producer payload. Only
+        # the host-owned core runtime may attach them; a plugin must never be
+        # able to forge a Session/Worker identity through its publish call.
+        identity = canonical_system(system) if system is not None else {}
+        if identity and source['type'] != 'core':
+            raise ValueError('System fields require a trusted core runtime')
         event = dict(id=event_id or 'evt_' + uuid.uuid4().hex, type=event_type, schemaVersion=definition['schemaVersion'], source=source.copy(), occurredAt=now(), payload=copy.deepcopy(payload))
+        if identity:
+            event['system'] = identity
         return event
 
-    def publish(self, handle, event_type, payload, event_id=None):
+    def publish(self, handle, event_type, payload, event_id=None, *, system=None):
         if self.durable is not None:
             raise ValueError('Durable runtime requires await bus.publish_async')
-        return self._fanout(self.prepare(handle, event_type, payload, event_id))
+        return self._fanout(self.prepare(handle, event_type, payload, event_id, system=system))
 
-    async def publish_async(self, handle, event_type, payload, event_id=None):
-        event = self.prepare(handle, event_type, payload, event_id)
+    async def publish_async(self, handle, event_type, payload, event_id=None, *, system=None):
+        event = self.prepare(handle, event_type, payload, event_id, system=system)
         if self.durable is None:
             return self._fanout(event)
         receipt = await self.durable(event, handle)

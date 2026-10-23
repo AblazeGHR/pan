@@ -7,6 +7,8 @@ import sqlite3
 import threading
 import time
 
+from packages.core.system_fields import canonical_event
+
 RETENTION_SECONDS = 7 * 24 * 60 * 60
 MAX_EVENTS = 100_000
 MAX_BYTES = 256 * 1024 * 1024
@@ -19,8 +21,13 @@ class CapacityError(ValueError):
 
 
 def fact_identity(event):
-    return json.dumps({k: event.get(k) for k in ('type', 'schemaVersion', 'source', 'payload')},
-                      sort_keys=True, ensure_ascii=False, allow_nan=False)
+    identity = {k: event.get(k) for k in ('type', 'schemaVersion', 'source', 'payload')}
+    # Keep pre-system fingerprints stable for retained Events. A trusted system
+    # object adds identity only when present, so old no-system redeliveries still
+    # dedupe while differing system identities can never collapse into one fact.
+    if event.get('system') is not None:
+        identity['system'] = event['system']
+    return json.dumps(identity, sort_keys=True, ensure_ascii=False, allow_nan=False)
 
 
 class EventStore:
@@ -57,6 +64,9 @@ class EventStore:
             db.execute('PRAGMA user_version=1')
 
     def append(self, event, targets):
+        # Admission is the canonicalization boundary: aliases are accepted from
+        # trusted input, but only canonical camelCase keys reach durable storage.
+        event = canonical_event(event)
         event_json = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         payload = json.dumps(event['payload'], ensure_ascii=False, allow_nan=False).encode('utf-8')
         if len(payload) > PAYLOAD_BYTES:

@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "host": "127.0.0.1",
+  "port": 54229,
+  "fallbackPortsUsed": false,
+  "fields": [
+    "sessionId",
+    "sourceSessionId",
+    "workspaceId",
+    "workerId",
+    "taskId",
+    "executionId",
+    "attemptId",
+    "queueItemId",
+    "threadId",
+    "turnId"
+  ],
+  "actionTargets": [
+    "sessionId",
+    "sourceSessionId"
+  ],
+  "readOnlyPostStatus": 405,
+  "schemaPointer": {
+    "version": 1,
+    "path": "/api/automation/system-fields"
+  }
+}
