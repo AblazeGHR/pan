@@ -1142,11 +1142,11 @@ function extractBlocks(event: WorkerEvent): ExtractedBlock[] {
  *  每个 text 块在消息区各成一条 assistant 消息，预览取最后一个 text 块即
  *  「最新消息」。无 text 块（thinking/tool/meta 等）→ 返回 null。 */
 function extractStreamText(event: WorkerEvent): string | null {
-  if (event.delta && event.stream_text) return event.stream_text;
   let text = '';
   for (const b of extractBlocks(event)) {
-    if (b.role === 'assistant' && b.content) text = b.content;
+    if (b.role === 'assistant' && b.content.trim()) text = b.content;
   }
+  if (text && event.delta && event.stream_text?.trim()) return event.stream_text;
   return text || null;
 }
 

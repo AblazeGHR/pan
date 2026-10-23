@@ -15,6 +15,7 @@ original_server = fixture.uvicorn.Server
 
 def seed():
     from packages.core import session
+    fixture._write_fixture_files()
     fixture.SESSION_DIR.mkdir(parents=True, exist_ok=True)
     fixture.WORKDIR.mkdir(parents=True, exist_ok=True)
     for name in ["Summary A", "Summary B"]:

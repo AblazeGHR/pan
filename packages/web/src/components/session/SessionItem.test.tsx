@@ -70,6 +70,19 @@ function countingText(value: string): { source: string; calls: () => number } {
 }
 
 describe('SessionItem streaming preview', () => {
+  it('honors an empty authoritative preview instead of showing the last local tool row', () => {
+    render(<SessionItem session={session('', 'idle', { lastDisplayPreview: '',
+      history: [{ role: 'tool', content: 'private tool output' }] })} isActive />);
+    expect(screen.getByTestId('session-preview-line').textContent).toBe('');
+  });
+
+  it('keeps the legacy user fallback through auxiliary and empty rows', () => {
+    render(<SessionItem session={session('', 'idle', { history: [
+      { role: 'user', content: 'question fallback' }, { role: 'assistant', content: ' \n' },
+      { role: 'thinking', content: 'internal' }, { role: 'tool', content: 'output' },
+    ] })} isActive />);
+    expect(screen.getByTestId('session-preview-line').textContent).toBe('question fallback');
+  });
   afterEach(() => cleanup());
 
   it('shows the last message for a selected completed session', () => {

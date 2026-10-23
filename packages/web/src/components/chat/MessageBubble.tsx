@@ -1,7 +1,10 @@
 import type { Message } from '@/types';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bookmark, BookmarkMinus, BookmarkPlus, Check, Send, Undo2 } from 'lucide-react';
+import { Bookmark, BookmarkMinus, BookmarkPlus, Check, Copy, Send, Undo2 } from 'lucide-react';
+import { copyText } from '@/utils/clipboard';
+import { useUIStore } from '@/stores/uiStore';
+import { fetchSessionMessageText } from '@/services/api';
 import { useSessionStore, manualTaskReportKey } from '@/stores/sessionStore';
 import { isPanMessageId, selectBookmarkMark, useBookmarkStore } from '@/stores/bookmarkStore';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -226,6 +229,28 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       style={{ top: menuAt.top, left: menuAt.left }}
       onPointerDown={(event) => event.stopPropagation()}
     >
+      <button
+        type="button"
+        role="menuitem"
+        disabled={!message.content.trim() || !sessionId || !isPanMessageId(message.messageId)}
+        title={!message.content.trim() ? '消息正文为空' : !isPanMessageId(message.messageId)
+          ? '消息原文尚不可读取' : '复制消息原文（保留 Markdown）'}
+        onClick={() => {
+          setMenuAt(null);
+          // Capture the clicked identity before an async read or Session
+          // switch. Display content can contain rewritten editor links.
+          const id = message.messageId;
+          if (!message.content.trim() || !sessionId || !isPanMessageId(id)) return;
+          void fetchSessionMessageText(sessionId, id!).then(body => {
+            if (!body.trim()) throw new Error('Empty message body');
+            return copyText(body);
+          }).catch(() => {
+            useUIStore.getState().showToast('复制失败，请重试', 'error');
+          });
+        }}
+      >
+        <Copy size={12} /> 复制全文
+      </button>
       {bookmarkable ? (
         <button
           type="button"

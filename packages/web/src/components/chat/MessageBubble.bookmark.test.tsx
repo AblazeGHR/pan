@@ -6,6 +6,8 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useBookmarkStore } from '@/stores/bookmarkStore';
 import { useUIStore } from '@/stores/uiStore';
 import { MessageBubble } from './MessageBubble';
+const clipboard = vi.hoisted(() => ({ copyText: vi.fn() }));
+vi.mock('@/utils/clipboard', () => clipboard);
 
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: vi.fn(({ content }: { content: string }) => <span>{content}</span>) }));
 
@@ -13,6 +15,7 @@ const api = vi.hoisted(() => ({
   fetchSessionBookmarks: vi.fn(),
   addSessionBookmark: vi.fn(),
   removeSessionBookmark: vi.fn(),
+  fetchSessionMessageText: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/api')>()),
@@ -33,11 +36,58 @@ const originalAdd = useBookmarkStore.getState().addBookmark;
 const originalRemove = useBookmarkStore.getState().removeBookmark;
 
 beforeEach(() => {
+  clipboard.copyText.mockReset().mockResolvedValue(undefined);
   api.fetchSessionBookmarks.mockReset();
   api.addSessionBookmark.mockReset();
   api.removeSessionBookmark.mockReset();
+  api.fetchSessionMessageText.mockReset().mockResolvedValue(bookmarkableRow.content);
   useSessionStore.setState({ currentSessionId: 'ses_bm' });
   useBookmarkStore.setState({ sessions: {}, addBookmark: originalAdd, removeBookmark: originalRemove });
+});
+
+it('copies only the clicked full raw Markdown body and keeps bookmark actions', async () => {
+  const body = '  # 标题\n\n```ts\nconst value = "<raw>";\n```\n' + '正文'.repeat(1500) + '\n尾部  ';
+  api.fetchSessionMessageText.mockResolvedValueOnce(body);
+  const view = render(<MessageBubble message={{ ...bookmarkableRow, content: 'display projection' }} />);
+  openMenu(view.container);
+  expect(screen.getByRole('menuitem', { name: 'Add bookmark' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('menuitem', { name: '复制全文' }));
+  await waitFor(() => expect(clipboard.copyText).toHaveBeenCalledWith(body));
+  expect(api.fetchSessionMessageText).toHaveBeenCalledWith('ses_bm', BOOKMARK_ID);
+  expect(document.querySelector('[data-message-block-menu]')).toBeNull();
+});
+
+it('disables copy for an empty body and reports actual clipboard failure', async () => {
+  const view = render(<MessageBubble message={{ ...bookmarkableRow, content: '  \n' }} />);
+  openMenu(view.container);
+  expect(screen.getByRole('menuitem', { name: '复制全文' }).hasAttribute('disabled')).toBe(true);
+  cleanup();
+  clipboard.copyText.mockRejectedValueOnce(new Error('denied'));
+  const toast = vi.spyOn(useUIStore.getState(), 'showToast');
+  const next = render(<MessageBubble message={bookmarkableRow} />);
+  openMenu(next.container);
+  fireEvent.click(screen.getByRole('menuitem', { name: '复制全文' }));
+  await waitFor(() => expect(toast).toHaveBeenCalledWith('复制失败，请重试', 'error'));
+  toast.mockRestore();
+});
+
+it('keeps the clicked identity when switching Session during the canonical read, and never copies on read failure', async () => {
+  let resolve!: (body: string) => void;
+  api.fetchSessionMessageText.mockImplementationOnce(() => new Promise<string>(done => { resolve = done; }));
+  const view = render(<MessageBubble message={bookmarkableRow} />);
+  openMenu(view.container);
+  fireEvent.click(screen.getByRole('menuitem', { name: '复制全文' }));
+  act(() => useSessionStore.setState({ currentSessionId: 'other-session' }));
+  resolve('clicked original');
+  await waitFor(() => expect(clipboard.copyText).toHaveBeenCalledWith('clicked original'));
+  expect(api.fetchSessionMessageText).toHaveBeenCalledWith('ses_bm', BOOKMARK_ID);
+  clipboard.copyText.mockClear();
+  api.fetchSessionMessageText.mockRejectedValueOnce(new Error('message missing'));
+  openMenu(view.container);
+  fireEvent.click(screen.getByRole('menuitem', { name: '复制全文' }));
+  await waitFor(() => expect(document.querySelector('[data-message-block-menu]')).toBeNull());
+  await act(async () => { await Promise.resolve(); });
+  expect(clipboard.copyText).not.toHaveBeenCalled();
 });
 
 afterEach(() => {

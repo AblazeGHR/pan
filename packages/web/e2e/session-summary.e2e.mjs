@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import process from 'node:process';
 import console from 'node:console';
@@ -23,6 +23,7 @@ const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !ke
 Object.assign(env, { PAN_PORT: String(port), PAN_E2E_RUNTIME: runtime, PYTHONPATH: root });
 let server, browser, releaseHistory;
 const evidence = { root, runtime, port, checks: [], events: [], errors: [] };
+evidence.sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 const assets = path.join(import.meta.dirname, '../dist/assets');
 const entry = (await fs.readdir(assets)).find(name => /^index-.*\.js$/.test(name));
 evidence.bundle = entry;
@@ -53,6 +54,7 @@ try {
   const initial = (await api('/api/sessions?summary=1', undefined, 'GET')).sessions;
   const A = initial.find(s => s.name === 'Summary A').id, B = initial.find(s => s.name === 'Summary B').id;
   browser = await chromium.launch({ headless: true });
+  evidence.chromiumVersion = browser.version();
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.on('pageerror', error => evidence.errors.push(error.message));
   page.on('websocket', ws => ws.on('framereceived', ({ payload }) => {
@@ -183,6 +185,38 @@ try {
   assert.equal(final.lastMessage, final.lastDisplayPreview);
   evidence.finalSummary = final;
   evidence.checks.push('real agent Force while running restarts fake CLI, streams replacement, terminal survives switch and cold refresh');
+  // Canonical body deliberately differs from display-time link projection.
+  const rawBody = '  # Copy original\n\n[notes](notes.md#L2)\n\n```ts\nconst raw = "<tag>";\n```\n'
+    + '完整正文 '.repeat(500) + '\nCOPY-END  ';
+  await append([{ role: 'assistant', content: rawBody }]);
+  await broadcast({ type: 'worker.stream', sessionId: B, event: { type: 'assistant', content: rawBody } });
+  await expect(preview(B)).toContainText('Copy original');
+  await append([{ role: 'assistant', content: ' \n' }, { role: 'thinking', content: 'private thought' },
+    { role: 'tool', content: 'tool output' }]);
+  await broadcast({ type: 'session.updated', sessionId: B });
+  await expect(preview(B)).toContainText('Copy original');
+  await page.reload({ waitUntil: 'networkidle' });
+  await expect(preview(B)).toContainText('Copy original');
+  const detail = await api(`/api/sessions/${B}`, undefined, 'GET');
+  const row = detail.history.find(m => m.content.includes('COPY-END'));
+  assert.ok(row?.messageId);
+  assert.notEqual(row.content, rawBody, 'fixture must exercise display link rewriting');
+  await card(B).click();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const gutter = page.locator(`[data-message-bookmark-gutter="${row.messageId}"]`);
+  await gutter.click();
+  await expect(page.getByRole('menuitem', { name: 'Add bookmark', exact: true })).toBeVisible();
+  await page.screenshot({ path: path.join(runtime, 'copy-menu.png'), fullPage: true });
+  await page.getByRole('menuitem', { name: '复制全文', exact: true }).click();
+  // Windows clipboard uses CRLF for line endings; preserve all other bytes.
+  await expect.poll(async () => (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')).toBe(rawBody);
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  assert.equal(clipboard.replace(/\r\n/g, '\n'), rawBody);
+  evidence.copy = { messageId: row.messageId, length: clipboard.length, canonicalExact: true,
+    newlineNormalization: 'Windows clipboard CRLF to LF for comparison only',
+    displayWasProjected: row.content !== rawBody };
+  evidence.checks.push('full original Markdown copied through actual Chromium clipboard, including rewritten-link source, code and trailing whitespace');
+  evidence.checks.push('empty assistant + thinking/tool cannot erase completed assistant preview in real WS or cold load');
   assert.deepEqual(evidence.errors, []);
   await page.screenshot({ path: path.join(runtime, 'final.png'), fullPage: true });
   console.log('PASS', JSON.stringify({ runtime, port, checks: evidence.checks }));

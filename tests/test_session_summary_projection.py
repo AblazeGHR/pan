@@ -15,6 +15,31 @@ def _new_session(name="summary"):
     return sess.create(name=name, adapter="cbc", model="stored-model")
 
 
+def test_auxiliary_only_history_does_not_supply_a_card_body():
+    target = _new_session()
+    sess.append_history(target, {"role": "thinking", "content": "private"})
+    sess.append_history(target, {"role": "tool", "content": "output"})
+    projection = server._session_summary(target)
+    assert projection["lastMessage"] == ""
+    assert projection["historyTotal"] == 2
+
+
+@pytest.mark.parametrize("role", ["assistant", "user", "system"])
+def test_empty_body_does_not_erase_displayable_assistant_on_cold_reload(role):
+    target = _new_session()
+    sess.append_history(target, {"role": "user", "content": "question"})
+    sess.append_history(target, {"role": "assistant", "content": "answer"})
+    sess.append_history(target, {"role": role, "content": "   \n"})
+    sess.append_history(target, {"role": "thinking", "content": "internal"})
+    sess.append_history(target, {"role": "tool", "content": "output"})
+    sess.save(target)
+    sess._cache.clear()
+    sess._all_loaded = False
+    cold = next(row for row in asyncio.run(server.api_list_sessions(summary=1))["sessions"] if row["id"] == target.id)
+    assert cold["lastMessage"] == "answer"
+    assert cold["historyTotal"] == 5
+
+
 def test_summary_cold_list_does_not_load_history_config_or_attachment_io(
     monkeypatch,
 ):
