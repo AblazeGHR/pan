@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="20.331" timestamp="2026-10-23T11:03:45.253033+08:00" hostname="ablaze"><testcase classname="tests.test_locker_independent_http" name="test_owned_notification_consumption_and_restart" time="19.708"><failure message="AssertionError: timed out waiting for source fakeCLI actually reads both notices: None">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3894/test_owned_notification_consum0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D68AFB5BA0&gt;
+
+    def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent/'support/job_inbox_http_server.py')
+        root = Path(__file__).resolve().parents[1]
+        rt = h._PanRuntime(tmp_path/'data')
+        rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'scheduler': {'enabled': True},
+            'memory': {'enabled': False}, 'plugin_manifests': [str(root/'manifest.json'),
+            str(root/'packages/mcp/manifest.json')]}), encoding='utf-8')
+        evidence = {'port': h.PORT, 'dataRoot': str(rt.data_root), 'realProvider': False}
+        def stop():
+            owned = []
+            if rt.process and rt.process.poll() is None:
+                parent = psutil.Process(rt.process.pid)
+                owned = [parent, *parent.children(recursive=True)]
+                for p in owned:
+                    try:
+                        rt._owned_processes.append((p.pid, p.create_time(), ' '.join(p.cmdline())))
+                    except psutil.Error:
+                        pass
+            rt.stop()
+            _, live = psutil.wait_procs(owned, timeout=5)
+            assert not live, [(p.pid, p.status()) for p in live]
+        try:
+            rt.start()
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['root']) == rt.data_root
+            assert Path(identity['sessions']).parent == rt.data_root
+            assert Path(identity['config']).parent == rt.data_root
+            assert Path(identity['inbox']).is_relative_to(rt.data_root)
+            assert Path(identity['gatewayManifest']).is_relative_to(rt.data_root)
+            assert Path(identity['fakeCLI']) == h.FAKE_CLI
+            evidence['identity'] = identity
+            owner = rt.request('POST', '/api/sessions', json={'name': 'review-source', 'adapter': 'cbc', 'mcpServers': [],
+                'panAccess': {'restrictToManaged': True, 'canClaimUnmanaged': False}})
+            target = rt.request('POST', '/api/sessions', json={'name': 'review-target', 'adapter': 'cbc', 'mcpServers': []})
+            rt.request('PATCH', f"/api/sessions/{owner['id']}/queue/paused", json={'paused': True})
+            assert 'error' not in h._spawn(rt, owner['id'])
+            key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
+            rt.request('POST', '/api/actions/actions', json={'item': action([target['id']])})
+            for tid in ('selected', 'unselected'):
+                rt.request('POST', '/api/automation/triggers', headers=auth, json={'item': {
+                    **trigger(tid), 'eventTypes': ['pan.interaction.responded']}, 'expectedRevision': 0})
+            async def produce():
+                from mcp import ClientSession, StdioServerParameters
+                from mcp.client.stdio import stdio_client
+                params = StdioServerParameters(command=os.sys.executable, args=['-m', 'packages.mcp.server'], cwd=str(root),
+                    env={**os.environ, 'PAN_API_URL': rt.base_url, 'PAN_AGENT_SESSION_ID': owner['id']})
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        denied = await client.call_tool('agent_notify', {'target_session_id': target['id'], 'text': 'forbidden'})
+                        denial = json.loads(denied.content[0].text)
+                        assert denial.get('error', {}).get('code') == 'permission_denied', denial
+                        evidence['directAgentNotifyDenied'] = True
+                        cards = []
+                        for req, recipient in [('submitted', 'user'), ('rejected', 'user'), ('foreign', 'unknown-recipient')]:
+                            result = await client.call_tool('interaction_card', {'operation': 'create', 'request_key': req,
+                                'recipient_id': recipient, 'card': {'title': 'Pause target', 'body': 'FULL-SECRET',
+                                'summaryBody': 'S'*250, 'answerInput': {}, 'choices': [{'id': 'pause', 'label': 'Pause target',
+                                'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                            assert not result.isError, result
+                            cards.append(json.loads(result.content[0].text)['card'])
+                        return cards
+            submitted, rejected, foreign = asyncio.run(produce())
+            with httpx.Client(base_url=rt.base_url, trust_env=False) as client:
+                assert client.get('/api/user-lockers').status_code == 401
+                assert client.get('/api/user-lockers', headers={'Authorization': 'Bearer wrong'}).status_code == 401
+                for suffix, method, payload in [('', 'GET', None), ('/read', 'PUT', {'read': True}),
+                        ('/submit', 'POST', {'requestId': 'x', 'expectedRevision': 0}), ('', 'DELETE', None)]:
+                    assert client.request(method, '/api/user-inbox/'+foreign['id']+suffix, headers=auth, json=payload).status_code == 404
+            payload = {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause', 'answer': 'ANSWER-SECRET'}
+            for _ in range(2):
+                result = rt.request('POST', '/api/user-inbox/'+submitted['id']+'/submit', headers=auth, json=payload)
+                assert result['card']['delivery']['state'] == 'accepted'
+            rt.request('POST', '/api/user-inbox/'+rejected['id']+'/reject', headers=auth,
+                json={'requestId': 'reject', 'expectedRevision': 0})
+            rt.request('DELETE', '/api/user-inbox/'+rejected['id'], headers=auth)
+            def done():
+                runs = rt.request('GET', '/api/automation')['runs']
+                return runs if len(runs) == 1 and next(iter(runs.values()))['status'] == 'succeeded' else None
+            runs = h._wait_for(done, label='one directed Pause Run')
+            assert next(iter(runs.values()))['triggerId'] == 'selected'
+            assert rt.request('GET', f"/api/sessions/{target['id']}/queue")['queuePaused']
+            queued = rt.request('GET', f"/api/sessions/{owner['id']}/queue")['items']
+            assert len(queued) == 2
+            persisted = json.loads((rt.data_root/'sessions'/f"{owner['id']}.json").read_text(encoding='utf-8'))['queue_pending']
+            assert len(persisted) == 2
+            assert all(len(n['envelope']['summaryBody']) == 200 for n in persisted)
+            assert 'FULL-SECRET' not in json.dumps(queued) and 'ANSWER-SECRET' not in json.dumps(queued)
+            assert not h._received(rt), 'Paused: persistent acceptance is not CLI consumption'
+            evidence['durableQueueIds'] = [n['id'] for n in queued]
+            rt.request('PATCH', f"/api/sessions/{owner['id']}/queue/paused", json={'paused': False})
+            def delivered():
+                records = h._received(rt)
+                return records if len(records) == 2 and not rt.request('GET', f"/api/sessions/{owner['id']}/queue")['items'] else None
+&gt;           received = h._wait_for(delivered, label='source fakeCLI actually reads both notices')
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_locker_independent_http.py:113:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_notification_consumption_and_restart.&lt;locals&gt;.delivered at 0x000001D68B9D00F0&gt;
+timeout = 15.0, label = 'source fakeCLI actually reads both notices'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for source fakeCLI actually reads both notices: None
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase></testsuite></testsuites>

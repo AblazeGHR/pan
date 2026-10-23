@@ -1,0 +1,423 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\locker-runtime-independent-review-20261023
+.{"change": "unpinned_trigger", "fixedChoice": [{"id": "pause", "label": "Pause approved-target", "triggerRef": {"id": "selected"}}], "delivery": {"receiptId": "evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa", "state": "accepted"}, "actualPauseCalls": ["foreign-target"], "runActions": ["foreign_action"]}
+F{"change": "pinned_action", "fixedChoice": [{"id": "pause", "label": "Pause approved-target", "triggerRef": {"id": "selected", "revision": 1}}], "delivery": {"receiptId": "evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa", "state": "accepted"}, "actualPauseCalls": ["foreign-target"], "runActions": ["pause"]}
+F{"change": "after_admission", "fixedChoice": [{"id": "pause", "label": "Pause approved-target", "triggerRef": {"id": "selected", "revision": 1}}], "delivery": {"receiptId": "evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa", "state": "accepted"}, "actualPauseCalls": ["foreign-target"], "runActions": ["pause"]}
+F................................
+================================== FAILURES ===================================
+_____ test_fixed_choice_must_not_execute_changed_action[unpinned_trigger] _____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3896/test_fixed_choice_must_not_exe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000252877A1810>
+change = 'unpinned_trigger'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        calls = []
+        async def pause(sid, args):
+            calls.append(sid)
+            return {'ok': True}
+        svc = Service(tmp_path/'automation', worker, pause)
+        await svc.start()
+        gate, entered = asyncio.Event(), asyncio.Event()
+        original = svc.engine.run_attempt
+        async def held(run):
+            entered.set()
+            await gate.wait()
+            await original(run)
+        monkeypatch.setattr(svc.engine, 'run_attempt', held)
+        try:
+            adapter = bind(svc)
+            svc.engine.actions.put('actions', action(['approved-target']))
+            spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+            svc.ledger.put(spec, 0, True)
+            ref = {'id': 'selected'}
+            if change != 'unpinned_trigger':
+                ref['revision'] = 1
+            store = InteractionStore(tmp_path/'cards.sqlite')
+            card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                         'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+            frozen = card['definition']
+            def mutate():
+                if change == 'unpinned_trigger':
+                    svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                    svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                else:
+                    svc.engine.actions.put('actions', action(['foreign-target']))
+            if change != 'after_admission':
+                mutate()
+            user = UserPrincipal('user')
+            store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+            result = await store.dispatch(user, card['id'], adapter)
+            await asyncio.wait_for(entered.wait(), 5)
+            if change == 'after_admission':
+                mutate()
+            gate.set()
+            async def done():
+                runs = svc.ledger.read()['runs']
+                return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+            await until(done)
+            assert store.get_for_user(user, card['id'])['definition'] == frozen
+            print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                'delivery': result['delivery'], 'actualPauseCalls': calls,
+                'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+>           assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+E           AssertionError: Fixed visible choice executed a different Action target
+E           assert 'foreign-target' not in ['foreign-target']
+
+tests\test_locker_independent_review.py:92: AssertionError
+______ test_fixed_choice_must_not_execute_changed_action[pinned_action] _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3896/test_fixed_choice_must_not_exe1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000252878B2450>
+change = 'pinned_action'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        calls = []
+        async def pause(sid, args):
+            calls.append(sid)
+            return {'ok': True}
+        svc = Service(tmp_path/'automation', worker, pause)
+        await svc.start()
+        gate, entered = asyncio.Event(), asyncio.Event()
+        original = svc.engine.run_attempt
+        async def held(run):
+            entered.set()
+            await gate.wait()
+            await original(run)
+        monkeypatch.setattr(svc.engine, 'run_attempt', held)
+        try:
+            adapter = bind(svc)
+            svc.engine.actions.put('actions', action(['approved-target']))
+            spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+            svc.ledger.put(spec, 0, True)
+            ref = {'id': 'selected'}
+            if change != 'unpinned_trigger':
+                ref['revision'] = 1
+            store = InteractionStore(tmp_path/'cards.sqlite')
+            card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                         'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+            frozen = card['definition']
+            def mutate():
+                if change == 'unpinned_trigger':
+                    svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                    svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                else:
+                    svc.engine.actions.put('actions', action(['foreign-target']))
+            if change != 'after_admission':
+                mutate()
+            user = UserPrincipal('user')
+            store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+            result = await store.dispatch(user, card['id'], adapter)
+            await asyncio.wait_for(entered.wait(), 5)
+            if change == 'after_admission':
+                mutate()
+            gate.set()
+            async def done():
+                runs = svc.ledger.read()['runs']
+                return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+            await until(done)
+            assert store.get_for_user(user, card['id'])['definition'] == frozen
+            print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                'delivery': result['delivery'], 'actualPauseCalls': calls,
+                'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+>           assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+E           AssertionError: Fixed visible choice executed a different Action target
+E           assert 'foreign-target' not in ['foreign-target']
+
+tests\test_locker_independent_review.py:92: AssertionError
+_____ test_fixed_choice_must_not_execute_changed_action[after_admission] ______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3896/test_fixed_choice_must_not_exe2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000252878CCE20>
+change = 'after_admission'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        calls = []
+        async def pause(sid, args):
+            calls.append(sid)
+            return {'ok': True}
+        svc = Service(tmp_path/'automation', worker, pause)
+        await svc.start()
+        gate, entered = asyncio.Event(), asyncio.Event()
+        original = svc.engine.run_attempt
+        async def held(run):
+            entered.set()
+            await gate.wait()
+            await original(run)
+        monkeypatch.setattr(svc.engine, 'run_attempt', held)
+        try:
+            adapter = bind(svc)
+            svc.engine.actions.put('actions', action(['approved-target']))
+            spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+            svc.ledger.put(spec, 0, True)
+            ref = {'id': 'selected'}
+            if change != 'unpinned_trigger':
+                ref['revision'] = 1
+            store = InteractionStore(tmp_path/'cards.sqlite')
+            card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                         'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+            frozen = card['definition']
+            def mutate():
+                if change == 'unpinned_trigger':
+                    svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                    svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                else:
+                    svc.engine.actions.put('actions', action(['foreign-target']))
+            if change != 'after_admission':
+                mutate()
+            user = UserPrincipal('user')
+            store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+            result = await store.dispatch(user, card['id'], adapter)
+            await asyncio.wait_for(entered.wait(), 5)
+            if change == 'after_admission':
+                mutate()
+            gate.set()
+            async def done():
+                runs = svc.ledger.read()['runs']
+                return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+            await until(done)
+            assert store.get_for_user(user, card['id'])['definition'] == frozen
+            print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                'delivery': result['delivery'], 'actualPauseCalls': calls,
+                'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+>           assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+E           AssertionError: Fixed visible choice executed a different Action target
+E           assert 'foreign-target' not in ['foreign-target']
+
+tests\test_locker_independent_review.py:92: AssertionError
+============================== warnings summary ===============================
+tests/test_user_locker_lifecycle.py::test_locker_api_read_empty_submit_and_permissions
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_user_locker_lifecycle.py::test_locker_api_read_empty_submit_and_permissions
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[pinned_action]
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[after_admission]
+3 failed, 33 passed, 2 warnings in 5.57s

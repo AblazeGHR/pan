@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="4.778" timestamp="2026-10-23T11:02:53.926263+08:00" hostname="ablaze"><testcase classname="tests.test_locker_independent_http" name="test_owned_notification_consumption_and_restart" time="4.366"><failure message="AssertionError(&quot;{'ok': True, 'sessionId': 'ses_ee7167b68d0d9db8', 'pending': 1}\nassert None == 'permission_denied'\n +  where None = &lt;built-in method get of dict object at 0x000001EB2412A280&gt;('code')\n +    where &lt;built-in method get of dict object at 0x000001EB2412A280&gt; = {}.get\n +      where {} = &lt;built-in method get of dict object at 0x000001EB2412A300&gt;('error', {})\n +        where &lt;built-in method get of dict object at 0x000001EB2412A300&gt; = {'ok': True, 'sessionId': 'ses_ee7167b68d0d9db8', 'pending': 1}.get&quot;) [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\locker-runtime-independent-review-20261023\tests\test_locker_independent_http.py", line 80, in test_owned_notification_consumption_and_restart
+  |     submitted, rejected, foreign = asyncio.run(produce())
+  |                                    ~~~~~~~~~~~^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\locker-runtime-independent-review-20261023\tests\test_locker_independent_http.py", line 64, in produce
+  |     async with stdio_client(params) as (read, write):
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\locker-runtime-independent-review-20261023\tests\test_locker_independent_http.py", line 65, in produce
+    |     async with ClientSession(read, write) as client:
+    |                ~~~~~~~~~~~~~^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\locker-runtime-independent-review-20261023\tests\test_locker_independent_http.py", line 69, in produce
+      |     assert denial.get('error', {}).get('code') == 'permission_denied', denial
+      | AssertionError: {'ok': True, 'sessionId': 'ses_ee7167b68d0d9db8', 'pending': 1}
+      | assert None == 'permission_denied'
+      |  +  where None = &lt;built-in method get of dict object at 0x000001EB2412A280&gt;('code')
+      |  +    where &lt;built-in method get of dict object at 0x000001EB2412A280&gt; = {}.get
+      |  +      where {} = &lt;built-in method get of dict object at 0x000001EB2412A300&gt;('error', {})
+      |  +        where &lt;built-in method get of dict object at 0x000001EB2412A300&gt; = {'ok': True, 'sessionId': 'ses_ee7167b68d0d9db8', 'pending': 1}.get
+      +------------------------------------</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,20 @@
+{
+  "port": 60828,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data",
+  "realProvider": false,
+  "identity": {
+    "pid": 25412,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3894\\test_owned_notification_consum0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-runtime-independent-review-20261023\\tests\\support\\fake_stream_cli.py"
+  },
+  "directAgentNotifyDenied": true,
+  "durableQueueIds": [
+    "q_7ea7d4fe7c8cfc9b0e765d65887245c8a3bcc73d918c2e5ee103bb71df896c0a",
+    "q_348bfc70c85a9511b3406d9129da10396b66bf8f0e7ff3d9e5bc6966bcefcdf2"
+  ],
+  "portReleased": true
+}
