@@ -5,6 +5,7 @@ import jsonschema
 
 from .store import validate_action
 from .provider import execute
+from packages.core.system_fields import system_target_name, system_value
 
 
 async def execute_dynamic(action, arguments, event, progress, pause, query=None):
@@ -44,7 +45,11 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
         ids = copy.deepcopy(selector['ids'])
     elif selector['mode'] == 'event':
         from packages.automation.engine import field
-        ids = field(event, selector['path'])
+        path = selector['path']
+        if path.startswith('system.'):
+            ids = system_value(event, system_target_name(path))
+        else:
+            ids = field(event, path)
         if isinstance(ids, str):
             ids = [ids]
     elif selector['mode'] == 'query':

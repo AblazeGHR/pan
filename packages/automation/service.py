@@ -4,6 +4,7 @@ from functools import partial
 
 from packages.actions.executor import execute_dynamic
 from packages.actions.store import Store
+from packages.core.system_fields import canonical_event
 from .auth import UserAuth
 from .engine import Engine
 from .events import Bus, now
@@ -56,6 +57,9 @@ class Service:
             state = await self.engine.io(self.ledger.read)
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
+            # Canonical system fields are part of Event identity. Normalize
+            # before retained-Run dedupe so aliases never create a second fact.
+            event = canonical_event(event)
             retained = [r['event'] for r in state['runs'].values() if r['event']['id'] == event['id']]
             if retained:
                 if any(fact_identity(old) != fact_identity(event) for old in retained):

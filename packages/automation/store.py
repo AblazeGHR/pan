@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 from packages.actions.store import atomic
+from packages.core.system_fields import validate_argument_bindings
 from .events import now
 from .event_store import CapacityError, RETENTION_SECONDS
 from .policy import concurrency, retry_policy, backoff
@@ -74,6 +75,7 @@ class Ledger:
             item['retry'] = retry_policy(item.get('retry'))
             if not isinstance(item.get('arguments', {}), dict):
                 raise ValueError('arguments must be an object')
+            validate_argument_bindings(item.get('arguments', {}))
             enabled = item.setdefault('enabled', False)
             if type(enabled) is not bool:
                 raise ValueError('enabled must be boolean')

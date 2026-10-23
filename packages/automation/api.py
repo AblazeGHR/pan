@@ -1,5 +1,6 @@
 """Trigger management only. Event registration/publishing has no public route."""
 from fastapi import APIRouter, HTTPException, Request
+from packages.core.system_fields import public_schema
 from .store import Conflict
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
@@ -41,9 +42,16 @@ def install(server):
         state = await svc.engine.io(svc.ledger.read)
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
 
+    @router.get('/api/automation/system-fields')
+    async def system_fields():
+        # Static read-only contract; available even before the runtime starts so
+        # GUI/MCP/Agents can discover fields without an Automation login.
+        return public_schema()
+
     @router.get('/api/automation/schema')
     async def schema():
         return {'version': 1, 'scheduling': SCHEDULING_SCHEMA,
+                'systemFields': {'version': 1, 'path': '/api/automation/system-fields'},
                 'quotaPolicy':{'version':2,'defaultMode':'manual','modes':['manual','automatic'],
                                'queryJobKinds':['monitor95','once'],'maxAgeSeconds':300,
                                'thresholdPercent':95,'queryIntervalSeconds':60,

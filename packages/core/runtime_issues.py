@@ -13,6 +13,8 @@ import json
 import re
 from typing import Any
 
+from packages.core.system_fields import SYSTEM_FIELDS, SYSTEM_FIELD_NAMES, canonical_system
+
 SCHEMA_VERSION = 1
 MAX_TEXT = 2048
 MAX_RAW_KEYS = 32
@@ -87,26 +89,42 @@ def _get(raw: dict, *paths):
 def _metadata(raw: dict, supplied: dict | None) -> dict:
     source = {}
     supplied = supplied or {}
-    aliases = {
-        "sessionId": ("sessionId", "session_id"), "workerId": ("workerId", "worker_id"),
-        "generation": ("generation", "generation_id"), "taskId": ("taskId", "task_id"),
-        "executionId": ("executionId", "execution_id"), "queueItemId": ("queueItemId", "queue_item_id"),
-        "threadId": ("threadId", "thread_id"), "turnId": ("turnId", "turn_id"),
-        "accountId": ("accountId", "account_id"), "taskSeq": ("taskSeq", "task_seq"),
+    # Host-supplied metadata is the only trust source for Pan identities.
+    # Adapter-native thread/turn identities may additionally come from the
+    # structured provider envelope. Message text is never parsed for identity.
+    for name in SYSTEM_FIELD_NAMES:
+        row = SYSTEM_FIELDS[name]
+        names = (name,) + tuple(row["aliases"])
+        value = next((supplied[n] for n in names if supplied.get(n) is not None), None)
+        if value is None and row["trustedFrom"] == "adapter":
+            for candidate in (raw, raw.get("params"), raw.get("error")):
+                if not isinstance(candidate, dict):
+                    continue
+                value = next((candidate[n] for n in names if candidate.get(n) is not None), None)
+                if value is not None:
+                    break
+        if value is not None:
+            source[name] = value
+    # Non-system correlation remains host-only. These values support quota
+    # dedupe/validation but are not canonical system fields.
+    extras = {
+        "generation": ("generation", "generation_id"),
+        "accountId": ("accountId", "account_id"),
+        "taskSeq": ("taskSeq", "task_seq"),
         "executionSeq": ("executionSeq", "execution_seq"),
     }
-    for key, names in aliases.items():
-        if key not in source:
-            for name in names:
-                value = supplied.get(name, _get(raw, (name,), ("params", name), ("error", name)))
-                if value is not None:
-                    source[key] = value
-                    break
+    for key, names in extras.items():
+        value = next((supplied[n] for n in names if supplied.get(n) is not None), None)
+        if value is not None:
+            source[key] = value
     # Owner epoch is host metadata, never a provider-payload assertion.
-    epoch=supplied.get('runtimeEpoch',supplied.get('runtime_epoch'))
-    if isinstance(epoch,str) and 0<len(epoch)<=256:source['runtimeEpoch']=epoch
+    epoch = supplied.get('runtimeEpoch', supplied.get('runtime_epoch'))
+    if isinstance(epoch, str) and 0 < len(epoch) <= 256:
+        source['runtimeEpoch'] = epoch
     return {key: _safe(value, 0) for key, value in source.items()
-            if type(value) in (str, int) and (not isinstance(value,str) or len(value)<=256)}
+            if ((key in SYSTEM_FIELDS and isinstance(value, str) and 1 <= len(value) <= 256)
+                or (key not in SYSTEM_FIELDS and type(value) in (str, int)
+                    and (not isinstance(value, str) or len(value) <= 256)))}
 
 
 def _structured(adapter: str, raw: dict) -> tuple[str | None, str | None]:
@@ -175,9 +193,13 @@ def map_runtime_issue(raw: dict, *, adapter: str | None = None, metadata: dict |
     result = RuntimeIssue(SCHEMA_VERSION, issue_id, adapter, classification, confidence,
                           observation, correlation, dict(delivery or {"observed": True, "classified": True,
                           "persisted": False, "delivered": False, "deduped": False}))
-    return {"issue": asdict(result), "event": {"id": issue_id, "type": "runtime.issue.v1",
-            "schemaVersion": SCHEMA_VERSION, "source": {"type": "core", "id": "runtime-issues"},
-            "occurredAt": None, "payload": asdict(result)}}
+    event = {"id": issue_id, "type": "runtime.issue.v1",
+             "schemaVersion": SCHEMA_VERSION, "source": {"type": "core", "id": "runtime-issues"},
+             "occurredAt": None, "payload": asdict(result)}
+    system = canonical_system(correlation, allow_unknown=True)
+    if system:
+        event["system"] = system
+    return {"issue": asdict(result), "event": event}
 
 
 def runtime_issue_schema() -> dict:
@@ -185,5 +207,6 @@ def runtime_issue_schema() -> dict:
         "codex_quota_exhausted", "codex_capacity", "cbc_rate_limited", "provider_rate_limited", "unknown"],
         "confidence": ["structured", "adapter_text", "unknown"],
         "requiredCorrelation": ["runtimeEpoch", "sessionId", "workerId", "generation", "taskId", "executionId", "queueItemId", "threadId", "turnId"],
+        "systemFields": list(SYSTEM_FIELD_NAMES),
         "delivery": ["observed", "classified", "persisted", "delivered", "deduped"],
         "limits": {"textChars": MAX_TEXT, "rawKeys": MAX_RAW_KEYS}}

@@ -65,6 +65,7 @@ def validate_action(raw, automation=True):
     if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'description', 'input_schema', 'execution', 'effect', 'enabled', 'output_format', 'idempotent', 'system', 'monitoring', 'recoverable'}:
         raise ValueError('Unknown Action fields')
     from .session_query import validate_action_query
+    from packages.core.system_fields import system_target_name
     validate_action_query(raw)
     action = copy.deepcopy(raw)
     identifier(action.get('id'))
@@ -166,6 +167,8 @@ def validate_action(raw, automation=True):
         elif selector.get('mode') == 'event':
             if set(selector) != {'mode', 'path'} or not isinstance(selector['path'], str) or not selector['path']:
                 raise ValueError('Invalid Event selector path')
+            if selector['path'] == 'system' or selector['path'].startswith('system.'):
+                system_target_name(selector['path'])
         elif selector.get('mode') == 'query':
             if set(selector) != {'mode', 'query'}:
                 raise ValueError('Query selector requires only mode and query')
