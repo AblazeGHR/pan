@@ -41,6 +41,28 @@ async def stop():
     # unchanged 20-second wait expires. Only this owned test launcher uses it.
     import faulthandler
     faulthandler.dump_traceback_later(15)
+    def task_stacks():
+        import traceback
+        host = server.app.state.pan_uvicorn_server
+        print('SHUTDOWN_CONNECTIONS', repr(host.server_state.connections), file=sys.stderr, flush=True)
+        for listener in host.servers:
+            for transport in list(getattr(listener, '_clients', ())):
+                print('SHUTDOWN_TRANSPORT', repr(transport),
+                      'protocol=', repr(transport.get_protocol()),
+                      'closing=', transport.is_closing(),
+                      'state=', {key: repr(getattr(transport, key, None)) for key in
+                          ('_read_fut', '_write_fut', '_pending_write', '_called_connection_lost')},
+                      file=sys.stderr, flush=True)
+        for task in asyncio.all_tasks():
+            print('SHUTDOWN_TASK', repr(task), file=sys.stderr, flush=True)
+            current = task.get_coro()
+            while current is not None:
+                frame = getattr(current, 'cr_frame', None) or getattr(current, 'gi_frame', None)
+                if frame is not None:
+                    traceback.print_stack(frame, limit=1, file=sys.stderr)
+                current = getattr(current, 'cr_await', None) or getattr(current, 'gi_yieldfrom', None)
+        sys.stderr.flush()
+    asyncio.get_running_loop().call_later(15, task_stacks)
     asyncio.get_running_loop().call_later(.1, setattr, server.app.state.pan_uvicorn_server, "should_exit", True)
     return {"ok": True}
 

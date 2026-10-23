@@ -28,6 +28,10 @@ def run_http_mcp(tmp_path,*,browser=False):
     (data/'config.json').write_text(json.dumps({'port':port,'memory':{'enabled':False},'scheduler':{'enabled':False},
         'plugin_manifests':[str(ROOT/'manifest.json'),str(ROOT/'packages/mcp/manifest.json')]}),encoding='utf-8')
     env={k:v for k,v in os.environ.items() if not k.upper().startswith('PAN_')}
+    # fakeCLI must not consult the developer/runner's native provider history.
+    provider_home = tmp_path / 'provider-home'
+    provider_home.mkdir()
+    env.update(USERPROFILE=str(provider_home), HOME=str(provider_home))
     env.update(PYTHONIOENCODING='utf-8',PAN_TEST_INTERACTION_TOKEN=secrets.token_hex(32),
         PAN_TEST_INBOX_NONCE=secrets.token_hex(16),PAN_E2E_FAKE_CLI=str(ROOT/'tests/support/fake_stream_cli.py'),
         PAN_E2E_FAKE_LOG=str(data/'fake-cli.jsonl'),PAN_TEST_DISABLE_QUEUE_WATCHDOG='1')
