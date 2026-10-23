@@ -19,7 +19,7 @@ OUTPUT_LIMIT = 512 * 1024
 RESULT_LIMIT = 1024 * 1024  # Leave JSON-RPC framing headroom below the generic 2 MiB reader.
 
 
-async def execute(action, arguments):
+async def execute(action, arguments, *, before_effect=None):
     action = await asyncio.to_thread(validate_action, action, automation=False)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action is disabled or requires an approval policy')
@@ -35,6 +35,8 @@ async def execute(action, arguments):
         if url.scheme != 'http' or url.hostname not in {'127.0.0.1', '::1'} or url.username or url.password or url.path not in {'', '/'} or url.query or url.fragment:
             raise ValueError('Internal API requires an explicit local Pan HTTP endpoint')
         async with asyncio.timeout(30), httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
+            if before_effect:
+                await before_effect()
             async with client.stream('GET', base.rstrip('/') + ex['path'], params=values) as response:
                 response.raise_for_status()
                 content = bytearray()
@@ -47,6 +49,8 @@ async def execute(action, arguments):
         argv = [str(values[a[1:-1]]) if a.startswith('{') and a.endswith('}') else a for a in ex['args']]
         from packages.jobs.window import command_window_options
         windows = os.name == 'nt'
+        if before_effect:
+            await before_effect()
         process = await asyncio.create_subprocess_exec(
             *([sys.executable, '-m', 'packages.actions.command_runner'] if windows else [ex['executable'], *argv]),
             cwd=str(Path(__file__).resolve().parents[2]) if windows else ex['cwd'],

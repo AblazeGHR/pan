@@ -8,6 +8,10 @@ from .provider import execute
 
 
 async def execute_dynamic(action, arguments, event, progress, pause, query=None):
+    async def before_effect():
+        guard = getattr(progress, 'before_effect', None)
+        if guard:
+            await guard()
     action = await asyncio.to_thread(validate_action, action, automation=True)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action disabled or requires approval policy')
@@ -16,6 +20,7 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
         execute_system = getattr(progress, 'execute_system', None)
         if execute_system is None:
             raise PermissionError('Trusted Job host capability required')
+        await before_effect()
         return await execute_system(action, arguments, event, progress)
     if action['execution']['kind'] == 'job_template':
         if arguments:
@@ -26,9 +31,10 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
         checkpoint = getattr(progress, 'checkpoint', {})
         if not checkpoint.get('id'):
             raise ValueError('Host execution identity required for idempotent Job creation')
+        await before_effect()
         return await instantiate(action, checkpoint['id'])
     if action['execution']['kind'] != 'session_operation':
-        return await execute(action, arguments)
+        return await execute(action, arguments, before_effect=before_effect)
     selector = action['execution']['selector']
     checkpoint = getattr(progress, 'checkpoint', {})
     query_info = checkpoint.get('selection')
@@ -61,6 +67,7 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
         verify_interaction=getattr(progress,'verify_interaction',None)
         if verify_interaction:
             await verify_interaction()
+        await before_effect()
         try:
             result = await pause(sid, {'paused': True})
         except Exception as exc:

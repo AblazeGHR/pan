@@ -138,8 +138,12 @@ replay side effects.
 
 Limits: 128 KiB encoded frame including newline, 64 KiB payload (Bus limit), 128
 items per subscriber, one delivery in flight per peer, 5-second handshake/write/
-delivery response deadlines. A reader handles publications sequentially without
-per-frame task creation. Bus caps owners/definitions/subscribers at 64/128/64;
+delivery response deadlines. One publication owner processes a bounded 128-item
+queue sequentially; the reader continues resolving delivery responses during
+durable admission waits. Full publication queues return an explicit error. No
+per-frame task is created. Cleanup settles an in-flight durable commit before
+retiring the publication owner; lost receipts remain unknown. Bus caps
+owners/definitions/subscribers at 64/128/64;
 Catalog caps each declaration/interest list at 128. Full queues reject visibly;
 the last 100 Bus diagnostics include plugin, delivery, protocol, and startup
 failures. Stderr is truncated per entry. Slow delivery retires only that peer.

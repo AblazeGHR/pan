@@ -226,8 +226,15 @@ def test_slow_external_subscriber_isolated_and_bounded(tmp_path, monkeypatch):
             # Queue-full admission is visible and cannot grow the per-peer queue.
             slow = manager.connections['other']
             (tmp_path / 'plugins/other/stall').touch()
-            for i in range(200):
-                result = svc.bus.publish(manager.connections['producer'].handle, 'producer.ping', {'value': i})
+            # Commit the burst while dispatch is held, then exercise the live
+            # bounded fanout without disk awaits letting the slow peer time out.
+            svc.dispatcher.cancel()
+            await asyncio.gather(svc.dispatcher, return_exceptions=True)
+            receipts = [await svc.bus.publish_async(manager.connections['producer'].handle,
+                'producer.ping', {'value': i}) for i in range(200)]
+            assert all(r['persisted'] for r in receipts)
+            for receipt in receipts:
+                result = svc.bus._fanout(receipt['event'])
             assert 'plugin.other' in result['rejected']
             assert svc.bus.subscribers['plugin.other'][1].qsize() == svc.bus.capacity
         finally:
@@ -248,7 +255,8 @@ def test_service_restart_restores_queued_only_after_actual_plugin_ready(tmp_path
         await manager.close()
         await svc.close()
         assert svc.ledger.read()['runs']['persisted']['status'] == 'queued'
-        workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None)
+        workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None,
+            _sess=SimpleNamespace(SESSION_DIR=tmp_path/'sessions'))
         restored = Service(tmp_path / 'automation', workers, svc.engine.execute.keywords['pause'])
         restored.engine.actions = Store(tmp_path / 'actions')
         events = EventRuntime(restored, lambda: m, lambda: list(sessions.values()), tmp_path)

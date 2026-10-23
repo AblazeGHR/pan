@@ -12,6 +12,7 @@ from .policy import concurrency
 
 from .events import now
 from .store import Conflict
+from .event_store import CapacityError
 
 
 def field(value, path):
@@ -51,6 +52,10 @@ def arguments(mapping, event):
 
 
 class PersistenceError(RuntimeError):
+    pass
+
+
+class DependencyUnavailable(RuntimeError):
     pass
 
 
@@ -159,10 +164,24 @@ class Engine:
                         self.tasks[tid] = asyncio.create_task(self._runner(tid))
 
     async def _runner(self, tid):
+        failures = 0
         try:
             while not self.closed:
                 self.wakes.discard(tid)
-                await self.drain(tid)
+                try:
+                    await self.drain(tid)
+                    failures = 0
+                except (OSError, CapacityError) as exc:
+                    self.diagnostics.append(dict(triggerId=tid, phase='scheduler-recovery', error=str(exc), at=now()))
+                    failures = min(failures + 1, 8)
+                    # A fault retry, not a queue poll. Keep the single owner and
+                    # allow readiness/configuration/close to interrupt backoff.
+                    signal = self.signals[tid]
+                    try:
+                        await asyncio.wait_for(signal.wait(), min(.25 * 2**(failures-1), 30))
+                    except TimeoutError:
+                        pass
+                    continue
                 # A kick during any drain await leaves a coalesced wake. Consume
                 # it with a fresh read, including after an empty stale snapshot.
                 if tid not in self.wakes:
@@ -250,6 +269,7 @@ class Engine:
             raise
         except Exception as exc:
             self.diagnostics.append(dict(triggerId=tid, phase='executor', error=str(exc), at=now()))
+            raise
         finally:
             # Trigger disable allows started work to complete. Service close
             # cancels it and settles all progress writes before recovery.
@@ -258,6 +278,7 @@ class Engine:
     async def run_attempt(self, run):
         rid = run['id']
         interaction=False
+        effect_started = False
         try:
             interaction = run['event']['type']=='pan.interaction.responded' and run['event']['payload'].get('triggerRef')
             if interaction:
@@ -272,6 +293,14 @@ class Engine:
                 action = (await self.io(self.actions.read))['actions'][run['actionId']]
             digest = hashlib.sha256(json.dumps(action, sort_keys=True).encode()).hexdigest()
             run = await self.io(self.ledger.prepare_action, rid, action, digest)
+            trigger = (await self.io(self.ledger.read))['triggers'].get(run['triggerId'])
+            async def before_effect():
+                nonlocal effect_started
+                # No await between the current Bus fence and the business call.
+                # Shared executors call again after query/checkpoint/verification.
+                if self.closed or not trigger or not self.available(trigger):
+                    raise DependencyUnavailable('Event dependency unavailable before effect')
+                effect_started = True
             async def progress(**fields):
                 try:
                     await self.io(self.ledger.update, rid, **fields)
@@ -281,12 +310,15 @@ class Engine:
             # Operations use this durable checkpoint on later attempts, avoiding
             # query reevaluation or repeating confirmed successful targets.
             progress.checkpoint = copy.deepcopy(run)
+            progress.before_effect = before_effect
             if interaction:
                 async def verify_effect():
                     await self.io(verify,run['event'])
                 progress.verify_interaction=verify_effect
             if getattr(self, 'job_runtime', None):
                 progress.instantiate_template = self.job_runtime.instantiate_action
+            if self.closed or not trigger or not self.available(trigger):
+                raise DependencyUnavailable('Event dependency unavailable before effect')
             result = await self.execute(action, run['arguments'], run['event'], progress)
             ok = not result.get('isError', False) and result.get('ok', True)
             try:
@@ -297,7 +329,10 @@ class Engine:
             await self.io(self.ledger.interrupt, rid, run['activeAttemptId'], 'Execution interrupted; no automatic retry')
             raise
         except Exception as exc:
-            if isinstance(exc, PersistenceError):
+            if isinstance(exc, DependencyUnavailable) and not effect_started:
+                current = (await self.io(self.ledger.read))['runs'][rid]
+                await self.io(self.ledger.defer_unavailable, rid, current['revision'])
+            elif isinstance(exc, (PersistenceError, DependencyUnavailable)):
                 await self.io(self.ledger.interrupt, rid, run['activeAttemptId'], str(exc))
             else:
                 retryable=not isinstance(exc, Conflict) and not (interaction and getattr(exc,'code',None) in {'stale','incomplete','forbidden'})

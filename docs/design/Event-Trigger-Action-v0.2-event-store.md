@@ -46,6 +46,15 @@ bounded and best effort; they may see repeated notifications and have no durable
 consumer acknowledgement or historical cursor. Receipt `rejected:[]` does not
 promise subscriber delivery. This phase does not guarantee exactly-once effects.
 
+Maintenance coordinates local admission and matching while pruning the two stores;
+the retained-ID snapshot cannot be overtaken by readmission. If the inbox record
+has expired but a Run is still retained, admission checks that Run's original fact
+identity and preserves its envelope. A different fact with the same ID is refused.
+This uses existing Run data and SQLite schema version1, without a new migration or
+permanent tombstones. Legacy history lacking enough identity cannot be guessed
+into a new publication identity. Older writers lack these coordination checks;
+do not mix versions or downgrade an active profile in place.
+
 Worker running counts still come solely from the real Worker registry. The
 positive-to-zero observer stages a validated fact in a bounded 128-entry ingress
 queue serviced by one task. This synchronous observer cannot wait for disk;

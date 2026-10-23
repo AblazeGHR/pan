@@ -18,6 +18,11 @@ class CapacityError(ValueError):
     pass
 
 
+def fact_identity(event):
+    return json.dumps({k: event.get(k) for k in ('type', 'schemaVersion', 'source', 'payload')},
+                      sort_keys=True, ensure_ascii=False, allow_nan=False)
+
+
 class EventStore:
     def __init__(self, root, *, retention=RETENTION_SECONDS, max_events=MAX_EVENTS, max_bytes=MAX_BYTES, clock=time.time):
         self.path = Path(root) / 'events.sqlite3'
@@ -58,8 +63,7 @@ class EventStore:
             raise ValueError('Event payload exceeds 64 KiB')
         # occurredAt is assigned anew by a redelivering producer. Keep the first
         # envelope, but reject ID reuse with a different source/type/payload.
-        identity = {k: event[k] for k in ('type', 'schemaVersion', 'source', 'payload')}
-        fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False, allow_nan=False).encode('utf-8')).hexdigest()
+        fingerprint = hashlib.sha256(fact_identity(event).encode('utf-8')).hexdigest()
         targets_json = json.dumps(targets, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         size = len(event_json.encode('utf-8')) + len(targets_json.encode('utf-8'))
         with self.connection() as db:

@@ -7,7 +7,7 @@ from packages.actions.store import Store
 from .auth import UserAuth
 from .engine import Engine
 from .events import Bus, now
-from .event_store import EventStore
+from .event_store import EventStore, fact_identity
 from .store import Ledger
 
 
@@ -56,11 +56,20 @@ class Service:
             state = await self.engine.io(self.ledger.read)
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
+            retained = [r['event'] for r in state['runs'].values() if r['event']['id'] == event['id']]
+            if retained:
+                if any(fact_identity(old) != fact_identity(event) for old in retained):
+                    raise ValueError('Event ID already belongs to a different fact in retained Run history')
+                # The inbox may have expired while Run dedup is still retained.
+                # Preserve its original envelope; do not reset any Run/Attempt.
+                event = retained[0]
             targets = [t for t in state['triggers'].values() if t['enabled'] and event['type'] in t['eventTypes'] and self.engine.available(t)]
             if self.job_runtime:
                 targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type']))
             try:
                 receipt = await self.engine.io(self.events.append, event, targets)
+                if retained:
+                    receipt['duplicate'] = True
             except Exception as exc:
                 self.diagnostic('event-admission', exc, event['id'])
                 raise
@@ -78,8 +87,12 @@ class Service:
                 self.ingress.task_done()
 
     async def maintenance(self):
-        removed = await self.engine.io(self.events.maintenance)
-        runs = await self.engine.io(self.ledger.maintenance, removed['retainedIds'])
+        # One local storage maintenance window; no provider/Action waits. Order
+        # is admission -> matching, never the reverse. Prevent readmission from
+        # using a retained pair which this stale retainedIds snapshot will prune.
+        async with self.admission, self.engine.matching:
+            removed = await self.engine.io(self.events.maintenance)
+            runs = await self.engine.io(self.ledger.maintenance, removed['retainedIds'])
         return {'deletedEvents': removed['deletedEvents'], **runs}
 
     async def dispatch(self):

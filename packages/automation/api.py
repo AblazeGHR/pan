@@ -162,7 +162,10 @@ def install(server):
         if set(data) != {'expectedRevision'}:
             raise HTTPException(400, 'Expected expectedRevision')
         try:
-            return {'run': await service().engine.io(service().ledger.cancel, rid, data['expectedRevision'])}
+            svc = service()
+            run = await svc.engine.io(svc.ledger.cancel, rid, data['expectedRevision'])
+            await svc.engine.kick()
+            return {'run': run}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:
