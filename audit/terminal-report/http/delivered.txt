@@ -1,0 +1,15 @@
+@@@@by agent : ses_cd49e731bc3f5eea | child
+status: error
+type: report
+result:
+Synthetic assistant work summary; not an error diagnosis.
+errorSource: codex_error_payload
+errorCode: serverOverloaded
+errorText:
+Selected model is at capacity. Please try a different model.
+lastMessageRole: assistant
+lastMessage:
+Synthetic assistant work summary; not an error diagnosis.
+sessionId: ses_cd49e731bc3f5eea
+taskId: fixture-task
+workerId: worker-1
