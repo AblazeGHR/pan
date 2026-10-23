@@ -75,6 +75,12 @@ def _result_error(text: str, *, partial: str = "") -> None:
 def _handle(text: str, mode: str) -> None:
     _append({"kind": "received", "text": text, "mode": mode,
              "pid": os.getpid(), "at": time.time()})
+    if text == "err-capacity-report":
+        from pathlib import Path
+        event = json.loads((Path(__file__).parents[1] / 'fixtures/terminal_capacity_report.json').read_text(encoding='utf-8'))['event']
+        _assistant(event['result'])
+        _emit(event)
+        return
     if "err-crash" in text:
         _assistant("about to crash")
         os._exit(7)

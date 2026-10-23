@@ -1871,6 +1871,12 @@ async def _persist_terminal_state_locked(
     task_id = w._current_task_id
     task_idempotent = w._current_task_idempotent
     source_session_id = w._current_source_session_id
+    # Freeze before the logging/persistence awaits. Later turns/generations
+    # must never supply error or assistant context for this terminal receipt.
+    report_diagnostic = _error_report_diagnostic(w, status, task_seq)
+    if report_diagnostic is not None:
+        report_diagnostic.update(_error_log.terminal_report_fields(
+            (error_context or {}).get("cli_raw")))
     terminal_key = _terminal_enrichment_key(
         task_id, task_seq, w.worker_id, w.generation,
         task_idempotent=task_idempotent,
@@ -2003,6 +2009,9 @@ async def _persist_terminal_state_locked(
         "sourceSessionId": source_session_id,
         "terminalKey": terminal_key,
     }
+    if report_diagnostic is not None:
+        terminal_record["reportDiagnostic"] = copy.deepcopy(report_diagnostic)
+        s.last_result["reportDiagnostic"] = copy.deepcopy(report_diagnostic)
     # 未读 done 游标：只在此唯一终态入口（既有三重去重之后）累加 generation，
     # 每次真实 done 终态 +1，随本次 base commit 落盘。error/cancelled 不计；
     # report 批次在此刻仍持有 _current_report_items（下方 _ack_current_reports
@@ -2131,6 +2140,7 @@ async def _persist_terminal_state_locked(
         "result": result_text,
         "status": status,
         "enrichmentKey": enrichment_key,
+        "reportDiagnostic": report_diagnostic,
         "historyEpoch": getattr(s, "history_epoch", None),
         "historyRevision": getattr(s, "history_revision", 0),
     }
@@ -2607,8 +2617,7 @@ async def _finish_task_error(w: Worker, s, result: str, *,
     await _enqueue_report(
         w.session_id, terminal["status"], terminal["result"],
         terminal["taskId"], w.worker_id,
-        diagnostic=_error_report_diagnostic(
-            w, terminal["status"], terminal.get("taskSeq")),
+        diagnostic=terminal.get("reportDiagnostic"),
     )
     _finish_terminal_bookkeeping(w, terminal)
 
@@ -3290,8 +3299,7 @@ async def _read_stdout(w: Worker):
             await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                                   terminal["taskId"], w.worker_id,
                                   admission=terminal.get("autoReportAdmission"),
-                                  diagnostic=_error_report_diagnostic(
-                                      w, terminal["status"], terminal.get("taskSeq")))
+                                  diagnostic=terminal.get("reportDiagnostic"))
             was_native = w._native_external_turn_active
             w._native_external_turn_active = False
             w._native_reservation_busy = False
@@ -4219,6 +4227,14 @@ def _format_report_batch(reports: list[dict]) -> str:
             "result:",
             _field_value(r.get("result")),
         ]
+        if r.get("status") == "error" and "errorText" in r:
+            lines += [
+                f"errorSource: {_field_value(r.get('errorSource'))}",
+                f"errorCode: {_field_value(r.get('errorCode'))}",
+                "errorText:", r.get("errorText") or "(no native diagnostics available)",
+            ]
+            if r.get("errorTextTruncated"):
+                lines.append("errorTextTruncated: true")
         # error 报告的最后消息上下文（仅 error 出口写入这些字段；旧/成功/取消
         # 报告行没有它们，正文逐字节不变）。缺失时明确标注，避免 MA 把
         # 「本轮无消息」误读成「诊断丢失」。
@@ -5503,6 +5519,7 @@ def _delivery_key(item: dict) -> str:
         # report identity: adding/upgrading it must not change the receipt key
         # of a report that a previous version already delivered.
         "lastMessage", "lastMessageRole", "lastMessageTruncated",
+        "errorText", "errorCode", "errorSource", "errorTextTruncated",
     }
     if item.get("type") == "task":
         return f"task:{_queue_item_id(item)}"
@@ -5533,6 +5550,7 @@ def _delivery_key_matches(key: str, item: dict) -> bool:
         # Rows written before the last-message context existed never hashed
         # these derived fields.
         "lastMessage", "lastMessageRole", "lastMessageTruncated",
+        "errorText", "errorCode", "errorSource", "errorTextTruncated",
     }
     identity = {k: v for k, v in item.items() if k not in legacy_bookkeeping}
     if "dispatchState" in identity:
@@ -5940,7 +5958,7 @@ def _error_report_diagnostic(
             "lastMessage": None,
             "lastMessageTruncated": False,
         }
-    text = text.strip()
+    text = _error_log.sanitize(text).strip()
     truncated = len(text) > _REPORT_LAST_MESSAGE_MAX_CHARS
     if truncated:
         # Keep both ends: the reason usually leads and the reset time trails.
@@ -6001,8 +6019,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     report_type：附加的语义标记（如 "zombie"）。非 None 时在报告 dict 里写入
     "type" 字段，供 manager 区分异常死亡与正常完成。
 
-    diagnostic：``_error_report_diagnostic`` 的返回值。非 None 时把最后消息
-    上下文写进报告行（仅 error 出口传入；成功/取消路径不改变正文）。
+    diagnostic：终态提交前冻结并持久化的 reportDiagnostic（最后助手消息与
+    原生错误字段分开）。成功/取消路径不改变正文；不在此查日志或旧任务。
 
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
     """
@@ -6430,6 +6448,9 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             "createdAt": time.time(),
         }
         item["queueItemId"] = item["id"]
+
+        if terminal.get("status") == "error" and isinstance(terminal.get("reportDiagnostic"), dict):
+            item.update(copy.deepcopy(terminal["reportDiagnostic"]))
 
         # Reuse the durable ticket pattern: the candidate APPLY, the write and
         # its failure rollback all run inside ONE persistence ticket, so no
@@ -7847,8 +7868,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                           terminal["taskId"], w.worker_id,
                           admission=terminal.get("autoReportAdmission"),
-                          diagnostic=_error_report_diagnostic(
-                              w, terminal["status"], terminal.get("taskSeq")))
+                          diagnostic=terminal.get("reportDiagnostic"))
     _finish_terminal_bookkeeping(w, terminal)
 
 
