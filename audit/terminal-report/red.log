@@ -1,0 +1,22 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\terminal-report-diagnostic-20261023
+F                                                                        [100%]
+================================== FAILURES ===================================
+________ test_native_error_plus_assistant_result_persists_and_renders _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000154742FA450>
+
+    def test_native_error_plus_assistant_result_persists_and_renders(monkeypatch):
+        child,manager,_=_setup_managed_pair()
+        event=FIXTURE['event']
+        try:
+            _run_stream_worker(child,[_event_line(_assistant_event(event['result'])),_event_line(event)],seq=8)
+            report=manager.queue_pending[0]
+            assert report['status']=='error'
+>           assert report['errorText']==event['error']['message']
+                   ^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'errorText'
+
+tests\test_terminal_report_diagnostic.py:21: KeyError
+=========================== short test summary info ===========================
+FAILED tests/test_terminal_report_diagnostic.py::test_native_error_plus_assistant_result_persists_and_renders
+1 failed in 0.34s

@@ -1,0 +1,24 @@
+{
+  "sourceSha": "3ba59d258b08665557befc207c70d443e1af591b",
+  "port": 63712,
+  "fakeCLI": "D:\\project\\pan-worktrees\\terminal-report-diagnostic-20261023\\tests\\support\\session_error_fake_cli.py",
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-3917\\test_native_terminal_report_su0\\data",
+  "status": "error",
+  "nativeDiagnostic": true,
+  "coldReload": true,
+  "mcpSubscribeAssign": true,
+  "managerConsumed": true,
+  "queueItemId": "q_d934567791344d54ad6c8b280ae2ef90",
+  "ownedPidBirths": {
+    "39656": 1792725982.2981353,
+    "35220": 1792725982.302609,
+    "35120": 1792725984.4627707,
+    "42784": 1792725984.4685128,
+    "23688": 1792725985.0377212,
+    "37264": 1792725985.0438256,
+    "41236": 1792725986.1705441,
+    "39028": 1792725986.1776488
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}
