@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="4.545" timestamp="2026-10-23T10:37:05.523636+08:00" hostname="ablaze"><testcase classname="tests.test_locker_runtime_http" name="test_product_locker_login_choice_pause_restart" time="3.664"><failure message="AssertionError: assert 'unavailable' == 'accepted'&#10;  &#10;  - accepted&#10;  + unavailable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3883/test_product_locker_login_choi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001CA2EC594F0&gt;
+
+    def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
+        monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
+        rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+        root=Path(__file__).resolve().parents[1]
+        (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},
+            'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')
+        OUT.mkdir(parents=True,exist_ok=True)
+        evidence={'port':h.PORT,'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],encoding='utf-8').strip()}
+        try:
+            rt.start()
+            evidence['identity']=rt.request('GET','/__test/job-inbox-identity')
+            assert Path(evidence['identity']['sessions']).parent==rt.data_root
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
+            owner=rt.request('POST','/api/sessions',json={'name':'source','adapter':'cbc','mcpServers':[]})
+            rt.request('PATCH',f"/api/sessions/{owner['id']}/queue/paused",json={'paused':True})
+            target=rt.request('POST','/api/sessions',json={'name':'pause-target','adapter':'cbc','mcpServers':[]})
+            assert 'error' not in h._spawn(rt,target['id'])
+            rt.request('POST','/api/actions/actions',json={'item':action([target['id']])})
+            for tid in ('selected','never-selected'):
+                rt.request('POST','/api/automation/triggers',headers=auth,json={'item':{**trigger(tid),
+                    'eventTypes':['pan.interaction.responded']},'expectedRevision':0})
+            async def create_mcp():
+                from mcp import ClientSession,StdioServerParameters
+                from mcp.client.stdio import stdio_client
+                params=StdioServerParameters(command=os.sys.executable,args=['-m','packages.mcp.server'],cwd=str(root),
+                    env={**os.environ,'PAN_API_URL':rt.base_url,'PAN_AGENT_SESSION_ID':owner['id']})
+                async with stdio_client(params) as (read,write):
+                    async with ClientSession(read,write) as client:
+                        await client.initialize()
+                        result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'user',
+                            'request_key':'product','card':{'title':'Production wiring','body':'Never forwarded body',
+                            'summaryBody':'Safe summary','choices':[{'id':'pause','label':'Pause',
+                            'triggerRef':{'id':'selected','revision':1}}]}})
+                        assert not result.isError
+                        return json.loads(result.content[0].text)['card']
+            card=asyncio.run(create_mcp())
+            assert httpx.get(rt.base_url+'/api/user-lockers',trust_env=False).status_code==401
+            payload={'expectedRevision':0,'requestId':'same','choiceId':'pause'}
+            result=rt.request('POST',f"/api/user-inbox/{card['id']}/submit",headers=auth,json=payload)['card']
+&gt;           assert result['delivery']['state']=='accepted'
+E           AssertionError: assert 'unavailable' == 'accepted'
+E
+E             - accepted
+E             + unavailable
+
+tests\test_locker_runtime_http.py:55: AssertionError</failure></testcase></testsuite></testsuites>
