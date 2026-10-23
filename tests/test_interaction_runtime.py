@@ -14,6 +14,9 @@ from packages.interactions.runtime import bind
 from packages.interactions.store import UserPrincipal, InteractionStore
 from packages.core import session, worker
 from tests.test_automation_core import action, trigger, until
+from packages.interactions.trusted import create as create_bound
+from packages.interactions.contracts import InteractionError
+import pytest
 
 
 def test_real_auth_and_directed_engine(tmp_path, monkeypatch):
@@ -33,7 +36,7 @@ def test_real_auth_and_directed_engine(tmp_path, monkeypatch):
         for tid in ('selected','not-selected'):
             svc.ledger.put({**trigger(tid),'eventTypes':['pan.interaction.responded']},0,True)
         auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
-        card=get_store().create({'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
+        card=create_bound(svc,get_store(),{'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
             'card':{'title':'choose','body':'private body','summaryBody':'S'*250,
                     'choices':[{'id':'go','label':'Go','triggerRef':{'id':'selected','revision':1}}]}})
         other=get_store().create({'ownerSessionId':owner.id,'recipientId':'someone-else','requestKey':'other',
@@ -62,8 +65,8 @@ def test_real_auth_and_directed_engine(tmp_path, monkeypatch):
                 old=svc.ledger.read()['triggers']['selected']
                 svc.ledger.put({k:v for k,v in old.items() if k in {'id','name','eventTypes','actionId','arguments','enabled','retry','executionMode','maxConcurrency'}} | {'enabled':False},old['revision'],True)
                 frozen_event=next(iter(svc.ledger.read()['runs'].values()))['event']
-                rejected=await app.state.interaction_trigger_adapter.submit({**frozen_event,'id':'evt_stale'},'selected',expected_revision=old['revision'])
-                assert rejected=={'status':'rejected'}
+                with pytest.raises(InteractionError,match='changed'):
+                    await app.state.interaction_trigger_adapter.submit({**frozen_event,'id':'evt_stale'},'selected',expected_revision=old['revision'])
                 assert svc.events.lookup('evt_stale') is None
                 # Response notice has separate Queue identity; neither full
                 # answer nor body is sent. Delete must not add a notice.
@@ -118,10 +121,12 @@ def test_real_event_receipt_recovers_unknown_without_second_admission(tmp_path,m
         await svc.start()
         try:
             adapter=bind(svc)
-            svc.engine.actions.put('actions',action([]))
+            owner=session.create('owner',workdir=str(tmp_path))
+            target=session.create('target',workdir=str(tmp_path))
+            svc.engine.actions.put('actions',action([target.id]))
             svc.ledger.put({**trigger('selected'),'eventTypes':['pan.interaction.responded']},0,True)
             store=InteractionStore(tmp_path/'cards.sqlite')
-            card=store.create({'ownerSessionId':'owner','recipientId':'user','requestKey':'once',
+            card=create_bound(svc,store,{'ownerSessionId':owner.id,'recipientId':'user','requestKey':'once',
                 'card':{'title':'choose','body':'body','choices':[{'id':'go','label':'Go',
                     'triggerRef':{'id':'selected','revision':1}}]}})
             principal=UserPrincipal('user')

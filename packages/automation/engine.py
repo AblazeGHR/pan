@@ -257,8 +257,19 @@ class Engine:
 
     async def run_attempt(self, run):
         rid = run['id']
+        interaction=False
         try:
-            action = (await self.io(self.actions.read))['actions'][run['actionId']]
+            interaction = run['event']['type']=='pan.interaction.responded' and run['event']['payload'].get('triggerRef')
+            if interaction:
+                from packages.interactions.contracts import validate
+                validate('Event',run['event'])
+                verify=getattr(self,'interaction_verify',None)
+                if verify is None:
+                    raise Conflict('incomplete: interaction binding verifier unavailable')
+                binding=await self.io(verify,run['event'])
+                action=copy.deepcopy(binding['action'])
+            else:
+                action = (await self.io(self.actions.read))['actions'][run['actionId']]
             digest = hashlib.sha256(json.dumps(action, sort_keys=True).encode()).hexdigest()
             run = await self.io(self.ledger.prepare_action, rid, action, digest)
             async def progress(**fields):
@@ -270,6 +281,10 @@ class Engine:
             # Operations use this durable checkpoint on later attempts, avoiding
             # query reevaluation or repeating confirmed successful targets.
             progress.checkpoint = copy.deepcopy(run)
+            if interaction:
+                async def verify_effect():
+                    await self.io(verify,run['event'])
+                progress.verify_interaction=verify_effect
             if getattr(self, 'job_runtime', None):
                 progress.instantiate_template = self.job_runtime.instantiate_action
             result = await self.execute(action, run['arguments'], run['event'], progress)
@@ -285,7 +300,8 @@ class Engine:
             if isinstance(exc, PersistenceError):
                 await self.io(self.ledger.interrupt, rid, run['activeAttemptId'], str(exc))
             else:
-                await self.io(self.ledger.finish, rid, 'failed', retryable=not isinstance(exc, Conflict), error=str(exc))
+                retryable=not isinstance(exc, Conflict) and not (interaction and getattr(exc,'code',None) in {'stale','incomplete','forbidden'})
+                await self.io(self.ledger.finish, rid, 'failed', retryable=retryable, error=str(exc))
 
     async def close(self):
         self.closed = True

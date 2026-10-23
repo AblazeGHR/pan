@@ -56,7 +56,8 @@ function Card({ card, source, update, remove }: {
     } catch (e) {
       // Validation and payload capacity reject before recording a response.
       // Let the user correct the payload; conflicts/uncertain writes keep ID.
-      if (e instanceof LockerRequestError && (e.status === 422 || (e.status === 409 && e.code === 'capacity'))) intent.current = null;
+      if (e instanceof LockerRequestError && (e.status === 422 || (e.status === 403 && e.code === 'forbidden') ||
+          (e.status === 409 && ['capacity', 'stale', 'incomplete'].includes(e.code ?? '')))) intent.current = null;
       setError(String(e));
     } finally { setBusy(false); }
   }
@@ -86,8 +87,18 @@ function Card({ card, source, update, remove }: {
       <select aria-label="Choice" value={open ? choiceId : card.response?.choiceId ?? ''} disabled={!open || busy || !!intent.current}
         className="ml-2 bg-bg-primary border border-border-default rounded p-2" onChange={e => setChoiceId(e.target.value)}>
         <option value="">选择…</option>
-        {card.definition.choices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        {card.definition.choices.map(c => <option key={c.id} value={c.id} disabled={!!c.triggerRef && !card.trustedChoices?.[c.id]}>{c.label}</option>)}
       </select></label>}
+    {(card.definition.choices ?? []).filter(c => c.triggerRef).map(c => {
+      const binding = card.trustedChoices?.[c.id];
+      return <section key={c.id} aria-label={`Trusted execution ${c.id}`} className="text-xs break-words [overflow-wrap:anywhere] border border-border-default rounded p-2">
+        <strong>{c.label} · 可信执行</strong>
+        {binding ? <><p>{binding.summary}</p><p>Session: {binding.targetIds.join(', ')}</p>
+          {binding.authorization && <p>授权来源: {binding.authorization.producerSessionId} · {binding.authorization.basis}</p>}
+          <p>参数映射: {JSON.stringify(binding.arguments)}</p><p>Action digest: {binding.actionDigest}</p></>
+          : <p>incomplete: 旧选择未绑定执行含义；可阅读或拒收，不能执行。</p>}
+      </section>;
+    })}
     <div className="flex gap-3">
       {open ? <><button disabled={busy} onClick={() => void act('submit')}>Submit</button>
         <button disabled={busy} onClick={() => void act('reject')}>Reject</button></>

@@ -562,4 +562,6 @@ User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Sessio
 拒收保留卡片，内部 outbox 使用稳定 QueueID 向来源 Session 发 summaryBody 前 200 字符；返回 Card.rejectionDelivery 显示通知接纳状态，unknown 不盲目重投。
 `DELETE /api/user-inbox/{id}` 仅删除终态用户记录，不通知，留最小 tombstone；内部未确认投递和生产者回应回执保留。
 `GET /api/interaction-cards/{id}/receipt?ownerSessionId=...` 与 MCP `interaction_card(operation=receipt)` 为来源归属读回执，用户删除后仍可核对。
-全部用户入口依赖可信 `user_inbox_principal`；缺配置=503，绝不借用 MCP/Session 身份代答。schema/API/迁移/UI/运行时边界见 `docs/design/User-Inbox-Interaction-Card-Contract.md`。
+全部用户入口复用运行中 Automation UserAuth（或受信宿主 principal verifier）；缺认证宿主=503，错/缺 Bearer=401，其他 recipient=404，绝不借用 MCP/Session 身份代答。schema/API/迁移/UI/运行时边界见 `docs/design/User-Inbox-Interaction-Card-Contract.md`。
+
+带 choice trigger 的创建由服务端产生不可变 `Card.trustedChoices[choiceId]`：固定 Trigger revision、Action digest、arguments、targetIds、authorization 和可信 operation 摘要。生产者不得提供该字段。范围外目标403；动态/不可证明目标或旧未绑定 choice 409 incomplete；定义变化409 stale。当前绑定只支持能证明 Session 范围的 explicit Session Operation；无 trigger 的普通卡片不受影响。前端显示可信摘要、目标和参数映射。提交通知 CLI JSON 包含 cardId、responseKind、可选 answer/choiceId、最多200字符 summaryBody；完整正文/附件不转发。unknown 只核对原回执，不能重新 submit。

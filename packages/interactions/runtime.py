@@ -34,6 +34,8 @@ async def principal(app, request):
 
 
 def bind(service):
+    from .trusted import verify
+    service.engine.interaction_verify=lambda event: verify(service,event)
     handle = service.bus.activate('core', 'pan')
     from .contracts import SCHEMA
     # Resolve local schema references using the already bounded Card validator;
@@ -70,15 +72,20 @@ def bind(service):
                 # Same writer as Trigger update/delete. No Action or event-loop
                 # work runs under this bounded off-loop admission transaction.
                 with service.ledger.lock:
-                    trigger = service.ledger.read()['triggers'].get(tid)
-                    if (not trigger or not trigger['enabled'] or trigger['revision'] != expected_revision
-                            or prepared['type'] not in trigger['eventTypes'] or not service.engine.available(trigger)):
-                        return {'status': 'rejected'}
-                    old = service.events.lookup(event['id'])
-                    if old and [t['id'] for t in old['targets']] != [tid]:
-                        raise ValueError('Directed Event identity conflict')
-                    service.events.append(prepared, [trigger])
-                    return {'status': 'accepted', 'receiptId': event['id']}
+                    from packages.actions.store import _lock as actions_lock
+                    with actions_lock:
+                        return admit_locked()
+            def admit_locked():
+                verify(service,event)
+                trigger = service.ledger.read()['triggers'].get(tid)
+                if (not trigger or not trigger['enabled'] or trigger['revision'] != expected_revision
+                        or prepared['type'] not in trigger['eventTypes'] or not service.engine.available(trigger)):
+                    return {'status': 'rejected'}
+                old = service.events.lookup(event['id'])
+                if old and [t['id'] for t in old['targets']] != [tid]:
+                    raise ValueError('Directed Event identity conflict')
+                service.events.append(prepared, [trigger])
+                return {'status': 'accepted', 'receiptId': event['id']}
             result = await service.engine.io(admit)
             service.wake.set()
             return result
@@ -89,4 +96,10 @@ def bind(service):
             return {'status': 'accepted', 'receiptId': eid}
         return None
 
-    return TriggerReferenceAdapter(get_trigger=get_trigger, authorize=authorize, submit=submit, lookup=lookup)
+    adapter=TriggerReferenceAdapter(get_trigger=get_trigger, authorize=authorize, submit=submit, lookup=lookup)
+    original_authorize=adapter.authorize
+    async def bound_authorize(event):
+        await service.engine.io(verify,service,event)
+        return await original_authorize(event)
+    adapter.authorize=bound_authorize
+    return adapter

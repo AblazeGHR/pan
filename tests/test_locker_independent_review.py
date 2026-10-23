@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from packages.automation.service import Service
-from packages.core import worker
+from packages.core import worker, session
+from packages.interactions.trusted import create as create_bound
+from packages.interactions.contracts import InteractionError
 from packages.interactions.runtime import bind
 from packages.interactions.store import InteractionStore, UserPrincipal
 from tests.test_automation_core import action, trigger, until
@@ -41,6 +43,9 @@ def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, cha
     monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
     async def run():
         calls = []
+        owner=session.create('source',workdir=str(tmp_path))
+        approved=session.create('approved-target',workdir=str(tmp_path))
+        foreign=session.create('foreign-target',workdir=str(tmp_path))
         async def pause(sid, args):
             calls.append(sid)
             return {'ok': True}
@@ -55,27 +60,35 @@ def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, cha
         monkeypatch.setattr(svc.engine, 'run_attempt', held)
         try:
             adapter = bind(svc)
-            svc.engine.actions.put('actions', action(['approved-target']))
+            svc.engine.actions.put('actions', action([approved.id]))
             spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
             svc.ledger.put(spec, 0, True)
             ref = {'id': 'selected'}
             if change != 'unpinned_trigger':
                 ref['revision'] = 1
             store = InteractionStore(tmp_path/'cards.sqlite')
-            card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+            card = create_bound(svc,store,{'ownerSessionId': owner.id, 'recipientId': 'user', 'requestKey': 'fixed',
                 'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
                          'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
             frozen = card['definition']
             def mutate():
                 if change == 'unpinned_trigger':
-                    svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                    svc.engine.actions.put('actions', {**action([foreign.id]), 'id': 'foreign_action'})
                     svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
                 else:
-                    svc.engine.actions.put('actions', action(['foreign-target']))
+                    svc.engine.actions.put('actions', action([foreign.id]))
             if change != 'after_admission':
                 mutate()
             user = UserPrincipal('user')
             store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+            if change != 'after_admission':
+                with pytest.raises(InteractionError,match='changed') as rejected:
+                    await store.dispatch(user,card['id'],adapter)
+                assert rejected.value.code=='stale'
+                assert svc.events.page()['events']==[]
+                assert calls==[]
+                assert store.get_for_user(user,card['id'])['definition']==frozen
+                return
             result = await store.dispatch(user, card['id'], adapter)
             await asyncio.wait_for(entered.wait(), 5)
             if change == 'after_admission':
@@ -83,13 +96,15 @@ def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, cha
             gate.set()
             async def done():
                 runs = svc.ledger.read()['runs']
-                return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                return bool(runs) and all(r['status'] == 'failed' for r in runs.values())
             await until(done)
             assert store.get_for_user(user, card['id'])['definition'] == frozen
             print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
                 'delivery': result['delivery'], 'actualPauseCalls': calls,
                 'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
-            assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            assert foreign.id not in calls, 'Fixed visible choice executed a different Action target'
+            assert calls==[]
+            assert 'stale' in str(svc.ledger.read()['runs']) or 'changed' in str(svc.ledger.read()['runs'])
         finally:
             gate.set()
             await svc.close()
@@ -102,16 +117,18 @@ def test_unknown_receipt_reconciles_after_trigger_revocation(tmp_path, monkeypat
     """Revocation blocks new side effects, not lookup of the original receipt."""
     monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
     async def run():
+        owner=session.create('source',workdir=str(tmp_path))
+        approved=session.create('approved-target',workdir=str(tmp_path))
         svc = Service(tmp_path/'automation', worker, AsyncMock(return_value={'ok': True}))
         await svc.start()
         try:
             adapter = bind(svc)
-            svc.engine.actions.put('actions', action(['approved-target']))
+            svc.engine.actions.put('actions', action([approved.id]))
             spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
             svc.ledger.put(spec, 0, True)
             store = InteractionStore(tmp_path/'cards.sqlite')
             user = UserPrincipal('user')
-            card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'receipt',
+            card = create_bound(svc,store,{'ownerSessionId': owner.id, 'recipientId': 'user', 'requestKey': 'receipt',
                 'card': {'title': 'choice', 'body': 'body', 'choices': [{'id': 'go', 'label': 'Go',
                          'triggerRef': {'id': 'selected', 'revision': 1}}]}})
             store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})

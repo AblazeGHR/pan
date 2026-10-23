@@ -58,6 +58,9 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     for sid in ids:
         if sid in confirmed:
             continue
+        verify_interaction=getattr(progress,'verify_interaction',None)
+        if verify_interaction:
+            await verify_interaction()
         try:
             result = await pause(sid, {'paused': True})
         except Exception as exc:

@@ -2,6 +2,8 @@
 import asyncio
 import json
 import os
+import subprocess
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -10,7 +12,7 @@ import psutil
 from tests import test_real_queue_http_e2e as h
 from tests.test_automation_core import action, trigger
 
-OUT = Path('audit/locker-independent')
+OUT = Path('audit/locker-binding')
 
 
 def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
@@ -23,6 +25,8 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
         'memory': {'enabled': False}, 'plugin_manifests': [str(root/'manifest.json'),
         str(root/'packages/mcp/manifest.json')]}), encoding='utf-8')
     evidence = {'port': h.PORT, 'dataRoot': str(rt.data_root), 'realProvider': False}
+    evidence['sourceSha']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,encoding='utf-8').strip()
+    evidence['productionIndexSha256']=hashlib.sha256((root/'packages/web/dist/index.html').read_bytes()).hexdigest()
     def stop():
         owned = []
         if rt.process and rt.process.poll() is None:
@@ -69,11 +73,17 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
                     denial = json.loads(denied.content[0].text)
                     assert denial.get('error', {}).get('code') == 'permission_denied', denial
                     evidence['directAgentNotifyDenied'] = True
+                    forbidden = await client.call_tool('interaction_card', {'operation':'create','request_key':'forbidden',
+                        'recipient_id':'user','card':{'title':'Denied','body':'body','choices':[{'id':'go','label':'Go',
+                        'triggerRef':{'id':'selected'}}]}})
+                    assert 'forbidden' in forbidden.content[0].text, forbidden
+                    evidence['outOfScopeChoiceDenied'] = True
+                    rt.request('POST','/api/claim',json={'managerId':owner['id'],'sessionId':target['id']})
                     cards = []
                     for req, recipient in [('submitted', 'user'), ('rejected', 'user'), ('foreign', 'unknown-recipient')]:
                         result = await client.call_tool('interaction_card', {'operation': 'create', 'request_key': req,
                             'recipient_id': recipient, 'card': {'title': 'Pause target', 'body': 'FULL-SECRET',
-                            'summaryBody': 'S'*250, 'answerInput': {}, 'choices': [{'id': 'pause', 'label': 'Pause target',
+                            'summaryBody': 'S'*250, 'answerInput': {}, 'choices': [{'id': 'pause', 'label': 'Keep target running',
                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
                         assert not result.isError, result
                         cards.append(json.loads(result.content[0].text)['card'])
@@ -85,7 +95,12 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
             for suffix, method, payload in [('', 'GET', None), ('/read', 'PUT', {'read': True}),
                     ('/submit', 'POST', {'requestId': 'x', 'expectedRevision': 0}), ('', 'DELETE', None)]:
                 assert client.request(method, '/api/user-inbox/'+foreign['id']+suffix, headers=auth, json=payload).status_code == 404
-        payload = {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause', 'answer': 'ANSWER-SECRET'}
+        browser=subprocess.run(['node','packages/web/e2e/locker-binding.mjs',rt.base_url,str(OUT.resolve()),submitted['id'],target['id']],
+            env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)
+        (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
+        assert browser.returncode==0,browser.stderr
+        approved=rt.request('GET','/api/user-inbox/'+submitted['id'],headers=auth)['card']
+        payload = {'requestId': approved['response']['requestId'], 'expectedRevision': 0, 'choiceId': 'pause', 'answer': 'ANSWER-SECRET'}
         for _ in range(2):
             result = rt.request('POST', '/api/user-inbox/'+submitted['id']+'/submit', headers=auth, json=payload)
             assert result['card']['delivery']['state'] == 'accepted'
@@ -103,7 +118,7 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
         persisted = json.loads((rt.data_root/'sessions'/f"{owner['id']}.json").read_text(encoding='utf-8'))['queue_pending']
         assert len(persisted) == 2
         assert all(len(n['envelope']['summaryBody']) == 200 for n in persisted)
-        assert 'FULL-SECRET' not in json.dumps(queued) and 'ANSWER-SECRET' not in json.dumps(queued)
+        assert 'FULL-SECRET' not in json.dumps(queued) and 'ANSWER-SECRET' in json.dumps(queued)
         assert not h._received(rt), 'Paused: persistent acceptance is not CLI consumption'
         evidence['durableQueueIds'] = [n['id'] for n in queued]
         rt.request('PATCH', f"/api/sessions/{owner['id']}/queue/paused", json={'paused': False})
@@ -114,7 +129,15 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
         received = h._wait_for(delivered, label='source fakeCLI actually reads both notices')
         assert sum('Interaction submitted: ' in n['text'] for n in received) == 1
         assert sum('Interaction rejected: ' in n['text'] for n in received) == 1
-        assert not any('FULL-SECRET' in n['text'] or 'ANSWER-SECRET' in n['text'] for n in received)
+        assert not any('FULL-SECRET' in n['text'] for n in received)
+        response_notices=[json.loads(line.split(': ',1)[1]) for n in received for line in n['text'].splitlines()
+                          if line.startswith(('Interaction submitted: ','Interaction rejected: '))]
+        submitted_notice=next(n for n in response_notices if n['responseKind']=='submit')
+        rejected_notice=next(n for n in response_notices if n['responseKind']=='reject')
+        assert submitted_notice['cardId']==submitted['id'] and submitted_notice['answer']=='ANSWER-SECRET'
+        assert submitted_notice['choiceId']=='pause' and len(submitted_notice['summaryBody'])==200
+        assert rejected_notice['cardId']==rejected['id'] and len(rejected_notice['summaryBody'])==200
+        evidence['actualResponseNotices']=response_notices
         history = rt.request('GET', f"/api/sessions/{owner['id']}/history?limit=100")['history']
         notice_history = [n for n in history if n.get('role') == 'user' and 'Interaction ' in n.get('content', '')]
         assert sum(n.get('content', '').count('Interaction submitted: ') for n in notice_history) == 1

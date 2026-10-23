@@ -17,7 +17,9 @@ const lockers: Locker[] = [
 function card(id = 'a', lockerId = 'l1'): InteractionCard {
   return { id, lockerId, ownerSessionId: lockerId === 'l1' ? 'ses_one' : 'ses_two', createdAt: id === 'a' ? '2026-10-23T01:00:00Z' : '2026-10-23T02:00:00Z',
     read: false, revision: 0, status: 'open', definition: { title: `Card ${id}`, body: '**Body**', summaryBody: 'Summary', answerInput: { label: 'Reply' },
-      choices: [{ id: 'go', label: 'Go', triggerRef: { id: 'existing-trigger' } }] }, response: null, delivery: { state: 'not_requested' } };
+      choices: [{ id: 'go', label: 'Go', triggerRef: { id: 'existing-trigger' } }] },
+      trustedChoices: { go: { summary: 'pause_everything · trusted Action', targetIds: ['ses_target'], actionId: 'pause',
+        actionDigest: 'a'.repeat(64), triggerRevision: 1, arguments: {} } }, response: null, delivery: { state: 'not_requested' } };
 }
 function first<T>(values: T[]): T { const value = values[0]; if (value === undefined) throw new Error('Expected nonempty test result'); return value; }
 let cards: InteractionCard[];
@@ -54,6 +56,17 @@ describe('Locker panel', () => {
     expect(screen.queryByText('Card b')).toBeNull();
     expect(screen.getByText('Card a')).toBeTruthy();
     expect(calls.filter(c => c.method !== 'GET')).toHaveLength(0);
+  });
+  it('shows trusted meaning even when producer label differs and disables legacy execution', async () => {
+    const original=first(cards);
+    original.definition.choices = [{ id:'go', label:'Keep running', triggerRef:{id:'existing-trigger'} }];
+    cards[1] = {...card('b','l2'),trustedChoices:{}};
+    mount(); await screen.findByText('Card a');
+    expect(screen.getByText('pause_everything · trusted Action')).toBeTruthy();
+    expect(screen.getByText('Session: ses_target')).toBeTruthy();
+    expect((screen.getByRole('option',{name:'Go'}) as HTMLOptionElement).disabled).toBe(true);
+    expect(screen.getByText(/旧选择未绑定/)).toBeTruthy();
+    expect(first(screen.getAllByText('Reject')).hasAttribute('disabled')).toBe(false);
   });
   it('submits answer and choice once, becomes readonly, then deletes', async () => {
     mount(); await screen.findByText('Card a');
@@ -94,7 +107,7 @@ describe('Locker panel', () => {
     mount(); expect((await screen.findByRole('alert')).textContent).toContain('user_auth_unavailable');
     expect(screen.queryByText('Submit')).toBeNull();
   });
-  it.each([[422, 'invalid'], [409, 'capacity']])('allows correction after proven rejection %s/%s', async (status, code) => {
+  it.each([[422, 'invalid'], [409, 'capacity'], [409, 'stale'], [409, 'incomplete'], [403, 'forbidden']])('allows correction after proven rejection %s/%s', async (status, code) => {
     const original = globalThis.fetch;
     let attempts = 0;
     vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {

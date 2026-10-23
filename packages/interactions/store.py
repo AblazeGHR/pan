@@ -36,6 +36,8 @@ class InteractionStore:
             columns={r[1] for r in db.execute('PRAGMA table_info(cards)')}
             if 'is_read' not in columns:
                 db.execute('ALTER TABLE cards ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0')
+            if 'bindings' not in columns:
+                db.execute("ALTER TABLE cards ADD COLUMN bindings TEXT NOT NULL DEFAULT '{}'")
             db.execute('CREATE TABLE IF NOT EXISTS user_lockers(owner TEXT NOT NULL,recipient TEXT NOT NULL,PRIMARY KEY(owner,recipient))')
             db.execute('INSERT OR IGNORE INTO user_lockers SELECT DISTINCT owner,recipient FROM cards')
             db.execute('CREATE TABLE IF NOT EXISTS owner_receipts(id TEXT PRIMARY KEY,owner TEXT,recipient TEXT,response TEXT,event TEXT)')
@@ -64,14 +66,15 @@ class InteractionStore:
         response=json.loads(row['response']) if row['response'] else None
         notice=db.execute('SELECT state FROM rejection_outbox WHERE id=?',(identity('rejection_',[row['id']]),)).fetchone()
         return dict(schemaVersion=1,lockerId=identity('ulocker_',[row['recipient'],row['owner']]),read=bool(row['is_read']),sourceName=row['owner'],id=row['id'],ownerSessionId=row['owner'],recipientId=row['recipient'],
-                    definition=definition,createdAt=row['created_at'],revision=row['revision'],
+                    definition=definition,trustedChoices=json.loads(row['bindings']),createdAt=row['created_at'],revision=row['revision'],
                     status=('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open',
                     response=response,
                     delivery=json.loads(row['delivery']),rejectionDelivery={'state':notice[0] if notice else 'not_requested'})
 
-    def create(self, request):
+    def create(self, request, *, bindings=None):
         validate('Create',request)
-        signature = canonical(request)
+        # Transport caller metadata never rebinds a historical create identity.
+        signature = canonical({k:v for k,v in request.items() if k!='producerSessionId'})
         card_id = identity('card_', [request['ownerSessionId'],request['requestKey']])
         with self.db() as db:
             tombstone=db.execute('SELECT * FROM tombstones WHERE id=?',(card_id,)).fetchone()
@@ -89,6 +92,9 @@ class InteractionStore:
             db.execute('''INSERT INTO cards(id,owner,recipient,request_key,signature,definition,created_at,delivery)
                 VALUES(?,?,?,?,?,?,?,?)''', (card_id,request['ownerSessionId'],request['recipientId'],request['requestKey'],
                     signature,canonical(request['card']),now(),canonical({'state':'not_requested'})))
+            db.execute('UPDATE cards SET bindings=? WHERE id=?',(canonical(bindings or {}),card_id))
+            if bindings:
+                validate('Card',self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
 
     def _user_id(self, principal):
@@ -167,6 +173,9 @@ class InteractionStore:
             trigger=choices.get(supplied.get('choiceId'),{}).get('triggerRef')
             if trigger:
                 payload['triggerRef']=trigger
+                binding=json.loads(row['bindings']).get(supplied['choiceId'])
+                if binding:
+                    payload['executionBinding']=binding
             event={'id':identity('evt_',[card_id,result['id']]),'type':'pan.interaction.responded','schemaVersion':1,
                    'source':{'type':'core','id':'pan'},'occurredAt':timestamp,'payload':payload}
             validate('Event',event)
@@ -176,6 +185,7 @@ class InteractionStore:
             notification_id=identity('submission_',[card_id])
             db.execute('INSERT INTO response_outbox VALUES(?,?,?,?)',
                        (notification_id,row['owner'],canonical({'id':notification_id,'cardId':card_id,
+                        'responseKind':'submit',**supplied,
                         'lockerId':identity('ulocker_',[row['recipient'],row['owner']]),
                         'summaryBody':definition.get('summaryBody',definition.get('notification',{}).get('summary',definition['body']))[:200]}),'pending'))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
@@ -212,6 +222,8 @@ class InteractionStore:
         if state not in {'in_flight','unknown'}:
             try:
                 allowed=await adapter.authorize(json.loads(canonical(event)))
+            except InteractionError:
+                raise
             except Exception as exc:
                 raise InteractionError('unavailable','Trigger authorization unavailable') from exc
             if allowed is not True:
@@ -233,6 +245,11 @@ class InteractionStore:
                 settled={'state':'rejected'}
             else:
                 settled={'state':'unknown'}
+        except InteractionError as exc:
+            if not reconcile and exc.code in {'stale','incomplete','forbidden'}:
+                self._settle(card_id,{'state':'rejected'})
+                raise
+            settled={'state':'unknown'}
         except Exception:
             settled={'state':'unknown'}
         self._settle(card_id,settled)
@@ -261,6 +278,7 @@ class InteractionStore:
             card=self._view(row,db)
             event_id=identity('rejection_',[card_id])
             payload={'id':event_id,'cardId':card_id,'lockerId':card['lockerId'],
+                     'responseKind':'reject',
                      'summaryBody':card['definition']['summaryBody'][:200]}
             db.execute('INSERT INTO rejection_outbox VALUES(?,?,?,?)',
                        (event_id,row['owner'],canonical(payload),'pending'))
@@ -318,7 +336,9 @@ class InteractionStore:
                 receipt=await queue.lookup(owner,qid) if reconcile else await queue.put(owner,qid,{
                     'id':event_id,'lockerId':payload['lockerId'],
                     'source':{'pluginId':'interaction','scope':'user','peerId':owner},
-                    'content':{'text':'Interaction '+outcome+': '+payload['summaryBody'],
+                    'content':{'text':'Interaction '+outcome+': '+canonical({
+                        'cardId':payload['cardId'],'responseKind':payload.get('responseKind','reject' if outcome=='rejected' else 'submit'),
+                        'summaryBody':payload['summaryBody'],**{k:payload[k] for k in ('answer','choiceId') if k in payload}}),
                                'envelope':{'type':'interaction.'+outcome,**payload}}})
                 state='accepted' if receipt and receipt.get('status')=='accepted' else (
                     'pending' if not reconcile and receipt and receipt.get('status')=='rejected' else 'unknown')

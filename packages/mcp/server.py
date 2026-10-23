@@ -1951,7 +1951,7 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
         suffix = "/receipt" if operation == "receipt" else ""
         return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
     return _api("POST", "/api/interaction-cards", {
-        "ownerSessionId": target, "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
+        "ownerSessionId": target, "producerSessionId": caller['id'], "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
 
 
 @mcp.tool()

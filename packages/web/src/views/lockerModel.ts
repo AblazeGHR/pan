@@ -28,6 +28,9 @@ export interface InteractionCard {
   response: null | { answer?: string; choiceId?: string };
   delivery: { state: string };
   rejectionDelivery?: { state: string };
+  trustedChoices?: Record<string, { summary: string; actionId: string; actionDigest: string;
+    triggerRevision: number; targetIds: string[]; arguments: Record<string, unknown>;
+    authorization?: { producerSessionId: string; basis: string } }>;
 }
 /** Preserve status so a proven pre-admission validation rejection is distinct
  * from a network failure or a response whose persistence is uncertain. */

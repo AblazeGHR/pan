@@ -77,7 +77,7 @@ Job兼容层 `job_reference / create_job_card / job_response` 处理legacy jobId
 
 ### Card 定义、回应与通知
 
-`definition.body` 为完整固定正文，`summaryBody` 为固定通知摘要正文；发送通知时最多截取前 200 个 Unicode 字符，不携带完整 body/附件/answer。旧 v1 创建请求未带 summaryBody 时，视图确定性取旧 notification.summary 或 body，既有创建 signature 不改；旧 v1 数据只在本 profile SQLite 内做增量表/列迁移，不读写真实 profile。附件使用既有 opaque attachment ID 与安全下载/Markdown 渲染资源，Panel 显式绑定来源 Session，避免借用当前 Chat 的文件上下文。附件是否可用仍由既有来源 Session 附件接口核验，不扩大文件权限。
+`definition.body` 为完整固定正文，`summaryBody` 为固定通知摘要正文；发送通知时最多截取前 200 个 Unicode 字符，不携带完整 body/附件，用户 answer/choice 随回应通知发送。旧 v1 创建请求未带 summaryBody 时，视图确定性取旧 notification.summary 或 body，既有创建 signature 不改；旧 v1 数据只在本 profile SQLite 内做增量表/列迁移，不读写真实 profile。附件使用既有 opaque attachment ID 与安全下载/Markdown 渲染资源，Panel 显式绑定来源 Session，避免借用当前 Chat 的文件上下文。附件是否可用仍由既有来源 Session 附件接口核验，不扩大文件权限。
 
 answerInput 与 choice/trigger 均可选。`submit` 允许没有控件的卡片作一次性明确提交；旧 `respond` 继续拒绝无输入的空回应，以保留旧调用契约。choice 只传原定义 choiceId，不接受临时 trigger/URL/shell。提交保留兼容 `status=responded`（Panel 显示已提交），拒收为 `status=rejected`；二者在同一 SQLite 原子领取一次 response，之后定义只读且不可改写。相同 requestId+相同结果幂等；改结果、另一次 submit/reject 或 stale revision 明确冲突。拒收结果具有 `response.outcome=reject`，不能当作 Job 成功或自动继续执行。
 
@@ -120,4 +120,16 @@ Locker 表单区分明确的回应前拒绝与不确定结果：HTTP 422 和 `40
 
 生产 lifespan 在既有 Automation Service 启动后，以受信 `core/pan` handle 注册 `pan.interaction.responded` schema。选中 choice 经 TriggerReferenceAdapter 检查启用、可选 revision pin、事件类型、recipient 和依赖资格；提交阶段在已有 Trigger writer lock 内再次核对 revision/enabled/依赖，锁内落盘只在 I/O executor 运行，不跨 Action await。Event Store 保存 **唯一选定 Trigger** 的目标快照，不经通用广播选择其他 Trigger/Job；提交 receipt 是 durable Event ID，不是 Action 完成。现有 dispatcher 建立 Run，以 Event+Trigger 去重，沿用 Action/Group pin/Pause/Illegal/业务门禁和取消/恢复。Event Store 与 Card SQLite 不宣称跨文件原子；in_flight/unknown 冷恢复只查原 Event ID，缺回执保留 unknown，不自动重新执行。disabled/stale 卡片保留显式错误，不阻止服务启动。
 
-提交 response 同事务写唯一 response outbox，来源 Session Queue 接收 `Interaction submitted: ` + `summaryBody[:200]`，envelope 的 type 为 `interaction.submitted`。只通知用户已提交，不暗示 Trigger/Job 执行成功；不转发 body/answer/附件。与 rejection outbox 一样使用稳定 QueueID、落盘 receipt、未知只查回执、明确拒绝等待下一投递轮次；接纳后删除 outbox payload。启动时恢复两类通知，不增加轮询。reject 不生成 choice Event、不启动 Run；delete 不生成任何新通知，已存在的独立投递意图保持原恢复规则。Agent Inbox 的共享消费与用户 read/unread 不变。没有新增 Job 等待/继续或自动批准协议。
+提交 response 同事务写唯一 response outbox。CLI 文本为 `Interaction submitted: ` 或 `Interaction rejected: ` 加 JSON，包含 cardId、responseKind（submit/reject）、summaryBody[:200]，以及用户实际提交的可选 answer/choiceId；这些字段同时保留在 envelope。只通知用户回应已记录，不暗示 Trigger/Job 执行成功；不转发完整 body/附件。稳定 QueueID、落盘 receipt、unknown 只查原回执；接纳后删除 outbox payload。reject 不执行 choice；delete 不生成新通知。旧已接纳/unknown 通知不通过新 QueueID 补发字段，以免重复。Agent Inbox 的共享消费与用户 read/unread 不变，没有新增 Job wait/resume 协议。
+
+## 2026-10-23 MA 决策：卡片执行可信绑定
+
+本节覆盖早期“生产者 label + 可选 Trigger revision 足够执行”的边界。`Create` 可含 producerSessionId（MCP 由可信 caller 注入；本地内部 HTTP 沿用既有受信调用边界），服务端按该来源和 owner 的既有 self/managed 范围核验全部 Session 目标，绝不把用户 Bearer submit 当作来源权限。没有身份时不得猜测来源授权。无 triggerRef 的普通卡片不依赖 Automation、不产生绑定；普通插件消息不自动进入 Locker。
+
+创建时在既有 Trigger/Action writer 下解析固定 Trigger revision/digest、Action ID/digest、参数映射、selector 和来源授权依据，在同一写入范围内存入 Card 的独立 bindings 列；幂等 create 返回原绑定，不刷新到新定义。生产者不能提交 `bindings`/`trustedChoices`/Action 对象。Card 的 `trustedChoices[choiceId]` 是服务端输出，含 operation 摘要、固定 targetIds、arguments、Action digest、Trigger revision 与授权依据；前端必须展示该可信内容，不能只展示生产者 label。
+
+当前可证明并接线的是 Session Operation 的 explicit selector。event/query selector 不能证明创建时目标范围；其他执行能力尚未提供完整效果/来源范围证明，返回409 incomplete，不创建卡片。不新增全局目标白名单、不改变一般 Action 的能力。后续能力必须先提供同等完整证明，不能仅因现有 Trigger enabled 即放行。
+
+用户批准前复核当前定义，变化返回409 stale，旧未绑定 choice 返回409 incomplete，均不写 response。批准到持久 Event admission 间再复核，明确拒绝会记录 rejected delivery 和 dispatchError，而不是假 accepted；结果不明仍 unknown。Card/Event 保存的内部 Action 副本仅用于此类卡片，Engine 首次 attempt 和后续 attempt 校验绑定，执行该已绑定副本，并在每个 Session effect 前复核；不读取变化后定义来执行新目标。定义/权限变化允许明确失败，不更新卡片或扩大批准含义。没有通用 snapshot 生命周期，也不改变一般 Job 的动态 Action 引用或 Group pin。
+
+SQLite 增量新增 bindings 列，旧记录默认 `{}`，不重写原定义/签名/response，也不猜测旧 choice 权限。旧卡片仍可读/拒收；没有可信绑定不可直接执行。旧 in_flight/unknown（含删除后的 detached）只查原 Event receipt，不再要求当前 Trigger 仍启用；缺回执保留 unknown。已有 Event/Run 的持久接纳与 effect 成功仍是两层事实。

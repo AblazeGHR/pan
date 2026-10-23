@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from packages.core import session
-from packages.interactions.api import register
+from packages.interactions.api import register, get_store
 from packages.interactions.store import UserPrincipal
 from packages.interactions.contracts import validate
 
@@ -48,12 +48,14 @@ def test_auth_fail_closed_user_isolation_and_body_spoofing(tmp_path):
 def test_trigger_unavailable_is_not_fake_execution_success(tmp_path):
     app,client,owner=setup(tmp_path)
     app.state.user_inbox_principal=lambda request:UserPrincipal('user')
-    card=make(client,owner,choices=[{'id':'go','label':'Go','triggerRef':{'id':'existing-trigger'}}])
+    request={'ownerSessionId':owner.id,'recipientId':'user','requestKey':'legacy',
+             'card':{'title':'Legacy','body':'text','choices':[{'id':'go','label':'Go','triggerRef':{'id':'existing-trigger'}}]}}
+    assert client.post('/api/interaction-cards',json=request).status_code==409
+    card=get_store().create(request)  # Historical unbound row remains readable.
     result=client.post(f"/api/user-inbox/{card['id']}/respond",json={'requestId':'response','expectedRevision':0,'choiceId':'go'})
-    assert result.status_code==200
-    assert result.json()['card']['status']=='responded'
-    assert result.json()['card']['delivery']['state']=='unavailable'
-    assert client.post(f"/api/user-inbox/{card['id']}/dispatch").json()['card']['delivery']['state']=='unavailable'
+    assert result.status_code==409 and result.json()['detail']['code']=='incomplete'
+    assert client.get(f"/api/user-inbox/{card['id']}").json()['card']['status']=='open'
+    assert client.post(f"/api/user-inbox/{card['id']}/reject",json={'requestId':'reject','expectedRevision':0}).status_code==200
     schema=client.get('/api/interaction-cards/schema').json()
     assert schema['$id']=='pan:interaction-card:v1'
 
@@ -78,7 +80,8 @@ def test_user_api_cursor_and_trigger_policy_failure_are_explicit(tmp_path):
     first=make(client,owner)
     second_payload={'ownerSessionId':owner.id,'recipientId':'user','requestKey':'second',
                     'card':{'title':'second','body':'','choices':[{'id':'go','label':'Go','triggerRef':{'id':'blocked'}}]}}
-    second=client.post('/api/interaction-cards',json=second_payload).json()['card']
+    assert client.post('/api/interaction-cards',json=second_payload).status_code==409
+    second=get_store().create(second_payload)
     page=client.get('/api/user-inbox',params={'limit':1}).json()
     assert page['nextAfter']==first['id']
     assert client.get('/api/user-inbox',params={'after':page['nextAfter']}).json()['cards'][0]['id']==second['id']
@@ -88,6 +91,6 @@ def test_user_api_cursor_and_trigger_policy_failure_are_explicit(tmp_path):
         async def accept(self,event):
             raise AssertionError('must never submit an unauthorized Trigger')
     app.state.interaction_trigger_adapter=Denied()
-    done=client.post(f"/api/user-inbox/{second['id']}/respond",json={'requestId':'once','expectedRevision':0,'choiceId':'go'}).json()
-    assert done['card']['status']=='responded' and done['dispatchError']['code']=='forbidden'
-    assert done['card']['delivery']['state']=='pending'
+    done=client.post(f"/api/user-inbox/{second['id']}/respond",json={'requestId':'once','expectedRevision':0,'choiceId':'go'})
+    assert done.status_code==409 and done.json()['detail']['code']=='incomplete'
+    assert client.get(f"/api/user-inbox/{second['id']}").json()['card']['response'] is None

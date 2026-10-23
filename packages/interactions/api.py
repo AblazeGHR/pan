@@ -16,7 +16,7 @@ def get_store():
 
 def failure(exc):
     status={'unauthorized':401,'forbidden':403,'not_found':404,'unavailable':503,
-            'invalid':422,'capacity':409,'conflict':409}.get(exc.code,409)
+            'invalid':422,'incomplete':409,'stale':409,'capacity':409,'conflict':409}.get(exc.code,409)
     return HTTPException(status,detail={'code':exc.code,'message':str(exc)})
 
 
@@ -50,7 +50,19 @@ def register(app):
     async def create(data:dict):
         owner(data.get('ownerSessionId'))
         try:
-            return {'card':get_store().create(data)}
+            from .contracts import validate
+            validate('Create',data)
+            from .trusted import create as create_trusted
+            import asyncio
+            store=get_store()
+            # Repeating a create must not rebind a frozen Card to newer definitions.
+            from .contracts import identity
+            cid=identity('card_',[data['ownerSessionId'],data['requestKey']])
+            with store.db() as db:
+                exists=db.execute('SELECT 1 FROM cards WHERE id=?',(cid,)).fetchone()
+            if exists:
+                return {'card':store.create(data)}
+            return {'card':await asyncio.to_thread(create_trusted,getattr(app.state,'automation',None),store,data)}
         except InteractionError as exc:
             raise failure(exc) from exc
 
@@ -140,6 +152,14 @@ def register(app):
         principal=await user(request)
         store=get_store()
         try:
+            current=store.get_for_user(principal,card_id)
+            choice=next((c for c in current['definition'].get('choices',[]) if c['id']==data.get('choiceId')),None)
+            if current['response'] is None and choice and choice.get('triggerRef'):
+                from .trusted import verify
+                import asyncio
+                await asyncio.to_thread(verify,getattr(app.state,'automation',None),{
+                    'payload':{'ownerSessionId':current['ownerSessionId'],
+                               'executionBinding':current.get('trustedChoices',{}).get(choice['id'])}})
             card=store.respond(principal,card_id,data,allow_empty=request.url.path.endswith('/submit'))
         except InteractionError as exc:
             raise failure(exc) from exc
