@@ -1,5 +1,18 @@
 # Pan 测试隔离约定
 
+## Legacy Queue unresolved outcome migration
+
+`tests/test_queue_unknown_migration.py` checks native `unknown_after_crash` and
+explicit `unknown`/`uncertain` receipts in pending rows, detached ledgers and
+conflicting queued/ledger copies. Migration and repeated cold initialization
+preserve the original Queue ID, extension fields and unresolved state; these
+rows cannot claim, retry, spawn recovery or become queued on duplicate input.
+Ordinary queued/pending and legacy unfinished reservations retain their existing
+compatibility behavior. Run together with `test_queue_migration.py`,
+`test_unified_server_queue.py` and `test_delivery_semantics.py` through the
+isolated runner. Actual practical-data verification is copy-only; see
+`audit/queue-unknown-migration/REPORT.md` for source SHA, hashes and rollback limits.
+
 ## Locker production wiring targeted acceptance
 
 `test_interaction_runtime.py` exercises the real Automation UserAuth and directed

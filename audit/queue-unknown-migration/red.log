@@ -1,0 +1,467 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\queue-unknown-migration-fix-20261023
+FFFFFFFFFFFFFFF.F..                                                      [100%]
+================================== FAILURES ===================================
+_ test_unknown_preserved_across_recovery_save_reload[pending-unknown_after_crash] _
+
+state = 'unknown_after_crash', location = 'pending'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown_after_crash'
+E
+E         - unknown_after_crash
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+_____ test_unknown_preserved_across_recovery_save_reload[pending-unknown] _____
+
+state = 'unknown', location = 'pending'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+        assert s.queue_pending[0]['deliveryState'] == state
+        assert s.queue_pending[0]['queueItemId'] == item['id']
+        assert s.queue_pending[0]['futureField'] == item['futureField']
+>       assert not worker._is_dispatchable(s.queue_pending[0])
+E       AssertionError: assert not True
+E        +  where True = <function _is_dispatchable at 0x000001FA3F62CF40>({'id': 'q_unknown', 'queueItemId': 'q_unknown', 'type': 'task', 'kind': 'task', ...})
+E        +    where <function _is_dispatchable at 0x000001FA3F62CF40> = worker._is_dispatchable
+
+tests\test_queue_unknown_migration.py:37: AssertionError
+____ test_unknown_preserved_across_recovery_save_reload[pending-uncertain] ____
+
+state = 'uncertain', location = 'pending'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+        assert s.queue_pending[0]['deliveryState'] == state
+        assert s.queue_pending[0]['queueItemId'] == item['id']
+        assert s.queue_pending[0]['futureField'] == item['futureField']
+>       assert not worker._is_dispatchable(s.queue_pending[0])
+E       AssertionError: assert not True
+E        +  where True = <function _is_dispatchable at 0x000001FA3F62CF40>({'id': 'q_unknown', 'queueItemId': 'q_unknown', 'type': 'task', 'kind': 'task', ...})
+E        +    where <function _is_dispatchable at 0x000001FA3F62CF40> = worker._is_dispatchable
+
+tests\test_queue_unknown_migration.py:37: AssertionError
+_ test_unknown_preserved_across_recovery_save_reload[ledger-unknown_after_crash] _
+
+state = 'unknown_after_crash', location = 'ledger'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown_after_crash'
+E
+E         - unknown_after_crash
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+_____ test_unknown_preserved_across_recovery_save_reload[ledger-unknown] ______
+
+state = 'unknown', location = 'ledger'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown'
+E
+E         - unknown
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+____ test_unknown_preserved_across_recovery_save_reload[ledger-uncertain] _____
+
+state = 'uncertain', location = 'ledger'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'uncertain'
+E
+E         - uncertain
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+_ test_unknown_preserved_across_recovery_save_reload[conflict-unknown_after_crash] _
+
+state = 'unknown_after_crash', location = 'conflict'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown_after_crash'
+E
+E         - unknown_after_crash
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+____ test_unknown_preserved_across_recovery_save_reload[conflict-unknown] _____
+
+state = 'unknown', location = 'conflict'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown'
+E
+E         - unknown
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+___ test_unknown_preserved_across_recovery_save_reload[conflict-uncertain] ____
+
+state = 'uncertain', location = 'conflict'
+
+    @pytest.mark.parametrize('state', STATES)
+    @pytest.mark.parametrize('location', ('pending', 'ledger', 'conflict'))
+    def test_unknown_preserved_across_recovery_save_reload(state, location):
+        s = session.Session(id='ses_unknown_migration', name='Unknown migration')
+        item = row(state)
+        if location == 'pending':
+            s.queue_pending = [copy.deepcopy(item)]
+        else:
+            s.queue_delivery_ledger = {item['id']: copy.deepcopy(item)}
+            s.queue_delivery_ledger[item['id']]['ledgerExtension'] = {'preserve': True}
+            if location == 'conflict':
+                s.queue_pending = [row('queued')]
+        worker._recover_delivery_states(s)
+        assert len(s.queue_pending) == 1
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'uncertain'
+E
+E         - uncertain
+E         + queued
+
+tests\test_queue_unknown_migration.py:34: AssertionError
+_ test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[unknown_after_crash] _
+
+state = 'unknown_after_crash'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it(state):
+        s = session.Session(id='ses_unknown_snapshot', name='Unknown snapshot')
+        original = row(state)
+        s.queue_delivery_ledger = {original['id']: copy.deepcopy(original)}
+        assert worker._migrate_queue_delivery_state(s) is False
+        assert s.queue_pending == []
+        assert s.queue_delivery_ledger[original['id']] == original
+        worker._recover_delivery_states(s)
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown_after_crash'
+E
+E         - unknown_after_crash
+E         + queued
+
+tests\test_queue_unknown_migration.py:62: AssertionError
+_ test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[unknown] _
+
+state = 'unknown'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it(state):
+        s = session.Session(id='ses_unknown_snapshot', name='Unknown snapshot')
+        original = row(state)
+        s.queue_delivery_ledger = {original['id']: copy.deepcopy(original)}
+        assert worker._migrate_queue_delivery_state(s) is False
+        assert s.queue_pending == []
+        assert s.queue_delivery_ledger[original['id']] == original
+        worker._recover_delivery_states(s)
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown'
+E
+E         - unknown
+E         + queued
+
+tests\test_queue_unknown_migration.py:62: AssertionError
+_ test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[uncertain] _
+
+state = 'uncertain'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it(state):
+        s = session.Session(id='ses_unknown_snapshot', name='Unknown snapshot')
+        original = row(state)
+        s.queue_delivery_ledger = {original['id']: copy.deepcopy(original)}
+        assert worker._migrate_queue_delivery_state(s) is False
+        assert s.queue_pending == []
+        assert s.queue_delivery_ledger[original['id']] == original
+        worker._recover_delivery_states(s)
+>       assert s.queue_pending[0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'uncertain'
+E
+E         - uncertain
+E         + queued
+
+tests\test_queue_unknown_migration.py:62: AssertionError
+_ test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[unknown_after_crash] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FA3F552C60>
+state = 'unknown_after_crash'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn(monkeypatch, state):
+        s = session.Session(id='ses_unknown_retry', name='Unknown retry')
+        s.queue_delivery_ledger = {'q_unknown': row(state)}
+        session.save(s)
+        session._cache[s.id] = s
+        def forbidden(*args, **kwargs):
+            pytest.fail('unknown must not start recovery or provider effects')
+        monkeypatch.setattr(worker, '_schedule_session_recovery', forbidden)
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', forbidden)
+>       result = asyncio.run(worker.retry_pending_item(s.id, 'q_unknown'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_unknown_migration.py:76:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:11085: in retry_pending_item
+    w = find_alive_worker_by_session(session_id)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = ('ses_unknown_retry',), kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail('unknown must not start recovery or provider effects')
+E       Failed: unknown must not start recovery or provider effects
+
+tests\test_queue_unknown_migration.py:73: Failed
+__ test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[unknown] ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FA3F552750>
+state = 'unknown'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn(monkeypatch, state):
+        s = session.Session(id='ses_unknown_retry', name='Unknown retry')
+        s.queue_delivery_ledger = {'q_unknown': row(state)}
+        session.save(s)
+        session._cache[s.id] = s
+        def forbidden(*args, **kwargs):
+            pytest.fail('unknown must not start recovery or provider effects')
+        monkeypatch.setattr(worker, '_schedule_session_recovery', forbidden)
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', forbidden)
+>       result = asyncio.run(worker.retry_pending_item(s.id, 'q_unknown'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_unknown_migration.py:76:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:11085: in retry_pending_item
+    w = find_alive_worker_by_session(session_id)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = ('ses_unknown_retry',), kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail('unknown must not start recovery or provider effects')
+E       Failed: unknown must not start recovery or provider effects
+
+tests\test_queue_unknown_migration.py:73: Failed
+_ test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[uncertain] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001FA3F550740>
+state = 'uncertain'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn(monkeypatch, state):
+        s = session.Session(id='ses_unknown_retry', name='Unknown retry')
+        s.queue_delivery_ledger = {'q_unknown': row(state)}
+        session.save(s)
+        session._cache[s.id] = s
+        def forbidden(*args, **kwargs):
+            pytest.fail('unknown must not start recovery or provider effects')
+        monkeypatch.setattr(worker, '_schedule_session_recovery', forbidden)
+        monkeypatch.setattr(worker, 'find_alive_worker_by_session', forbidden)
+>       result = asyncio.run(worker.retry_pending_item(s.id, 'q_unknown'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_unknown_migration.py:76:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+E:\software\miniforge\Lib\asyncio\runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E:\software\miniforge\Lib\asyncio\base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\core\worker.py:11085: in retry_pending_item
+    w = find_alive_worker_by_session(session_id)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = ('ses_unknown_retry',), kwargs = {}
+
+    def forbidden(*args, **kwargs):
+>       pytest.fail('unknown must not start recovery or provider effects')
+E       Failed: unknown must not start recovery or provider effects
+
+tests\test_queue_unknown_migration.py:73: Failed
+_ test_cli_migration_repeats_without_losing_unknown_fields[unknown_after_crash] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3943/test_cli_migration_repeats_wit0')
+state = 'unknown_after_crash'
+
+    @pytest.mark.parametrize('state', STATES)
+    def test_cli_migration_repeats_without_losing_unknown_fields(tmp_path, state):
+        # Exercise the operator's actual migration entry without launching a server.
+        from scripts import migrate_queue_delivery
+        directory = tmp_path / 'operator-copy'
+        directory.mkdir()
+        s = session.Session(id='ses_unknown_cli', name='Operator copy')
+        s.queue_pending = [row(state)]
+        path = directory / (s.id + '.json')
+        path.write_text(json.dumps(s.to_dict()), encoding='utf-8')
+        from unittest.mock import patch
+        with patch('sys.argv', ['migrate_queue_delivery.py', '--session-dir', str(directory), '--apply']):
+            assert migrate_queue_delivery.main() == 0
+            first = path.read_bytes()
+            assert migrate_queue_delivery.main() == 0
+        assert path.read_bytes() == first
+        loaded = json.loads(first)
+>       assert loaded['queue_pending'][0]['deliveryState'] == state
+E       AssertionError: assert 'queued' == 'unknown_after_crash'
+E
+E         - unknown_after_crash
+E         + queued
+
+tests\test_queue_unknown_migration.py:115: AssertionError
+---------------------------- Captured stdout call -----------------------------
+MIGRATE ses_unknown_cli.json: 1 queue row(s)
+applied: 1 session file(s), 1 pending row(s)
+backup: C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-3943\test_cli_migration_repeats_wit0\operator-copy\queue-migration-backups\20261023-131246
+applied: 0 session file(s), 0 pending row(s)
+=========================== short test summary info ===========================
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[pending-unknown_after_crash]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[pending-unknown]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[pending-uncertain]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[ledger-unknown_after_crash]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[ledger-unknown]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[ledger-uncertain]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[conflict-unknown_after_crash]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[conflict-unknown]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_preserved_across_recovery_save_reload[conflict-uncertain]
+FAILED tests/test_queue_unknown_migration.py::test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[unknown_after_crash]
+FAILED tests/test_queue_unknown_migration.py::test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[unknown]
+FAILED tests/test_queue_unknown_migration.py::test_snapshot_does_not_restore_detached_unknown_but_recovery_retains_it[uncertain]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[unknown_after_crash]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[unknown]
+FAILED tests/test_queue_unknown_migration.py::test_unknown_retry_and_duplicate_enqueue_do_not_signal_or_spawn[uncertain]
+FAILED tests/test_queue_unknown_migration.py::test_cli_migration_repeats_without_losing_unknown_fields[unknown_after_crash]
+16 failed, 3 passed in 0.89s
