@@ -30,6 +30,11 @@ try {
   await page.goto(base+'/react/locker');
   await expect(msg(f.ordinary)).toHaveCount(0);
   let auth = await login();
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    document.querySelector('.locker-timeline')?.scrollTo(0, 0);
+  });
+  await page.screenshot({path:`${out}/initial-${phase}-1440.png`});
   checks.push('real UserAuth login and production Locker APIs, no interception');
   if (phase === 'exercise') {
     const cards = (await (await page.request.get(base+'/api/user-inbox',{headers:auth})).json()).cards;
@@ -97,7 +102,11 @@ try {
     for (const width of [1440,768,390,320]) {
       await page.setViewportSize({width,height:960});
       for (const theme of ['dark','light']) {
-        await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},theme);
+        await page.evaluate(theme=>{
+          document.documentElement.dataset.theme=theme;
+          window.scrollTo(0,0);
+          document.querySelector('.locker-timeline')?.scrollTo(0,0);
+        },theme);
         expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
         await page.screenshot({path:`${out}/${width}-${theme}.png`});
       }
