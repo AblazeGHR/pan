@@ -23,6 +23,8 @@ A differential late-child probe reproduces baseline owned child/conhost residue 
 
 Local candidate JUnit `candidate-green.xml`: 541 tests, 540 passed, 0 failures/errors, 1 existing skip, exit 0. Additional new-failure regression JUnit: 28 passed, 0 skipped, exit 0. Process probe: 20 cases, no remaining owned processes. Red evidence is retained in the archive; the later broad candidate run is authoritative.
 
+After the targeted 38-test run passed, a corrected persistent stress Job repeated the ETA startup case, the Illegal queue receipt case, and all 11 host-exit-handshake parameters (including the eight remote-failing parameters) five times each: 65/65 test invocations passed, exit 0. The per-invocation JUnit files and compressed Job log are under `stress/`.
+
 ## Verification boundary
 
 No push, release, main/practical movement, service restart, real provider/QQ/account access, or shared dependency write occurred. This candidate has not been re-run by GitHub; remote 39926544494 remains red. MA should review this clean candidate and run the normal remote gate on the candidate SHA if accepted.
