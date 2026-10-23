@@ -1,3 +1,4 @@
+import { SessionDragGutter } from '@/components/session/SessionDragGutter';
 import { createPortal } from 'react-dom';
 import { SidebarPanelContext } from '@/components/layout/SidebarPanelContext';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -554,6 +555,10 @@ export default function LockerView() {
   const navigateToChat = async (locker: Locker) => {
     if (!locker.available) return;
     try {
+      if (!useSessionStore.getState().sessions.some((session) => session.id === locker.sessionId))
+        await useSessionStore.getState().loadSessions({ throwOnError: true });
+      if (!useSessionStore.getState().sessions.some((session) => session.id === locker.sessionId))
+        throw new Error('Source session is unavailable. Refresh Locker to update its status.');
       await useSessionStore.getState().selectSession(locker.sessionId);
       navigate('/');
     } catch (value) {
@@ -657,8 +662,7 @@ export default function LockerView() {
               if (dragging) reorder(dragging, locker.id);
             }}
           >
-            <span
-              className="drag-gutter locker-source-drag"
+            <SessionDragGutter
               draggable
               data-testid={`locker-drag-${locker.id}`}
               title="Drag to reorder Locker"
@@ -670,12 +674,8 @@ export default function LockerView() {
               }}
               onDragEnd={() => setDragging(null)}
             >
-              <span
-                aria-hidden="true"
-                className="drag-matrix pointer-events-none absolute inset-x-0 top-[10px] bottom-[10px] rounded-sm"
-              />
               <span className={`source-dot ${locker.available ? '' : 'offline'}`} />
-            </span>
+            </SessionDragGutter>
             <span className="locker-source-copy">
               <strong>{locker.sourceName}</strong>
               <span>{sourceItems.at(-1)?.definition.title ?? 'No messages'}</span>

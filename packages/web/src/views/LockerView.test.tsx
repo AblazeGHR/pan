@@ -223,7 +223,7 @@ describe('Locker panel', () => {
     });
     fireEvent.click(screen.getByTestId('locker-source-l2'));
     fireEvent.click(screen.getByTestId('locker-source-l1'));
-    expect(screen.getByLabelText('Reply (optional)')).toHaveProperty('value', 'local draft');
+    expect(screen.getByRole('textbox', {name: 'Reply (optional)'})).toHaveProperty('value', 'local draft');
     cards[0] = {
       ...cards[0]!,
       status: 'responded',
