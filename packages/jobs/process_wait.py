@@ -2,6 +2,10 @@
 import psutil
 
 
+class CleanupUnconfirmed(TimeoutError):
+    """An owned effect may still exist; automatic replay is unsafe."""
+
+
 def capture(process):
     if process is None or type(process.pid) is not int or process.returncode is not None:
         return []
@@ -19,5 +23,5 @@ def wait(processes, timeout):
     """Root exit/Job handle close can precede console-host retirement."""
     _, remaining = psutil.wait_procs(processes, timeout=timeout)
     if remaining:
-        raise RuntimeError('Owned process cleanup unconfirmed: ' +
+        raise CleanupUnconfirmed('Owned process cleanup unconfirmed: ' +
                            ', '.join(str(p.pid) for p in remaining))

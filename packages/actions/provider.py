@@ -73,7 +73,7 @@ async def execute(action, arguments, *, before_effect=None):
                 await process.stdin.drain()
                 process.stdin.close()
             out, err, _ = await asyncio.wait_for(asyncio.gather(bounded(process.stdout), bounded(process.stderr), process.wait()), ex.get('timeout_sec', 30))
-        except BaseException:
+        except BaseException as primary:
             from packages.jobs import process_wait
             owned = process_wait.capture(process) if windows else []
             if windows:
@@ -84,10 +84,15 @@ async def execute(action, arguments, *, before_effect=None):
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            async with asyncio.timeout(5):
-                await process.wait()
-                if owned:
-                    await asyncio.to_thread(process_wait.wait, owned, 5)
+            try:
+                async with asyncio.timeout(5):
+                    await process.wait()
+                    if owned:
+                        await asyncio.to_thread(process_wait.wait, owned, 5)
+            except Exception as cleanup_error:
+                if isinstance(primary, asyncio.CancelledError):
+                    raise primary from cleanup_error
+                raise process_wait.CleanupUnconfirmed('Command cleanup could not be confirmed') from cleanup_error
             raise
         if process.returncode:
             raise RuntimeError(f'Command exited {process.returncode}: {err[:2000]}')

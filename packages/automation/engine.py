@@ -13,6 +13,7 @@ from .policy import concurrency
 from .events import now
 from .store import Conflict
 from .event_store import CapacityError
+from packages.jobs.process_wait import CleanupUnconfirmed
 
 
 def field(value, path):
@@ -332,7 +333,7 @@ class Engine:
             if isinstance(exc, DependencyUnavailable) and not effect_started:
                 current = (await self.io(self.ledger.read))['runs'][rid]
                 await self.io(self.ledger.defer_unavailable, rid, current['revision'])
-            elif isinstance(exc, (PersistenceError, DependencyUnavailable)):
+            elif isinstance(exc, (PersistenceError, DependencyUnavailable, CleanupUnconfirmed)):
                 await self.io(self.ledger.interrupt, rid, run['activeAttemptId'], str(exc))
             else:
                 retryable=not isinstance(exc, Conflict) and not (interaction and getattr(exc,'code',None) in {'stale','incomplete','forbidden'})

@@ -36,6 +36,38 @@ def command_action(tmp_path, aid='echo'):
             'execution': {'kind': 'command', 'executable': sys.executable, 'cwd': str(tmp_path), 'args': [str(script), '{value}']}}
 
 
+def test_command_cleanup_error_preserves_cancellation(tmp_path, monkeypatch):
+    from packages.jobs import process_wait
+    script = tmp_path / 'blocked.py'
+    marker = tmp_path / 'entered'
+    script.write_text('from pathlib import Path\nimport sys,time\nPath(sys.argv[1]).touch()\ntime.sleep(30)\n', encoding='utf-8')
+    definition = command_action(tmp_path)
+    definition['execution']['args'] = [str(script), str(marker)]
+    original = process_wait.wait
+
+    def fail_after_owned_exit(owned, timeout):
+        original(owned, timeout)
+        raise RuntimeError('synthetic cleanup confirmation failure')
+
+    monkeypatch.setattr(process_wait, 'wait', fail_after_owned_exit)
+
+    async def run():
+        task = asyncio.create_task(execute(definition, {'value':'unused'}))
+        try:
+            async with asyncio.timeout(5):
+                while not marker.exists():
+                    await asyncio.sleep(.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(run())
+
+
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     manager = CharacterManager(str(tmp_path / 'manager'))

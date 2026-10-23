@@ -39,6 +39,31 @@ async def rows(engine):
     return list((await engine.io(engine.ledger.read))['runs'].values())
 
 
+@async_test
+async def test_cleanup_unconfirmed_never_authorizes_automatic_retry(tmp_path):
+    from packages.jobs.process_wait import CleanupUnconfirmed
+    calls=[]
+
+    async def execute(a,args,e,progress):
+        await progress.before_effect()
+        calls.append(e['id'])
+        raise CleanupUnconfirmed('owned descendant exit unknown')
+
+    engine,_,_=await setup(tmp_path,execute)
+    engine.actions.put('actions',{**action(),'idempotent':True})
+    engine.ledger.put(trigger(retry={'enabled':True}),0,True)
+    try:
+        await engine.match(event())
+        row=(await wait_status(engine,'uncertain'))[0]
+        await engine.kick()
+        await engine.match(event())
+        assert calls==['e'] and row['attemptCount']==1
+        assert row['attempts'][0]['status']=='uncertain'
+        assert 'retryAuthorized' not in row and 'nextAttemptAt' not in row
+    finally:
+        await engine.close()
+
+
 async def wait_status(engine, status, count=1, attempts=None):
     async def ready():
         r=await rows(engine)
