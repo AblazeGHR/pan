@@ -8,7 +8,7 @@ import pytest
 
 import test_real_queue_http_e2e as real
 from test_real_queue_http_e2e import _PanRuntime, _create, _enqueue, _received, _spawn, _wait_for
-from test_delayed_restart_locked_queue_http import _stop_owned
+from test_delayed_restart_locked_queue_http import _stop_owned, _read_session_metadata
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def runtime(tmp_path, monkeypatch):
 
 
 def durable(runtime, sid):
-    return json.loads((runtime.data_root / "sessions" / f"{sid}.json").read_text(encoding="utf-8"))
+    return _read_session_metadata(runtime.data_root / "sessions" / f"{sid}.json")
 
 
 def paused(runtime, sid, value):

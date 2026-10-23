@@ -6,6 +6,27 @@ from types import SimpleNamespace
 import pytest
 
 from tests import test_delayed_restart_locked_queue_http as target
+from tests import test_legal_offline_http as legal
+
+
+def test_legal_snapshot_retries_transient_open_without_changing_state(monkeypatch, tmp_path):
+    monkeypatch.setattr(target, 'os', SimpleNamespace(name='nt'))
+    path = tmp_path / 'sessions' / 'original-id.json'
+    path.parent.mkdir()
+    path.write_text('{"illegal_batches":{"run-1":{"recovered":false}},"legal_offline":false}')
+    original = Path.read_text
+    calls = []
+
+    def read(self, *args, **kwargs):
+        calls.append(self)
+        if len(calls) == 1:
+            raise PermissionError(errno.EACCES, 'sharing conflict', str(self))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'read_text', read)
+    assert legal.durable(SimpleNamespace(data_root=tmp_path), 'original-id') == {
+        'illegal_batches': {'run-1': {'recovered': False}}, 'legal_offline': False}
+    assert calls == [path, path]
 
 
 def test_transient_eacces_without_winerror_keeps_exact_metadata(monkeypatch, tmp_path):
