@@ -2,6 +2,7 @@
 import uvicorn
 import asyncio
 import os
+import inspect
 from contextlib import contextmanager
 from packages.core import worker
 
@@ -35,11 +36,24 @@ def _finish_reset_transport(context, servers):
             or transport._read_fut is not None or transport._write_fut is not None
             or transport.get_write_buffer_size()):
         return False
+    # Python 3.12 tracks an active count and _detach() takes no argument;
+    # newer versions track transports and require _detach(transport). Validate
+    # the bound call before closing anything, never retry a failed detach.
+    try:
+        detach_signature = inspect.signature(server._detach)
+        try:
+            detach_signature.bind(transport)
+            detach_args = (transport,)
+        except TypeError:
+            detach_signature.bind()
+            detach_args = ()
+    except (TypeError, ValueError):
+        return False
     # The original callback has already delivered protocol.connection_lost.
     # Its socket.shutdown raised before the following unconditional close tail.
     sock.close()
     transport._sock = None
-    server._detach(transport)
+    server._detach(*detach_args)
     transport._server = None
     transport._called_connection_lost = True
     return True
