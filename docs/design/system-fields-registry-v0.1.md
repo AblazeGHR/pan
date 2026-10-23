@@ -98,10 +98,22 @@ ingress is full or refuses it.
 
 Refusals are observable in the bounded Bus diagnostics (`runtime-issue-ingress`,
 `runtime-issue-quota`, and the existing `event-admission`), never retried
-unboundedly. `Service.close` sets `stopping` before shutdown and clears the
-global observer, so late Worker errors cannot be admitted after close. Successive
-Events keep canonical `system` and Event identity; legacy Events without a
-system block retain their previous fact fingerprint.
+unboundedly. Same-loop calls enter the 128-slot ingress directly. Cross-thread
+calls first reserve one of at most `ingress.maxsize` callback slots, then use
+`call_soon_threadsafe`; each callback releases its reservation in a `finally`,
+including schema/queue/closed failures, and `Service.close` resets outstanding
+reservations. This bounds pending cross-thread callbacks; it is not a single
+global in-flight limit because the ingress queue is a separate bound.
+`Service.close` sets `stopping` before shutdown and clears the global observer,
+so late Worker errors cannot be admitted after close. Successive Events keep
+canonical `system` and Event identity; legacy Events without a system block
+retain their previous fact fingerprint.
+
+Worker sampling isolates identity rejection: if host/adapter aliases conflict,
+`map_runtime_issue` still raises `SystemFieldError`, but the Worker terminal and
+transient sampling wrappers return no RuntimeIssue and continue writing the
+original diagnostic JSONL/report with the original status. No Event is produced,
+so an ambiguous identity cannot become an executable Action target.
 
 ## Input aliases and canonical storage
 
@@ -210,8 +222,8 @@ entrypoint (`E:/software/miniforge/python.exe` here), which removes inherited
 
 | Command | Result |
 |---|---|
-| `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields.py tests/test_runtime_issues.py -q` | 22 passed |
-| `python scripts/run_tests_isolated.py -- python -m pytest` on the 20 targeted system/event/automation/plugin/MCP/Action/Job files | 301 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest tests/test_worker_runtime_issue_identity.py tests/test_system_fields.py tests/test_runtime_issues.py -q` | 25 passed |
+| `python scripts/run_tests_isolated.py -- python -m pytest` on the 21 targeted system/event/automation/plugin/MCP/Action/Job files | 304 passed |
 | `python scripts/run_tests_isolated.py -- python -m pytest tests/test_system_fields_http.py -q` | 1 passed; fakeCLI native capacity -> durable `runtime.issue.v1` -> Trigger system argument -> Pause target; `queuePaused=true` |
 | `python scripts/run_tests_isolated.py -- python artifacts/system-fields-registry/verify_http.py` | real 127.0.0.1 ephemeral-port GET 200; POST 405; 10 canonical fields; schema pointer present |
 
@@ -223,7 +235,8 @@ Session, observation code `model_capacity_exceeded`/status `429`, Run argument
 Pause's existing `queuePaused` business state confirmed. No real provider was
 contacted.
 
-The consolidated list is `test_system_fields.py`, `test_system_fields_http.py`,
+The consolidated list is `test_worker_runtime_issue_identity.py`,
+`test_system_fields.py`, `test_system_fields_http.py`,
 `test_runtime_issues.py`,
 `test_event_store.py`, `test_automation_core.py`,
 `test_event_trigger_reliability.py`, `test_automation_concurrency.py`,

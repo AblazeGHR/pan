@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import threading
 from types import SimpleNamespace
 
 import httpx
@@ -17,6 +18,7 @@ from packages.automation.engine import arguments
 from packages.automation.event_store import EventStore
 from packages.automation.events import Bus
 from packages.automation.store import Ledger
+from packages.automation.service import Service
 from packages.core.runtime_issues import map_runtime_issue
 from packages.core.system_fields import (
     ACTION_TARGET_FIELDS,
@@ -339,6 +341,78 @@ def test_trigger_system_binding_fails_closed_when_only_payload_has_id(tmp_path):
             await engine.close()
 
     run(scenario())
+
+
+def _service_stub(tmp_path, limit):
+    svc = Service(tmp_path / "service", SimpleNamespace(
+        workers={}, set_running_observer=lambda cb: None,
+        _sess=SimpleNamespace(SESSION_DIR=tmp_path / "sessions")), None)
+    svc.started = True
+    svc.ingress = asyncio.Queue(limit)
+    return svc
+
+
+class BlockedLoop:
+    """Accept cross-thread callbacks but never run them until the test does."""
+    def __init__(self):
+        self.callbacks = []
+
+    def call_soon_threadsafe(self, fn, *args):
+        self.callbacks.append((fn, args))
+
+    def is_closed(self):
+        return False
+
+
+def test_cross_thread_runtime_issue_callbacks_are_bounded_and_released(tmp_path):
+    limit = 4
+    svc = _service_stub(tmp_path, limit)
+    svc.loop = BlockedLoop()
+    mapping = map_runtime_issue(
+        {"type": "error", "status": 429, "error": {"code": "model_capacity_exceeded"}},
+        adapter="cbc", metadata={"session_id": "ses_thread"})
+
+    def submit():
+        svc.observe_runtime_issue(mapping)
+
+    threads = [threading.Thread(target=submit) for _ in range(limit + 3)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(svc.loop.callbacks) == limit
+    assert svc._runtime_issue_reserved == limit
+    assert sum(d.get("error") == "Runtime issue cross-thread backlog full"
+               for d in svc.bus.diagnostics) == 3
+
+    for fn, args in svc.loop.callbacks:
+        fn(*args)
+    assert svc._runtime_issue_reserved == 0
+    assert svc.ingress.qsize() == limit
+
+    broken = _service_stub(tmp_path / "broken", 1)
+    broken.loop = BlockedLoop()
+    broken.bus.prepare = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("schema failure"))
+    thread = threading.Thread(target=lambda: broken.observe_runtime_issue(mapping))
+    thread.start()
+    thread.join()
+    assert len(broken.loop.callbacks) == 1
+    broken.loop.callbacks[0][0](*broken.loop.callbacks[0][1])
+    assert broken._runtime_issue_reserved == 0
+    assert any("schema failure" in d.get("error", "") for d in broken.bus.diagnostics)
+
+    closing = _service_stub(tmp_path / "closing", limit)
+    closing.loop = BlockedLoop()
+    threads = [threading.Thread(target=lambda: closing.observe_runtime_issue(mapping))
+               for _ in range(limit)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert closing._runtime_issue_reserved == limit
+    run(closing.close())
+    assert closing._runtime_issue_reserved == 0
 
 
 def test_discovery_http_is_read_only_and_available_without_runtime():

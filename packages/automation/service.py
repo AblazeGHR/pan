@@ -1,6 +1,7 @@
 """Explicit automation lifetime, durable event admission and bounded dispatch."""
 import asyncio
 from functools import partial
+import threading
 
 from packages.actions.executor import execute_dynamic
 from packages.actions.store import Store
@@ -36,6 +37,8 @@ class Service:
         self.started = False
         self.stopping = False
         self.loop = None
+        self._runtime_issue_lock = threading.Lock()
+        self._runtime_issue_reserved = 0
         self.dispatcher = None
         self.ingester = None
         self.job_runtime = None
@@ -57,8 +60,10 @@ class Service:
         """Enqueue a mapped RuntimeIssue Event through trusted core admission.
 
         The quota observer is intentionally separate; this path only adds the
-        durable Event/Trigger fact. Ingress is bounded by the existing 128-slot
-        queue, and every refusal is visible in the bounded Bus diagnostics.
+        durable Event/Trigger fact. Same-loop calls enter the existing 128-slot
+        ingress directly. Cross-thread calls reserve one bounded callback slot
+        before scheduling; the reservation is released in every completion and
+        refusal path so a blocked loop cannot accumulate unbounded callbacks.
         """
         event = mapping.get('event') if isinstance(mapping, dict) else None
         if not isinstance(event, dict) or event.get('type') != 'runtime.issue.v1':
@@ -77,26 +82,52 @@ class Service:
         if loop is None or loop.is_closed():
             self.diagnostic('runtime-issue-ingress', 'Runtime loop unavailable', event.get('id'))
             return
-        try:
-            loop.call_soon_threadsafe(self._enqueue_runtime_issue, event)
-        except RuntimeError:
-            self.diagnostic('runtime-issue-ingress', 'Runtime loop closed', event.get('id'))
-
-    def _enqueue_runtime_issue(self, event):
-        if self.stopping or not self.started:
-            self.diagnostic('runtime-issue-ingress', 'Runtime closed before admission', event.get('id'))
+        if not self._reserve_runtime_issue():
+            self.diagnostic('runtime-issue-ingress', 'Runtime issue cross-thread backlog full', event.get('id'))
             return
         try:
-            # Bus validation and the core owner identity are authoritative; the
-            # mapping helper cannot bypass payload schema or publish as a plugin.
-            prepared = self.bus.prepare(
-                self.issue_runtime, event['type'], event.get('payload'),
-                event.get('id'), system=event.get('system'))
-            self.ingress.put_nowait(prepared)
-        except asyncio.QueueFull:
-            self.diagnostic('runtime-issue-ingress', 'Runtime issue backlog full', event.get('id'))
+            loop.call_soon_threadsafe(self._enqueue_runtime_issue, event, True)
         except Exception as exc:
-            self.diagnostic('runtime-issue-ingress', exc, event.get('id'))
+            self._release_runtime_issue()
+            self.diagnostic('runtime-issue-ingress', 'Runtime loop closed: ' + str(exc), event.get('id'))
+
+    def _reserve_runtime_issue(self):
+        limit = self.ingress.maxsize or 128
+        with self._runtime_issue_lock:
+            if self._runtime_issue_reserved >= limit:
+                return False
+            self._runtime_issue_reserved += 1
+            return True
+
+    def _release_runtime_issue(self):
+        with self._runtime_issue_lock:
+            if self._runtime_issue_reserved > 0:
+                self._runtime_issue_reserved -= 1
+
+    def _reset_runtime_issue_reservations(self):
+        with self._runtime_issue_lock:
+            self._runtime_issue_reserved = 0
+
+    def _enqueue_runtime_issue(self, event, reserved=False):
+        try:
+            if self.stopping or not self.started:
+                self.diagnostic('runtime-issue-ingress', 'Runtime closed before admission', event.get('id'))
+                return
+            try:
+                # Bus validation and the core owner identity are authoritative;
+                # the mapping helper cannot bypass payload schema or publish as
+                # a plugin.
+                prepared = self.bus.prepare(
+                    self.issue_runtime, event['type'], event.get('payload'),
+                    event.get('id'), system=event.get('system'))
+                self.ingress.put_nowait(prepared)
+            except asyncio.QueueFull:
+                self.diagnostic('runtime-issue-ingress', 'Runtime issue backlog full', event.get('id'))
+            except Exception as exc:
+                self.diagnostic('runtime-issue-ingress', exc, event.get('id'))
+        finally:
+            if reserved:
+                self._release_runtime_issue()
 
     async def accept(self, event, handle=None):
         # At most one admission snapshot/commit at a time; no Action is awaited.
@@ -271,6 +302,7 @@ class Service:
             from packages.core.runtime_issues import set_observer
             set_observer(None)
         self.loop = None
+        self._reset_runtime_issue_reservations()
 
     async def replay(self, ids):
         async with self.engine.matching:
