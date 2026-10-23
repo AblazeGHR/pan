@@ -227,6 +227,8 @@
 }
 .locker-card-origin .message-timestamp {
   margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .locker-card-title {
   margin: 8px 0 0;
@@ -235,6 +237,8 @@
   line-height: 1.3;
 }
 .locker-status {
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 2px 5px;
   border-radius: 4px;
   font-size: 10px;
@@ -250,6 +254,7 @@
   background: color-mix(in srgb, var(--color-success) 12%, transparent);
 }
 .locker-read-toggle {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
