@@ -281,7 +281,11 @@ class _PanRuntime:
             base_url=self.base_url, timeout=15, trust_env=False, verify=False,
         ) as client:
             response = client.request(method, path, **kwargs)
-        assert response.status_code == 200, f"{method} {path}: {response.status_code} {response.text}"
+        if response.status_code != 200:
+            # Preserve the owned server traceback in JUnit, not just its 500 body.
+            log = self.data_root / 'pan.log'
+            details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+            raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
         return response.json()
 
     def get_delayed_queue(self, session_id: str, delay: float) -> dict:

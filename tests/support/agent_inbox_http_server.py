@@ -37,6 +37,10 @@ async def identity():
 
 @server.app.post("/__test/inbox-exit")
 async def stop():
+    # If graceful shutdown stalls, retain thread stacks before the harness's
+    # unchanged 20-second wait expires. Only this owned test launcher uses it.
+    import faulthandler
+    faulthandler.dump_traceback_later(15)
     asyncio.get_running_loop().call_later(.1, setattr, server.app.state.pan_uvicorn_server, "should_exit", True)
     return {"ok": True}
 

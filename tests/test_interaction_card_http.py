@@ -115,15 +115,20 @@ def run_http_mcp(tmp_path,*,browser=False):
             (tmp_path/'browser/browser.json').write_text(json.dumps(browser_evidence,indent=2),encoding='utf-8')
 
     finally:
+        shutdown = {'returncodeBeforeCleanup': proc.poll(), 'forcedTerminate': False}
         if proc.poll() is None:
             try:
-                call('POST','/__test/inbox-exit',{})
+                shutdown['exitResponse'] = call('POST','/__test/inbox-exit',{})
                 proc.wait(timeout=20)
-            except Exception:
+            except Exception as exc:
+                shutdown['gracefulExitError'] = repr(exc)
+                shutdown['forcedTerminate'] = True
                 proc.terminate()
                 proc.wait(timeout=10)
+        shutdown['returncodeAfterCleanup'] = proc.poll()
+        (tmp_path/'shutdown.json').write_text(json.dumps(shutdown,indent=2),encoding='utf-8')
         log.close()
-    assert proc.returncode==0,(tmp_path/'server.log').read_text(encoding='utf-8')
+    assert proc.returncode==0,json.dumps(shutdown)+'\n'+(tmp_path/'server.log').read_text(encoding='utf-8')
     # On Windows psutil can retain a terminated process handle and report
     # ``is_running()`` until the handle is reaped.  Treat only the explicit
     # terminal states as stopped; a live/running process still fails this
