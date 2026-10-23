@@ -1,9 +1,15 @@
+import { useAutomationAuth } from '@/stores/automationStore';
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import LockerView from './LockerView';
-import { lockerProjection, type InteractionCard, type Locker } from './lockerModel';
+import {
+  lockerProjection,
+  type InteractionCard,
+  type LockerMessage,
+  type Locker,
+} from './lockerModel';
 vi.mock('@/components/chat/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ content }: { content: string }) => <div>{content}</div>,
 }));
@@ -77,10 +83,13 @@ function card(id = 'a', lockerId = 'l1'): InteractionCard {
   };
 }
 let cards: InteractionCard[];
+let messages: LockerMessage[];
 let calls: { path: string; body: Record<string, unknown>; method?: string }[];
 beforeEach(() => {
+  useAutomationAuth.setState({ token: 'unit-only', expiresAt: Date.now() + 60000 });
   uiState.activeWorkspaceId = 'all';
   cards = [card(), card('b', 'l2')];
+  messages = [];
   calls = [];
   vi.stubGlobal(
     'IntersectionObserver',
@@ -94,6 +103,23 @@ beforeEach(() => {
     vi.fn(async (path: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
       calls.push({ path, body, method: init?.method });
+      if (path.startsWith('/api/user-locker-messages?'))
+        return { ok: true, json: async () => ({ messages, nextAfter: null }) };
+      if (path.startsWith('/api/user-locker-messages/')) {
+        const id = path.split('/')[3];
+        if (init?.method === 'DELETE') {
+          messages = messages.filter((item) => item.id !== id);
+          return { ok: true, json: async () => ({ deleted: true }) };
+        }
+        const previous = messages.find((item) => item.id === id)!;
+        const message = {
+          ...previous,
+          read: body.read as boolean,
+          revision: previous.revision + 1,
+        };
+        messages = messages.map((item) => (item.id === id ? message : item));
+        return { ok: true, json: async () => ({ message }) };
+      }
       if (path === '/api/user-lockers') return { ok: true, json: async () => ({ lockers }) };
       if (path.startsWith('/api/user-inbox?'))
         return { ok: true, json: async () => ({ cards, nextAfter: null }) };
@@ -223,7 +249,10 @@ describe('Locker panel', () => {
     });
     fireEvent.click(screen.getByTestId('locker-source-l2'));
     fireEvent.click(screen.getByTestId('locker-source-l1'));
-    expect(screen.getByRole('textbox', {name: 'Reply (optional)'})).toHaveProperty('value', 'local draft');
+    expect(screen.getByRole('textbox', { name: 'Reply (optional)' })).toHaveProperty(
+      'value',
+      'local draft',
+    );
     cards[0] = {
       ...cards[0]!,
       status: 'responded',
@@ -259,6 +288,104 @@ describe('Locker panel', () => {
       '/api/user-inbox?limit=500&after=cursor%2F2',
       expect.anything(),
     );
+  });
+  it('mixes original Locker msg and Card records by timestamp and identity and clears ordinary records', async () => {
+    messages = [
+      {
+        kind: 'message',
+        revision: 0,
+        id: 'm',
+        lockerId: 'l1',
+        ownerSessionId: 'ses_one',
+        recipientId: 'user',
+        read: false,
+        createdAt: '2026-10-23T01:30:00Z',
+        message: {
+          messageId: 'source-msg',
+          role: 'assistant',
+          content: 'Ordinary body',
+          ts: '2026-10-23T01:30:00Z',
+        },
+      },
+    ];
+    mount();
+    await screen.findByText('Ordinary body', { selector: 'article div' });
+    expect(
+      [...screen.getByRole('region', { name: 'Locker messages' }).querySelectorAll('article')].map(
+        (row) => row.getAttribute('data-card-id') ?? row.getAttribute('data-locker-message-id'),
+      ),
+    ).toEqual(['a', 'm', 'b']);
+    const row = screen.getByText('Ordinary body', { selector: 'article div' }).closest('article')!;
+    expect(within(row).queryByRole('button', { name: 'Submit' })).toBeNull();
+    fireEvent.click(within(row).getByRole('button', { name: 'Mark read' }));
+    await waitFor(() =>
+      expect(within(row).getByRole('button', { name: 'Mark unread' })).toBeTruthy(),
+    );
+    fireEvent.click(within(row).getByRole('button', { name: 'Mark unread' }));
+    await waitFor(() =>
+      expect(within(row).getByRole('button', { name: 'Mark read' })).toBeTruthy(),
+    );
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete record' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Ordinary body', { selector: 'article div' })).toBeNull(),
+    );
+    expect(
+      calls.find((call) => call.path === '/api/user-locker-messages/m' && call.method === 'DELETE'),
+    ).toBeTruthy();
+  });
+  it('does not let a late read response overwrite a newer ordinary-message revision', async () => {
+    const original = globalThis.fetch;
+    messages = [
+      {
+        kind: 'message',
+        revision: 0,
+        id: 'late',
+        lockerId: 'l1',
+        ownerSessionId: 'ses_one',
+        recipientId: 'user',
+        read: false,
+        createdAt: '2026-10-23T01:30:00Z',
+        message: { messageId: 'original', role: 'assistant', content: 'Late read probe' },
+      },
+    ];
+    const older = { ...messages[0]!, read: true, revision: 1 };
+    let release: (value: Response) => void = () => {};
+    const response = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (...args: Parameters<typeof fetch>) =>
+        String(args[0]).endsWith('/late/read') ? response : original(...args),
+      ),
+    );
+    mount();
+    await screen.findByText('Late read probe', { selector: 'article div' });
+    const row = screen
+      .getByText('Late read probe', { selector: 'article div' })
+      .closest('article')!;
+    fireEvent.click(within(row).getByRole('button', { name: 'Mark read' }));
+    messages[0] = { ...messages[0]!, read: false, revision: 2 };
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Locker' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Refresh Locker' })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    await act(async () =>
+      release({ ok: true, json: async () => ({ message: older }) } as Response),
+    );
+    expect(within(row).getByRole('button', { name: 'Mark read' })).toBeTruthy();
+    expect(within(row).queryByRole('button', { name: 'Mark unread' })).toBeNull();
+  });
+  it('does not retain visible cards or source metadata after logout', async () => {
+    mount();
+    await screen.findByRole('heading', { name: 'Card a' });
+    act(() => useAutomationAuth.getState().clear());
+    expect(screen.queryByRole('heading', { name: 'Card a' })).toBeNull();
+    expect(screen.queryByTestId('locker-source-l1')).toBeNull();
+    expect(screen.queryByText('ses_one')).toBeNull();
   });
   it('keeps UserAuth failure visible and does not show cards', async () => {
     vi.stubGlobal(

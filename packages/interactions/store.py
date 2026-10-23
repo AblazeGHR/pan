@@ -1,6 +1,7 @@
 """User Inbox persistence and at-most-one response; no Job execution ownership."""
 from __future__ import annotations
 import json
+import base64
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -39,7 +40,21 @@ class InteractionStore:
             if 'bindings' not in columns:
                 db.execute("ALTER TABLE cards ADD COLUMN bindings TEXT NOT NULL DEFAULT '{}'")
             db.execute('CREATE TABLE IF NOT EXISTS user_lockers(owner TEXT NOT NULL,recipient TEXT NOT NULL,PRIMARY KEY(owner,recipient))')
-            db.execute('INSERT OR IGNORE INTO user_lockers SELECT DISTINCT owner,recipient FROM cards')
+            locker_columns={r[1] for r in db.execute('PRAGMA table_info(user_lockers)')}
+            if 'source_name' not in locker_columns:
+                db.execute("ALTER TABLE user_lockers ADD COLUMN source_name TEXT NOT NULL DEFAULT ''")
+            if 'workspace_ids' not in locker_columns:
+                db.execute("ALTER TABLE user_lockers ADD COLUMN workspace_ids TEXT NOT NULL DEFAULT '[]'")
+            db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) SELECT DISTINCT owner,recipient FROM cards')
+            db.execute('''CREATE TABLE IF NOT EXISTS locker_messages(
+                seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
+                owner TEXT NOT NULL, recipient TEXT NOT NULL, signature TEXT NOT NULL,
+                message TEXT NOT NULL, created_at TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0)''')
+            message_columns={r[1] for r in db.execute('PRAGMA table_info(locker_messages)')}
+            if 'revision' not in message_columns:
+                db.execute('ALTER TABLE locker_messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0')
+            db.execute('CREATE INDEX IF NOT EXISTS locker_messages_recipient ON locker_messages(recipient,seq)')
+            db.execute('CREATE TABLE IF NOT EXISTS locker_message_tombstones(id TEXT PRIMARY KEY,recipient TEXT NOT NULL,signature TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS owner_receipts(id TEXT PRIMARY KEY,owner TEXT,recipient TEXT,response TEXT,event TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS tombstones(id TEXT PRIMARY KEY,owner TEXT,recipient TEXT,signature TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS rejection_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
@@ -85,7 +100,7 @@ class InteractionStore:
                 if row['signature'] != signature:
                     raise InteractionError('conflict','requestKey content conflict')
                 return self._view(row,db)
-            db.execute('INSERT OR IGNORE INTO user_lockers VALUES(?,?)',(request['ownerSessionId'],request['recipientId']))
+            db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(request['ownerSessionId'],request['recipientId']))
             count = db.execute('SELECT count(*) FROM cards WHERE recipient=? AND response IS NULL',(request['recipientId'],)).fetchone()[0]
             if count >= self.capacity:
                 raise InteractionError('capacity','User Inbox capacity reached; existing cards retained')
@@ -96,6 +111,97 @@ class InteractionStore:
             if bindings:
                 validate('Card',self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
+
+    @staticmethod
+    def _message_view(row):
+        from packages.core.attachment_projection import public_message_parts
+        message=json.loads(row['message'])
+        if 'parts' in message:
+            message['parts']=public_message_parts(message['parts'])
+        return dict(id=row['id'],kind='message',schemaVersion=1,
+                    lockerId=identity('ulocker_',[row['recipient'],row['owner']]),
+                    ownerSessionId=row['owner'],recipientId=row['recipient'],
+                    message=message,createdAt=message['ts'],read=bool(row['is_read']),revision=row['revision'])
+
+    def remember_source(self, owner, recipient, name, workspace_ids):
+        with self.db() as db:
+            # Metadata never creates a Locker without a dedicated message/Card.
+            db.execute('UPDATE user_lockers SET source_name=?,workspace_ids=? WHERE owner=? AND recipient=?',
+                       (name,canonical(workspace_ids),owner,recipient))
+
+    def accept_message(self, owner, recipient, message, *, source_name='', workspace_ids=()):
+        """Storage primitive for trusted internal admission; no external caller identity."""
+        from .locker_messages import validate_message
+        validate('Id',owner); validate('Id',recipient); validate_message(message)
+        signature=canonical(message)
+        mid=identity('lmsg_',[recipient,owner,message['messageId']])
+        with self.db() as db:
+            if db.execute('SELECT 1 FROM locker_message_tombstones WHERE id=?',(mid,)).fetchone():
+                raise InteractionError('conflict','Locker message deleted; identity retained')
+            old=db.execute('SELECT * FROM locker_messages WHERE id=?',(mid,)).fetchone()
+            if old:
+                if old['signature']!=signature:
+                    raise InteractionError('conflict','Locker message identity/content conflict')
+                return self._message_view(old)
+            if db.execute('SELECT count(*) FROM locker_messages WHERE recipient=?',(recipient,)).fetchone()[0]>=self.capacity:
+                raise InteractionError('capacity','Locker message capacity reached; existing messages retained')
+            db.execute('INSERT INTO locker_messages(id,owner,recipient,signature,message,created_at) VALUES(?,?,?,?,?,?)',
+                       (mid,owner,recipient,signature,signature,now()))
+            db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(owner,recipient))
+            db.execute('UPDATE user_lockers SET source_name=?,workspace_ids=? WHERE owner=? AND recipient=?',
+                       (source_name,canonical(list(workspace_ids)),owner,recipient))
+            return self._message_view(db.execute('SELECT * FROM locker_messages WHERE id=?',(mid,)).fetchone())
+
+    def _message_row(self, db, principal, mid):
+        row=db.execute('SELECT * FROM locker_messages WHERE recipient=? AND id=?',(self._user_id(principal),mid)).fetchone()
+        if row is None:
+            raise InteractionError('not_found','Locker message not found for this user')
+        return row
+
+    def get_message(self, principal, mid):
+        with self.db() as db:
+            return self._message_view(self._message_row(db,principal,mid))
+
+    def list_messages(self, principal, *, limit=100, after=None):
+        if type(limit) is not int or not 1<=limit<=500:
+            raise InteractionError('invalid','limit must be 1..500')
+        uid=self._user_id(principal); seq=0
+        if after is not None:
+            if not isinstance(after,str) or len(after)>512:
+                raise InteractionError('invalid','Invalid Locker query cursor')
+            try:
+                cursor=json.loads(base64.urlsafe_b64decode(after.encode('ascii')))
+                if set(cursor)!={'user','seq'} or cursor['user']!=uid or type(cursor['seq']) is not int or not 1<=cursor['seq']<=9223372036854775807:
+                    raise ValueError('Invalid cursor')
+                seq=cursor['seq']
+            except (ValueError,TypeError,KeyError,UnicodeError) as exc:
+                raise InteractionError('invalid','Invalid Locker query cursor') from exc
+        with self.db() as db:
+            rows=db.execute('SELECT * FROM locker_messages WHERE recipient=? AND seq>? ORDER BY seq LIMIT ?', (uid,seq,limit+1)).fetchall()
+            page=rows[:limit]
+            cursor=base64.urlsafe_b64encode(canonical({'user':uid,'seq':page[-1]['seq']}).encode()).decode() if len(rows)>limit else None
+            return {'messages':[self._message_view(row) for row in page],'nextAfter':cursor}
+
+    def mark_message_read(self, principal, mid, read=True):
+        if type(read) is not bool:
+            raise InteractionError('invalid','read must be boolean')
+        with self.db() as db:
+            self._message_row(db,principal,mid)
+            db.execute('UPDATE locker_messages SET is_read=?,revision=revision+1 WHERE id=?',(int(read),mid))
+            return self._message_view(self._message_row(db,principal,mid))
+
+    def delete_message(self, principal, mid):
+        uid=self._user_id(principal)
+        with self.db() as db:
+            if db.execute('SELECT 1 FROM locker_message_tombstones WHERE id=? AND recipient=?',(mid,uid)).fetchone():
+                return {'deleted':True,'id':mid}
+            row=self._message_row(db,principal,mid)
+            # Retain identity/signature only, not the body or attachment metadata.
+            import hashlib
+            db.execute('INSERT INTO locker_message_tombstones VALUES(?,?,?)',
+                       (mid,uid,hashlib.sha256(row['signature'].encode()).hexdigest()))
+            db.execute('DELETE FROM locker_messages WHERE id=?',(mid,))
+            return {'deleted':True,'id':mid}
 
     def _user_id(self, principal):
         if not isinstance(principal,UserPrincipal):

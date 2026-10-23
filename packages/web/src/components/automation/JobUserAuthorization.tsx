@@ -9,7 +9,7 @@ export function JobUserAuthorization({ purpose = 'jobs' }: { purpose?: 'jobs' | 
   const [key, setKey] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   return <section aria-label={purpose === 'locker' ? 'Locker user authorization' : 'Job user authorization'} className="rounded border border-border-default p-3 text-xs space-y-2">
     <p>{purpose === 'locker'
-      ? 'Locker uses automation/user.key and the shared in-memory Bearer, up to 12 hours. Login accesses this profile’s user cards only.'
+      ? 'Locker uses automation/user.key and the shared in-memory Bearer, up to 12 hours. Login accesses this profile’s Locker messages and cards.'
       : 'User confirmation uses automation/user.key and an in-memory Bearer, up to 12 hours. Enabled Jobs keep their granted capability after logout.'}</p>
     {token ? <Button disabled={busy} onClick={() => { setBusy(true); void automationLogout().catch(() => setError('Server logout unconfirmed; local token cleared')).finally(() => setBusy(false)); }}>Log out</Button> : <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => {
       e.preventDefault(); const secret=key;setKey('');setBusy(true);setError('');

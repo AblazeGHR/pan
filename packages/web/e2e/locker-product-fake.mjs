@@ -37,6 +37,7 @@ await page.route('**/*',async route=>{
  if(path==='/api/workspaces')json={workspaces:[{id:'workspace-a',name:'Workspace A',dirs:[]}]};
  if(path==='/api/automation/login')json={token:'fake-test-only',expiresIn:3600};
  if(path==='/api/user-lockers')json={lockers};
+ if(path==='/api/user-locker-messages')json={messages:[],nextAfter:null};
  if(path==='/api/user-inbox'){if(fail){await route.fulfill({status:503,json:{detail:{code:'unavailable'}}});return;}json={cards,nextAfter:null};}
  if(path.startsWith('/api/user-inbox/')){
   const id=path.split('/')[3], previous=cards.find(c=>c.id===id);
@@ -51,12 +52,13 @@ try{
  await page.goto(base+'/react/locker');
  await expect(page.getByRole('main',{name:'Locker'})).toBeVisible();
  await expect(page.getByLabel('Workspace',{exact:true})).toHaveCount(0);
+ await page.getByLabel('Local user key').fill('fake-only');await page.getByRole('button',{name:'Log in',exact:true}).click();await expect(page.getByText('Log out',{exact:true})).toBeAttached();
  await expect(page.locator('[data-card-id="answer"]')).toBeVisible();
  await expect(page.getByTestId('locker-sidebar-panel').getByRole('navigation',{name:'Locker sources'})).toBeVisible();
  await expect(page.getByRole('button',{name:'Quick new session'})).toHaveCount(0);
  await expect(page.locator('[data-card-id=answer]').getByRole('link',{name:'review-notes.txt'})).toHaveAttribute('href', '/api/attachments/ref/att_'+ 'a'.repeat(32) + '?session_id=ses_one');
  checks.push('production route with shared Sidebar slot, real WorkspaceRail, Markdown and scoped opaque attachment');
- await page.getByLabel('Local user key').fill('fake-only');await page.getByRole('button',{name:'Log in',exact:true}).click();await expect(page.getByText('Log out',{exact:true})).toBeAttached();
+
  await screenshot('desktop-dark');
  await page.getByTestId('workspace-rail-handle').click();
  await page.getByTestId('workspace-tab-workspace-a').click();
@@ -85,7 +87,9 @@ try{
  await answer.getByRole('button',{name:'Delete record'}).click();await expect(answer).toHaveCount(0);checks.push('terminal deletion via DELETE');
  await page.getByTestId('locker-source-locker-two').getByRole('button',{name:'Read all',exact:true}).click();
  expect(requests.some(r=>r.path.endsWith('/approval/read')&&r.body.read===true)).toBe(true);checks.push('Read all writes original message identity');
- await page.reload();await expect(approval.getByText('Read-only')).toBeVisible();checks.push('server state reloaded');
+ await page.reload();
+ await page.getByLabel('Local user key').fill('fake-only');await page.getByRole('button',{name:'Log in',exact:true}).click();await expect(page.getByText('Log out',{exact:true})).toBeAttached();
+ await expect(approval.getByText('Read-only')).toBeVisible();checks.push('server state reloaded');
  for(const width of [1440,768,390,320]){
   await page.setViewportSize({width,height:900});
   for(const theme of ['dark','light']){
