@@ -1937,6 +1937,8 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
 
     Card supports optional answerInput, choices with optional triggerRef, and
     notification metadata. A recorded response is not Job/Trigger completion.
+
+    完整编排流程见 /pan skill。
     """
     if operation not in {"create", "get", "receipt"}:
         return {"error": "Only create/get/receipt producer operations are available"}
@@ -1962,6 +1964,8 @@ def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[
     Full mode consumes after durable Session Queue acceptance. Subscriptions start
     at new messages. backlog explicitly forwards old pending messages to the
     fixed matching full subscribers. Notification never contains message bodies.
+
+    完整编排流程见 /pan skill。
     """
     if operation not in {"list", "read", "consume", "subscriptions", "subscribe", "mode", "backlog", "recover"}:
         return {"error": "unsupported inbox operation"}
@@ -3170,6 +3174,8 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
     Template instantiate/enable/repair, cancellation and uncertain recovery are
     protected user operations. No Bearer, permission or managed bypass here.
     Unknown creation outcome: list before retry; do not blindly create again.
+
+    完整编排流程见 /pan skill。
     """
     if kind not in ('job', 'template'):
         return {'error': 'kind must be job or template'}

@@ -55,6 +55,10 @@ try {
   await expect(page.getByRole('button',{name:'Instantiate fixed Template',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Instantiate fixed Template',exact:true}).click();
   await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production complete Template',{exact:true})).toBeVisible();
+  await expect.poll(async () => {
+    const data=await (await page.request.get(base+'/api/jobs')).json();
+    return data.jobs.find(job=>job.name==='Unified production complete Template')?.status;
+  },{timeout:15000}).toBe('completed');
   await page.getByRole('button',{name:'New Job',exact:true}).click();
   await page.getByLabel('Action reference',{exact:true}).selectOption('system_background_process');
   await page.getByLabel('Completion',{exact:true}).selectOption('monitoring');

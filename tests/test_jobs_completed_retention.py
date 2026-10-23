@@ -55,6 +55,10 @@ def _record(root, job_id, *, status="completed", updated_at=0,
         "notificationState": "not_applicable",
     }
     record.update(extra)
+    if kind == jobs.BACKGROUND_PROCESS_KIND:
+        record.setdefault('targetSessionId', 'ses_retention')
+        record.setdefault('argv', [sys.executable, '-c', 'pass'])
+        record.setdefault('cwd', str(root.parent))
     return jobs._create(record, registry_root=root)
 
 

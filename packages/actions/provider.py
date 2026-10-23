@@ -74,6 +74,8 @@ async def execute(action, arguments, *, before_effect=None):
                 process.stdin.close()
             out, err, _ = await asyncio.wait_for(asyncio.gather(bounded(process.stdout), bounded(process.stderr), process.wait()), ex.get('timeout_sec', 30))
         except BaseException:
+            from packages.jobs import process_wait
+            owned = process_wait.capture(process) if windows else []
             if windows:
                 if process.returncode is None:
                     process.kill()  # Closing the helper's Job handle kills its entire command tree.
@@ -82,7 +84,10 @@ async def execute(action, arguments, *, before_effect=None):
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-            await asyncio.wait_for(process.wait(), 5)
+            async with asyncio.timeout(5):
+                await process.wait()
+                if owned:
+                    await asyncio.to_thread(process_wait.wait, owned, 5)
             raise
         if process.returncode:
             raise RuntimeError(f'Command exited {process.returncode}: {err[:2000]}')

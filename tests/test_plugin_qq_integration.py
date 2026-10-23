@@ -122,10 +122,15 @@ def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, mo
         monkeypatch.setattr(srv, "_qq_plugin_client", None)
         monkeypatch.setitem(background_jobs._scheduled_task_hooks, "qq_send", srv._send_scheduled_qq)
         try:
-            result = await background_jobs._run_job_action({"text": "scheduled QQ", "action": {"api": "send_qq",
-                "args": {"targetType": "user", "targetId": "123456", "botUin": "999999"}}}, None, "old-job-fire")
+            job = background_jobs._create({'jobId': 'job_legacy_qq', 'kind': 'scheduled-task',
+                'status': 'scheduled', 'text': 'scheduled QQ', 'action': {'api': 'send_qq',
+                'args': {'targetType': 'user', 'targetId': '123456', 'botUin': '999999'}}})
+            result = await background_jobs._run_job_action(job, None, "old-job-fire")
             assert result["status"] == "completed"
             assert result["messageId"] == "fixture-message"
+            settled = background_jobs.get(job['jobId'])
+            assert settled['snapshotCleanup'] == 'cleaned' and 'attemptSnapshot' not in settled
+            assert settled['attempts'][-1]['dispatchKey'] == 'old-job-fire'
             qq_reports.start(srv._send_scheduled_qq, [session])
             await asyncio.gather(*list(qq_reports._tasks.values()))
             assert session.qq_report_outbox["old-attempt"]["state"] == "attempted"

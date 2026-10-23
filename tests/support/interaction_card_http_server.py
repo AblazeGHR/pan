@@ -47,5 +47,19 @@ async def identity_route():
     return {'pid':os.getpid(),'cardPath':str(get_store().path),'receiptPath':str(receipt_path),
             'auth':'synthetic-test-only','trigger':'synthetic-test-only'}
 
+
+@server.app.post('/__test/interaction-trigger')
+async def prepare_trigger(data:dict):
+    # The synthetic transport still uses the production fixed-choice binding.
+    # Install real definitions for the owned Session instead of bypassing the
+    # resolver/verification introduced by the Locker trusted-choice contract.
+    from tests.test_automation_core import action, trigger
+    service=server.app.state.automation
+    definition=action([data['ownerSessionId']])
+    service.engine.actions.put('actions',definition)
+    service.ledger.put({**trigger('synthetic-trigger'),
+        'eventTypes':['pan.interaction.responded']},0,authorized=True)
+    return {'ok':True}
+
 # Reuse the existing fully isolated lifecycle and empty QQ gateway manifest.
 import tests.support.agent_inbox_http_server

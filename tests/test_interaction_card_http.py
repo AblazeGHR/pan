@@ -62,6 +62,7 @@ def run_http_mcp(tmp_path,*,browser=False):
         assert ports['auth']==ports['trigger']=='synthetic-test-only'
         owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpEnabled':False})
         assert 'id' in owner,owner
+        assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
         async def mcp_create():
             from mcp import ClientSession,StdioServerParameters
             from mcp.client.stdio import stdio_client
@@ -75,7 +76,9 @@ def run_http_mcp(tmp_path,*,browser=False):
                         'card':{'title':'Backend Card','body':'Question','answerInput':{},'choices':[{'id':'go','label':'Go',
                         'triggerRef':{'id':'synthetic-trigger','revision':1}}],'notification':{'summary':'metadata only'}}})
                     assert not result.isError
-                    card=json.loads(result.content[0].text)['card']
+                    created=json.loads(result.content[0].text)
+                    assert 'card' in created,created
+                    card=created['card']
                     rejected=await client.call_tool('interaction_card',{'operation':'respond','card_id':card['id']})
                     assert json.loads(rejected.content[0].text).get('error')
                     return card

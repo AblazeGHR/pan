@@ -394,16 +394,28 @@ _character_manager: CharacterManager | None = None
 app = FastAPI(title="Pan", lifespan=lifespan)
 
 
-@app.middleware('http')
-async def _reconcile_plugin_event_bindings(request, call_next):
-    response = await call_next(request)
-    events = getattr(app.state, 'plugin_events', None)
-    if events and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and request.url.path.startswith('/api/sessions'):
-        try:
-            await events.reconcile()
-        except Exception as exc:
-            events.diagnostic('runtime', 'binding reconciliation: ' + str(exc))
-    return response
+class PluginEventBindingsMiddleware:
+    """Reconcile Session mutations without relaying response bodies or tasks."""
+
+    def __init__(self, application):
+        self.app = application
+
+    async def __call__(self, scope, receive, send):
+        async def response(message):
+            events = getattr(app.state, 'plugin_events', None)
+            if (message['type'] == 'http.response.start' and events
+                    and scope['method'] in {'POST', 'PUT', 'PATCH', 'DELETE'}
+                    and scope['path'].startswith('/api/sessions')):
+                try:
+                    await events.reconcile()
+                except Exception as exc:
+                    events.diagnostic('runtime', 'binding reconciliation: ' + str(exc))
+            await send(message)
+
+        await self.app(scope, receive, response if scope['type'] == 'http' else send)
+
+
+app.add_middleware(PluginEventBindingsMiddleware)
 
 
 async def _reminder_loop():

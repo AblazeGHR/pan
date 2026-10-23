@@ -61,6 +61,36 @@ def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch
     asyncio.run(run())
 
 
+def test_session_binding_reconciliation_precedes_response_in_request_task(monkeypatch):
+    from types import SimpleNamespace
+
+    async def run():
+        owner = asyncio.current_task()
+        seen = []
+
+        async def reconcile():
+            assert asyncio.current_task() is owner
+            seen.append('reconciled')
+
+        async def endpoint(scope, receive, send):
+            await send({'type': 'http.response.start', 'status': 200, 'headers': []})
+            await send({'type': 'http.response.body', 'body': b'unchanged'})
+
+        async def send(message):
+            assert asyncio.current_task() is owner
+            seen.append(message['type'])
+
+        monkeypatch.setattr(server.app.state, 'plugin_events', SimpleNamespace(reconcile=reconcile), raising=False)
+        stack = server.PluginEventBindingsMiddleware(endpoint)
+        await stack({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/owned'}, None, send)
+        assert seen == ['reconciled', 'http.response.start', 'http.response.body']
+        seen.clear()
+        await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions/owned'}, None, send)
+        assert seen == ['http.response.start', 'http.response.body']
+
+    asyncio.run(run())
+
+
 def test_request_log_write_stays_off_the_event_loop(monkeypatch):
     """A redirected stdout flush is blocking I/O even after response shaping."""
     loop_thread = threading.get_ident()

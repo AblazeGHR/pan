@@ -119,6 +119,13 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         state=json.loads(path.read_text(encoding='utf-8'))
         for rid,status in [('restart-queued','queued'),('restart-running','running')]:
             state['runs'][rid]={**run,'id':rid,'status':status,'revision':1,'event':{**run['event'],'id':rid}}
+            # A crash fixture must carry the corresponding attempt state, not
+            # the completed attempt/result copied from the successful Run.
+            fixture = state['runs'][rid]
+            for key in ('result', 'finishedAt', 'targetResults', 'selection', 'activeAttemptId'):
+                fixture.pop(key, None)
+            fixture['attempts'] = []
+            fixture['attemptCount'] = 0
         state['runs']['restart-queued'].pop('targetIds',None)
         path.write_text(json.dumps(state),encoding='utf-8')
         rt.start();capture();h._wait_for(ready,label='restart Node admission')

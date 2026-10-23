@@ -273,12 +273,15 @@ class EventConnection:
         await asyncio.shield(self.cleanup)
 
     async def _close(self):
+        from packages.jobs import process_wait
+        owned = process_wait.capture(self.process)
         self.kill()
         await self.revoke()
         if self.startup:
             await asyncio.gather(self.startup, return_exceptions=True)
         # Kill first, before joining any pipe/reader tasks. In particular a
         # malformed stdout stream must not leave an idle child holding stderr.
+        owned = list(set(owned + process_wait.capture(self.process)))
         self.kill()  # A cancelled spawn may only now have yielded its handle.
         await self.revoke()
         if self.publisher:
@@ -292,6 +295,8 @@ class EventConnection:
         async with asyncio.timeout(TIMEOUT):
             if self.process:
                 await self.process.wait()
+            if owned:
+                await asyncio.to_thread(process_wait.wait, owned, TIMEOUT)
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def kill(self):

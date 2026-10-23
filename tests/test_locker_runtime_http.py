@@ -91,14 +91,22 @@ def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
         blocked=rt.request('GET',f"/api/sessions/{target['id']}/queue")
         assert blocked['queuePaused'] and any(n.get('text')=='blocked-after-pause' for n in blocked['items'])
         notices=rt.request('GET',f"/api/sessions/{owner['id']}/queue")['items']
-        assert len([n for n in notices if n.get('text')=='Interaction submitted: Safe summary'])==1
+        submitted = [json.loads(n['text'].removeprefix('Interaction submitted: '))
+                     for n in notices if n.get('text', '').startswith('Interaction submitted: ')]
+        assert len(submitted)==1
+        assert submitted[0] == {'cardId':card['id'], 'responseKind':'submit',
+                                'summaryBody':'Safe summary', 'choiceId':'pause'}
         assert 'Never forwarded body' not in json.dumps(notices)
         blocked=rt.request('GET',f"/api/sessions/{target['id']}/queue")
         assert blocked['queuePaused'] and any(n.get('text')=='blocked-after-pause' for n in blocked['items'])
         assert len(rt.request('GET','/api/automation')['runs'])==1, 'Reject must not execute choice'
         notices=rt.request('GET',f"/api/sessions/{owner['id']}/queue")['items']
         assert len(notices)==2, 'Submit and reject only; delete must not notify'
-        assert sum(n.get('text')=='Interaction rejected: Safe reject' for n in notices)==1
+        rejected = [json.loads(n['text'].removeprefix('Interaction rejected: '))
+                    for n in notices if n.get('text', '').startswith('Interaction rejected: ')]
+        assert len(rejected)==1
+        assert rejected[0]['summaryBody']=='Safe reject'
+        assert rejected[0]['responseKind']=='reject'
         evidence.update(runId=runs[0]['id'],cardId=card['id'],pause=True,rejectNoRun=True,deleteNoNotice=True)
         assert stop()==[]
         rt.start()

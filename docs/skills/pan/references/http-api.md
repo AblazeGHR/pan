@@ -369,7 +369,7 @@ Native rejected receipts retain the original queued batch; a subsequent ordinary
 
 Consumption can hydrate the existing own Session history before taking row references, because native runtime validation and the Worker lifecycle use the full canonical Session. This is not a bounded-memory history read operation; responses remain metadata-only. Structured report parts that the native Steer contract cannot preserve are skipped on that route.
 
-No response contains report result/body/snippet/parts/attachment text. `self_queue_read` now projects child-agent reports as identity/type/source only; non-report messages retain existing read behavior. Use consume first, then real handoff/history to determine when report text entered agent context. No ack, parallel inbox, polling, queue deletion/unlock or history rewrite is added.
+No response contains report result/body/snippet/parts/attachment text. `self_queue_read` now projects TA reports as identity/type/source only; non-report messages retain existing read behavior. Use consume first, then real handoff/history to determine when report text entered agent context. No ack, parallel inbox, polling, queue deletion/unlock or history rewrite is added.
 
 
 ### Session Operation query template

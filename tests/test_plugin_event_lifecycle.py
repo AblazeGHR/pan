@@ -57,14 +57,19 @@ def test_hung_start_does_not_block_other_lifecycles_or_http(tmp_path, monkeypatc
                 from packages.web import server
                 monkeypatch.setattr(server.app.state, 'plugin_events', manager, raising=False)
                 completed = asyncio.Event()
-                async def next_handler(request):
+                async def next_handler(scope, receive, send):
                     completed.set()
-                    return Response('saved')
+                    await Response('saved')(scope, receive, send)
                 request = Request({'type': 'http', 'method': 'PATCH', 'path': '/api/sessions/unrelated', 'headers': []})
-                pending = asyncio.create_task(server._reconcile_plugin_event_bindings(request, next_handler))
+                messages = []
+                async def send(message):
+                    messages.append(message)
+                pending = asyncio.create_task(server.PluginEventBindingsMiddleware(next_handler)(request.scope, None, send))
                 await within(completed)
-                response = await asyncio.wait_for(asyncio.shield(pending), .5)
-                assert response.status_code == 200
+                await asyncio.wait_for(asyncio.shield(pending), .5)
+                assert messages == [{'type':'http.response.start','status':200,
+                    'headers':[(b'content-length',b'5')]},
+                    {'type':'http.response.body','body':b'saved'}]
             assert not release.is_set()
         finally:
             release.set()
@@ -298,6 +303,38 @@ def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause
         finally:
             await manager.close()
             await svc.close()
+    asyncio.run(run())
+
+
+def test_cleanup_waits_for_captured_process_tree(tmp_path, monkeypatch):
+    import threading
+    from packages.jobs import process_wait
+
+    async def run():
+        svc, manager, _ = await setup(tmp_path, {'a': session('a', ['observer', 'producer'])}, manifest())
+        entered, release = threading.Event(), threading.Event()
+        original = process_wait.wait
+
+        def blocked_wait(owned, timeout):
+            entered.set()
+            assert release.wait(.5)
+            return original(owned, timeout)
+
+        try:
+            await manager.reconcile()
+            await manager.settle()
+            monkeypatch.setattr(process_wait, 'wait', blocked_wait)
+            c = manager.connections['observer']
+            c.reader.cancel()
+            assert await asyncio.to_thread(entered.wait, .5)
+            assert not c.cleanup.done(), 'Root exit must not publish completed tree cleanup'
+            release.set()
+            await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+        finally:
+            release.set()
+            await manager.close()
+            await svc.close()
+
     asyncio.run(run())
 
 
