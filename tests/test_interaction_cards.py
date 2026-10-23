@@ -39,8 +39,11 @@ def test_optional_inputs_and_no_implicit_approval(tmp_path):
     with pytest.raises(InteractionError):
         store.respond(user, read_only['id'], response())
     choice = store.create({**request(choices=[{'id':'yes','label':'Yes'}]), 'requestKey':'choice'})
-    with pytest.raises(InteractionError):
-        store.respond(user, choice['id'], response(answer='not declared'))
+    btw_card = store.create({**request(choices=[{'id':'yes','label':'Yes'}]), 'requestKey':'btw'})
+    btw = store.respond(user, btw_card['id'], response(answer='A note without selecting an action'))
+    assert btw['response']['answer'] == 'A note without selecting an action'
+    assert btw['delivery']['state'] == 'not_requested'
+    assert 'triggerRef' not in store.event_for_owner('ses_owner', btw_card['id'])['payload']
     with pytest.raises(InteractionError):
         store.respond(user, choice['id'], response(choiceId='unknown'))
     done = store.respond(user, choice['id'], response(choiceId='yes'))

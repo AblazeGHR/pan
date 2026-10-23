@@ -8,7 +8,7 @@ USER=UserPrincipal('user')
 def make(store,key='one',owner='owner',**definition):
     return store.create({'ownerSessionId':owner,'recipientId':'user','requestKey':key,'card':{
         'title':'Question','body':'full body','summaryBody':'摘要'*150,**definition}})
-def req(key='once'): return {'requestId':key,'expectedRevision':0}
+def req(key='once'): return {'requestId':key,'expectedRevision':0,'answer':'Please revise the proposal.'}
 class Queue:
     def __init__(self): self.rows={}; self.puts=0; self.crash=False
     async def lookup(self,sid,qid): return self.rows.get((sid,qid))
@@ -153,3 +153,37 @@ def test_rejection_partial_failure_and_parallel_dispatch(tmp_path):
     asyncio.run(store.deliver_rejections(queue))
     assert len(queue.rows)==2 and queue.puts==3
     with store.db() as db: assert all(r[0]=='accepted' for r in db.execute('SELECT state FROM rejection_outbox'))
+
+
+def test_reasonless_rejection_has_no_outbox_and_reason_identity_is_frozen(tmp_path):
+    store = InteractionStore(tmp_path / 'cards.sqlite')
+    card = make(store)
+    payload = {'requestId': 'silent', 'expectedRevision': 0}
+    done = store.reject(USER, card['id'], payload)
+    assert done['status'] == 'rejected'
+    assert done['rejectionDelivery']['state'] == 'not_requested'
+    assert store.reject(USER, card['id'], payload) == done
+    with pytest.raises(InteractionError):
+        store.reject(USER, card['id'], {**payload, 'answer': 'changed'})
+    queue = Queue()
+    asyncio.run(store.deliver_rejections(queue))
+    assert queue.puts == 0
+    assert store.delete(USER, card['id'])['deleted']
+    asyncio.run(store.deliver_rejections(queue))
+    assert queue.puts == 0
+
+
+def test_reason_is_delivered_only_to_owner_with_bounded_summary(tmp_path):
+    store = InteractionStore(tmp_path / 'cards.sqlite')
+    card = make(store)
+    done = store.reject(USER, card['id'], req())
+    assert done['response']['answer'] == 'Please revise the proposal.'
+    queue = Queue()
+    asyncio.run(store.deliver_rejections(queue))
+    assert len(queue.rows) == 1
+    (owner, _), receipt = next(iter(queue.rows.items()))
+    assert owner == 'owner'
+    envelope = receipt['message']['content']['envelope']
+    assert envelope['answer'] == done['response']['answer']
+    assert len(envelope['summaryBody']) == 200
+    assert 'body' not in envelope

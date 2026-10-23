@@ -1,185 +1,823 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { SidebarPanelContext } from '@/components/layout/SidebarPanelContext';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Archive,
+  PanelLeft,
+  Check,
+  CheckCheck,
+  Circle,
+  ExternalLink,
+  Folder,
+  Loader2,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  WifiOff,
+} from 'lucide-react';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
+import { Button } from '@/components/ui/Button';
 import { attachmentMarkdown, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
-import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
+import { useUIStore } from '@/stores/uiStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useAutomationAuth } from '@/stores/automationStore';
-import { lockerProjection, lockerRequest, LockerRequestError, type InteractionCard, type Locker } from './lockerModel';
+import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
+import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
+import {
+  lockerProjection,
+  lockerRequest,
+  LockerRequestError,
+  type InteractionCard,
+  type Locker,
+} from './lockerModel';
+import '@/components/session/sessionQuickActions.css';
 
-function Card({ card, source, update, remove }: {
-  card: InteractionCard; source?: Locker;
-  update: (card: InteractionCard) => void; remove: (id: string) => void;
+function sourceCards(cards: InteractionCard[], lockerId: string) {
+  return cards.filter((card) => card.lockerId === lockerId);
+}
+
+function Card({
+  card,
+  source,
+  update,
+  remove,
+  hidden,
+}: {
+  card: InteractionCard;
+  hidden?: boolean;
+  source?: Locker;
+  update: (card: InteractionCard) => void;
+  remove: (id: string) => void;
 }) {
-  const [answer, setAnswer] = useState(card.response?.answer ?? '');
+  const [answer, setAnswer] = useState(
+    card.response && card.response.outcome !== 'reject' ? (card.response.answer ?? '') : '',
+  );
   const [choiceId, setChoiceId] = useState(card.response?.choiceId ?? '');
+  const [reason, setReason] = useState(
+    card.response?.outcome === 'reject' ? (card.response.answer ?? '') : '',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // Preserve the same identity AND exact payload after an uncertain HTTP result.
-  const intent = useRef<{ operation: string; payload: Record<string, unknown> } | null>(null);
+  const intent = useRef<{
+    operation: 'submit' | 'reject' | 'delete';
+    payload: Record<string, unknown>;
+  } | null>(null);
   const element = useRef<HTMLElement>(null);
   const acknowledged = useRef(false);
-  const [unreadOverride, setUnreadOverride] = useState(false);
+  const manualRead = useRef(false);
+  const [rejecting, setRejecting] = useState(false);
   const open = card.status === 'open';
   useEffect(() => {
-    if (card.read || unreadOverride || acknowledged.current) return;
+    if (!open) {
+      setAnswer(
+        card.response && card.response.outcome !== 'reject' ? (card.response.answer ?? '') : '',
+      );
+      setReason(card.response?.outcome === 'reject' ? (card.response.answer ?? '') : '');
+      setChoiceId(card.response?.choiceId ?? '');
+    }
+  }, [card.response, open]);
+  useEffect(() => {
+    if (
+      hidden ||
+      card.read ||
+      manualRead.current ||
+      acknowledged.current ||
+      typeof IntersectionObserver === 'undefined'
+    )
+      return;
     const mark = () => {
       if (acknowledged.current) return;
       acknowledged.current = true;
-      void lockerRequest<{ card: InteractionCard }>(`/api/user-inbox/${card.id}/read`, 'PUT', { read: true })
-        .then(r => update(r.card)).catch(e => { acknowledged.current = false; setError(String(e)); });
+      void lockerRequest<{ card: InteractionCard }>(`/api/user-inbox/${card.id}/read`, 'PUT', {
+        read: true,
+      })
+        .then((result) => update(result.card))
+        .catch((errorValue) => {
+          acknowledged.current = false;
+          setError(String(errorValue));
+        });
     };
-    const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) mark(); });
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) mark();
+    });
     if (element.current) observer.observe(element.current);
     return () => observer.disconnect();
-  }, [card.id, card.read, update, unreadOverride]);
-  async function act(operation: 'submit' | 'reject' | 'delete') {
+  }, [card.id, card.read, update, hidden]);
+  const act = async (operation: 'submit' | 'reject' | 'delete') => {
     if (busy) return;
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       if (operation === 'delete') {
-        await lockerRequest(`/api/user-inbox/${card.id}`, 'DELETE'); remove(card.id);
-      } else {
-        if (intent.current && intent.current.operation !== operation) throw new Error('请先刷新核对上次操作结果');
-        const payload = intent.current?.payload ?? {
-          requestId: crypto.randomUUID(), expectedRevision: card.revision,
-          ...(operation === 'submit' && card.definition.answerInput ? { answer } : {}),
-          ...(operation === 'submit' && choiceId ? { choiceId } : {}),
-        };
-        intent.current = { operation, payload };
-        const result = await lockerRequest<{ card: InteractionCard; dispatchError?: { code: string } }>(
-          `/api/user-inbox/${card.id}/${operation}`, 'POST', payload);
-        update(result.card);
-        intent.current = null;
-        if (result.dispatchError) setError(result.dispatchError.code);
+        await lockerRequest(`/api/user-inbox/${card.id}`, 'DELETE');
+        remove(card.id);
+        return;
       }
-    } catch (e) {
-      // Validation and payload capacity reject before recording a response.
-      // Let the user correct the payload; conflicts/uncertain writes keep ID.
-      if (e instanceof LockerRequestError && (e.status === 422 || (e.status === 403 && e.code === 'forbidden') ||
-          (e.status === 409 && ['capacity', 'stale', 'incomplete'].includes(e.code ?? '')))) intent.current = null;
-      setError(String(e));
-    } finally { setBusy(false); }
-  }
-  const attachments = (card.definition.attachments ?? []).map(a => attachmentMarkdown({
-    displayName: a.name, href: serverAttachmentDownloadHref(card.ownerSessionId, a.id),
-  })).filter(Boolean).join('\n\n');
-  return <article ref={element} data-card-id={card.id} className="rounded border border-border-default p-4 space-y-3">
-    <header className="flex flex-wrap gap-2 text-xs text-text-tertiary">
-      <span>{source?.sourceName ?? card.ownerSessionId}</span><code className="break-all">{card.ownerSessionId}</code>
-      <MessageTimestamp ts={card.createdAt} />
-      <span>{card.read ? '已读' : '未读'}</span><span>{card.status === 'rejected' ? '已拒收' : open ? '待回应' : '已提交'}</span>
-      <button disabled={busy} onClick={() => {
-        setUnreadOverride(true);
-        void lockerRequest<{ card: InteractionCard }>(`/api/user-inbox/${card.id}/read`, 'PUT', { read: !card.read })
-          .then(r => update(r.card)).catch(e => setError(String(e)));
-      }}>{card.read ? '标为未读' : '标为已读'}</button>
-    </header>
-    <h2 className="font-medium">{card.definition.title}</h2>
-    <MarkdownRenderer sourceSessionId={card.ownerSessionId} content={card.definition.body + (attachments ? '\n\n' + attachments : '')}
-      attachmentIds={(card.definition.attachments ?? []).map(a => a.id)} />
-    {card.definition.answerInput && <label className="block">{card.definition.answerInput.label ?? 'Answer'}
-      <textarea aria-label={card.definition.answerInput.label ?? 'Answer'} value={open ? answer : card.response?.answer ?? ''}
-        disabled={!open || busy || !!intent.current} maxLength={card.definition.answerInput.maxLength ?? 32000}
-        className="block w-full border border-border-default rounded bg-bg-primary p-2"
-        onChange={e => setAnswer(e.target.value)} /></label>}
-    {!!card.definition.choices?.length && <label className="block">Choice
-      <select aria-label="Choice" value={open ? choiceId : card.response?.choiceId ?? ''} disabled={!open || busy || !!intent.current}
-        className="ml-2 bg-bg-primary border border-border-default rounded p-2" onChange={e => setChoiceId(e.target.value)}>
-        <option value="">选择…</option>
-        {card.definition.choices.map(c => <option key={c.id} value={c.id} disabled={!!c.triggerRef && !card.trustedChoices?.[c.id]}>{c.label}</option>)}
-      </select></label>}
-    {(card.definition.choices ?? []).filter(c => c.triggerRef).map(c => {
-      const binding = card.trustedChoices?.[c.id];
-      return <section key={c.id} aria-label={`Trusted execution ${c.id}`} className="text-xs break-words [overflow-wrap:anywhere] border border-border-default rounded p-2">
-        <strong>{c.label} · 可信执行</strong>
-        {binding ? <><p>{binding.summary}</p><p>Session: {binding.targetIds.join(', ')}</p>
-          {binding.authorization && <p>授权来源: {binding.authorization.producerSessionId} · {binding.authorization.basis}</p>}
-          <p>参数映射: {JSON.stringify(binding.arguments)}</p><p>Action digest: {binding.actionDigest}</p></>
-          : <p>incomplete: 旧选择未绑定执行含义；可阅读或拒收，不能执行。</p>}
-      </section>;
-    })}
-    <div className="flex gap-3">
-      {open ? <><button disabled={busy} onClick={() => void act('submit')}>Submit</button>
-        <button disabled={busy} onClick={() => void act('reject')}>Reject</button></>
-        : <button disabled={busy} onClick={() => void act('delete')}>Delete</button>}
-    </div>
-    {card.delivery.state !== 'not_requested' && <p className="text-xs">Trigger: {card.delivery.state}</p>}
-    {card.rejectionDelivery && card.rejectionDelivery.state !== 'not_requested' && <p className="text-xs">Rejection notification: {card.rejectionDelivery.state}</p>}
-    {error && <p role="alert">{error}</p>}
-  </article>;
+      if (intent.current && intent.current.operation !== operation)
+        throw new Error(
+          'The previous action is uncertain. Retry the same action to resolve its result.',
+        );
+      const payload: Record<string, unknown> = intent.current?.payload ?? {
+        requestId: crypto.randomUUID(),
+        expectedRevision: card.revision,
+      };
+      if (operation === 'submit') {
+        if (answer.trim()) payload.answer = answer;
+        if (choiceId) payload.choiceId = choiceId;
+      } else if (reason.trim()) payload.answer = reason.trim();
+      intent.current = { operation, payload };
+      const result = await lockerRequest<{
+        card: InteractionCard;
+        dispatchError?: { code: string };
+      }>(`/api/user-inbox/${card.id}/${operation}`, 'POST', payload);
+      update(result.card);
+      intent.current = null;
+      if (result.dispatchError) setError(result.dispatchError.code);
+    } catch (value) {
+      if (
+        value instanceof LockerRequestError &&
+        (value.status === 422 ||
+          (value.status === 403 && value.code === 'forbidden') ||
+          (value.status === 409 && ['capacity', 'stale', 'incomplete'].includes(value.code ?? '')))
+      )
+        intent.current = null;
+      setError(String(value));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const attachments = (card.definition.attachments ?? [])
+    .map((attachment) =>
+      attachmentMarkdown({
+        displayName: attachment.name,
+        href: serverAttachmentDownloadHref(card.ownerSessionId, attachment.id),
+      }),
+    )
+    .filter(Boolean)
+    .join('\n\n');
+  const responseChoice = card.definition.choices?.find(
+    (choice) => choice.id === (open ? choiceId : card.response?.choiceId),
+  );
+  return (
+    <article
+      ref={element}
+      hidden={hidden}
+      data-card-id={card.id}
+      className="locker-card message-row message-row-assistant relative px-3 sm:px-6 lg:px-8"
+    >
+      <header className="locker-card-origin">
+        <span className={`source-dot ${source?.available === false ? 'offline' : ''}`} />
+        <span className="truncate">{source?.sourceName ?? card.ownerSessionId}</span>
+        <code title={card.ownerSessionId}>{card.ownerSessionId}</code>
+        <MessageTimestamp ts={card.createdAt} />
+        <span className={`locker-status ${open ? 'open' : card.status}`}>
+          {open ? 'Awaiting response' : card.status === 'rejected' ? 'Rejected' : 'Submitted'}
+        </span>
+        <button
+          type="button"
+          className="locker-read-toggle"
+          disabled={busy}
+          aria-label={card.read ? 'Mark card as unread' : 'Mark card as read'}
+          title={card.read ? 'Mark as unread' : 'Mark as read'}
+          onClick={() => {
+            manualRead.current = true;
+            void lockerRequest<{ card: InteractionCard }>(
+              `/api/user-inbox/${card.id}/read`,
+              'PUT',
+              { read: !card.read },
+            )
+              .then((result) => update(result.card))
+              .catch((value) => setError(String(value)));
+          }}
+        >
+          {card.read ? <Circle size={12} /> : <Check size={13} />}
+        </button>
+      </header>
+      <h2 className="locker-card-title">{card.definition.title}</h2>
+      <MarkdownRenderer
+        sourceSessionId={card.ownerSessionId}
+        content={card.definition.body + (attachments ? `\n\n${attachments}` : '')}
+        attachmentIds={(card.definition.attachments ?? []).map((attachment) => attachment.id)}
+      />
+      {open ? (
+        <section className="locker-response" aria-label="Interaction response">
+          {!!card.definition.choices?.length && (
+            <fieldset className="locker-choices">
+              <legend>Choose an option</legend>
+              {card.definition.choices.map((choice) => (
+                <label key={choice.id} className={choiceId === choice.id ? 'selected' : ''}>
+                  <input
+                    aria-label={choice.label}
+                    type="radio"
+                    name={`choice-${card.id}`}
+                    value={choice.id}
+                    checked={choiceId === choice.id}
+                    onChange={() => setChoiceId(choice.id)}
+                    disabled={
+                      busy ||
+                      !!intent.current ||
+                      (!!choice.triggerRef && !card.trustedChoices?.[choice.id])
+                    }
+                  />
+                  <span>
+                    <strong>{choice.label}</strong>
+                    {choice.triggerRef && (
+                      <small>
+                        {card.trustedChoices?.[choice.id]?.summary ??
+                          'Execution meaning is unavailable; this choice cannot run.'}
+                      </small>
+                    )}
+                  </span>
+                  {choiceId === choice.id && <Check size={14} />}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {responseChoice?.triggerRef && (
+            <TrustedChoice
+              choice={responseChoice}
+              binding={card.trustedChoices?.[responseChoice.id]}
+            />
+          )}
+          {
+            <label className="locker-answer-label" htmlFor={`answer-${card.id}`}>
+              {card.definition.answerInput?.label ?? 'Answer or BTW'} <span>(optional)</span>
+              <textarea
+                id={`answer-${card.id}`}
+                value={answer}
+                maxLength={card.definition.answerInput?.maxLength ?? 32000}
+                disabled={busy || !!intent.current}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Add your answer or a note…"
+                rows={3}
+              />
+            </label>
+          }
+          <div className="locker-card-actions">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={busy || (!!card.definition.choices?.length && !choiceId)}
+              onClick={() => void act('submit')}
+            >
+              Submit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setRejecting(true);
+              }}
+            >
+              Reject
+            </Button>
+            <span>Replies go only to the source.</span>
+          </div>
+          {rejecting && (
+            <div className="locker-reject-reason">
+              <label className="locker-answer-label" htmlFor={`reason-${card.id}`}>
+                Reason for rejection <span>(optional)</span>
+                <textarea
+                  aria-label="Reason for rejection"
+                  id={`reason-${card.id}`}
+                  autoFocus
+                  value={reason}
+                  disabled={busy || !!intent.current}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Tell the source why, if helpful…"
+                  rows={2}
+                />
+              </label>
+              <p>
+                {reason.trim()
+                  ? 'Your reason will be sent only to the source agent.'
+                  : 'Without a reason, no notification is sent.'}
+              </p>
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => void act('reject')}>
+                Confirm rejection
+              </Button>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="locker-response completed" aria-label="Completed interaction">
+          <div className="locker-completed-label">
+            <CheckCheck size={14} />
+            {card.status === 'rejected' ? 'Rejected' : 'Submitted'} <span>Read-only</span>
+          </div>
+          {responseChoice && (
+            <p className="locker-saved-choice">
+              <Check size={13} />
+              {responseChoice.label}
+            </p>
+          )}
+          {card.response?.answer && (
+            <div className="locker-saved-answer">
+              <span>{card.status === 'rejected' ? 'Reason' : 'Answer or BTW'}</span>
+              <p>{card.response.answer}</p>
+            </div>
+          )}
+          {responseChoice?.triggerRef && (
+            <TrustedChoice
+              choice={responseChoice}
+              binding={card.trustedChoices?.[responseChoice.id]}
+            />
+          )}
+          {card.status !== 'open' && (
+            <div className="locker-delete-row">
+              {busy ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void act('delete')}
+                >
+                  Delete record
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+      {card.delivery.state !== 'not_requested' && (
+        <details className="locker-delivery">
+          <summary>Delivery details</summary>
+          <span>Trigger delivery: {card.delivery.state}</span>
+        </details>
+      )}
+      {card.rejectionDelivery && card.rejectionDelivery.state !== 'not_requested' && (
+        <details className="locker-delivery">
+          <summary>Rejection notification details</summary>
+          <span>{card.rejectionDelivery?.state}</span>
+        </details>
+      )}
+      {error && (
+        <p role="alert" className="locker-error">
+          {error}
+        </p>
+      )}
+    </article>
+  );
+}
+function TrustedChoice({
+  choice,
+  binding,
+}: {
+  choice: NonNullable<InteractionCard['definition']['choices']>[number];
+  binding?: NonNullable<InteractionCard['trustedChoices']>[string];
+}) {
+  return (
+    <section className="locker-trusted-choice" aria-label={`Trusted execution ${choice.id}`}>
+      <ShieldCheck size={15} />
+      <div>
+        <strong>{binding ? 'On submit' : 'Execution unavailable'}</strong>
+        {binding ? (
+          <>
+            <p>{binding.summary}</p>
+            <p>Target: {binding.targetIds.join(', ')}</p>
+            <details>
+              <summary>Operation details</summary>
+              <p>Action: {binding.actionId}</p>
+              <code>{binding.actionDigest}</code>
+            </details>
+          </>
+        ) : (
+          <p>This choice is preserved for context but cannot execute without a trusted binding.</p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function LockerView() {
-  const token = useAutomationAuth(s => s.token);
+  const sidebarPanel = useContext(SidebarPanelContext);
+  const token = useAutomationAuth((state) => state.token);
+  const navigate = useNavigate();
+  const activeWorkspaceId = useUIStore((state) => state.activeWorkspaceId);
+  const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const workspaceLoaded = useWorkspaceStore((state) => state.loaded);
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [cards, setCards] = useState<InteractionCard[]>([]);
   const [selected, setSelected] = useState('aggregate');
-  const [workspace, setWorkspace] = useState('');
-  const [count, setCount] = useState(20);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [order, setOrder] = useState<string[]>([]);
+  const [dragging, setDragging] = useState<string | null>(null);
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
-  const workspaces = useWorkspaceStore(s => s.workspaces);
   const refresh = useCallback(async () => {
     request.current?.abort();
-    const controller = new AbortController(); request.current = controller;
+    const controller = new AbortController();
+    request.current = controller;
     const run = ++generation.current;
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
-      const sources = await lockerRequest<{ lockers: Locker[] }>('/api/user-lockers', 'GET', undefined, controller.signal);
-      const result: InteractionCard[] = [];
-      let after: string | null = null;
-      do {
-        const page: { cards: InteractionCard[]; nextAfter: string | null } = await lockerRequest(
-          `/api/user-inbox?limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`, 'GET', undefined, controller.signal);
-        result.push(...page.cards); after = page.nextAfter;
-      } while (after);
-      if (generation.current === run) { setLockers(sources.lockers); setCards(result); }
-    } catch (e) {
-      if (!controller.signal.aborted && generation.current === run) {
-        setError(String(e));
-        if (/unauthorized|user_auth_unavailable/.test(String(e))) { setCards([]); setLockers([]); }
+      const [sourceResult, firstPage] = await Promise.all([
+        lockerRequest<{ lockers: Locker[] }>(
+          '/api/user-lockers',
+          'GET',
+          undefined,
+          controller.signal,
+        ),
+        lockerRequest<{ cards: InteractionCard[]; nextAfter: string | null }>(
+          '/api/user-inbox?limit=500',
+          'GET',
+          undefined,
+          controller.signal,
+        ),
+      ]);
+      const allCards = [...firstPage.cards];
+      let after = firstPage.nextAfter;
+      const cursors = new Set<string>();
+      while (after) {
+        if (cursors.has(after))
+          throw new Error('Locker pagination did not advance. Retry refresh.');
+        cursors.add(after);
+        const page = await lockerRequest<{ cards: InteractionCard[]; nextAfter: string | null }>(
+          `/api/user-inbox?limit=500&after=${encodeURIComponent(after)}`,
+          'GET',
+          undefined,
+          controller.signal,
+        );
+        allCards.push(...page.cards);
+        after = page.nextAfter;
       }
+      if (generation.current !== run) return;
+      setLockers(sourceResult.lockers.filter((locker) => locker.total > 0));
+      setCards(allCards);
+      setOrder((previous) => {
+        const ids = sourceResult.lockers
+          .filter((locker) => locker.total > 0)
+          .map((locker) => locker.id);
+        return [
+          ...previous.filter((id) => ids.includes(id)),
+          ...ids.filter((id) => !previous.includes(id)),
+        ];
+      });
+    } catch (value) {
+      if (!controller.signal.aborted && generation.current === run) {
+        setError(String(value));
+        if (/unauthorized|user_auth_unavailable/.test(String(value))) {
+          setCards([]);
+          setLockers([]);
+        }
+      }
+    } finally {
+      if (generation.current === run) setLoading(false);
     }
-    finally { if (generation.current === run) setLoading(false); }
   }, [token]);
   useEffect(() => {
-    void refresh(); void useWorkspaceStore.getState().loadWorkspaces();
-    const focus = () => void refresh(); window.addEventListener('focus', focus);
-    return () => { request.current?.abort(); ++generation.current; window.removeEventListener('focus', focus); };
-  }, [refresh]);
+    void refresh();
+    if (!workspaceLoaded) void useWorkspaceStore.getState().loadWorkspaces();
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      request.current?.abort();
+      ++generation.current;
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refresh, workspaceLoaded]);
   const update = useCallback((card: InteractionCard) => {
-    request.current?.abort(); ++generation.current; setLoading(false);
-    setCards(old => old.map(c => c.id === card.id && card.revision >= c.revision ? card : c));
+    request.current?.abort();
+    ++generation.current;
+    setLoading(false);
+    setCards((previous) =>
+      previous.map((item) => (item.id === card.id && card.revision >= item.revision ? card : item)),
+    );
   }, []);
-  const visible = lockerProjection(lockers, cards, workspace, selected);
-  return <main aria-label="Locker" className="flex h-full min-h-0 min-w-0 flex-col p-4 pt-12 sm:pt-4 gap-3">
-    <header className="flex flex-wrap items-center gap-3"><h1 className="text-lg font-semibold">Locker</h1>
-      <label>Workspace <select aria-label="Workspace" className="bg-bg-primary" value={workspace} onChange={e => {
-        setWorkspace(e.target.value); setSelected('aggregate'); setCount(20);
-      }}><option value="">全部</option>{workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
-      <button disabled={loading} onClick={() => void refresh()}>刷新</button>
-    </header>
-    <JobUserAuthorization purpose="locker" />
-    {error && <p role="alert">{error}</p>}{loading && <p role="status">加载中…</p>}
-    <div className="flex flex-1 min-h-0 gap-4">
-      <nav aria-label="Locker 列表" className="w-28 sm:w-44 text-xs sm:text-sm shrink-0 overflow-y-auto space-y-2">
-        <button aria-pressed={selected === 'aggregate'} onClick={() => { setSelected('aggregate'); setCount(20); }}>聚合 Locker</button>
-        {lockers.filter(l => !workspace || l.workspaceIds.includes(workspace)).map(l => <button key={l.id}
-          aria-pressed={selected === l.id} className="block w-full text-left break-all rounded border border-border-default p-2"
-          onClick={() => { setSelected(l.id); setCount(20); }}>
-          <span className="block">{l.sourceName}</span><small>{l.sessionId}</small>
-          <span className="block text-xs">{cards.filter(c => c.lockerId === l.id && !c.read).length} 未读{l.available ? '' : ' · 来源不可用'}</span>
-        </button>)}
-      </nav>
-      <section aria-label="Locker Message" className="min-w-0 flex-1 overflow-y-auto space-y-4">
-        {!loading && !visible.length && <p>暂无 Locker Message</p>}
-        {visible.slice(0, count).map(c => <Card key={c.id} card={c} source={lockers.find(l => l.id === c.lockerId)}
-          update={update} remove={id => { request.current?.abort(); ++generation.current; setLoading(false); setCards(old => old.filter(item => item.id !== id)); }} />)}
-        {visible.length > count && <button onClick={() => setCount(n => n + 20)}>加载更多</button>}
-      </section>
-    </div>
-  </main>;
+  const remove = useCallback((id: string) => {
+    request.current?.abort();
+    ++generation.current;
+    setLoading(false);
+    setCards((previous) => previous.filter((card) => card.id !== id));
+  }, []);
+  const workspaceCards = useMemo(
+    () => lockerProjection(lockers, cards, activeWorkspaceId, selected),
+    [lockers, cards, activeWorkspaceId, selected],
+  );
+  const scopeLockers = useMemo(() => {
+    const scope = lockers
+      .filter((locker) => cards.some((card) => card.lockerId === locker.id))
+      .filter((locker) =>
+        activeWorkspaceId === ALL_WORKSPACES
+          ? true
+          : activeWorkspaceId === UNGROUPED_WORKSPACES
+            ? locker.workspaceIds.length === 0
+            : locker.workspaceIds.includes(activeWorkspaceId),
+      );
+    return scope.sort(
+      (a, b) =>
+        order.indexOf(a.id) - order.indexOf(b.id) || a.sourceName.localeCompare(b.sourceName),
+    );
+  }, [lockers, cards, activeWorkspaceId, order]);
+  useEffect(() => {
+    if (selected !== 'aggregate' && !scopeLockers.some((locker) => locker.id === selected))
+      setSelected('aggregate');
+  }, [scopeLockers, selected]);
+  const visible = workspaceCards
+    .filter((card) => !unreadOnly || !card.read)
+    .filter((card) => {
+      if (!query) return true;
+      const source = lockers.find((locker) => locker.id === card.lockerId);
+      return `${source?.sourceName ?? ''} ${source?.sessionId ?? card.ownerSessionId} ${card.definition.title}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+    });
+  const workspaceName =
+    activeWorkspaceId === ALL_WORKSPACES
+      ? 'All Workspaces'
+      : activeWorkspaceId === UNGROUPED_WORKSPACES
+        ? 'No Workspace'
+        : (workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ?? 'Workspace');
+  const markSourceRead = async (locker: Locker) => {
+    const unread = sourceCards(cards, locker.id).filter((card) => !card.read);
+    await Promise.all(
+      unread.map((card) =>
+        lockerRequest<{ card: InteractionCard }>(`/api/user-inbox/${card.id}/read`, 'PUT', {
+          read: true,
+        })
+          .then((result) => update(result.card))
+          .catch((value) => setError(String(value))),
+      ),
+    );
+  };
+  const navigateToChat = async (locker: Locker) => {
+    if (!locker.available) return;
+    try {
+      await useSessionStore.getState().selectSession(locker.sessionId);
+      navigate('/');
+    } catch (value) {
+      setError(String(value));
+    }
+  };
+  const reorder = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setOrder((previous) => {
+      const next = previous.filter((id) => id !== sourceId);
+      const index = next.indexOf(targetId);
+      next.splice(index < 0 ? next.length : index, 0, sourceId);
+      return next;
+    });
+    setDragging(null);
+  };
+  const sourceList = (
+    <nav
+      aria-label="Locker sources"
+      className={`locker-source-list ${sourcesOpen ? 'is-open' : ''} ${sidebarPanel ? 'in-sidebar' : ''}`}
+    >
+      <div className="locker-source-tools">
+        <div className="locker-source-search">
+          <Search size={12} />
+          <input
+            aria-label="Search Locker sources"
+            placeholder="Filter sources…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      </div>
+      <div
+        className={`locker-source-item aggregate ${selected === 'aggregate' ? 'active' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-current={selected === 'aggregate' ? 'true' : undefined}
+        onClick={() => {
+          setSelected('aggregate');
+          setSourcesOpen(false);
+          useUIStore.getState().setMobileSidebarOpen(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') setSelected('aggregate');
+        }}
+      >
+        <Archive size={14} className="text-accent shrink-0" />
+        <span className="locker-source-copy">
+          <strong>All Lockers</strong>
+          <span>
+            {scopeLockers.reduce((sum, locker) => sum + sourceCards(cards, locker.id).length, 0)}{' '}
+            messages
+          </span>
+          <small>Aggregate view</small>
+        </span>
+        <div className="session-quick-action-rail">
+          <div
+            className="session-quick-action-group"
+            role="group"
+            aria-label="Aggregate Locker actions"
+          >
+            <button
+              type="button"
+              className="session-quick-action-button"
+              aria-label="Read all"
+              title="Read all"
+              onClick={(event) => {
+                event.stopPropagation();
+                void Promise.all(scopeLockers.map(markSourceRead));
+              }}
+            >
+              <CheckCheck size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+      {scopeLockers.map((locker) => {
+        const sourceItems = sourceCards(cards, locker.id);
+        const unread = sourceItems.filter((card) => !card.read).length;
+        return (
+          <div
+            key={locker.id}
+            data-testid={`locker-source-${locker.id}`}
+            className={`locker-source-item ${selected === locker.id ? 'active' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-current={selected === locker.id ? 'true' : undefined}
+            onClick={() => {
+              setSelected(locker.id);
+              setSourcesOpen(false);
+              useUIStore.getState().setMobileSidebarOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') setSelected(locker.id);
+            }}
+            onDragOver={(event) => {
+              if (dragging && dragging !== locker.id) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (dragging) reorder(dragging, locker.id);
+            }}
+          >
+            <span
+              className="drag-gutter locker-source-drag"
+              draggable
+              data-testid={`locker-drag-${locker.id}`}
+              title="Drag to reorder Locker"
+              onClick={(event) => event.stopPropagation()}
+              onDragStart={(event) => {
+                event.stopPropagation();
+                setDragging(locker.id);
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragEnd={() => setDragging(null)}
+            >
+              <span
+                aria-hidden="true"
+                className="drag-matrix pointer-events-none absolute inset-x-0 top-[10px] bottom-[10px] rounded-sm"
+              />
+              <span className={`source-dot ${locker.available ? '' : 'offline'}`} />
+            </span>
+            <span className="locker-source-copy">
+              <strong>{locker.sourceName}</strong>
+              <span>{sourceItems.at(-1)?.definition.title ?? 'No messages'}</span>
+              <small>
+                {locker.sessionId}
+                {!locker.available && (
+                  <em>
+                    <WifiOff size={10} />
+                    Source unavailable
+                  </em>
+                )}
+              </small>
+            </span>
+            {unread > 0 && <span className="unread-count">{unread}</span>}
+            <div className="session-quick-action-rail">
+              <div
+                className="session-quick-action-group"
+                role="group"
+                aria-label={`${locker.sourceName} actions`}
+              >
+                <button
+                  type="button"
+                  className="session-quick-action-button"
+                  aria-label="Navigate to chat"
+                  title={locker.available ? 'Navigate to chat' : 'Source unavailable'}
+                  disabled={!locker.available}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void navigateToChat(locker);
+                  }}
+                >
+                  <ExternalLink size={12} />
+                </button>
+                <button
+                  type="button"
+                  className="session-quick-action-button"
+                  aria-label="Read all"
+                  title="Read all"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void markSourceRead(locker);
+                  }}
+                >
+                  <CheckCheck size={12} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+  return (
+    <main aria-label="Locker" className="locker-view flex h-full min-h-0 min-w-0 flex-col">
+      <header className="locker-topbar">
+        <Archive size={16} className="text-accent" />
+        <div className="locker-topbar-title">
+          <strong>Locker</strong>
+          <span>{workspaceName}</span>
+        </div>
+        <div className="locker-topbar-actions">
+          {!sidebarPanel && (
+            <button
+              className="locker-sources-toggle"
+              type="button"
+              aria-label="Toggle Locker sources"
+              aria-expanded={sourcesOpen}
+              onClick={() => setSourcesOpen((value) => !value)}
+            >
+              <PanelLeft size={15} />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Refresh Locker"
+            title="Refresh Locker"
+            disabled={loading}
+            onClick={() => void refresh()}
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+          </button>
+          <button
+            type="button"
+            aria-label={unreadOnly ? 'Show all Locker messages' : 'Show unread Locker messages'}
+            title={unreadOnly ? 'Show all' : 'Unread only'}
+            className={unreadOnly ? 'active' : ''}
+            onClick={() => setUnreadOnly((previous) => !previous)}
+          >
+            <Circle size={14} />
+          </button>
+        </div>
+      </header>
+      <details className="locker-auth" open={!token}>
+        <summary>User authorization</summary>
+        <JobUserAuthorization purpose="locker" />
+      </details>
+      {error && (
+        <div role="alert" className="locker-view-error">
+          {error}
+        </div>
+      )}
+      <div className="locker-scope-bar">
+        <span>
+          <Folder size={12} />
+          {workspaceName}
+        </span>
+        <span>
+          {visible.length} messages{unreadOnly ? ' · Unread only' : ''}
+        </span>
+      </div>
+      <div className="locker-workspace-layout">
+        {sidebarPanel ? sidebarPanel[0] && createPortal(sourceList, sidebarPanel[0]) : sourceList}
+        <section aria-label="Locker messages" className="locker-timeline">
+          {loading && (
+            <div role="status" className="locker-state">
+              <Loader2 size={18} className="animate-spin" />
+              Loading Locker…
+            </div>
+          )}
+          {!loading && !visible.length && (
+            <div className="locker-state">
+              <Archive size={24} />
+              <strong>{unreadOnly ? 'No unread messages' : 'No Locker messages'}</strong>
+              <span>Messages from this Workspace appear here after a source sends them.</span>
+            </div>
+          )}
+          {[...cards]
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+            .map((card) => (
+              <Card
+                key={card.id}
+                hidden={!visible.some((item) => item.id === card.id)}
+                card={card}
+                source={lockers.find((locker) => locker.id === card.lockerId)}
+                update={update}
+                remove={remove}
+              />
+            ))}
+        </section>
+      </div>
+    </main>
+  );
 }
+
+import './lockerView.css';

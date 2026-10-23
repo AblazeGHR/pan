@@ -158,9 +158,7 @@ class InteractionStore:
             if not supplied and not allow_empty:
                 raise InteractionError('invalid','Response requires a declared input or choice')
             if 'answer' in supplied:
-                if 'answerInput' not in definition:
-                    raise InteractionError('invalid','Card does not declare answer input')
-                if len(supplied['answer']) > definition['answerInput'].get('maxLength',32000):
+                if len(supplied['answer']) > definition.get('answerInput', {}).get('maxLength',32000):
                     raise InteractionError('invalid','Answer exceeds declared maxLength')
             choices={c['id']:c for c in definition.get('choices',[])}
             if 'choiceId' in supplied and supplied['choiceId'] not in choices:
@@ -268,20 +266,23 @@ class InteractionStore:
             row=self._user_row(db,principal,card_id)
             if row['response']:
                 previous=json.loads(row['response'])
-                if previous.get('outcome')=='reject' and previous['requestId']==data['requestId']:
+                if previous.get('outcome')=='reject' and previous['requestId']==data['requestId'] and previous.get('answer', '') == data.get('answer', ''):
                     return self._view(row,db)
                 raise InteractionError('conflict','Card already completed')
             if row['revision']!=data['expectedRevision']:
                 raise InteractionError('conflict','Stale Card revision')
             result={'id':identity('response_',[card_id,data['requestId']]),'requestId':data['requestId'],
-                    'userId':self._user_id(principal),'createdAt':now(),'outcome':'reject'}
+                    'userId':self._user_id(principal),'createdAt':now(),'outcome':'reject',
+                    **({'answer': data['answer']} if 'answer' in data else {})}
             card=self._view(row,db)
             event_id=identity('rejection_',[card_id])
             payload={'id':event_id,'cardId':card_id,'lockerId':card['lockerId'],
                      'responseKind':'reject',
-                     'summaryBody':card['definition']['summaryBody'][:200]}
-            db.execute('INSERT INTO rejection_outbox VALUES(?,?,?,?)',
-                       (event_id,row['owner'],canonical(payload),'pending'))
+                     'summaryBody':card['definition']['summaryBody'][:200],
+                     **({'answer': data['answer']} if 'answer' in data else {})}
+            if data.get('answer', '').strip():
+                db.execute('INSERT INTO rejection_outbox VALUES(?,?,?,?)',
+                           (event_id,row['owner'],canonical(payload),'pending'))
             db.execute('UPDATE cards SET response=?,response_key=?,revision=revision+1,is_read=1 WHERE id=?',
                        (canonical(result),data['requestId'],card_id))
             return self._view(self._user_row(db,principal,card_id),db)

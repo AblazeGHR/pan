@@ -430,6 +430,10 @@
         "expectedRevision": {
           "type": "integer",
           "minimum": 0
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 32000
         }
       }
     },
