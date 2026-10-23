@@ -3,6 +3,19 @@ name: pan-http-api
 description: Pan HTTP API 速查（技术细节引用文档，配合 docs/skills/pan/SKILL.md 使用）。覆盖冷启动常用端点请求体、字段命名映射、Windows curl 中文编码坑、轮询兜底策略。MCP 能覆盖的编排操作一律走 MCP 工具，本文件仅用于直调（rename/branch 等无 MCP 工具）与排查。
 ---
 
+终态 error 的 TA→MA report 保留兼容 `result`，并分别保存 `errorText`、
+`errorCode`、`errorSource`、`errorTextTruncated` 与 `lastMessage` 上下文。
+诊断从同次 terminal CLI 事件提取，在终态提交前冻结为 `reportDiagnostic`，
+随 `lastResult`/有界 terminal records 落盘；自动与手动报告均复用该运行记录。
+`errorSource` 复用日志的显式 wrapper error_source（如 codex_error_payload），
+无该字段时为 `cli.error` 或 `cli.error_text`；code 仅来自原生 `error.code`
+或字符串 `codexErrorInfo`，不按正文猜 capacity/quota。原生诊断缺失为 null，
+status 仍为 error；不能用助手正文替代诊断或改成 done。done/cancelled 与旧报告
+渲染保留原行为。批量、Force、Steer 共用 report formatter；普通 Queue 列表
+仍为既有摘要投影，不额外暴露完整报告。errorText 经现有日志脱敏后最多 1200
+字符，code 最多 128 字符，保留截断标记；不复制 raw/error 对象或读取 JSONL。
+历史记录不回填前次错误。此修复不改变 MA 恢复策略、投递/未知回执或权限门禁。
+
 ## 来源分类与自动回答汇报
 
 `/api/assign`、`/api/send`（含 force）及 `/api/task` 根据验证后的 `sourceSessionId` 和管理祖先链将上行 agent 消息标为 `source=report`，保留原 task 投递事务。设置不影响手动上行投递。

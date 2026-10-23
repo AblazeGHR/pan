@@ -1,0 +1,25 @@
+{
+  "evidence": {
+    "path": "D:\\project\\Pan\\data\\logs\\session-errors.jsonl",
+    "line": 740,
+    "timestamp": "2026-10-22T18:57:28.401777+00:00",
+    "sourceLineSha256": "975cd39860e299d5fc50016f1353b7aa92b8098b1ccdd9874c2c3f9ac92b3a6b",
+    "sessionId": "ses_07abd0450c2a28e4",
+    "taskSeq": 8,
+    "executionSeq": 2,
+    "redaction": "Only native terminal error fields retained; result replaced with synthetic text. No history, credentials or other raw fields copied."
+  },
+  "event": {
+    "type": "result",
+    "is_error": true,
+    "error_source": "codex_error_payload",
+    "error": {
+      "message": "Selected model is at capacity. Please try a different model.",
+      "codexErrorInfo": "serverOverloaded",
+      "additionalDetails": null,
+      "misalignment": null
+    },
+    "error_text": "Selected model is at capacity. Please try a different model.",
+    "result": "Synthetic assistant work summary; not an error diagnosis."
+  }
+}
