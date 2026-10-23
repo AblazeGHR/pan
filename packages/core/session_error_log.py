@@ -246,7 +246,7 @@ def cli_error_fields(event: Any, *, text_only: bool = False) -> tuple[Any, str |
     return error, None, None
 
 
-def cli_error_source(event: Any, fallback: str | None) -> str | None:
+def cli_error_provenance(event: Any, fallback: str | None) -> str | None:
     """Wrapper's explicit provenance, shared by archival and report views."""
     source = event.get('error_source') if isinstance(event, dict) else None
     return sanitize(source) if isinstance(source, str) and source.strip() else fallback
@@ -279,7 +279,7 @@ def terminal_report_fields(event: Any) -> dict:
     if code is not None and source is None:
         source = 'cli.error'
     if source is not None:
-        source = report_text(cli_error_source(event, source), 128)[0]
+        source = report_text(cli_error_provenance(event, source), 128)[0]
     bounded, truncated = report_text(text) if text else (None, False)
     return dict(errorText=bounded, errorCode=code, errorSource=source,
                 errorTextTruncated=truncated)
@@ -474,7 +474,7 @@ def _prepare_record(
         cli["errorSource"] = cli_error_source
     if cli_raw is not None:
         cli["raw"] = sanitize(cli_raw)
-        source = cli_error_source(cli_raw, cli.get("errorSource"))
+        source = cli_error_provenance(cli_raw, cli.get("errorSource"))
         if source is not None:
             cli["errorSource"] = source
     if cli_error_events:
