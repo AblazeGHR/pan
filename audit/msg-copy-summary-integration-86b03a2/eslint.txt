@@ -1,0 +1,7 @@
+
+D:\project\pan-worktrees\msg-copy-session-summary-86b03a2-20261024\packages\web\src\components\chat\MessageBubble.tsx
+   22:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   47:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  401:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 3 problems (0 errors, 3 warnings)
