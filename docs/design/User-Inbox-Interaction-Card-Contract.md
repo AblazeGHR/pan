@@ -103,4 +103,11 @@ reject 在同一事务建立唯一内部 rejection outbox，定向来源 Locker 
 
 左栏真实 Locker 列表，Workspace 筛选及聚合 Locker 按钮；右栏按时间展示 Locker Message，显示来源名与 Session ID。复用 MarkdownRenderer、MessageTimestamp、安全附件链接和 API 分页。服务端每页 100 条，当前前端完整读取可见用户分页后合并，分 20 条展示；聚合不是懒加载跨来源归并，本批不声称大规模无限历史性能。页面恢复焦点/刷新重新读取，AbortController 与代次保护阻止过期请求覆盖切换；回应后的只读输入取服务端 response，网络结果不明的重试复用原 requestId 和完整 payload。
 
-本基线没有可复用的生产 UserAuth 实现。继续由 `app.state.user_inbox_principal` 注入受信主体，缺失则页面/API 明确 503；不能用 Session/MCP 身份或自行新增本机凭据开放用户回应。本批真实浏览器闭环使用自有随机端口、临时 profile、synthetic 用户验证器、synthetic Trigger 与 fakeCLI；不代表生产登录或真实 Trigger/provider 已接线。生产身份适配器、真实 Job 等待/继续协议、真实 provider、OS 附件交互及人工验收仍分别验证。
+原 User Inbox 分支缺少 UserAuth；当前组合基线已包含 Automation UserAuth，但未将其绑定到 Locker 身份验证，也未由 Locker 请求附带现有 Bearer。当前继续由 `app.state.user_inbox_principal` 注入受信主体，缺失则页面/API 明确 503；不能用 Session/MCP 身份或自行新增本机凭据开放用户回应。本批真实浏览器闭环使用自有随机端口、临时 profile、synthetic 用户验证器、synthetic Trigger 与 fakeCLI；不代表生产登录或真实 Trigger/provider 已接线。生产身份适配器、真实 Job 等待/继续协议、真实 provider、OS 附件交互及人工验收仍分别验证。
+
+
+### 独立验收修补（2026-10-23）
+
+Locker 表单区分明确的回应前拒绝与不确定结果：HTTP 422 和 `409/detail.code=capacity` 均发生在 response 持久化前，允许修正输入并建立新意图；普通 409 冲突、网络异常与服务端结果不明继续保留原 requestId/完整 payload，不自动改选或盲目重投。声明的字符上限不取代 64 KiB JSON 上限，多字节 answer 可能在字符上限内被容量拒绝。
+
+生产身份主体到 recipientId 的映射和定向 Trigger 的实际运行时接线仍缺失；不能将合成验证器/Trigger 浏览器证据解释为这两项已完成。复用既有认证不涉及新增 OAuth/private exporter，但不能在未确认 recipient 命名时擅自开放全部已有卡片。

@@ -52,9 +52,9 @@ function Card({ card, source, update, remove }: {
         if (result.dispatchError) setError(result.dispatchError.code);
       }
     } catch (e) {
-      // submit/reject validation returns 422 before recording a response. Let
-      // the user correct that rejected payload; uncertain writes keep identity.
-      if (e instanceof LockerRequestError && e.status === 422) intent.current = null;
+      // Validation and payload capacity reject before recording a response.
+      // Let the user correct the payload; conflicts/uncertain writes keep ID.
+      if (e instanceof LockerRequestError && (e.status === 422 || (e.status === 409 && e.code === 'capacity'))) intent.current = null;
       setError(String(e));
     } finally { setBusy(false); }
   }

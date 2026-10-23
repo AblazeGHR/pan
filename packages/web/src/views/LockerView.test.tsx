@@ -94,12 +94,12 @@ describe('Locker panel', () => {
     mount(); expect((await screen.findByRole('alert')).textContent).toContain('user_auth_unavailable');
     expect(screen.queryByText('Submit')).toBeNull();
   });
-  it('allows correction after a proven validation rejection', async () => {
+  it.each([[422, 'invalid'], [409, 'capacity']])('allows correction after proven rejection %s/%s', async (status, code) => {
     const original = globalThis.fetch;
     let attempts = 0;
     vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {
       if (String(args[0]).endsWith('/submit') && ++attempts === 1) {
-        return { ok: false, status: 422, json: async () => ({ detail: { code: 'invalid' } }) } as Response;
+        return { ok: false, status, json: async () => ({ detail: { code } }) } as Response;
       }
       return original(...args);
     }));
