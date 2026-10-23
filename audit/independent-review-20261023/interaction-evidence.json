@@ -1,0 +1,36 @@
+{
+  "instance": {
+    "pid": 35664,
+    "port": 64003,
+    "cwd": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023",
+    "roots": {
+      "data": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data",
+      "sessions": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\sessions",
+      "config": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\config.json",
+      "jobs": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\background_jobs",
+      "scheduler": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\background_jobs",
+      "terminal": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\terminals",
+      "gateway": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\qq_plugins\\manifest.json",
+      "inbox": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\agent_inbox\\inbox.sqlite",
+      "attachments": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\attachments",
+      "workdirs": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\workdirs",
+      "errorLog": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\logs\\session-errors.jsonl",
+      "mcpConfigs": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\mcp-configs"
+    },
+    "fakeCLI": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\tests\\support\\fake_stream_cli.py",
+    "nonce": "58028f8ba083da1e34a3576bacf699d1"
+  },
+  "interaction": {
+    "pid": 35664,
+    "cardPath": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\user_inbox\\cards.sqlite",
+    "receiptPath": "D:\\project\\pan-worktrees\\job-inbox-independent-review-20261023\\audit\\independent-review-20261023\\browser-runtime\\test_locker_browser_http_mcp0\\profile\\data\\synthetic-trigger.sqlite",
+    "auth": "synthetic-test-only",
+    "trigger": "synthetic-test-only"
+  },
+  "ownerSessionId": "ses_111a04ba627bd48b",
+  "cardId": "card_880ec165e9c59d8293880d94ea628176e9f9eea4a9a61bcba4fde30e8e2a93c4",
+  "eventId": "evt_6f0ed69d714691b2b710a119bc49005d292614b8df33e013eef192c2a82b5b30",
+  "receiptId": "receipt_68ee666ee42b38e04a2c106eb0e3213c871b9bce1a930eab5a09c33fadaf4368",
+  "mcpProducerOnly": true,
+  "oneResponse": true
+}

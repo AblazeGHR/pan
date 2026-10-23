@@ -1,0 +1,119 @@
+{
+  "baseline-python": {
+    "tests": 116.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 10.112
+  },
+  "baseline-ui": {
+    "tests": 8.0,
+    "failures": 1.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 1.5199232
+  },
+  "capacity-red": {
+    "tests": 9.0,
+    "failures": 1.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 1.4142669
+  },
+  "fixed-ui": {
+    "tests": 43.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 6.4457293
+  },
+  "runtime-boundaries": {
+    "tests": 152.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 7.004
+  },
+  "auth-capacity-observations": {
+    "tests": 2.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 0.504
+  },
+  "final-ui": {
+    "tests": 24.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 0.8958733
+  },
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "1ca7cbd3d19635064fd50cfbcde3a633a260c83a",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--exit-code",
+        "HEAD",
+        "--",
+        "packages",
+        "tests",
+        "docs"
+      ],
+      "exitCode": 0,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "D:/project/pan-worktrees/job-inbox-panel-composition-20261023",
+        "status",
+        "--porcelain=v1"
+      ],
+      "exitCode": 0,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "D:/project/pan-worktrees/job-inbox-panel-composition-20261023",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exitCode": 0,
+      "stdout": "1ca7cbd3d19635064fd50cfbcde3a633a260c83a\n"
+    }
+  ],
+  "repairSourceSHA": "26ea1cb266569ea5bf197983cc3d5f56371953eb",
+  "browser": {
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "exitCodes": {
+    "baselinePython": 0,
+    "baselineUI": 1,
+    "capacityRed": 1,
+    "fixedUI": 0,
+    "runtimeBoundaries": 0,
+    "authCapacity": 0,
+    "finalUI": 0,
+    "productionBuild": 0,
+    "realBrowser": 0
+  }
+}

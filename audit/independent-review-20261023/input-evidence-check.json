@@ -1,0 +1,29 @@
+{
+  "composition-python-final.xml": {
+    "tests": 517.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 61.167
+  },
+  "composition-ui-final.xml": {
+    "tests": 121.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 10.676334
+  },
+  "interaction-browser-final.xml": {
+    "tests": 2.0,
+    "failures": 0.0,
+    "errors": 0.0,
+    "skipped": 0.0,
+    "time": 14.352
+  },
+  "4e51ec704bd3d2d04c6913da7c8f90f76fbc93f7": {
+    "ancestorExitCode": 0
+  },
+  "ba847160a01daf0049bb84575c427317ab7db236": {
+    "ancestorExitCode": 0
+  }
+}
