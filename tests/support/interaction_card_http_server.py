@@ -18,7 +18,11 @@ with sqlite3.connect(receipt_path) as db:
 
 def principal(request):
     token=os.environ['PAN_TEST_INTERACTION_TOKEN']
-    return UserPrincipal('test-user') if request.headers.get('authorization')=='Bearer '+token else None
+    header = request.headers.get('authorization', '')
+    # The browser now uses the shared local-key login. Retain the synthetic
+    # recipient mapping while requiring a real owned-profile auth session.
+    authorized = server.app.state.automation.auth.authorized(header)
+    return UserPrincipal('test-user') if header=='Bearer '+token or authorized else None
 
 
 def submit(event,trigger_id,*,expected_revision):

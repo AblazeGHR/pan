@@ -11,11 +11,13 @@ try {
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   const row = page.locator(`[data-card-id="${cardId}"]`);
   await expect(row).toBeVisible();
+  await row.getByRole('radio', { name: 'Keep target running', exact: true }).check();
   const trusted = row.getByRole('region', { name: 'Trusted execution pause' });
   await expect(trusted).toContainText('pause_everything');
   await expect(trusted).toContainText(targetId);
-  await expect(trusted).toContainText('Action digest:');
-  await expect(row.getByRole('option', { name: 'Keep target running' })).toHaveCount(1);
+  await trusted.getByText('Operation details', { exact: true }).click();
+  await expect(trusted.locator('code')).toHaveText(/[a-f0-9]{64}/);
+  await expect(row.getByRole('radio', { name: 'Keep target running', exact: true })).toHaveCount(1);
   const sizes = [];
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -28,11 +30,12 @@ try {
     sizes.push({ width, scrollWidth, trustedBox: box });
     await page.screenshot({ path: `${out}/trusted-${width}.png` });
   }
-  await row.getByLabel('Answer', { exact: true }).fill('ANSWER-SECRET');
-  await row.getByLabel('Choice', { exact: true }).selectOption('pause');
+  await row.getByRole('textbox', { name: 'Answer or BTW' }).fill('ANSWER-SECRET');
   await row.getByRole('button', { name: 'Submit', exact: true }).click();
-  await expect(row.getByText('Trigger: accepted', { exact: true })).toBeVisible();
-  await expect(row.getByLabel('Choice', { exact: true })).toBeDisabled();
+  await row.getByText('Delivery details', { exact: true }).click();
+  await expect(row.getByText('Trigger delivery: accepted', { exact: true })).toBeVisible();
+  await expect(row.getByRole('region', { name: 'Completed interaction' })).toContainText('Read-only');
+  await expect(row.getByRole('textbox')).toHaveCount(0);
   expect(errors).toEqual([]);
   await fs.writeFile(out + '/browser.json', JSON.stringify({ chromiumVersion: browser.version(), sizes, errors,
     cardId, targetId, trustedSummary: await trusted.innerText(), approvedInProductionPanel: true }, null, 2));

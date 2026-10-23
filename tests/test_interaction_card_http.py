@@ -103,7 +103,8 @@ def run_http_mcp(tmp_path,*,browser=False):
         if browser:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-panel.e2e.mjs'),base,
                 env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser')],
-                cwd=ROOT/'packages/web',capture_output=True,text=True,encoding='utf-8',timeout=90)
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                capture_output=True,text=True,encoding='utf-8',timeout=90)
             (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
             assert result.returncode==0,result.stdout+'\n'+result.stderr
             with sqlite3.connect(ports['cardPath']) as db:

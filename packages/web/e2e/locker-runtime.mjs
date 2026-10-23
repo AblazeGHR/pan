@@ -10,18 +10,21 @@ try {
   await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
   await page.getByRole('button',{name:'Log in',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Production wiring',exact:true})).toBeVisible();
-  await page.getByLabel('Choice',{exact:true}).selectOption('pause');
+  await page.getByRole('radio',{name:'Pause',exact:true}).check();
   await page.getByRole('button',{name:'Submit',exact:true}).click();
-  await expect(page.getByText('Trigger: accepted',{exact:true})).toBeVisible();
+  await page.getByText('Delivery details',{exact:true}).click();
+  await expect(page.getByText('Trigger delivery: accepted',{exact:true})).toBeVisible();
   const create=async(key)=>page.request.post(base+'/api/interaction-cards',{data:{ownerSessionId:owner,recipientId:'user',
     requestKey:key,card:{title:'Reject probe',body:'Retained body',summaryBody:'Safe reject',
       choices:[{id:'pause',label:'Pause',triggerRef:{id:'selected',revision:1}}]}}});
   const card=(await (await create('browser-reject')).json()).card;
-  await page.getByRole('button',{name:'刷新',exact:true}).click();
+  await page.getByRole('button',{name:'Refresh Locker',exact:true}).click();
   const row=page.locator(`[data-card-id="${card.id}"]`);
   await row.getByRole('button',{name:'Reject',exact:true}).click();
-  await expect(row.getByText('已拒收',{exact:true})).toBeVisible();
-  await row.getByRole('button',{name:'Delete',exact:true}).click();
+  await row.getByRole('textbox',{name:'Reason for rejection',exact:true}).fill('Owned rejection probe');
+  await row.getByRole('button',{name:'Confirm rejection',exact:true}).click();
+  await expect(row.getByRole('region',{name:'Completed interaction'})).toContainText('Rejected');
+  await row.getByRole('button',{name:'Delete record',exact:true}).click();
   await expect(row).toHaveCount(0);
   const sizes=[];
   for(const width of [1280,390,320]) {

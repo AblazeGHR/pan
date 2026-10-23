@@ -105,7 +105,7 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
             result = rt.request('POST', '/api/user-inbox/'+submitted['id']+'/submit', headers=auth, json=payload)
             assert result['card']['delivery']['state'] == 'accepted'
         rt.request('POST', '/api/user-inbox/'+rejected['id']+'/reject', headers=auth,
-            json={'requestId': 'reject', 'expectedRevision': 0})
+            json={'requestId': 'reject', 'expectedRevision': 0, 'answer': 'Owned rejection probe'})
         rt.request('DELETE', '/api/user-inbox/'+rejected['id'], headers=auth)
         def done():
             runs = rt.request('GET', '/api/automation')['runs']
