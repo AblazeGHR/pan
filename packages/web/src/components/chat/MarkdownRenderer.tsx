@@ -404,25 +404,27 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
 
   return (
     <SourceSessionContext.Provider value={sourceSessionId}>
-    <AttachmentDownloadContext.Provider value={onAttachmentDownload}><div className={`prose-kimi max-w-none break-words ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={plugins}
-        components={{
-          code: CodeBlock,
-          pre: PreBlock,
-          a: (props) => {
-            const attachmentId = props.href && isSafeAttachmentHref(props.href)
-              ? attachmentIds[attachmentIndex++]
-              : undefined;
-            return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
-          },
-        }}
-        urlTransform={transformMarkdownUrl}
-      >
-        {renderedContent}
-      </ReactMarkdown>
-    </div></AttachmentDownloadContext.Provider>
+      <AttachmentDownloadContext.Provider value={onAttachmentDownload}>
+        <div className={`prose-kimi max-w-none break-words ${className}`}>
+          <ReactMarkdown
+            remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={plugins}
+            components={{
+              code: CodeBlock,
+              pre: PreBlock,
+              a: (props) => {
+                const attachmentId = props.href && isSafeAttachmentHref(props.href)
+                  ? attachmentIds[attachmentIndex++]
+                  : undefined;
+                return <MarkdownLink {...props} attachmentId={attachmentId} sourcePath={sourcePath} />;
+              },
+            }}
+            urlTransform={transformMarkdownUrl}
+          >
+            {renderedContent}
+          </ReactMarkdown>
+        </div>
+      </AttachmentDownloadContext.Provider>
     </SourceSessionContext.Provider>
   );
 });
