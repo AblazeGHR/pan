@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="15" time="4.604" timestamp="2026-10-23T11:15:23.451848+08:00" hostname="ablaze"><testcase classname="tests.test_locker_independent_review" name="test_old_user_and_unknown_recipient_copy_migration" time="0.099" /><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]" time="0.200"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_fixed_choice_must_not_exe0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180F29A70&gt;
+change = 'unpinned_trigger'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:79: in run
+    result = await store.dispatch(user, card['id'], adapter)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180DB23C0&gt;
+event = {'id': 'evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa', 'occurredAt': '2026-10-23T03:15:24.2611...385897eea3b89bc8', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[pinned_action]" time="0.124"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_fixed_choice_must_not_exe1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180FDFBF0&gt;
+change = 'pinned_action'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:79: in run
+    result = await store.dispatch(user, card['id'], adapter)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180F59950&gt;
+event = {'id': 'evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa', 'occurredAt': '2026-10-23T03:15:24.5820...385897eea3b89bc8', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[after_admission]" time="0.133"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_fixed_choice_must_not_exe2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180D3FAC0&gt;
+change = 'after_admission'
+
+    @pytest.mark.parametrize('change', ['unpinned_trigger', 'pinned_action', 'after_admission'])
+    def test_fixed_choice_must_not_execute_changed_action(tmp_path, monkeypatch, change):
+        """No timing sleeps: stop exactly before the executor reads its Action."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            calls = []
+            async def pause(sid, args):
+                calls.append(sid)
+                return {'ok': True}
+            svc = Service(tmp_path/'automation', worker, pause)
+            await svc.start()
+            gate, entered = asyncio.Event(), asyncio.Event()
+            original = svc.engine.run_attempt
+            async def held(run):
+                entered.set()
+                await gate.wait()
+                await original(run)
+            monkeypatch.setattr(svc.engine, 'run_attempt', held)
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                ref = {'id': 'selected'}
+                if change != 'unpinned_trigger':
+                    ref['revision'] = 1
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'fixed',
+                    'card': {'title': 'Pause approved-target', 'body': 'Pause approved-target only',
+                             'choices': [{'id': 'pause', 'label': 'Pause approved-target', 'triggerRef': ref}]}})
+                frozen = card['definition']
+                def mutate():
+                    if change == 'unpinned_trigger':
+                        svc.engine.actions.put('actions', {**action(['foreign-target']), 'id': 'foreign_action'})
+                        svc.ledger.put({**spec, 'actionId': 'foreign_action'}, 1, True)
+                    else:
+                        svc.engine.actions.put('actions', action(['foreign-target']))
+                if change != 'after_admission':
+                    mutate()
+                user = UserPrincipal('user')
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'pause'})
+                result = await store.dispatch(user, card['id'], adapter)
+                await asyncio.wait_for(entered.wait(), 5)
+                if change == 'after_admission':
+                    mutate()
+                gate.set()
+                async def done():
+                    runs = svc.ledger.read()['runs']
+                    return bool(runs) and all(r['status'] == 'succeeded' for r in runs.values())
+                await until(done)
+                assert store.get_for_user(user, card['id'])['definition'] == frozen
+                print(json.dumps({'change': change, 'fixedChoice': frozen['choices'],
+                    'delivery': result['delivery'], 'actualPauseCalls': calls,
+                    'runActions': [r['actionId'] for r in svc.ledger.read()['runs'].values()]}))
+                assert 'foreign-target' not in calls, 'Fixed visible choice executed a different Action target'
+            finally:
+                gate.set()
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:79: in run
+    result = await store.dispatch(user, card['id'], adapter)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180F9D1D0&gt;
+event = {'id': 'evt_6447cec7de98d86112405923758fecdcb7f4e210ee5aee1a0c94d8c1aec635fa', 'occurredAt': '2026-10-23T03:15:24.7526...385897eea3b89bc8', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_unknown_receipt_reconciles_after_trigger_revocation[False-False]" time="0.134"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_unknown_receipt_reconcile0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180F75480&gt;
+deleted = False, receipt_present = False
+
+    @pytest.mark.parametrize('deleted', [False, True])
+    @pytest.mark.parametrize('receipt_present', [False, True])
+    def test_unknown_receipt_reconciles_after_trigger_revocation(tmp_path, monkeypatch, deleted, receipt_present):
+        """Revocation blocks new side effects, not lookup of the original receipt."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            svc = Service(tmp_path/'automation', worker, AsyncMock(return_value={'ok': True}))
+            await svc.start()
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                user = UserPrincipal('user')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'receipt',
+                    'card': {'title': 'choice', 'body': 'body', 'choices': [{'id': 'go', 'label': 'Go',
+                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})
+                append = svc.events.append
+                def commit_then_raise(*args):
+                    append(*args)
+                    raise OSError('receipt lost after EventStore commit')
+                monkeypatch.setattr(svc.events, 'append', commit_then_raise)
+                assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+                svc.ledger.put({**spec, 'enabled': False}, 1, True)
+                def forbidden_append(*args):
+                    pytest.fail('Unknown must never append again')
+                monkeypatch.setattr(svc.events, 'append', forbidden_append)
+                if deleted:
+                    store.delete(user, card['id'])
+                lookup = adapter.lookup
+                lookups = []
+                async def original_receipt(eid):
+                    lookups.append(eid)
+                    return await lookup(eid) if receipt_present else None
+                async def forbidden(*args):
+                    pytest.fail('Unknown must neither authorize current Trigger nor admit')
+                adapter.lookup = original_receipt
+                adapter.authorize = adapter.accept = forbidden
+                reopened = InteractionStore(store.path)
+                for _ in range(2):
+                    if deleted:
+                        await reopened.recover_detached(adapter)
+                        with reopened.db() as db:
+                            state = json.loads(db.execute('SELECT delivery FROM detached_deliveries').fetchone()[0])['state']
+                    else:
+                        state = (await reopened.dispatch(user, card['id'], adapter))['delivery']['state']
+                    assert state == ('accepted' if receipt_present else 'unknown')
+                assert len(lookups) == (1 if receipt_present else 2)
+                assert len(set(lookups)) == 1
+                assert len(svc.events.page()['events']) == 1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:123: in run
+    assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180F79F30&gt;
+event = {'id': 'evt_17e71de4a40beb30fd724da12f88952fb6f057a1ed4566c2306bf0071cfbf3af', 'occurredAt': '2026-10-23T03:15:24.9237...f35af065d14a477e', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_unknown_receipt_reconciles_after_trigger_revocation[False-True]" time="0.130"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_unknown_receipt_reconcile1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180FF0450&gt;
+deleted = True, receipt_present = False
+
+    @pytest.mark.parametrize('deleted', [False, True])
+    @pytest.mark.parametrize('receipt_present', [False, True])
+    def test_unknown_receipt_reconciles_after_trigger_revocation(tmp_path, monkeypatch, deleted, receipt_present):
+        """Revocation blocks new side effects, not lookup of the original receipt."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            svc = Service(tmp_path/'automation', worker, AsyncMock(return_value={'ok': True}))
+            await svc.start()
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                user = UserPrincipal('user')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'receipt',
+                    'card': {'title': 'choice', 'body': 'body', 'choices': [{'id': 'go', 'label': 'Go',
+                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})
+                append = svc.events.append
+                def commit_then_raise(*args):
+                    append(*args)
+                    raise OSError('receipt lost after EventStore commit')
+                monkeypatch.setattr(svc.events, 'append', commit_then_raise)
+                assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+                svc.ledger.put({**spec, 'enabled': False}, 1, True)
+                def forbidden_append(*args):
+                    pytest.fail('Unknown must never append again')
+                monkeypatch.setattr(svc.events, 'append', forbidden_append)
+                if deleted:
+                    store.delete(user, card['id'])
+                lookup = adapter.lookup
+                lookups = []
+                async def original_receipt(eid):
+                    lookups.append(eid)
+                    return await lookup(eid) if receipt_present else None
+                async def forbidden(*args):
+                    pytest.fail('Unknown must neither authorize current Trigger nor admit')
+                adapter.lookup = original_receipt
+                adapter.authorize = adapter.accept = forbidden
+                reopened = InteractionStore(store.path)
+                for _ in range(2):
+                    if deleted:
+                        await reopened.recover_detached(adapter)
+                        with reopened.db() as db:
+                            state = json.loads(db.execute('SELECT delivery FROM detached_deliveries').fetchone()[0])['state']
+                    else:
+                        state = (await reopened.dispatch(user, card['id'], adapter))['delivery']['state']
+                    assert state == ('accepted' if receipt_present else 'unknown')
+                assert len(lookups) == (1 if receipt_present else 2)
+                assert len(set(lookups)) == 1
+                assert len(svc.events.page()['events']) == 1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:123: in run
+    assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180F795B0&gt;
+event = {'id': 'evt_17e71de4a40beb30fd724da12f88952fb6f057a1ed4566c2306bf0071cfbf3af', 'occurredAt': '2026-10-23T03:15:25.0910...f35af065d14a477e', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_unknown_receipt_reconciles_after_trigger_revocation[True-False]" time="0.140"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_unknown_receipt_reconcile2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020181011750&gt;
+deleted = False, receipt_present = True
+
+    @pytest.mark.parametrize('deleted', [False, True])
+    @pytest.mark.parametrize('receipt_present', [False, True])
+    def test_unknown_receipt_reconciles_after_trigger_revocation(tmp_path, monkeypatch, deleted, receipt_present):
+        """Revocation blocks new side effects, not lookup of the original receipt."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            svc = Service(tmp_path/'automation', worker, AsyncMock(return_value={'ok': True}))
+            await svc.start()
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                user = UserPrincipal('user')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'receipt',
+                    'card': {'title': 'choice', 'body': 'body', 'choices': [{'id': 'go', 'label': 'Go',
+                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})
+                append = svc.events.append
+                def commit_then_raise(*args):
+                    append(*args)
+                    raise OSError('receipt lost after EventStore commit')
+                monkeypatch.setattr(svc.events, 'append', commit_then_raise)
+                assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+                svc.ledger.put({**spec, 'enabled': False}, 1, True)
+                def forbidden_append(*args):
+                    pytest.fail('Unknown must never append again')
+                monkeypatch.setattr(svc.events, 'append', forbidden_append)
+                if deleted:
+                    store.delete(user, card['id'])
+                lookup = adapter.lookup
+                lookups = []
+                async def original_receipt(eid):
+                    lookups.append(eid)
+                    return await lookup(eid) if receipt_present else None
+                async def forbidden(*args):
+                    pytest.fail('Unknown must neither authorize current Trigger nor admit')
+                adapter.lookup = original_receipt
+                adapter.authorize = adapter.accept = forbidden
+                reopened = InteractionStore(store.path)
+                for _ in range(2):
+                    if deleted:
+                        await reopened.recover_detached(adapter)
+                        with reopened.db() as db:
+                            state = json.loads(db.execute('SELECT delivery FROM detached_deliveries').fetchone()[0])['state']
+                    else:
+                        state = (await reopened.dispatch(user, card['id'], adapter))['delivery']['state']
+                    assert state == ('accepted' if receipt_present else 'unknown')
+                assert len(lookups) == (1 if receipt_present else 2)
+                assert len(set(lookups)) == 1
+                assert len(svc.events.page()['events']) == 1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:123: in run
+    assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x00000201810295B0&gt;
+event = {'id': 'evt_17e71de4a40beb30fd724da12f88952fb6f057a1ed4566c2306bf0071cfbf3af', 'occurredAt': '2026-10-23T03:15:25.2749...f35af065d14a477e', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_unknown_receipt_reconciles_after_trigger_revocation[True-True]" time="0.144"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_unknown_receipt_reconcile3')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180F3F5C0&gt;
+deleted = True, receipt_present = True
+
+    @pytest.mark.parametrize('deleted', [False, True])
+    @pytest.mark.parametrize('receipt_present', [False, True])
+    def test_unknown_receipt_reconciles_after_trigger_revocation(tmp_path, monkeypatch, deleted, receipt_present):
+        """Revocation blocks new side effects, not lookup of the original receipt."""
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            svc = Service(tmp_path/'automation', worker, AsyncMock(return_value={'ok': True}))
+            await svc.start()
+            try:
+                adapter = bind(svc)
+                svc.engine.actions.put('actions', action(['approved-target']))
+                spec = {**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}
+                svc.ledger.put(spec, 0, True)
+                store = InteractionStore(tmp_path/'cards.sqlite')
+                user = UserPrincipal('user')
+                card = store.create({'ownerSessionId': 'source', 'recipientId': 'user', 'requestKey': 'receipt',
+                    'card': {'title': 'choice', 'body': 'body', 'choices': [{'id': 'go', 'label': 'Go',
+                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})
+                append = svc.events.append
+                def commit_then_raise(*args):
+                    append(*args)
+                    raise OSError('receipt lost after EventStore commit')
+                monkeypatch.setattr(svc.events, 'append', commit_then_raise)
+                assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+                svc.ledger.put({**spec, 'enabled': False}, 1, True)
+                def forbidden_append(*args):
+                    pytest.fail('Unknown must never append again')
+                monkeypatch.setattr(svc.events, 'append', forbidden_append)
+                if deleted:
+                    store.delete(user, card['id'])
+                lookup = adapter.lookup
+                lookups = []
+                async def original_receipt(eid):
+                    lookups.append(eid)
+                    return await lookup(eid) if receipt_present else None
+                async def forbidden(*args):
+                    pytest.fail('Unknown must neither authorize current Trigger nor admit')
+                adapter.lookup = original_receipt
+                adapter.authorize = adapter.accept = forbidden
+                reopened = InteractionStore(store.path)
+                for _ in range(2):
+                    if deleted:
+                        await reopened.recover_detached(adapter)
+                        with reopened.db() as db:
+                            state = json.loads(db.execute('SELECT delivery FROM detached_deliveries').fetchone()[0])['state']
+                    else:
+                        state = (await reopened.dispatch(user, card['id'], adapter))['delivery']['state']
+                    assert state == ('accepted' if receipt_present else 'unknown')
+                assert len(lookups) == (1 if receipt_present else 2)
+                assert len(set(lookups)) == 1
+                assert len(svc.events.page()['events']) == 1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_locker_independent_review.py:153:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_locker_independent_review.py:123: in run
+    assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x0000020180F74380&gt;
+event = {'id': 'evt_17e71de4a40beb30fd724da12f88952fb6f057a1ed4566c2306bf0071cfbf3af', 'occurredAt': '2026-10-23T03:15:25.4608...f35af065d14a477e', 'correlation': {}, 'ownerSessionId': 'source', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_interaction_runtime" name="test_real_auth_and_directed_engine" time="0.155"><failure message="AssertionError: {&quot;detail&quot;:{&quot;code&quot;:&quot;incomplete&quot;,&quot;message&quot;:&quot;Legacy choice has no trusted execution binding&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_real_auth_and_directed_en0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180F3E6C0&gt;
+
+    def test_real_auth_and_directed_engine(tmp_path, monkeypatch):
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        async def run():
+            owner=session.create('source',workdir=str(tmp_path))
+            target=session.create('target',workdir=str(tmp_path))
+            paused=[]
+            async def pause(sid, arguments):
+                paused.append(sid)
+                return {'ok':True}
+            svc=Service(tmp_path/'automation',worker,pause)
+            await svc.start()
+            app=FastAPI();app.state.automation=svc;register(app)
+            app.state.interaction_trigger_adapter=bind(svc)
+            svc.engine.actions.put('actions',action([target.id]))
+            for tid in ('selected','not-selected'):
+                svc.ledger.put({**trigger(tid),'eventTypes':['pan.interaction.responded']},0,True)
+            auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+            card=get_store().create({'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
+                'card':{'title':'choose','body':'private body','summaryBody':'S'*250,
+                        'choices':[{'id':'go','label':'Go','triggerRef':{'id':'selected','revision':1}}]}})
+            other=get_store().create({'ownerSessionId':owner.id,'recipientId':'someone-else','requestKey':'other',
+                'card':{'title':'other','body':'other secret'}})
+            try:
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                    assert (await client.get('/api/user-lockers')).status_code==401
+                    assert (await client.get('/api/user-lockers',headers={'Authorization':'Bearer wrong'})).status_code==401
+                    assert (await client.get('/api/user-lockers',headers=auth)).status_code==200
+                    assert (await client.get('/api/user-inbox/'+other['id'],headers=auth)).status_code==404
+                    assert (await client.put('/api/user-inbox/'+other['id']+'/read',headers=auth,json={'read':True})).status_code==404
+                    request={'requestId':'once','expectedRevision':0,'choiceId':'go'}
+                    result=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,json=request)
+                    assert result.status_code==200,result.text
+                    assert result.json()['card']['delivery']['state']=='accepted'
+                    again=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,json=request)
+                    assert again.json()['card']['delivery']['state']=='accepted'
+                    async def done():
+                        runs=(await svc.engine.io(svc.ledger.read))['runs']
+                        return len(runs)==1 and next(iter(runs.values()))['status']=='succeeded'
+                    await until(done)
+                    assert paused==[target.id]
+                    assert {r['triggerId'] for r in svc.ledger.read()['runs'].values()}=={'selected'}
+                    assert len(svc.events.page()['events'])==1
+                    # A Trigger update after planning is rechecked at admission.
+                    old=svc.ledger.read()['triggers']['selected']
+                    svc.ledger.put({k:v for k,v in old.items() if k in {'id','name','eventTypes','actionId','arguments','enabled','retry','executionMode','maxConcurrency'}} | {'enabled':False},old['revision'],True)
+                    frozen_event=next(iter(svc.ledger.read()['runs'].values()))['event']
+                    rejected=await app.state.interaction_trigger_adapter.submit({**frozen_event,'id':'evt_stale'},'selected',expected_revision=old['revision'])
+                    assert rejected=={'status':'rejected'}
+                    assert svc.events.lookup('evt_stale') is None
+                    # Response notice has separate Queue identity; neither full
+                    # answer nor body is sent. Delete must not add a notice.
+                    queue=session.get(owner.id,load_history=False).queue_pending
+                    assert len(queue)==1
+                    assert len(queue[0]['envelope']['summaryBody'])==200
+                    assert 'private body' not in json.dumps(queue)
+                    await client.delete('/api/user-inbox/'+card['id'],headers=auth)
+                    assert len(session.get(owner.id,load_history=False).queue_pending)==1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_interaction_runtime.py:78:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        owner=session.create('source',workdir=str(tmp_path))
+        target=session.create('target',workdir=str(tmp_path))
+        paused=[]
+        async def pause(sid, arguments):
+            paused.append(sid)
+            return {'ok':True}
+        svc=Service(tmp_path/'automation',worker,pause)
+        await svc.start()
+        app=FastAPI();app.state.automation=svc;register(app)
+        app.state.interaction_trigger_adapter=bind(svc)
+        svc.engine.actions.put('actions',action([target.id]))
+        for tid in ('selected','not-selected'):
+            svc.ledger.put({**trigger(tid),'eventTypes':['pan.interaction.responded']},0,True)
+        auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+        card=get_store().create({'ownerSessionId':owner.id,'recipientId':'user','requestKey':'one',
+            'card':{'title':'choose','body':'private body','summaryBody':'S'*250,
+                    'choices':[{'id':'go','label':'Go','triggerRef':{'id':'selected','revision':1}}]}})
+        other=get_store().create({'ownerSessionId':owner.id,'recipientId':'someone-else','requestKey':'other',
+            'card':{'title':'other','body':'other secret'}})
+        try:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                assert (await client.get('/api/user-lockers')).status_code==401
+                assert (await client.get('/api/user-lockers',headers={'Authorization':'Bearer wrong'})).status_code==401
+                assert (await client.get('/api/user-lockers',headers=auth)).status_code==200
+                assert (await client.get('/api/user-inbox/'+other['id'],headers=auth)).status_code==404
+                assert (await client.put('/api/user-inbox/'+other['id']+'/read',headers=auth,json={'read':True})).status_code==404
+                request={'requestId':'once','expectedRevision':0,'choiceId':'go'}
+                result=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,json=request)
+&gt;               assert result.status_code==200,result.text
+E               AssertionError: {"detail":{"code":"incomplete","message":"Legacy choice has no trusted execution binding"}}
+E               assert 409 == 200
+E                +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_interaction_runtime.py:50: AssertionError</failure></testcase><testcase classname="tests.test_interaction_runtime" name="test_notification_crash_reconciles_only_and_migration_preserves_foreign_recipient" time="0.080" /><testcase classname="tests.test_interaction_runtime" name="test_real_event_receipt_recovers_unknown_without_second_admission" time="0.126"><failure message="packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_real_event_receipt_recove0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020180DC2890&gt;
+
+    def test_real_event_receipt_recovers_unknown_without_second_admission(tmp_path,monkeypatch):
+        monkeypatch.setattr(worker,'_wake_worker',AsyncMock())
+        async def run():
+            svc=Service(tmp_path/'automation',worker,AsyncMock(return_value={'ok':True}))
+            await svc.start()
+            try:
+                adapter=bind(svc)
+                svc.engine.actions.put('actions',action([]))
+                svc.ledger.put({**trigger('selected'),'eventTypes':['pan.interaction.responded']},0,True)
+                store=InteractionStore(tmp_path/'cards.sqlite')
+                card=store.create({'ownerSessionId':'owner','recipientId':'user','requestKey':'once',
+                    'card':{'title':'choose','body':'body','choices':[{'id':'go','label':'Go',
+                        'triggerRef':{'id':'selected','revision':1}}]}})
+                principal=UserPrincipal('user')
+                store.respond(principal,card['id'],{'requestId':'once','expectedRevision':0,'choiceId':'go'})
+                original=svc.events.append
+                calls=[]
+                def commit_then_lose_receipt(*args):
+                    calls.append(args[0]['id']);original(*args)
+                    raise OSError('receipt lost after Event commit')
+                monkeypatch.setattr(svc.events,'append',commit_then_lose_receipt)
+                assert (await store.dispatch(principal,card['id'],adapter))['delivery']['state']=='unknown'
+                monkeypatch.setattr(svc.events,'append',original)
+                reopened=InteractionStore(store.path)
+                assert (await reopened.dispatch(principal,card['id'],adapter))['delivery']['state']=='accepted'
+                await reopened.dispatch(principal,card['id'],adapter)
+                assert len(calls)==1
+                assert len(svc.events.page()['events'])==1
+            finally:
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_interaction_runtime.py:144:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_interaction_runtime.py:135: in run
+    assert (await store.dispatch(principal,card['id'],adapter))['delivery']['state']=='unknown'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\store.py:222: in dispatch
+    allowed=await adapter.authorize(json.loads(canonical(event)))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:103: in bound_authorize
+    await service.engine.io(verify,service,event)
+packages\automation\engine.py:73: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+service = &lt;packages.automation.service.Service object at 0x000002018156E550&gt;
+event = {'id': 'evt_f0b49328701599986a0f80c7fced4a5314cc57836b2f2ceff72ac0509470a450', 'occurredAt': '2026-10-23T03:15:25.9037...0cbe06f2586b2a08d', 'correlation': {}, 'ownerSessionId': 'owner', 'recipientId': 'user', ...}, 'schemaVersion': 1, ...}
+
+    def verify(service, event):
+        binding = event['payload'].get('executionBinding')
+        if not binding:
+&gt;           raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
+E           packages.interactions.contracts.InteractionError: Legacy choice has no trusted execution binding
+
+packages\interactions\trusted.py:76: InteractionError</failure></testcase><testcase classname="tests.test_interaction_card_api" name="test_auth_fail_closed_user_isolation_and_body_spoofing" time="1.575" /><testcase classname="tests.test_interaction_card_api" name="test_trigger_unavailable_is_not_fake_execution_success" time="0.028"><failure message="AssertionError: {&quot;detail&quot;:{&quot;code&quot;:&quot;incomplete&quot;,&quot;message&quot;:&quot;Trigger host unavailable&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_trigger_unavailable_is_no0')
+
+    def test_trigger_unavailable_is_not_fake_execution_success(tmp_path):
+        app,client,owner=setup(tmp_path)
+        app.state.user_inbox_principal=lambda request:UserPrincipal('user')
+&gt;       card=make(client,owner,choices=[{'id':'go','label':'Go','triggerRef':{'id':'existing-trigger'}}])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_interaction_card_api.py:51:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = &lt;starlette.testclient.TestClient object at 0x00000201811DC190&gt;
+owner = Session(id='ses_2ba4ec2aadcfe073', name='interaction-owner', adapter='cbc', model=None, permission_mode=None, pan_acce...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+card = {'choices': [{'id': 'go', 'label': 'Go', 'triggerRef': {'id': 'existing-trigger'}}]}
+
+    def make(client,owner,**card):
+        result=client.post('/api/interaction-cards',json={'ownerSessionId':owner.id,'recipientId':'user',
+                           'requestKey':'key','card':{'title':'Question','body':'text',**card}})
+&gt;       assert result.status_code==200,result.text
+E       AssertionError: {"detail":{"code":"incomplete","message":"Trigger host unavailable"}}
+E       assert 409 == 200
+E        +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_interaction_card_api.py:20: AssertionError</failure></testcase><testcase classname="tests.test_interaction_card_api" name="test_mcp_producer_permissions_and_no_user_response_tool" time="0.437" /><testcase classname="tests.test_interaction_card_api" name="test_user_api_cursor_and_trigger_policy_failure_are_explicit" time="0.044"><failure message="KeyError: 'card'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3900/test_user_api_cursor_and_trigg0')
+
+    def test_user_api_cursor_and_trigger_policy_failure_are_explicit(tmp_path):
+        app,client,owner=setup(tmp_path)
+        app.state.user_inbox_principal=lambda request:UserPrincipal('user')
+        first=make(client,owner)
+        second_payload={'ownerSessionId':owner.id,'recipientId':'user','requestKey':'second',
+                        'card':{'title':'second','body':'','choices':[{'id':'go','label':'Go','triggerRef':{'id':'blocked'}}]}}
+&gt;       second=client.post('/api/interaction-cards',json=second_payload).json()['card']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'card'
+
+tests\test_interaction_card_api.py:81: KeyError</failure></testcase></testsuite></testsuites>

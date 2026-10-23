@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/locker-trusted-binding-20261023/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (1 test) 3ms
+ ✓ views/LockerView.test.tsx (12 tests) 641ms
+
+ Test Files  2 passed (2)
+      Tests  13 passed (13)
+   Start at  11:25:05
+   Duration  2.74s (transform 223ms, setup 18ms, collect 509ms, tests 644ms, environment 554ms, prepare 262ms)
+
+JUNIT report written to D:/project/pan-worktrees/locker-trusted-binding-20261023/audit/locker-binding/ui.xml

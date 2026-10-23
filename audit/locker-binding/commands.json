@@ -1,0 +1,87 @@
+{
+  "sourceSha": "55dfb2006e574eee9d311a406fcd8be7a161b05b",
+  "commands": [
+    {
+      "name": "python",
+      "cwd": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_review.py",
+        "tests/test_locker_trusted_binding.py",
+        "tests/test_interaction_runtime.py",
+        "tests/test_interaction_cards.py",
+        "tests/test_interaction_card_api.py",
+        "tests/test_user_locker_lifecycle.py",
+        "tests/test_agent_inbox.py",
+        "tests/test_job_action_templates.py",
+        "tests/test_job_inbox_boundaries.py",
+        "tests/test_automation_retry_parallel.py",
+        "tests/test_automation_core.py::test_serial_cross_trigger_dynamic_and_disable",
+        "tests/test_automation_core.py::test_dynamic_action_disabled_deleted_and_contract_failure",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-binding/python.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "ui",
+      "cwd": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "exec",
+        "vitest",
+        "run",
+        "src/views/LockerView.test.tsx",
+        "src/views/lockerModel.auth.test.ts",
+        "--reporter=default",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\locker-trusted-binding-20261023\\audit\\locker-binding\\ui-final.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "build",
+      "cwd": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023\\packages\\web",
+      "argv": [
+        "D:/node_npm/node_global/pnpm.cmd",
+        "build"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "http",
+      "cwd": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_locker_independent_http.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=audit/locker-binding/http-final.xml"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "diff",
+      "cwd": "D:\\project\\pan-worktrees\\locker-trusted-binding-20261023",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

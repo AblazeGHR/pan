@@ -1,0 +1,171 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\locker-trusted-binding-20261023
+....FF.                                                                  [100%]
+================================== FAILURES ===================================
+_________________ test_fixed_meaning_barriers[revoked_effect] _________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3906/test_fixed_meaning_barriers_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000028558EF2E00>
+stage = 'revoked_effect'
+
+    @pytest.mark.parametrize('stage',['approval','admission','effect','revoked_effect'])
+    def test_fixed_meaning_barriers(tmp_path,monkeypatch,stage):
+        async def run():
+            svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+            store=get_store();card=create(svc,store,request)
+            entered,release=asyncio.Event(),asyncio.Event()
+            original=svc.engine.execute
+            async def held(*args):
+                entered.set();await release.wait()
+                return await original(*args)
+            if stage in {'effect','revoked_effect'}:
+                svc.engine.execute=held
+            user=UserPrincipal('user')
+            try:
+                if stage=='approval':
+                    svc.engine.actions.put('actions',action([owner.id]))
+                    app=FastAPI();app.state.automation=svc;register(app)
+                    auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                        response=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,
+                            json={'requestId':'once','expectedRevision':0,'choiceId':'go'})
+                    assert response.status_code==409 and response.json()['detail']['code']=='stale'
+                    assert store.get_for_user(user,card['id'])['response'] is None
+                    assert svc.events.page()['events']==[]
+                else:
+                    store.respond(user,card['id'],{'requestId':'once','expectedRevision':0,'choiceId':'go'})
+                    if stage=='admission':
+                        original_authorize=adapter.authorize
+                        async def change_after_authorize(event):
+                            result=await original_authorize(event)
+                            svc.engine.actions.put('actions',action([owner.id]))
+                            return result
+                        adapter.authorize=change_after_authorize
+                        assert (await store.dispatch(user,card['id'],adapter))['delivery']['state']=='unknown'
+                        assert svc.events.page()['events']==[]
+                    else:
+                        assert (await store.dispatch(user,card['id'],adapter))['delivery']['state']=='accepted'
+                        await asyncio.wait_for(entered.wait(),5)
+                        if stage=='effect':
+                            svc.engine.actions.put('actions',action([owner.id]))
+                        else:
+                            owner.pan_access={'restrict_to_managed':True};owner.save()
+                        release.set()
+                        async def done():
+                            runs=svc.ledger.read()['runs']
+                            return bool(runs) and all(r['status']=='failed' for r in runs.values())
+                        await until(done)
+                assert calls==[]
+            finally:
+                release.set();await svc.close()
+>       asyncio.run(run())
+
+tests\test_locker_trusted_binding.py:126:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+        store=get_store();card=create(svc,store,request)
+        entered,release=asyncio.Event(),asyncio.Event()
+        original=svc.engine.execute
+        async def held(*args):
+            entered.set();await release.wait()
+            return await original(*args)
+        if stage in {'effect','revoked_effect'}:
+            svc.engine.execute=held
+        user=UserPrincipal('user')
+        try:
+            if stage=='approval':
+                svc.engine.actions.put('actions',action([owner.id]))
+                app=FastAPI();app.state.automation=svc;register(app)
+                auth={'Authorization':'Bearer '+svc.auth.login(svc.auth.key())}
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://test') as client:
+                    response=await client.post('/api/user-inbox/'+card['id']+'/submit',headers=auth,
+                        json={'requestId':'once','expectedRevision':0,'choiceId':'go'})
+                assert response.status_code==409 and response.json()['detail']['code']=='stale'
+                assert store.get_for_user(user,card['id'])['response'] is None
+                assert svc.events.page()['events']==[]
+            else:
+                store.respond(user,card['id'],{'requestId':'once','expectedRevision':0,'choiceId':'go'})
+                if stage=='admission':
+                    original_authorize=adapter.authorize
+                    async def change_after_authorize(event):
+                        result=await original_authorize(event)
+                        svc.engine.actions.put('actions',action([owner.id]))
+                        return result
+                    adapter.authorize=change_after_authorize
+                    assert (await store.dispatch(user,card['id'],adapter))['delivery']['state']=='unknown'
+                    assert svc.events.page()['events']==[]
+                else:
+                    assert (await store.dispatch(user,card['id'],adapter))['delivery']['state']=='accepted'
+                    await asyncio.wait_for(entered.wait(),5)
+                    if stage=='effect':
+                        svc.engine.actions.put('actions',action([owner.id]))
+                    else:
+>                       owner.pan_access={'restrict_to_managed':True};owner.save()
+                                                                      ^^^^^^^^^^
+E                       AttributeError: 'Session' object has no attribute 'save'
+
+tests\test_locker_trusted_binding.py:117: AttributeError
+_________________ test_scope_and_dynamic_targets_fail_closed __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3906/test_scope_and_dynamic_targets0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000285590DEB50>
+
+    def test_scope_and_dynamic_targets_fail_closed(tmp_path,monkeypatch):
+        async def run():
+            svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+            store=InteractionStore(tmp_path/'cards.sqlite')
+            try:
+                owner.pan_access={'restrict_to_managed':True};owner.save()
+                with pytest.raises(InteractionError,match='targets') as denied:
+                    create(svc,store,request)
+                assert denied.value.code=='forbidden'
+                owner.managed=[target.id];owner.save()
+                card=create(svc,store,request)
+                assert card['trustedChoices']['go']['authorization']['basis']=='self_or_managed'
+                dynamic=action([target.id]);dynamic['execution']['selector']={'mode':'event','path':'payload.response.answer'}
+                svc.engine.actions.put('actions',dynamic)
+                with pytest.raises(InteractionError,match='provable') as incomplete:
+                    create(svc,store,{**request,'requestKey':'dynamic'})
+                assert incomplete.value.code=='incomplete'
+                assert len(store.list_for_user(UserPrincipal('user')))==1
+            finally:
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_locker_trusted_binding.py:149:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        svc,adapter,owner,target,calls,request=await setup(tmp_path,monkeypatch)
+        store=InteractionStore(tmp_path/'cards.sqlite')
+        try:
+>           owner.pan_access={'restrict_to_managed':True};owner.save()
+                                                          ^^^^^^^^^^
+E           AttributeError: 'Session' object has no attribute 'save'
+
+tests\test_locker_trusted_binding.py:134: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers[revoked_effect]
+FAILED tests/test_locker_trusted_binding.py::test_scope_and_dynamic_targets_fail_closed
+2 failed, 5 passed in 1.52s
