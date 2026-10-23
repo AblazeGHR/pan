@@ -32,8 +32,9 @@ def test_node_parallel_finite_retries_and_uncertain_confirmation_http(tmp_path,m
         key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
         return {'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
     def trace():
-        path=cli/'trace.jsonl'
-        return [json.loads(r) for r in path.read_text(encoding='utf-8').splitlines()] if path.exists() else []
+        path=cli/'trace'
+        rows=[json.loads(p.read_text(encoding='utf-8')) for p in path.glob('*.json')]
+        return sorted(rows,key=lambda row:(row['at'],row['key'],row['attempt'],row['kind']))
     def send(i):
         before=sum(r['kind']=='publication' for r in records(rt.data_root,'producer'))
         publish(rt.data_root,type='producer.ping',payload={'value':i},event_id='retry-'+str(i))
