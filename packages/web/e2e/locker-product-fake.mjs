@@ -108,5 +108,3 @@ try{
  expect(errors).toEqual([]);
  console.log(JSON.stringify({passed:checks.length,checks,errors,port},null,2));
 }catch(e){await screenshot('browser-failure');throw e;}finally{await writeFile(resolve(evidence,'browser.json'),JSON.stringify({checks,errors,requests,port},null,2));await browser.close();await new Promise(r=>server.close(r));}
-
-
