@@ -104,7 +104,7 @@ Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允�
 
 | 概念 | 说明 |
 |------|------|
-| **MA（meta-agent）** | 编排角色：负责 Pan 编排元任务（拆解、派发、监督、验收、合并），不亲自承担可派发的执行工作。MA 以 Session 身份存在（如 `SMA` 模板创建的会话），实际运行在 Worker 进程中（MA Worker） |
+| **MA（meta-agent）** | 编排角色：对用户目标的闭环负责，亲自理解需求、判断依赖、独立验收和决定下一步；按需委派实施。MA 以 Session 身份存在（如 `SMA` 模板创建的会话），实际运行在 Worker 进程中（MA Worker） |
 | **TA（task-agent）** | 执行角色：承接具体开发、测试、调查或文档任务。TA 同样以 Session 身份存在、运行在 Worker 进程中（TA Worker）；由 MA 经 `agent_assign` 派发任务 |
 | **Session** | 持久编排对象（身份层）：承载 MA 或 TA 身份，持久身份（`ses_<16hex>`），拥有收件箱（`queue_pending`）、agentLevel、managedBy 链。投递/编排语义（`agent_assign` / `agent_send` / 报告投递）都以 session_id 寻址；独立于 Worker 生命周期 |
 | **Worker** | 物理执行体（进程层）：临时的 cbc/kimi/opencode/claude/codex CLI 子进程，实际运行某个 MA 或 TA 的 Session。可被 kill、回收、随时重建（进程是顺带的）；**MA 与 TA 都运行在 Worker 中，不要把 Worker 与 TA 划等号** |
