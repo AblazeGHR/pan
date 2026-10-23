@@ -1,0 +1,57 @@
+{
+  "after-first.log": {
+    "rawFile": "after-first.log.raw.gz",
+    "rawSha256": "99d5fee4535497347246d55364b92b4524962ce6db976517881de1d7bdbb3d3b",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "barriers.log": {
+    "rawFile": "barriers.log.raw.gz",
+    "rawSha256": "5066bafed0b0f4b9727a4487a28e02ea4258ae2593591191ecadc0406c437977",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "before-maintenance.log": {
+    "rawFile": "before-maintenance.log.raw.gz",
+    "rawSha256": "d15af498bb2a0f951eb5d604a150b6788219f7e33974ee8fc8aa6ee9d8c7f855",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "before.log": {
+    "rawFile": "before.log.raw.gz",
+    "rawSha256": "763bf43deff989b19252db315e75c9479cd879bcebe4b1779d6026a68a7a02f6",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "cross-line-first.log": {
+    "rawFile": "cross-line-first.log.raw.gz",
+    "rawSha256": "6d4ec3be065b978dd59ecb122a8c2461f83133ce0d024bae9bb5edc60c214e08",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "final.log": {
+    "rawFile": "final.log.raw.gz",
+    "rawSha256": "e0600f70f0462870b9b60b0c9929644e1e135626db500425f2b2a4347f309ddb",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "http-first.log": {
+    "rawFile": "http-first.log.raw.gz",
+    "rawSha256": "3a15f6ab9be8a8aacad25f20b9db683234a6afd62186ba301b5eb832ddfcd28d",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "regression-first.log": {
+    "rawFile": "regression-first.log.raw.gz",
+    "rawSha256": "765dd93427b97ce13f0c77b45606b3c4b833d1c24a773c70fa9e72132be44e0c",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "before-maintenance.xml": {
+    "rawFile": "before-maintenance.xml.raw.gz",
+    "rawSha256": "3c794892952480c36d6863b87d84583531ff41b6bbd158e98856a52d56300548",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "before.xml": {
+    "rawFile": "before.xml.raw.gz",
+    "rawSha256": "c8a3ee2bdc504886c1b062bdee39ca84be7f88ddbf2d9bb2e5c88cb7e09c5db9",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  },
+  "regression-first.xml": {
+    "rawFile": "regression-first.xml.raw.gz",
+    "rawSha256": "083dcaeb9e633a20db7c968b1e7de729b891c8107de931969fa8ef82b859bf48",
+    "changes": "UTF-8 BOM/newline/trailing whitespace only; diagnostic content retained"
+  }
+}

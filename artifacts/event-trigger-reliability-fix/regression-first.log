@@ -1,0 +1,136 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\event-trigger-reliability-fix-20261023
+........................................................................ [ 51%]
+....................................FF..............................     [100%]
+================================== FAILURES ===================================
+_____________ test_slow_external_subscriber_isolated_and_bounded ______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3935/test_slow_external_subscriber_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001AB2CB038C0>
+
+    def test_slow_external_subscriber_isolated_and_bounded(tmp_path, monkeypatch):
+        async def run():
+            from packages.plugins import event_adapter
+            sessions = {'a': session('a', ['observer', 'other', 'producer'])}
+            svc, manager, calls = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await manager.settle()
+                assert 'producer' in manager.connections, list(svc.bus.diagnostics)
+                monkeypatch.setattr(event_adapter, 'TIMEOUT', .3)
+                (tmp_path / 'plugins/observer/stall').touch()
+                publish(tmp_path, type='producer.ping', payload={'value': 1})
+                await until(lambda: calls and any(r['kind'] == 'delivery' for r in records(tmp_path, 'other')))
+                await until(lambda: not manager.connections['observer'].ready)
+                assert manager.connections['other'].ready and manager.connections['producer'].ready
+                await until(lambda: 'plugin.observer' not in svc.bus.subscribers)
+                assert any('delivery' in d['error'] for d in svc.bus.diagnostics)
+                # Queue-full admission is visible and cannot grow the per-peer queue.
+                slow = manager.connections['other']
+                (tmp_path / 'plugins/other/stall').touch()
+                for i in range(200):
+                    result = svc.bus.publish(manager.connections['producer'].handle, 'producer.ping', {'value': i})
+                assert 'plugin.other' in result['rejected']
+                assert svc.bus.subscribers['plugin.other'][1].qsize() == svc.bus.capacity
+            finally:
+                await manager.close()
+                await svc.close()
+>       asyncio.run(run())
+
+tests\test_plugin_events.py:236:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:230: in run
+    result = svc.bus.publish(manager.connections['producer'].handle, 'producer.ping', {'value': i})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.events.Bus object at 0x000001AB2CA1F950>
+handle = <object object at 0x000001AB26233600>, event_type = 'producer.ping'
+payload = {'value': 0}, event_id = None
+
+    def publish(self, handle, event_type, payload, event_id=None):
+        if self.durable is not None:
+>           raise ValueError('Durable runtime requires await bus.publish_async')
+E           ValueError: Durable runtime requires await bus.publish_async
+
+packages\automation\events.py:95: ValueError
+_____ test_service_restart_restores_queued_only_after_actual_plugin_ready _____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-3935/test_service_restart_restores_0')
+
+    def test_service_restart_restores_queued_only_after_actual_plugin_ready(tmp_path):
+        async def run():
+            sessions = {}
+            m = manifest()
+            svc, manager, calls = await setup(tmp_path, sessions, m)
+            svc.ledger.append({'id': 'persisted', 'triggerId': 't', 'triggerRevision': 1, 'actionId': 'pause',
+                'event': {'id': 'persisted-event', 'type': 'producer.ping', 'payload': {'value': 1}},
+                'arguments': {}, 'state': {}, 'status': 'queued', 'admitted': True})
+            await svc.engine.kick()
+            await manager.close()
+            await svc.close()
+            assert svc.ledger.read()['runs']['persisted']['status'] == 'queued'
+            workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None)
+            restored = Service(tmp_path / 'automation', workers, svc.engine.execute.keywords['pause'])
+            restored.engine.actions = Store(tmp_path / 'actions')
+            events = EventRuntime(restored, lambda: m, lambda: list(sessions.values()), tmp_path)
+            try:
+                await restored.start()
+                await events.start()
+                assert restored.ledger.read()['runs']['persisted']['status'] == 'queued' and not calls
+                sessions['a'] = session('a', ['producer'])
+                await events.reconcile()
+                await events.settle()
+                await until(lambda: restored.ledger.read()['runs']['persisted']['status'] == 'succeeded')
+                assert calls == ['selected']
+            finally:
+                await events.close()
+                await restored.close()
+>       asyncio.run(run())
+
+tests\test_plugin_events.py:267:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:256: in run
+    await restored.start()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.automation.service.Service object at 0x000001AB2C9A15E0>
+
+    async def start(self):
+        if self.stopping:
+            return
+        from packages.jobs.action_runtime import Runtime
+        from packages.scheduler.store import data_root
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime.event_available = self.bus.available
+        await self.job_runtime.start()
+        self.engine.job_runtime = self.job_runtime
+        from .quota_policy import Runtime as QuotaRuntime
+        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
+        from .quota_host import production
+>       self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
+                                                                                     ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'types.SimpleNamespace' object has no attribute '_sess'
+
+packages\automation\service.py:158: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_events.py::test_slow_external_subscriber_isolated_and_bounded
+FAILED tests/test_plugin_events.py::test_service_restart_restores_queued_only_after_actual_plugin_ready
+2 failed, 138 passed in 24.26s
