@@ -531,6 +531,19 @@ def test_delete_job_routes_to_compat_for_scheduled_task(client, fake_worker):
     assert scheduler_store.get_task(task["id"]) is None
 
 
+def test_delete_running_job_reports_cleanup_pending_failure(client, monkeypatch):
+    jobs._save({"jobId": "job_api_delete_running", "targetSessionId": "ses_target",
+                "status": "running", "pid": 10, "processCreatedAt": 1,
+                "createdAt": 1})
+    monkeypatch.setattr(jobs, "_terminate_job_processes",
+                        lambda records: {"confirmed": False, "reason": "receipt unknown"})
+    response = client.delete("/api/jobs/job_api_delete_running")
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "job_busy"
+    assert jobs.get("job_api_delete_running")["status"] == "cleanup_pending"
+
+
 # ── partial_failed 事件 ──
 
 

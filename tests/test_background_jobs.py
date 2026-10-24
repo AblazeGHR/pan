@@ -291,6 +291,42 @@ def test_cancel_does_not_kill_pid_reuse(monkeypatch, tmp_path):
         jobs.cancel("job_reuse")
 
 
+def test_delete_active_job_requires_confirmed_process_cleanup(monkeypatch, tmp_path):
+    _session(tmp_path)
+    jobs._save({"jobId": "job_delete_active", "targetSessionId": "ses_target",
+                "status": "running", "pid": 10, "processCreatedAt": 1,
+                "runnerPid": 11, "runnerProcessCreatedAt": 2, "createdAt": 1})
+    calls = []
+    monkeypatch.setattr(jobs, "_terminate_job_processes",
+                        lambda records: calls.append(records) or {"confirmed": True})
+    assert jobs.delete_job("job_delete_active") is True
+    assert len(calls) == 1
+    assert jobs.get("job_delete_active") is None
+
+
+def test_delete_active_job_unknown_receipt_is_fail_closed_and_idempotent(monkeypatch, tmp_path):
+    _session(tmp_path)
+    jobs._save({"jobId": "job_delete_unknown", "targetSessionId": "ses_target",
+                "status": "starting", "pid": 10, "processCreatedAt": 1,
+                "createdAt": 1})
+    monkeypatch.setattr(jobs, "_terminate_job_processes",
+                        lambda records: {"confirmed": False, "reason": "live owned PID"})
+    with pytest.raises(ValueError, match="live owned PID"):
+        jobs.delete_job("job_delete_unknown")
+    retained = jobs.get("job_delete_unknown")
+    assert retained["status"] == "cleanup_pending"
+    assert "live owned PID" in retained["cleanupError"]
+    with pytest.raises(ValueError, match="cleanup is pending"):
+        jobs.delete_job("job_delete_unknown")
+
+
+def test_delete_terminal_job_keeps_legacy_delete_semantics(tmp_path):
+    _session(tmp_path)
+    jobs._save({"jobId": "job_delete_done", "status": "completed", "createdAt": 1})
+    assert jobs.delete_job("job_delete_done") is True
+    assert jobs.get("job_delete_done") is None
+
+
 def test_reconcile_running_orphan_becomes_failed_without_kill(monkeypatch, tmp_path):
     _session(tmp_path)
     jobs._save({"jobId": "job_orphan", "targetSessionId": "ses_target", "status": "running",
