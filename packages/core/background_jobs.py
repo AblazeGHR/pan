@@ -3356,7 +3356,18 @@ def runner_update(job_id: str, **changes: Any) -> dict:
             # The runner may finish before the cancelling caller commits (or
             # that caller may disappear). Do not leave an active pending record.
             changes.update(status="cancelled", exitCode=None)
-        if current.get("status") in {"cancelled", "cleanup_pending", "deleting"}:
+        if current.get("status") in {"cleanup_pending", "deleting"}:
+            if changes.get("status") in {"completed", "failed", "cancelled"}:
+                # This is an observation, not an admitted terminal transition.
+                # Keep the executable Attempt snapshot until deletion has its
+                # own complete exit proof; do not publish a terminal outbox ID.
+                changes["cleanupRunnerOutcome"] = {
+                    key: changes.pop(key) for key in
+                    ("status", "exitCode", "error", "processTreeEnded") if key in changes}
+                changes.pop("terminalEventId", None)
+                changes.pop("notificationState", None)
+            changes.pop("status", None)
+        if current.get("status") == "cancelled":
             changes.pop("status", None)
         current.update(changes)
         _write_job(_job_path(job_id), current)

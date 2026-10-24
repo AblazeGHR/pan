@@ -102,6 +102,6 @@ def test_real_owned_tree_delete_http(tmp_path, monkeypatch,first_unknown):
         assert not thread.is_alive()
         with socket.socket() as probe:
             evidence['portReleased']=probe.connect_ex(('127.0.0.1',port))!=0
-        out=Path('audit/job-delete-lifecycle/review/http-owned-recheck.json' if first_unknown else 'audit/job-delete-lifecycle/review/http-owned.json')
+        out=Path('audit/job-delete-main-integration/http-owned-recheck.json' if first_unknown else 'audit/job-delete-main-integration/http-owned.json')
         out.parent.mkdir(parents=True,exist_ok=True)
         out.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
