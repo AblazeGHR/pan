@@ -1968,6 +1968,8 @@ def locker_message(operation: str, message: dict | None = None, message_id: str 
     changed content conflicts, deleted IDs stay tombstoned. On unknown, use get with
     the original message_id to inspect persistence; never automatically resend.
     Schema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).
+
+    完整编排流程见 /pan skill。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     try:
@@ -3294,6 +3296,8 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
     deleted; only their separate enable/disable state is configurable with the explicit
     manageSystemActions grant. Trigger matches never grant effects; delegated effects
     also require job.execute. Creation outcome unknown: inspect before retry, never replay.
+
+    完整编排流程见 /pan skill。
     """
     from packages.automation.authorization import object_request
     try:

@@ -1,0 +1,18 @@
+{
+  "runId": 40083487423,
+  "headSha": "9bdd05e96cfcc7682a03fb3bc13b2bf0fd909519",
+  "jobId": 120841620483,
+  "jobConclusion": "failure",
+  "pytestExitCode": 1,
+  "tests": 5680,
+  "passed": 5605,
+  "failures": 14,
+  "errors": 0,
+  "skipped": 61,
+  "skipIdentityReasonMultisetMatchesBaseline": true,
+  "original14AllPassed": false,
+  "collectionErrors": [],
+  "practicalRemoteGatePassed": false,
+  "python312Conclusion": "failure",
+  "python312Evidence": "metadata only; not a practical gate requirement"
+}

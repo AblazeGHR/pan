@@ -22,8 +22,10 @@ def test_creation_and_one_response_retry_conflict(tmp_path):
     with pytest.raises(InteractionError, match='conflict'):
         store.create(request(body='changed'))
     user = UserPrincipal('user')
+    assert store.get_for_user(user, first['id'])['read'] is False
     done = store.respond(user, first['id'], response(answer='hello'))
     assert done['status'] == 'responded'
+    assert done['read'] is True
     assert store.respond(user, first['id'], response(answer='hello')) == done
     with pytest.raises(InteractionError):
         store.respond(user, first['id'], response(answer='different'))

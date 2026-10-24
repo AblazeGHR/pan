@@ -8,6 +8,7 @@ import psutil
 
 from tests import test_real_queue_http_e2e as harness
 from tests.test_automation_core import action
+from tests.support.authorization import authenticate_user_requests
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +20,7 @@ def test_worker_error_persists_system_session_and_pauses_via_mapping(tmp_path, m
     monkeypatch.setattr(harness, "SERVER_LAUNCHER",
                         Path(__file__).parent / "support" / "automation_http_server.py")
     runtime = harness._PanRuntime(tmp_path / "owned-system-fields")
+    authenticate_user_requests(runtime)
     runtime.data_root.mkdir(parents=True)
     (runtime.data_root / "config.json").write_text(
         json.dumps({"plugin_manifests": [], "scheduler": {"enabled": False}}), encoding="utf-8")

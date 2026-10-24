@@ -11,6 +11,7 @@ import psutil
 
 from tests import test_real_queue_http_e2e as h
 from tests.test_automation_core import action, trigger
+from tests.support.authorization import authenticate_user_requests
 
 OUT = Path('audit/locker-binding')
 
@@ -20,6 +21,7 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent/'support/job_inbox_http_server.py')
     root = Path(__file__).resolve().parents[1]
     rt = h._PanRuntime(tmp_path/'data')
+    authenticate_user_requests(rt)
     rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'scheduler': {'enabled': True},
         'memory': {'enabled': False}, 'plugin_manifests': [str(root/'manifest.json'),

@@ -192,6 +192,11 @@ async def test_recovery_preserves_frozen_targets_and_never_requeries(tmp_path):
 @async_test
 async def test_legacy_and_draft_authority_gates(tmp_path, monkeypatch):
     from packages.web import server
+    from types import SimpleNamespace
+    class Auth:
+        def authorized(self, header): return header == 'Bearer test'
+        def permission_allowed(self, kind, capability): return True, 0
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=Auth()), raising=False)
     a = query_action()
     store = Store()
     item = store.put('actions', a, draft=True)
@@ -203,7 +208,7 @@ async def test_legacy_and_draft_authority_gates(tmp_path, monkeypatch):
     assert not store.read()['groups']['g'].get('build')
     with pytest.raises(ValueError):
         await legacy_execute(a, {})
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url='http://test') as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url='http://test', headers={'Authorization':'Bearer test'}) as client:
         response = await client.get('/api/actions/session-operation-template')
         assert response.status_code == 200
         template = response.json()

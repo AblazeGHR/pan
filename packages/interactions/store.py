@@ -284,7 +284,7 @@ class InteractionStore:
                    'source':{'type':'core','id':'pan'},'occurredAt':timestamp,'payload':payload}
             validate('Event',event)
             state={'state':'pending' if trigger else 'not_requested'}
-            db.execute('''UPDATE cards SET response=?,response_key=?,event=?,delivery=?,revision=revision+1 WHERE id=?''',
+            db.execute('''UPDATE cards SET response=?,response_key=?,event=?,delivery=?,is_read=1,revision=revision+1 WHERE id=?''',
                        (canonical(result),data['requestId'],canonical(event),canonical(state),card_id))
             notification_id=identity('submission_',[card_id])
             db.execute('INSERT INTO response_outbox VALUES(?,?,?,?)',

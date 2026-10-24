@@ -1,0 +1,1637 @@
+﻿2026-10-24T09:49:42.3424975Z Current runner version: '2.338.0'
+2026-10-24T09:49:42.3451731Z ##[group]Runner Image Provisioner
+2026-10-24T09:49:42.3452623Z Hosted Compute Agent
+2026-10-24T09:49:42.3453209Z Version: 20261021.618
+2026-10-24T09:49:42.3453803Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-24T09:49:42.3454511Z Build Date: 2026-10-21T00:45:21Z
+2026-10-24T09:49:42.3455202Z Worker ID: {ca0aba54-4bd8-41ad-88aa-8a6c00beb5d0}
+2026-10-24T09:49:42.3455924Z Region: westcentralus
+2026-10-24T09:49:42.3456485Z Cloud: Azure
+2026-10-24T09:49:42.3456980Z ##[endgroup]
+2026-10-24T09:49:42.3458335Z ##[group]Operating System
+2026-10-24T09:49:42.3458998Z Microsoft Windows Server 2025
+2026-10-24T09:49:42.3459583Z 10.0.26100
+2026-10-24T09:49:42.3460075Z Datacenter
+2026-10-24T09:49:42.3460576Z ##[endgroup]
+2026-10-24T09:49:42.3461072Z ##[group]Runner Image
+2026-10-24T09:49:42.3461643Z Image: windows-2025-vs2026
+2026-10-24T09:49:42.3462272Z Version: 20261021.278.1
+2026-10-24T09:49:42.3463772Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md
+2026-10-24T09:49:42.3465414Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261021.278
+2026-10-24T09:49:42.3466460Z ##[endgroup]
+2026-10-24T09:49:42.3467575Z ##[group]GITHUB_TOKEN Permissions
+2026-10-24T09:49:42.3470148Z Contents: read
+2026-10-24T09:49:42.3470751Z Metadata: read
+2026-10-24T09:49:42.3471321Z Packages: read
+2026-10-24T09:49:42.3471936Z ##[endgroup]
+2026-10-24T09:49:42.3474017Z Secret source: Actions
+2026-10-24T09:49:42.3475032Z Cache mode: write
+2026-10-24T09:49:42.3475730Z Prepare workflow directory
+2026-10-24T09:49:42.3901772Z Prepare all required actions
+2026-10-24T09:49:42.3972199Z Getting action download info
+2026-10-24T09:49:42.7444016Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-24T09:49:42.8811780Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-24T09:49:43.0347246Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-10-24T09:49:43.2080621Z Download action repository 'pnpm/action-setup@v4' (SHA:b906affcce14559ad1aafd4ab0e942779e9f58b1)
+2026-10-24T09:49:43.8265780Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-24T09:49:44.1934589Z Complete job name: pytest (3.14)
+2026-10-24T09:49:44.3478592Z ##[group]Run actions/checkout@v4
+2026-10-24T09:49:44.3479785Z with:
+2026-10-24T09:49:44.3480454Z   repository: AblazeGHR/pan
+2026-10-24T09:49:44.3484054Z   token: ***
+2026-10-24T09:49:44.3484708Z   ssh-strict: true
+2026-10-24T09:49:44.3485345Z   ssh-user: git
+2026-10-24T09:49:44.3485996Z   persist-credentials: true
+2026-10-24T09:49:44.3486672Z   clean: true
+2026-10-24T09:49:44.3487326Z   sparse-checkout-cone-mode: true
+2026-10-24T09:49:44.3488025Z   fetch-depth: 1
+2026-10-24T09:49:44.3489099Z   fetch-tags: false
+2026-10-24T09:49:44.3489761Z   show-progress: true
+2026-10-24T09:49:44.3490396Z   lfs: false
+2026-10-24T09:49:44.3490995Z   submodules: false
+2026-10-24T09:49:44.3491643Z   set-safe-directory: true
+2026-10-24T09:49:44.3492347Z   allow-unsafe-pr-checkout: false
+2026-10-24T09:49:44.3493314Z ##[endgroup]
+2026-10-24T09:49:44.5103704Z Syncing repository: AblazeGHR/pan
+2026-10-24T09:49:44.5105721Z ##[group]Getting Git version info
+2026-10-24T09:49:44.5106596Z Working directory is 'D:\a\pan\pan'
+2026-10-24T09:49:44.6074369Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-24T09:49:44.9199900Z git version 2.56.0.windows.2
+2026-10-24T09:49:44.9255276Z ##[endgroup]
+2026-10-24T09:49:44.9274680Z Temporarily overriding HOME='D:\a\_temp\d38382f6-516e-481e-9be3-1674b401546e' before making global git config changes
+2026-10-24T09:49:44.9276829Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-24T09:49:44.9286919Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\pan\pan
+2026-10-24T09:49:45.0092065Z Deleting the contents of 'D:\a\pan\pan'
+2026-10-24T09:49:45.0098490Z ##[group]Initializing the repository
+2026-10-24T09:49:45.0106917Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\pan\pan
+2026-10-24T09:49:45.1150582Z Initialized empty Git repository in D:/a/pan/pan/.git/
+2026-10-24T09:49:45.1204355Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/AblazeGHR/pan
+2026-10-24T09:49:45.1932509Z ##[endgroup]
+2026-10-24T09:49:45.1933669Z ##[group]Disabling automatic garbage collection
+2026-10-24T09:49:45.1947343Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-24T09:49:45.2418804Z ##[endgroup]
+2026-10-24T09:49:45.2420520Z ##[group]Setting up auth
+2026-10-24T09:49:45.2430574Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-24T09:49:45.2818574Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-24T09:49:46.6884573Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-24T09:49:46.7290863Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-24T09:49:47.2988287Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-24T09:49:47.3383513Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-24T09:49:47.9153881Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-24T09:49:47.9552721Z ##[endgroup]
+2026-10-24T09:49:47.9553498Z ##[group]Fetching the repository
+2026-10-24T09:49:47.9565873Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9bdd05e96cfcc7682a03fb3bc13b2bf0fd909519:refs/remotes/origin/main
+2026-10-24T09:49:51.4872741Z From https://github.com/AblazeGHR/pan
+2026-10-24T09:49:51.4878464Z  * [new ref]         9bdd05e96cfcc7682a03fb3bc13b2bf0fd909519 -> origin/main
+2026-10-24T09:49:51.4919598Z ##[endgroup]
+2026-10-24T09:49:51.4923458Z ##[group]Determining the checkout info
+2026-10-24T09:49:51.4924616Z ##[endgroup]
+2026-10-24T09:49:51.4934736Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-24T09:49:51.5436878Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-24T09:49:51.5874483Z ##[group]Checking out the ref
+2026-10-24T09:49:51.5884529Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+2026-10-24T09:49:52.6599829Z Updating files:  40% (2501/6179)
+2026-10-24T09:49:52.6778527Z Updating files:  41% (2534/6179)
+2026-10-24T09:49:52.6913443Z Updating files:  42% (2596/6179)
+2026-10-24T09:49:52.7145848Z Updating files:  43% (2657/6179)
+2026-10-24T09:49:52.7409015Z Updating files:  44% (2719/6179)
+2026-10-24T09:49:52.7674531Z Updating files:  45% (2781/6179)
+2026-10-24T09:49:52.7903775Z Updating files:  46% (2843/6179)
+2026-10-24T09:49:52.8028111Z Updating files:  47% (2905/6179)
+2026-10-24T09:49:52.8163515Z Updating files:  48% (2966/6179)
+2026-10-24T09:49:52.8303101Z Updating files:  49% (3028/6179)
+2026-10-24T09:49:52.8485734Z Updating files:  50% (3090/6179)
+2026-10-24T09:49:52.8610425Z Updating files:  51% (3152/6179)
+2026-10-24T09:49:52.8727120Z Updating files:  52% (3214/6179)
+2026-10-24T09:49:52.8843809Z Updating files:  53% (3275/6179)
+2026-10-24T09:49:52.8963167Z Updating files:  54% (3337/6179)
+2026-10-24T09:49:52.9175148Z Updating files:  55% (3399/6179)
+2026-10-24T09:49:52.9294985Z Updating files:  56% (3461/6179)
+2026-10-24T09:49:52.9423240Z Updating files:  57% (3523/6179)
+2026-10-24T09:49:52.9540460Z Updating files:  58% (3584/6179)
+2026-10-24T09:49:52.9653779Z Updating files:  59% (3646/6179)
+2026-10-24T09:49:52.9781351Z Updating files:  60% (3708/6179)
+2026-10-24T09:49:52.9901443Z Updating files:  61% (3770/6179)
+2026-10-24T09:49:53.0021894Z Updating files:  62% (3831/6179)
+2026-10-24T09:49:53.0135171Z Updating files:  63% (3893/6179)
+2026-10-24T09:49:53.0248504Z Updating files:  64% (3955/6179)
+2026-10-24T09:49:53.0412691Z Updating files:  65% (4017/6179)
+2026-10-24T09:49:53.0566415Z Updating files:  66% (4079/6179)
+2026-10-24T09:49:53.0747315Z Updating files:  67% (4140/6179)
+2026-10-24T09:49:53.0942520Z Updating files:  68% (4202/6179)
+2026-10-24T09:49:53.1128504Z Updating files:  69% (4264/6179)
+2026-10-24T09:49:53.1298377Z Updating files:  70% (4326/6179)
+2026-10-24T09:49:53.1627027Z Updating files:  71% (4388/6179)
+2026-10-24T09:49:53.1812315Z Updating files:  72% (4449/6179)
+2026-10-24T09:49:53.2065985Z Updating files:  73% (4511/6179)
+2026-10-24T09:49:53.2294882Z Updating files:  74% (4573/6179)
+2026-10-24T09:49:53.2450760Z Updating files:  75% (4635/6179)
+2026-10-24T09:49:53.2631998Z Updating files:  76% (4697/6179)
+2026-10-24T09:49:53.2815343Z Updating files:  77% (4758/6179)
+2026-10-24T09:49:53.3076194Z Updating files:  78% (4820/6179)
+2026-10-24T09:49:53.3255597Z Updating files:  79% (4882/6179)
+2026-10-24T09:49:53.3428053Z Updating files:  80% (4944/6179)
+2026-10-24T09:49:53.3594731Z Updating files:  81% (5005/6179)
+2026-10-24T09:49:53.3773511Z Updating files:  82% (5067/6179)
+2026-10-24T09:49:53.4007501Z Updating files:  83% (5129/6179)
+2026-10-24T09:49:53.4202108Z Updating files:  84% (5191/6179)
+2026-10-24T09:49:53.4370003Z Updating files:  85% (5253/6179)
+2026-10-24T09:49:53.4553479Z Updating files:  86% (5314/6179)
+2026-10-24T09:49:53.4727492Z Updating files:  87% (5376/6179)
+2026-10-24T09:49:53.4894790Z Updating files:  88% (5438/6179)
+2026-10-24T09:49:53.5104710Z Updating files:  89% (5500/6179)
+2026-10-24T09:49:53.5260890Z Updating files:  90% (5562/6179)
+2026-10-24T09:49:53.5415562Z Updating files:  91% (5623/6179)
+2026-10-24T09:49:53.5570590Z Updating files:  92% (5685/6179)
+2026-10-24T09:49:53.5731979Z Updating files:  93% (5747/6179)
+2026-10-24T09:49:53.5903954Z Updating files:  94% (5809/6179)
+2026-10-24T09:49:53.6074116Z Updating files:  95% (5871/6179)
+2026-10-24T09:49:53.6244726Z Updating files:  96% (5932/6179)
+2026-10-24T09:49:53.6414330Z Updating files:  97% (5994/6179)
+2026-10-24T09:49:53.6514249Z Updating files:  98% (6056/6179)
+2026-10-24T09:49:53.6623669Z Updating files:  98% (6088/6179)
+2026-10-24T09:49:53.6913689Z Updating files:  99% (6118/6179)
+2026-10-24T09:49:53.6914196Z Updating files: 100% (6179/6179)
+2026-10-24T09:49:53.6914474Z Updating files: 100% (6179/6179), done.
+2026-10-24T09:49:53.7118102Z Switched to a new branch 'main'
+2026-10-24T09:49:53.7139943Z branch 'main' set up to track 'origin/main'.
+2026-10-24T09:49:53.7267430Z ##[endgroup]
+2026-10-24T09:49:53.7759389Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-24T09:49:53.8752339Z 9bdd05e96cfcc7682a03fb3bc13b2bf0fd909519
+2026-10-24T09:49:53.9446241Z ##[group]Run actions/setup-python@v5
+2026-10-24T09:49:53.9446610Z with:
+2026-10-24T09:49:53.9446823Z   python-version: 3.14
+2026-10-24T09:49:53.9447082Z   check-latest: false
+2026-10-24T09:49:53.9451034Z   token: ***
+2026-10-24T09:49:53.9451325Z   update-environment: true
+2026-10-24T09:49:53.9451592Z   allow-prereleases: false
+2026-10-24T09:49:53.9451846Z   freethreaded: false
+2026-10-24T09:49:53.9452077Z ##[endgroup]
+2026-10-24T09:49:54.1328982Z ##[group]Installed versions
+2026-10-24T09:49:54.1476603Z (node:7876) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-24T09:49:54.1478048Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-24T09:49:54.1478852Z Successfully set up CPython (3.14.9)
+2026-10-24T09:49:54.1479730Z ##[endgroup]
+2026-10-24T09:49:54.1874432Z ##[group]Run actions/setup-node@v4
+2026-10-24T09:49:54.1874920Z with:
+2026-10-24T09:49:54.1875192Z   node-version: 24
+2026-10-24T09:49:54.1875498Z   always-auth: false
+2026-10-24T09:49:54.1875814Z   check-latest: false
+2026-10-24T09:49:54.1881520Z   token: ***
+2026-10-24T09:49:54.1881810Z env:
+2026-10-24T09:49:54.1882216Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:54.1883015Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:49:54.1883786Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:54.1884458Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:54.1885132Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:54.1886015Z ##[endgroup]
+2026-10-24T09:49:54.3942891Z Found in cache @ C:\hostedtoolcache\windows\node\24.22.1\x64
+2026-10-24T09:49:54.3952371Z (node:7040) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-24T09:49:54.3953653Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-24T09:49:54.3956917Z ##[group]Environment details
+2026-10-24T09:49:58.9778403Z node: v24.22.1
+2026-10-24T09:49:58.9778637Z npm: 11.19.1
+2026-10-24T09:49:58.9779264Z yarn: 1.22.22
+2026-10-24T09:49:58.9780890Z ##[endgroup]
+2026-10-24T09:49:59.0095926Z ##[group]Run pnpm/action-setup@v4
+2026-10-24T09:49:59.0096228Z with:
+2026-10-24T09:49:59.0096396Z   version: 9.7.0
+2026-10-24T09:49:59.0096580Z   dest: ~/setup-pnpm
+2026-10-24T09:49:59.0096777Z   run_install: null
+2026-10-24T09:49:59.0096949Z   cache: false
+2026-10-24T09:49:59.0097139Z   cache_dependency_path: pnpm-lock.yaml
+2026-10-24T09:49:59.0097404Z   package_json_file: package.json
+2026-10-24T09:49:59.0097639Z   standalone: false
+2026-10-24T09:49:59.0097808Z env:
+2026-10-24T09:49:59.0098049Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:59.0098491Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:49:59.0098929Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:59.0099321Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:59.0099705Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:49:59.0100031Z ##[endgroup]
+2026-10-24T09:49:59.1982339Z ##[group]Running self-installer...
+2026-10-24T09:49:59.6776558Z (node:3640) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-24T09:49:59.6778585Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-24T09:49:59.9624647Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2026-10-24T09:49:59.9731459Z Packages: +1
+2026-10-24T09:49:59.9731874Z +
+2026-10-24T09:50:01.7962842Z Progress: resolved 1, reused 0, downloaded 1, added 0
+2026-10-24T09:50:02.2625458Z Progress: resolved 1, reused 0, downloaded 1, added 1, done
+2026-10-24T09:50:02.3265705Z 
+2026-10-24T09:50:02.3266596Z dependencies:
+2026-10-24T09:50:02.3266956Z + pnpm 9.7.0 (12.15.0 is available)
+2026-10-24T09:50:02.3267157Z 
+2026-10-24T09:50:02.3345689Z Done in 2.9s
+2026-10-24T09:50:02.3559647Z ##[endgroup]
+2026-10-24T09:50:02.3560147Z Installation Completed!
+2026-10-24T09:50:02.3861838Z ##[group]Run pnpm install --frozen-lockfile
+2026-10-24T09:50:02.3862499Z [36;1mpnpm install --frozen-lockfile[0m
+2026-10-24T09:50:02.3862835Z [36;1mif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }[0m
+2026-10-24T09:50:02.3863132Z [36;1mpnpm build[0m
+2026-10-24T09:50:02.4505042Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:50:02.4505731Z env:
+2026-10-24T09:50:02.4506063Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:02.4506647Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:50:02.4507220Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:02.4507727Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:02.4508241Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:02.4508759Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:50:02.4509216Z ##[endgroup]
+2026-10-24T09:50:03.6673858Z Lockfile is up to date, resolution step is skipped
+2026-10-24T09:50:03.7324759Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2026-10-24T09:50:03.8238474Z Packages: +466
+2026-10-24T09:50:03.8240607Z ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2026-10-24T09:50:04.7348731Z Progress: resolved 466, reused 0, downloaded 14, added 6
+2026-10-24T09:50:05.7368239Z Progress: resolved 466, reused 0, downloaded 33, added 19
+2026-10-24T09:50:06.7370007Z Progress: resolved 466, reused 0, downloaded 76, added 66
+2026-10-24T09:50:07.7525334Z Progress: resolved 466, reused 0, downloaded 128, added 115
+2026-10-24T09:50:08.7571502Z Progress: resolved 466, reused 0, downloaded 178, added 167
+2026-10-24T09:50:09.7573610Z Progress: resolved 466, reused 0, downloaded 309, added 301
+2026-10-24T09:50:10.7580152Z Progress: resolved 466, reused 0, downloaded 372, added 359
+2026-10-24T09:50:11.7669766Z Progress: resolved 466, reused 0, downloaded 458, added 450
+2026-10-24T09:50:12.4008471Z Progress: resolved 466, reused 0, downloaded 466, added 466, done
+2026-10-24T09:50:12.9053660Z .../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
+2026-10-24T09:50:12.9063927Z .../esbuild@0.21.5/node_modules/esbuild postinstall$ node install.js
+2026-10-24T09:50:13.1700659Z .../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+2026-10-24T09:50:13.1715587Z .../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+2026-10-24T09:50:13.2805579Z 
+2026-10-24T09:50:13.2807483Z dependencies:
+2026-10-24T09:50:13.2815020Z + @monaco-editor/react 4.7.0
+2026-10-24T09:50:13.2817519Z + @tanstack/react-virtual 3.14.8
+2026-10-24T09:50:13.2821592Z + @xterm/addon-fit 0.11.0
+2026-10-24T09:50:13.2841069Z + @xterm/xterm 6.0.0
+2026-10-24T09:50:13.2844410Z + highlight.js 11.11.1
+2026-10-24T09:50:13.2845478Z + katex 0.16.47
+2026-10-24T09:50:13.2845885Z + lucide-react 1.31.0
+2026-10-24T09:50:13.2846938Z + react 19.2.8
+2026-10-24T09:50:13.2848911Z + react-dom 19.2.8
+2026-10-24T09:50:13.2850628Z + react-markdown 9.1.0
+2026-10-24T09:50:13.2857122Z + react-router-dom 7.18.1
+2026-10-24T09:50:13.2858907Z + rehype-highlight 7.0.2
+2026-10-24T09:50:13.2860787Z + rehype-katex 7.0.1
+2026-10-24T09:50:13.2862721Z + remark-gfm 4.0.1
+2026-10-24T09:50:13.2864186Z + zustand 5.0.14
+2026-10-24T09:50:13.2864689Z 
+2026-10-24T09:50:13.2865488Z devDependencies:
+2026-10-24T09:50:13.2866219Z + @eslint/js 9.39.5
+2026-10-24T09:50:13.2867198Z + @playwright/test 1.63.0
+2026-10-24T09:50:13.2868610Z + @tailwindcss/vite 4.3.3
+2026-10-24T09:50:13.2869531Z + @testing-library/react 16.3.2
+2026-10-24T09:50:13.2871382Z + @types/node 26.1.1
+2026-10-24T09:50:13.2872133Z + @types/react 19.2.17
+2026-10-24T09:50:13.2873653Z + @types/react-dom 19.2.3
+2026-10-24T09:50:13.2874374Z + @vitejs/plugin-react 4.7.0
+2026-10-24T09:50:13.2876526Z + eslint 9.39.5
+2026-10-24T09:50:13.2880251Z + eslint-config-prettier 9.1.2
+2026-10-24T09:50:13.2886356Z + eslint-plugin-react-hooks 5.2.0
+2026-10-24T09:50:13.2894987Z + eslint-plugin-react-refresh 0.4.26
+2026-10-24T09:50:13.2900909Z + jsdom 25.0.1
+2026-10-24T09:50:13.2908100Z + openapi-typescript 7.13.0
+2026-10-24T09:50:13.2912434Z + prettier 3.9.6
+2026-10-24T09:50:13.2915716Z + tailwindcss 4.3.3
+2026-10-24T09:50:13.2916259Z + typescript 5.9.3
+2026-10-24T09:50:13.2916739Z + typescript-eslint 8.65.0
+2026-10-24T09:50:13.2918408Z + vite 6.4.3
+2026-10-24T09:50:13.2918926Z + vite-bundle-visualizer 1.2.1
+2026-10-24T09:50:13.2919450Z + vitest 2.1.9
+2026-10-24T09:50:13.2919736Z 
+2026-10-24T09:50:13.3169748Z Done in 10.4s
+2026-10-24T09:50:13.8904263Z 
+2026-10-24T09:50:13.8905248Z > pan-web@ build D:\a\pan\pan\packages\web
+2026-10-24T09:50:13.8906085Z > tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+2026-10-24T09:50:13.8906556Z 
+2026-10-24T09:50:30.7277702Z [36mvite v6.4.3 [32mbuilding for production...[36m[39m
+2026-10-24T09:50:30.8107312Z transforming...
+2026-10-24T09:50:37.5545089Z [32m✓[39m 2537 modules transformed.
+2026-10-24T09:50:37.9848503Z rendering chunks...
+2026-10-24T09:50:38.5807788Z [33m[plugin vite:reporter] 
+2026-10-24T09:50:38.5809731Z (!) D:/a/pan/pan/packages/web/src/router.tsx is dynamically imported by D:/a/pan/pan/packages/web/src/utils/session-deeplink.ts but also statically imported by D:/a/pan/pan/packages/web/src/main.tsx, dynamic import will not move module into another chunk.
+2026-10-24T09:50:38.5811413Z [39m
+2026-10-24T09:50:39.4733348Z computing gzip size...
+2026-10-24T09:50:39.5484744Z [2m../dist/[22m[32mindex.html                                 [39m[1m[2m  1.44 kB[22m[1m[22m[2m │ gzip:   0.67 kB[22m
+2026-10-24T09:50:39.5486609Z [2m../dist/[22m[35massets/MarkdownRenderer-BEHUn5zE.css       [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:   0.61 kB[22m
+2026-10-24T09:50:39.5488463Z [2m../dist/[22m[35massets/ActionsView-5rGcqsPE.css            [39m[1m[2m  2.11 kB[22m[1m[22m[2m │ gzip:   0.75 kB[22m
+2026-10-24T09:50:39.5490309Z [2m../dist/[22m[35massets/xterm-6GBZ9nXN.css                  [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:   1.92 kB[22m
+2026-10-24T09:50:39.5492193Z [2m../dist/[22m[35massets/LockerView-LR5SH6UQ.css             [39m[1m[2m  9.79 kB[22m[1m[22m[2m │ gzip:   2.07 kB[22m
+2026-10-24T09:50:39.5493905Z [2m../dist/[22m[35massets/index-fBkdCx-8.css                  [39m[1m[2m116.42 kB[22m[1m[22m[2m │ gzip:  19.53 kB[22m
+2026-10-24T09:50:39.5495793Z [2m../dist/[22m[36massets/check-Bgtc5C-D.js                   [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:   0.28 kB[22m[2m │ map:     0.86 kB[22m
+2026-10-24T09:50:39.5498115Z [2m../dist/[22m[36massets/arrow-left-gyDo4yKi.js              [39m[1m[2m  0.39 kB[22m[1m[22m[2m │ gzip:   0.30 kB[22m[2m │ map:     0.99 kB[22m
+2026-10-24T09:50:39.5500147Z [2m../dist/[22m[36massets/user-round-DdyACfsC.js              [39m[1m[2m  0.40 kB[22m[1m[22m[2m │ gzip:   0.31 kB[22m[2m │ map:     1.03 kB[22m
+2026-10-24T09:50:39.5502189Z [2m../dist/[22m[36massets/play-4bhtGo5y.js                    [39m[1m[2m  0.41 kB[22m[1m[22m[2m │ gzip:   0.32 kB[22m[2m │ map:     0.96 kB[22m
+2026-10-24T09:50:39.5504203Z [2m../dist/[22m[36massets/pause-B-b-Y-AP.js                   [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:   0.31 kB[22m[2m │ map:     1.12 kB[22m
+2026-10-24T09:50:39.5506155Z [2m../dist/[22m[36massets/copy-DIfG7j8W.js                    [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:   0.34 kB[22m[2m │ map:     1.10 kB[22m
+2026-10-24T09:50:39.5508103Z [2m../dist/[22m[36massets/download-L6BmT8Wc.js                [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:   0.33 kB[22m[2m │ map:     1.12 kB[22m
+2026-10-24T09:50:39.5509237Z [33m
+2026-10-24T09:50:39.5509843Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-10-24T09:50:39.5510667Z - Using dynamic import() to code-split the application
+2026-10-24T09:50:39.5513289Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-10-24T09:50:39.5514357Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+2026-10-24T09:50:39.5515543Z [2m../dist/[22m[36massets/globe-C9V3GwXD.js                   [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:   0.33 kB[22m[2m │ map:     1.13 kB[22m
+2026-10-24T09:50:39.5517975Z [2m../dist/[22m[36massets/external-link-C_RecRBl.js           [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:   0.34 kB[22m[2m │ map:     1.16 kB[22m
+2026-10-24T09:50:39.5519868Z [2m../dist/[22m[36massets/useSessionWorkspace-B9hFNIwT.js     [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:   0.32 kB[22m[2m │ map:     2.35 kB[22m
+2026-10-24T09:50:39.5521797Z [2m../dist/[22m[36massets/file-D85Jz0D2.js                    [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:   0.35 kB[22m[2m │ map:     1.10 kB[22m
+2026-10-24T09:50:39.5523662Z [2m../dist/[22m[36massets/shield-check-BJrsweSC.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:   0.39 kB[22m[2m │ map:     1.20 kB[22m
+2026-10-24T09:50:39.5525533Z [2m../dist/[22m[36massets/refresh-cw-O3T-ed45.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:   0.37 kB[22m[2m │ map:     1.28 kB[22m
+2026-10-24T09:50:39.5527340Z [2m../dist/[22m[36massets/clipboard-Bka3b3-h.js               [39m[1m[2m  0.61 kB[22m[1m[22m[2m │ gzip:   0.39 kB[22m[2m │ map:     2.05 kB[22m
+2026-10-24T09:50:39.5529168Z [2m../dist/[22m[36massets/terminal-BONgdTAK.js                [39m[1m[2m  0.86 kB[22m[1m[22m[2m │ gzip:   0.45 kB[22m[2m │ map:     2.12 kB[22m
+2026-10-24T09:50:39.5531062Z [2m../dist/[22m[36massets/FreshnessStatus-B84S4JfO.js         [39m[1m[2m  1.20 kB[22m[1m[22m[2m │ gzip:   0.66 kB[22m[2m │ map:     3.59 kB[22m
+2026-10-24T09:50:39.5532881Z [2m../dist/[22m[36massets/MessageTimestamp-CidapqOq.js        [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:   0.74 kB[22m[2m │ map:     4.75 kB[22m
+2026-10-24T09:50:39.5534835Z [2m../dist/[22m[36massets/qqContactSearch-BIgEr5jd.js         [39m[1m[2m  1.33 kB[22m[1m[22m[2m │ gzip:   0.74 kB[22m[2m │ map:     3.03 kB[22m
+2026-10-24T09:50:39.5536739Z [2m../dist/[22m[36massets/JobUserAuthorization-C_uReqx7.js    [39m[1m[2m  1.55 kB[22m[1m[22m[2m │ gzip:   0.87 kB[22m[2m │ map:     3.52 kB[22m
+2026-10-24T09:50:39.5538995Z [2m../dist/[22m[36massets/ManageView-ZMapO_iG.js              [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:   0.87 kB[22m[2m │ map:     4.81 kB[22m
+2026-10-24T09:50:39.5540892Z [2m../dist/[22m[36massets/PluginSelection-CdcxfQbi.js         [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:   0.94 kB[22m[2m │ map:     4.95 kB[22m
+2026-10-24T09:50:39.5542697Z [2m../dist/[22m[36massets/DetailPanel-PMb0Y_ZO.js             [39m[1m[2m  2.57 kB[22m[1m[22m[2m │ gzip:   1.17 kB[22m[2m │ map:     6.71 kB[22m
+2026-10-24T09:50:39.5544495Z [2m../dist/[22m[36massets/CodeEditor-DttQf7iD.js              [39m[1m[2m  2.59 kB[22m[1m[22m[2m │ gzip:   1.28 kB[22m[2m │ map:     8.25 kB[22m
+2026-10-24T09:50:39.5546272Z [2m../dist/[22m[36massets/codexRateLimits-D0VsjuO0.js         [39m[1m[2m  2.75 kB[22m[1m[22m[2m │ gzip:   1.14 kB[22m[2m │ map:    11.09 kB[22m
+2026-10-24T09:50:39.5548080Z [2m../dist/[22m[36massets/NativeTerminal-DCy933aQ.js          [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:   1.66 kB[22m[2m │ map:    11.90 kB[22m
+2026-10-24T09:50:39.5549876Z [2m../dist/[22m[36massets/editorFileLinks-DrNia_cc.js         [39m[1m[2m  3.73 kB[22m[1m[22m[2m │ gzip:   1.72 kB[22m[2m │ map:    16.56 kB[22m
+2026-10-24T09:50:39.5551724Z [2m../dist/[22m[36massets/nativeControlStore-XVv7VfCV.js      [39m[1m[2m  4.29 kB[22m[1m[22m[2m │ gzip:   1.59 kB[22m[2m │ map:    15.11 kB[22m
+2026-10-24T09:50:39.5553922Z [2m../dist/[22m[36massets/DirectoryInput-BcUgDD7a.js          [39m[1m[2m  5.13 kB[22m[1m[22m[2m │ gzip:   1.95 kB[22m[2m │ map:    18.33 kB[22m
+2026-10-24T09:50:39.5555888Z [2m../dist/[22m[36massets/JobRetentionSettings-X60x0ORF.js    [39m[1m[2m  6.61 kB[22m[1m[22m[2m │ gzip:   2.53 kB[22m[2m │ map:    17.94 kB[22m
+2026-10-24T09:50:39.5558243Z [2m../dist/[22m[36massets/automationStore-CSPBEL7o.js         [39m[1m[2m  8.73 kB[22m[1m[22m[2m │ gzip:   2.82 kB[22m[2m │ map:    35.89 kB[22m
+2026-10-24T09:50:39.5560409Z [2m../dist/[22m[36massets/PostboxModal-1xUTaGjo.js            [39m[1m[2m  9.77 kB[22m[1m[22m[2m │ gzip:   3.44 kB[22m[2m │ map:    34.40 kB[22m
+2026-10-24T09:50:39.5562368Z [2m../dist/[22m[36massets/GlobalHistorySearch-Di7M2gU7.js     [39m[1m[2m 11.16 kB[22m[1m[22m[2m │ gzip:   3.90 kB[22m[2m │ map:    40.69 kB[22m
+2026-10-24T09:50:39.5564388Z [2m../dist/[22m[36massets/EditorDirectoryRoots-CMR9R2xB.js    [39m[1m[2m 11.55 kB[22m[1m[22m[2m │ gzip:   4.22 kB[22m[2m │ map:    36.75 kB[22m
+2026-10-24T09:50:39.5566326Z [2m../dist/[22m[36massets/EditorView-8ivz-aGs.js              [39m[1m[2m 13.25 kB[22m[1m[22m[2m │ gzip:   4.56 kB[22m[2m │ map:    38.20 kB[22m
+2026-10-24T09:50:39.5568230Z [2m../dist/[22m[36massets/SessionDetailsModal-DivIs2L2.js     [39m[1m[2m 13.69 kB[22m[1m[22m[2m │ gzip:   4.68 kB[22m[2m │ map:    45.29 kB[22m
+2026-10-24T09:50:39.5570196Z [2m../dist/[22m[36massets/SessionHistorySearch-BQ6TK89-.js    [39m[1m[2m 14.25 kB[22m[1m[22m[2m │ gzip:   5.07 kB[22m[2m │ map:    45.81 kB[22m
+2026-10-24T09:50:39.5572141Z [2m../dist/[22m[36massets/monaco-vendor-fGo_w72f.js           [39m[1m[2m 14.96 kB[22m[1m[22m[2m │ gzip:   5.18 kB[22m[2m │ map:    48.03 kB[22m
+2026-10-24T09:50:39.5573996Z [2m../dist/[22m[36massets/TerminalPanel-hdKB4evq.js           [39m[1m[2m 16.02 kB[22m[1m[22m[2m │ gzip:   6.13 kB[22m[2m │ map:    42.24 kB[22m
+2026-10-24T09:50:39.5575909Z [2m../dist/[22m[36massets/ScheduleListEditor-BAIE340u.js      [39m[1m[2m 16.81 kB[22m[1m[22m[2m │ gzip:   5.35 kB[22m[2m │ map:    58.19 kB[22m
+2026-10-24T09:50:39.5578132Z [2m../dist/[22m[36massets/PluginPanelView-CBxHLZfz.js         [39m[1m[2m 16.89 kB[22m[1m[22m[2m │ gzip:   6.65 kB[22m[2m │ map:    57.34 kB[22m
+2026-10-24T09:50:39.5579988Z [2m../dist/[22m[36massets/ImportModal-C7xyiK2C.js             [39m[1m[2m 17.64 kB[22m[1m[22m[2m │ gzip:   4.30 kB[22m[2m │ map:    62.97 kB[22m
+2026-10-24T09:50:39.5581817Z [2m../dist/[22m[36massets/LockerView-Q4FK3Qsf.js              [39m[1m[2m 23.40 kB[22m[1m[22m[2m │ gzip:   7.83 kB[22m[2m │ map:    76.95 kB[22m
+2026-10-24T09:50:39.5583699Z [2m../dist/[22m[36massets/AutomationView-DYmIFti3.js          [39m[1m[2m 25.52 kB[22m[1m[22m[2m │ gzip:   7.76 kB[22m[2m │ map:    63.92 kB[22m
+2026-10-24T09:50:39.5585543Z [2m../dist/[22m[36massets/NewJobForm-KUiu3YSr.js              [39m[1m[2m 25.87 kB[22m[1m[22m[2m │ gzip:   7.44 kB[22m[2m │ map:    87.81 kB[22m
+2026-10-24T09:50:39.5587407Z [2m../dist/[22m[36massets/ManageModal-BGah9Yu8.js             [39m[1m[2m 27.73 kB[22m[1m[22m[2m │ gzip:   8.08 kB[22m[2m │ map:    93.27 kB[22m
+2026-10-24T09:50:39.5589336Z [2m../dist/[22m[36massets/SessionOperationFields-BlIcVu3-.js  [39m[1m[2m 27.99 kB[22m[1m[22m[2m │ gzip:   9.03 kB[22m[2m │ map:    72.80 kB[22m
+2026-10-24T09:50:39.5591277Z [2m../dist/[22m[36massets/NewSessionModal-DLAVu_yt.js         [39m[1m[2m 28.64 kB[22m[1m[22m[2m │ gzip:   8.23 kB[22m[2m │ map:    87.60 kB[22m
+2026-10-24T09:50:39.5593196Z [2m../dist/[22m[36massets/MarkdownRenderer-D30vQBMA.js        [39m[1m[2m 35.78 kB[22m[1m[22m[2m │ gzip:  11.88 kB[22m[2m │ map:   131.42 kB[22m
+2026-10-24T09:50:39.5595046Z [2m../dist/[22m[36massets/JobsView-Dsws42wy.js                [39m[1m[2m 69.23 kB[22m[1m[22m[2m │ gzip:  18.42 kB[22m[2m │ map:   192.22 kB[22m
+2026-10-24T09:50:39.5597056Z [2m../dist/[22m[36massets/ActionsView-C3L_yWtZ.js             [39m[1m[2m 72.26 kB[22m[1m[22m[2m │ gzip:  18.24 kB[22m[2m │ map:   204.04 kB[22m
+2026-10-24T09:50:39.5599229Z [2m../dist/[22m[36massets/AppSettingsModal-BXJ6U8jO.js        [39m[1m[2m115.92 kB[22m[1m[22m[2m │ gzip:  30.62 kB[22m[2m │ map:   312.72 kB[22m
+2026-10-24T09:50:39.5601047Z [2m../dist/[22m[36massets/ChatView-CqpNYOYN.js                [39m[1m[2m242.87 kB[22m[1m[22m[2m │ gzip:  73.00 kB[22m[2m │ map:   964.27 kB[22m
+2026-10-24T09:50:39.5603019Z [2m../dist/[22m[36massets/react-vendor-DZ42Ocw1.js            [39m[1m[2m288.18 kB[22m[1m[22m[2m │ gzip:  92.33 kB[22m[2m │ map: 1,477.37 kB[22m
+2026-10-24T09:50:39.5604790Z [2m../dist/[22m[36massets/xterm-XOw-FC4b.js                   [39m[1m[2m334.26 kB[22m[1m[22m[2m │ gzip:  84.78 kB[22m[2m │ map:   697.29 kB[22m
+2026-10-24T09:50:39.5606565Z [2m../dist/[22m[36massets/index-uiOkShxA-pc2.js               [39m[1m[2m415.74 kB[22m[1m[22m[2m │ gzip: 121.43 kB[22m[2m │ map: 1,706.55 kB[22m
+2026-10-24T09:50:39.5608431Z [2m../dist/[22m[36massets/markdown-vendor-B3UHhm0a.js         [39m[1m[33m602.56 kB[39m[22m[2m │ gzip: 181.56 kB[22m[2m │ map: 2,598.33 kB[22m
+2026-10-24T09:50:39.5609554Z [32m✓ built in 8.79s[39m
+2026-10-24T09:50:40.0248654Z Verified 92 compressed production assets
+2026-10-24T09:50:40.1665033Z ##[group]Run npm ci --prefix packages/core/terminal/emulator_sidecar
+2026-10-24T09:50:40.1665594Z [36;1mnpm ci --prefix packages/core/terminal/emulator_sidecar[0m
+2026-10-24T09:50:40.1738340Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:50:40.1738697Z env:
+2026-10-24T09:50:40.1738958Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:40.1739407Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:50:40.1739856Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:40.1740258Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:40.1740653Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:40.1741038Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:50:40.1741340Z ##[endgroup]
+2026-10-24T09:50:42.4378824Z 
+2026-10-24T09:50:42.4379467Z added 2 packages, and audited 3 packages in 2s
+2026-10-24T09:50:42.4388400Z 
+2026-10-24T09:50:42.4388832Z found 0 vulnerabilities
+2026-10-24T09:50:43.6475310Z ##[group]Run npm install --global --prefix "$env:RUNNER_TEMP/pan-codex" --no-audit --no-fund @openai/codex@0.162.1
+2026-10-24T09:50:43.6476167Z [36;1mnpm install --global --prefix "$env:RUNNER_TEMP/pan-codex" --no-audit --no-fund @openai/codex@0.162.1[0m
+2026-10-24T09:50:43.6476720Z [36;1mif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }[0m
+2026-10-24T09:50:43.6477224Z [36;1m"$env:RUNNER_TEMP/pan-codex" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append[0m
+2026-10-24T09:50:43.6579173Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:50:43.6579760Z env:
+2026-10-24T09:50:43.6580191Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:43.6580975Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:50:43.6581747Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:43.6582481Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:43.6583194Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:43.6583882Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:50:43.6584414Z ##[endgroup]
+2026-10-24T09:50:51.0153913Z 
+2026-10-24T09:50:51.0154419Z added 2 packages in 7s
+2026-10-24T09:50:51.1188661Z ##[group]Run python -m pip install --upgrade pip
+2026-10-24T09:50:51.1189119Z [36;1mpython -m pip install --upgrade pip[0m
+2026-10-24T09:50:51.1189445Z [36;1mpip install -r minimal-requirements.txt[0m
+2026-10-24T09:50:51.1189809Z [36;1mpip install -r packages/qq/requirements.txt[0m
+2026-10-24T09:50:51.1190163Z [36;1mpip install pytest-timeout playwright==1.63.0[0m
+2026-10-24T09:50:51.1266231Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:50:51.1266598Z env:
+2026-10-24T09:50:51.1266871Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:51.1267317Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:50:51.1268721Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:51.1269130Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:51.1269537Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:50:51.1270019Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:50:51.1270330Z ##[endgroup]
+2026-10-24T09:50:55.6506926Z Requirement already satisfied: pip in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (26.2.2)
+2026-10-24T09:50:57.4965829Z Collecting fastapi (from -r minimal-requirements.txt (line 1))
+2026-10-24T09:50:57.5971140Z   Downloading fastapi-0.162.0-py3-none-any.whl.metadata (26 kB)
+2026-10-24T09:50:57.6946551Z Collecting uvicorn (from -r minimal-requirements.txt (line 2))
+2026-10-24T09:50:57.7244445Z   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+2026-10-24T09:50:57.9568527Z Collecting websockets (from -r minimal-requirements.txt (line 3))
+2026-10-24T09:50:57.9886341Z   Downloading websockets-17.3-cp314-cp314-win_amd64.whl.metadata (6.5 kB)
+2026-10-24T09:50:58.1198014Z Collecting psutil (from -r minimal-requirements.txt (line 4))
+2026-10-24T09:50:58.1510981Z   Downloading psutil-7.2.2-cp37-abi3-win_amd64.whl.metadata (22 kB)
+2026-10-24T09:50:58.2426788Z Collecting httpx>=0.28.0 (from -r minimal-requirements.txt (line 5))
+2026-10-24T09:50:58.2760668Z   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+2026-10-24T09:50:58.3513816Z Collecting mcp==1.28.1 (from -r minimal-requirements.txt (line 6))
+2026-10-24T09:50:58.3826266Z   Downloading mcp-1.28.1-py3-none-any.whl.metadata (9.4 kB)
+2026-10-24T09:50:58.4515547Z Collecting jsonschema>=4.20 (from -r minimal-requirements.txt (line 7))
+2026-10-24T09:50:58.4819487Z   Downloading jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+2026-10-24T09:50:58.5496335Z Collecting PyJWT<3,>=2.10 (from PyJWT[crypto]<3,>=2.10->-r minimal-requirements.txt (line 8))
+2026-10-24T09:50:58.5791886Z   Downloading pyjwt-2.15.1-py3-none-any.whl.metadata (3.5 kB)
+2026-10-24T09:50:58.6614541Z Collecting pywinpty==3.0.5 (from -r minimal-requirements.txt (line 9))
+2026-10-24T09:50:58.6922906Z   Downloading pywinpty-3.0.5-cp314-cp314-win_amd64.whl.metadata (5.9 kB)
+2026-10-24T09:50:58.7567636Z Collecting pyte==0.8.2 (from -r minimal-requirements.txt (line 10))
+2026-10-24T09:50:58.7875671Z   Downloading pyte-0.8.2-py3-none-any.whl.metadata (3.0 kB)
+2026-10-24T09:50:58.8600237Z Collecting anyio>=4.5 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:58.8908185Z   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+2026-10-24T09:50:58.9535356Z Collecting httpx-sse>=0.4 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:58.9842886Z   Downloading httpx_sse-0.4.3-py3-none-any.whl.metadata (9.7 kB)
+2026-10-24T09:50:59.0598233Z Collecting pydantic-settings>=2.5.2 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.0905162Z   Downloading pydantic_settings-2.16.1-py3-none-any.whl.metadata (4.0 kB)
+2026-10-24T09:50:59.2582787Z Collecting pydantic<3.0.0,>=2.12.0 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.2885807Z   Downloading pydantic-2.14.1-py3-none-any.whl.metadata (133 kB)
+2026-10-24T09:50:59.4058345Z Collecting python-multipart>=0.0.9 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.4361043Z   Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+2026-10-24T09:50:59.5151010Z Collecting pywin32>=311 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.5466627Z   Downloading pywin32-312-cp314-cp314-win_amd64.whl.metadata (11 kB)
+2026-10-24T09:50:59.6182360Z Collecting sse-starlette>=1.6.1 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.6481571Z   Downloading sse_starlette-3.5.1-py3-none-any.whl.metadata (15 kB)
+2026-10-24T09:50:59.7289507Z Collecting starlette>=0.48.0 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.7594160Z   Downloading starlette-1.9.0-py3-none-any.whl.metadata (6.6 kB)
+2026-10-24T09:50:59.8253956Z Collecting typing-extensions>=4.9.0 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.8550016Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-24T09:50:59.9202571Z Collecting typing-inspection>=0.4.1 (from mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:50:59.9499080Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-24T09:51:00.0318138Z Collecting wcwidth (from pyte==0.8.2->-r minimal-requirements.txt (line 10))
+2026-10-24T09:51:00.0619155Z   Downloading wcwidth-0.9.3-cp310-abi3-win_amd64.whl.metadata (24 kB)
+2026-10-24T09:51:00.1423715Z Collecting certifi (from httpx>=0.28.0->-r minimal-requirements.txt (line 5))
+2026-10-24T09:51:00.1724803Z   Downloading certifi-2026.10.23-py3-none-any.whl.metadata (2.5 kB)
+2026-10-24T09:51:00.2449944Z Collecting httpcore==1.* (from httpx>=0.28.0->-r minimal-requirements.txt (line 5))
+2026-10-24T09:51:00.2746313Z   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+2026-10-24T09:51:00.3437382Z Collecting idna (from httpx>=0.28.0->-r minimal-requirements.txt (line 5))
+2026-10-24T09:51:00.3734449Z   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+2026-10-24T09:51:00.4396052Z Collecting h11>=0.16 (from httpcore==1.*->httpx>=0.28.0->-r minimal-requirements.txt (line 5))
+2026-10-24T09:51:00.4708151Z   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2026-10-24T09:51:00.5399051Z Collecting annotated-types>=0.6.0 (from pydantic<3.0.0,>=2.12.0->mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:51:00.5699273Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-24T09:51:01.3648503Z Collecting pydantic-core==2.50.1 (from pydantic<3.0.0,>=2.12.0->mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:51:01.3951998Z   Downloading pydantic_core-2.50.1-cp314-cp314-win_amd64.whl.metadata (6.7 kB)
+2026-10-24T09:51:01.6735707Z Collecting cryptography>=3.4.0 (from PyJWT[crypto]<3,>=2.10->-r minimal-requirements.txt (line 8))
+2026-10-24T09:51:01.7036705Z   Downloading cryptography-50.0.2-cp311-abi3-win_amd64.whl.metadata (4.4 kB)
+2026-10-24T09:51:01.7759839Z Collecting annotated-doc>=0.0.2 (from fastapi->-r minimal-requirements.txt (line 1))
+2026-10-24T09:51:01.8054666Z   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+2026-10-24T09:51:01.8821751Z Collecting opentelemetry-api>=1.44.0 (from fastapi->-r minimal-requirements.txt (line 1))
+2026-10-24T09:51:01.9116034Z   Downloading opentelemetry_api-1.45.1-py3-none-any.whl.metadata (1.4 kB)
+2026-10-24T09:51:01.9789806Z Collecting click>=7.0 (from uvicorn->-r minimal-requirements.txt (line 2))
+2026-10-24T09:51:02.0097056Z   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-10-24T09:51:02.0747698Z Collecting attrs>=22.2.0 (from jsonschema>=4.20->-r minimal-requirements.txt (line 7))
+2026-10-24T09:51:02.1053963Z   Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+2026-10-24T09:51:02.1743185Z Collecting jsonschema-specifications>=2023.03.6 (from jsonschema>=4.20->-r minimal-requirements.txt (line 7))
+2026-10-24T09:51:02.2039209Z   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+2026-10-24T09:51:02.2713240Z Collecting referencing>=0.28.4 (from jsonschema>=4.20->-r minimal-requirements.txt (line 7))
+2026-10-24T09:51:02.3007746Z   Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+2026-10-24T09:51:02.6353853Z Collecting rpds-py>=0.25.0 (from jsonschema>=4.20->-r minimal-requirements.txt (line 7))
+2026-10-24T09:51:02.6660564Z   Downloading rpds_py-2026.9.1-cp314-cp314-win_amd64.whl.metadata (4.2 kB)
+2026-10-24T09:51:02.8352342Z Collecting cffi>=2.0.0 (from cryptography>=3.4.0->PyJWT[crypto]<3,>=2.10->-r minimal-requirements.txt (line 8))
+2026-10-24T09:51:02.8670550Z   Downloading cffi-2.1.1-cp314-cp314-win_amd64.whl.metadata (2.6 kB)
+2026-10-24T09:51:02.9600155Z Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->PyJWT[crypto]<3,>=2.10->-r minimal-requirements.txt (line 8))
+2026-10-24T09:51:02.9897886Z   Downloading pycparser-3.12-py3-none-any.whl.metadata (9.7 kB)
+2026-10-24T09:51:03.0724909Z Collecting python-dotenv>=1.2.2 (from pydantic-settings>=2.5.2->mcp==1.28.1->-r minimal-requirements.txt (line 6))
+2026-10-24T09:51:03.1023584Z   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+2026-10-24T09:51:03.1653225Z Downloading mcp-1.28.1-py3-none-any.whl (222 kB)
+2026-10-24T09:51:03.2394434Z Downloading pywinpty-3.0.5-cp314-cp314-win_amd64.whl (2.1 MB)
+2026-10-24T09:51:03.3453828Z    ---------------------------------------- 2.1/2.1 MB 19.0 MB/s  0:00:00
+2026-10-24T09:51:03.3762195Z Downloading pyte-0.8.2-py3-none-any.whl (31 kB)
+2026-10-24T09:51:03.4231765Z Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-10-24T09:51:03.4723226Z Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+2026-10-24T09:51:03.5227989Z Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+2026-10-24T09:51:03.5679794Z Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+2026-10-24T09:51:03.6148623Z Downloading pydantic_core-2.50.1-cp314-cp314-win_amd64.whl (2.2 MB)
+2026-10-24T09:51:03.6687777Z    ---------------------------------------- 2.2/2.2 MB 38.2 MB/s  0:00:00
+2026-10-24T09:51:03.6983921Z Downloading fastapi-0.162.0-py3-none-any.whl (148 kB)
+2026-10-24T09:51:03.7416362Z Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+2026-10-24T09:51:03.7933389Z Downloading websockets-17.3-cp314-cp314-win_amd64.whl (218 kB)
+2026-10-24T09:51:03.8372492Z Downloading psutil-7.2.2-cp37-abi3-win_amd64.whl (137 kB)
+2026-10-24T09:51:03.8800967Z Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+2026-10-24T09:51:03.9264178Z Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+2026-10-24T09:51:03.9704479Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-24T09:51:04.0218252Z Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+2026-10-24T09:51:04.0652765Z Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+2026-10-24T09:51:04.1131602Z Downloading click-8.5.0-py3-none-any.whl (125 kB)
+2026-10-24T09:51:04.1582279Z Downloading cryptography-50.0.2-cp311-abi3-win_amd64.whl (3.8 MB)
+2026-10-24T09:51:04.1930616Z    ---------------------------------------- 3.8/3.8 MB 116.0 MB/s  0:00:00
+2026-10-24T09:51:04.2232770Z Downloading cffi-2.1.1-cp314-cp314-win_amd64.whl (187 kB)
+2026-10-24T09:51:04.2671124Z Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+2026-10-24T09:51:04.3614666Z Downloading httpx_sse-0.4.3-py3-none-any.whl (9.0 kB)
+2026-10-24T09:51:04.4056661Z Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-10-24T09:51:04.4535114Z Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+2026-10-24T09:51:04.4963860Z Downloading opentelemetry_api-1.45.1-py3-none-any.whl (60 kB)
+2026-10-24T09:51:04.5411738Z Downloading pydantic_settings-2.16.1-py3-none-any.whl (80 kB)
+2026-10-24T09:51:04.5831393Z Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+2026-10-24T09:51:04.6245939Z Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+2026-10-24T09:51:04.6742324Z Downloading pywin32-312-cp314-cp314-win_amd64.whl (7.0 MB)
+2026-10-24T09:51:04.7376307Z    ---------------------------------------- 7.0/7.0 MB 113.2 MB/s  0:00:00
+2026-10-24T09:51:04.7670686Z Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+2026-10-24T09:51:04.8147788Z Downloading rpds_py-2026.9.1-cp314-cp314-win_amd64.whl (222 kB)
+2026-10-24T09:51:04.8586496Z Downloading sse_starlette-3.5.1-py3-none-any.whl (17 kB)
+2026-10-24T09:51:04.9048140Z Downloading starlette-1.9.0-py3-none-any.whl (80 kB)
+2026-10-24T09:51:04.9548995Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-24T09:51:05.0013534Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-24T09:51:05.0434184Z Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+2026-10-24T09:51:05.0883065Z Downloading pycparser-3.12-py3-none-any.whl (62 kB)
+2026-10-24T09:51:05.1322701Z Downloading wcwidth-0.9.3-cp310-abi3-win_amd64.whl (597 kB)
+2026-10-24T09:51:05.1546206Z    ---------------------------------------- 597.7/597.7 kB 17.6 MB/s  0:00:00
+2026-10-24T09:51:05.4204894Z Installing collected packages: websockets, wcwidth, typing-extensions, rpds-py, pywinpty, pywin32, python-multipart, python-dotenv, PyJWT, pycparser, psutil, idna, httpx-sse, h11, click, certifi, attrs, annotated-types, annotated-doc, uvicorn, typing-inspection, referencing, pyte, pydantic-core, opentelemetry-api, httpcore, cffi, anyio, starlette, pydantic, jsonschema-specifications, httpx, cryptography, sse-starlette, pydantic-settings, jsonschema, fastapi, mcp
+2026-10-24T09:51:16.6843210Z 
+2026-10-24T09:51:16.6891763Z Successfully installed PyJWT-2.15.1 annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 attrs-26.1.0 certifi-2026.10.23 cffi-2.1.1 click-8.5.0 cryptography-50.0.2 fastapi-0.162.0 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 httpx-sse-0.4.3 idna-3.20 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 mcp-1.28.1 opentelemetry-api-1.45.1 psutil-7.2.2 pycparser-3.12 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.1 pyte-0.8.2 python-dotenv-1.2.4 python-multipart-0.0.32 pywin32-312 pywinpty-3.0.5 referencing-0.37.0 rpds-py-2026.9.1 sse-starlette-3.5.1 starlette-1.9.0 typing-extensions-4.16.0 typing-inspection-0.4.4 uvicorn-0.54.0 wcwidth-0.9.3 websockets-17.3
+2026-10-24T09:51:18.1525632Z Collecting nonebot2>=2.4.0 (from nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:18.2632325Z   Downloading nonebot2-2.5.0-py3-none-any.whl.metadata (24 kB)
+2026-10-24T09:51:18.3422554Z Collecting nonebot-adapter-onebot<2.5.0,>=2.4.0 (from -r packages/qq/requirements.txt (line 2))
+2026-10-24T09:51:18.3761336Z   Downloading nonebot_adapter_onebot-2.4.6-py3-none-any.whl.metadata (5.0 kB)
+2026-10-24T09:51:18.3962325Z Requirement already satisfied: httpx>=0.28.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from -r packages/qq/requirements.txt (line 3)) (0.28.1)
+2026-10-24T09:51:18.5633534Z Collecting msgpack<2.0.0,>=1.0.3 (from nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2))
+2026-10-24T09:51:18.5938819Z   Downloading msgpack-1.2.3-cp314-cp314-win_amd64.whl.metadata (8.5 kB)
+2026-10-24T09:51:18.6129107Z Requirement already satisfied: pydantic!=2.5.0,!=2.5.1,<3.0.0,>=1.10.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2)) (2.14.1)
+2026-10-24T09:51:18.6134465Z Requirement already satisfied: typing-extensions<5.0.0,>=4.0.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2)) (4.16.0)
+2026-10-24T09:51:18.9592246Z Collecting yarl<2.0.0,>=1.7.2 (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:18.9887889Z   Downloading yarl-1.25.1-cp314-cp314-win_amd64.whl.metadata (115 kB)
+2026-10-24T09:51:19.0539613Z Requirement already satisfied: anyio<5.0.0,>=4.4.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (4.15.1)
+2026-10-24T09:51:19.0973115Z Collecting loguru<1.0.0,>=0.6.0 (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.1270104Z   Downloading loguru-0.7.3-py3-none-any.whl.metadata (22 kB)
+2026-10-24T09:51:19.1955165Z Collecting pygtrie<3.0.0,>=2.4.1 (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.2245146Z   Downloading pygtrie-2.6.2-py3-none-any.whl.metadata (12 kB)
+2026-10-24T09:51:19.2949398Z Collecting exceptiongroup<2.0.0,>=1.2.2 (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.3251282Z   Downloading exceptiongroup-1.3.1-py3-none-any.whl.metadata (6.7 kB)
+2026-10-24T09:51:19.3417988Z Requirement already satisfied: python-dotenv<2.0.0,>=0.21.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (1.2.4)
+2026-10-24T09:51:19.3440290Z Requirement already satisfied: idna>=2.8 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from anyio<5.0.0,>=4.4.0->nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (3.20)
+2026-10-24T09:51:19.3960807Z Collecting colorama>=0.3.4 (from loguru<1.0.0,>=0.6.0->nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.4256526Z   Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+2026-10-24T09:51:19.4896974Z Collecting win32-setctime>=1.0.0 (from loguru<1.0.0,>=0.6.0->nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.5188814Z   Downloading win32_setctime-1.2.0-py3-none-any.whl.metadata (2.4 kB)
+2026-10-24T09:51:19.5397900Z Requirement already satisfied: annotated-types>=0.6.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from pydantic!=2.5.0,!=2.5.1,<3.0.0,>=1.10.0->nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2)) (0.8.0)
+2026-10-24T09:51:19.5402438Z Requirement already satisfied: pydantic-core==2.50.1 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from pydantic!=2.5.0,!=2.5.1,<3.0.0,>=1.10.0->nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2)) (2.50.1)
+2026-10-24T09:51:19.5408317Z Requirement already satisfied: typing-inspection>=0.4.4 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from pydantic!=2.5.0,!=2.5.1,<3.0.0,>=1.10.0->nonebot-adapter-onebot<2.5.0,>=2.4.0->-r packages/qq/requirements.txt (line 2)) (0.4.4)
+2026-10-24T09:51:19.8707956Z Collecting multidict>=4.0 (from yarl<2.0.0,>=1.7.2->nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:19.9047404Z   Downloading multidict-7.2.0-cp314-cp314-win_amd64.whl.metadata (6.3 kB)
+2026-10-24T09:51:20.0322932Z Collecting propcache>=0.2.1 (from yarl<2.0.0,>=1.7.2->nonebot2>=2.4.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:20.0630136Z   Downloading propcache-0.5.4-cp314-cp314-win_amd64.whl.metadata (25 kB)
+2026-10-24T09:51:20.0867146Z Requirement already satisfied: certifi in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from httpx>=0.28.0->-r packages/qq/requirements.txt (line 3)) (2026.10.23)
+2026-10-24T09:51:20.0872296Z Requirement already satisfied: httpcore==1.* in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from httpx>=0.28.0->-r packages/qq/requirements.txt (line 3)) (1.0.9)
+2026-10-24T09:51:20.0899405Z Requirement already satisfied: h11>=0.16 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from httpcore==1.*->httpx>=0.28.0->-r packages/qq/requirements.txt (line 3)) (0.16.0)
+2026-10-24T09:51:20.0964095Z Requirement already satisfied: fastapi<1.0.0,>=0.93.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (0.162.0)
+2026-10-24T09:51:20.0972246Z Requirement already satisfied: uvicorn<1.0.0,>=0.20.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from uvicorn[standard]<1.0.0,>=0.20.0; extra == "fastapi"->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (0.54.0)
+2026-10-24T09:51:20.0982127Z Requirement already satisfied: websockets>=15.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (17.3)
+2026-10-24T09:51:20.1002834Z Requirement already satisfied: starlette>=0.46.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from fastapi<1.0.0,>=0.93.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (1.9.0)
+2026-10-24T09:51:20.1016009Z Requirement already satisfied: annotated-doc>=0.0.2 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from fastapi<1.0.0,>=0.93.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (0.0.5)
+2026-10-24T09:51:20.1020843Z Requirement already satisfied: opentelemetry-api>=1.44.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from fastapi<1.0.0,>=0.93.0->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (1.45.1)
+2026-10-24T09:51:20.1059692Z Requirement already satisfied: click>=7.0 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from uvicorn<1.0.0,>=0.20.0->uvicorn[standard]<1.0.0,>=0.20.0; extra == "fastapi"->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1)) (8.5.0)
+2026-10-24T09:51:20.1792895Z Collecting httptools>=0.8.0 (from uvicorn[standard]<1.0.0,>=0.20.0; extra == "fastapi"->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:20.2083324Z   Downloading httptools-0.9.0-cp314-cp314-win_amd64.whl.metadata (3.7 kB)
+2026-10-24T09:51:20.2944464Z Collecting pyyaml>=5.1 (from uvicorn[standard]<1.0.0,>=0.20.0; extra == "fastapi"->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:20.3240995Z   Downloading pyyaml-6.0.3-cp314-cp314-win_amd64.whl.metadata (2.4 kB)
+2026-10-24T09:51:20.4625122Z Collecting watchfiles>=0.20 (from uvicorn[standard]<1.0.0,>=0.20.0; extra == "fastapi"->nonebot2[fastapi,websockets]>=2.4.0->-r packages/qq/requirements.txt (line 1))
+2026-10-24T09:51:20.4920027Z   Downloading watchfiles-1.3.0-cp310-abi3-win_amd64.whl.metadata (5.0 kB)
+2026-10-24T09:51:20.5540887Z Downloading nonebot_adapter_onebot-2.4.6-py3-none-any.whl (49 kB)
+2026-10-24T09:51:20.6012275Z Downloading nonebot2-2.5.0-py3-none-any.whl (119 kB)
+2026-10-24T09:51:20.6559092Z Downloading exceptiongroup-1.3.1-py3-none-any.whl (16 kB)
+2026-10-24T09:51:20.7034438Z Downloading loguru-0.7.3-py3-none-any.whl (61 kB)
+2026-10-24T09:51:20.7566545Z Downloading msgpack-1.2.3-cp314-cp314-win_amd64.whl (77 kB)
+2026-10-24T09:51:20.8033619Z Downloading pygtrie-2.6.2-py3-none-any.whl (33 kB)
+2026-10-24T09:51:20.8520728Z Downloading yarl-1.25.1-cp314-cp314-win_amd64.whl (103 kB)
+2026-10-24T09:51:20.8998329Z Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+2026-10-24T09:51:20.9449983Z Downloading multidict-7.2.0-cp314-cp314-win_amd64.whl (94 kB)
+2026-10-24T09:51:20.9906377Z Downloading httptools-0.9.0-cp314-cp314-win_amd64.whl (94 kB)
+2026-10-24T09:51:21.0391864Z Downloading propcache-0.5.4-cp314-cp314-win_amd64.whl (46 kB)
+2026-10-24T09:51:21.0829742Z Downloading pyyaml-6.0.3-cp314-cp314-win_amd64.whl (156 kB)
+2026-10-24T09:51:21.1372862Z Downloading watchfiles-1.3.0-cp310-abi3-win_amd64.whl (290 kB)
+2026-10-24T09:51:21.1950670Z Downloading win32_setctime-1.2.0-py3-none-any.whl (4.1 kB)
+2026-10-24T09:51:21.3747777Z Installing collected packages: win32-setctime, pyyaml, pygtrie, propcache, multidict, msgpack, httptools, exceptiongroup, colorama, yarl, watchfiles, loguru, nonebot2, nonebot-adapter-onebot
+2026-10-24T09:51:22.3930601Z 
+2026-10-24T09:51:22.3984437Z Successfully installed colorama-0.4.6 exceptiongroup-1.3.1 httptools-0.9.0 loguru-0.7.3 msgpack-1.2.3 multidict-7.2.0 nonebot-adapter-onebot-2.4.6 nonebot2-2.5.0 propcache-0.5.4 pygtrie-2.6.2 pyyaml-6.0.3 watchfiles-1.3.0 win32-setctime-1.2.0 yarl-1.25.1
+2026-10-24T09:51:23.6933539Z Collecting pytest-timeout
+2026-10-24T09:51:23.7944225Z   Downloading pytest_timeout-2.4.0-py3-none-any.whl.metadata (20 kB)
+2026-10-24T09:51:23.9222980Z Collecting playwright==1.63.0
+2026-10-24T09:51:23.9497813Z   Downloading playwright-1.63.0-py3-none-win_amd64.whl.metadata (3.3 kB)
+2026-10-24T09:51:24.0154894Z Collecting pyee<14,>=13 (from playwright==1.63.0)
+2026-10-24T09:51:24.0425909Z   Downloading pyee-13.0.1-py3-none-any.whl.metadata (3.0 kB)
+2026-10-24T09:51:24.3237286Z Collecting greenlet<4.0.0,>=3.1.1 (from playwright==1.63.0)
+2026-10-24T09:51:24.3519844Z   Downloading greenlet-3.5.6-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+2026-10-24T09:51:24.3712227Z Requirement already satisfied: typing-extensions in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from pyee<14,>=13->playwright==1.63.0) (4.16.0)
+2026-10-24T09:51:24.4320847Z Collecting pytest>=7.0.0 (from pytest-timeout)
+2026-10-24T09:51:24.4597080Z   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-10-24T09:51:24.4802052Z Requirement already satisfied: colorama>=0.4 in C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages (from pytest>=7.0.0->pytest-timeout) (0.4.6)
+2026-10-24T09:51:24.5284615Z Collecting iniconfig>=1.0.1 (from pytest>=7.0.0->pytest-timeout)
+2026-10-24T09:51:24.5557692Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-24T09:51:24.6224750Z Collecting packaging>=22 (from pytest>=7.0.0->pytest-timeout)
+2026-10-24T09:51:24.6484878Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+2026-10-24T09:51:24.7157606Z Collecting pluggy<2,>=1.5 (from pytest>=7.0.0->pytest-timeout)
+2026-10-24T09:51:24.7436686Z   Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-24T09:51:24.8114976Z Collecting pygments>=2.7.2 (from pytest>=7.0.0->pytest-timeout)
+2026-10-24T09:51:24.8394913Z   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+2026-10-24T09:51:24.8870637Z Downloading playwright-1.63.0-py3-none-win_amd64.whl (38.6 MB)
+2026-10-24T09:51:25.4794698Z    ---------------------------------------- 38.6/38.6 MB 74.6 MB/s  0:00:00
+2026-10-24T09:51:25.7261067Z Downloading greenlet-3.5.6-cp314-cp314-win_amd64.whl (327 kB)
+2026-10-24T09:51:25.7707099Z Downloading pyee-13.0.1-py3-none-any.whl (15 kB)
+2026-10-24T09:51:25.8120260Z Downloading pytest_timeout-2.4.0-py3-none-any.whl (14 kB)
+2026-10-24T09:51:25.8566362Z Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+2026-10-24T09:51:25.9050555Z Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-24T09:51:25.9483352Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-24T09:51:25.9895040Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+2026-10-24T09:51:26.0340845Z Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+2026-10-24T09:51:26.0614745Z    ---------------------------------------- 1.3/1.3 MB 41.1 MB/s  0:00:00
+2026-10-24T09:51:26.2431390Z Installing collected packages: pygments, pyee, pluggy, packaging, iniconfig, greenlet, pytest, playwright, pytest-timeout
+2026-10-24T09:51:30.5798505Z 
+2026-10-24T09:51:30.5861144Z Successfully installed greenlet-3.5.6 iniconfig-2.3.1 packaging-26.3 playwright-1.63.0 pluggy-1.7.0 pyee-13.0.1 pygments-2.21.0 pytest-9.1.1 pytest-timeout-2.4.0
+2026-10-24T09:51:30.8162111Z ##[group]Run python -m playwright install --only-shell chromium
+2026-10-24T09:51:30.8162672Z [36;1mpython -m playwright install --only-shell chromium[0m
+2026-10-24T09:51:30.8239100Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:51:30.8239462Z env:
+2026-10-24T09:51:30.8239740Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:30.8240184Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:51:30.8240621Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:30.8241022Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:30.8241430Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:30.8241818Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:51:30.8242180Z   PLAYWRIGHT_BROWSERS_PATH: D:\a\_temp/pan-playwright
+2026-10-24T09:51:30.8242463Z ##[endgroup]
+2026-10-24T09:51:31.5879145Z Downloading Chrome Headless Shell 153.0.8010.12 (playwright chromium-headless-shell v1243)[2m from https://cdn.playwright.dev/builds/cft/153.0.8010.12/win64/chrome-headless-shell-win64.zip[22m
+2026-10-24T09:51:32.0922624Z |                                                                                |   0% of 114.6 MiB
+2026-10-24T09:51:32.2830722Z |■■■■■■■■                                                                        |  10% of 114.6 MiB
+2026-10-24T09:51:32.4188964Z |■■■■■■■■■■■■■■■■                                                                |  20% of 114.6 MiB
+2026-10-24T09:51:32.5215835Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 114.6 MiB
+2026-10-24T09:51:32.6408949Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 114.6 MiB
+2026-10-24T09:51:32.7612786Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 114.6 MiB
+2026-10-24T09:51:32.8802931Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 114.6 MiB
+2026-10-24T09:51:33.0013559Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 114.6 MiB
+2026-10-24T09:51:33.1435168Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 114.6 MiB
+2026-10-24T09:51:33.2815674Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 114.6 MiB
+2026-10-24T09:51:33.4274911Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 114.6 MiB
+2026-10-24T09:51:37.4165674Z Chrome Headless Shell 153.0.8010.12 (playwright chromium-headless-shell v1243) downloaded to D:\a\_temp\pan-playwright\chromium_headless_shell-1243
+2026-10-24T09:51:37.4177412Z Downloading FFmpeg (playwright ffmpeg v1011)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-win64.zip[22m
+2026-10-24T09:51:38.0618126Z |                                                                                |   1% of 1.3 MiB
+2026-10-24T09:51:38.1186751Z |■■■■■■■■                                                                        |  10% of 1.3 MiB
+2026-10-24T09:51:38.1548806Z |■■■■■■■■■■■■■■■■                                                                |  20% of 1.3 MiB
+2026-10-24T09:51:38.1747123Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 1.3 MiB
+2026-10-24T09:51:38.1901515Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 1.3 MiB
+2026-10-24T09:51:38.2042870Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  51% of 1.3 MiB
+2026-10-24T09:51:38.2134105Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 1.3 MiB
+2026-10-24T09:51:38.2214227Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 1.3 MiB
+2026-10-24T09:51:38.2284900Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 1.3 MiB
+2026-10-24T09:51:38.2347474Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 1.3 MiB
+2026-10-24T09:51:38.2402611Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 1.3 MiB
+2026-10-24T09:51:38.3238833Z FFmpeg (playwright ffmpeg v1011) downloaded to D:\a\_temp\pan-playwright\ffmpeg-1011
+2026-10-24T09:51:38.3247894Z Downloading Winldd (playwright winldd v1007)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/winldd/1007/winldd-win64.zip[22m
+2026-10-24T09:51:38.8414741Z |■■■■■■■■                                                                        |  12% of 0.1 MiB
+2026-10-24T09:51:38.8429281Z |■■■■■■■■■■■■■■■■                                                                |  25% of 0.1 MiB
+2026-10-24T09:51:38.8454127Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  38% of 0.1 MiB
+2026-10-24T09:51:38.8621364Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  51% of 0.1 MiB
+2026-10-24T09:51:38.8655252Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 0.1 MiB
+2026-10-24T09:51:38.8696619Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  89% of 0.1 MiB
+2026-10-24T09:51:38.8718543Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 0.1 MiB
+2026-10-24T09:51:38.9012134Z Winldd (playwright winldd v1007) downloaded to D:\a\_temp\pan-playwright\winldd-1007
+2026-10-24T09:51:39.0746409Z ##[group]Run python scripts/run_tests_isolated.py -- python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml
+2026-10-24T09:51:39.0747403Z [36;1mpython scripts/run_tests_isolated.py -- python -m pytest tests/ packages/qq -q -ra --junitxml=pytest-results.xml[0m
+2026-10-24T09:51:39.0824023Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-24T09:51:39.0824402Z env:
+2026-10-24T09:51:39.0824662Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:39.0825106Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T09:51:39.0825542Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:39.0825934Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:39.0826324Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T09:51:39.0826704Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T09:51:39.0827111Z   PLAYWRIGHT_BROWSERS_PATH: D:\a\_temp/pan-playwright
+2026-10-24T09:51:39.0827397Z ##[endgroup]
+2026-10-24T09:51:39.4723256Z Isolated test child: inherited PAN_* removed; cwd=D:\a\pan\pan
+2026-10-24T09:52:18.8028870Z ........................................................................ [  1%]
+2026-10-24T09:52:37.5629198Z ...F.........s...s...................................................... [  2%]
+2026-10-24T09:52:38.7903695Z ........................................................................ [  3%]
+2026-10-24T09:53:03.5270795Z ........................................................................ [  5%]
+2026-10-24T09:53:30.8986795Z ........................................................................ [  6%]
+2026-10-24T09:53:36.6146114Z ........................................................................ [  7%]
+2026-10-24T09:53:41.6460177Z ........................................................................ [  8%]
+2026-10-24T09:53:54.2785932Z ........................................................................ [ 10%]
+2026-10-24T09:53:58.0458172Z ........................................................ssssssss........ [ 11%]
+2026-10-24T09:53:58.9283075Z ...............................................sssss.........s....ssssss [ 12%]
+2026-10-24T09:53:59.4611805Z s.ss.................................................................... [ 13%]
+2026-10-24T09:54:07.8830173Z ........................................................................ [ 15%]
+2026-10-24T09:54:24.5057889Z ........................................................................ [ 16%]
+2026-10-24T09:54:26.1537569Z ........................................................................ [ 17%]
+2026-10-24T09:54:44.9062674Z ........................................................................ [ 19%]
+2026-10-24T09:55:34.4564673Z ...........................s............................................ [ 20%]
+2026-10-24T09:55:38.8525574Z ........................................................................ [ 21%]
+2026-10-24T09:55:45.9214645Z ........................................................................ [ 22%]
+2026-10-24T09:55:54.8167007Z ........................................................................ [ 24%]
+2026-10-24T09:56:25.5921096Z ........................................................................ [ 25%]
+2026-10-24T09:57:02.0330596Z ..............s......................................................... [ 26%]
+2026-10-24T09:57:13.3714286Z ........................................................................ [ 27%]
+2026-10-24T09:57:51.6413896Z .....................F.................................................. [ 29%]
+2026-10-24T09:58:24.8884083Z ........................................FFFFFF.......................... [ 30%]
+2026-10-24T09:58:29.6565294Z ........................................................................ [ 31%]
+2026-10-24T09:59:02.3359227Z ...........................sss.......................................... [ 32%]
+2026-10-24T10:00:10.3907603Z ........................................................................ [ 34%]
+2026-10-24T10:01:46.5468985Z .................F.........................F............................ [ 35%]
+2026-10-24T10:01:48.4788874Z ........................................................................ [ 36%]
+2026-10-24T10:01:50.7275424Z ........................................................................ [ 38%]
+2026-10-24T10:01:56.2627871Z .........................................F.............................. [ 39%]
+2026-10-24T10:01:57.4129885Z ........................................................................ [ 40%]
+2026-10-24T10:02:06.8558634Z ........................................................................ [ 41%]
+2026-10-24T10:02:10.5821727Z ........................................................................ [ 43%]
+2026-10-24T10:02:12.1524096Z ........................................................................ [ 44%]
+2026-10-24T10:02:14.0529685Z ........................................................................ [ 45%]
+2026-10-24T10:02:41.0901874Z ........................................................................ [ 46%]
+2026-10-24T10:03:18.8097754Z ........................................................................ [ 48%]
+2026-10-24T10:03:48.6859425Z .........................................s........................s..... [ 49%]
+2026-10-24T10:04:23.5097161Z ........................................................................ [ 50%]
+2026-10-24T10:04:41.3462392Z ........................................................................ [ 51%]
+2026-10-24T10:04:48.9148268Z ........................................................................ [ 53%]
+2026-10-24T10:04:53.3141524Z ........................................................................ [ 54%]
+2026-10-24T10:05:39.2689682Z .........................................................ss............. [ 55%]
+2026-10-24T10:05:44.0087878Z ........................................................................ [ 57%]
+2026-10-24T10:05:51.1705344Z ........................................................................ [ 58%]
+2026-10-24T10:05:58.5438971Z ........................................................................ [ 59%]
+2026-10-24T10:06:04.8429378Z ..................s..................................................... [ 60%]
+2026-10-24T10:06:06.8760861Z ........................................................................ [ 62%]
+2026-10-24T10:06:09.1765546Z ........................................................................ [ 63%]
+2026-10-24T10:06:17.4162768Z ........................................................................ [ 64%]
+2026-10-24T10:06:37.0612722Z .......................s................................................ [ 65%]
+2026-10-24T10:06:40.2131969Z ........................................................................ [ 67%]
+2026-10-24T10:06:42.2401430Z ........................................................................ [ 68%]
+2026-10-24T10:06:48.3921262Z .........s....................................F......................... [ 69%]
+2026-10-24T10:06:50.5942119Z ........................................................................ [ 70%]
+2026-10-24T10:06:56.2082225Z ........................................................................ [ 72%]
+2026-10-24T10:07:03.7393535Z ........................................................................ [ 73%]
+2026-10-24T10:07:08.8485846Z ................................................F....................... [ 74%]
+2026-10-24T10:07:43.3942594Z ...............s........................................................ [ 76%]
+2026-10-24T10:09:04.4748360Z s..........................................ss........................... [ 77%]
+2026-10-24T10:10:25.4613112Z ........................................................................ [ 78%]
+2026-10-24T10:10:34.7650060Z ........................................................................ [ 79%]
+2026-10-24T10:10:52.2045864Z ........................................................................ [ 81%]
+2026-10-24T10:12:21.7966020Z ........................................................................ [ 82%]
+2026-10-24T10:13:03.3420399Z ........................................................................ [ 83%]
+2026-10-24T10:14:01.4303578Z ........................................................................ [ 84%]
+2026-10-24T10:14:11.9049850Z ........................................................................ [ 86%]
+2026-10-24T10:17:59.9735717Z ........................................................................ [ 87%]
+2026-10-24T10:23:28.3080039Z ........................................................................ [ 88%]
+2026-10-24T10:23:59.3939099Z ........................................................................ [ 90%]
+2026-10-24T10:24:09.5954293Z ...............................................ss....................... [ 91%]
+2026-10-24T10:24:12.6219074Z ........................................................................ [ 92%]
+2026-10-24T10:24:48.4441003Z ......................................F................................. [ 93%]
+2026-10-24T10:24:51.0317334Z ........................................................................ [ 95%]
+2026-10-24T10:24:55.1571678Z ..................................ssss....s............................. [ 96%]
+2026-10-24T10:24:57.8870286Z ...ssss.......s..s..ss.s...s............................................ [ 97%]
+2026-10-24T10:25:00.7699128Z ...ss.............s..................................................... [ 98%]
+2026-10-24T10:25:05.2307308Z ................................................................         [100%]
+2026-10-24T10:25:05.2308298Z ================================== FAILURES ===================================
+2026-10-24T10:25:05.2309171Z ____________ test_api_distinguishes_storage_and_user_authorization ____________
+2026-10-24T10:25:05.2309714Z 
+2026-10-24T10:25:05.2310172Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002961F8C2C80>
+2026-10-24T10:25:05.2310614Z 
+2026-10-24T10:25:05.2311091Z     def test_api_distinguishes_storage_and_user_authorization(monkeypatch):
+2026-10-24T10:25:05.2311889Z         async def run():
+2026-10-24T10:25:05.2312576Z             app=FastAPI();install(SimpleNamespace(app=app))
+2026-10-24T10:25:05.2313801Z             def fail(*a,**k):raise store.PersistenceError('owned disk failure')
+2026-10-24T10:25:05.2315060Z             monkeypatch.setattr(store.Store,'put',fail)
+2026-10-24T10:25:05.2318084Z             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
+2026-10-24T10:25:05.2324223Z                 response=await client.post('/api/actions/actions',json={'item':{}})
+2026-10-24T10:25:05.2325076Z                 assert response.status_code==503
+2026-10-24T10:25:05.2325950Z                 def unauthorized(*a,**k):raise PermissionError('user capability required')
+2026-10-24T10:25:05.2326981Z                 monkeypatch.setattr(store.Store,'put',unauthorized)
+2026-10-24T10:25:05.2327820Z                 response=await client.post('/api/actions/actions',json={'item':{}})
+2026-10-24T10:25:05.2328603Z                 assert response.status_code==401
+2026-10-24T10:25:05.2329123Z >       asyncio.run(run())
+2026-10-24T10:25:05.2329373Z 
+2026-10-24T10:25:05.2329664Z tests\test_action_persistence.py:43: 
+2026-10-24T10:25:05.2330715Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2331634Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\asyncio\runners.py:205: in run
+2026-10-24T10:25:05.2332380Z     return runner.run(main)
+2026-10-24T10:25:05.2332791Z            ^^^^^^^^^^^^^^^^
+2026-10-24T10:25:05.2333478Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\asyncio\runners.py:128: in run
+2026-10-24T10:25:05.2334220Z     return self._loop.run_until_complete(task)
+2026-10-24T10:25:05.2334772Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-24T10:25:05.2336123Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\asyncio\base_events.py:720: in run_until_complete
+2026-10-24T10:25:05.2336960Z     return future.result()
+2026-10-24T10:25:05.2337380Z            ^^^^^^^^^^^^^^^
+2026-10-24T10:25:05.2338148Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2338573Z 
+2026-10-24T10:25:05.2338721Z     async def run():
+2026-10-24T10:25:05.2339275Z         app=FastAPI();install(SimpleNamespace(app=app))
+2026-10-24T10:25:05.2340029Z         def fail(*a,**k):raise store.PersistenceError('owned disk failure')
+2026-10-24T10:25:05.2340735Z         monkeypatch.setattr(store.Store,'put',fail)
+2026-10-24T10:25:05.2341741Z         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
+2026-10-24T10:25:05.2342850Z             response=await client.post('/api/actions/actions',json={'item':{}})
+2026-10-24T10:25:05.2343560Z             assert response.status_code==503
+2026-10-24T10:25:05.2344327Z             def unauthorized(*a,**k):raise PermissionError('user capability required')
+2026-10-24T10:25:05.2345135Z             monkeypatch.setattr(store.Store,'put',unauthorized)
+2026-10-24T10:25:05.2345930Z             response=await client.post('/api/actions/actions',json={'item':{}})
+2026-10-24T10:25:05.2346667Z >           assert response.status_code==401
+2026-10-24T10:25:05.2347459Z E           assert 503 == 401
+2026-10-24T10:25:05.2348100Z E            +  where 503 = <Response [503 Service Unavailable]>.status_code
+2026-10-24T10:25:05.2348527Z 
+2026-10-24T10:25:05.2348858Z tests\test_action_persistence.py:42: AssertionError
+2026-10-24T10:25:05.2349681Z ________ test_disabled_agent_template_cannot_smuggle_enabled_instance _________
+2026-10-24T10:25:05.2350214Z 
+2026-10-24T10:25:05.2351377Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_disabled_agent_template_c0')
+2026-10-24T10:25:05.2352254Z 
+2026-10-24T10:25:05.2352706Z     def test_disabled_agent_template_cannot_smuggle_enabled_instance(tmp_path):
+2026-10-24T10:25:05.2353567Z         store=Store(tmp_path/'actions');store.put('actions',action())
+2026-10-24T10:25:05.2354395Z         config={'name':'fixed','actionId':'pause','arguments':{},'enabled':True,
+2026-10-24T10:25:05.2355149Z                 'schedule':[],'trigger':{'kind':'immediate'}}
+2026-10-24T10:25:05.2355799Z         with pytest.raises(PermissionError):
+2026-10-24T10:25:05.2356675Z >           Templates(store).put({'name':'agent draft','enabled':False,'config':config},0,False)
+2026-10-24T10:25:05.2357212Z 
+2026-10-24T10:25:05.2357491Z tests\test_job_inbox_boundaries.py:17: 
+2026-10-24T10:25:05.2358155Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2358814Z packages\jobs\action_templates.py:240: in put
+2026-10-24T10:25:05.2359508Z     strict(raw, {'id','name','description','config'}, 'Job Template')
+2026-10-24T10:25:05.2360266Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2360648Z 
+2026-10-24T10:25:05.2361440Z value = {'name': 'agent draft', 'enabled': False, 'config': {'name': 'fixed', 'actionId': 'pause', 'arguments': {}, 'enabled': True, ...}}
+2026-10-24T10:25:05.2362583Z fields = {'config', 'description', 'id', 'name'}, scope = 'Job Template'
+2026-10-24T10:25:05.2363053Z 
+2026-10-24T10:25:05.2363291Z     def strict(value, fields, scope):
+2026-10-24T10:25:05.2363992Z         if not isinstance(value, dict) or set(value)-set(fields):
+2026-10-24T10:25:05.2364730Z >           raise ValueError('Unknown or invalid '+scope+' fields')
+2026-10-24T10:25:05.2365451Z E           ValueError: Unknown or invalid Job Template fields
+2026-10-24T10:25:05.2365860Z 
+2026-10-24T10:25:05.2366125Z packages\jobs\action_templates.py:54: ValueError
+2026-10-24T10:25:05.2366933Z __ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False] __
+2026-10-24T10:25:05.2367430Z 
+2026-10-24T10:25:05.2368112Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000029624512270>
+2026-10-24T10:25:05.2369529Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy0')
+2026-10-24T10:25:05.2370927Z shell = False, hidden = None
+2026-10-24T10:25:05.2371262Z 
+2026-10-24T10:25:05.2371550Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2372223Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2373175Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2374130Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2375146Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2376224Z         if shell:
+2026-10-24T10:25:05.2376634Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2377121Z         if hidden is not None:
+2026-10-24T10:25:05.2377564Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2378208Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2378830Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2379376Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2379917Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2380846Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2381604Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2382384Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2383261Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2384222Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2385061Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2385890Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2386597Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2387095Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2387688Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2389080Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2390023Z 
+2026-10-24T10:25:05.2390333Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2391518Z __ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True] ___
+2026-10-24T10:25:05.2392035Z 
+2026-10-24T10:25:05.2392520Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000296245125F0>
+2026-10-24T10:25:05.2393877Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy1')
+2026-10-24T10:25:05.2394890Z shell = True, hidden = None
+2026-10-24T10:25:05.2395160Z 
+2026-10-24T10:25:05.2395404Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2396080Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2397054Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2397984Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2398964Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2399811Z         if shell:
+2026-10-24T10:25:05.2400213Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2400713Z         if hidden is not None:
+2026-10-24T10:25:05.2401159Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2403040Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2403753Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2404340Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2404893Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2405565Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2406335Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2407058Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2407952Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2408881Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2409689Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2410453Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2411644Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2412180Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2412758Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2414108Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2415296Z 
+2026-10-24T10:25:05.2415599Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2416431Z __ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False] __
+2026-10-24T10:25:05.2416965Z 
+2026-10-24T10:25:05.2417451Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000296245A9EF0>
+2026-10-24T10:25:05.2418877Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy2')
+2026-10-24T10:25:05.2419903Z shell = False, hidden = True
+2026-10-24T10:25:05.2420183Z 
+2026-10-24T10:25:05.2420447Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2421130Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2422110Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2423048Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2424085Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2424892Z         if shell:
+2026-10-24T10:25:05.2425321Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2425826Z         if hidden is not None:
+2026-10-24T10:25:05.2426267Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2426842Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2427525Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2428064Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2428623Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2429329Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2430114Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2430853Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2432040Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2432979Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2433774Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2434572Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2435236Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2435715Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2436503Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2437850Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2438770Z 
+2026-10-24T10:25:05.2439070Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2439843Z __ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True] ___
+2026-10-24T10:25:05.2440356Z 
+2026-10-24T10:25:05.2440777Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000296246A86E0>
+2026-10-24T10:25:05.2442376Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy3')
+2026-10-24T10:25:05.2443420Z shell = True, hidden = True
+2026-10-24T10:25:05.2443649Z 
+2026-10-24T10:25:05.2443927Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2444566Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2445506Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2446423Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2447415Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2448197Z         if shell:
+2026-10-24T10:25:05.2448782Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2449273Z         if hidden is not None:
+2026-10-24T10:25:05.2449703Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2450302Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2450910Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2451434Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2452046Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2452719Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2453484Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2454178Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2455011Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2455940Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2456727Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2457520Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2458183Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2458675Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2459289Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2460616Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2461568Z 
+2026-10-24T10:25:05.2462198Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2463016Z _ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False] __
+2026-10-24T10:25:05.2463517Z 
+2026-10-24T10:25:05.2464001Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000296246A8C20>
+2026-10-24T10:25:05.2465351Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy4')
+2026-10-24T10:25:05.2466412Z shell = False, hidden = False
+2026-10-24T10:25:05.2466655Z 
+2026-10-24T10:25:05.2466942Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2467595Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2468532Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2469659Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2470698Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2471543Z         if shell:
+2026-10-24T10:25:05.2471961Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2472457Z         if hidden is not None:
+2026-10-24T10:25:05.2472910Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2473509Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2474135Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2474669Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2475227Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2475897Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2476631Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2477331Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2478171Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2479100Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2479872Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2480637Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2481510Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2482293Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2482924Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2484245Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2485191Z 
+2026-10-24T10:25:05.2485465Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2486267Z __ test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True] __
+2026-10-24T10:25:05.2486775Z 
+2026-10-24T10:25:05.2487241Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000296246A8BB0>
+2026-10-24T10:25:05.2488522Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy5')
+2026-10-24T10:25:05.2489512Z shell = True, hidden = False
+2026-10-24T10:25:05.2489782Z 
+2026-10-24T10:25:05.2490024Z     @pytest.mark.parametrize("shell", [False, True])
+2026-10-24T10:25:05.2490648Z     @pytest.mark.parametrize("hidden", [None, True, False])
+2026-10-24T10:25:05.2491688Z     def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+2026-10-24T10:25:05.2492646Z         from packages.core import background_runner as runner
+2026-10-24T10:25:05.2493603Z         job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+2026-10-24T10:25:05.2494392Z         if shell:
+2026-10-24T10:25:05.2494823Z             job["shellCommand"] = "echo owned"
+2026-10-24T10:25:05.2495302Z         if hidden is not None:
+2026-10-24T10:25:05.2495729Z             job["hideWindow"] = hidden
+2026-10-24T10:25:05.2496309Z         process = MagicMock(pid=123, wait=Mock(return_value=0))
+2026-10-24T10:25:05.2496918Z         process.__enter__.return_value = process
+2026-10-24T10:25:05.2497445Z         spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2498016Z         desktop_spawn = Mock(return_value=process)
+2026-10-24T10:25:05.2498679Z         monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+2026-10-24T10:25:05.2499413Z         monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+2026-10-24T10:25:05.2500132Z         monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+2026-10-24T10:25:05.2501196Z         monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+2026-10-24T10:25:05.2502497Z         monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+2026-10-24T10:25:05.2503299Z         monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+2026-10-24T10:25:05.2504074Z         monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+2026-10-24T10:25:05.2504745Z >       assert runner.main() == 0
+2026-10-24T10:25:05.2505216Z E       AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2505835Z E        +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2507144Z E        +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2508068Z 
+2026-10-24T10:25:05.2508339Z tests\test_job_window_policy.py:60: AssertionError
+2026-10-24T10:25:05.2509096Z _______________ test_owned_notification_consumption_and_restart _______________
+2026-10-24T10:25:05.2509585Z 
+2026-10-24T10:25:05.2510425Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_notification_consum0')
+2026-10-24T10:25:05.2511691Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000029624B7E7B0>
+2026-10-24T10:25:05.2512184Z 
+2026-10-24T10:25:05.2512601Z     def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
+2026-10-24T10:25:05.2513364Z         assert h.PORT not in {8767, 8768}
+2026-10-24T10:25:05.2514413Z         monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent/'support/job_inbox_http_server.py')
+2026-10-24T10:25:05.2515295Z         root = Path(__file__).resolve().parents[1]
+2026-10-24T10:25:05.2515827Z         rt = h._PanRuntime(tmp_path/'data')
+2026-10-24T10:25:05.2516289Z         rt.data_root.mkdir()
+2026-10-24T10:25:05.2516989Z         (rt.data_root/'config.json').write_text(json.dumps({'scheduler': {'enabled': True},
+2026-10-24T10:25:05.2517926Z             'memory': {'enabled': False}, 'plugin_manifests': [str(root/'manifest.json'),
+2026-10-24T10:25:05.2518785Z             str(root/'packages/mcp/manifest.json')]}), encoding='utf-8')
+2026-10-24T10:25:05.2519621Z         evidence = {'port': h.PORT, 'dataRoot': str(rt.data_root), 'realProvider': False}
+2026-10-24T10:25:05.2520758Z         evidence['sourceSha']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,encoding='utf-8').strip()
+2026-10-24T10:25:05.2522141Z         evidence['productionIndexSha256']=hashlib.sha256((root/'packages/web/dist/index.html').read_bytes()).hexdigest()
+2026-10-24T10:25:05.2523410Z         def stop():
+2026-10-24T10:25:05.2523674Z             owned = []
+2026-10-24T10:25:05.2524025Z             if rt.process and rt.process.poll() is None:
+2026-10-24T10:25:05.2524455Z                 parent = psutil.Process(rt.process.pid)
+2026-10-24T10:25:05.2524901Z                 owned = [parent, *parent.children(recursive=True)]
+2026-10-24T10:25:05.2525330Z                 for p in owned:
+2026-10-24T10:25:05.2525629Z                     try:
+2026-10-24T10:25:05.2526107Z                         rt._owned_processes.append((p.pid, p.create_time(), ' '.join(p.cmdline())))
+2026-10-24T10:25:05.2526631Z                     except psutil.Error:
+2026-10-24T10:25:05.2526980Z                         pass
+2026-10-24T10:25:05.2527263Z             rt.stop()
+2026-10-24T10:25:05.2527631Z             _, live = psutil.wait_procs(owned, timeout=5)
+2026-10-24T10:25:05.2528087Z             assert not live, [(p.pid, p.status()) for p in live]
+2026-10-24T10:25:05.2528454Z         try:
+2026-10-24T10:25:05.2528736Z             rt.start()
+2026-10-24T10:25:05.2529120Z             identity = rt.request('GET', '/__test/job-inbox-identity')
+2026-10-24T10:25:05.2529617Z             assert Path(identity['root']) == rt.data_root
+2026-10-24T10:25:05.2530066Z             assert Path(identity['sessions']).parent == rt.data_root
+2026-10-24T10:25:05.2530558Z             assert Path(identity['config']).parent == rt.data_root
+2026-10-24T10:25:05.2532097Z             assert Path(identity['inbox']).is_relative_to(rt.data_root)
+2026-10-24T10:25:05.2532722Z             assert Path(identity['gatewayManifest']).is_relative_to(rt.data_root)
+2026-10-24T10:25:05.2533253Z             assert Path(identity['fakeCLI']) == h.FAKE_CLI
+2026-10-24T10:25:05.2533639Z             evidence['identity'] = identity
+2026-10-24T10:25:05.2534253Z             owner = rt.request('POST', '/api/sessions', json={'name': 'review-source', 'adapter': 'cbc', 'mcpServers': [],
+2026-10-24T10:25:05.2534956Z                 'panAccess': {'restrictToManaged': True, 'canClaimUnmanaged': False}})
+2026-10-24T10:25:05.2535683Z             target = rt.request('POST', '/api/sessions', json={'name': 'review-target', 'adapter': 'cbc', 'mcpServers': []})
+2026-10-24T10:25:05.2536460Z             rt.request('PATCH', f"/api/sessions/{owner['id']}/queue/paused", json={'paused': True})
+2026-10-24T10:25:05.2537012Z             assert 'error' not in h._spawn(rt, owner['id'])
+2026-10-24T10:25:05.2537538Z             key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+2026-10-24T10:25:05.2538914Z             auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
+2026-10-24T10:25:05.2540159Z >           rt.request('POST', '/api/actions/actions', json={'item': action([target['id']])})
+2026-10-24T10:25:05.2540709Z 
+2026-10-24T10:25:05.2541013Z tests\test_locker_independent_http.py:60: 
+2026-10-24T10:25:05.2542013Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2542466Z 
+2026-10-24T10:25:05.2543382Z self = <tests.test_real_queue_http_e2e._PanRuntime object at 0x0000029624BDC140>
+2026-10-24T10:25:05.2544315Z method = 'POST', path = '/api/actions/actions'
+2026-10-24T10:25:05.2545461Z kwargs = {'json': {'item': {'id': 'pause', 'name': 'Pause selected', 'enabled': True, 'effect': 'write_local', ...}}}
+2026-10-24T10:25:05.2546216Z 
+2026-10-24T10:25:05.2546657Z     def request(self, method: str, path: str, **kwargs) -> dict:
+2026-10-24T10:25:05.2547380Z         with httpx.Client(
+2026-10-24T10:25:05.2548056Z             base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+2026-10-24T10:25:05.2548777Z         ) as client:
+2026-10-24T10:25:05.2549325Z             response = client.request(method, path, **kwargs)
+2026-10-24T10:25:05.2549979Z         if response.status_code != 200:
+2026-10-24T10:25:05.2550829Z             # Preserve the owned server traceback in JUnit, not just its 500 body.
+2026-10-24T10:25:05.2551682Z             log = self.data_root / 'pan.log'
+2026-10-24T10:25:05.2552696Z             details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+2026-10-24T10:25:05.2554234Z >           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+2026-10-24T10:25:05.2558819Z E           AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2559552Z E           Owned server log:
+2026-10-24T10:25:05.2559772Z 
+2026-10-24T10:25:05.2560023Z tests\test_real_queue_http_e2e.py:288: AssertionError
+2026-10-24T10:25:05.2560583Z _______________ test_product_locker_login_choice_pause_restart ________________
+2026-10-24T10:25:05.2560896Z 
+2026-10-24T10:25:05.2561516Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_product_locker_login_choi0')
+2026-10-24T10:25:05.2562363Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000029624C00DE0>
+2026-10-24T10:25:05.2562719Z 
+2026-10-24T10:25:05.2563478Z     def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
+2026-10-24T10:25:05.2564141Z         assert h.PORT not in {8767,8768}, 'Use the isolated test runner random port'
+2026-10-24T10:25:05.2564839Z         monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
+2026-10-24T10:25:05.2565709Z         rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+2026-10-24T10:25:05.2566149Z         root=Path(__file__).resolve().parents[1]
+2026-10-24T10:25:05.2566785Z         (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},
+2026-10-24T10:25:05.2567634Z             'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')
+2026-10-24T10:25:05.2568248Z         OUT.mkdir(parents=True,exist_ok=True)
+2026-10-24T10:25:05.2568904Z         evidence={'port':h.PORT,'sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],encoding='utf-8').strip()}
+2026-10-24T10:25:05.2569512Z         identities={}
+2026-10-24T10:25:05.2569782Z         def stop():
+2026-10-24T10:25:05.2570120Z             if rt.process and rt.process.poll() is None:
+2026-10-24T10:25:05.2570577Z                 root_process=psutil.Process(rt.process.pid)
+2026-10-24T10:25:05.2571094Z                 for process in [root_process,*root_process.children(recursive=True)]:
+2026-10-24T10:25:05.2571664Z                     try:identities[process.pid]=process.create_time()
+2026-10-24T10:25:05.2572087Z                     except psutil.Error:pass
+2026-10-24T10:25:05.2572411Z             rt.stop()
+2026-10-24T10:25:05.2572678Z             live=[]
+2026-10-24T10:25:05.2572983Z             for pid,born in identities.items():
+2026-10-24T10:25:05.2573318Z                 try:
+2026-10-24T10:25:05.2573782Z                     process=psutil.Process(pid)
+2026-10-24T10:25:05.2574480Z                     if abs(process.create_time()-born)<.01 and process.status() not in {'terminated',psutil.STATUS_ZOMBIE,psutil.STATUS_DEAD}:
+2026-10-24T10:25:05.2575221Z                         process.terminate();live.append(process)
+2026-10-24T10:25:05.2575635Z                 except psutil.Error:pass
+2026-10-24T10:25:05.2576021Z             _,live=psutil.wait_procs(live,timeout=3)
+2026-10-24T10:25:05.2576418Z             for process in live:
+2026-10-24T10:25:05.2576750Z                 try:process.kill()
+2026-10-24T10:25:05.2577090Z                 except psutil.Error:pass
+2026-10-24T10:25:05.2577471Z             _,live=psutil.wait_procs(live,timeout=3)
+2026-10-24T10:25:05.2577874Z             return [p.pid for p in live]
+2026-10-24T10:25:05.2578208Z         try:
+2026-10-24T10:25:05.2578513Z             rt.start()
+2026-10-24T10:25:05.2578939Z             evidence['identity']=rt.request('GET','/__test/job-inbox-identity')
+2026-10-24T10:25:05.2579539Z             assert Path(evidence['identity']['sessions']).parent==rt.data_root
+2026-10-24T10:25:05.2580114Z             key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+2026-10-24T10:25:05.2580843Z             auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
+2026-10-24T10:25:05.2581610Z             owner=rt.request('POST','/api/sessions',json={'name':'source','adapter':'cbc','mcpServers':[]})
+2026-10-24T10:25:05.2582330Z             rt.request('PATCH',f"/api/sessions/{owner['id']}/queue/paused",json={'paused':True})
+2026-10-24T10:25:05.2583529Z             target=rt.request('POST','/api/sessions',json={'name':'pause-target','adapter':'cbc','mcpServers':[]})
+2026-10-24T10:25:05.2584173Z             assert 'error' not in h._spawn(rt,target['id'])
+2026-10-24T10:25:05.2584786Z >           rt.request('POST','/api/actions/actions',json={'item':action([target['id']])})
+2026-10-24T10:25:05.2585126Z 
+2026-10-24T10:25:05.2585324Z tests\test_locker_runtime_http.py:56: 
+2026-10-24T10:25:05.2585756Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2586034Z 
+2026-10-24T10:25:05.2586321Z self = <tests.test_real_queue_http_e2e._PanRuntime object at 0x0000029624BEFD40>
+2026-10-24T10:25:05.2586873Z method = 'POST', path = '/api/actions/actions'
+2026-10-24T10:25:05.2587525Z kwargs = {'json': {'item': {'id': 'pause', 'name': 'Pause selected', 'enabled': True, 'effect': 'write_local', ...}}}
+2026-10-24T10:25:05.2587935Z 
+2026-10-24T10:25:05.2588326Z     def request(self, method: str, path: str, **kwargs) -> dict:
+2026-10-24T10:25:05.2588743Z         with httpx.Client(
+2026-10-24T10:25:05.2589165Z             base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+2026-10-24T10:25:05.2589613Z         ) as client:
+2026-10-24T10:25:05.2589958Z             response = client.request(method, path, **kwargs)
+2026-10-24T10:25:05.2590374Z         if response.status_code != 200:
+2026-10-24T10:25:05.2590840Z             # Preserve the owned server traceback in JUnit, not just its 500 body.
+2026-10-24T10:25:05.2591368Z             log = self.data_root / 'pan.log'
+2026-10-24T10:25:05.2591964Z             details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+2026-10-24T10:25:05.2592820Z >           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+2026-10-24T10:25:05.2593852Z E           AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2594431Z E           Owned server log:
+2026-10-24T10:25:05.2594635Z 
+2026-10-24T10:25:05.2594875Z tests\test_real_queue_http_e2e.py:288: AssertionError
+2026-10-24T10:25:05.2595464Z ____ TestDescriptionCallChain.test_every_tool_ends_with_pan_skill_pointer _____
+2026-10-24T10:25:05.2595816Z 
+2026-10-24T10:25:05.2596165Z self = <test_mcp_handbook.TestDescriptionCallChain object at 0x000002961BB46D50>
+2026-10-24T10:25:05.2596645Z 
+2026-10-24T10:25:05.2596833Z     def test_every_tool_ends_with_pan_skill_pointer(self):
+2026-10-24T10:25:05.2597249Z         for tool in TOOLS:
+2026-10-24T10:25:05.2597559Z             doc = tool.__doc__ or ""
+2026-10-24T10:25:05.2598011Z >           assert doc.rstrip().endswith(SKILL_POINTER), tool.__name__
+2026-10-24T10:25:05.2598471Z E           AssertionError: locker_message
+2026-10-24T10:25:05.2598812Z E           assert False
+2026-10-24T10:25:05.2599561Z E            +  where False = <built-in method endswith of str object at 0x000002961E7F72B0>('\u5b8c\u6574\u7f16\u6392\u6d41\u7a0b\u89c1 /pan skill\u3002')
+2026-10-24T10:25:05.2602719Z E            +    where <built-in method endswith of str object at 0x000002961E7F72B0> = 'Create/get an ordinary Locker Message for this profile user, from own Session.\n\nLocal bound stdio only; no owner/so...ect persistence; never automatically resend.\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).'.endswith
+2026-10-24T10:25:05.2606563Z E            +      where 'Create/get an ordinary Locker Message for this profile user, from own Session.\n\nLocal bound stdio only; no owner/so...ect persistence; never automatically resend.\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).' = <built-in method rstrip of str object at 0x000002961609AB90>()
+2026-10-24T10:25:05.2609133Z E            +        where <built-in method rstrip of str object at 0x000002961609AB90> = 'Create/get an ordinary Locker Message for this profile user, from own Session.\n\nLocal bound stdio only; no owner/so...t persistence; never automatically resend.\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).\n'.rstrip
+2026-10-24T10:25:05.2610299Z 
+2026-10-24T10:25:05.2610524Z tests\test_mcp_handbook.py:101: AssertionError
+2026-10-24T10:25:05.2611052Z ____________________ test_legacy_and_draft_authority_gates ____________________
+2026-10-24T10:25:05.2611395Z 
+2026-10-24T10:25:05.2611924Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_and_draft_authorit0')
+2026-10-24T10:25:05.2612793Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002962C5DB460>
+2026-10-24T10:25:05.2613127Z 
+2026-10-24T10:25:05.2613253Z     @async_test
+2026-10-24T10:25:05.2613682Z     async def test_legacy_and_draft_authority_gates(tmp_path, monkeypatch):
+2026-10-24T10:25:05.2614145Z         from packages.web import server
+2026-10-24T10:25:05.2614480Z         a = query_action()
+2026-10-24T10:25:05.2615008Z         store = Store()
+2026-10-24T10:25:05.2615359Z         item = store.put('actions', a, draft=True)
+2026-10-24T10:25:05.2615723Z         assert not item['enabled']
+2026-10-24T10:25:05.2616054Z         store.put('actions', a)
+2026-10-24T10:25:05.2616500Z         store.put('groups', {'id': 'g', 'name': 'Group', 'action_ids': ['pause']})
+2026-10-24T10:25:05.2617002Z         with pytest.raises(ValueError):
+2026-10-24T10:25:05.2617345Z             store.build('g')
+2026-10-24T10:25:05.2617710Z         assert not store.read()['groups']['g'].get('build')
+2026-10-24T10:25:05.2618117Z         with pytest.raises(ValueError):
+2026-10-24T10:25:05.2618463Z             await legacy_execute(a, {})
+2026-10-24T10:25:05.2619115Z         async with httpx.AsyncClient(transport=httpx.ASGITransport(server.app), base_url='http://test') as client:
+2026-10-24T10:25:05.2619859Z             response = await client.get('/api/actions/session-operation-template')
+2026-10-24T10:25:05.2620369Z >           assert response.status_code == 200
+2026-10-24T10:25:05.2620732Z E           assert 503 == 200
+2026-10-24T10:25:05.2621631Z E            +  where 503 = <Response [503 Service Unavailable]>.status_code
+2026-10-24T10:25:05.2621960Z 
+2026-10-24T10:25:05.2622188Z tests\test_session_query.py:208: AssertionError
+2026-10-24T10:25:05.2622707Z ---------------------------- Captured stdout call -----------------------------
+2026-10-24T10:25:05.2623449Z [10:06:43] GET  /api/actions/session-operation-template  \u2192 503
+2026-10-24T10:25:05.2624045Z ______ test_worker_error_persists_system_session_and_pauses_via_mapping _______
+2026-10-24T10:25:05.2624395Z 
+2026-10-24T10:25:05.2624922Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_worker_error_persists_sys0')
+2026-10-24T10:25:05.2625797Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002962A02B850>
+2026-10-24T10:25:05.2626126Z 
+2026-10-24T10:25:05.2626490Z     def test_worker_error_persists_system_session_and_pauses_via_mapping(tmp_path, monkeypatch):
+2026-10-24T10:25:05.2627055Z         assert harness.PORT not in {8767, 8768}
+2026-10-24T10:25:05.2627474Z         monkeypatch.setattr(harness, "SERVER_LAUNCHER",
+2026-10-24T10:25:05.2627987Z                             Path(__file__).parent / "support" / "automation_http_server.py")
+2026-10-24T10:25:05.2628580Z         runtime = harness._PanRuntime(tmp_path / "owned-system-fields")
+2026-10-24T10:25:05.2629049Z         runtime.data_root.mkdir(parents=True)
+2026-10-24T10:25:05.2629454Z         (runtime.data_root / "config.json").write_text(
+2026-10-24T10:25:05.2629997Z             json.dumps({"plugin_manifests": [], "scheduler": {"enabled": False}}), encoding="utf-8")
+2026-10-24T10:25:05.2630526Z         runtime.start()
+2026-10-24T10:25:05.2630940Z         evidence = {"port": harness.PORT, "dataRootKind": "owned-temp"}
+2026-10-24T10:25:05.2631518Z         try:
+2026-10-24T10:25:05.2631894Z             target = runtime.request("POST", "/api/sessions", json={
+2026-10-24T10:25:05.2632373Z                 "name": "system-fields-target", "adapter": "cbc",
+2026-10-24T10:25:05.2632892Z                 "model": "deepseek-v4-flash", "permissionMode": "bypassPermissions",
+2026-10-24T10:25:05.2633432Z                 "outputMode": "stream", "mcpServers": [],
+2026-10-24T10:25:05.2633776Z             })
+2026-10-24T10:25:05.2634058Z             assert "id" in target, target
+2026-10-24T10:25:05.2634492Z             assert "error" not in harness._spawn(runtime, target["id"])
+2026-10-24T10:25:05.2634881Z     
+2026-10-24T10:25:05.2635099Z             pause = action()
+2026-10-24T10:25:05.2635585Z             pause["execution"]["selector"] = {"mode": "event", "path": "system.sessionId"}
+2026-10-24T10:25:05.2636074Z             pause["input_schema"] = {
+2026-10-24T10:25:05.2636410Z                 "type": "object",
+2026-10-24T10:25:05.2636809Z                 "properties": {"targetSessionId": {"type": "string"}},
+2026-10-24T10:25:05.2637383Z                 "required": ["targetSessionId"],
+2026-10-24T10:25:05.2637801Z                 "additionalProperties": False,
+2026-10-24T10:25:05.2638128Z             }
+2026-10-24T10:25:05.2638553Z >           runtime.request("POST", "/api/actions/actions", json={"item": pause})
+2026-10-24T10:25:05.2638890Z 
+2026-10-24T10:25:05.2639048Z tests\test_system_fields_http.py:44: 
+2026-10-24T10:25:05.2639486Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2639774Z 
+2026-10-24T10:25:05.2640092Z self = <tests.test_real_queue_http_e2e._PanRuntime object at 0x000002962C43B070>
+2026-10-24T10:25:05.2640610Z method = 'POST', path = '/api/actions/actions'
+2026-10-24T10:25:05.2641675Z kwargs = {'json': {'item': {'id': 'pause', 'name': 'Pause selected', 'enabled': True, 'effect': 'write_local', ...}}}
+2026-10-24T10:25:05.2642131Z 
+2026-10-24T10:25:05.2642343Z     def request(self, method: str, path: str, **kwargs) -> dict:
+2026-10-24T10:25:05.2643028Z         with httpx.Client(
+2026-10-24T10:25:05.2643461Z             base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+2026-10-24T10:25:05.2643877Z         ) as client:
+2026-10-24T10:25:05.2644226Z             response = client.request(method, path, **kwargs)
+2026-10-24T10:25:05.2644628Z         if response.status_code != 200:
+2026-10-24T10:25:05.2645104Z             # Preserve the owned server traceback in JUnit, not just its 500 body.
+2026-10-24T10:25:05.2645767Z             log = self.data_root / 'pan.log'
+2026-10-24T10:25:05.2646316Z             details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+2026-10-24T10:25:05.2647168Z >           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+2026-10-24T10:25:05.2648226Z E           AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2648791Z E           Owned server log:
+2026-10-24T10:25:05.2649033Z 
+2026-10-24T10:25:05.2649262Z tests\test_real_queue_http_e2e.py:288: AssertionError
+2026-10-24T10:25:05.2649782Z ________________________ test_locker_browser_http_mcp _________________________
+2026-10-24T10:25:05.2650099Z 
+2026-10-24T10:25:05.2650617Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_locker_browser_http_mcp0')
+2026-10-24T10:25:05.2651160Z 
+2026-10-24T10:25:05.2651351Z     def test_locker_browser_http_mcp(tmp_path):
+2026-10-24T10:25:05.2651793Z >       run_http_mcp(tmp_path,browser=True)
+2026-10-24T10:25:05.2652034Z 
+2026-10-24T10:25:05.2652189Z tests\test_user_locker_browser.py:5: 
+2026-10-24T10:25:05.2652617Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-24T10:25:05.2652899Z 
+2026-10-24T10:25:05.2653439Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_locker_browser_http_mcp0')
+2026-10-24T10:25:05.2654066Z browser = True
+2026-10-24T10:25:05.2654195Z 
+2026-10-24T10:25:05.2654373Z     def run_http_mcp(tmp_path,*,browser=False):
+2026-10-24T10:25:05.2654748Z         with socket.socket() as sock:
+2026-10-24T10:25:05.2655089Z             sock.bind(('127.0.0.1',0))
+2026-10-24T10:25:05.2655450Z             port=sock.getsockname()[1]
+2026-10-24T10:25:05.2655785Z         assert port not in {8767,8768}
+2026-10-24T10:25:05.2656125Z         data=tmp_path/'profile'/'data'
+2026-10-24T10:25:05.2656537Z         (data/'workdirs'/'owner').mkdir(parents=True)
+2026-10-24T10:25:05.2657277Z         (data/'config.json').write_text(json.dumps({'port':port,'memory':{'enabled':False},'scheduler':{'enabled':False},
+2026-10-24T10:25:05.2675253Z             'plugin_manifests':[str(ROOT/'manifest.json'),str(ROOT/'packages/mcp/manifest.json')]}),encoding='utf-8')
+2026-10-24T10:25:05.2676232Z         env={k:v for k,v in os.environ.items() if not k.upper().startswith('PAN_')}
+2026-10-24T10:25:05.2677048Z         # fakeCLI must not consult the developer/runner's native provider history.
+2026-10-24T10:25:05.2677534Z         provider_home = tmp_path / 'provider-home'
+2026-10-24T10:25:05.2677840Z         provider_home.mkdir()
+2026-10-24T10:25:05.2678215Z         env.update(USERPROFILE=str(provider_home), HOME=str(provider_home))
+2026-10-24T10:25:05.2678788Z         env.update(PYTHONIOENCODING='utf-8',PAN_TEST_INTERACTION_TOKEN=secrets.token_hex(32),
+2026-10-24T10:25:05.2679520Z             PAN_TEST_INBOX_NONCE=secrets.token_hex(16),PAN_E2E_FAKE_CLI=str(ROOT/'tests/support/fake_stream_cli.py'),
+2026-10-24T10:25:05.2680193Z             PAN_E2E_FAKE_LOG=str(data/'fake-cli.jsonl'),PAN_TEST_DISABLE_QUEUE_WATCHDOG='1')
+2026-10-24T10:25:05.2680658Z         base=f'http://127.0.0.1:{port}'
+2026-10-24T10:25:05.2680999Z         def call(method,path,body=None,*,user=False):
+2026-10-24T10:25:05.2681366Z             headers={'Content-Type':'application/json'}
+2026-10-24T10:25:05.2682015Z             if user:
+2026-10-24T10:25:05.2682429Z                 headers['Authorization']='Bearer '+env['PAN_TEST_INTERACTION_TOKEN']
+2026-10-24T10:25:05.2683224Z             request=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,method=method,headers=headers)
+2026-10-24T10:25:05.2683930Z             with urllib.request.urlopen(request,timeout=15) as response:
+2026-10-24T10:25:05.2684315Z                 return json.load(response)
+2026-10-24T10:25:05.2684827Z         log=(tmp_path/'server.log').open('w',encoding='utf-8')
+2026-10-24T10:25:05.2685447Z         proc=subprocess.Popen([sys.executable,'-m','tests.support.interaction_card_http_server','--port',str(port),
+2026-10-24T10:25:05.2686178Z             '--data-root',str(data)],cwd=ROOT,env=env,stdout=log,stderr=log,**command_window_options())
+2026-10-24T10:25:05.2686603Z         try:
+2026-10-24T10:25:05.2686822Z             deadline=time.monotonic()+15
+2026-10-24T10:25:05.2687086Z             while True:
+2026-10-24T10:25:05.2687284Z                 try:
+2026-10-24T10:25:05.2687554Z                     ident=call('GET','/__test/inbox-identity')
+2026-10-24T10:25:05.2687853Z                     break
+2026-10-24T10:25:05.2688082Z                 except OSError:
+2026-10-24T10:25:05.2688533Z                     assert time.monotonic()<deadline,(tmp_path/'server.log').read_text(encoding='utf-8')
+2026-10-24T10:25:05.2688992Z                     time.sleep(.1)
+2026-10-24T10:25:05.2689434Z             assert ident['nonce']==env['PAN_TEST_INBOX_NONCE'] and Path(ident['cwd']).resolve()==ROOT
+2026-10-24T10:25:05.2689912Z             actual=psutil.Process(ident['pid'])
+2026-10-24T10:25:05.2690361Z             assert proc.pid==actual.pid or proc.pid in {p.pid for p in actual.parents()}
+2026-10-24T10:25:05.2690971Z             assert 'tests.support.interaction_card_http_server' in ' '.join(actual.cmdline())
+2026-10-24T10:25:05.2691698Z             assert any(c.status=='LISTEN' and c.laddr.port==port for c in actual.net_connections(kind='tcp'))
+2026-10-24T10:25:05.2692307Z             assert all(Path(p).is_relative_to(data) for p in ident['roots'].values())
+2026-10-24T10:25:05.2692760Z             ports=call('GET','/__test/interaction-identity')
+2026-10-24T10:25:05.2693322Z             assert Path(ports['cardPath']).is_relative_to(data) and Path(ports['receiptPath']).is_relative_to(data)
+2026-10-24T10:25:05.2693924Z             assert ports['auth']==ports['trigger']=='synthetic-test-only'
+2026-10-24T10:25:05.2694647Z             owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpEnabled':False})
+2026-10-24T10:25:05.2695251Z             assert 'id' in owner,owner
+2026-10-24T10:25:05.2695704Z             assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+2026-10-24T10:25:05.2696158Z             async def mcp_create():
+2026-10-24T10:25:05.2696510Z                 from mcp import ClientSession,StdioServerParameters
+2026-10-24T10:25:05.2697016Z                 from mcp.client.stdio import stdio_client
+2026-10-24T10:25:05.2697611Z                 params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],cwd=str(ROOT),
+2026-10-24T10:25:05.2698252Z                     env={**env,'PAN_API_URL':base,'PAN_AGENT_SESSION_ID':owner['id']})
+2026-10-24T10:25:05.2698698Z                 async with stdio_client(params) as (read,write):
+2026-10-24T10:25:05.2699083Z                     async with ClientSession(read,write) as client:
+2026-10-24T10:25:05.2699433Z                         await client.initialize()
+2026-10-24T10:25:05.2699921Z                         assert 'interaction_card' in [t.name for t in (await client.list_tools()).tools]
+2026-10-24T10:25:05.2700711Z                         result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'test-user','request_key':'once',
+2026-10-24T10:25:05.2701543Z                             'card':{'title':'Backend Card','body':'Question','answerInput':{},'choices':[{'id':'go','label':'Go',
+2026-10-24T10:25:05.2702790Z                             'triggerRef':{'id':'synthetic-trigger','revision':1}}],'notification':{'summary':'metadata only'}}})
+2026-10-24T10:25:05.2703552Z                         assert not result.isError
+2026-10-24T10:25:05.2704095Z                         created=json.loads(result.content[0].text)
+2026-10-24T10:25:05.2704542Z                         assert 'card' in created,created
+2026-10-24T10:25:05.2705886Z                         card=created['card']
+2026-10-24T10:25:05.2706419Z                         rejected=await client.call_tool('interaction_card',{'operation':'respond','card_id':card['id']})
+2026-10-24T10:25:05.2707011Z                         assert json.loads(rejected.content[0].text).get('error')
+2026-10-24T10:25:05.2707365Z                         return card
+2026-10-24T10:25:05.2707641Z             card=asyncio.run(mcp_create())
+2026-10-24T10:25:05.2708012Z             with pytest.raises(urllib.error.HTTPError) as unauthorized:
+2026-10-24T10:25:05.2708639Z                 call('POST',f"/api/user-inbox/{card['id']}/respond",{'requestId':'r','expectedRevision':0,'choiceId':'go'})
+2026-10-24T10:25:05.2709166Z             assert unauthorized.value.code==401
+2026-10-24T10:25:05.2709600Z             assert call('GET','/api/user-inbox',user=True)['cards'][0]['response'] is None
+2026-10-24T10:25:05.2710215Z             payload={'requestId':'response','expectedRevision':0,'answer':'user answer','choiceId':'go'}
+2026-10-24T10:25:05.2710842Z             done=call('POST',f"/api/user-inbox/{card['id']}/respond",payload,user=True)['card']
+2026-10-24T10:25:05.2711394Z             assert done['status']=='responded' and done['delivery']['state']=='accepted'
+2026-10-24T10:25:05.2711977Z             assert call('POST',f"/api/user-inbox/{card['id']}/respond",payload,user=True)['card']==done
+2026-10-24T10:25:05.2712499Z             with sqlite3.connect(ports['receiptPath']) as db:
+2026-10-24T10:25:05.2712958Z                 assert db.execute('SELECT count(*) FROM receipts').fetchone()[0]==1
+2026-10-24T10:25:05.2713478Z                 event=json.loads(db.execute('SELECT event FROM receipts').fetchone()[0])
+2026-10-24T10:25:05.2713973Z             assert event['payload']['response']['answer']=='user answer'
+2026-10-24T10:25:05.2714434Z             assert event['payload']['triggerRef']['id']=='synthetic-trigger'
+2026-10-24T10:25:05.2715334Z             assert all(not path.read_text(encoding='utf-8').strip() for path in (data/'sessions').glob('*.history.jsonl'))  # Session creation can create an empty file; no Card enters context.
+2026-10-24T10:25:05.2716295Z             artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
+2026-10-24T10:25:05.2717045Z                 'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
+2026-10-24T10:25:05.2717801Z             (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
+2026-10-24T10:25:05.2718415Z             if browser:
+2026-10-24T10:25:05.2718840Z                 result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-panel.e2e.mjs'),base,
+2026-10-24T10:25:05.2719432Z                     env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser')],
+2026-10-24T10:25:05.2720154Z                     cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+2026-10-24T10:25:05.2720819Z                     capture_output=True,text=True,encoding='utf-8',timeout=90)
+2026-10-24T10:25:05.2721394Z                 (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+2026-10-24T10:25:05.2721993Z >               assert result.returncode==0,result.stdout+'\n'+result.stderr
+2026-10-24T10:25:05.2722825Z E               AssertionError: 
+2026-10-24T10:25:05.2723152Z E                 node:internal/modules/run_main:107
+2026-10-24T10:25:05.2723507Z E                     triggerUncaughtException(
+2026-10-24T10:25:05.2723789Z E                     ^
+2026-10-24T10:25:05.2723983Z E                 
+2026-10-24T10:25:05.2724355Z E                 ExpectError: expect(received).toBe(expected) // Object.is equality
+2026-10-24T10:25:05.2724725Z E                 
+2026-10-24T10:25:05.2724948Z E                 Expected: true
+2026-10-24T10:25:05.2725207Z E                 Received: false
+2026-10-24T10:25:05.2726147Z E                     at captureRawStack (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+2026-10-24T10:25:05.2727302Z E                     at callMatcherAsStep (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+2026-10-24T10:25:05.2728397Z E                     at Object.toBe (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+2026-10-24T10:25:05.2729166Z E                     at D:\a\pan\pan\packages\web\e2e\locker-panel.e2e.mjs:55:31 {
+2026-10-24T10:25:05.2729552Z E                   matcherResult: {
+2026-10-24T10:25:05.2729820Z E                     actual: false,
+2026-10-24T10:25:05.2730084Z E                     expected: true,
+2026-10-24T10:25:05.2730516Z E                     message: 'expect(received).toBe(expected) // Object.is equality\n' +
+2026-10-24T10:25:05.2730932Z E                       '\n' +
+2026-10-24T10:25:05.2731201Z E                       'Expected: true\n' +
+2026-10-24T10:25:05.2731500Z E                       'Received: false',
+2026-10-24T10:25:05.2731778Z E                     name: 'toBe',
+2026-10-24T10:25:05.2732041Z E                     pass: false
+2026-10-24T10:25:05.2732265Z E                   }
+2026-10-24T10:25:05.2732463Z E                 }
+2026-10-24T10:25:05.2732642Z E                 
+2026-10-24T10:25:05.2732854Z E                 Node.js v24.22.1
+2026-10-24T10:25:05.2733073Z E                 
+2026-10-24T10:25:05.2733270Z E               assert 1 == 0
+2026-10-24T10:25:05.2734415Z E                +  where 1 = CompletedProcess(args=['node', 'D:\\a\\pan\\pan\\packages\\web\\e2e\\locker-panel.e2e.mjs', 'http://127.0.0.1:52013', ...    'Expected: true\\n' +\n      'Received: false',\n    name: 'toBe',\n    pass: false\n  }\n}\n\nNode.js v24.22.1\n").returncode
+2026-10-24T10:25:05.2735297Z 
+2026-10-24T10:25:05.2735494Z tests\test_interaction_card_http.py:113: AssertionError
+2026-10-24T10:25:05.2735957Z ---------------------------- Captured stderr call -----------------------------
+2026-10-24T10:25:05.2738469Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages\pydantic_settings\sources\utils.py:51: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+2026-10-24T10:25:05.2739969Z 
+2026-10-24T10:25:05.2740324Z   warnings.warn(  # noqa: B028  (called from many sources at differing depths, so no stacklevel is correct)
+2026-10-24T10:25:05.2740717Z 
+2026-10-24T10:25:05.2740875Z Processing request of type ListToolsRequest
+2026-10-24T10:25:05.2741070Z 
+2026-10-24T10:25:05.2741210Z Processing request of type CallToolRequest
+2026-10-24T10:25:05.2741401Z 
+2026-10-24T10:25:05.2741540Z Processing request of type CallToolRequest
+2026-10-24T10:25:05.2741726Z 
+2026-10-24T10:25:05.2741920Z ============================== warnings summary ===============================
+2026-10-24T10:25:05.2743021Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages\pydantic_settings\sources\utils.py:51
+2026-10-24T10:25:05.2744959Z   C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages\pydantic_settings\sources\utils.py:51: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+2026-10-24T10:25:05.2746755Z     warnings.warn(  # noqa: B028  (called from many sources at differing depths, so no stacklevel is correct)
+2026-10-24T10:25:05.2747161Z 
+2026-10-24T10:25:05.2747480Z C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages\fastapi\testclient.py:1
+2026-10-24T10:25:05.2748733Z   C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-10-24T10:25:05.2749688Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-10-24T10:25:05.2749967Z 
+2026-10-24T10:25:05.2750113Z tests/test_mcp_remote_parity.py: 26 warnings
+2026-10-24T10:25:05.2750732Z   C:\hostedtoolcache\windows\Python\3.14.9\x64\Lib\contextlib.py:109: DeprecationWarning: Use `streamable_http_client` instead.
+2026-10-24T10:25:05.2751315Z     self.gen = func(*args, **kwds)
+2026-10-24T10:25:05.2751513Z 
+2026-10-24T10:25:05.2752115Z tests/test_model_catalog.py::test_real_http_mcp_protocol_is_credential_free
+2026-10-24T10:25:05.2752882Z   tests\test_model_catalog.py:153: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+2026-10-24T10:25:05.2753653Z     def test_real_http_mcp_protocol_is_credential_free(monkeypatch, record_property):
+2026-10-24T10:25:05.2753986Z 
+2026-10-24T10:25:05.2754250Z tests/test_report_reads.py::test_real_http_mcp_report_handoff_metadata_only
+2026-10-24T10:25:05.2754993Z   tests\test_report_reads.py:313: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+2026-10-24T10:25:05.2755741Z     def test_real_http_mcp_report_handoff_metadata_only(monkeypatch,record_property):
+2026-10-24T10:25:05.2756068Z 
+2026-10-24T10:25:05.2756328Z tests/test_session_history_search_mcp.py::test_real_http_and_mcp_protocol
+2026-10-24T10:25:05.2757131Z   tests\test_session_history_search_mcp.py:199: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+2026-10-24T10:25:05.2757878Z     def test_real_http_and_mcp_protocol(monkeypatch, record_property):
+2026-10-24T10:25:05.2758154Z 
+2026-10-24T10:25:05.2758603Z tests/test_source_auto_report_native_http.py::test_upstream_report_consume_and_auto_force_use_original_native_transaction
+2026-10-24T10:25:05.2759847Z   tests\test_source_auto_report_native_http.py:13: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+2026-10-24T10:25:05.2760944Z     @pytest.mark.timeout(90)
+2026-10-24T10:25:05.2761099Z 
+2026-10-24T10:25:05.2761391Z tests/test_terminal_windows_backend.py::test_ctrl_c_input_channel_and_survival
+2026-10-24T10:25:05.2762357Z   tests\test_terminal_windows_backend.py:232: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+2026-10-24T10:25:05.2763121Z     def test_ctrl_c_input_channel_and_survival(tmp_path, record_property):
+2026-10-24T10:25:05.2763410Z 
+2026-10-24T10:25:05.2763669Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-10-24T10:25:05.2764157Z =========================== short test summary info ===========================
+2026-10-24T10:25:05.2764766Z SKIPPED [1] tests\test_addressing_compat.py:125: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2765501Z SKIPPED [1] tests\test_addressing_compat.py:226: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2766237Z SKIPPED [1] tests\test_cbc_native_bridge.py:766: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2766954Z SKIPPED [1] tests\test_cbc_oneshot_args.py:68: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2767665Z SKIPPED [1] tests\test_cbc_oneshot_args.py:75: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2768364Z SKIPPED [1] tests\test_cbc_oneshot_args.py:82: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2769061Z SKIPPED [1] tests\test_cbc_oneshot_args.py:89: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2769769Z SKIPPED [1] tests\test_cbc_oneshot_args.py:101: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2770588Z SKIPPED [1] tests\test_cbc_oneshot_args.py:111: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2771306Z SKIPPED [1] tests\test_cbc_oneshot_args.py:122: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2771884Z SKIPPED [1] tests\test_claude_adapter.py:138: claude not on PATH
+2026-10-24T10:25:05.2772476Z SKIPPED [1] tests\test_claude_adapter.py:159: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2773194Z SKIPPED [1] tests\test_claude_adapter.py:188: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2773892Z SKIPPED [1] tests\test_claude_adapter.py:215: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2774588Z SKIPPED [1] tests\test_claude_adapter.py:230: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2775286Z SKIPPED [1] tests\test_claude_adapter.py:469: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2775959Z SKIPPED [1] tests\test_claude_adapter.py:570: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2776609Z SKIPPED [1] tests\test_claude_adapter.py:577: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2777250Z SKIPPED [1] tests\test_claude_adapter.py:588: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2777881Z SKIPPED [1] tests\test_claude_adapter.py:602: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2778513Z SKIPPED [1] tests\test_claude_adapter.py:608: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2779152Z SKIPPED [1] tests\test_claude_adapter.py:625: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2779783Z SKIPPED [1] tests\test_claude_adapter.py:643: claude probe dir absent (machine-local data)
+2026-10-24T10:25:05.2780862Z SKIPPED [1] tests\test_claude_adapter.py:678: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2781587Z SKIPPED [1] tests\test_claude_adapter.py:683: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2782534Z SKIPPED [1] tests\\test_docs_terminology.py:92: \u540c\u6b65\u526f\u672c\u4e0d\u5b58\u5728\uff08gitignored\uff0c\u4ec5\u672c\u5730 checkout \u7ef4\u62a4\uff09
+2026-10-24T10:25:05.2783559Z SKIPPED [1] tests\test_independent_job_deployment.py:64: explicit opt-in required to register an owned temporary Windows task
+2026-10-24T10:25:05.2784337Z SKIPPED [1] tests\test_kimi_adapter.py:199: kimi test workdir absent (machine-local data)
+2026-10-24T10:25:05.2785143Z SKIPPED [1] tests\test_kimi_adapter.py:211: kimi test workdir absent (machine-local data)
+2026-10-24T10:25:05.2785787Z SKIPPED [1] tests\test_kimi_adapter.py:223: kimi test workdir absent (machine-local data)
+2026-10-24T10:25:05.2786534Z SKIPPED [1] tests\test_provider_launch_export_real_codex.py:29: explicit installed-CLI integration opt-in required
+2026-10-24T10:25:05.2787379Z SKIPPED [1] tests\test_provider_launch_real_codex.py:92: requires explicit owned installed-CLI integration opt-in
+2026-10-24T10:25:05.2788177Z SKIPPED [1] tests\test_report_error_context.py:273: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2788925Z SKIPPED [1] tests\test_report_error_context.py:295: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2789726Z SKIPPED [1] tests\\test_scheduler_cron.py:248: zoneinfo \u65e0 tz \u6570\u636e\u5e93\uff0c\u672c\u7528\u4f8b\u8df3\u8fc7
+2026-10-24T10:25:05.2790529Z SKIPPED [1] tests\test_session_error_log_e2e.py:393: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2791318Z SKIPPED [1] tests\test_session_prompts.py:238: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2792051Z SKIPPED [1] tests\test_task_id_inheritance.py:144: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2792792Z SKIPPED [1] tests\test_terminal_broadcast.py:147: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2793563Z SKIPPED [1] tests\test_terminal_durable_ma.py:69: actual ancestor Job restricts detach
+2026-10-24T10:25:05.2794294Z SKIPPED [1] tests\test_terminal_durable_ma.py:221: actual ancestor Job disallows breakaway; detach safely refused
+2026-10-24T10:25:05.2795068Z SKIPPED [1] tests\test_unified_server_queue.py:535: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2795817Z SKIPPED [1] tests\test_unified_server_queue.py:565: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2796597Z SKIPPED [1] tests\test_worker_cli_session_binding.py:110: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2797399Z SKIPPED [1] tests\test_worker_cli_session_binding.py:134: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2798193Z SKIPPED [1] tests\test_worker_cli_session_binding.py:155: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2798987Z SKIPPED [1] tests\test_worker_cli_session_binding.py:178: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2799771Z SKIPPED [1] tests\test_worker_global_watchdog.py:141: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2800898Z SKIPPED [1] tests\test_worker_oneshot_usage.py:115: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2801674Z SKIPPED [1] tests\test_worker_oneshot_usage.py:170: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2802423Z SKIPPED [1] tests\test_worker_oneshot_usage.py:195: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2803165Z SKIPPED [1] tests\test_worker_oneshot_usage.py:222: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2803896Z SKIPPED [1] tests\test_worker_output_mode.py:85: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2804630Z SKIPPED [1] tests\test_worker_output_mode.py:102: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2805367Z SKIPPED [1] tests\test_worker_output_mode.py:123: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2806092Z SKIPPED [1] tests\test_worker_output_mode.py:130: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2806812Z SKIPPED [1] tests\test_worker_output_mode.py:150: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2807532Z SKIPPED [1] tests\test_worker_output_mode.py:178: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2808383Z SKIPPED [1] tests\test_worker_watchdog.py:332: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2809102Z SKIPPED [1] tests\test_worker_watchdog.py:367: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2809813Z SKIPPED [1] tests\test_worker_watchdog.py:811: Oneshot mode retired by user; implementation retained
+2026-10-24T10:25:05.2810622Z FAILED tests/test_action_persistence.py::test_api_distinguishes_storage_and_user_authorization - assert 503 == 401
+2026-10-24T10:25:05.2811238Z  +  where 503 = <Response [503 Service Unavailable]>.status_code
+2026-10-24T10:25:05.2812092Z FAILED tests/test_job_inbox_boundaries.py::test_disabled_agent_template_cannot_smuggle_enabled_instance - ValueError: Unknown or invalid Job Template fields
+2026-10-24T10:25:05.2813227Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2813904Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2814643Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2815758Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2816425Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2817243Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2818345Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2819019Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2819737Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2821258Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2821940Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2822656Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2823770Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2824433Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2825139Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2826244Z FAILED tests/test_job_window_policy.py::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True] - AssertionError: assert 1 == 0
+2026-10-24T10:25:05.2826895Z  +  where 1 = <function main at 0x00000296228B5380>()
+2026-10-24T10:25:05.2827612Z  +    where <function main at 0x00000296228B5380> = <module 'packages.core.background_runner' from 'D:\\a\\pan\\pan\\packages\\core\\background_runner.py'>.main
+2026-10-24T10:25:05.2829154Z FAILED tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart - AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2829972Z Owned server log:
+2026-10-24T10:25:05.2830864Z FAILED tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart - AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2831643Z Owned server log:
+2026-10-24T10:25:05.2837132Z FAILED tests/test_mcp_handbook.py::TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer - AssertionError: locker_message\nassert False\n +  where False = <built-in method endswith of str object at 0x000002961E7F72B0>('\u5b8c\u6574\u7f16\u6392\u6d41\u7a0b\u89c1 /pan skill\u3002')\n +    where <built-in method endswith of str object at 0x000002961E7F72B0> = 'Create/get an ordinary Locker Message for this profile user, from own Session.\\n\\nLocal bound stdio only; no owner/so...ect persistence; never automatically resend.\\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).'.endswith\n +      where 'Create/get an ordinary Locker Message for this profile user, from own Session.\\n\\nLocal bound stdio only; no owner/so...ect persistence; never automatically resend.\\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).' = <built-in method rstrip of str object at 0x000002961609AB90>()\n +        where <built-in method rstrip of str object at 0x000002961609AB90> = 'Create/get an ordinary Locker Message for this profile user, from own Session.\\n\\nLocal bound stdio only; no owner/so...t persistence; never automatically resend.\\nSchema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).\\n'.rstrip
+2026-10-24T10:25:05.2842449Z FAILED tests/test_session_query.py::test_legacy_and_draft_authority_gates - assert 503 == 200
+2026-10-24T10:25:05.2842986Z  +  where 503 = <Response [503 Service Unavailable]>.status_code
+2026-10-24T10:25:05.2844236Z FAILED tests/test_system_fields_http.py::test_worker_error_persists_system_session_and_pauses_via_mapping - AssertionError: POST /api/actions/actions: 401 {"detail":"User *** trusted MCP transport required"}
+2026-10-24T10:25:05.2845070Z Owned server log:
+2026-10-24T10:25:05.2845505Z FAILED tests/test_user_locker_browser.py::test_locker_browser_http_mcp - AssertionError: 
+2026-10-24T10:25:05.2845970Z   node:internal/modules/run_main:107
+2026-10-24T10:25:05.2846251Z       triggerUncaughtException(
+2026-10-24T10:25:05.2846475Z       ^
+2026-10-24T10:25:05.2846764Z   
+2026-10-24T10:25:05.2847064Z   ExpectError: expect(received).toBe(expected) // Object.is equality
+2026-10-24T10:25:05.2847397Z   
+2026-10-24T10:25:05.2847554Z   Expected: true
+2026-10-24T10:25:05.2847736Z   Received: false
+2026-10-24T10:25:05.2848366Z       at captureRawStack (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+2026-10-24T10:25:05.2849399Z       at callMatcherAsStep (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+2026-10-24T10:25:05.2850383Z       at Object.toBe (D:\a\pan\pan\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+2026-10-24T10:25:05.2851074Z       at D:\a\pan\pan\packages\web\e2e\locker-panel.e2e.mjs:55:31 {
+2026-10-24T10:25:05.2851411Z     matcherResult: {
+2026-10-24T10:25:05.2851620Z       actual: false,
+2026-10-24T10:25:05.2851810Z       expected: true,
+2026-10-24T10:25:05.2852150Z       message: 'expect(received).toBe(expected) // Object.is equality\n' +
+2026-10-24T10:25:05.2852497Z         '\n' +
+2026-10-24T10:25:05.2852679Z         'Expected: true\n' +
+2026-10-24T10:25:05.2852905Z         'Received: false',
+2026-10-24T10:25:05.2853108Z       name: 'toBe',
+2026-10-24T10:25:05.2853286Z       pass: false
+2026-10-24T10:25:05.2853457Z     }
+2026-10-24T10:25:05.2853612Z   }
+2026-10-24T10:25:05.2853763Z   
+2026-10-24T10:25:05.2853924Z   Node.js v24.22.1
+2026-10-24T10:25:05.2854103Z   
+2026-10-24T10:25:05.2854252Z assert 1 == 0
+2026-10-24T10:25:05.2855206Z  +  where 1 = CompletedProcess(args=['node', 'D:\\a\\pan\\pan\\packages\\web\\e2e\\locker-panel.e2e.mjs', 'http://127.0.0.1:52013', ...    'Expected: true\\n' +\n      'Received: false',\n    name: 'toBe',\n    pass: false\n  }\n}\n\nNode.js v24.22.1\n").returncode
+2026-10-24T10:25:07.7969913Z ##[error]Process completed with exit code 1.
+2026-10-24T10:25:07.8206203Z ##[group]Run actions/upload-artifact@v4
+2026-10-24T10:25:07.8206538Z with:
+2026-10-24T10:25:07.8206722Z   name: pytest-results-3.14
+2026-10-24T10:25:07.8206956Z   path: pytest-results.xml
+2026-10-24T10:25:07.8207186Z   if-no-files-found: warn
+2026-10-24T10:25:07.8207400Z   compression-level: 6
+2026-10-24T10:25:07.8207590Z   overwrite: false
+2026-10-24T10:25:07.8207785Z   include-hidden-files: false
+2026-10-24T10:25:07.8207992Z env:
+2026-10-24T10:25:07.8208236Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T10:25:07.8208721Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.14.9\x64/lib/pkgconfig
+2026-10-24T10:25:07.8209173Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T10:25:07.8209578Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T10:25:07.8209972Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.14.9\x64
+2026-10-24T10:25:07.8210388Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2026-10-24T10:25:07.8210694Z ##[endgroup]
+2026-10-24T10:25:08.0260006Z (node:5696) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-24T10:25:08.0261385Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-24T10:25:08.0322959Z With the provided path, there will be 1 file uploaded
+2026-10-24T10:25:08.0331473Z Artifact name is valid!
+2026-10-24T10:25:08.0334225Z Root directory input is valid!
+2026-10-24T10:25:08.3542909Z Beginning upload of artifact content to blob storage
+2026-10-24T10:25:08.3936697Z (node:5696) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-24T10:25:08.7400002Z Uploaded bytes 118398
+2026-10-24T10:25:08.8006463Z Finished uploading artifact content to blob storage!
+2026-10-24T10:25:08.8008270Z SHA256 digest of uploaded artifact zip is 374fcc6489a08c7ffcd79b8aec40f0de665d96c61e68e3931e2609f2beeac15d
+2026-10-24T10:25:08.8011427Z Finalizing artifact upload
+2026-10-24T10:25:09.2459727Z Artifact pytest-results-3.14.zip successfully finalized. Artifact ID 12557365627
+2026-10-24T10:25:09.2461148Z Artifact pytest-results-3.14 has been successfully uploaded! Final size is 118398 bytes. Artifact ID is 12557365627
+2026-10-24T10:25:09.2473771Z Artifact download URL: https://github.com/AblazeGHR/pan/actions/runs/40083487423/artifacts/12557365627
+2026-10-24T10:25:09.2831109Z Post job cleanup.
+2026-10-24T10:25:09.4769725Z Pruning is unnecessary.
+2026-10-24T10:25:09.5126364Z Post job cleanup.
+2026-10-24T10:25:09.7310221Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-24T10:25:09.7718346Z git version 2.56.0.windows.2
+2026-10-24T10:25:09.7797987Z Temporarily overriding HOME='D:\a\_temp\3933e052-a9cb-4381-b096-bb6dce967b8d' before making global git config changes
+2026-10-24T10:25:09.7799127Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-24T10:25:09.7810254Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\pan\pan
+2026-10-24T10:25:09.8218595Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-24T10:25:09.8631678Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-24T10:25:10.4720458Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-24T10:25:10.5083510Z http.https://github.com/.extraheader
+2026-10-24T10:25:10.5136273Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-24T10:25:10.5545645Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-24T10:25:11.1522325Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-24T10:25:11.1930255Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-24T10:25:11.8399188Z Cleaning up orphan processes
+2026-10-24T10:25:11.8554038Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

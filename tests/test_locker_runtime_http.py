@@ -9,6 +9,7 @@ import psutil
 
 from tests import test_real_queue_http_e2e as h
 from tests.test_automation_core import action, trigger
+from tests.support.authorization import authenticate_user_requests
 
 OUT=Path('audit/locker-runtime/http')
 
@@ -16,7 +17,7 @@ OUT=Path('audit/locker-runtime/http')
 def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
     assert h.PORT not in {8767,8768}, 'Use the isolated test runner random port'
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
-    rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+    rt=h._PanRuntime(tmp_path/'data'); authenticate_user_requests(rt); rt.data_root.mkdir()
     root=Path(__file__).resolve().parents[1]
     (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},
         'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')

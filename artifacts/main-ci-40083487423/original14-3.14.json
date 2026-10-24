@@ -1,0 +1,100 @@
+[
+  {
+    "classname": "tests.test_automation_retry_http",
+    "name": "test_node_parallel_finite_retries_and_uncertain_confirmation_http",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_docs_terminology",
+    "name": "test_no_banned_legacy_terms",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_eta_final_combined",
+    "name": "test_node_query_pause_production_ui_restart_and_delay_mcp",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_eventloop_history_offload",
+    "name": "test_http_policies_stream_in_the_request_task_without_body_relay",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_interaction_card_http",
+    "name": "test_http_mcp_user_response_and_directed_trigger",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_job_unified_http",
+    "name": "test_unified_event_system_actions_legacy_and_production_ui",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_jobs_completed_retention",
+    "name": "test_log_cleanup_is_independent_safe_and_only_removes_expired_owned_logs",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_locker_runtime_http",
+    "name": "test_product_locker_login_choice_pause_restart",
+    "currentOutcome": "failed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "passed"
+  },
+  {
+    "classname": "tests.test_mcp_handbook.TestDescriptionCallChain",
+    "name": "test_every_tool_ends_with_pan_skill_pointer",
+    "currentOutcome": "failed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "passed"
+  },
+  {
+    "classname": "tests.test_plugin_event_lifecycle",
+    "name": "test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_plugin_qq_integration",
+    "name": "test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_plugin_session_config",
+    "name": "test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_takeover_lifecycle_http",
+    "name": "test_http_first_terminal_survives_real_reader_conflict_without_resend",
+    "currentOutcome": "passed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "not rerun; remote passed"
+  },
+  {
+    "classname": "tests.test_user_locker_browser",
+    "name": "test_locker_browser_http_mcp",
+    "currentOutcome": "failed",
+    "baseline03158Outcome": "passed",
+    "localRepairOutcome": "passed"
+  }
+]

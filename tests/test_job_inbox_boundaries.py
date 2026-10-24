@@ -14,7 +14,7 @@ def test_disabled_agent_template_cannot_smuggle_enabled_instance(tmp_path):
     config={'name':'fixed','actionId':'pause','arguments':{},'enabled':True,
             'schedule':[],'trigger':{'kind':'immediate'}}
     with pytest.raises(PermissionError):
-        Templates(store).put({'name':'agent draft','enabled':False,'config':config},0,False)
+        Templates(store).put({'name':'agent draft','config':config},0,False)
     assert not store.read().get('jobTemplates')
 
 

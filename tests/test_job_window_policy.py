@@ -55,6 +55,9 @@ def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, t
     monkeypatch.setattr(runner.jobs, "runner_update", Mock())
     monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
     monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+    # This unit tests command-window options, not registry admission. The
+    # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+    monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
     monkeypatch.setattr(runner.subprocess, "Popen", spawn)
     monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
     assert runner.main() == 0

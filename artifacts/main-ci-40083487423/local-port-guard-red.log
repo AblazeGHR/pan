@@ -1,0 +1,40 @@
+FFF.                                                                     [100%]
+================================== FAILURES ===================================
+_______________ test_owned_notification_consumption_and_restart _______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4183/test_owned_notification_consum0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A4B0623100>
+
+    def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
+>       assert h.PORT not in {8767, 8768}
+E       assert 8767 not in {8767, 8768}
+E        +  where 8767 = h.PORT
+
+tests\test_locker_independent_http.py:20: AssertionError
+_______________ test_product_locker_login_choice_pause_restart ________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4183/test_product_locker_login_choi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A4B0623230>
+
+    def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
+>       assert h.PORT not in {8767,8768}, 'Use the isolated test runner random port'
+E       AssertionError: Use the isolated test runner random port
+E       assert 8767 not in {8767, 8768}
+E        +  where 8767 = h.PORT
+
+tests\test_locker_runtime_http.py:18: AssertionError
+______ test_worker_error_persists_system_session_and_pauses_via_mapping _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4183/test_worker_error_persists_sys0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A4B069FD10>
+
+    def test_worker_error_persists_system_session_and_pauses_via_mapping(tmp_path, monkeypatch):
+>       assert harness.PORT not in {8767, 8768}
+E       assert 8767 not in {8767, 8768}
+E        +  where 8767 = harness.PORT
+
+tests\test_system_fields_http.py:19: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart
+FAILED tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart
+FAILED tests/test_system_fields_http.py::test_worker_error_persists_system_session_and_pauses_via_mapping

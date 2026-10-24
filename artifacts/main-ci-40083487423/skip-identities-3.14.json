@@ -1,0 +1,368 @@
+[
+  {
+    "classname": "tests.test_addressing_compat",
+    "name": "test_send_session_oneshot_worker_delivers",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_addressing_compat",
+    "name": "test_send_session_force_live_oneshot_restarts_without_stream_spawn",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_native_bridge",
+    "name": "test_retired_oneshot_cbc_capability_declaration",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_basic_no_mcp_no_resume",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_with_mcp",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_with_system_prompt_no_cli_id",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_system_prompt_skipped_when_resumed",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_with_resume_and_mcp",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_with_effort_and_permission",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_cbc_oneshot_args",
+    "name": "test_oneshot_args_prompt_is_last_arg",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_runtime_argv_avoids_cmd_shim",
+    "outcome": "skipped",
+    "message": "claude not on PATH"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_oneshot_args_basic",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_oneshot_args_with_model_resume_effort_system_prompt",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_oneshot_args_system_prompt_only_when_fresh",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_oneshot_args_with_mcp",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_extract_oneshot_error",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_session_exists_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_parse_history_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_get_raw_usage_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_get_session_title_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_write_and_restore_custom_title_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_fork_session_probe_and_cleanup",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_list_sessions_probe",
+    "outcome": "skipped",
+    "message": "claude probe dir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_retired_oneshot_claude_capability_declaration",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_claude_adapter",
+    "name": "test_retired_oneshot_excludes_stream_input_protocol",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_docs_terminology",
+    "name": "test_skill_sync_copy_matches_source",
+    "outcome": "skipped",
+    "message": "同步副本不存在（gitignored，仅本地 checkout 维护）"
+  },
+  {
+    "classname": "tests.test_independent_job_deployment",
+    "name": "test_external_user_host_survives_real_pan_graceful_and_job_tree_exit",
+    "outcome": "skipped",
+    "message": "explicit opt-in required to register an owned temporary Windows task"
+  },
+  {
+    "classname": "tests.test_kimi_adapter",
+    "name": "test_parse_kimi_history_from_test_session",
+    "outcome": "skipped",
+    "message": "kimi test workdir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_kimi_adapter",
+    "name": "test_get_raw_usage_from_test_session",
+    "outcome": "skipped",
+    "message": "kimi test workdir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_kimi_adapter",
+    "name": "test_fork_kimi_session",
+    "outcome": "skipped",
+    "message": "kimi test workdir absent (machine-local data)"
+  },
+  {
+    "classname": "tests.test_provider_launch_export_real_codex",
+    "name": "test_installed_cli_private_bearer_export_start_and_resume",
+    "outcome": "skipped",
+    "message": "explicit installed-CLI integration opt-in required"
+  },
+  {
+    "classname": "tests.test_provider_launch_real_codex",
+    "name": "test_installed_cli_fixed_provider_start_resume_and_materialized_branch",
+    "outcome": "skipped",
+    "message": "requires explicit owned installed-CLI integration opt-in"
+  },
+  {
+    "classname": "tests.test_report_error_context",
+    "name": "test_oneshot_error_empty_result_report_carries_last_assistant_message",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_report_error_context",
+    "name": "test_error_report_keeps_existing_error_result_and_adds_context",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_scheduler_cron",
+    "name": "test_cron_honours_timezone_argument",
+    "outcome": "skipped",
+    "message": "zoneinfo 无 tz 数据库，本用例跳过"
+  },
+  {
+    "classname": "tests.test_session_error_log_e2e",
+    "name": "test_oneshot_structured_error",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_session_prompts",
+    "name": "test_retired_oneshot_adapters_consume_effective_prompt",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_task_id_inheritance",
+    "name": "test_report_uses_the_task_id_carried_by_the_current_input",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_terminal_broadcast",
+    "name": "test_oneshot_uses_same_terminal_result_idle_pair",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_terminal_durable_ma",
+    "name": "test_same_service_detach_reconnect_revokes_old_connection_tokens",
+    "outcome": "skipped",
+    "message": "actual ancestor Job restricts detach"
+  },
+  {
+    "classname": "tests.test_terminal_durable_ma",
+    "name": "test_detached_shell_survives_real_service_host_exit_and_reconnect",
+    "outcome": "skipped",
+    "message": "actual ancestor Job disallows breakaway; detach safely refused"
+  },
+  {
+    "classname": "tests.test_unified_server_queue",
+    "name": "test_one_shot_spawn_success_dequeues_after_argv_handoff",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_unified_server_queue",
+    "name": "test_one_shot_spawn_failure_requeues_same_item",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_cli_session_binding",
+    "name": "test_consumer_oneshot_keeps_existing_binding_on_mismatch",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_cli_session_binding",
+    "name": "test_consumer_oneshot_captures_binding_when_empty",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_cli_session_binding",
+    "name": "test_consumer_oneshot_keeps_binding_when_no_init_event",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_cli_session_binding",
+    "name": "test_consumer_oneshot_surfaces_cbc_error_on_exit0",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_global_watchdog",
+    "name": "test_global_watchdog_tick_skips_active_oneshot_worker",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_oneshot_usage",
+    "name": "test_oneshot_calls_enrich_and_accumulates_usage",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_oneshot_usage",
+    "name": "test_oneshot_enrich_none_tolerated",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_oneshot_usage",
+    "name": "test_oneshot_enrich_exception_tolerated",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_oneshot_usage",
+    "name": "test_oneshot_claude_bridges_result_usage_cache",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_mcp_with_explicit_oneshot_goes_oneshot",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_oneshot_without_mcp_goes_oneshot",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_oneshot_only_adapter_clamps_stream_to_oneshot",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_oneshot_only_adapter_explicit_oneshot",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_apply_output_mode_oneshot",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_output_mode",
+    "name": "test_apply_output_mode_oneshot_only_rejects_stream",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_watchdog",
+    "name": "test_mcp_idle_worker_reclaimed",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_watchdog",
+    "name": "test_mcp_running_worker_not_timeout_killed",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  },
+  {
+    "classname": "tests.test_worker_watchdog",
+    "name": "test_consumer_oneshot_refreshes_last_activity_on_idle",
+    "outcome": "skipped",
+    "message": "Oneshot mode retired by user; implementation retained"
+  }
+]
