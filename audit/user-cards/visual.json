@@ -1,0 +1,37 @@
+{
+  "sizes": [
+    {
+      "view": "locker",
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "view": "locker",
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "view": "locker",
+      "width": 320,
+      "scrollWidth": 320
+    },
+    {
+      "view": "composer",
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "view": "composer",
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "view": "composer",
+      "width": 320,
+      "scrollWidth": 320
+    }
+  ],
+  "errors": [],
+  "browserCreateAttachmentDelete": true,
+  "chromiumVersion": "153.0.8010.12"
+}

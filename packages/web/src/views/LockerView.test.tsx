@@ -13,6 +13,8 @@ import { MemoryRouter } from 'react-router-dom';
 import LockerView from './LockerView';
 import {
   lockerProjection,
+  lockerTimeline,
+  type UserCard,
   type InteractionCard,
   type LockerMessage,
   type Locker,
@@ -89,6 +91,7 @@ function card(id = 'a', lockerId = 'l1'): InteractionCard {
     delivery: { state: 'not_requested' },
   };
 }
+let userCards: UserCard[];
 let cards: InteractionCard[];
 let messages: LockerMessage[];
 let calls: { path: string; body: Record<string, unknown>; method?: string }[];
@@ -96,6 +99,7 @@ beforeEach(() => {
   vi.mocked(resolveRelatedMessageTarget).mockReset();
   useAutomationAuth.setState({ token: 'unit-only', expiresAt: Date.now() + 60000 });
   uiState.activeWorkspaceId = 'all';
+  userCards = [];
   cards = [card(), card('b', 'l2')];
   messages = [];
   calls = [];
@@ -111,6 +115,17 @@ beforeEach(() => {
     vi.fn(async (path: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
       calls.push({ path, body, method: init?.method });
+      if (path === '/api/user-cards') return { ok: true, json: async () => ({ cards: userCards }) };
+      if (path.startsWith('/api/user-cards/')) {
+        const id = path.split('/')[3];
+        if (init?.method === 'DELETE') {
+          userCards = userCards.filter((item) => item.id !== id);
+          return { ok: true, json: async () => ({ deleted: true }) };
+        }
+        const updated = {...userCards.find((item) => item.id === id)!, read: body.read as boolean, revision: 2};
+        userCards = userCards.map((item) => item.id === id ? updated : item);
+        return { ok: true, json: async () => ({card: updated}) };
+      }
       if (path.startsWith('/api/user-locker-messages?'))
         return { ok: true, json: async () => ({ messages, nextAfter: null }) };
       if (path.startsWith('/api/user-locker-messages/')) {
@@ -617,4 +632,44 @@ it('renders twenty related entries with zero navigation requests on mount, hover
   expect(resolveRelatedMessageTarget).not.toHaveBeenCalled();
   expect(calls.filter(({ path }) => path.includes('/navigation'))).toEqual([]);
   navigation.mockRestore();
+});
+
+function reverseCard(answered = true): UserCard {
+  return {id: 'uc', direction: 'user', kind: 'question', ownerSessionId: 'ses_one', lockerId: 'l1',
+    body: '**User question body**', attachments: [{id: 'att_one', name: 'evidence.txt'}],
+    createdAt: '2026-10-23T01:00:00Z', answeredAt: answered ? '2026-10-24T03:00:00Z' : null,
+    status: answered ? 'answered' : 'pending', answer: answered ? 'Agent answer body' : null,
+    read: !answered, revision: answered ? 1 : 0};
+}
+describe('user card positions share one record', () => {
+  it('renders pending once without read controls and keeps answered projections ordered deterministically', async () => {
+    cards = []; userCards = [reverseCard(false)]; mount();
+    await screen.findByText('等待回答 · Awaiting answer');
+    expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(1);
+    expect(screen.queryByRole('button', {name: /Mark user card/})).toBeNull();
+    const sameTime = {...reverseCard(), answeredAt: reverseCard().createdAt};
+    expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created', 'answered']);
+    expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(2);
+    const positions = lockerTimeline([reverseCard(), card('b')]);
+    expect(positions.map((entry) => entry.item.id)).toEqual(['uc', 'b', 'uc']);
+  });
+  it.each([0, 1])('read and delete from position %i update/remove both identical rows', async (position) => {
+    cards = []; userCards = [reverseCard()]; mount();
+    await waitFor(() => expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(2));
+    let rows = [...document.querySelectorAll<HTMLElement>('[data-user-card-id="uc"]')];
+    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
+    expect(screen.getAllByText('Agent answer body')).toHaveLength(2);
+    expect(rows.every((row) => row.querySelector('textarea,input') === null)).toBe(true);
+    const reads = screen.getAllByRole('button', {name: 'Mark user card as read'});
+    fireEvent.click(reads[position]!);
+    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark user card as unread'})).toHaveLength(2));
+    rows = [...document.querySelectorAll<HTMLElement>('[data-user-card-id="uc"]')];
+    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
+    expect(calls.filter((call) => call.path === '/api/user-cards/uc/read')).toHaveLength(1);
+    expect(userCards).toHaveLength(1);
+    expect(calls.filter((call) => /attachments/.test(call.path))).toHaveLength(0);
+    fireEvent.click(screen.getAllByRole('button', {name: 'Delete user card'})[position]!);
+    await waitFor(() => expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(0));
+    expect(userCards).toHaveLength(0);
+  });
 });

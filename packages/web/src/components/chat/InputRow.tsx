@@ -1,3 +1,4 @@
+import { lockerRequest, LockerRequestError } from '@/views/lockerModel';
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -67,6 +68,7 @@ import {
   File as FileIcon,
   Minimize2,
   Paperclip,
+  MessageSquarePlus,
   Settings,
   X,
 } from 'lucide-react';
@@ -144,6 +146,7 @@ function attachmentOccurrenceId(attachment: PendingAttachment): string {
 }
 
 interface SendSnapshot {
+  cardKind?: 'question' | 'task';
   action: 'send' | 'steer';
   transactionId: string;
   clientMessageId: string;
@@ -435,6 +438,9 @@ export function InputRow() {
   const [attachmentBrowserOpen, setAttachmentBrowserOpen] = useState(false);
   const [attachmentBrowserPath, setAttachmentBrowserPath] = useState('');
   const [attachmentDirectoryError, setAttachmentDirectoryError] = useState<string | null>(null);
+  const [cardMode, setCardMode] = useState(false);
+  const [cardKind, setCardKind] = useState<'question' | 'task'>('question');
+  const cardDraftSessionRef = useRef<string | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const attachmentsRef = useRef<PendingAttachment[]>([]);
   const [composerText, setComposerText] = useState(() =>
@@ -912,6 +918,15 @@ export function InputRow() {
   // text alone cannot reconstruct inline occurrence ordering.
   useEffect(() => {
     const previousSessionId = activeAttachmentSessionRef.current;
+    if (previousSessionId && previousSessionId !== currentSessionId && cardDraftSessionRef.current === previousSessionId) {
+      composerValueRef.current = emptyComposerValue();
+      attachmentsRef.current = [];
+      setInputDraft(previousSessionId, '');
+      recoveryBySessionRef.current.delete(previousSessionId);
+      cardDraftSessionRef.current = null;
+      setCardMode(false);
+      setCardKind('question');
+    }
     if (previousSessionId && previousSessionId !== currentSessionId) {
       const interrupted = attachmentsRef.current.map((attachment) =>
         attachment.status === 'uploading' || attachment.status === 'registering'
@@ -1628,6 +1643,7 @@ export function InputRow() {
         return;
       }
       if ([...sendSnapshotsRef.current.values()].some((pending) => pending.sessionId === currentSessionId)) return;
+      if (cardMode && (action !== 'send' || options?.forceLocked)) return;
       const lockedSend = options?.forceLocked === true ||
         useQueueStore.getState().lockedComposerModes[currentSessionId] === true;
       if (lockedSend && [...sendSnapshotsRef.current.values()].some(
@@ -1752,12 +1768,14 @@ export function InputRow() {
       const recovery = recoveryBySessionRef.current.get(currentSessionId);
       const canReuseClientMessageId =
         !!recovery &&
+        recovery.cardKind === (cardMode ? cardKind : undefined) &&
         recovery.value.text === value.text &&
         recovery.value.occurrenceIds.join('\u0000') === value.occurrenceIds.join('\u0000') &&
         composerUrlStructureKey(recovery.value) === composerUrlStructureKey(value) &&
         recovery.attachments.map(attachmentOccurrenceId).join('\u0000') ===
           snapshotAttachments.map(attachmentOccurrenceId).join('\u0000');
       const snapshot: SendSnapshot = {
+        cardKind: cardMode ? cardKind : undefined,
         action,
         transactionId: attachmentId(),
         clientMessageId: canReuseClientMessageId && recovery?.action === action ? recovery.clientMessageId : `${action === 'steer' ? 'steer:' : ''}${attachmentId()}`,
@@ -1811,7 +1829,19 @@ export function InputRow() {
             throw new Error('队列消息正在编辑');
           }
           submitted = true;
-          if (action === 'steer') {
+          if (snapshot.cardKind) {
+            await lockerRequest('/api/user-cards', 'POST', {
+              ownerSessionId: snapshot.sessionId,
+              requestKey: snapshot.clientMessageId,
+              kind: snapshot.cardKind,
+              body: composerTextWithUrls(snapshot.value),
+              attachments: snapshot.attachments.map((a) => ({
+                id: a.attachmentId!, name: a.displayName,
+                ...(a.mimeType ? { mimeType: a.mimeType } : {}),
+                ...(a.file ? { size: a.file.size } : {}),
+              })),
+            });
+          } else if (action === 'steer') {
             await steer(snapshot.sessionId, snapshot.message, snapshot.clientMessageId);
             appendLocalMessage(snapshot.sessionId, { role: 'user', content: snapshot.message,
               parts: snapshot.parts, messageId: snapshot.clientMessageId, ts: new Date().toISOString() });
@@ -1822,13 +1852,13 @@ export function InputRow() {
           }
           sendSnapshotsRef.current.delete(snapshot.transactionId);
           recoveryBySessionRef.current.delete(snapshot.sessionId);
-          if (snapshot.locked) {
+          if (snapshot.locked && !snapshot.cardKind) {
             useQueueStore.getState().setLockedComposerMode(snapshot.sessionId, false);
           }
         } catch (error) {
           if (sendSnapshotsRef.current.get(snapshot.transactionId) !== snapshot) return;
           const rejected = !submitted || error instanceof SubmissionRejectedError ||
-            (error instanceof ApiRequestError && error.status >= 400 && error.status < 500);
+            ((error instanceof ApiRequestError || error instanceof LockerRequestError) && error.status >= 400 && error.status < 500);
           if (!rejected) {
             showToast(`${action === 'steer' ? 'Steer' : 'Send'} 结果未确认，原事务保留，请勿重复发送`, 'error');
             return;
@@ -1844,6 +1874,8 @@ export function InputRow() {
       })();
     },
     [
+      cardMode,
+      cardKind,
       currentSessionId,
       showToast,
       setInputDraft,
@@ -1890,6 +1922,9 @@ export function InputRow() {
   }).join('; ');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape' && cardMode && !e.nativeEvent.isComposing) {
+      e.preventDefault(); setCardMode(false); return;
+    }
     if (isShortcutRecording() || hasOpenModal() || e.defaultPrevented || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     const binding = bindingFromEvent(e.nativeEvent);
     if (!binding) return;
@@ -2032,6 +2067,13 @@ export function InputRow() {
           isMobile && mobileFullscreen && !queueEditActive ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
         }
       >
+        <button type="button" className={`inline-flex items-center gap-1.5 mx-3 my-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 ${cardMode ? 'border-accent bg-bg-tertiary text-accent' : 'border-border-default bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} aria-pressed={cardMode}
+          disabled={!currentSessionId || queueEditActive || !!pendingAction}
+          onClick={() => {
+            setCardMode((current) => !current);
+            cardDraftSessionRef.current = currentSessionId;
+            composerRef.current?.focus();
+          }}><MessageSquarePlus size={13} /> Create user card</button>
         <SendQueuePanel />
       </div>
 
@@ -2740,7 +2782,13 @@ export function InputRow() {
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">
-              {canSteer && !lockedComposerMode && (
+              {cardMode && <div className="inline-flex gap-0.5 rounded-md border border-border-default bg-bg-secondary p-0.5" role="radiogroup" aria-label="Card type">
+                {(['question', 'task'] as const).map((kind) => <button key={kind} type="button" role="radio"
+                  aria-checked={cardKind === kind} onClick={() => setCardKind(kind)} className={`rounded px-2 py-1 text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${cardKind === kind ? 'bg-bg-tertiary text-accent font-medium' : 'text-text-secondary hover:bg-bg-hover'}`}>
+                  {kind === 'question' ? 'Question' : 'Task'}
+                </button>)}
+              </div>}
+              {canSteer && !cardMode && !lockedComposerMode && (
                 <button
                   ref={steerButtonRef}
                   disabled={attachmentsBlocked || queueEditActive || !!pendingAction}
@@ -2764,13 +2812,13 @@ export function InputRow() {
                     ? '请先保存或取消队列消息编辑'
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
-                      : `${lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
-                  className={`rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
+                      : `${cardMode ? `Send ${cardKind} card` : lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
+                  className={`${cardMode ? 'max-w-[142px] text-[11px] sm:max-w-none sm:text-sm' : ''} rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
                   {pendingAction === 'send' && <Loader2 size={13} className="inline-block animate-spin mr-1" />}
-                  {lockedComposerMode ? 'put in queue' : 'Send'}
+                  {cardMode ? `Send ${cardKind} card` : lockedComposerMode ? 'put in queue' : 'Send'}
                 </button>
               </div>
             </div>

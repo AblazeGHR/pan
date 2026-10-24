@@ -1,3 +1,4 @@
+import { UserCardRow, type UserCardRowState } from './UserCardRow';
 import { RelatedContextButton } from './RelatedContextButton';
 import { LockerMessageRow } from './LockerMessageRow';
 import { SessionDragGutter } from '@/components/session/SessionDragGutter';
@@ -39,6 +40,9 @@ import { JobUserAuthorization } from '@/components/automation/JobUserAuthorizati
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 import {
   lockerProjection,
+  lockerTimeline,
+  isUserCard,
+  type UserCard,
   loadLockerMessages,
   compareLockerItems,
   lockerItemPreview,
@@ -420,6 +424,7 @@ export default function LockerView() {
   const workspaceLoaded = useWorkspaceStore((state) => state.loaded);
   const [storedLockers, setLockers] = useState<Locker[]>([]);
   const [storedItems, setCards] = useState<LockerItem[]>([]);
+  const [userCardRowStates, setUserCardRowStates] = useState<Record<string, UserCardRowState>>({});
   const [loadedToken, setLoadedToken] = useState<string | null>(null);
   const dataVisible = !!token && loadedToken === token;
   const lockers = dataVisible ? storedLockers : [];
@@ -449,7 +454,7 @@ export default function LockerView() {
       return;
     }
     try {
-      const [sourceResult, firstPage, messages] = await Promise.all([
+      const [sourceResult, firstPage, messages, userCards] = await Promise.all([
         lockerRequest<{ lockers: Locker[] }>(
           '/api/user-lockers',
           'GET',
@@ -463,8 +468,9 @@ export default function LockerView() {
           controller.signal,
         ),
         loadLockerMessages(controller.signal),
+        lockerRequest<{cards: UserCard[]}>('/api/user-cards', 'GET', undefined, controller.signal),
       ]);
-      const allCards: LockerItem[] = [...firstPage.cards, ...messages];
+      const allCards: LockerItem[] = [...firstPage.cards, ...messages, ...userCards.cards];
       let after = firstPage.nextAfter;
       const cursors = new Set<string>();
       while (after) {
@@ -569,16 +575,16 @@ export default function LockerView() {
   const previousScope = useRef('');
   const [windowSize, setWindowSize] = useState(50);
   const prepend = useRef<{ height: number; top: number } | null>(null);
-  const ordered = [...visible].sort(compareLockerItems);
+  const ordered = lockerTimeline(visible);
   const firstVisible = useRef<string | undefined>(undefined);
-  const oldStart = ordered.findIndex((item) => item.id === firstVisible.current);
+  const oldStart = ordered.findIndex((entry) => entry.key === firstVisible.current);
   const start =
     !follow.current && previousScope.current === scope && oldStart >= 0
       ? Math.min(oldStart, Math.max(0, ordered.length - windowSize))
       : Math.max(0, ordered.length - windowSize);
   const windowItems = ordered.slice(start);
-  firstVisible.current = windowItems[0]?.id;
-  const windowIds = new Set(windowItems.map((item) => item.id));
+  firstVisible.current = windowItems[0]?.key;
+  const windowIds = new Set(windowItems.map((entry) => entry.key));
   useLayoutEffect(() => {
     const node = timeline.current;
     if (!node) return;
@@ -610,12 +616,12 @@ export default function LockerView() {
         : (workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ?? 'Workspace');
   const markSourceRead = async (locker: Locker) => {
     const unread = sourceCards(cards, locker.id).filter(
-      (card) => !card.read && ('message' in card || card.status !== 'no_answer_needed'),
+      (card) => !card.read && (isUserCard(card) ? card.status === 'answered' : 'message' in card || card.status !== 'no_answer_needed'),
     );
     await Promise.all(
       unread.map((card) =>
-        lockerRequest<{ card?: InteractionCard; message?: LockerMessage }>(
-          `/api/${'message' in card ? 'user-locker-messages' : 'user-inbox'}/${card.id}/read`,
+        lockerRequest<{ card?: InteractionCard | UserCard; message?: LockerMessage }>(
+          `/api/${isUserCard(card) ? 'user-cards' : 'message' in card ? 'user-locker-messages' : 'user-inbox'}/${card.id}/read`,
           'PUT',
           { read: true },
         )
@@ -903,22 +909,27 @@ export default function LockerView() {
               <span>Messages from this Workspace appear here after a source sends them.</span>
             </div>
           )}
-          {[...cards]
-            .sort(compareLockerItems)
-            .map((card) =>
-              'message' in card ? (
+          {lockerTimeline(cards)
+            .map(({ item: card, key: positionKey }) =>
+              isUserCard(card) ? (
+                <UserCardRow key={`${token}:${positionKey}`} card={card} hidden={!windowIds.has(positionKey)}
+                  source={lockers.find((locker) => locker.id === card.lockerId)} update={update} remove={remove}
+                  state={userCardRowStates[card.id] ?? {busy: false, error: ''}}
+                  setState={(patch) => setUserCardRowStates((previous) => ({...previous,
+                    [card.id]: {...(previous[card.id] ?? {busy: false, error: ''}), ...patch}}))} />
+              ) : 'message' in card ? (
                 <LockerMessageRow
-                  key={`${token}:${card.id}`}
+                  key={`${token}:${positionKey}`}
                   item={card}
-                  hidden={!windowIds.has(card.id)}
+                  hidden={!windowIds.has(positionKey)}
                   source={lockers.find((locker) => locker.id === card.lockerId)}
                   update={update}
                   remove={remove}
                 />
               ) : (
                 <Card
-                  key={`${token}:${card.id}`}
-                  hidden={!windowIds.has(card.id)}
+                  key={`${token}:${positionKey}`}
+                  hidden={!windowIds.has(positionKey)}
                   card={card}
                   source={lockers.find((locker) => locker.id === card.lockerId)}
                   update={update}
