@@ -1,0 +1,5 @@
+size_after_launch_handles_closed 0
+rename_while_child_holds_fd PermissionError 13
+size_while_child_alive 0 limit 65536 over_limit False
+backups_after_child_exit []
+final_size 248000 unbounded True

@@ -1,0 +1,4 @@
+base_interpreter     E:\software\miniforge\python.exe
+      base-interpreter: child_released_fd=yes via=dup2 rename_while_child_alive=renamed
+venv_redirector      D:\project\Pan-main\.venv\Scripts\python.exe 255200 bytes
+       venv-redirector: child_released_fd=yes via=dup2 rename_while_child_alive=PermissionError(13)

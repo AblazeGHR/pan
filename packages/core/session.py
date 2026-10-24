@@ -297,7 +297,7 @@ def save_diagnostics(session_id: str | None = None, *, limit: int = 32) -> dict:
     visible = snapshots[:bounded_limit]
     for item in visible:
         item.pop("_lastActivity", None)
-    from packages.core import session_error_log
+    from packages.core import console_logs, session_error_log
     return {
         "sessions": visible,
         "totalTracked": len(snapshots),
@@ -306,6 +306,10 @@ def save_diagnostics(session_id: str | None = None, *, limit: int = 32) -> dict:
         # Process-local counters for the append-only error sample log.  A
         # write failure is visible here and in pan.log without affecting tasks.
         "sessionErrorLog": session_error_log.stats(),
+        # Console stdout/stderr relay and whole-file rotation state.  A file
+        # another process still holds open shows `degraded`/`overLimit` here
+        # instead of being truncated or silently abandoned.
+        "consoleLogs": console_logs.status(),
     }
 
 # Session-list previews are a persisted projection, not a second history

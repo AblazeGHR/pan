@@ -19,6 +19,13 @@ def main() -> int:
     os.environ["PAN_SESSION_ERROR_LOG_PATH"] = path
     from packages.core import session_error_log
 
+    if len(sys.argv) > 7:
+        session_error_log.configure(
+            path,
+            max_bytes=int(sys.argv[7]),
+            backup_count=int(sys.argv[8]) if len(sys.argv) > 8 else None,
+        )
+
     if mode == "partial":
         # Simulate a writer that crashed after a half line without a newline.
         with open(path, "ab") as handle:

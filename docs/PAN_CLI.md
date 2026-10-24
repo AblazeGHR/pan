@@ -34,6 +34,10 @@ debug 保留前台 main.py 的信号行为：主服务 Ctrl+C 不构成安全退
 
 Windows 独立启动时，stdout/stderr 始终写入 `data/logs/pan-console.out.log` / `pan-console.err.log`，正常日志仍按既有 logging 配置轮转。show 后同时输出到真实交互控制台，支持原来的 q / qqq / ask 菜单；这不是日志 viewer。hide/show 不重启服务、不覆盖 `startup.console_hidden`，保持相同 PID 和 HWND。隐藏期间继续写文件及保留的控制台缓冲区。
 
+这两个文件有界：独立启动时 launcher **不把文件句柄交给子进程**（Windows 的 venv `python.exe` 是重定向 stub，会替子进程长期持有继承到的每个句柄，导致活跃文件在整个运行期都无法改名）。launcher 只创建/确认 `data/logs` 可写并把精确路径放进 `PAN_CONSOLE_OUT_LOG` / `PAN_CONSOLE_ERR_LOG`，用 `python -c <shim> main.py ...` 启动；shim 在导入 main 之前先用普通追加句柄接住 stdout/stderr（保存导入期崩溃证据），随后立刻换成转发线程并释放文件句柄。单文件达到 `logging.console_max_bytes`（默认 20 MiB）时，在跨进程锁内整文件改名为 `.1` 并把 `.1`…`.N-1` 顺移，然后开新文件；保留 `logging.console_backup_count`（默认 3）份备份（active + 3）。永远不会截断活跃文件，也不会为了腾空间删除旧备份以外的任何文件。
+
+若活跃文件被其他进程/编辑器以不允许改名的方式占用，改名失败只记录降级（`GET /api/diagnostics/persistence` 的 `consoleLogs.*.rotationFailures` / `degraded` / `overLimit`），写入继续追加到当前文件；此时上限是软上限：超出量不超过降级窗口内新写入的字节数（单次转发读取块 ≤16 KiB）。占用解除后下一次检查会自动补做轮转。首次接管时若文件已远超上限，会立即轮转一次，原文件原样保留为 `.1`，不会被截断或删除。
+
 隐藏启动使用 `CREATE_NO_WINDOW`，初始化时先解除可能残留的无窗口 console 关联，且在输入线程创建前完成。第一次 show 再 `AllocConsole`。运行中的 hide 使用 `ShowWindow(SW_HIDE)`，不对活跃 reader 做 FreeConsole。输入线程只有一个，按键非阻塞读取；Python 日志流引用稳定，原生标准句柄及 stdin 在分配控制台后重绑定。console 输出失败不传播为主服务退出。
 
 只允许隐藏 Pan 独占的窗口。共享 shell、其它附着进程及无法核验可见性的伪控制台会明确拒绝，不关闭 Windows Terminal 或用户整窗。若默认终端宿主不能提供可验证窗口，命令返回非零。首次 show 是新分配交互控制台；初始化 detach 前没有可恢复的旧屏幕缓冲区。API 语义见 [FreeConsole](https://learn.microsoft.com/en-us/windows/console/freeconsole)、[AllocConsole](https://learn.microsoft.com/en-us/windows/console/allocconsole)、[GetConsoleWindow](https://learn.microsoft.com/en-us/windows/console/getconsolewindow)。
