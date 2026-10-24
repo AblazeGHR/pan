@@ -7579,6 +7579,7 @@ def _navigation_preview(content: str) -> str:
 
 
 def _navigation_page_lookup(session_id: str, before: int, limit: int):
+    from packages.core.message_navigation import JS_SPACE
     page = _history_page_lookup(session_id, before, min(500, max(1, limit)), True)
     if page is _NOT_FOUND:
         return page
@@ -7589,7 +7590,7 @@ def _navigation_page_lookup(session_id: str, before: int, limit: int):
         row = {key: message[key] for key in ("role", "source", "taskIdSource", "messageId") if key in message}
         # The shared frontend classifier only needs the leading marker. Keeping
         # it here avoids a second implementation of User/Re/MA/Sys provenance.
-        row["content"] = content.lstrip()[:64]
+        row["content"] = content.lstrip(JS_SPACE)[:64]
         row["navigationPreview"] = _navigation_preview(content)
         rows.append(row)
     return {**page, "history": _api_history(session_id, rows, start=page["start"], history_epoch=page.get("historyEpoch"))}

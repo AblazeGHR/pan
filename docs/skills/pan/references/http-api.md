@@ -568,6 +568,9 @@ triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
 
 ### 用户 Locker / Interaction Card 增量（2026-10-23）
 
+`GET /api/user-inbox` 的 cards、`GET /api/user-locker-messages` 的 messages 及对应单条/producer 回执均返回 `relatedMessageId: string | null`。新字段由可信本地 `/api/interaction-card-tools/create`、`/api/locker-message-tools/create` 自动确定，客户端不能传入。卡片 owner 可以是 caller 的受管 Session，定位读取 owner 而非 producer；普通 message 沿用自身 caller owner。普通 HTTP/Router/Job/internal 非 agent 创建保持 null。原 requestKey / messageId+签名命中返回原行，字段不参与签名，不追溯更新。SQLite cards 与 locker_messages 分别 ALTER TABLE 新增可空 related_message_id，既有行保持 NULL。
+
+
 User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Session Chat History 或 Agent Inbox 的消费语义混用。
 `GET /api/user-lockers` 返回 recipient 的真实来源容器和当前 Workspace IDs；聚合 Locker 只是前端按 Workspace 合并原消息的视图。
 `PUT /api/user-inbox/{id}/read {read:boolean}` 修改原消息 read/unread；没有消费游标。

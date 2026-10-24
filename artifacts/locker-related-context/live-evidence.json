@@ -1,0 +1,75 @@
+{
+  "port": 65305,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data",
+  "providerWorkersStarted": false,
+  "identity": {
+    "pid": 43852,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\fake_stream_cli.py"
+  },
+  "card": {
+    "schemaVersion": 1,
+    "lockerId": "ulocker_1aa9c07cf1619b888561c82f604585fb4d50cf0603e8d9782e81a53007987b6b",
+    "read": false,
+    "sourceName": "ses_3d882d02595f488f",
+    "id": "card_f07d49d2bc108b5e4170d81aab0887365402a1f65aa920db181d2a7107ef2c86",
+    "ownerSessionId": "ses_3d882d02595f488f",
+    "recipientId": "user",
+    "relatedMessageId": "pan:da71e71209ea45ec947e9908be214230",
+    "definition": {
+      "body": "Body",
+      "title": "Question",
+      "summaryBody": "Body"
+    },
+    "trustedChoices": {},
+    "createdAt": "2026-10-24T20:06:29.469758+00:00",
+    "revision": 0,
+    "status": "open",
+    "response": null,
+    "delivery": {
+      "state": "not_requested"
+    },
+    "rejectionDelivery": {
+      "state": "not_requested"
+    }
+  },
+  "message": {
+    "id": "lmsg_3cc1da9f0f5129dbb2617c98a87da4c13651466dce9e800229099bd3668d0090",
+    "kind": "message",
+    "schemaVersion": 1,
+    "lockerId": "ulocker_1aa9c07cf1619b888561c82f604585fb4d50cf0603e8d9782e81a53007987b6b",
+    "ownerSessionId": "ses_3d882d02595f488f",
+    "recipientId": "user",
+    "relatedMessageId": "pan:da71e71209ea45ec947e9908be214230",
+    "message": {
+      "content": "Locker reply",
+      "messageId": "ordinary",
+      "role": "assistant",
+      "ts": "2026-10-25T00:00:00Z"
+    },
+    "createdAt": "2026-10-25T00:00:00Z",
+    "read": false,
+    "revision": 0
+  },
+  "ownerUserId": "pan:da71e71209ea45ec947e9908be214230",
+  "maUserId": "pan:80dcc034f8684ebd9d624ca4ee47396f",
+  "listsAndSqlite": true,
+  "immutableRetry": true,
+  "ownedProcesses": [
+    {
+      "pid": 43852,
+      "birth": 1792872386.6226852,
+      "command": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\locker_context_http_server.py --port 65305 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data"
+    },
+    {
+      "pid": 49364,
+      "birth": 1792872386.6361556,
+      "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    }
+  ],
+  "portReleased": true
+}

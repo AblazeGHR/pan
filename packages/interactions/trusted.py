@@ -69,12 +69,14 @@ def create(service, store, request, *, producer_id=None):
                             (identity('card_', [request['ownerSessionId'], request['requestKey']]),)).fetchone()
     if exists:
         return store.create(request, producer_id=producer_id)
+    from .related_context import previous_user_message_id
+    related = previous_user_message_id(request['ownerSessionId']) if producer_id else None
     if not any(c.get('triggerRef') for c in request['card'].get('choices', [])):
-        return store.create(request, producer_id=producer_id)
+        return store.create(request, producer_id=producer_id, related_message_id=related)
     if service is None:
         raise InteractionError('incomplete', 'Trigger host unavailable')
     with service.ledger.lock, actions_lock:
-        return store.create(request, bindings=resolve(service, request), producer_id=producer_id)
+        return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
 
 
 def verify(service, event):

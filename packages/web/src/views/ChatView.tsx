@@ -1,3 +1,6 @@
+import { useRelatedMessageStore } from '@/stores/relatedMessageStore';
+import { resolveRelatedMessageTarget } from '@/components/chat/relatedMessageTarget';
+import { jumpToMessage } from '@/components/chat/jumpToMessage';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMessages';
 import { MessageNavigationDock, MESSAGE_NAVIGATION_PANEL_ID } from '@/components/chat/MessageNavigationDock';
@@ -35,7 +38,30 @@ export default function ChatView() {
   const native = useNativeControlStore((s) => sessionId ? s.sessions[sessionId] : undefined);
   const terminalView = useNativeControlStore((s) => sessionId ? s.terminalViews[sessionId] : undefined);
   const showTerminal = terminalView ?? (native != null && native.mode !== 'pan');
+  const relatedTarget = useRelatedMessageStore((s) => s.target);
+  const [relatedError, setRelatedError] = useState('');
   const chatRef = useRef<ChatMessagesHandle>(null);
+  useEffect(() => {
+    if (!relatedTarget) return;
+    if (sessionId !== relatedTarget.sessionId) {
+      useRelatedMessageStore.setState({ target: null });
+      return;
+    }
+    if (showTerminal) return;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && useSessionStore.getState().currentSessionId === relatedTarget.sessionId
+      && useRelatedMessageStore.getState().target === relatedTarget;
+    setRelatedError('');
+    void (async () => {
+      try {
+        const target = await resolveRelatedMessageTarget(relatedTarget.sessionId, relatedTarget.messageId, controller.signal);
+        if (current()) await jumpToMessage(chatRef, target, current, controller.signal);
+      } catch (error) { if (current()) setRelatedError(String(error)); }
+      finally { if (current()) useRelatedMessageStore.setState({ target: null }); }
+    })();
+    return () => controller.abort();
+  }, [relatedTarget, sessionId, showTerminal]);
+  useEffect(() => setRelatedError(''), [sessionId]);
   const chatStageRef = useRef<HTMLDivElement>(null);
   const [popupContainer, setPopupContainer] = useState<HTMLDivElement | null>(null);
   const setChatStage = useCallback((element: HTMLDivElement | null) => {
@@ -144,6 +170,7 @@ export default function ChatView() {
         <NativeQueue key={sessionId} sessionId={sessionId} />
       </div> :
       <div className="flex flex-col h-full min-h-0">
+        {relatedError && <div role="alert">{relatedError}</div>}
         <ApprovalBanner />
         <UserInputBanner />
         <ElicitationBanner />
