@@ -82,6 +82,13 @@ export default defineConfig(({ mode }) => {
             if (/\/node_modules\/@monaco-editor\/react\//.test(normalized)) {
               return 'monaco-vendor';
             }
+            // lucide-react resolves one module per icon. Left to the default
+            // splitting they become a dozen sub-3 KB chunks that each need their
+            // own connection, so on a constrained link they delay the boot API
+            // read. One small shared chunk keeps the same icons in one request.
+            if (/\/node_modules\/lucide-react\//.test(normalized)) {
+              return 'icon-vendor';
+            }
           },
         },
       },

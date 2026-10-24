@@ -1,0 +1,87 @@
+{
+  "label": "cand1",
+  "repeat": 3,
+  "sourceSha": "03158ec517a98493e41b292b7f0575fefb49fe12",
+  "dirty": [
+    "M packages/web/src/App.tsx",
+    " M packages/web/src/hooks/useWebSocket.ts",
+    " M packages/web/src/index.css",
+    " M packages/web/src/index.html",
+    " M packages/web/src/views/ChatRoute.tsx"
+  ],
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-cand1-bo118ej8\\data",
+  "dataset": {
+    "sessions": 31,
+    "rows": 76000,
+    "bytes": 13745527,
+    "seedSeconds": 0.34
+  },
+  "browser": {
+    "medians": {
+      "cold-fast": {
+        "listMs": 209.4,
+        "historyMs": 54.9,
+        "largeHistoryMs": 29.1,
+        "switchBackMs": 22.8,
+        "fcpMs": 80,
+        "lcpMs": null,
+        "loadMs": 113,
+        "navRequests": 41,
+        "navBytes": 550827,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-fast": {
+        "listMs": 82.2,
+        "historyMs": 49.6,
+        "largeHistoryMs": 30.7,
+        "switchBackMs": 13.8,
+        "fcpMs": 44,
+        "lcpMs": null,
+        "loadMs": 20,
+        "navRequests": 41,
+        "navBytes": 9416,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "cold-weak": {
+        "listMs": 2723,
+        "historyMs": 913.3,
+        "largeHistoryMs": 330.3,
+        "switchBackMs": 23.8,
+        "fcpMs": 1452,
+        "lcpMs": null,
+        "loadMs": 1402,
+        "navRequests": 36,
+        "navBytes": 537197,
+        "historyRequests": 6,
+        "historyBytes": 5794,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-weak": {
+        "listMs": 464.7,
+        "historyMs": 336.6,
+        "largeHistoryMs": 197.6,
+        "switchBackMs": 26.1,
+        "fcpMs": 252,
+        "lcpMs": null,
+        "loadMs": 210,
+        "navRequests": 42,
+        "navBytes": 19061,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      }
+    },
+    "raw": "cand1.browser.json"
+  },
+  "cleanup": {
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-cand1-bo118ej8"
+  }
+}

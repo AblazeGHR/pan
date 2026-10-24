@@ -30,4 +30,36 @@ for (const name of names) {
 }
 
 assert.ok(checked > 0, 'production build has no compressed assets');
+
+// Cold-load contract: no stylesheet may pull a render-blocking external
+// @import, and the third-party webfont must be linked as non-blocking. A CSS
+// @import gates CSSOM (hence module execution and the first API read) on that
+// third-party origin.
+for (const name of names.filter((entry) => entry.endsWith('.css'))) {
+  const css = await readFile(path.join(assets, name), 'utf8');
+  assert.ok(
+    !/@import\s*(?:url\()?['"]https?:/i.test(css),
+    `${name} contains a render-blocking external @import`,
+  );
+}
+const indexHtml = await readFile(path.join(webRoot, 'dist', 'index.html'), 'utf8');
+// The <noscript> fallback is allowed to be a plain blocking stylesheet: it only
+// applies when scripts are disabled and nothing else is waiting on it.
+const indexHtmlWithScripts = indexHtml.replace(/<noscript>[\s\S]*?<\/noscript>/g, '');
+const fontLinks = [...indexHtmlWithScripts.matchAll(/<link\b[^>]*fonts\.googleapis\.com[^>]*>/g)]
+  .map((match) => match[0])
+  .filter((link) => /rel="stylesheet"/.test(link));
+for (const link of fontLinks) {
+  assert.ok(
+    /media="print"/.test(link) || /rel="preload"/.test(link),
+    `webfont link is render-blocking: ${link}`,
+  );
+}
+
+// lucide-react resolves one module per icon. They must share one chunk,
+// otherwise a dozen sub-3 KB requests occupy boot connections and delay the
+// Session-list read on a constrained link.
+const iconChunks = (await readdir(assets)).filter((name) => /^icon-vendor-.+\.js$/.test(name));
+assert.equal(iconChunks.length, 1, 'icon modules are not grouped into one icon-vendor chunk');
+
 console.log(`Verified ${checked} compressed production assets`);
