@@ -229,7 +229,7 @@ function mergeAdjacentText(parts: ParsedComposerPart[]): ParsedComposerPart[] {
 function isHidden(element: HTMLElement): boolean {
   const style = element.getAttribute('style') || '';
   return (
-    element.hidden ||
+    Boolean(element.hidden) ||
     (element.tagName === 'INPUT' && element.getAttribute('type') === 'hidden') ||
     element.getAttribute('aria-hidden') === 'true' ||
     /(?:^|[;\s])(display\s*:\s*none|visibility\s*:\s*hidden)/i.test(style)
