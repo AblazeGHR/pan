@@ -21,6 +21,29 @@ def install(server):
         if not await authorized(request):
             raise HTTPException(401, 'User login required')
 
+    @router.get('/api/automation/authorization')
+    async def authorization_status(request: Request):
+        await require(request)
+        return await service().engine.io(service().auth.authorization_status)
+
+    @router.put('/api/automation/authorization')
+    async def authorization_change(data: dict, request: Request):
+        await require(request)
+        if set(data) != {'currentPassword', 'newPassword', 'confirmNewPassword', 'expectedRevision'}:
+            raise HTTPException(400, 'Expected currentPassword, newPassword, confirmNewPassword, and expectedRevision')
+        try:
+            return await service().engine.io(
+                service().auth.change_password,
+                data['currentPassword'], data['newPassword'], data['confirmNewPassword'], data['expectedRevision'])
+        except PermissionError as exc:
+            raise HTTPException(401, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
     @router.post('/api/automation/login')
     async def login(data: dict):
         try:

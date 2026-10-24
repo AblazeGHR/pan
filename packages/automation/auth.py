@@ -25,6 +25,7 @@ class UserAuth:
         self.sessions = {}
         self.lock = threading.RLock()
 
+    @locked
     def key(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -37,9 +38,66 @@ class UserAuth:
                 stream.flush()
                 os.fsync(stream.fileno())
         key = self.path.read_text(encoding='ascii').strip()
-        if len(key) < 32:
+        if len(key) < 16:
             raise ValueError('Invalid local user key')
         return key
+
+    @staticmethod
+    def _revision(key):
+        return hashlib.sha256(key.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def validate_password(password):
+        if not isinstance(password, str) or not (16 <= len(password) <= 128):
+            raise ValueError('Password must be 16-128 characters')
+        if any(ord(ch) < 33 or ord(ch) > 126 for ch in password):
+            raise ValueError('Password must use printable ASCII characters without spaces')
+        classes = sum(bool(group) for group in (
+            any(ch.islower() for ch in password),
+            any(ch.isupper() for ch in password),
+            any(ch.isdigit() for ch in password),
+            any(not ch.isalnum() for ch in password),
+        ))
+        if classes < 3:
+            raise ValueError('Password must include at least 3 of lowercase, uppercase, digit, and symbol')
+
+    @locked
+    def authorization_status(self):
+        key = self.key()
+        return {'configured': True, 'revision': self._revision(key)}
+
+    @locked
+    def change_password(self, current_password, new_password, confirm_password, expected_revision=None):
+        self.validate_password(new_password)
+        if new_password != confirm_password:
+            raise ValueError('New password confirmation does not match')
+        current = self.key()
+        revision = self._revision(current)
+        if expected_revision is not None and expected_revision != revision:
+            raise RuntimeError('Authorization revision conflict')
+        if not isinstance(current_password, str) or not hmac.compare_digest(current_password.encode(), current.encode()):
+            raise PermissionError('Current password is incorrect')
+        if hmac.compare_digest(current.encode(), new_password.encode()):
+            raise ValueError('New password must differ from current password')
+        parent = self.path.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        temporary = parent / (self.path.name + '.tmp-' + secrets.token_hex(8))
+        try:
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+                stream.write(new_password)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, self.path)
+            self.sessions.clear()
+        except (OSError, UnicodeError) as exc:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise OSError('Authorization password storage failed') from exc
+        return {'configured': True, 'revision': self._revision(new_password), 'revoked': True}
 
     @locked
     def login(self, key):
