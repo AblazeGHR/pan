@@ -9,8 +9,8 @@ content into this store.
 
 `packages.interactions.locker_messages.accept_locker_message(source_session_id,
 recipient_id, message)` is an internal Python adapter entry point. Its caller
-must already hold the trusted source Session identity. There is no new public
-producer HTTP CRUD or MCP tool. A user Bearer is not producer authorization.
+must already hold the trusted source Session identity. The local stdio MCP `locker_message` producer uses this same boundary. A user
+Bearer is not producer authorization.
 The lower-level `InteractionStore.accept_message` is a storage primitive and
 does not replace the source/attachment validation at the adapter boundary.
 
@@ -100,3 +100,41 @@ semantics, original queue IDs, trigger receipts and the existing Job/Pause
 lifecycle are unchanged. Submit and reasoned rejection notify only the source,
 with response fields and `summaryBody[:200]`; reasonless rejection and deletion
 do not notify.
+
+## Local stdio producer and manual reading (2026-10-24)
+
+`locker_message(operation="create", message={messageId, role, content, ts, ...})`
+creates an ordinary record for this profile's `user`, with the source fixed to
+`PAN_AGENT_SESSION_ID` resolved by the host. There is no source, owner or recipient
+argument. The bound local stdio process uses the existing loopback caller bridge
+(`X-Pan-Queue-Caller`); this is a same-user local process assertion, not a remote
+credential. SSE/non-loopback targets, redirects, browser Origin/Fetch requests,
+missing or unresolved callers are refused. This does not use UserAuth as a
+producer grant or introduce a separate authorization system.
+
+Discovery is the normal MCP tools/list and input schema; the existing schema
+endpoint includes `$defs.LockerMessageProducer`. The host accepts only
+`POST /api/locker-message-tools/create` with `{message: ...}` or `/get` with
+`{messageId: ...}`. Unknown top-level fields (including source/recipient overrides)
+are rejected; future fields inside Message remain preserved.
+
+The original Message `messageId` is the stable request identity; persist it and
+the exact document before calling. Same identity/document is idempotent, changed
+content conflicts, and a deleted identity cannot be recreated. On an unknown
+transport outcome call `locker_message(operation="get", message_id="original")`
+to inspect the original record. Get never creates, queues, or resends; a not-found
+result is not automatic retry authorization. Attachments use the same source-only
+validation as internal admission. Results prove durable admission, not user reading.
+
+Both source Locker and Workspace aggregation display chronological DOM order
+(createdAt, then stable ID), initially at the latest bottom. Existing API cursors
+are fully fetched under one abortable refresh generation; the display initially
+reveals the latest 50 records. Scrolling to the top or clicking Load older messages
+reveals 50 more and preserves the height-delta anchor. New records follow only
+inside the 48px bottom zone. Reading older records does not force a tail jump.
+This is display pagination over the existing bounded store, not a new server cursor.
+
+Entering, viewing, scrolling, refreshing, switching sources/Workspaces and
+aggregation never mark ordinary messages or Cards read. Only explicit row
+read/unread and source Read all buttons change reading state. Card submit/reject
+lifecycles keep their existing semantics, including their recorded read state.

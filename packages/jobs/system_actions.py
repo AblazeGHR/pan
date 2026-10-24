@@ -52,7 +52,7 @@ def definition(kind):
 
 def validate(action):
     expected = definition(action.get('execution', {}).get('operation'))
-    if action != expected:
+    if {**action, 'enabled': expected['enabled']} != expected:
         raise ValueError('System Action definitions are immutable product definitions')
 
 
@@ -67,7 +67,7 @@ def install(store):
             if old is None:
                 state['actions'][item['id']] = copy.deepcopy(item)
                 state.setdefault('actionRevisions', {})[item['id']] = 1
-    state = store.read()
+    state = store.read(effective=False)
     if any(definition(kind)['id'] not in state['actions'] for kind in KINDS):
         store.mutate(change)
 
@@ -278,6 +278,8 @@ async def execute(action, params, context, progress):
         for sid in ids:
             if any(row.get('sessionId') == sid for row in results):
                 continue  # A known or uncertain receipt is never sent again.
+            guard=getattr(progress,'before_effect',None)
+            if guard:await guard()
             try:result = await jobs._worker.send_session(sid, params['text'], source='automation')
             except Exception as exc:result={'status':'unknown','error':str(exc)}
             results.append({'sessionId': sid, **result})

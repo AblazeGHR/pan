@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Real owned FastAPI + Node peers + fake CLI; isolated ports and data only."""
 from dataclasses import asdict
 import json
@@ -13,7 +14,7 @@ from tests.test_plugin_events import manifest, records, publish
 def test_real_http_plugin_lifecycle_and_restart(tmp_path, monkeypatch):
     assert harness.PORT not in {8767, 8768}
     monkeypatch.setattr(harness, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')
-    runtime = harness._PanRuntime(tmp_path / 'owned-data')
+    runtime = harness._PanRuntime(tmp_path / 'owned-data'); authenticate_user_requests(runtime)
     runtime.data_root.mkdir()
     sentinel = tmp_path / 'simulated-practical/sentinel'
     sentinel.parent.mkdir()
@@ -93,4 +94,4 @@ def test_real_http_plugin_lifecycle_and_restart(tmp_path, monkeypatch):
         out = Path('artifacts/event-plugin-adapter')
         out.mkdir(parents=True, exist_ok=True)
         (out / 'http-evidence.json').write_text(json.dumps(evidence, indent=2))
-        (out / 'http-server.log').write_text((runtime.data_root / 'pan.log').read_text(encoding='utf-8', errors='replace'))
+        (out / 'http-server.log').write_text((runtime.data_root / 'pan.log').read_text(encoding='utf-8', errors='replace'), encoding='utf-8')

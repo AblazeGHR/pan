@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="19" failures="1" errors="0" time="2.277">
+    <testsuite name="src/views/LockerView.before.test.tsx" timestamp="2026-10-24T06:06:45.022Z" hostname="ablaze" tests="19" failures="1" errors="0" skipped="18" time="0.1715553">
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/views/LockerView.before.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.1708986">
+            <failure message="expected [ &lt;article …(2)&gt;…(4)&lt;/article&gt;, …(2) ] to deeply equal []" type="AssertionError">
+AssertionError: expected [ &lt;article …(2)&gt;…(4)&lt;/article&gt;, …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   &lt;article
++     class=&quot;locker-card message-row message-row-assistant relative px-3 sm:px-6 lg:px-8&quot;
++     data-card-id=&quot;a&quot;
++   &gt;
++     &lt;header
++       class=&quot;locker-card-origin&quot;
++     &gt;
++       &lt;span
++         class=&quot;source-dot &quot;
++       /&gt;
++       &lt;span
++         class=&quot;truncate&quot;
++       &gt;
++         Source One
++       &lt;/span&gt;
++       &lt;code
++         title=&quot;ses_one&quot;
++       &gt;
++         ses_one
++       &lt;/code&gt;
++       &lt;time
++         class=&quot;message-timestamp text-[11px] text-text-secondary select-none  &quot;
++         datetime=&quot;2026-10-23T01:00:00Z&quot;
++       &gt;
++         2026-10-23 09:00
++       &lt;/time&gt;
++       &lt;span
++         class=&quot;locker-status open&quot;
++       &gt;
++         Awaiting response
++       &lt;/span&gt;
++       &lt;button
++         aria-label=&quot;Mark card as unread&quot;
++         class=&quot;locker-read-toggle&quot;
++         title=&quot;Mark as unread&quot;
++         type=&quot;button&quot;
++       &gt;
++         &lt;svg
++           aria-hidden=&quot;true&quot;
++           class=&quot;lucide lucide-circle&quot;
++           fill=&quot;none&quot;
++           height=&quot;12&quot;
++           stroke=&quot;currentColor&quot;
++           stroke-linecap=&quot;round&quot;
++           stroke-linejoin=&quot;round&quot;
++           stroke-width=&quot;2&quot;
++           viewBox=&quot;0 0 24 24&quot;
++           width=&quot;12&quot;
++           xmlns=&quot;http://www.w3.org/2000/svg&quot;
++         &gt;
++           &lt;circle
++             cx=&quot;12&quot;
++             cy=&quot;12&quot;
++             r=&quot;10&quot;
++           /&gt;
++         &lt;/svg&gt;
++       &lt;/button&gt;
++     &lt;/header&gt;
++     &lt;h2
++       class=&quot;locker-card-title&quot;
++     &gt;
++       Card a
++     &lt;/h2&gt;
++     &lt;div&gt;
++       **Body**
++     &lt;/div&gt;
++     &lt;section
++       aria-label=&quot;Interaction response&quot;
++       class=&quot;locker-response&quot;
++     &gt;
++       &lt;fieldset
++         class=&quot;locker-choices&quot;
++       &gt;
++         &lt;legend&gt;
++           Choose an option
++         &lt;/legend&gt;
++         &lt;label
++           class=&quot;&quot;
++         &gt;
++           &lt;input
++             aria-label=&quot;Go&quot;
++             name=&quot;choice-a&quot;
++             type=&quot;radio&quot;
++             value=&quot;go&quot;
++           /&gt;
++           &lt;span&gt;
++             &lt;strong&gt;
++               Go
++             &lt;/strong&gt;
++             &lt;small&gt;
++               pause_everything 路 trusted Action
++             &lt;/small&gt;
++           &lt;/span&gt;
++         &lt;/label&gt;
++       &lt;/fieldset&gt;
++       &lt;label
++         class=&quot;locker-answer-label&quot;
++         for=&quot;answer-a&quot;
++       &gt;
++         Reply
++          
++         &lt;span&gt;
++           (optional)
++         &lt;/span&gt;
++         &lt;textarea
++           id=&quot;answer-a&quot;
++           maxlength=&quot;32000&quot;
++           placeholder=&quot;Add your answer or a note…&quot;
++           rows=&quot;3&quot;
++         /&gt;
++       &lt;/label&gt;
++       &lt;div
++         class=&quot;locker-card-actions&quot;
++       &gt;
++         &lt;button
++           class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-2 py-1 text-xs &quot;
++           disabled=&quot;&quot;
++         &gt;
++           Submit
++         &lt;/button&gt;
++         &lt;button
++           class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-tertiary border-transparent px-2 py-1 text-xs &quot;
++         &gt;
++           Reject
++         &lt;/button&gt;
++         &lt;span&gt;
++           Replies go only to the source.
++         &lt;/span&gt;
++       &lt;/div&gt;
++     &lt;/section&gt;
++   &lt;/article&gt;,
++   &lt;article
++     class=&quot;locker-card message-row message-row-assistant relative px-3 sm:px-6 lg:px-8&quot;
++     data-locker-message-id=&quot;manual-only&quot;
++   &gt;
++     &lt;header
++       class=&quot;locker-card-origin&quot;
++     &gt;
++       &lt;span
++         class=&quot;source-dot &quot;
++       /&gt;
++       &lt;span
++         class=&quot;truncate&quot;
++       &gt;
++         Source One
++       &lt;/span&gt;
++       &lt;code
++         title=&quot;ses_one&quot;
++       &gt;
++         ses_one
++       &lt;/code&gt;
++       &lt;span
++         class=&quot;locker-status&quot;
++       &gt;
++         Locker msg
++       &lt;/span&gt;
++       &lt;button
++         aria-label=&quot;Mark unread&quot;
++         class=&quot;locker-read-toggle&quot;
++         title=&quot;Mark unread&quot;
++         type=&quot;button&quot;
++       &gt;
++         &lt;svg
++           aria-hidden=&quot;true&quot;
++           class=&quot;lucide lucide-circle&quot;
++           fill=&quot;none&quot;
++           height=&quot;12&quot;
++           stroke=&quot;currentColor&quot;
++           stroke-linecap=&quot;round&quot;
++           stroke-linejoin=&quot;round&quot;
++           stroke-width=&quot;2&quot;
++           viewBox=&quot;0 0 24 24&quot;
++           width=&quot;12&quot;
++           xmlns=&quot;http://www.w3.org/2000/svg&quot;
++         &gt;
++           &lt;circle
++             cx=&quot;12&quot;
++             cy=&quot;12&quot;
++             r=&quot;10&quot;
++           /&gt;
++         &lt;/svg&gt;
++       &lt;/button&gt;
++     &lt;/header&gt;
++     &lt;div&gt;
++       Manual reading only
++     &lt;/div&gt;
++     &lt;div
++       class=&quot;locker-delete-row&quot;
++     &gt;
++       &lt;button
++         class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-tertiary border-transparent px-2 py-1 text-xs &quot;
++       &gt;
++         &lt;svg
++           aria-hidden=&quot;true&quot;
++           class=&quot;lucide lucide-trash2 lucide-trash-2&quot;
++           fill=&quot;none&quot;
++           height=&quot;12&quot;
++           stroke=&quot;currentColor&quot;
++           stroke-linecap=&quot;round&quot;
++           stroke-linejoin=&quot;round&quot;
++           stroke-width=&quot;2&quot;
++           viewBox=&quot;0 0 24 24&quot;
++           width=&quot;12&quot;
++           xmlns=&quot;http://www.w3.org/2000/svg&quot;
++         &gt;
++           &lt;path
++             d=&quot;M10 11v6&quot;
++           /&gt;
++           &lt;path
++             d=&quot;M14 11v6&quot;
++           /&gt;
++           &lt;path
++             d=&quot;M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6&quot;
++           /&gt;
++           &lt;path
++             d=&quot;M3 6h18&quot;
++           /&gt;
++           &lt;path
++             d=&quot;M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2&quot;
++           /&gt;
++         &lt;/svg&gt;
++          Delete record
++       &lt;/button&gt;
++     &lt;/div&gt;
++   &lt;/article&gt;,
++   &lt;article
++     class=&quot;locker-card message-row message-row-assistant relative px-3 sm:px-6 lg:px-8&quot;
++     data-card-id=&quot;b&quot;
++   &gt;
++     &lt;header
++       class=&quot;locker-card-origin&quot;
++     &gt;
++       &lt;span
++         class=&quot;source-dot offline&quot;
++       /&gt;
++       &lt;span
++         class=&quot;truncate&quot;
++       &gt;
++         Source Two
++       &lt;/span&gt;
++       &lt;code
++         title=&quot;ses_two&quot;
++       &gt;
++         ses_two
++       &lt;/code&gt;
++       &lt;time
++         class=&quot;message-timestamp text-[11px] text-text-secondary select-none  &quot;
++         datetime=&quot;2026-10-23T02:00:00Z&quot;
++       &gt;
++         2026-10-23 10:00
++       &lt;/time&gt;
++       &lt;span
++         class=&quot;locker-status open&quot;
++       &gt;
++         Awaiting response
++       &lt;/span&gt;
++       &lt;button
++         aria-label=&quot;Mark card as unread&quot;
++         class=&quot;locker-read-toggle&quot;
++         title=&quot;Mark as unread&quot;
++         type=&quot;button&quot;
++       &gt;
++         &lt;svg
++           aria-hidden=&quot;true&quot;
++           class=&quot;lucide lucide-circle&quot;
++           fill=&quot;none&quot;
++           height=&quot;12&quot;
++           stroke=&quot;currentColor&quot;
++           stroke-linecap=&quot;round&quot;
++           stroke-linejoin=&quot;round&quot;
++           stroke-width=&quot;2&quot;
++           viewBox=&quot;0 0 24 24&quot;
++           width=&quot;12&quot;
++           xmlns=&quot;http://www.w3.org/2000/svg&quot;
++         &gt;
++           &lt;circle
++             cx=&quot;12&quot;
++             cy=&quot;12&quot;
++             r=&quot;10&quot;
++           /&gt;
++         &lt;/svg&gt;
++       &lt;/button&gt;
++     &lt;/header&gt;
++     &lt;h2
++       class=&quot;locker-card-title&quot;
++     &gt;
++       Card b
++     &lt;/h2&gt;
++     &lt;div&gt;
++       **Body**
++     &lt;/div&gt;
++     &lt;section
++       aria-label=&quot;Interaction response&quot;
++       class=&quot;locker-response&quot;
++     &gt;
++       &lt;fieldset
++         class=&quot;locker-choices&quot;
++       &gt;
++         &lt;legend&gt;
++           Choose an option
++         &lt;/legend&gt;
++         &lt;label
++           class=&quot;&quot;
++         &gt;
++           &lt;input
++             aria-label=&quot;Go&quot;
++             name=&quot;choice-b&quot;
++             type=&quot;radio&quot;
++             value=&quot;go&quot;
++           /&gt;
++           &lt;span&gt;
++             &lt;strong&gt;
++               Go
++             &lt;/strong&gt;
++             &lt;small&gt;
++               pause_everything 路 trusted Action
++             &lt;/small&gt;
++           &lt;/span&gt;
++         &lt;/label&gt;
++       &lt;/fieldset&gt;
++       &lt;label
++         class=&quot;locker-answer-label&quot;
++         for=&quot;answer-b&quot;
++       &gt;
++         Reply
++          
++         &lt;span&gt;
++           (optional)
++         &lt;/span&gt;
++         &lt;textarea
++           id=&quot;answer-b&quot;
++           maxlength=&quot;32000&quot;
++           placeholder=&quot;Add your answer or a note…&quot;
++           rows=&quot;3&quot;
++         /&gt;
++       &lt;/label&gt;
++       &lt;div
++         class=&quot;locker-card-actions&quot;
++       &gt;
++         &lt;button
++           class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-2 py-1 text-xs &quot;
++           disabled=&quot;&quot;
++         &gt;
++           Submit
++         &lt;/button&gt;
++         &lt;button
++           class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-tertiary border-transparent px-2 py-1 text-xs &quot;
++         &gt;
++           Reject
++         &lt;/button&gt;
++         &lt;span&gt;
++           Replies go only to the source.
++         &lt;/span&gt;
++       &lt;/div&gt;
++     &lt;/section&gt;
++   &lt;/article&gt;,
++ ]
+
+ ❯ src/views/LockerView.before.test.tsx:508:20
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Check, Circle, Trash2 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
@@ -43,29 +43,6 @@ export function LockerMessageRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const element = useRef<HTMLElement>(null);
-  const manual = useRef(false);
-  const marking = useRef(false);
-  useEffect(() => {
-    if (hidden || item.read || manual.current || typeof IntersectionObserver === 'undefined')
-      return;
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting) || marking.current) return;
-      marking.current = true;
-      void lockerRequest<{ message: LockerMessage }>(
-        `/api/user-locker-messages/${item.id}/read`,
-        'PUT',
-        { read: true },
-      )
-        .then((result) => update(result.message))
-        .catch((value) => setError(String(value)))
-        .finally(() => {
-          marking.current = false;
-        });
-    });
-    if (element.current) observer.observe(element.current);
-    return () => observer.disconnect();
-  }, [hidden, item.id, item.read, update]);
   const act = async (operation: 'read' | 'delete') => {
     if (busy) return;
     setBusy(true);
@@ -75,7 +52,6 @@ export function LockerMessageRow({
         await lockerRequest(`/api/user-locker-messages/${item.id}`, 'DELETE');
         remove(item.id);
       } else {
-        manual.current = true;
         const result = await lockerRequest<{ message: LockerMessage }>(
           `/api/user-locker-messages/${item.id}/read`,
           'PUT',
@@ -125,7 +101,6 @@ export function LockerMessageRow({
   };
   return (
     <article
-      ref={element}
       hidden={hidden}
       data-locker-message-id={item.id}
       className={`locker-card message-row message-row-${item.message.role === 'user' ? 'user' : 'assistant'} relative px-3 sm:px-6 lg:px-8`}

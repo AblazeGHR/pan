@@ -42,7 +42,7 @@ class Ledger:
             atomic(self.path, state)
             return copy.deepcopy(result)
 
-    def put(self, raw, expected, authorized=False, creator=None):
+    def put(self, raw, expected, authorized=False, creator=None, authority=None):
         def change(state):
             item = copy.deepcopy(raw)
             allowed = {'id', 'name', 'description', 'eventTypes', 'condition', 'actionId', 'arguments', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
@@ -86,6 +86,7 @@ class Ledger:
             if old and item['maxConcurrency'] < sum(r['triggerId']==tid and r['status']=='running' for r in state['runs'].values()):
                 raise Conflict('Running Run count exceeds new concurrency; wait before lowering limit')
             item.update(revision=expected + 1, createdBy=old['createdBy'] if old else (creator or {'type': 'agent'}), createdAt=old['createdAt'] if old else now(), updatedAt=now())
+            item['authorization'] = copy.deepcopy(authority or {'type': 'user'})
             state['triggers'][tid] = item
             if not enabled:
                 for run in state['runs'].values():
@@ -96,6 +97,13 @@ class Ledger:
                         self.sync_attempt(run)
             return item
         return self.mutate(change)
+
+    def set_enabled(self, tid, enabled, expected, authority):
+        with self.lock:
+            old=self.read()['triggers'][tid]
+            raw={k:v for k,v in old.items() if k not in {'revision','createdBy','createdAt','updatedAt','authorization'}}
+            raw['enabled']=enabled
+            return self.put(raw,expected,True,authority=authority)
 
     def delete(self, tid, expected):
         def change(state):
@@ -150,7 +158,7 @@ class Ledger:
                 return
             self.mutate(change)
 
-    def claim(self, rid):
+    def claim(self, rid, authorization_revision=None):
         def change(state):
             run = state['runs'][rid]
             if run['status'] not in {'queued', 'retry_wait'} or not run.get('admitted', True):
@@ -183,11 +191,23 @@ class Ledger:
                     run.pop('retryAuthorized', None)
                     return None
                 attempts.append(dict(id='att_' + uuid.uuid4().hex, number=len(attempts)+1, status='running', startedAt=started_at, reason=run['retryAuthorized']))
-            run.update(status='running', startedAt=started_at, revision=run['revision'] + 1)
+            run.update(status='running', startedAt=started_at, revision=run['revision'] + 1,
+                       authorizationRevision=authorization_revision)
             for key in ('finishedAt', 'error', 'result', 'nextAttemptAt', 'retryAuthorized', 'waitingReason'):
                 run.pop(key, None)
             run['attemptCount'] = len(attempts)
             run['activeAttemptId'] = attempts[-1]['id']
+            self.sync_attempt(run)
+            return run
+        return self.mutate(change)
+
+    def block_pending(self, rid, expected, reason, status='failed'):
+        def change(state):
+            run=state['runs'][rid]
+            if run['revision']!=expected or run['status'] not in {'queued','retry_wait'}:
+                return None
+            run.update(status=status,error=reason,finishedAt=now(),revision=expected+1)
+            run.pop('nextAttemptAt',None);run.pop('retryAuthorized',None)
             self.sync_attempt(run)
             return run
         return self.mutate(change)
@@ -244,7 +264,7 @@ class Ledger:
             return run
         return self.mutate(change)
 
-    def confirm_uncertain(self, rid, expected, max_pending=1024):
+    def confirm_uncertain(self, rid, expected, max_pending=1024, authority=None):
         def change(state):
             run = state['runs'][rid]
             if type(expected) is not int or run['revision'] != expected or run['status'] != 'uncertain':
@@ -257,7 +277,8 @@ class Ledger:
                 raise Conflict('Total attempt limit reached')
             if sum(r['status'] in {'queued','running','retry_wait'} for r in state['runs'].values()) >= max_pending:
                 raise Conflict('Trigger backlog full')
-            run.update(status='queued', admitted=True, retryAuthorized='user-confirmed', revision=run['revision']+1)
+            run.update(status='queued', admitted=True, retryAuthorized='user-confirmed', revision=run['revision']+1,
+                       authorization=copy.deepcopy(authority or {'type':'user'}))
             run.pop('nextAttemptAt', None)
             return run
         return self.mutate(change)

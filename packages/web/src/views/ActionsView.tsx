@@ -1,3 +1,4 @@
+import { useAutomationAuth } from '@/stores/automationStore';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { actionRequest } from '@/services/api';
@@ -70,6 +71,7 @@ type ActionRegistryWithItem = import('@/types/actions').ActionRegistry & {
 };
 
 export default function ActionsView() {
+  const authorizationToken = useAutomationAuth((state) => state.token);
   const registry = useActionRegistryStore((state) => state.registry);
   const hasLoaded = useActionRegistryStore((state) => state.hasLoaded);
   const status = useActionRegistryStore((state) => state.status);
@@ -97,7 +99,7 @@ export default function ActionsView() {
     const onFocus = () => useActionRegistryStore.getState().maybeRevalidate();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, []);
+  }, [authorizationToken]);
 
   useEffect(() => {
     if (!editor || !isEditorDirty(editor)) return;

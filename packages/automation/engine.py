@@ -77,6 +77,25 @@ class Engine:
         self.diagnostics = deque(maxlen=100)
         self.closed = False
         self.matching = asyncio.Lock()
+        self.authorization = None
+
+    async def _check_authorization(self, source, action=None, expected_revision=None):
+        if source.get('type') != 'agent':
+            return None
+        if self.authorization is None:
+            raise PermissionError('Delegated authorization unavailable')
+        required = [('job', 'execute')]
+        if action and action.get('system'):
+            required.append(('action', 'manageSystemActions'))
+        revision_value = None
+        for kind, capability in required:
+            allowed, current = await self.io(self.authorization, kind, capability)
+            if not allowed or (expected_revision is not None and current != expected_revision):
+                raise PermissionError('Delegated authorization revoked before effect admission')
+            if revision_value is not None and current != revision_value:
+                raise PermissionError('Delegated authorization changed during admission')
+            revision_value = current
+        return revision_value
 
     async def io(self, fn, *args, **kw):
         # Settle writes before propagating cancellation; no orphan disk writer.
@@ -119,6 +138,8 @@ class Engine:
                     continue
                 run = dict(id='run_' + uuid.uuid4().hex, triggerId=trigger['id'], triggerRevision=trigger['revision'], actionId=trigger['actionId'], event=copy.deepcopy(event), createdAt=now(), status='queued', admitted=False, arguments={}, state={})
                 try:
+                    run['authorization'] = copy.deepcopy(trigger.get('authorization', {'type':'user'}))
+                    await self._check_authorization(run['authorization'])
                     if obsolete:
                         run.update(status='cancelled', finishedAt=now(), error='Trigger changed before event delivery')
                     elif pending >= self.max_pending:
@@ -237,7 +258,16 @@ class Engine:
                         if remaining > 0:
                             delay = remaining if delay is None else min(delay, remaining)
                             continue
-                    claimed = await self.io(self.ledger.claim, run['id'])
+                    current_action = (await self.io(self.actions.read))['actions'].get(run['actionId'])
+                    if not current_action or not current_action.get('enabled'):
+                        await self.io(self.ledger.block_pending, run['id'], run['revision'], 'Action changed: disabled or missing')
+                        continue
+                    try:
+                        authorization_revision = await self._check_authorization(run.get('authorization', {'type':'user'}))
+                    except PermissionError:
+                        await self.io(self.ledger.block_pending, run['id'], run['revision'], 'Authorization revoked', 'cancelled')
+                        continue
+                    claimed = await self.io(self.ledger.claim, run['id'], authorization_revision)
                     if self.closed:
                         return
                     if not claimed:
@@ -305,6 +335,10 @@ class Engine:
                 nonlocal effect_started
                 # No await between the current Bus fence and the business call.
                 # Shared executors call again after query/checkpoint/verification.
+                current_action = (await self.io(self.actions.read))['actions'].get(run['actionId'])
+                if not current_action or not current_action.get('enabled'):
+                    raise PermissionError('Action disabled before effect admission')
+                await self._check_authorization(run.get('authorization', {'type':'user'}), action, run.get('authorizationRevision'))
                 if self.closed or not trigger or not self.available(trigger):
                     raise DependencyUnavailable('Event dependency unavailable before effect')
                 effect_started = True
@@ -323,9 +357,10 @@ class Engine:
                     await self.io(verify,run['event'])
                 progress.verify_interaction=verify_effect
             if getattr(self, 'job_runtime', None):
-                progress.instantiate_template = self.job_runtime.instantiate_action
+                progress.instantiate_template = lambda a,key:self.job_runtime.instantiate_action(a,key,authority=run.get('authorization', {'type':'user'}),authorization_revision=run.get('authorizationRevision'))
             if self.closed or not trigger or not self.available(trigger):
                 raise DependencyUnavailable('Event dependency unavailable before effect')
+            await self._check_authorization(run.get('authorization', {'type':'user'}), action, run.get('authorizationRevision'))
             result = await self.execute(action, run['arguments'], run['event'], progress)
             ok = not result.get('isError', False) and result.get('ok', True)
             try:
@@ -342,7 +377,7 @@ class Engine:
             elif isinstance(exc, (PersistenceError, DependencyUnavailable, CleanupUnconfirmed)):
                 await self.io(self.ledger.interrupt, rid, run['activeAttemptId'], str(exc))
             else:
-                retryable=not isinstance(exc, Conflict) and not (interaction and getattr(exc,'code',None) in {'stale','incomplete','forbidden'})
+                retryable=not isinstance(exc, (Conflict, PermissionError)) and not (interaction and getattr(exc,'code',None) in {'stale','incomplete','forbidden'})
                 await self.io(self.ledger.finish, rid, 'failed', retryable=retryable, error=str(exc))
 
     async def close(self):

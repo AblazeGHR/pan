@@ -1,0 +1,13 @@
+{
+  "lockerMainCandidate": {
+    "../../src/stores/actionRegistryStore.ts": "actionRegistryStore-2pUi6I2N.js.map",
+    "../../src/views/LockerMessageRow.tsx": "LockerView-DXjZGjYq.js.map",
+    "../../src/views/LockerView.tsx": "LockerView-DXjZGjYq.js.map"
+  },
+  "combined": {
+    "../../src/stores/actionRegistryStore.ts": "automationStore-CA8MJGyZ.js.map",
+    "../../src/views/LockerMessageRow.tsx": "LockerView-XWzMDmtp.js.map",
+    "../../src/views/LockerView.tsx": "LockerView-XWzMDmtp.js.map"
+  },
+  "combinedIndexHtml": "<!DOCTYPE html>\n<html lang=\"zh\" class=\"dark\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content\" />\n    <meta name=\"color-scheme\" content=\"dark light\" />\n    <title>Pan</title>\n    <script type=\"module\" crossorigin src=\"/react/assets/index-Ds_znnYB-pc2.js\"></script>\n    <link rel=\"modulepreload\" crossorigin href=\"/react/assets/react-vendor-DZ42Ocw1.js\">\n    <link rel=\"stylesheet\" crossorigin href=\"/react/assets/index-t1BeNpq3.css\">\n  </head>\n  <body class=\"bg-bg-primary text-text-primary\">\n    <div id=\"root\"></div>\n\n  </body>\n</html>\n"
+}

@@ -23,7 +23,11 @@ async def execute(action, arguments, *, before_effect=None):
     action = await asyncio.to_thread(validate_action, action, automation=False)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action is disabled or requires an approval policy')
-    jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    try:
+        jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    except jsonschema.ValidationError as exc:
+        category = 'Additional properties' if exc.validator == 'additionalProperties' else str(exc.validator)
+        raise ValueError('Action argument ' + category + ' validation failed') from None
     values = dict(arguments)
     for key, schema in action['input_schema'].get('properties', {}).items():
         if key not in values and isinstance(schema, dict) and 'default' in schema:
@@ -95,7 +99,7 @@ async def execute(action, arguments, *, before_effect=None):
                 raise process_wait.CleanupUnconfirmed('Command cleanup could not be confirmed') from cleanup_error
             raise
         if process.returncode:
-            raise RuntimeError(f'Command exited {process.returncode}: {err[:2000]}')
+            raise RuntimeError(f'Command exited {process.returncode}')
         result = out if action['output_format'] == 'text' else json.loads(out)
     reply = {'content': [{'type': 'text', 'text': result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)}],
             **({'structuredContent': result} if isinstance(result, dict) else {}), 'isError': False}

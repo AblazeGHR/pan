@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 D:/project/Pan/data/workdirs/authorization-mcp-capabilities-20261024-candidate/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (2 tests) 3ms
+ ✓ components/layout/AuthorizationSettings.test.tsx (2 tests) 124ms
+ ✓ views/LockerView.test.tsx (19 tests) 1509ms
+
+ Test Files  3 passed (3)
+      Tests  23 passed (23)
+   Start at  14:18:18
+   Duration  3.83s (transform 358ms, setup 21ms, collect 924ms, tests 1.64s, environment 1.23s, prepare 388ms)

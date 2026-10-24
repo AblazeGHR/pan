@@ -23,4 +23,4 @@ def test_template_revision_and_query_forward_without_overrides(monkeypatch):
          'trigger':{'kind':'event','eventTypes':['owned.e'],'query':{'field':'pinned','op':'eq','value':True}},'enabled':False}
     server.job_config_drafts('put','template',cfg,'jtpl_one',9)
     assert calls[0]==('PUT','/api/jobs/job-templates/jtpl_one',
-        {'item':{'id':'jtpl_one','name':'fixed','enabled':False,'config':cfg},'expectedRevision':9})
+        {'item':{'id':'jtpl_one','name':'fixed','config':cfg},'expectedRevision':9})

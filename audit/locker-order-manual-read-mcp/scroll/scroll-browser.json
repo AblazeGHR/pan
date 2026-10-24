@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "aggregate: latest 50 mixed messages/Cards in chronological DOM order, initially at bottom",
+    "real source Locker also enters at latest bottom",
+    "scroll-top display pagination prepends 50 older mixed rows and keeps original anchor",
+    "refresh with new arrival while reading old rows preserves position and sends no read mutations",
+    "switching to aggregate re-enters latest bottom without marking read",
+    "explicit user read survives browser reload and login without further writes"
+  ],
+  "errors": [],
+  "writes": [
+    "http://127.0.0.1:49667/api/user-locker-messages/lmsg_d8a51dadbd3c616574735975853580d06b6e92363470216571b3c8eec579992f/read"
+  ]
+}

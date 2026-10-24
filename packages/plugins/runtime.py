@@ -234,6 +234,17 @@ class Runtime:
         if self.closing:
             return error("runtime_stopping", "Plugin runtime is stopping")
         sid, op = request["session_id"], request["operation"]
+        if op == "authorization_objects":
+            # Same-user IPC is the provenance boundary, never a claimed HTTP
+            # header. Bound Session callers also retain the existing core gate.
+            if sid:
+                _, _, bindings = await io(self.context, sid)
+                if not any(b['enabled'] and b['plugin_id'] == 'pan' for b in bindings):
+                    return {'ok': False, 'error': {'code': 403, 'message': 'Pan core disabled'}}
+            callback = getattr(self, 'authorization_objects', None)
+            if callback is None:
+                return {'ok': False, 'error': {'code': 403, 'message': 'Pan core transport unavailable'}}
+            return await callback(request.get('method'), request.get('path'), request.get('body'))
         view, plugin = request.get("view", "gateway"), request.get("plugin")
         if op == "core_enabled":
             _, _, bindings = await io(self.context, sid)

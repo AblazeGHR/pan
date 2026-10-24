@@ -719,6 +719,42 @@
           }
         }
       }
+    },
+    "LockerMessageProducer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "operation",
+            "message"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "create"
+            },
+            "message": {
+              "$ref": "#/$defs/LockerMessage"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "operation",
+            "messageId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "operation": {
+              "const": "get"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        }
+      ]
     }
   },
   "$ref": "#/$defs/Card"

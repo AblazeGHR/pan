@@ -1,0 +1,16 @@
+{
+  "port": 49667,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data",
+  "apiInterception": false,
+  "identity": {
+    "pid": 49984,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4137\\test_locker_order_scroll_live0\\profile\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\locker-order-manual-read-mcp-20261024\\tests\\support\\fake_stream_cli.py"
+  },
+  "browserExitCode": 0,
+  "portReleased": true
+}

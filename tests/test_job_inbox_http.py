@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Real owned HTTP: Job receipts and Locker delivery share safe Session Queue."""
 import json
 from pathlib import Path
@@ -15,7 +16,7 @@ OUT=Path('artifacts/job-inbox-followup/http')
 def test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak(tmp_path,monkeypatch):
     assert h.PORT not in (8767,8768)
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
-    rt=h._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+    rt=h._PanRuntime(tmp_path/'data'); authenticate_user_requests(rt);rt.data_root.mkdir()
     root=Path(__file__).resolve().parents[1]
     (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},'memory':{'enabled':False},
         'plugin_manifests':[str(root/'manifest.json'),str(root/'packages/mcp/manifest.json')]}),encoding='utf-8')
@@ -61,7 +62,7 @@ def test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_
         assert len(rt.request('POST','/api/agent-inbox/read',json={'lockerId':notice_lid})['messages'])==2
         assert not h._received(rt,text='JOB_BUSINESS') and not h._received(rt,text=lambda text:'INBOX_FULL_BODY' in text)
         # Template grant can be enabled while copied Jobs stay disabled.
-        template=rt.request('POST','/api/jobs/job-templates',json={'item':{'name':'disabled instance','enabled':True,
+        template=rt.request('POST','/api/jobs/job-templates',json={'item':{'name':'disabled instance',
             'config':{**cfg,'enabled':False}},'expectedRevision':0},headers=auth)['item']
         body={'expectedRevision':template['revision'],'idempotencyKey':'owned-fixed'}
         copied=rt.request('POST',f"/api/jobs/job-templates/{template['id']}/instantiate",json=body,headers=auth)['job']

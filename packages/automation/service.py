@@ -30,6 +30,7 @@ class Service:
                 return sum(w.status == 'running' for w in worker.workers.values())
             raise ValueError('Unknown State field: ' + str(key))
         self.engine = Engine(self.ledger, self.bus, Store(), partial(execute_dynamic, pause=pause), state_reader)
+        self.engine.authorization = self.auth.permission_allowed
         self.previous = sum(w.status == 'running' for w in worker.workers.values())
         self.ingress = asyncio.Queue(128)
         self.wake = asyncio.Event()
@@ -242,6 +243,9 @@ class Service:
         from packages.jobs.action_runtime import Runtime
         from packages.scheduler.store import data_root
         self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        # Runtime rechecks the same profile-wide capability and revision at
+        # dispatch and immediately before the provider effect.
+        self.job_runtime.authorization = self.auth.permission_allowed
         self.job_runtime.event_available = self.bus.available
         await self.job_runtime.start()
         self.engine.job_runtime = self.job_runtime

@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Real loopback HTTP + deterministic fake stream CLI; never a paid provider."""
 import json
 import os
@@ -14,7 +15,7 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
     assert harness.PORT not in {8767, 8768}
     launcher = Path(__file__).parent / 'support' / 'automation_http_server.py'
     monkeypatch.setattr(harness, 'SERVER_LAUNCHER', launcher)
-    runtime = harness._PanRuntime(tmp_path / 'owned-profile')
+    runtime = harness._PanRuntime(tmp_path / 'owned-profile'); authenticate_user_requests(runtime)
     runtime.data_root.mkdir(parents=True)
     # Poisoned parent directories are represented by an owned sentinel only.
     sentinel = tmp_path / 'simulated-practical' / 'sentinel'

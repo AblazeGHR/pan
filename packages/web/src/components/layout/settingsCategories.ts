@@ -9,6 +9,7 @@ export const SETTINGS_CATEGORY_ORDER = [
   'adapters',
   'plugins',
   'data',
+  'authorization',
 ] as const;
 
 export type SettingsCategory = (typeof SETTINGS_CATEGORY_ORDER)[number];

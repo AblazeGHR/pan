@@ -235,7 +235,8 @@ async def test_action_change_during_backoff_fails_without_new_effect(tmp_path):
         clock[0]+=1;await engine.kick()
         row=(await wait_status(engine,'failed'))[0]
         assert len(calls)==1 and 'Action changed' in row['error']
-        assert row['attemptCount']==2 and row['attempts'][0]['status']=='failed'
+        assert row['attemptCount']==1 and len(row['attempts'])==1 and row['attempts'][0]['status']=='failed'
+        assert 'nextAttemptAt' not in row and 'retryAuthorized' not in row
     finally:await engine.close()
 
 

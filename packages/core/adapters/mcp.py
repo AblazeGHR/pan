@@ -157,7 +157,7 @@ def build_mcp_servers(s: Session) -> dict[str, dict]:
         if name in _PAN_IDENTITY_SERVERS or module == "packages.plugins.mcp":
             env[_PAN_SESSION_ID_ENV] = s.id
             env[_PAN_SESSION_TITLE_ENV] = s.name
-            if module == "packages.plugins.mcp" and os.environ.get("PAN_PLUGIN_IPC"):
+            if module in {"packages.plugins.mcp", "packages.mcp.server"} and os.environ.get("PAN_PLUGIN_IPC"):
                 env["PAN_PLUGIN_IPC"] = os.environ["PAN_PLUGIN_IPC"]
             entry["env"] = env
         elif name in _PAN_API_SERVERS and env:

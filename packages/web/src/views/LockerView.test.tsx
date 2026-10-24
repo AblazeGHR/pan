@@ -464,3 +464,50 @@ describe('Locker panel', () => {
     expect(payloads[0]).toBe(payloads[1]);
   });
 });
+
+it('never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches', async () => {
+  const observed: Element[] = [];
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(element: Element) {
+        observed.push(element);
+        this.callback(
+          [{ isIntersecting: true, target: element } as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        );
+      }
+      disconnect() {}
+    },
+  );
+  messages = [
+    {
+      kind: 'message',
+      id: 'manual-only',
+      lockerId: 'l1',
+      ownerSessionId: 'ses_one',
+      recipientId: 'user',
+      read: false,
+      revision: 0,
+      createdAt: '2026-10-23T01:30:00Z',
+      message: { messageId: 'manual-only', role: 'assistant', content: 'Manual reading only' },
+    },
+  ];
+  mount();
+  await screen.findByText('Manual reading only', { selector: 'article div' });
+  fireEvent.scroll(screen.getByRole('region', { name: 'Locker messages' }));
+  fireEvent.click(screen.getByTestId('locker-source-l1'));
+  fireEvent.click(screen.getByText('All Lockers'));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh Locker' }));
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Refresh Locker' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
+  );
+  expect(observed).toEqual([]);
+  expect(calls.filter((call) => call.path.endsWith('/read'))).toEqual([]);
+  fireEvent.click(screen.getByRole('button', { name: /^Mark read$/ }));
+  await screen.findByRole('button', { name: /^Mark unread$/ });
+  expect(calls.filter((call) => call.path.endsWith('/read'))).toHaveLength(1);
+});

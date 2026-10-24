@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Cross-line Node -> query -> real Pause -> production Chromium plus restart fencing."""
 from dataclasses import asdict
 import json
@@ -24,7 +25,7 @@ OUT = Path('artifacts/eta-final')
 def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypatch):
     assert h.PORT not in {8767, 8768}
     monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/automation_http_server.py')
-    rt = h._PanRuntime(tmp_path / 'combined-profile')
+    rt = h._PanRuntime(tmp_path / 'combined-profile'); authenticate_user_requests(rt)
     rt.data_root.mkdir()
     m = manifest()
     mf = tmp_path / 'plugins.json'
@@ -77,7 +78,7 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         OUT.mkdir(parents=True,exist_ok=True)
         browser_input=OUT/'browser-input.json'
         browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id']}),encoding='utf-8')
-        browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())
+        browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(OUT.resolve())],capture_output=True,text=True,encoding='utf-8',env={**os.environ,'PAN_TEST_JOB_KEY':(rt.data_root/'automation/user.key').read_text(encoding='utf-8')},timeout=70,**command_window_options())
         (OUT/'browser.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
         assert browser.returncode==0, browser.stderr
         assert 'UTF-8 \U0001f9ea' in browser.stdout
@@ -141,7 +142,7 @@ def test_node_query_pause_production_ui_restart_and_delay_mcp(tmp_path, monkeypa
         recovery_out=OUT/'recovery'
         recovery_out.mkdir(exist_ok=True)
         browser_input.write_text(json.dumps({'runId':run['id'],'targetId':target['id'],'uncertainId':'restart-running','queuedId':'restart-queued'}),encoding='utf-8')
-        browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(recovery_out.resolve())],capture_output=True,text=True,encoding='utf-8',timeout=70,**command_window_options())
+        browser=subprocess.run(['node','packages/web/e2e/eta-final-combined.mjs',rt.base_url,str(browser_input.resolve()),str(recovery_out.resolve())],capture_output=True,text=True,encoding='utf-8',env={**os.environ,'PAN_TEST_JOB_KEY':(rt.data_root/'automation/user.key').read_text(encoding='utf-8')},timeout=70,**command_window_options())
         (OUT/'browser-recovery.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
         assert browser.returncode==0,browser.stderr
         assert 'UTF-8 \U0001f9ea' in browser.stdout

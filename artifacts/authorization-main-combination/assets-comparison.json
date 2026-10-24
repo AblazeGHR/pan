@@ -1,0 +1,621 @@
+{
+  "combined": [
+    {
+      "name": "ActionsView-5rGcqsPE.css",
+      "bytes": 2110,
+      "compressed": true
+    },
+    {
+      "name": "ActionsView-CIC08LV2.js",
+      "bytes": 72255,
+      "compressed": true
+    },
+    {
+      "name": "AppSettingsModal-SUNBh4v-.js",
+      "bytes": 115918,
+      "compressed": true
+    },
+    {
+      "name": "AutomationView-CXXQ_ux0.js",
+      "bytes": 25523,
+      "compressed": true
+    },
+    {
+      "name": "ChatView-oGGRlTgq.js",
+      "bytes": 242867,
+      "compressed": true
+    },
+    {
+      "name": "CodeEditor-DmhTUWOJ.js",
+      "bytes": 2592,
+      "compressed": true
+    },
+    {
+      "name": "DetailPanel-DGlzzPOO.js",
+      "bytes": 2569,
+      "compressed": true
+    },
+    {
+      "name": "DirectoryInput-Cv65ZtVS.js",
+      "bytes": 5125,
+      "compressed": true
+    },
+    {
+      "name": "EditorDirectoryRoots-Dj_0evry.js",
+      "bytes": 11546,
+      "compressed": true
+    },
+    {
+      "name": "EditorView-DKlLJabc.js",
+      "bytes": 13251,
+      "compressed": true
+    },
+    {
+      "name": "FreshnessStatus-B84S4JfO.js",
+      "bytes": 1201,
+      "compressed": true
+    },
+    {
+      "name": "GlobalHistorySearch-DuqsmIiD.js",
+      "bytes": 11155,
+      "compressed": true
+    },
+    {
+      "name": "ImportModal-ByxUyxzI.js",
+      "bytes": 17641,
+      "compressed": true
+    },
+    {
+      "name": "JobRetentionSettings-CP8IVEBV.js",
+      "bytes": 6608,
+      "compressed": true
+    },
+    {
+      "name": "JobUserAuthorization-CnOXpwgz.js",
+      "bytes": 1547,
+      "compressed": true
+    },
+    {
+      "name": "JobsView-DNi2Nk-D.js",
+      "bytes": 65579,
+      "compressed": true
+    },
+    {
+      "name": "LockerView-LR5SH6UQ.css",
+      "bytes": 9786,
+      "compressed": true
+    },
+    {
+      "name": "LockerView-XWzMDmtp.js",
+      "bytes": 23401,
+      "compressed": true
+    },
+    {
+      "name": "ManageModal-BcDOTCp-.js",
+      "bytes": 27725,
+      "compressed": true
+    },
+    {
+      "name": "ManageView-DN8Uslp0.js",
+      "bytes": 1679,
+      "compressed": true
+    },
+    {
+      "name": "MarkdownRenderer-B24k7XkR.js",
+      "bytes": 35775,
+      "compressed": true
+    },
+    {
+      "name": "MarkdownRenderer-BEHUn5zE.css",
+      "bytes": 1316,
+      "compressed": true
+    },
+    {
+      "name": "MessageTimestamp-CidapqOq.js",
+      "bytes": 1241,
+      "compressed": true
+    },
+    {
+      "name": "NativeTerminal-BIUv2ExK.js",
+      "bytes": 3231,
+      "compressed": true
+    },
+    {
+      "name": "NewJobForm-B6dvIFK_.js",
+      "bytes": 25867,
+      "compressed": true
+    },
+    {
+      "name": "NewSessionModal-DTPh6upH.js",
+      "bytes": 28642,
+      "compressed": true
+    },
+    {
+      "name": "PluginPanelView-DnUgLBBz.js",
+      "bytes": 16886,
+      "compressed": true
+    },
+    {
+      "name": "PluginSelection-CdcxfQbi.js",
+      "bytes": 1893,
+      "compressed": true
+    },
+    {
+      "name": "PostboxModal-D43AOCvT.js",
+      "bytes": 9768,
+      "compressed": true
+    },
+    {
+      "name": "ScheduleListEditor-Nlk97J1i.js",
+      "bytes": 16808,
+      "compressed": true
+    },
+    {
+      "name": "SessionDetailsModal-D8ijxuSi.js",
+      "bytes": 13693,
+      "compressed": true
+    },
+    {
+      "name": "SessionHistorySearch-DBkM9X4x.js",
+      "bytes": 14253,
+      "compressed": true
+    },
+    {
+      "name": "SessionOperationFields-lTdUxuO9.js",
+      "bytes": 27992,
+      "compressed": true
+    },
+    {
+      "name": "TerminalPanel-hdKB4evq.js",
+      "bytes": 16023,
+      "compressed": true
+    },
+    {
+      "name": "arrow-left-Cp__32ZV.js",
+      "bytes": 389,
+      "compressed": false
+    },
+    {
+      "name": "automationStore-CA8MJGyZ.js",
+      "bytes": 8728,
+      "compressed": true
+    },
+    {
+      "name": "check-DHafOm5c.js",
+      "bytes": 338,
+      "compressed": false
+    },
+    {
+      "name": "clipboard-Bka3b3-h.js",
+      "bytes": 609,
+      "compressed": false
+    },
+    {
+      "name": "codexRateLimits-D0VsjuO0.js",
+      "bytes": 2752,
+      "compressed": true
+    },
+    {
+      "name": "copy-CECilNGY.js",
+      "bytes": 449,
+      "compressed": false
+    },
+    {
+      "name": "download-8GQKKMnN.js",
+      "bytes": 454,
+      "compressed": false
+    },
+    {
+      "name": "editorFileLinks-DrlOhaen.js",
+      "bytes": 3726,
+      "compressed": true
+    },
+    {
+      "name": "external-link-D9iwFKt-.js",
+      "bytes": 478,
+      "compressed": false
+    },
+    {
+      "name": "file-D2J1Y0vN.js",
+      "bytes": 488,
+      "compressed": false
+    },
+    {
+      "name": "globe-CIb3vFuw.js",
+      "bytes": 456,
+      "compressed": false
+    },
+    {
+      "name": "index-Ds_znnYB-pc2.js",
+      "bytes": 415355,
+      "compressed": true
+    },
+    {
+      "name": "index-t1BeNpq3.css",
+      "bytes": 116511,
+      "compressed": true
+    },
+    {
+      "name": "markdown-vendor-B3UHhm0a.js",
+      "bytes": 602562,
+      "compressed": true
+    },
+    {
+      "name": "monaco-vendor-fGo_w72f.js",
+      "bytes": 14962,
+      "compressed": true
+    },
+    {
+      "name": "nativeControlStore-C5JrRQBA.js",
+      "bytes": 4290,
+      "compressed": true
+    },
+    {
+      "name": "pause-DDJ_AHLy.js",
+      "bytes": 430,
+      "compressed": false
+    },
+    {
+      "name": "play-MLK5PRXr.js",
+      "bytes": 408,
+      "compressed": false
+    },
+    {
+      "name": "qqContactSearch-D2sUIpkN.js",
+      "bytes": 1332,
+      "compressed": true
+    },
+    {
+      "name": "react-vendor-DZ42Ocw1.js",
+      "bytes": 288180,
+      "compressed": true
+    },
+    {
+      "name": "refresh-cw-Qh5hN6Y6.js",
+      "bytes": 545,
+      "compressed": false
+    },
+    {
+      "name": "shield-check-3wFQkJOT.js",
+      "bytes": 541,
+      "compressed": false
+    },
+    {
+      "name": "terminal-DfNNVWGw.js",
+      "bytes": 860,
+      "compressed": false
+    },
+    {
+      "name": "useSessionWorkspace-DiJ40kBf.js",
+      "bytes": 488,
+      "compressed": false
+    },
+    {
+      "name": "user-round-CHiT6cwV.js",
+      "bytes": 401,
+      "compressed": false
+    },
+    {
+      "name": "xterm-6GBZ9nXN.css",
+      "bytes": 5244,
+      "compressed": true
+    },
+    {
+      "name": "xterm-XOw-FC4b.js",
+      "bytes": 334255,
+      "compressed": true
+    }
+  ],
+  "lockerMainCandidate": [
+    {
+      "name": "ActionsView-5rGcqsPE.css",
+      "bytes": 2110,
+      "compressed": true
+    },
+    {
+      "name": "ActionsView-D-yrVptl.js",
+      "bytes": 72230,
+      "compressed": true
+    },
+    {
+      "name": "AppSettingsModal-Cga6qcQI.js",
+      "bytes": 109454,
+      "compressed": true
+    },
+    {
+      "name": "AutomationView-eoRv4owg.js",
+      "bytes": 25646,
+      "compressed": true
+    },
+    {
+      "name": "ChatView-BcHmyo57.js",
+      "bytes": 242867,
+      "compressed": true
+    },
+    {
+      "name": "CodeEditor-Cz3fLyYY.js",
+      "bytes": 2592,
+      "compressed": true
+    },
+    {
+      "name": "DetailPanel-B-X8DUsh.js",
+      "bytes": 2569,
+      "compressed": true
+    },
+    {
+      "name": "DirectoryInput-UeMP_IX2.js",
+      "bytes": 5125,
+      "compressed": true
+    },
+    {
+      "name": "EditorDirectoryRoots-CeVIbRD9.js",
+      "bytes": 11546,
+      "compressed": true
+    },
+    {
+      "name": "EditorView-3oCJ-IO_.js",
+      "bytes": 13251,
+      "compressed": true
+    },
+    {
+      "name": "FreshnessStatus-B84S4JfO.js",
+      "bytes": 1201,
+      "compressed": true
+    },
+    {
+      "name": "GlobalHistorySearch-GxecNlnL.js",
+      "bytes": 11155,
+      "compressed": true
+    },
+    {
+      "name": "ImportModal-CJelUJ6a.js",
+      "bytes": 17641,
+      "compressed": true
+    },
+    {
+      "name": "JobRetentionSettings-BNNWyrMl.js",
+      "bytes": 6608,
+      "compressed": true
+    },
+    {
+      "name": "JobUserAuthorization-Bv6g0OSY.js",
+      "bytes": 1602,
+      "compressed": true
+    },
+    {
+      "name": "JobsView-C1Eiukid.js",
+      "bytes": 66128,
+      "compressed": true
+    },
+    {
+      "name": "LockerView-DXjZGjYq.js",
+      "bytes": 23459,
+      "compressed": true
+    },
+    {
+      "name": "LockerView-LR5SH6UQ.css",
+      "bytes": 9786,
+      "compressed": true
+    },
+    {
+      "name": "ManageModal-COcn_zii.js",
+      "bytes": 27725,
+      "compressed": true
+    },
+    {
+      "name": "ManageView-C2_2hN7E.js",
+      "bytes": 1679,
+      "compressed": true
+    },
+    {
+      "name": "MarkdownRenderer-BEHUn5zE.css",
+      "bytes": 1316,
+      "compressed": true
+    },
+    {
+      "name": "MarkdownRenderer-BJLrFUE7.js",
+      "bytes": 35775,
+      "compressed": true
+    },
+    {
+      "name": "MessageTimestamp-CidapqOq.js",
+      "bytes": 1241,
+      "compressed": true
+    },
+    {
+      "name": "NativeTerminal-C6KIDOhr.js",
+      "bytes": 3231,
+      "compressed": true
+    },
+    {
+      "name": "NewJobForm-DI3BwAn8.js",
+      "bytes": 25867,
+      "compressed": true
+    },
+    {
+      "name": "NewSessionModal-BOUsegHf.js",
+      "bytes": 28642,
+      "compressed": true
+    },
+    {
+      "name": "PluginPanelView-EjM1nNd-.js",
+      "bytes": 16886,
+      "compressed": true
+    },
+    {
+      "name": "PluginSelection-CdcxfQbi.js",
+      "bytes": 1893,
+      "compressed": true
+    },
+    {
+      "name": "PostboxModal-BEGmba8t.js",
+      "bytes": 9768,
+      "compressed": true
+    },
+    {
+      "name": "ScheduleListEditor-B8atlSXT.js",
+      "bytes": 16808,
+      "compressed": true
+    },
+    {
+      "name": "SessionDetailsModal-3yGnTK6Y.js",
+      "bytes": 13693,
+      "compressed": true
+    },
+    {
+      "name": "SessionHistorySearch-DZBoHJwa.js",
+      "bytes": 14253,
+      "compressed": true
+    },
+    {
+      "name": "SessionOperationFields-DW-RVyop.js",
+      "bytes": 27996,
+      "compressed": true
+    },
+    {
+      "name": "TerminalPanel-hdKB4evq.js",
+      "bytes": 16023,
+      "compressed": true
+    },
+    {
+      "name": "actionRegistryStore-2pUi6I2N.js",
+      "bytes": 6120,
+      "compressed": true
+    },
+    {
+      "name": "arrow-left-BpkI_vIl.js",
+      "bytes": 389,
+      "compressed": false
+    },
+    {
+      "name": "automationStore-B04BZf3c.js",
+      "bytes": 2706,
+      "compressed": true
+    },
+    {
+      "name": "check-DbtHcUxn.js",
+      "bytes": 338,
+      "compressed": false
+    },
+    {
+      "name": "clipboard-Bka3b3-h.js",
+      "bytes": 609,
+      "compressed": false
+    },
+    {
+      "name": "codexRateLimits-D0VsjuO0.js",
+      "bytes": 2752,
+      "compressed": true
+    },
+    {
+      "name": "copy-BJQxFD90.js",
+      "bytes": 449,
+      "compressed": false
+    },
+    {
+      "name": "download-CZjL2cdB.js",
+      "bytes": 454,
+      "compressed": false
+    },
+    {
+      "name": "editorFileLinks-ECU_06yf.js",
+      "bytes": 3726,
+      "compressed": true
+    },
+    {
+      "name": "external-link-IROozzNX.js",
+      "bytes": 478,
+      "compressed": false
+    },
+    {
+      "name": "file-KkAQMfiP.js",
+      "bytes": 488,
+      "compressed": false
+    },
+    {
+      "name": "globe-BY1lh7Qd.js",
+      "bytes": 456,
+      "compressed": false
+    },
+    {
+      "name": "index-CqxLTYhn-pc2.js",
+      "bytes": 415070,
+      "compressed": true
+    },
+    {
+      "name": "index-t1BeNpq3.css",
+      "bytes": 116511,
+      "compressed": true
+    },
+    {
+      "name": "markdown-vendor-B3UHhm0a.js",
+      "bytes": 602562,
+      "compressed": true
+    },
+    {
+      "name": "monaco-vendor-fGo_w72f.js",
+      "bytes": 14962,
+      "compressed": true
+    },
+    {
+      "name": "nativeControlStore-BKIZiswW.js",
+      "bytes": 4290,
+      "compressed": true
+    },
+    {
+      "name": "pause-DyAbCSQK.js",
+      "bytes": 430,
+      "compressed": false
+    },
+    {
+      "name": "play-Cbn1r25O.js",
+      "bytes": 408,
+      "compressed": false
+    },
+    {
+      "name": "qqContactSearch-DkwCUNlc.js",
+      "bytes": 1332,
+      "compressed": true
+    },
+    {
+      "name": "react-vendor-DZ42Ocw1.js",
+      "bytes": 288180,
+      "compressed": true
+    },
+    {
+      "name": "refresh-cw-augCTsSf.js",
+      "bytes": 545,
+      "compressed": false
+    },
+    {
+      "name": "shield-check-Cy5NsVAM.js",
+      "bytes": 541,
+      "compressed": false
+    },
+    {
+      "name": "terminal-DQxBrvmh.js",
+      "bytes": 860,
+      "compressed": false
+    },
+    {
+      "name": "useSessionWorkspace-D6_8jc_N.js",
+      "bytes": 488,
+      "compressed": false
+    },
+    {
+      "name": "user-round-Dn4y07n2.js",
+      "bytes": 401,
+      "compressed": false
+    },
+    {
+      "name": "xterm-6GBZ9nXN.css",
+      "bytes": 5244,
+      "compressed": true
+    },
+    {
+      "name": "xterm-XOw-FC4b.js",
+      "bytes": 334255,
+      "compressed": true
+    }
+  ]
+}

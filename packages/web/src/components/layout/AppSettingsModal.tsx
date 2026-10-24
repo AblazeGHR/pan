@@ -8,6 +8,7 @@ import { AutoReportSettingsGroup } from './AutoReportSettingsGroup';
 import {
   Bell,
   Database,
+  KeyRound,
   Eye,
   Globe,
   Keyboard,
@@ -24,6 +25,7 @@ import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { AutoForceSendSettings } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
+import { AuthorizationSettings } from './AuthorizationSettings';
 import {
   reloadConfig,
   fetchRemoteStatus,
@@ -165,6 +167,7 @@ const SETTINGS_TAB_META: Record<SettingsTab, { label: string; Icon: LucideIcon }
   adapters: { label: 'Adapters', Icon: SlidersHorizontal },
   plugins: { label: 'Plugins', Icon: Puzzle },
   data: { label: 'Data', Icon: Database },
+  authorization: { label: 'Authorization', Icon: KeyRound },
 };
 
 type ReloadScope = 'adapters' | 'worker' | 'plugin' | 'memory';
@@ -1346,7 +1349,9 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           tabIndex={0}
           className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5 space-y-6"
         >
-          {activeTab === 'adapters' ? (
+          {activeTab === 'authorization' ? (
+            <AuthorizationSettings />
+          ) : activeTab === 'adapters' ? (
             <>
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">

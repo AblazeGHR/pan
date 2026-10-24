@@ -86,6 +86,30 @@ def register(app):
         except InteractionError as exc:
             raise failure(exc) from exc
 
+    @app.post('/api/locker-message-tools/{operation}')
+    async def locker_message_producer(operation: str, data: dict, request: Request):
+        # Same-user loopback assertion, identical to the existing stdio bridge.
+        # This is not remote authentication; browser and SSE forwarding fail closed.
+        from packages.web.terminal_tools_api import _local, resolve_caller
+        caller_id = request.headers.get('X-Pan-Queue-Caller')
+        caller = resolve_caller(caller_id) if caller_id and _local(request) else None
+        if not caller:
+            raise HTTPException(403, detail={'code': 'caller_unavailable'})
+        from .contracts import validate, identity
+        from .runtime import LOCAL_RECIPIENT
+        try:
+            validate('LockerMessageProducer', {**data, 'operation': operation})
+            if 'operation' in data:
+                raise InteractionError('invalid', 'operation belongs in the route')
+            if operation == 'create':
+                from .locker_messages import accept_locker_message
+                return {'message': accept_locker_message(caller['id'], LOCAL_RECIPIENT, data['message'])}
+            mid = identity('lmsg_', [LOCAL_RECIPIENT, caller['id'], data['messageId']])
+            from .store import UserPrincipal
+            return {'message': get_store().get_message(UserPrincipal(LOCAL_RECIPIENT), mid)}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
     @app.get('/api/user-inbox')
     async def inbox(request:Request,limit:int=100,after:str | None=None):
         principal=await user(request)

@@ -1,0 +1,228 @@
+{
+  "phase": "exercise",
+  "checks": [
+    "real UserAuth login and production Locker APIs, no interception",
+    "real dedicated messages and Cards stably mixed; same Locker, two sources; no fake Card wrapper",
+    "Markdown attachment click downloads actual protected bytes",
+    "actual WorkspaceRail filters ordinary messages and Cards together",
+    "viewing, scrolling and Workspace switching do not mark ordinary messages or Cards read",
+    "manual unread persists through real refresh without a consumption cursor",
+    "source Read all writes the original ordinary-message row",
+    "real choice submit, no-choice BTW submit, reason/no-reason rejection and terminal deletion",
+    "deleted source retains its ordinary record and unavailable Locker",
+    "1440/768/390/320 light/dark production layout without horizontal overflow",
+    "logout, captured late GET, successor login and actual 401 leave no old-user rows or sources"
+  ],
+  "errors": [],
+  "api": [
+    {
+      "method": "GET",
+      "path": "/api/settings/ui"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspaces"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cli/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/startup-recovery"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/panels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapters"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapter/config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/login"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages/lmsg_5ec23f7cc0c643cb05ae6d892e86c3bd48aee8a34301a8f3a8b5ed7e4d7450e9/attachments/upload_65ac021092b74a4d99417578b72dbbab.txt"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-locker-messages/lmsg_5ec23f7cc0c643cb05ae6d892e86c3bd48aee8a34301a8f3a8b5ed7e4d7450e9/read"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-locker-messages/lmsg_5ec23f7cc0c643cb05ae6d892e86c3bd48aee8a34301a8f3a8b5ed7e4d7450e9/read"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-inbox/card_71a17518633a03ce15444a22dfff139a45d56a33c951cfac84a8cb35b9b72672/read"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-inbox/card_4186c0498f3b5f47b3c57eea3e9c2825155fe5097b25f6b5691b986ec8cf3400/read"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-inbox/card_0ca4a9595021772792944a857d6056d6ff7d4a30fdae05aaba590051ed03a31a/read"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-inbox/card_232464caafe8c7a7f124b189528a642943cef4836634ef7203a117866741ac15/read"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user-locker-messages/lmsg_5ec23f7cc0c643cb05ae6d892e86c3bd48aee8a34301a8f3a8b5ed7e4d7450e9/read"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user-inbox/card_71a17518633a03ce15444a22dfff139a45d56a33c951cfac84a8cb35b9b72672/submit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_f1c7481d33eeecc6/queue"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user-inbox/card_4186c0498f3b5f47b3c57eea3e9c2825155fe5097b25f6b5691b986ec8cf3400/submit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user-inbox/card_0ca4a9595021772792944a857d6056d6ff7d4a30fdae05aaba590051ed03a31a/reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/user-inbox/card_232464caafe8c7a7f124b189528a642943cef4836634ef7203a117866741ac15/reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/user-inbox/card_232464caafe8c7a7f124b189528a642943cef4836634ef7203a117866741ac15"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/logout"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/login"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/login"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    }
+  ],
+  "coreApiInterception": false
+}
