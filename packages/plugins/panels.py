@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 from .catalog import Catalog, digest
 from .data import plugin_data_dir
+from .panel_builds import PanelBuildStore
 from .runtime import Runtime, error
 
 
@@ -17,13 +18,64 @@ class PanelHost:
         self.data_root = data_root
         self.sessions = {}
         self.runtime = Runtime(get_manifest, self.sessions.get, data_root=data_root, audience="panel")
+        self.builds = PanelBuildStore(data_root)
         self.locks = {}
         self.tasks = set()
         self.closing = False
 
     def panels(self):
-        return [{**p, "pluginId": plugin.id, "path": f"/plugins/{plugin.id}/{p['id']}"}
-                for plugin in Catalog(self.get_manifest()).plugins.values() for p in plugin.panels]
+        result = []
+        for plugin in Catalog(self.get_manifest()).plugins.values():
+            for panel in plugin.panels:
+                if panel['renderer'] == 'web-app/v1' and not self.builds.is_enabled(plugin.id, panel['id']):
+                    continue
+                # Build commands and absolute local paths stay host-side.
+                navigation = {key: value for key, value in panel.items() if key != 'build'}
+                navigation.update(pluginId=plugin.id, path=f"/plugins/{plugin.id}/{panel['id']}")
+                if panel['renderer'] == 'web-app/v1':
+                    navigation['assetPath'] = f"/panel-assets/{plugin.id}/{panel['id']}/"
+                result.append(navigation)
+        return result
+
+    def web_panels(self):
+        """Buildable panels regardless of current build/enable state."""
+        result = []
+        for plugin in Catalog(self.get_manifest()).plugins.values():
+            for panel in plugin.panels:
+                if panel['renderer'] != 'web-app/v1':
+                    continue
+                result.append({'pluginId': plugin.id, 'panelId': panel['id'],
+                               'title': panel['title'], 'entry': panel['entry'],
+                               'assetPath': f"/panel-assets/{plugin.id}/{panel['id']}/",
+                               **self.builds.status(plugin.id, panel['id'])})
+        return result
+
+    def _web_panel(self, plugin_id, panel_id):
+        plugin = Catalog(self.get_manifest()).get(plugin_id)
+        panel = next((p for p in plugin.panels if p['id'] == panel_id), None)
+        if panel is None or panel['renderer'] != 'web-app/v1':
+            raise ValueError('Unknown web-app panel')
+        return panel
+
+    def panel_status(self, plugin_id, panel_id):
+        self._web_panel(plugin_id, panel_id)
+        return self.builds.status(plugin_id, panel_id)
+
+    async def start_build(self, plugin_id, panel_id):
+        panel = self._web_panel(plugin_id, panel_id)
+        return await self.builds.start(plugin_id, panel)
+
+    def set_panel_enabled(self, plugin_id, panel_id, enabled):
+        self._web_panel(plugin_id, panel_id)
+        return self.builds.set_enabled(plugin_id, panel_id, enabled)
+
+    def unbuild_panel(self, plugin_id, panel_id):
+        self._web_panel(plugin_id, panel_id)
+        return self.builds.unbuild(plugin_id, panel_id)
+
+    def panel_asset(self, plugin_id, panel_id, path):
+        self._web_panel(plugin_id, panel_id)
+        return self.builds.asset(plugin_id, panel_id, path)
 
     async def invoke(self, plugin_id, panel_id, action, arguments, request_id=None):
         if self.closing:
@@ -96,6 +148,7 @@ class PanelHost:
         self.closing = True
         if self.tasks:
             await asyncio.gather(*self.tasks, return_exceptions=True)
+        await self.builds.close()
         await self.runtime.close()
 
 

@@ -277,6 +277,18 @@ def _merge_manifest(config: ManifestConfig, data: dict, plugin_dir: str) -> None
             source["server_ref"] = "qq"
         if source.get("capabilities_file"):
             source["capabilities_file"] = str(Path(plugin_dir, source["capabilities_file"]).resolve())
+        for panel in plugin.get("panels", []):
+            if panel.get("renderer") != "web-app/v1":
+                continue
+            build = panel.get("build")
+            if not isinstance(build, dict) or not isinstance(build.get("output"), str):
+                continue  # Schema validation reports the missing build contract.
+            # Build output and cwd are resolved against the declaring manifest,
+            # never the process CWD. Escaping the plugin directory is a manifest
+            # error: it would make the host copy unrelated local files.
+            build["cwd"] = _resolve_manifest_path(build.get("cwd") or ".", plugin_dir, "build.cwd")
+            build["output"] = _resolve_manifest_path(build["output"], plugin_dir, "build.output")
+            panel["build"] = build
         _dedup_append(config.plugins, plugin, key=lambda p: p.get("id"))
 
     # Command routes — append all (no dedup needed; prefixes may overlap intentionally)
@@ -334,6 +346,16 @@ def _parse_character_template(raw: dict, plugin_dir: str) -> CharacterTemplate:
         assets_dir=_resolve_plugin_dir(raw.get("assets_dir"), plugin_dir),
         source_manifest=plugin_dir,
     )
+
+
+def _resolve_manifest_path(value: str, plugin_dir: str, label: str) -> str:
+    """Resolve a build path against the manifest directory and fence it there."""
+    resolved = Path(plugin_dir, value).resolve()
+    try:
+        resolved.relative_to(Path(plugin_dir).resolve())
+    except ValueError as exc:
+        raise ValueError(f"Panel {label} escapes the plugin directory: {value!r}") from exc
+    return str(resolved)
 
 
 def _resolve_plugin_dir(value, plugin_dir: str) -> str | None:

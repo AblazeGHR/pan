@@ -13,14 +13,16 @@
       "type": "object",
       "required": ["kind"],
       "properties": {
-        "kind": {"enum": ["mcp", "pan_api"]},
+        "kind": {"enum": ["mcp", "pan_api", "panel"]},
         "server_ref": {"type": "string", "minLength": 1},
         "capabilities_file": {"type": "string", "minLength": 1}
       },
       "additionalProperties": false,
       "allOf": [
         {"if": {"properties": {"kind": {"const": "mcp"}}}, "then": {"required": ["server_ref"]}},
-        {"if": {"properties": {"kind": {"const": "pan_api"}}}, "then": {"required": ["capabilities_file"]}}
+        {"if": {"properties": {"kind": {"const": "pan_api"}}}, "then": {"required": ["capabilities_file"]}},
+        {"if": {"properties": {"kind": {"const": "panel"}}},
+         "then": {"not": {"anyOf": [{"required": ["server_ref"]}, {"required": ["capabilities_file"]}]}}}
       ]
     },
     "exposure": {
@@ -114,17 +116,37 @@
     "data": {"type": "object", "properties": {"version": {"type": "integer", "minimum": 1}}, "required": ["version"], "additionalProperties": false},
     "agent_capabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 3}},
     "panels": {"type": "array", "items": {
-      "type": "object", "required": ["id", "title", "renderer", "actions"],
+      "type": "object", "required": ["id", "title", "renderer"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,47}$"},
         "title": {"type": "string", "minLength": 1, "maxLength": 80},
-        "renderer": {"enum": ["account-switcher/v1"]},
+        "renderer": {"enum": ["account-switcher/v1", "web-app/v1"]},
         "actions": {"type": "object", "minProperties": 1, "additionalProperties": {
           "type": "object", "required": ["capability", "effect"],
           "properties": {"capability": {"type": "string"}, "effect": {"enum": ["read", "write_external"]}},
           "additionalProperties": false
-        }}
-      }, "additionalProperties": false
+        }},
+        "entry": {"type": "string", "minLength": 1, "maxLength": 512},
+        "build": {
+          "type": "object",
+          "required": ["command", "output"],
+          "properties": {
+            "command": {"type": "array", "minItems": 1, "maxItems": 32,
+                        "items": {"type": "string", "minLength": 1, "maxLength": 4096}},
+            "cwd": {"type": "string", "minLength": 1, "maxLength": 512},
+            "output": {"type": "string", "minLength": 1, "maxLength": 512},
+            "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 3600}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"renderer": {"const": "account-switcher/v1"}}, "required": ["renderer"]},
+         "then": {"required": ["actions"], "not": {"anyOf": [{"required": ["entry"]}, {"required": ["build"]}]}}},
+        {"if": {"properties": {"renderer": {"const": "web-app/v1"}}, "required": ["renderer"]},
+         "then": {"required": ["entry", "build"]}}
+      ]
     }}
   },
   "additionalProperties": false

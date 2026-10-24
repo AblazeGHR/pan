@@ -62,6 +62,7 @@ import { DataSettingsPanel } from './DataSettingsPanel';
 import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { UnreadRecordingPanel } from './UnreadRecordingPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
+import { LocalPluginPanelsSettings } from './LocalPluginPanelsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
 import { useCurrentSession } from '@/stores/sessionStore';
@@ -1979,6 +1980,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </>
           ) : activeTab === 'plugins' ? (
             <>
+              <LocalPluginPanelsSettings />
               <QqPluginsPanel />
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">

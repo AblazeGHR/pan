@@ -15,7 +15,7 @@
 业务范围：[逐项列出能力]。
 Agent 对外工具：[允许暴露的能力]；Panel 内部能力：[需要的额外能力]。
 支持模式：[standalone / pan_native / gateway]。
-Panel：[不需要 / account-switcher/v1 / 需要另行设计新 renderer]。
+Panel：[不需要 / account-switcher/v1 / web-app/v1（本地构建自由界面，见 PANELS.md）]。
 data：[缓存/设置/状态及版本]，不复制外部凭据。
 
 测试用：[自有临时目录、假 CLI/模拟上游或专用测试账户]。

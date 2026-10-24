@@ -204,6 +204,31 @@ export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels'
   return data.panels;
 }
 
+const localPanelPath = (plugin: string, panel: string) =>
+  `/api/plugin-panels/${encodeURIComponent(plugin)}/${encodeURIComponent(panel)}`;
+
+export async function fetchLocalPluginPanels(): Promise<import('@/types/pluginPanels').LocalPluginPanel[]> {
+  const data = await request<{ panels: import('@/types/pluginPanels').LocalPluginPanel[] }>('/api/plugin-panels');
+  return data.panels;
+}
+
+/** The build command is declared by the plugin manifest; this request only
+ *  names the panel and can never supply one. */
+export function buildLocalPluginPanel(plugin: string, panel: string) {
+  return request<import('@/types/pluginPanels').LocalPluginPanel>(localPanelPath(plugin, panel) + '/build',
+    { method: 'POST' });
+}
+
+export function setLocalPluginPanelEnabled(plugin: string, panel: string, enabled: boolean) {
+  return request<import('@/types/pluginPanels').LocalPluginPanel>(
+    localPanelPath(plugin, panel) + (enabled ? '/enable' : '/disable'), { method: 'POST' });
+}
+
+export function unbuildLocalPluginPanel(plugin: string, panel: string) {
+  return request<import('@/types/pluginPanels').LocalPluginPanel>(localPanelPath(plugin, panel) + '/unbuild',
+    { method: 'POST' });
+}
+
 /** A panel action failure that kept a stable host-provided code. */
 export class PluginPanelError extends Error {
   readonly code?: string;

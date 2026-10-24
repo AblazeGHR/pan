@@ -2,8 +2,8 @@
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { AccountSwitcher, formatClockDuration } from './PluginPanelView';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import PluginPanelView, { AccountSwitcher, formatClockDuration } from './PluginPanelView';
 import { invokePluginPanel } from '@/services/api';
 import { resetPluginPanelRuntime } from './pluginPanelRuntime';
 import { ViewEntryRail } from '@/components/layout/ViewEntryRail';
@@ -160,6 +160,19 @@ describe('plugin account panel', () => {
     usePluginPanelStore.setState({ panels: [panel], loaded: true });
     render(<MemoryRouter><ViewEntryRail /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'CC Switch' }).getAttribute('href')).toBe(panel.path);
+  });
+
+  it('hosts a web-app panel in an iframe rooted at the panel asset path', () => {
+    const webPanel: PluginPanel = { id: 'console', pluginId: 'local-console', title: 'Local Console',
+      renderer: 'web-app/v1', path: '/plugins/local-console/console',
+      assetPath: '/panel-assets/local-console/console/', actions: {} };
+    usePluginPanelStore.setState({ panels: [webPanel], loaded: true });
+    render(<MemoryRouter initialEntries={['/plugins/local-console/console']}>
+      <Routes><Route path="/plugins/:pluginId/:panelId" element={<PluginPanelView />} /></Routes>
+    </MemoryRouter>);
+    const frame = screen.getByTitle('Local Console');
+    expect(frame.tagName).toBe('IFRAME');
+    expect(frame.getAttribute('src')).toBe('/panel-assets/local-console/console/');
   });
 
   it('reveals an active plugin route after async catalog load and handles removal', () => {

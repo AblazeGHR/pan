@@ -28,7 +28,7 @@
 }
 ```
 
-v1 提供宿主维护的 `account-switcher/v1` renderer。插件提供声明和数据，不向页面注入任意 JS、HTML、iframe 或远程组件；增加其他界面类型时新增带版本 renderer，并沿用同一注册流程。插件行为由本机可信的既有 capability provider 执行；这是扩展接口，不是 OS 沙箱或新鉴权系统。
+v1 提供宿主维护的 `account-switcher/v1` renderer。插件提供声明和数据，不向页面注入任意 JS、HTML、iframe 或远程组件；增加其他界面类型时新增带版本 renderer，并沿用同一注册流程。`web-app/v1` 是本协议的后续版本化扩展：插件声明本地构建命令、输出目录和入口，宿主构建、启停并从 Pan 自有构建副本加载静态资源，界面在 iframe 中运行；详见[本地自由 Panel](../plugins/PANELS.md)。插件行为由本机可信的既有 capability provider 执行；这是扩展接口，不是 OS 沙箱或新鉴权系统。
 
 面板是全局入口，不依赖当前 Session，不为它创建持久 Session、Worker、任务或 MA 身份。宿主为面板持有内部调用上下文和独立 provider，退出时关闭。Session MCP 勾选状态仅影响 Agent 工具，不能因为取消 Session 的插件工具而关闭全局面板。插件移出 manifest 后入口消失，直达旧 URL 显示已卸载，数据保留；旧页面动作由服务端重新校验，不继续调用已删除的声明。
 

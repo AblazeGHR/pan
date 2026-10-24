@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from .validation import validate_document
 
 MODES = ("standalone", "pan_native", "gateway")
@@ -18,6 +18,37 @@ _EXPORT = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}\Z")
 def digest(value: object) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
                                      separators=(",", ":")).encode()).hexdigest()
+
+
+def panel_entry_parts(entry: str):
+    """Validate a web-app entry path and return its normalized parts."""
+    if not isinstance(entry, str) or not entry:
+        raise ValueError("web-app/v1 requires a relative entry file")
+    path = PurePosixPath(entry.replace("\\", "/"))
+    if path.is_absolute() or not path.parts or any(
+            part in {"", ".", ".."} or ":" in part for part in path.parts):
+        raise ValueError("web-app/v1 entry must be a relative path inside the build output")
+    return path.parts
+
+
+def _validate_web_app(plugin_id: str, panel: dict) -> None:
+    parts = panel_entry_parts(panel.get("entry"))
+    build = panel.get("build") or {}
+    command = build.get("command")
+    if not isinstance(command, list) or not command or any(not isinstance(item, str) or not item for item in command):
+        raise ValueError(f"Plugin {plugin_id}: web-app/v1 build.command must be a non-empty argv array")
+    output, cwd = build.get("output"), build.get("cwd") or "."
+    if not isinstance(output, str) or not Path(output).is_absolute():
+        raise ValueError(f"Plugin {plugin_id}: web-app/v1 build.output must be resolved by the manifest loader")
+    if not isinstance(cwd, str) or not Path(cwd).is_absolute():
+        raise ValueError(f"Plugin {plugin_id}: web-app/v1 build.cwd must be resolved by the manifest loader")
+    timeout = build.get("timeout_seconds", 300)
+    if type(timeout) is not int or not 1 <= timeout <= 3600:
+        raise ValueError(f"Plugin {plugin_id}: web-app/v1 timeout_seconds is out of range")
+    root = Path(output).resolve()
+    target = (root / Path(*parts)).resolve()
+    if root != target and root not in target.parents:
+        raise ValueError(f"Plugin {plugin_id}: web-app/v1 entry escapes the build output")
 
 
 @dataclass(frozen=True)
@@ -61,8 +92,8 @@ class Catalog:
             if not isinstance(pid, str) or not _ID.fullmatch(pid) or pid in RESERVED:
                 raise ValueError(f"Invalid or reserved plugin ID: {pid!r}")
             source = copy.deepcopy(raw.get("source", {}))
-            if source.get("kind") not in {"mcp", "pan_api"}:
-                raise ValueError(f"Plugin {pid}: source must be mcp or pan_api")
+            if source.get("kind") not in {"mcp", "pan_api", "panel"}:
+                raise ValueError(f"Plugin {pid}: source must be mcp, pan_api or panel")
             if source["kind"] == "mcp":
                 ref = source.get("server_ref")
                 if ref not in self.servers or ref in RESERVED:
@@ -70,7 +101,7 @@ class Catalog:
                 if "packages.plugins.mcp" in self.servers[ref].get("args", []):
                     raise ValueError("A plugin cannot aggregate the Pan plugin projection")
                 declared_refs.add(ref)
-            else:
+            elif source["kind"] == "pan_api":
                 file = source.get("capabilities_file")
                 if not isinstance(file, str) or not Path(file).is_file():
                     raise ValueError(f"Plugin {pid}: capabilities_file is unavailable")
@@ -83,12 +114,15 @@ class Catalog:
                         raise ValueError(f"Plugin {pid}: unknown API command_ref")
                     declared_refs.add(command_ref)
             exposure = raw.get("exposure", {})
-            modes = tuple(exposure.get("supported_modes", MODES))
-            default = exposure.get("default_mode", "standalone")
-            if not modes or len(set(modes)) != len(modes) or any(m not in MODES for m in modes):
-                raise ValueError(f"Plugin {pid}: invalid supported_modes")
-            if default not in modes:
-                raise ValueError(f"Plugin {pid}: default_mode must be supported")
+            # A panel-only plugin has no agent projection, so exposure modes do
+            # not apply and it can never be attached to a Session.
+            modes = () if source["kind"] == "panel" else tuple(exposure.get("supported_modes", MODES))
+            default = "" if source["kind"] == "panel" else exposure.get("default_mode", "standalone")
+            if source["kind"] != "panel":
+                if not modes or len(set(modes)) != len(modes) or any(m not in MODES for m in modes):
+                    raise ValueError(f"Plugin {pid}: invalid supported_modes")
+                if default not in modes:
+                    raise ValueError(f"Plugin {pid}: default_mode must be supported")
             exports = raw.get("tool_exports", {})
             if not isinstance(exports, dict) or any(
                 not isinstance(k, str) or not isinstance(v, str) or not _EXPORT.fullmatch(v)
@@ -117,16 +151,22 @@ class Catalog:
             if agent_capabilities is not None:
                 if source['kind'] != 'pan_api' or any(cap not in {c['id'] for c in document['capabilities']} for cap in agent_capabilities):
                     raise ValueError("agent_capabilities requires declared API capabilities")
+            if source['kind'] == 'panel' and not panels:
+                raise ValueError(f"Plugin {pid}: a panel-only plugin requires panels")
             if len({p["id"] for p in panels}) != len(panels):
                 raise ValueError(f"Plugin {pid}: duplicate panel ID")
             for panel in panels:
-                expected_effects = {'list': 'read', 'quota': 'read', 'switch': 'write_external', 'default_account': 'write_external'}
-                if any(panel['actions'].get(name, {}).get('effect') != effect for name, effect in expected_effects.items()):
-                    raise ValueError('account-switcher/v1 requires list/quota reads and switch/default_account external writes')
-                if any(not action["capability"].startswith(pid + ".") for action in panel["actions"].values()):
+                actions = panel.get("actions", {})
+                if any(not action["capability"].startswith(pid + ".") for action in actions.values()):
                     raise ValueError("Panel actions must belong to their plugin")
-                if source['kind'] == 'pan_api' and any(action['capability'] not in {c['id'] for c in document['capabilities']} for action in panel['actions'].values()):
+                if source['kind'] == 'pan_api' and any(action['capability'] not in {c['id'] for c in document['capabilities']} for action in actions.values()):
                     raise ValueError('Panel action capability is not declared')
+                if panel['renderer'] == 'account-switcher/v1':
+                    expected_effects = {'list': 'read', 'quota': 'read', 'switch': 'write_external', 'default_account': 'write_external'}
+                    if any(actions.get(name, {}).get('effect') != effect for name, effect in expected_effects.items()):
+                        raise ValueError('account-switcher/v1 requires list/quota reads and switch/default_account external writes')
+                else:
+                    _validate_web_app(pid, panel)
             self._add(Plugin(pid, raw.get("display_name") or pid, source, tuple(aliases),
                              modes, default, dict(exports), raw.get("version", "1.0.0"),
                              message_source=copy.deepcopy(raw.get("message_source")),
@@ -183,6 +223,8 @@ class Catalog:
             if inactive_plugin(item.get('plugin_id')):
                 continue  # Unregistration atomically invalidates stale saved descriptors too.
             plugin = self.get(item.get("plugin_id"))
+            if plugin.source["kind"] == "panel":
+                raise ValueError(f"Panel-only plugin {plugin.id} cannot be attached to a Session")
             enabled = item.get("enabled", True)
             mode = item.get("mode", plugin.default_mode)
             if not isinstance(enabled, bool) or mode not in plugin.supported_modes:

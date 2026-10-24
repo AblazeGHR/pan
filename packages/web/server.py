@@ -3390,6 +3390,76 @@ async def api_plugin_panels():
     return {"panels": (host or PanelHost(_plugin_manifest, DATA_DIR)).panels()}
 
 
+def _panel_host(required=True):
+    host = getattr(app.state, "plugin_panels", None)
+    if host is None and required:
+        raise HTTPException(503, "Plugin panel host is not running")
+    return host or PanelHost(_plugin_manifest, DATA_DIR)
+
+
+@app.get("/api/plugin-panels")
+async def api_local_plugin_panels():
+    """Local web-app panels with their persisted build/enable state."""
+    return {"panels": _panel_host(required=False).web_panels()}
+
+
+@app.get("/api/plugin-panels/{plugin_id}/{panel_id}")
+async def api_local_plugin_panel(plugin_id: str, panel_id: str):
+    try:
+        state = _panel_host(required=False).panel_status(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return state
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/build")
+async def api_local_plugin_panel_build(plugin_id: str, panel_id: str):
+    # The command comes from the plugin manifest, never from this request.
+    try:
+        return await _panel_host().start_build(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/enable")
+async def api_local_plugin_panel_enable(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().set_panel_enabled(plugin_id, panel_id, True)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/disable")
+async def api_local_plugin_panel_disable(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().set_panel_enabled(plugin_id, panel_id, False)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/unbuild")
+async def api_local_plugin_panel_unbuild(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().unbuild_panel(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/panel-assets/{plugin_id}/{panel_id}/{asset_path:path}")
+async def api_local_plugin_panel_asset(plugin_id: str, panel_id: str, asset_path: str = ""):
+    from packages.plugins.panel_builds import PanelNotReady
+    try:
+        asset = _panel_host(required=False).panel_asset(plugin_id, panel_id, asset_path)
+    except PanelNotReady as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if asset is None:
+        raise HTTPException(404, "Panel asset not found")
+    return FileResponse(str(asset.path), media_type=asset.media_type,
+                        headers={"Cache-Control": asset.cache})
+
+
 @app.post("/api/plugins/{plugin_id}/panels/{panel_id}/actions/{action}")
 async def api_plugin_panel_action(plugin_id: str, panel_id: str, action: str, data: dict):
     host = getattr(app.state, "plugin_panels", None)
@@ -14285,6 +14355,8 @@ async def api_mcp_servers():
         catalog = _plugin_catalog()
         servers = []
         for plugin in catalog.plugins.values():
+            if plugin.source.get("kind") == "panel":
+                continue  # A UI-only plugin has no Session agent projection.
             source = catalog.servers.get(plugin.source.get("server_ref"), {})
             servers.append({**{k: source.get(k) for k in ("command", "cwd", "url", "transport", "type")},
                             **plugin.public()})

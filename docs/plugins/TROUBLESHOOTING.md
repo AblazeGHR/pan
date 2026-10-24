@@ -13,7 +13,7 @@
 | 业务拒绝后连接无法继续 | 是否把普通业务失败作为 JSON-RPC 协议 error；可恢复失败用 result_format:mcp 的 isError |
 | PAN_PLUGIN_DATA_DIR 不存在 | 是否走托管 Runtime；独立标准 MCP 直连不经过它的 data 注入；不要回退写用户 home |
 | data version/owner mismatch | 停止并核查目录归属与格式；设计备份迁移，不能删 metadata 绕过检查 |
-| Panel 不出现或 renderer 报错 | panels 注册和 ID、四动作/effect、account-switcher/v1 数据契约；不支持任意 JS renderer |
+| Panel 不出现或 renderer 报错 | panels 注册和 ID；`account-switcher/v1` 的四动作/effect 与数据契约；`web-app/v1` 是否已成功构建并启用（见 [本地自由 Panel](PANELS.md)） |
 | 外部切换返回成功，页面仍旧 | 必须重读外部当前 ID；不同应用、默认账号和绑定账号不是同一个选择 |
 | requestId 重复或结果不明 | 同 ID 不同参数应拒绝；pending/失败先核对真实状态，不删台账后重发 |
 | 默认账号改变但某配置没变 | 配置可能绑定了特定账号；默认账号变化不解除原产品绑定 |

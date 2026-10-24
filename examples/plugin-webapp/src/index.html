@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Console</title>
+    <link rel="stylesheet" href="./__STYLE__" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Local Console</h1>
+        <p class="muted">A free-form panel served from a plugin-owned build.</p>
+      </header>
+      <section class="card">
+        <h2>Pan API</h2>
+        <p class="muted">This page calls the ordinary Pan API without a bearer token, the same boundary as other local panel requests.</p>
+        <button id="health" type="button">Call /api/health</button>
+        <output id="result" role="status">Not called yet.</output>
+      </section>
+      <section class="card">
+        <h2>Panel entry</h2>
+        <p id="location" class="muted"></p>
+      </section>
+    </main>
+    <script type="module" src="./__SCRIPT__"></script>
+  </body>
+</html>

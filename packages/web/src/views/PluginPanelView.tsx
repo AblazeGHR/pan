@@ -40,11 +40,23 @@ export default function PluginPanelView() {
   useEffect(() => { void load(); }, [load]);
   const panel = panels.find((item) => item.pluginId === pluginId && item.id === panelId);
   if (!panel) return <div className="p-6 text-text-secondary" role="status">
-    {error || (loaded ? '插件面板不存在或已卸载' : '正在加载插件面板…')}
+    {error || (loaded ? '插件面板不存在、未启用或尚未构建。请在设置 → 插件中构建并启用。' : '正在加载插件面板…')}
     <button className={button + ' ml-3'} onClick={() => void load(true)}>重新加载</button>
   </div>;
+  if (panel.renderer === 'web-app/v1') return <WebAppPanel panel={panel} />;
   if (panel.renderer !== 'account-switcher/v1') return <div className="p-6">此版本不支持该面板</div>;
   return <AccountSwitcher key={panel.pluginId + '/' + panel.id} panel={panel} />;
+}
+
+/** Free-form plugin UI. The host only provides the container and the build's
+ *  asset origin; links, storage and remote resources stay the plugin's choice. */
+function WebAppPanel({ panel }: { panel: PluginPanel }) {
+  const source = panel.assetPath
+    ?? `/panel-assets/${encodeURIComponent(panel.pluginId)}/${encodeURIComponent(panel.id)}/`;
+  return <section className="h-full min-h-0" aria-label={panel.title}>
+    <iframe key={source} title={panel.title} src={source}
+      className="h-full w-full border-0 bg-bg-primary" />
+  </section>;
 }
 
 type SnapshotMap = Record<string, AccountSnapshot | null>;

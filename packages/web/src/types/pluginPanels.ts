@@ -2,9 +2,29 @@ export interface PluginPanel {
   id: string;
   pluginId: string;
   title: string;
-  renderer: 'account-switcher/v1';
+  renderer: 'account-switcher/v1' | 'web-app/v1';
   path: string;
+  /** Present for web-app/v1: the served build root used by the iframe host. */
+  assetPath?: string;
   actions: Record<string, { capability: string; effect: 'read' | 'write_external' }>;
+}
+
+export interface LocalPluginPanel {
+  pluginId: string;
+  panelId: string;
+  title: string;
+  entry: string;
+  assetPath: string;
+  enabled: boolean;
+  status: 'unbuilt' | 'building' | 'built' | 'failed';
+  /** A successful artifact exists even when the latest build failed. */
+  available: boolean;
+  activeBuild: string | null;
+  builtAt: number | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  lastError: string | null;
+  log: string;
 }
 
 export interface AccountQuota {

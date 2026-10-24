@@ -1,0 +1,18 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #0f1115;
+  color: #e6e8ee;
+}
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+main { width: min(720px, calc(100% - 32px)); padding: 24px; display: grid; gap: 16px; }
+header h1 { margin: 0 0 4px; font-size: 24px; }
+.muted { color: #9aa3b2; margin: 0; }
+.card { border: 1px solid #2a2f3a; border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
+.card h2 { margin: 0; font-size: 16px; }
+button {
+  justify-self: start; border: 1px solid #3a4150; border-radius: 8px;
+  background: #1b2029; color: inherit; padding: 8px 14px; font: inherit; cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+output { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }

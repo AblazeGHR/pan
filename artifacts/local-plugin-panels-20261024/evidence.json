@@ -1,0 +1,22 @@
+{
+  "sourceSha": "9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5",
+  "port": 62874,
+  "profile": "<owned temporary data root>",
+  "pluginDir": "<owned temporary example copy>",
+  "browser": {
+    "build": true,
+    "enable": true,
+    "iframeApi": true,
+    "failedRebuildRetained": true,
+    "disable": true,
+    "unbuild": true,
+    "pageErrors": []
+  },
+  "http": {
+    "mcpCatalogUnchanged": true,
+    "messageSourcesUnchanged": true,
+    "retainedBuildStatus": 200,
+    "unbuiltAssetStatus": 404,
+    "sourceFilesPreserved": true
+  }
+}

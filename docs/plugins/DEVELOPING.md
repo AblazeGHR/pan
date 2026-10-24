@@ -8,6 +8,7 @@
 | pan-capability/v1 + stdio | 产品只有 CLI，或希望隔离内部能力与 Agent 工具 | JSON 能力文档和 JSON-RPC helper |
 | pan-capability/v1 + HTTP | 产品已有 HTTP API | 固定 endpoint、路由、方法及输入 Schema |
 | pan-events/v1 + stdio | 插件需发布事实或实时订阅其他事件 | [事件声明、握手及生命周期](EVENTS.md) |
+| 仅提供本地界面 | 插件是自由 HTML/CSS/JS 前端，不需要 Agent 工具 | [本地自由 Panel](PANELS.md)（`source.kind: panel`） |
 
 本地新增 helper 使用 stdio，不为它再搭本地 HTTP 执行服务。已有 HTTP/SSE MCP 或 HTTP API 可继续使用原协议。面板浏览器调用的是已有 Pan Web API，与 helper 的本地传输是不同层。
 
@@ -70,7 +71,7 @@ CLI 的“查询”也可能刷新凭据或写查询缓存。把查询与切换�
 
 ## Panel 与数据目录
 
-Panel 声明使用 `panels`，自动成为现有 View Entry 导航的一部分。v1 只支持宿主实现的 `account-switcher/v1`，不是任意 HTML/React 插件容器。必须提供 `list`、`quota` 两个 read 动作及 `switch`、`default_account` 两个 write_external 动作，并满足 [AccountSnapshot/Quota 契约](../design/Pan-Plugin-Panels-v1.md#account-switcherv1-数据契约)。通用新界面需要扩展 renderer、版本和测试，不能仅换 renderer 字符串。
+Panel 声明使用 `panels`，自动成为现有 View Entry 导航的一部分。`account-switcher/v1` 由宿主实现，必须提供 `list`、`quota` 两个 read 动作及 `switch`、`default_account` 两个 write_external 动作，并满足 [AccountSnapshot/Quota 契约](../design/Pan-Plugin-Panels-v1.md#account-switcherv1-数据契约)。自由界面使用版本化的 `web-app/v1`：插件声明本地构建命令、产物目录和入口，宿主负责构建状态、启停和静态资源加载（相对资源、MIME、SPA 入口回退、构建副本内路径校验）。两种 renderer 共用同一注册与导航流程，详见 [本地自由 Panel](PANELS.md)。
 
 面板调用只能引用自己插件的能力；API 能力还须在文档中实际存在。`agent_capabilities` 对 API 来源提供 Agent 白名单，三个模式一致执行，Panel 内部能力可比 MCP 多。Panel 是全局入口，不创建 Worker，不受当前 Session MCP 开关控制。
 
