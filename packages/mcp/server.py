@@ -1946,6 +1946,53 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 
 @mcp.tool()
+def locker_message(operation: str, message: dict | None = None, message_id: str = "") -> dict:
+    """Create/get an ordinary Locker Message for this profile user, from own Session.
+
+    Local bound stdio only; no owner/source/recipient override and no Chat/Queue copy.
+    create requires the existing Message fields messageId, role, content, ts; parts
+    and unknown fields are preserved. Attachments must belong to this source.
+    Keep messageId AND the exact document stable: identical retries are idempotent,
+    changed content conflicts, deleted IDs stay tombstoned. On unknown, use get with
+    the original message_id to inspect persistence; never automatically resend.
+    Schema: GET /api/interaction-cards/schema ($defs.LockerMessageProducer).
+    """
+    sid = os.environ.get("PAN_AGENT_SESSION_ID")
+    try:
+        url = urlsplit(_pan_api_url)
+        local = (url.scheme == "http" and url.hostname in {"127.0.0.1", "::1"}
+                 and not url.username and not url.password and url.path in {"", "/"}
+                 and not url.query and not url.fragment)
+        url.port
+    except ValueError:
+        local = False
+    if _terminal_transport != "stdio" or not local or not sid:
+        return {"ok": False, "error": "local_stdio_caller_required"}
+    caller, error = _require_caller()
+    if error or caller.get("id") != sid:
+        return error or {"ok": False, "error": "caller_unavailable"}
+    if operation not in {"create", "get"}:
+        return {"ok": False, "error": "invalid_operation"}
+    body = {"message": message} if operation == "create" else {"messageId": message_id}
+    req = urllib.request.Request(
+        f"{_pan_api_url.rstrip('/')}/api/locker-message-tools/{operation}",
+        data=json.dumps(body).encode("utf-8"), method="POST",
+        headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    try:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code in {403, 404, 409, 422}:
+            return {"ok": False, "status": "rejected", "error": json.loads(exc.read()).get("detail")}
+        return {"ok": False, "status": "unknown", "retryable": False}
+    except Exception:
+        return {"ok": False, "status": "unknown", "retryable": False}
+
+
+@mcp.tool()
 def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
                      recipient_id: str = "", request_key: str = "", card: dict | None = None) -> dict:
     """Create/get/receipt for a Session-owned user request. Never answer as a user.
