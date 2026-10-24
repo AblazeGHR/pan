@@ -182,6 +182,6 @@ future text is exactly “你还有未回答的用户卡片，如果目前仍无
 It persists last notification time, coalesces missed periods after restart and retries uncertain queue
 admission with the same ID. Last answer/delete clears future reminder intents. With no pending work,
 the scheduler sleeps on an event rather than polling. Notification admission uses normal durable
-queue locking and Illegal staging without direct wake/force; subsequent backlog wake/recovery follows
-existing queue behavior. Illegal, Pause, message locks, readonly and lease gates remain unchanged;
+queue locking and Illegal staging, then invokes the normal queue wake/auto-spawn path. It never
+force-clears Illegal or bypasses Pause/locks/leases. Illegal, Pause, message locks, readonly and lease gates remain unchanged;
 reminders do not supply a user response or approval. No detached helper or new lifecycle owner.

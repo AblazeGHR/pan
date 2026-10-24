@@ -641,7 +641,7 @@ at both creation and answer times, with unique position keys and shared card-id 
 
 Immediate creation Notification includes the fixed reminder text, body and card id; periodic notices
 contain only “你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答”.
-Reminder admission only persists the queue row; it never releases Illegal or bypasses Pause/locks/leases.
-Normal queue-backlog wake/recovery remains enabled. A process-owned scheduler waits without polling
+Reminder admission persists the queue row and invokes normal queue wake/auto-spawn; it never releases
+Illegal or bypasses Pause/locks/leases. A process-owned scheduler waits without polling
 when no pending cards remain; persisted last reminder and stable outbox IDs coalesce missed periods
 after restart. Neither reminder nor answer authorizes or invokes an interaction response or Trigger.
