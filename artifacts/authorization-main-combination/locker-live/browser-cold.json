@@ -1,0 +1,79 @@
+{
+  "phase": "cold",
+  "checks": [
+    "real UserAuth login and production Locker APIs, no interception",
+    "cold restart retains ordinary/Card states, source deletion metadata; ordinary terminal cleanup"
+  ],
+  "errors": [],
+  "api": [
+    {
+      "method": "GET",
+      "path": "/api/settings/ui"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspaces"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cli/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/startup-recovery"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/panels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapters"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapter/config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/login"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-lockers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-inbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/user-locker-messages"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/user-locker-messages/lmsg_a5a2bbd6cff6a84e7d751c26bea5d0fdf51046dc8eb499784f40cea152e5f683"
+    }
+  ],
+  "coreApiInterception": false
+}

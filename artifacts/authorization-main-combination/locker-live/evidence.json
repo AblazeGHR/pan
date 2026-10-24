@@ -1,0 +1,118 @@
+{
+  "sourceSha": "bf81b916199ca1a10b523fa6a0c379daef31ec42",
+  "port": 56623,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data",
+  "apiInterception": false,
+  "identity": {
+    "pid": 37092,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\Pan\\data\\workdirs\\authorization-mcp-capabilities-20261024-candidate\\tests\\support\\fake_stream_cli.py"
+  },
+  "stdioProducer": [
+    {
+      "source": "ses_f1c7481d33eeecc6",
+      "messageId": "dedicated-one",
+      "discovered": true,
+      "idempotent": true,
+      "lookup": true,
+      "conflictRejected": true,
+      "sourceOverrideCannotImpersonate": true,
+      "foreignAttachmentRejected": false
+    },
+    {
+      "source": "ses_ff09f913754ad777",
+      "messageId": "dedicated-two",
+      "discovered": true,
+      "idempotent": true,
+      "lookup": true,
+      "conflictRejected": true,
+      "sourceOverrideCannotImpersonate": true,
+      "foreignAttachmentRejected": true
+    }
+  ],
+  "queueItemIds": [
+    "q_a73717dcf032843b9300371e2e3e40f3541b584e349e1882e5e0f3fa43541adf",
+    "q_db9cd43901eb242d880ab955e1bb7c0231fbea381d03a7d6c64a99d5ca65764f",
+    "q_f073071cbe6cf8b83964f8bb7fcfbc66600c0f8e27e9810798c311f1a73bcaa7"
+  ],
+  "actualCliReceived": [
+    {
+      "kind": "received",
+      "pid": 49840,
+      "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data\\workdirs\\Design agent with a long dedicated Locker source name",
+      "text": "@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"Proceed with isolated Pause.\",\"cardId\":\"card_71a17518633a03ce15444a22dfff139a45d56a33c951cfac84a8cb35b9b72672\",\"choiceId\":\"pause\",\"responseKind\":\"submit\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction submitted: {\"answer\":\"A standalone answer.\",\"cardId\":\"card_4186c0498f3b5f47b3c57eea3e9c2825155fe5097b25f6b5691b986ec8cf3400\",\"responseKind\":\"submit\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null\n\n@@@@by agent : interaction | unknown\nstatus: null\ntype: notice\nresult:\nInteraction rejected: {\"answer\":\"Please narrow the proposal.\",\"cardId\":\"card_0ca4a9595021772792944a857d6056d6ff7d4a30fdae05aaba590051ed03a31a\",\"responseKind\":\"reject\",\"summaryBody\":\"Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary \"}\nsessionId: null\ntaskId: null\nworkerId: null",
+      "at": 1792822739.7677178
+    }
+  ],
+  "notifications": [
+    {
+      "answer": "Proceed with isolated Pause.",
+      "cardId": "card_71a17518633a03ce15444a22dfff139a45d56a33c951cfac84a8cb35b9b72672",
+      "choiceId": "pause",
+      "responseKind": "submit",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    },
+    {
+      "answer": "A standalone answer.",
+      "cardId": "card_4186c0498f3b5f47b3c57eea3e9c2825155fe5097b25f6b5691b986ec8cf3400",
+      "responseKind": "submit",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    },
+    {
+      "answer": "Please narrow the proposal.",
+      "cardId": "card_0ca4a9595021772792944a857d6056d6ff7d4a30fdae05aaba590051ed03a31a",
+      "responseKind": "reject",
+      "summaryBody": "Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary Summary "
+    }
+  ],
+  "fakeCliConsumedExactlyOnce": true,
+  "realPause": true,
+  "attachmentScope": true,
+  "queryPagination": true,
+  "firstOwnedProcesses": [
+    [
+      37092,
+      1792822720.7363935,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\Pan\\data\\workdirs\\authorization-mcp-capabilities-20261024-candidate\\tests\\support\\locker_product_http_server.py --port 56623 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data"
+    ],
+    [
+      39980,
+      1792822720.7443438,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ],
+    [
+      49840,
+      1792822739.658365,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\Pan\\data\\workdirs\\authorization-mcp-capabilities-20261024-candidate\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false}"
+    ],
+    [
+      13608,
+      1792822739.6651616,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ]
+  ],
+  "defaultGrantsUnchanged": true,
+  "coldRestart": true,
+  "coldOwnedProcesses": [
+    [
+      46480,
+      1792822742.2114391,
+      "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\Pan\\data\\workdirs\\authorization-mcp-capabilities-20261024-candidate\\tests\\support\\locker_product_http_server.py --port 56623 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4150\\test_locker_messages_cards_rea0\\profile\\data"
+    ],
+    [
+      36356,
+      1792822742.21997,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ]
+  ],
+  "remainingOwnedProcesses": [],
+  "cleanup": {
+    "portReleased": true,
+    "ownedProcesses": [],
+    "serverExited": true
+  }
+}

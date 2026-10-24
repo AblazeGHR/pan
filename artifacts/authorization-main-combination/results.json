@@ -1,0 +1,62 @@
+{
+  "testedSourceCommit": "bf81b916199ca1a10b523fa6a0c379daef31ec42",
+  "mergeParents": [
+    "0460bf49c667545ecc166addc1eca6ea049892b7",
+    "8f44cd734646d8ece2030ba85501c73e4eefc13b"
+  ],
+  "sourceTrees": {
+    "packages": "922b62170934fb90bf4f7ba37a7e5136b3a446a7",
+    "tests": "e3db92f4153f8e2a6683c2ffcad52b2cac3e8d99",
+    "manifest.json": "f6a3f73bb711d4557aa8916c82b26edf05afceb2"
+  },
+  "results": {
+    "unit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "66",
+      "time": "9.596",
+      "timestamp": "2026-10-24T14:17:57.570219+08:00",
+      "hostname": "ablaze",
+      "exitCode": 0
+    },
+    "live": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "30.030",
+      "timestamp": "2026-10-24T14:18:40.091070+08:00",
+      "hostname": "ablaze",
+      "exitCode": 0
+    }
+  },
+  "frontend": {
+    "files": 3,
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "build": {
+    "typecheck": true,
+    "vite": true,
+    "compressedAssets": 92,
+    "exitCode": 0
+  },
+  "live": {
+    "sourceSha": "bf81b916199ca1a10b523fa6a0c379daef31ec42",
+    "port": 56623,
+    "apiInterception": false,
+    "defaultGrantsUnchanged": true,
+    "coldRestart": true,
+    "remainingOwnedProcesses": [],
+    "cleanup": {
+      "portReleased": true,
+      "ownedProcesses": [],
+      "serverExited": true
+    }
+  }
+}
