@@ -38,6 +38,9 @@ def register(app):
             raise HTTPException(401,detail={'code':'unauthorized'})
         return principal
 
+    from .user_cards_api import register as register_user_cards
+    register_user_cards(app, user)
+
     def owner(owner_id):
         if not isinstance(owner_id,str) or not session.get(owner_id,load_history=False):
             raise HTTPException(404,detail={'code':'owner_not_found'})
@@ -154,12 +157,16 @@ def register(app):
     async def lockers(request:Request):
         principal=await user(request)
         store=get_store()
+        from .user_cards import get_store as user_card_store
+        user_card_store()
         with store.db() as db:
             rows=db.execute("""SELECT l.owner,l.source_name,l.workspace_ids,
                 (SELECT count(*) FROM cards c WHERE c.owner=l.owner AND c.recipient=l.recipient)+
-                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient) AS total,
+                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient)+
+                (SELECT count(*) FROM user_cards u WHERE u.owner=l.owner AND u.recipient=l.recipient) AS total,
                 (SELECT count(*) FROM cards c WHERE c.owner=l.owner AND c.recipient=l.recipient AND c.is_read=0)+
-                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient AND m.is_read=0) AS unread
+                (SELECT count(*) FROM locker_messages m WHERE m.owner=l.owner AND m.recipient=l.recipient AND m.is_read=0)+
+                (SELECT count(*) FROM user_cards u WHERE u.owner=l.owner AND u.recipient=l.recipient AND u.answered_at IS NOT NULL AND u.is_read=0) AS unread
                 FROM user_lockers l WHERE l.recipient=?""", (principal.id,)).fetchall()
         from .contracts import identity
         import json

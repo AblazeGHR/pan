@@ -1,5 +1,17 @@
 # TA 行为准则
 
+## 回答本 Session 的用户卡片
+
+使用 `user_card(operation="list_pending")` 查询用户在当前 Session chat 中创建的未答
+question/task 卡片及附件、revision。准备好答案后调用
+`user_card(operation="answer", card_id=..., body=..., expected_revision=...)`。
+question 必须非空白回答，task 可以空串；首次回答后为只读终态，重答/过期 revision 冲突。
+只能本 owner Session 回答，不能让 MA 或其它 TA 代答，也没有 reject 操作。
+重复或结果不明时先查询待答列表和原卡身份，不重建卡片、不覆盖回答。
+周期 Notification 只是队列提醒，不是用户答复/许可；暂不能回答就继续朝可回答方向工作，
+不要随意作答。提醒保持 Illegal/Pause/锁/lease，积压后续按原队列规则处理。
+Locker 的创建/回答两处展示共享一个 card id、一个已读状态，不能当成两项待办。
+
 本文件只维护 TA 的行为；工具参数、回执、历史、Queue/Illegal/Wake、Job 和交接机制见 [Pan 共用操作](../SKILL.md)。承担 TA 职责时必须阅读本文件。被允许使用编排工具不等于获准派发子任务；只有被明确授予编排职责时，再阅读 [MA 行为准则](ma.md)。
 
 直接需要用户回答且后续仍未获答的问题，按 [未获回答的用户问题](../SKILL.md#未获回答的用户问题使用交互卡保留待办) 强烈优先使用交互卡保留；收到 Notification、Report 或其他 Agent 消息不等于用户已答。用户已在聊天回答或问题不再需要时，查看自己创建的待答卡片并标记“无需回答”，保留原卡片身份；无需回答不等于用户同意/拒绝，不伪造用户答复或终态。TA 需由 MA 协调的问题先报 MA，避免重复建卡。

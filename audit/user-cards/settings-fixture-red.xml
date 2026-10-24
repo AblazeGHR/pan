@@ -1,0 +1,3287 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="168" failures="5" errors="0" time="11.546">
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-24T20:32:43.276Z" hostname="ablaze" tests="28" failures="0" errors="0" skipped="0" time="3.0090636">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.1021624">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.001289">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0613732">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0575824">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.1635926">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0963649">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0463066">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.1294368">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0322117">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.1167723">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.1400491">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0325372">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.02628">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1399785">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1423301">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1262656">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1236312">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1125965">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1515321">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.2068691">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.0837356">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.0969707">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0315529">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.0530946">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.4781448">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; renders pending once without read controls and keeps answered projections ordered deterministically" time="0.0343182">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 0 update/remove both identical rows" time="0.107272">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 1 update/remove both identical rows" time="0.1131677">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/InputRow.test.tsx" timestamp="2026-10-24T20:32:43.289Z" hostname="ablaze" tests="80" failures="0" errors="0" skipped="1" time="6.330385">
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; routes configured Steer through the existing button transaction exactly once" time="0.1044158">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;isComposing&quot;:true}" time="0.0340684">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;keyCode&quot;:229}" time="0.032716">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;repeat&quot;:true}" time="0.0317787">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; disables ambiguous composer/global bindings, including Ctrl/Mod aliases" time="0.0350745">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; uses the normal locked send mode and does not let hidden Steer bypass it" time="0.1583966">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not repeat an unknown Steer admission and suppresses keys during recording" time="0.0675811">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the CBC stream capability for direct Steer and hides it for native TUI/oneshot" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps CBC stream Steer and native TUI capability boundaries" time="0.0492632">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps Codex Steer visible and routes by sessionId when the session summary is stale" time="0.0848125">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not put a delayed Steer response into a newly selected Session" time="0.1404717">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a delayed Steer success clear a newer draft in the same Session" time="0.1412461">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; selects server files, renders attachment chips, and enqueues standard Markdown links" time="0.2211497">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; stages native multi-selection in the original modal and registers only on confirmation" time="0.1406988">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues pasted URLs as standard Markdown links in order" time="0.0994211">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; sends intentionally repeated URLs twice instead of deduplicating by URL" time="0.06818">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; preserves an HTML link title in the outbound Markdown payload" time="0.0750631">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; serializes URL nodes to Markdown in the queue editor body" time="0.0306355">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores a URL-only submission after an explicit enqueue rejection" time="0.061711">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; drops a message attachment into the editor and queues it at the text caret" time="0.0830568">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; accepts a cross-Session editor payload and keeps its line range in text and parts" time="0.0694869">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps separate occurrences when the same resource is inserted twice" time="0.082145">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; removes an embedded attachment when native select-all Backspace removes its node" time="0.0393772">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unembedded attachment chip when native select-all clears only editor text" time="0.0354538">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; simulates direct client upload in mock mode, then reuses its chip as an inline node" time="0.2631181">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; deduplicates repeated files within one mock selection and keeps distinct files" time="0.2548364">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; allows cancelling an in-flight mock file without restoring its chip after completion" time="0.2678257">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; aborts an in-flight real upload when its pending chip is cancelled" time="0.0481288">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores each session draft and its inline attachment structure independently" time="0.0775454">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let an old Session attachment registration update the newly selected Session" time="0.0523995">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; consumes an editor request through the existing server attachment and queue path" time="0.0875256">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; revalidates a selected server attachment before enqueue and cancels on a stale path" time="0.1606657">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not finish an attachment send after a queue edit starts during validation" time="0.1416968">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; closes the server browser with its close button and backdrop" time="0.1389104">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps attachments after a failed enqueue and allows cancelling one" time="0.1507836">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uploads client files and combines them with server attachments on send" time="0.2281681">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; shows deterministic aggregate progress and blocks send until upload completes" time="0.1032833">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores an interrupted upload as retryable after switching away and ignores its late response" time="0.092625">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps failed uploads visible with a retry action" time="0.1196481">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues through the server when worker busy, then shows the pending row" time="0.045451">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; blocks button, Enter, and imperative send paths while a queue item is being edited" time="0.1048947">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps the queue badge at the real item count through one edit and repeated save" time="0.1484528">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the current Session runtime worker, not the stale summary, to suppress optimistic history" time="0.0568268">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for idle runtime" time="0.0585548">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for offline runtime" time="0.066615">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for no runtime entry" time="0.0594106">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for another Session runtime" time="0.0644981">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for mismatched runtime entry" time="0.0507794">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not render a stale localStorage queue after a page reload" time="0.0185398">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; also queues when worker is idle; Provider delivery is not a UI ack" time="0.0256016">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the durable HTTP enqueue path when WS is unavailable" time="0.0284511">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; clears optimistically and restores the complete draft when enqueue fails" time="0.0291748">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unconfirmed send cleared and blocks retransmission" time="0.048112">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a pending send overwrite input typed after the optimistic clear" time="0.0398752">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; suppresses the optimistic row if the runtime becomes running before enqueue acknowledgement" time="0.0344612">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a send that started in the live path suppressed if the runtime becomes idle before acknowledgement" time="0.0382581">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a new Session draft isolated while the old Session send completes" time="0.0331949">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not duplicate a submission on repeated clicks while its request is pending" time="0.1251129">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; supports consecutive reset/send transactions without retaining stale text" time="0.1101913">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; renders the desktop resize handle and changes height by pointer drag" time="0.0661283">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the desktop queue above a short composer without changing its height" time="0.0503274">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; shows only the mobile fullscreen control and enters/exits with click or Escape" time="0.0833882">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; uses a viewport-filling modal for server attachments on mobile" time="0.0691432">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the ordinary mobile queue above the composer" time="0.0186335">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; keeps the queue in fullscreen mobile flow so it stays inside the viewport" time="0.049885">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow pill visibility &gt; shows the model pill on mobile and keeps the permission pill desktop-only" time="0.042808">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; anchors the queue count badge to the Queue button, including the desktop busy hint" time="0.0372776">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; uses a wider Queue control and right-aligns desktop attachment" time="0.0387341">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; shows both attachment choices outside the clipped control row" time="0.0575981">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps settings, model and permission menus visible outside the composer clipping contexts" time="0.0814277">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps desktop attachment in the control row, separate from textarea and Send" time="0.0411999">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; orders mobile settings, queue, model, effort, attachment and fullscreen, hiding Thinking first" time="0.0332961">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; opens a searchable dropdown and filters models by keyword" time="0.0445583">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; applies the selected model immediately and closes the dropdown" time="0.0374899">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; closes the dropdown when clicking outside" time="0.0282096">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; uses the normal send transaction with locked=true for text and URL nodes" time="0.0240951">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; restores the draft and attachments when a locked enqueue is rejected (no retry)" time="0.0191327">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow PermissionPill &gt; keeps the collapsed Codex permission pill to the short label" time="0.012215">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; toggles card mode, keeps draft on Escape/toggle, changes kind and clears on Session switch" time="0.1123814">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; sends a user task with the existing uploaded attachment identity without enqueue or Steer" time="0.1199471">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/AppSettingsModal.test.tsx" timestamp="2026-10-24T20:32:43.311Z" hostname="ablaze" tests="60" failures="5" errors="0" skipped="0" time="8.2764261">
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders nothing when closed" time="0.0135286">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; defaults to Lifecycle and keeps Reset on Appearance" time="0.0809601">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads lifecycle preferences from config with ask defaults and saves updates" time="0.0926529">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists a custom wake message from Behavior" time="0.1440382">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows lifecycle preference save errors and keeps the last saved value" time="0.0958503">
+            <failure message="Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;p[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mError: Unexpected settings fetch: GET /api/user-cards/settings[0m
+[36m&lt;/p&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;div[39m
+  [33mclass[39m=[32m&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mconfig is read-only[0m
+  [36m&lt;button[39m
+    [33mclass[39m=[32m&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;[39m
+    [33mtype[39m=[32m&quot;button&quot;[39m
+  [36m&gt;[39m
+    [0mRetry[0m
+  [36m&lt;/button&gt;[39m
+[36m&lt;/div&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200..." type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;p
+  role=&quot;alert&quot;
+&gt;
+  Error: Unexpected settings fetch: GET /api/user-cards/settings
+&lt;/p&gt;
+
+Ignored nodes: comments, script, style
+&lt;div
+  class=&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;
+  role=&quot;alert&quot;
+&gt;
+  config is read-only
+  &lt;button
+    class=&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;
+    type=&quot;button&quot;
+  &gt;
+    Retry
+  &lt;/button&gt;
+&lt;/div&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+ ❯ Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:20:35
+ ❯ getMultipleElementsFoundError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:23:10
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:55:13
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ components/layout/AppSettingsModal.test.tsx:402:19
+            </failure>
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a preference load error and retries the server read" time="1.0458432">
+            <failure message="Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;p[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mError: Unexpected settings fetch: GET /api/user-cards/settings[0m
+[36m&lt;/p&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;div[39m
+  [33mclass[39m=[32m&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0msettings unavailable[0m
+  [36m&lt;button[39m
+    [33mclass[39m=[32m&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;[39m
+    [33mtype[39m=[32m&quot;button&quot;[39m
+  [36m&gt;[39m
+    [0mRetry[0m
+  [36m&lt;/button&gt;[39m
+[36m&lt;/div&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200..." type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;p
+  role=&quot;alert&quot;
+&gt;
+  Error: Unexpected settings fetch: GET /api/user-cards/settings
+&lt;/p&gt;
+
+Ignored nodes: comments, script, style
+&lt;div
+  class=&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;
+  role=&quot;alert&quot;
+&gt;
+  settings unavailable
+  &lt;button
+    class=&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;
+    type=&quot;button&quot;
+  &gt;
+    Retry
+  &lt;/button&gt;
+&lt;/div&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ components/layout/AppSettingsModal.test.tsx:411:25
+            </failure>
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved offline policy without asking again" time="0.0490672">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved preserve-running policy without asking again" time="0.056635">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved offline policy without asking again" time="0.0599696">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved preserve-running policy without asking again" time="0.0506232">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; refreshes both lifecycle statuses on every modal open and clears stale Exit state" time="0.0703758">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle actions disabled after a status fetch error until Retry succeeds" time="0.0783398">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; ignores status responses from an earlier modal-open cycle" time="0.0354449">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not let a lifecycle action response from an earlier open overwrite the new status" time="0.1073731">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps all settings tabs reachable in a horizontal-only scroller" time="0.0466466">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps the canonical category order with the integrated Shortcuts page" time="0.0261668">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; places each setting on exactly its category page" time="0.130006">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; navigates from Lifecycle to the exact Behavior policy without writing or acting" time="0.0836388">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; focuses the Behavior policy after preferences finish loading, then reopens on Lifecycle" time="0.0393067">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle load errors available across tab switches and focuses the section on jump" time="1.0218168">
+            <failure message="Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;p[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mError: Unexpected settings fetch: GET /api/user-cards/settings[0m
+[36m&lt;/p&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;div[39m
+  [33mclass[39m=[32m&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0msettings unavailable[0m
+  [36m&lt;button[39m
+    [33mclass[39m=[32m&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;[39m
+    [33mtype[39m=[32m&quot;button&quot;[39m
+  [36m&gt;[39m
+    [0mRetry[0m
+  [36m&lt;/button&gt;[39m
+[36m&lt;/div&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200..." type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;p
+  role=&quot;alert&quot;
+&gt;
+  Error: Unexpected settings fetch: GET /api/user-cards/settings
+&lt;/p&gt;
+
+Ignored nodes: comments, script, style
+&lt;div
+  class=&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;
+  role=&quot;alert&quot;
+&gt;
+  settings unavailable
+  &lt;button
+    class=&quot;ml-2 underline underline-offset-2 disabled:opacity-60&quot;
+    type=&quot;button&quot;
+  &gt;
+    Retry
+  &lt;/button&gt;
+&lt;/div&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ components/layout/AppSettingsModal.test.tsx:864:26
+            </failure>
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads the Data catalog on demand and keeps long paths usable in a narrow panel" time="0.0539453">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Data catalog loading and failure states without blocking other tabs" time="0.1271242">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads disabled retention policies, edits days, saves, and shows recent scan counts" time="0.1574139">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists independent orphan workdir settings and warns in English" time="0.0911539">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; projects the shared Jobs retention editor in Data and saves via its canonical API" time="0.0721603">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows retention settings loading and failure while keeping the Data path panel usable" time="0.0385875">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows message visibility on the Appearance tab and keeps its settings and persistence" time="0.0579159">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style" time="0.0258666">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the default new Session Workspace preference and persists it" time="0.0183234">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Behavior worker-kill report switch off by default and persists it" time="0.0212906">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Behavior save errors and keeps the last saved value" time="1.0345017">
+            <failure message="Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;p[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mError: Unexpected settings fetch: GET /api/user-cards/settings[0m
+[36m&lt;/p&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;div[39m
+  [33mclass[39m=[32m&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mconfig is read-only[0m
+[36m&lt;/div&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200..." type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;p
+  role=&quot;alert&quot;
+&gt;
+  Error: Unexpected settings fetch: GET /api/user-cards/settings
+&lt;/p&gt;
+
+Ignored nodes: comments, script, style
+&lt;div
+  class=&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;
+  role=&quot;alert&quot;
+&gt;
+  config is read-only
+&lt;/div&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ components/layout/AppSettingsModal.test.tsx:1225:25
+            </failure>
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows three independent auto Force switches, all off by default" time="0.0313621">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists one auto Force switch without changing the others" time="0.0598382">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows auto Force save failures and keeps the last saved switch position" time="1.0483895">
+            <failure message="Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;p[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mError: Unexpected settings fetch: GET /api/user-cards/settings[0m
+[36m&lt;/p&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;div[39m
+  [33mclass[39m=[32m&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;[39m
+  [33mrole[39m=[32m&quot;alert&quot;[39m
+[36m&gt;[39m
+  [0mauto force config is read-only[0m
+[36m&lt;/div&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div /&gt;[39m
+  [36m&lt;div[39m
+    [33maria-label[39m=[32m&quot;App Settings&quot;[39m
+    [33maria-modal[39m=[32m&quot;true&quot;[39m
+    [33mclass[39m=[32m&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;[39m
+    [33mrole[39m=[32m&quot;dialog&quot;[39m
+  [36m&gt;[39m
+    [36m&lt;div[39m
+      [33mclass[39m=[32m&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;div&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-sm font-semibold text-text-primary&quot;[39m
+          [36m&gt;[39m
+            [0mApp Settings[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mt-0.5 text-[11px] text-text-tertiary&quot;[39m
+          [36m&gt;[39m
+            [0mGlobal preferences for the Pan app.[0m
+          [36m&lt;/p&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;button[39m
+          [33maria-label[39m=[32m&quot;Close&quot;[39m
+          [33mclass[39m=[32m&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-x&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;16&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;16&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18 6 6 18&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;m6 6 12 12&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+        [36m&lt;/button&gt;[39m
+      [36m&lt;/div&gt;[39m
+      [36m&lt;div[39m
+        [33maria-label[39m=[32m&quot;App settings sections&quot;[39m
+        [33mclass[39m=[32m&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;[39m
+        [33mrole[39m=[32m&quot;tablist&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-lifecycle&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-power&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M12 2v10&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;path[39m
+              [33md[39m=[32m&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mLifecycle[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;true&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-behavior&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;0&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-toggle-left&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/2000/svg&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;circle[39m
+              [33mcx[39m=[32m&quot;9&quot;[39m
+              [33mcy[39m=[32m&quot;12&quot;[39m
+              [33mr[39m=[32m&quot;3&quot;[39m
+            [36m/&gt;[39m
+            [36m&lt;rect[39m
+              [33mheight[39m=[32m&quot;14&quot;[39m
+              [33mrx[39m=[32m&quot;7&quot;[39m
+              [33mwidth[39m=[32m&quot;20&quot;[39m
+              [33mx[39m=[32m&quot;2&quot;[39m
+              [33my[39m=[32m&quot;5&quot;[39m
+            [36m/&gt;[39m
+          [36m&lt;/svg&gt;[39m
+          [0mBehavior[0m
+        [36m&lt;/button&gt;[39m
+        [36m&lt;button[39m
+          [33maria-controls[39m=[32m&quot;app-settings-tabpanel&quot;[39m
+          [33maria-selected[39m=[32m&quot;false&quot;[39m
+          [33mclass[39m=[32m&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;[39m
+          [33mid[39m=[32m&quot;app-settings-tab-remote&quot;[39m
+          [33mrole[39m=[32m&quot;tab&quot;[39m
+          [33mtabindex[39m=[32m&quot;-1&quot;[39m
+          [33mtype[39m=[32m&quot;button&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;svg[39m
+            [33maria-hidden[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;lucide lucide-globe&quot;[39m
+            [33mfill[39m=[32m&quot;none&quot;[39m
+            [33mheight[39m=[32m&quot;14&quot;[39m
+            [33mstroke[39m=[32m&quot;currentColor&quot;[39m
+            [33mstroke-linecap[39m=[32m&quot;round&quot;[39m
+            [33mstroke-linejoin[39m=[32m&quot;round&quot;[39m
+            [33mstroke-width[39m=[32m&quot;2&quot;[39m
+            [33mviewBox[39m=[32m&quot;0 0 24 24&quot;[39m
+            [33mwidth[39m=[32m&quot;14&quot;[39m
+            [33mxmlns[39m=[32m&quot;http://www.w3.org/200..." type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;alert&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;p
+  role=&quot;alert&quot;
+&gt;
+  Error: Unexpected settings fetch: GET /api/user-cards/settings
+&lt;/p&gt;
+
+Ignored nodes: comments, script, style
+&lt;div
+  class=&quot;mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger&quot;
+  role=&quot;alert&quot;
+&gt;
+  auto force config is read-only
+&lt;/div&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div /&gt;
+  &lt;div
+    aria-label=&quot;App Settings&quot;
+    aria-modal=&quot;true&quot;
+    class=&quot;app-settings-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50&quot;
+    role=&quot;dialog&quot;
+  &gt;
+    &lt;div
+      class=&quot;app-settings-card flex flex-col w-full h-full bg-bg-primary overflow-hidden md:w-[75vw] md:h-[75vh] md:rounded-lg md:border md:border-border-default md:shadow-xl&quot;
+    &gt;
+      &lt;div
+        class=&quot;flex items-start justify-between gap-3 border-b border-border-default px-4 py-3 md:px-6 md:py-4 shrink-0&quot;
+      &gt;
+        &lt;div&gt;
+          &lt;h2
+            class=&quot;text-sm font-semibold text-text-primary&quot;
+          &gt;
+            App Settings
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mt-0.5 text-[11px] text-text-tertiary&quot;
+          &gt;
+            Global preferences for the Pan app.
+          &lt;/p&gt;
+        &lt;/div&gt;
+        &lt;button
+          aria-label=&quot;Close&quot;
+          class=&quot;text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary p-1.5 rounded transition-colors shrink-0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-x&quot;
+            fill=&quot;none&quot;
+            height=&quot;16&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;16&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M18 6 6 18&quot;
+            /&gt;
+            &lt;path
+              d=&quot;m6 6 12 12&quot;
+            /&gt;
+          &lt;/svg&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+      &lt;div
+        aria-label=&quot;App settings sections&quot;
+        class=&quot;flex shrink-0 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x border-b border-border-default px-4 md:overflow-visible md:px-6&quot;
+        role=&quot;tablist&quot;
+      &gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-lifecycle&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-power&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;path
+              d=&quot;M12 2v10&quot;
+            /&gt;
+            &lt;path
+              d=&quot;M18.4 6.6a9 9 0 1 1-12.77.04&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Lifecycle
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;true&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-accent text-text-primary&quot;
+          id=&quot;app-settings-tab-behavior&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;0&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-toggle-left&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/2000/svg&quot;
+          &gt;
+            &lt;circle
+              cx=&quot;9&quot;
+              cy=&quot;12&quot;
+              r=&quot;3&quot;
+            /&gt;
+            &lt;rect
+              height=&quot;14&quot;
+              rx=&quot;7&quot;
+              width=&quot;20&quot;
+              x=&quot;2&quot;
+              y=&quot;5&quot;
+            /&gt;
+          &lt;/svg&gt;
+          Behavior
+        &lt;/button&gt;
+        &lt;button
+          aria-controls=&quot;app-settings-tabpanel&quot;
+          aria-selected=&quot;false&quot;
+          class=&quot;inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors border-transparent text-text-tertiary hover:text-text-primary&quot;
+          id=&quot;app-settings-tab-remote&quot;
+          role=&quot;tab&quot;
+          tabindex=&quot;-1&quot;
+          type=&quot;button&quot;
+        &gt;
+          &lt;svg
+            aria-hidden=&quot;true&quot;
+            class=&quot;lucide lucide-globe&quot;
+            fill=&quot;none&quot;
+            height=&quot;14&quot;
+            stroke=&quot;currentColor&quot;
+            stroke-linecap=&quot;round&quot;
+            stroke-linejoin=&quot;round&quot;
+            stroke-width=&quot;2&quot;
+            viewBox=&quot;0 0 24 24&quot;
+            width=&quot;14&quot;
+            xmlns=&quot;http://www.w3.org/200...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ components/layout/AppSettingsModal.test.tsx:1283:25
+            </failure>
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles merged tool/thinking groups on the Appearance tab and persists the setting" time="0.0369681">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the per-session scroll memory on the Appearance tab and persists it" time="0.0405206">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the message navigation rail on the Appearance tab and persists it" time="0.0466316">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles only the Chat view switcher on the Appearance tab and persists it" time="0.0433878">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Codex warning Toast option on the Notifications tab" time="0.0328605">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads and replaces the Codex whitelist on the Adapters tab" time="0.0542457">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a readable Codex refresh error in the Adapters tab" time="0.0634296">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Codex terminal input popup option and persists it" time="0.0395447">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; is full-screen on mobile and ~75% of the viewport on desktop" time="0.0198613">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes when the backdrop is clicked" time="0.0196374">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not close when clicking inside the card" time="0.0193022">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes on Escape" time="0.0181154">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles a setting through a switch and writes the store" time="0.0460334">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists the Session history search setting when its switch changes" time="0.0534702">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; exposes the group-by settings only on the Appearance tab without duplicates" time="0.043877">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles Show Group by on the Appearance tab and persists it" time="0.0416282">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the desktop sidebar collapse handle on the Appearance tab and persists it" time="0.0167577">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; changes Default group by on the Appearance tab and persists the selection" time="0.0132118">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; scopes Reset to saved UI preferences and keeps lifecycle/worker/remote untouched" time="0.0208208">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and reports successful main-service recovery" time="1.1205215">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and schedules a stop-only Pan exit without health polling" time="0.0517285">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows an unavailable exit control and API error state" time="0.0257352">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; allows stopping the bounded health check and does not call health forever" time="0.0679219">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the main-service control when restart scripts are unavailable" time="0.0260678">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a finite timeout when the restarted service never becomes healthy" time="0.0527402">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires an explicit lifecycle status refresh when the final restart status read fails" time="0.0931525">
+        </testcase>
+    </testsuite>
+</testsuites>

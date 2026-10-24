@@ -1973,6 +1973,27 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 
 @mcp.tool()
+def user_card(operation: str, card_id: str = "", body: str = "", expected_revision: int | None = None) -> dict:
+    """Read/answer user-created cards owned ONLY by this bound stdio Session.
+
+    list_pending returns id, kind (question/task), body, attachments, createdAt,
+    revision for every unanswered own card. answer requires card_id, body and
+    expected_revision. Questions require nonblank answers; tasks allow empty.
+    First answer is terminal; retries conflict, never overwrite. No reject,
+    managed-owner override, user authorization, Trigger or interaction response.
+    """
+    if operation == "list_pending":
+        if card_id or body or expected_revision is not None:
+            return {"ok": False, "error": "list_pending accepts no parameters"}
+        payload = {}
+    elif operation == "answer":
+        payload = {"cardId": card_id, "body": body, "expectedRevision": expected_revision}
+    else:
+        return {"ok": False, "error": "invalid_operation"}
+    return _local_producer_api(f"/api/user-card-tools/{operation}", payload)
+
+
+@mcp.tool()
 def locker_message(operation: str, message: dict | None = None, message_id: str = "") -> dict:
     """Create/get an ordinary Locker Message for this profile user, from own Session.
 

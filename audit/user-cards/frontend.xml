@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="108" failures="0" errors="0" time="10.11">
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-24T20:29:03.436Z" hostname="ablaze" tests="28" failures="0" errors="0" skipped="0" time="3.1247256">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.1403538">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0011325">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0606555">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0533523">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.1472282">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.1028712">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0439819">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.1146957">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.040086">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.1409716">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.1735123">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0559928">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0265208">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1445615">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1481683">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1237336">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1219668">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1298573">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1564188">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.1859203">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.1022172">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.0950409">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0393593">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.0487491">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.503732">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; renders pending once without read controls and keeps answered projections ordered deterministically" time="0.042588">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 0 update/remove both identical rows" time="0.0874799">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 1 update/remove both identical rows" time="0.0920885">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/InputRow.test.tsx" timestamp="2026-10-24T20:29:03.447Z" hostname="ablaze" tests="80" failures="0" errors="0" skipped="1" time="6.689674">
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; routes configured Steer through the existing button transaction exactly once" time="0.1231248">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;isComposing&quot;:true}" time="0.032538">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;keyCode&quot;:229}" time="0.0305247">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;repeat&quot;:true}" time="0.0362707">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; disables ambiguous composer/global bindings, including Ctrl/Mod aliases" time="0.0370967">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; uses the normal locked send mode and does not let hidden Steer bypass it" time="0.1526618">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not repeat an unknown Steer admission and suppresses keys during recording" time="0.0726501">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the CBC stream capability for direct Steer and hides it for native TUI/oneshot" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps CBC stream Steer and native TUI capability boundaries" time="0.0618658">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps Codex Steer visible and routes by sessionId when the session summary is stale" time="0.0950599">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not put a delayed Steer response into a newly selected Session" time="0.1725497">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a delayed Steer success clear a newer draft in the same Session" time="0.1421319">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; selects server files, renders attachment chips, and enqueues standard Markdown links" time="0.2204296">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; stages native multi-selection in the original modal and registers only on confirmation" time="0.1234942">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues pasted URLs as standard Markdown links in order" time="0.0888118">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; sends intentionally repeated URLs twice instead of deduplicating by URL" time="0.0786858">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; preserves an HTML link title in the outbound Markdown payload" time="0.074346">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; serializes URL nodes to Markdown in the queue editor body" time="0.0321406">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores a URL-only submission after an explicit enqueue rejection" time="0.0610167">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; drops a message attachment into the editor and queues it at the text caret" time="0.0812175">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; accepts a cross-Session editor payload and keeps its line range in text and parts" time="0.0777161">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps separate occurrences when the same resource is inserted twice" time="0.0803912">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; removes an embedded attachment when native select-all Backspace removes its node" time="0.0413769">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unembedded attachment chip when native select-all clears only editor text" time="0.0498786">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; simulates direct client upload in mock mode, then reuses its chip as an inline node" time="0.2828547">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; deduplicates repeated files within one mock selection and keeps distinct files" time="0.249861">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; allows cancelling an in-flight mock file without restoring its chip after completion" time="0.281694">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; aborts an in-flight real upload when its pending chip is cancelled" time="0.0507166">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores each session draft and its inline attachment structure independently" time="0.0891575">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let an old Session attachment registration update the newly selected Session" time="0.0355281">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; consumes an editor request through the existing server attachment and queue path" time="0.099984">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; revalidates a selected server attachment before enqueue and cancels on a stale path" time="0.155047">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not finish an attachment send after a queue edit starts during validation" time="0.1503506">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; closes the server browser with its close button and backdrop" time="0.1286191">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps attachments after a failed enqueue and allows cancelling one" time="0.1481954">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uploads client files and combines them with server attachments on send" time="0.2534063">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; shows deterministic aggregate progress and blocks send until upload completes" time="0.1042682">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores an interrupted upload as retryable after switching away and ignores its late response" time="0.0890355">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps failed uploads visible with a retry action" time="0.1216945">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues through the server when worker busy, then shows the pending row" time="0.0702314">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; blocks button, Enter, and imperative send paths while a queue item is being edited" time="0.1133018">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps the queue badge at the real item count through one edit and repeated save" time="0.1483454">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the current Session runtime worker, not the stale summary, to suppress optimistic history" time="0.0650184">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for idle runtime" time="0.0724132">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for offline runtime" time="0.064881">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for no runtime entry" time="0.0629294">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for another Session runtime" time="0.0365348">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for mismatched runtime entry" time="0.0295042">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not render a stale localStorage queue after a page reload" time="0.0182574">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; also queues when worker is idle; Provider delivery is not a UI ack" time="0.0205147">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the durable HTTP enqueue path when WS is unavailable" time="0.0194368">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; clears optimistically and restores the complete draft when enqueue fails" time="0.043201">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unconfirmed send cleared and blocks retransmission" time="0.0601046">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a pending send overwrite input typed after the optimistic clear" time="0.0323401">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; suppresses the optimistic row if the runtime becomes running before enqueue acknowledgement" time="0.03221">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a send that started in the live path suppressed if the runtime becomes idle before acknowledgement" time="0.0701605">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a new Session draft isolated while the old Session send completes" time="0.0914501">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not duplicate a submission on repeated clicks while its request is pending" time="0.1520313">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; supports consecutive reset/send transactions without retaining stale text" time="0.1277587">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; renders the desktop resize handle and changes height by pointer drag" time="0.0394878">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the desktop queue above a short composer without changing its height" time="0.0524606">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; shows only the mobile fullscreen control and enters/exits with click or Escape" time="0.1087149">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; uses a viewport-filling modal for server attachments on mobile" time="0.0730236">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the ordinary mobile queue above the composer" time="0.0192979">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; keeps the queue in fullscreen mobile flow so it stays inside the viewport" time="0.048474">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow pill visibility &gt; shows the model pill on mobile and keeps the permission pill desktop-only" time="0.0392151">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; anchors the queue count badge to the Queue button, including the desktop busy hint" time="0.0303271">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; uses a wider Queue control and right-aligns desktop attachment" time="0.0303133">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; shows both attachment choices outside the clipped control row" time="0.0482119">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps settings, model and permission menus visible outside the composer clipping contexts" time="0.0504231">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps desktop attachment in the control row, separate from textarea and Send" time="0.0290938">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; orders mobile settings, queue, model, effort, attachment and fullscreen, hiding Thinking first" time="0.0380042">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; opens a searchable dropdown and filters models by keyword" time="0.0475938">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; applies the selected model immediately and closes the dropdown" time="0.0618184">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; closes the dropdown when clicking outside" time="0.0375456">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; uses the normal send transaction with locked=true for text and URL nodes" time="0.0569007">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; restores the draft and attachments when a locked enqueue is rejected (no retry)" time="0.0414243">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow PermissionPill &gt; keeps the collapsed Codex permission pill to the short label" time="0.0214358">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; toggles card mode, keeps draft on Escape/toggle, changes kind and clears on Session switch" time="0.1462718">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; sends a user task with the existing uploaded attachment identity without enqueue or Steer" time="0.1293738">
+        </testcase>
+    </testsuite>
+</testsuites>

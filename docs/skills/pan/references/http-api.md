@@ -616,3 +616,32 @@ recipient overrides. See [ordinary Locker contract](../../../design/user-locker-
 - `POST /api/interaction-card-tools/no_answer_needed {cardId,expectedRevision}`：原子 CAS 进入持久 `status=no_answer_needed`；重复同一标记幂等。拒绝已答复/拒绝/执行中/unknown 的卡片，不能取消 Action。请求没有用户答复、choice 或通知副作用。
 - 以上是沿用 Locker stdio 的 same-user loopback caller assertion，拒绝浏览器 Origin/Sec-Fetch、非 loopback 或无有效 Session caller；MCP SSE/远端不能转借身份。不是远程登录或用户 Bearer。
 - 无需回答卡片留在原混排列表，明显标示终态，只允许用户 Bearer 删除。submit/respond/reject/read/dispatch 均 409，无恢复操作，Agent 不获得删除权限。GUI 延续刷新/focus 机制，并在旧回答得到 409 conflict 后读回原卡片状态。
+# User-created cards (user → owner Session)
+
+These APIs are separate from `interaction_card` and its response/Trigger flow.
+User endpoints require the existing profile User Bearer.
+
+| Method / path | Body / result |
+|---|---|
+| POST `/api/user-cards` | `{ownerSessionId,requestKey,kind:"question"|"task",body,attachments:[{id,name,mimeType?,size?}]}` → `{card}`. Owner must exist; attachments/links use the existing Session registry ownership checks. Stable ID derives from user+owner+requestKey; identical retry returns original, changed content/deleted identity conflicts. Body or attachments required. |
+| GET `/api/user-cards` | `{cards:[...]}` for the authenticated profile, bounded to 1000 stored cards; one bulk request, no per-card reads. |
+| DELETE `/api/user-cards/{id}` | Delete unanswered or completed record; tombstone retained. Final pending deletion stops future reminders. |
+| PUT `/api/user-cards/{id}/read` | `{read:boolean}` → `{card}`; only answered cards. |
+| GET `/api/user-cards/{id}/attachments/{attachmentId}` | User-authorized registered attachment belonging to this card and owner. |
+| GET / PUT `/api/user-cards/settings` | `{minutes:integer}`; default 10, range 1–1440; persisted reminder setting exposed under Behavior. |
+| POST `/api/user-card-tools/list_pending` | `{}` → `{cards:[...]}`; trusted local stdio caller only, owner fixed to caller Session; no managed override. |
+| POST `/api/user-card-tools/answer` | `{cardId,body,expectedRevision}` → `{card}`; same own-only identity. Nonblank question / possibly empty task; revision CAS, first answer terminal, repeat 409. |
+
+MCP exposes only `user_card(operation="list_pending"|"answer",card_id?,body?,expected_revision?)`.
+Card fields include `id,direction:"user",kind,ownerSessionId,lockerId,body,attachments,revision,
+status:"pending"|"answered",answer,read,createdAt,answeredAt`. `createdAt` never changes;
+`answeredAt` is null until first answer and then immutable. Pending cards have no user read control;
+first answer marks unread. Locker counts distinct stored cards; answered UI projects the same record
+at both creation and answer times, with unique position keys and shared card-id actions.
+
+Immediate creation Notification includes the fixed reminder text, body and card id; periodic notices
+contain only “你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答”.
+Reminder admission persists the queue row and invokes normal queue wake/auto-spawn; it never releases
+Illegal or bypasses Pause/locks/leases. A process-owned scheduler waits without polling
+when no pending cards remain; persisted last reminder and stable outbox IDs coalesce missed periods
+after restart. Neither reminder nor answer authorizes or invokes an interaction response or Trigger.
