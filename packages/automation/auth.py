@@ -62,6 +62,8 @@ class UserAuth:
             return {'revision': 0, 'permissions': self._default_permissions()}
         try:
             state = json.loads(self.permissions_path.read_text(encoding='utf-8'))
+            if not isinstance(state, dict):
+                raise ValueError('Authorization state must be an object')
             revision = state.get('revision', 0)
             permissions = self._validate_permissions(state.get('permissions'))
             if type(revision) is not int or revision < 0:

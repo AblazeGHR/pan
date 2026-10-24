@@ -75,7 +75,12 @@ def test_action_template_and_job_read_projections_keep_unknown_fields(tmp_path):
     listed = Templates(Store(registry)).list()
 
     assert listed[0]["futureTemplateField"] == {"kept": "as-is"}
-    assert listed[0]["enabled"] is False
+    assert "enabled" not in listed[0]
+    assert listed[0]["usable"] == (listed[0]["integrity"]["status"] == "complete"
+                                  and not listed[0]["integrity"]["approvalRequired"])
+    assert listed[0]["config"]["enabled"] is False
+    assert json.loads(path.read_text(encoding="utf-8")) == state
+    assert json.loads(path.read_text(encoding="utf-8"))["jobTemplates"]["jtpl_legacy"]["enabled"] is False
     assert _sha(path) == before
 
 
