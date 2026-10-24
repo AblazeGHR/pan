@@ -116,9 +116,10 @@ python scripts/run_tests_isolated.py -- python -m pytest \
   tests/test_runtime_diagnostics.py tests/test_pan_cli.py \
   tests/test_persistence_sharding.py tests/test_docs_terminology.py \
   tests/test_login_startup.py tests/test_diagnose_pan.py \
-  tests/test_main_service_restart.py -q -o addopts= -p no:cacheprovider \
+  tests/test_main_service_restart.py tests/test_config_reload.py \
+  -q -o addopts= -p no:cacheprovider \
   --junitxml=evidence/bounded-log-rotation-20261025/junit-regression.xml
-  => 203 passed, 1 skipped (pre-existing `test_docs_terminology::test_skill_sync_copy_matches_source`), exit 0
+  => 228 passed, 1 skipped (pre-existing `test_docs_terminology::test_skill_sync_copy_matches_source`), exit 0
 ```
 
 `tests/test_console_log_rotation.py` runs the launcher integration twice —
