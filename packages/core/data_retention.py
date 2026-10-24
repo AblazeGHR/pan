@@ -591,31 +591,39 @@ def scan_qq_media(root: Path, days: int, now_epoch: float) -> dict:
     return result
 
 
-def scan_pan_logs(logs_root: Path, active_log: Path, days: int,
+def scan_pan_logs(logs_root: Path, active_logs, days: int,
                   now_epoch: float) -> dict:
     """Remove expired rotated Pan logs from the fixed data/logs root.
 
-    The process-owned active file can still receive writes, so it is reported
-    as skipped. Only exact basename siblings (the logger's numbered and date
-    rotation forms) are considered; configured paths outside this root are
-    never followed or cleaned.
+    ``active_logs`` is one path or a sequence of paths: the process-owned files
+    that can still receive writes (``pan.log``, ``pan-console.out.log``,
+    ``pan-console.err.log``, ``session-errors.jsonl``).  Each active file is
+    reported as skipped. Only exact basename siblings (the logger's and the
+    whole-file rotation's numbered and date forms) are considered; configured
+    paths outside this root are never followed or cleaned.
     """
     result = _summary()
     safe_root = _safe_root(logs_root)
     if safe_root is None:
         _skip(result, "pan_logs_root_missing_or_unsafe")
         return result
-    active = Path(active_log)
-    try:
-        active_absolute = Path(os.path.abspath(active))
-        active_resolved = active.resolve(strict=False)
-        active_resolved.relative_to(safe_root)
-    except (OSError, ValueError):
-        _skip(result, "pan_log_external_or_unregistered")
-        return result
-    if (active_absolute.parent != safe_root or active_resolved.parent != safe_root
-            or active_resolved.name != active_absolute.name):
-        _skip(result, "pan_log_external_or_unregistered")
+    requested = active_logs if isinstance(active_logs, (list, tuple, set)) else [active_logs]
+    registered: dict[str, Path] = {}
+    for active in requested:
+        active = Path(active)
+        try:
+            active_absolute = Path(os.path.abspath(active))
+            active_resolved = active.resolve(strict=False)
+            active_resolved.relative_to(safe_root)
+        except (OSError, ValueError):
+            _skip(result, "pan_log_external_or_unregistered")
+            continue
+        if (active_absolute.parent != safe_root or active_resolved.parent != safe_root
+                or active_resolved.name != active_absolute.name):
+            _skip(result, "pan_log_external_or_unregistered")
+            continue
+        registered.setdefault(active_absolute.name, active_absolute)
+    if not registered:
         return result
     cutoff = _cutoff(now_epoch, days)
     try:
@@ -623,26 +631,27 @@ def scan_pan_logs(logs_root: Path, active_log: Path, days: int,
     except OSError:
         result["error"] = "pan_logs_root_unreadable"
         return result
-    active_name = active_absolute.name
-    rotated_name = re.compile(re.escape(active_name) + r"\.(?:\d+|\d{8})\Z")
-    active_path = safe_root / active_name
-    try:
-        active_path.lstat()
-    except FileNotFoundError:
-        pass
-    except OSError:
-        result["scanned"] += 1
-        _skip(result, "active_log_file_unavailable")
-    else:
+    rotated_names = {
+        name: re.compile(re.escape(name) + r"\.(?:\d+|\d{8})\Z") for name in registered
+    }
+    for active_name, active_path in registered.items():
+        try:
+            active_path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            result["scanned"] += 1
+            _skip(result, "active_log_file_unavailable")
+            continue
         result["scanned"] += 1
         if _contained_plain_file(safe_root, active_path) is None:
             _skip(result, "active_log_file_not_plain")
         else:
             _skip(result, "active_log_file")
     for path in candidates:
-        if path.name == active_name:
+        if path.name in registered:
             continue
-        if not rotated_name.fullmatch(path.name):
+        if not any(pattern.fullmatch(path.name) for pattern in rotated_names.values()):
             continue
         result["scanned"] += 1
         safe = _contained_plain_file(safe_root, path)
@@ -677,6 +686,7 @@ class DataRetentionService:
                  attachment_registry_lock: threading.RLock | None = None,
                  pan_logs_root: Path | None = None,
                  active_log_path: Callable[[], Path] | None = None,
+                 active_log_paths: Callable[[], list[Path]] | None = None,
                  workdir_scan: Callable[[int], dict] | None = None):
         self.workdir_scan = workdir_scan
         self.sessions_root = Path(sessions_root)
@@ -686,6 +696,7 @@ class DataRetentionService:
         self.status_path = Path(status_path)
         self.pan_logs_root = Path(pan_logs_root) if pan_logs_root is not None else None
         self.active_log_path = active_log_path or (lambda: self.pan_logs_root / "pan.log")
+        self.active_log_paths = active_log_paths
         self.policy_loader = policy_loader
         self.session_delete = session_delete
         self.attachment_registry_lock = attachment_registry_lock
@@ -788,6 +799,11 @@ class DataRetentionService:
             # A failed diagnostics write must never stop Worker/Scheduler.
             pass
 
+    def _pan_log_targets(self) -> list[Path]:
+        if self.active_log_paths is not None:
+            return list(self.active_log_paths())
+        return [self.active_log_path()]
+
     def get_status(self) -> dict:
         with self._status_lock:
             status = self._load_status()
@@ -825,7 +841,8 @@ class DataRetentionService:
                         "qq_media": lambda: scan_qq_media(
                             self.qq_media_root, policy["days"], current),
                         "pan_logs": lambda: scan_pan_logs(
-                            self.pan_logs_root, self.active_log_path(), policy["days"], current),
+                            self.pan_logs_root, self._pan_log_targets(),
+                            policy["days"], current),
                     }[policy_id]
                     result = scanner()
                 except Exception as exc:  # Sweep failures are isolated per category.

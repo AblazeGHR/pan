@@ -431,6 +431,43 @@ def test_pan_log_retention_removes_only_expired_rotations_under_registered_root(
     assert external.read_text(encoding="utf-8") == "external"
 
 
+def test_pan_log_retention_covers_console_and_session_error_families(tmp_path):
+    logs = tmp_path / "data" / "logs"
+    logs.mkdir(parents=True)
+    active = logs / "pan.log"
+    console_out = logs / "pan-console.out.log"
+    console_err = logs / "pan-console.err.log"
+    errors = logs / "session-errors.jsonl"
+    for path in (active, console_out, console_err, errors):
+        path.write_text("active", encoding="utf-8")
+    expired = [
+        logs / "pan-console.out.log.1",
+        logs / "pan-console.err.log.2",
+        logs / "session-errors.jsonl.1",
+        logs / "session-errors.jsonl.20260801",
+    ]
+    unrelated = logs / "pan-console.out.log.manual"
+    for path in (*expired, unrelated):
+        path.write_text("old", encoding="utf-8")
+        os.utime(path, (datetime(2020, 1, 1).timestamp(),) * 2)
+    outside = tmp_path / "external" / "pan-console.out.log.1"
+    outside.parent.mkdir()
+    outside.write_text("external", encoding="utf-8")
+    os.utime(outside, (datetime(2020, 1, 1).timestamp(),) * 2)
+
+    result = retention.scan_pan_logs(
+        logs, [active, console_out, console_err, errors, outside],
+        30, datetime(2026, 9, 27).timestamp())
+
+    assert result["deleted"] == 4
+    assert all(not path.exists() for path in expired)
+    assert unrelated.exists()
+    assert active.read_text(encoding="utf-8") == "active"
+    assert outside.read_text(encoding="utf-8") == "external"
+    assert result["skipReasons"]["pan_log_external_or_unregistered"] == 1
+    assert result["skipReasons"]["active_log_file"] == 4
+
+
 def test_enabled_policy_with_empty_days_never_scans_or_deletes(tmp_path):
     logs = tmp_path / "data" / "logs"
     logs.mkdir(parents=True)

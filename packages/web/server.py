@@ -544,6 +544,7 @@ def _get_data_retention_service() -> DataRetentionService:
             qq_media_root=DATA_DIR / "qq_media",
             pan_logs_root=DATA_DIR / "logs",
             active_log_path=_effective_pan_log_path,
+            active_log_paths=_effective_pan_log_paths,
             status_path=DATA_DIR / "retention" / "status.json",
             policy_loader=lambda: load_config().get("data_retention", {}),
             session_delete=_retention_delete_session_from_thread,
@@ -559,6 +560,23 @@ def _effective_pan_log_path() -> Path:
         if filename:
             return Path(filename)
     return _PROJECT_DIR / "data" / "logs" / "pan.log"
+
+
+def _effective_pan_log_paths() -> list[Path]:
+    """Every process-owned log family the ``pan_logs`` policy may clean.
+
+    The console logs and the session error samples always live in
+    ``data/logs`` (launcher-owned / beside the configured Pan log); a custom
+    ``logging.file`` outside that root is refused by ``scan_pan_logs`` on its
+    own, without hiding the other three families.
+    """
+    logs_root = DATA_DIR / "logs"
+    return [
+        _effective_pan_log_path(),
+        logs_root / "pan-console.out.log",
+        logs_root / "pan-console.err.log",
+        logs_root / "session-errors.jsonl",
+    ]
 
 
 def _retention_delete_session_from_thread(session_id: str, expected: dict) -> dict:

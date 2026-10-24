@@ -1,0 +1,10 @@
+# After: real launch shape (launcher -> python -c shim -> main.py), venv redirector child
+child_pid 49584 interpreter D:\project\Pan-main\.venv\Scripts\python.exe 255200 bytes
+argv_tail ['C:\\Users\\14709\\AppData\\Local\\Temp\\pan-after-relay-5_s36s4e\\pan\\main.py', '--pan-root-marker=C:\\Users\\14709\\AppData\\Local\\Temp\\pan-after-relay-5_s36s4e\\pan', '--pan-port-marker=19999']
+files [('pan-console.out.log.1', 20975616), ('pan-console.out.log', 10817)]
+rotated_size_preserved 20975616 >= 20971520
+active_size 10817 bounded True
+host_lines_retained 200
+child_line_in_active True
+status relay-status={"active": true, "logs": {"pan-console.out.log": {"rotations": 1, "degraded": false, "sizeBytes": 10619}, "pan-console.err.log": {"rotations": 0, "degraded": false, "sizeBytes": 18}}}
+process_gone True
