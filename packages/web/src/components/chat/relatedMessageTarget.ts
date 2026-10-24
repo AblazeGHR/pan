@@ -2,6 +2,8 @@ import { fetchSessionNavigation } from '@/services/api';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { filterVisibleMessages, getNavigationKind } from './messageFilter';
 
+export class RelatedMessageHiddenError extends Error {}
+
 /** Same compact canonical pages/classifier as the rail. No text search or
  * legacy identity preparation. Bound work and fail explicitly on gaps/change. */
 export async function resolveRelatedMessageTarget(sessionId: string, messageId: string, signal?: AbortSignal) {
@@ -21,7 +23,7 @@ export async function resolveRelatedMessageTarget(sessionId: string, messageId: 
       const row = page.history[index]!;
       if (getNavigationKind(row) !== 'user') throw new Error('相关消息不再是导航中的 user 目标。');
       if (!filterVisibleMessages([row], useAppSettingsStore.getState()).length)
-        throw new Error('相关消息被聊天显示设置隐藏，请先启用对应消息类型。');
+        throw new RelatedMessageHiddenError('相关消息被聊天显示设置隐藏，请先启用对应消息类型。');
       return { offset: page.start + index, total: page.total, messageId };
     }
     if (!page.hasMore || page.start === 0) throw new Error('相关消息已被删除、替换或索引未覆盖。');

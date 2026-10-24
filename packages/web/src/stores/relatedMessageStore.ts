@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 
-/** Ephemeral cross-view handoff only; identity/offsets are rechecked in Chat. */
+export interface RelatedMessageTarget {
+  sessionId: string;
+  messageId: string;
+  offset: number;
+  total: number;
+}
+
+/** Ephemeral click-resolved handoff; shared jump checks loaded message identity. */
 export const useRelatedMessageStore = create<{
-  target: { sessionId: string; messageId: string } | null;
-  open: (sessionId: string, messageId: string) => void;
-}>((set) => ({ target: null, open: (sessionId, messageId) => set({ target: { sessionId, messageId } }) }));
+  target: RelatedMessageTarget | null;
+  open: (target: RelatedMessageTarget) => void;
+}>((set) => ({ target: null, open: (target) => set({ target }) }));
