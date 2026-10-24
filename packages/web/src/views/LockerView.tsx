@@ -1,3 +1,4 @@
+import { RelatedContextButton } from './RelatedContextButton';
 import { LockerMessageRow } from './LockerMessageRow';
 import { SessionDragGutter } from '@/components/session/SessionDragGutter';
 import { createPortal } from 'react-dom';
@@ -202,6 +203,7 @@ function Card({
           {card.read ? <Circle size={12} /> : <Check size={13} />}
         </button>
       </header>
+      <RelatedContextButton ownerSessionId={card.ownerSessionId} relatedMessageId={card.relatedMessageId} source={source} hidden={hidden} />
       <h2 className="locker-card-title">{card.definition.title}</h2>
       <MarkdownRenderer
         sourceSessionId={card.ownerSessionId}

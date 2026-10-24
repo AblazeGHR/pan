@@ -35,6 +35,8 @@ class InteractionStore:
                 UNIQUE(owner,request_key))''')
             db.execute('CREATE INDEX IF NOT EXISTS cards_recipient ON cards(recipient,id)')
             columns={r[1] for r in db.execute('PRAGMA table_info(cards)')}
+            if 'related_message_id' not in columns:
+                db.execute('ALTER TABLE cards ADD COLUMN related_message_id TEXT')
             if 'producer' not in columns:
                 # Historical owner/payload metadata is not trusted creator evidence.
                 db.execute('ALTER TABLE cards ADD COLUMN producer TEXT')
@@ -56,6 +58,8 @@ class InteractionStore:
                 owner TEXT NOT NULL, recipient TEXT NOT NULL, signature TEXT NOT NULL,
                 message TEXT NOT NULL, created_at TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0)''')
             message_columns={r[1] for r in db.execute('PRAGMA table_info(locker_messages)')}
+            if 'related_message_id' not in message_columns:
+                db.execute('ALTER TABLE locker_messages ADD COLUMN related_message_id TEXT')
             if 'revision' not in message_columns:
                 db.execute('ALTER TABLE locker_messages ADD COLUMN revision INTEGER NOT NULL DEFAULT 0')
             db.execute('CREATE INDEX IF NOT EXISTS locker_messages_recipient ON locker_messages(recipient,seq)')
@@ -86,12 +90,12 @@ class InteractionStore:
         response=json.loads(row['response']) if row['response'] else None
         notice=db.execute('SELECT state FROM rejection_outbox WHERE id=?',(identity('rejection_',[row['id']]),)).fetchone()
         return dict(schemaVersion=1,lockerId=identity('ulocker_',[row['recipient'],row['owner']]),read=bool(row['is_read']),sourceName=row['owner'],id=row['id'],ownerSessionId=row['owner'],recipientId=row['recipient'],
-                    definition=definition,trustedChoices=json.loads(row['bindings']),createdAt=row['created_at'],revision=row['revision'],
+                    relatedMessageId=row['related_message_id'],definition=definition,trustedChoices=json.loads(row['bindings']),createdAt=row['created_at'],revision=row['revision'],
                     status='no_answer_needed' if row['no_answer_at'] else (('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open'),
                     response=response,
                     delivery=json.loads(row['delivery']),rejectionDelivery={'state':notice[0] if notice else 'not_requested'})
 
-    def create(self, request, *, bindings=None, producer_id=None):
+    def create(self, request, *, bindings=None, producer_id=None, related_message_id=None):
         validate('Create',request)
         # Transport caller metadata never rebinds a historical create identity.
         signature = canonical({k:v for k,v in request.items() if k!='producerSessionId'})
@@ -112,7 +116,7 @@ class InteractionStore:
             db.execute('''INSERT INTO cards(id,owner,recipient,request_key,signature,definition,created_at,delivery)
                 VALUES(?,?,?,?,?,?,?,?)''', (card_id,request['ownerSessionId'],request['recipientId'],request['requestKey'],
                     signature,canonical(request['card']),now(),canonical({'state':'not_requested'})))
-            db.execute('UPDATE cards SET bindings=?,producer=? WHERE id=?',(canonical(bindings or {}),producer_id,card_id))
+            db.execute('UPDATE cards SET bindings=?,producer=?,related_message_id=? WHERE id=?',(canonical(bindings or {}),producer_id,related_message_id,card_id))
             if bindings:
                 validate('Card',self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
@@ -126,7 +130,7 @@ class InteractionStore:
         return dict(id=row['id'],kind='message',schemaVersion=1,
                     lockerId=identity('ulocker_',[row['recipient'],row['owner']]),
                     ownerSessionId=row['owner'],recipientId=row['recipient'],
-                    message=message,createdAt=message['ts'],read=bool(row['is_read']),revision=row['revision'])
+                    relatedMessageId=row['related_message_id'],message=message,createdAt=message['ts'],read=bool(row['is_read']),revision=row['revision'])
 
     def remember_source(self, owner, recipient, name, workspace_ids):
         with self.db() as db:
@@ -134,7 +138,7 @@ class InteractionStore:
             db.execute('UPDATE user_lockers SET source_name=?,workspace_ids=? WHERE owner=? AND recipient=?',
                        (name,canonical(workspace_ids),owner,recipient))
 
-    def accept_message(self, owner, recipient, message, *, source_name='', workspace_ids=()):
+    def accept_message(self, owner, recipient, message, *, source_name='', workspace_ids=(), related_message_id=None):
         """Storage primitive for trusted internal admission; no external caller identity."""
         from .locker_messages import validate_message
         validate('Id',owner); validate('Id',recipient); validate_message(message)
@@ -150,8 +154,8 @@ class InteractionStore:
                 return self._message_view(old)
             if db.execute('SELECT count(*) FROM locker_messages WHERE recipient=?',(recipient,)).fetchone()[0]>=self.capacity:
                 raise InteractionError('capacity','Locker message capacity reached; existing messages retained')
-            db.execute('INSERT INTO locker_messages(id,owner,recipient,signature,message,created_at) VALUES(?,?,?,?,?,?)',
-                       (mid,owner,recipient,signature,signature,now()))
+            db.execute('INSERT INTO locker_messages(id,owner,recipient,signature,message,created_at,related_message_id) VALUES(?,?,?,?,?,?,?)',
+                       (mid,owner,recipient,signature,signature,now(),related_message_id))
             db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(owner,recipient))
             db.execute('UPDATE user_lockers SET source_name=?,workspace_ids=? WHERE owner=? AND recipient=?',
                        (source_name,canonical(list(workspace_ids)),owner,recipient))

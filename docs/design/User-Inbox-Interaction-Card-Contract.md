@@ -144,3 +144,14 @@ SQLite 增量新增 bindings 列，旧记录默认 `{}`，不重写原定义/签
 无需回答持久存放在 no_answer_at 字段，response/event 均为空，不产生 response/rejection outbox，不执行 choice，不取消既有 Action。任何 response/event 或 delivery 非 not_requested 均不能标记。冷重启保留状态，用户混排列表继续返回原卡片；Locker 明显显示“无需回答 · No answer needed”与 Read-only，移除回答/拒绝/选择/文本输入，仅留删除。旧 UI 或重放 HTTP submit/respond/reject 均 409；用户 Bearer 删除权限不变，不提供恢复。现有 read/unread 通用写入与“只允许删除”冲突，本实现禁止该终态的 read 写入，并从批量已读操作中排除；不擅自把无需回答解释成已读。
 
 GUI 延续既有加载/手动 Refresh/窗口 focus 刷新机制；过期 UI 在 409 conflict 后读取原卡片并展示终态。无需回答不等于用户批准/拒绝，也不是 Trigger/Job 成功回执。
+
+
+## 相关 user 上下文（2026-10-25）
+
+两类 Locker 条目增加不可变 `relatedMessageId: string | null`。仅可信本地 MCP producer 新建时解析 owner Session 的上一条 user 类型 Pan messageId；self 取自己，MA 代建取 owner。非 agent 的 HTTP/Router/Job/internal 创建、旧行、owner 缺失、旧消息无 Pan ID或不能可靠判定均为 null。只读元数据不参与原签名/幂等键；原 requestKey 或 messageId+签名重复返回原字段，绝不补绑或覆盖。原 no_answer_needed、CAS、read、删除与 tombstone 不变。
+
+服务端 `message_navigation.is_navigation_user` 等价于 `messageFilter.getNavigationKind == user`：report 来源/报告头优先排除，随后排除当前/旧 System 头、非 user role、结构化 agent 来源。不按当前 manager 关系或单纯 MA/QQ 字面前缀猜测来源。共用 navigationUserCases.json 在 Python 与 Vitest 两端验证分类（含 JS/Python 空白差异）；navigation API 的紧凑前缀裁剪也使用相同 ECMAScript 空白集合，避免 BOM/控制字符导致投影改变原消息类别。`filterVisibleMessages` 是客户端显示偏好，服务端不猜浏览器状态；Locker 使用同一函数检查当前可见性，被隐藏时禁用且解释，不跳到其他消息。
+
+创建解析成本：热 Session 在 append/replace 共用 summary lock 下最多查看尾部 200 行和 1 MiB 文本；冷 Session 先用现有 metadata 访问器 `get(load_history=False)`，再 seek companion JSONL 尾部最多 1 MiB、解析最多 200 行，前后核对文件身份/大小/mtime。未知/不完整尾行、超限、无目标、legacy inline 历史均 fail closed 返回 null。不调用会扫描整段 JSONL 的 history_page，不 hydrate 或做 legacy backfill；冷 metadata 访问器仍沿用已有 Session 主文件读取成本。
+
+Locker 的两类条目在正文上方显示带图标、可访问名称和 tooltip 的“跳转到相关上下文”。列表渲染、悬停、重渲染均不发导航请求；每次点击才通过与导航栏相同的 compact navigation 页与 classifier 解析一次可达目标；最多 200 页/100000 canonical 行，Session 已知删除/不可用或目标已知被显示设置隐藏时禁用；其他缺口、epoch/total 变化、目标移除或非 user 在点击失败后留在 Locker 给出原因，按钮保持可重试。仅向临时 relatedMessageStore 交接本次解析的 owner/id/offset/total，选择 Session 后打开 Chat；native terminal 显示切回历史视图，不更改 native 控制权。Chat 消费已解析目标，不重复请求导航，再调用与 MessageNavigationRail 共用的 jumpToMessage：ensureMessageLoaded(total-1-offset,total) 按原分页加载、验证实际 messageId、等待挂载并调用原 scrollToMessage 进行滚动高亮；原引擎负责虚拟列表定位。切 Session/卸载取消旧跳转，身份失效或无法渲染时显示明确错误，绝不按旧 offset 跳到另一条消息。此临时桥仅在内存交接本次点击的 offset，不持久化；实际加载后仍核对 messageId，不引入第二套滚动引擎。
