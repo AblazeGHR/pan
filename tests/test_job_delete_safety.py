@@ -293,3 +293,14 @@ def test_cancel_cannot_turn_unconfirmed_delete_into_terminal(monkeypatch,tree,ph
     with pytest.raises(ValueError,match='cleanup pending'):
         jobs.cancel(record['jobId'])
     assert jobs.get(record['jobId'])['status']=='cleanup_pending'
+
+
+@pytest.mark.parametrize('status',['unknown','uncertain','UNKNOWN'])
+def test_unknown_process_outcome_cannot_be_unlinked_without_proof(monkeypatch,tree,status):
+    _,_,record=tree
+    record['status']=status
+    jobs._save(record)
+    monkeypatch.setattr(jobs,'_terminate_job_processes',lambda *a: {'confirmed':False,'reason':'ownership unknown'})
+    with pytest.raises(ValueError,match='ownership unknown'):
+        jobs.delete_job(record['jobId'])
+    assert jobs.get(record['jobId'])['status']=='cleanup_pending'

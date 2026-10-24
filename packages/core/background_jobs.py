@@ -1493,6 +1493,8 @@ def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
                         for child in list_jobs(registry_root)):
                     raise ValueError("cannot delete scheduled shell Job with an active dispatch/child")
             active = current.get("status") in {"starting", "running", "cleanup_pending", "deleting"}
+            if current.get("kind", BACKGROUND_PROCESS_KIND) == BACKGROUND_PROCESS_KIND:
+                active = active or str(current.get("status", "")).lower() in {"unknown", "uncertain"}
             if active:
                 current.setdefault("cleanupOriginalStatus", current.get("status"))
                 current.update(status="cleanup_pending", cleanupAttemptAt=time.time(),
