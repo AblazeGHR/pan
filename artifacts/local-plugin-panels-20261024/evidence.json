@@ -1,5 +1,7 @@
 {
   "sourceSha": "9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5",
+  "testedCommit": "f94a36a032bd6417e7b9bce3dce5f5860e38b486",
+  "testedTree": "0472bb28f9e495dd3eb6d22e68df4d5b52908e5c",
   "port": 62874,
   "profile": "<owned temporary data root>",
   "pluginDir": "<owned temporary example copy>",

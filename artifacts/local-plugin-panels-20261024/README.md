@@ -1,6 +1,7 @@
 # Local plugin panels — acceptance evidence
 
 Source SHA: `9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5` (branch `feature/local-plugin-panels-20261024`).
+Tested implementation commit: `f94a36a032bd6417e7b9bce3dce5f5860e38b486`, tree `0472bb28f9e495dd3eb6d22e68df4d5b52908e5c`.
 
 The browser run used the production React bundle and a full installed Chromium (revision 1243 fallback
 for the pinned Python Playwright), an owned server process on a random assigned port (last run `62874`),
