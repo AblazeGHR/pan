@@ -16,7 +16,7 @@
 - [ ] A/B Session 同时接入不串 Schema、路由或账号上下文。
 - [ ] 关闭工具后不可继续调用；不会关闭原产品服务、Job 或全局 Panel。
 - [ ] API 的 agent_capabilities 在三个模式一致过滤，隐藏能力不能直接调用。
-- [ ] Panel 的 renderer 契约满足：`account-switcher/v1` 检查四动作/effect；`web-app/v1` 检查 entry、build argv/cwd/output、构建成功/失败/重复/Unbuild 与相对资源、MIME、SPA 回退。
+- [ ] Panel 的 renderer 契约满足：`account-switcher/v1` 检查四动作/effect；`web-app/v1` 检查 entry、build argv/cwd/output、构建进程树清理、构建成功/失败/重复/Unbuild、不可变 build URL、旧构建保留与相对资源/MIME/SPA 回退。
 - [ ] 重复 ID、卸载旧 URL、未构建不可启用和导航窄屏均验证。
 - [ ] data 目录由宿主分配；owner/version 不匹配拒绝，无隐式迁移或删除。
 - [ ] 缓存没有 token/API key/原始配置，页面显示查询时间和失败/未知状态。

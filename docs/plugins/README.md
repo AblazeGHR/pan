@@ -9,7 +9,7 @@
 | 将固定内部 API 或命令组合成 MCP 插件 | [核心 Actions 与 Group](ACTIONS.md) |
 | 外部程序发布/订阅自动化事件 | [事件协议与生命周期](EVENTS.md)、[Node 示例](../../examples/event-plugin/manifest.json) |
 | 增加类似 Chat/Jobs 的入口 | [开发指南：Panel](DEVELOPING.md#panel-与数据目录)、[本地自由 Panel（web-app/v1）](PANELS.md) |
-| 复制一个可本地构建的自由界面示例 | [Local Console 示例](../../examples/plugin-webapp/README.md) |
+| 复制一个可本地构建的自由界面示例 | [React + Vite 示例](../../examples/plugin-react-panel/README.md)、[无依赖静态示例](../../examples/plugin-webapp/README.md) |
 | 复制一个无外部副作用的例子 | [可运行 API 示例](../examples/plugin-capabilities/README.md) |
 | 检查发布前是否准备好 | [交付检查表](CHECKLIST.md) |
 | 不显示、调用失败、Schema 不刷新 | [排错与常见问题](TROUBLESHOOTING.md) |

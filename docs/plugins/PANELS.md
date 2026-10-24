@@ -35,11 +35,13 @@
 
 `source.kind` 可为 `mcp`、`pan_api` 或 `panel`。`panel` 表示只有界面、没有 Agent 工具或 Session 绑定；带 MCP/API 的插件也可以同时声明 `web-app/v1` 面板。`panels[].actions` 仍可选，语义与 v1 相同（只能引用本插件能力）；自由界面通常直接调用已有 Pan API，不需要 actions。
 
-资源入口固定为 `/panel-assets/<plugin-id>/<panel-id>/`。`GET /api/plugins/panels` 只在面板已构建并启用时返回它，并附带 `assetPath`。
+资源入口固定为 `/panel-assets/<plugin-id>/<panel-id>/<build-id>/`。`GET /api/plugins/panels` 只在面板已构建并启用时返回它，并附带带 build ID 的 `assetPath`。build ID 不可变，旧页面继续读取旧构建，新页面读取新的 `activeBuild`。
 
 ## 构建与状态
 
 宿主把每次成功构建的产物复制到 Pan 数据目录下的自有构建库，再从那里提供静态资源。构建目录不直接暴露插件源码或磁盘其他位置。每个构建副本带一份 `pan-panel-build/v1` 清单（`pluginId`、`panelId`、`entry`、`createdAt`、实际 argv），宿主以它确定该副本的入口；更换 manifest 的入口需要重新构建才会生效。
+
+成功构建先持久化新的 `activeBuild`，再清理旧副本。保留最近 3 个成功构建，并额外保留切换前的成功构建（供已打开的页面懒加载旧 chunk）；`Unbuild` 才会删除全部宿主副本。构建失败保留当前产物与指针。若保存状态失败，新副本不会发布，旧构建和旧指针保持不变。
 
 状态机：
 
@@ -52,9 +54,11 @@
 
 宿主重启时仍处于 `building` 的记录会标记为失败（“Build was interrupted by a Pan restart.”），不会永久显示进行中。
 
+构建进程由宿主自有守护管理：Windows 使用 `CREATE_SUSPENDED` 创建、assign 到 `KILL_ON_JOB_CLOSE` Job Object、证明成员后再 resume；超时、取消、Pan 关闭和 root 先退出但子进程仍持有 stdout 时，都终止整个 Job 并核对无残留。POSIX 使用独立进程组。查询或清理无法证明时状态直接失败并显示原因，不按 PID 猜测或只杀 root，也不会停在 `building`。清理失败不会发布新构建。
+
 ## 资源加载
 
-- `/panel-assets/.../` 与 `.../index.html` 返回入口 HTML；`assets/app-abc.js` 等相对路径按文件返回。
+- `/panel-assets/.../<build-id>/` 与 `.../index.html` 返回该构建入口 HTML；`assets/app-abc.js` 等相对路径按文件返回，旧 build ID 在其保留期内仍可读取。
 - 带扩展名的缺失文件返回 404；无扩展名的未知路径回退入口，支持前端路由。
 - 常见类型使用固定 MIME（`.js`/`.mjs` 为 `text/javascript`，`.css`、`.html`、`.json`、`.svg`、`.wasm`、字体等），未知类型按文件名推断。
 - 所有响应使用 `Cache-Control: no-cache`，重建后刷新即可看到新入口和新资源。
@@ -69,7 +73,7 @@
 export default { base: './', build: { outDir: 'dist' } };
 ```
 
-React/Vue 的 `dist` 直接作为 `output`，把 `entry` 指向 `dist/index.html` 即可。构建命令需要在本机可执行，且不要依赖页面传入参数。示例见 [`examples/plugin-webapp`](../../examples/plugin-webapp/README.md)。
+React/Vue 的 `dist` 直接作为 `output`，把 `entry` 指向 `dist/index.html` 即可。构建命令需要在本机可执行，且不要依赖页面传入参数。示例：[React + Vite](../../examples/plugin-react-panel/README.md)（真实 React 构建、相对 base、懒加载 chunk）、[无依赖静态](../../examples/plugin-webapp/README.md)。
 
 ## 注册与操作
 

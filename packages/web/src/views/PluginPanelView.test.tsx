@@ -181,7 +181,7 @@ describe('plugin account panel', () => {
     render(<MemoryRouter initialEntries={['/plugins/third/accounts']}><ViewEntryGroups isMobile={false} /></MemoryRouter>);
     act(() => usePluginPanelStore.setState({ panels, loaded: true }));
     expect(screen.getByRole('link', { name: 'Third' }).getAttribute('href')).toBe('/plugins/third/accounts');
-    expect(screen.getByLabelText('界面入口，第 3 组，共 3 组')).toBeTruthy();
+    expect(screen.getByLabelText('界面入口，第 4 组，共 4 组')).toBeTruthy();
     act(() => usePluginPanelStore.setState({ panels: [] }));
     expect(screen.getByRole('link', { name: 'Chat' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '上一组界面入口' }).hasAttribute('disabled')).toBe(true);

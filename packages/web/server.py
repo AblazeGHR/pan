@@ -3445,11 +3445,11 @@ async def api_local_plugin_panel_unbuild(plugin_id: str, panel_id: str):
         raise HTTPException(400, str(exc)) from exc
 
 
-@app.get("/panel-assets/{plugin_id}/{panel_id}/{asset_path:path}")
-async def api_local_plugin_panel_asset(plugin_id: str, panel_id: str, asset_path: str = ""):
+@app.get("/panel-assets/{plugin_id}/{panel_id}/{build_id}/{asset_path:path}")
+async def api_local_plugin_panel_asset(plugin_id: str, panel_id: str, build_id: str, asset_path: str = ""):
     from packages.plugins.panel_builds import PanelNotReady
     try:
-        asset = _panel_host(required=False).panel_asset(plugin_id, panel_id, asset_path)
+        asset = _panel_host(required=False).panel_asset(plugin_id, panel_id, build_id, asset_path)
     except PanelNotReady as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:

@@ -7,7 +7,9 @@ import asyncio
 import json
 from pathlib import Path
 import sys
+import time
 
+import psutil
 import pytest
 
 from packages.core.manifest_loader import load_manifests
@@ -130,25 +132,26 @@ def test_build_enable_serve_duplicate_failure_and_unbuild(tmp_path):
             assert 'built version 1' in finished['log']
 
             with pytest.raises(PanelNotReady):
-                host.panel_asset('local-console', 'console', '')
+                host.panel_asset('local-console', 'console', 'missing-build', '')
             host.set_panel_enabled('local-console', 'console', True)
+            build_a = finished['activeBuild']
             listing = host.panels()
             assert listing[0]['renderer'] == 'web-app/v1'
-            assert listing[0]['assetPath'] == '/panel-assets/local-console/console/'
+            assert listing[0]['assetPath'] == f'/panel-assets/local-console/console/{build_a}/'
             assert listing[0]['path'] == '/plugins/local-console/console'
 
-            entry = host.panel_asset('local-console', 'console', '')
+            entry = host.panel_asset('local-console', 'console', build_a, '')
             assert entry.media_type.startswith('text/html')
             assert b'v1' in entry.path.read_bytes()
-            script = host.panel_asset('local-console', 'console', 'assets/app.js')
+            script = host.panel_asset('local-console', 'console', build_a, 'assets/app.js')
             assert script.media_type.startswith('text/javascript')
-            spa = host.panel_asset('local-console', 'console', 'deep/route')
+            spa = host.panel_asset('local-console', 'console', build_a, 'deep/route')
             assert spa.path == entry.path
-            assert host.panel_asset('local-console', 'console', 'missing.js') is None
-            assert host.panel_asset('local-console', 'console', '.pan-panel-build.json') is None
+            assert host.panel_asset('local-console', 'console', build_a, 'missing.js') is None
+            assert host.panel_asset('local-console', 'console', build_a, '.pan-panel-build.json') is None
             for bad in ('../state.json', 'assets/../../state.json', 'C:/Windows/win.ini', '%2e%2e/x'):
                 with pytest.raises(ValueError):
-                    host.panel_asset('local-console', 'console', bad)
+                    host.panel_asset('local-console', 'console', build_a, bad)
 
             # A slow build makes a duplicate request attach to the running one.
             (tmp_path / 'plugin' / 'delay.txt').write_text('0.6', encoding='utf-8')
@@ -159,7 +162,7 @@ def test_build_enable_serve_duplicate_failure_and_unbuild(tmp_path):
                 host.unbuild_panel('local-console', 'console')
             done = await host.builds.wait('local-console', 'console')
             assert done['status'] == 'built'
-            assert len(list((data / 'plugin-panels/local-console/console/builds').iterdir())) == 1
+            assert len(list((data / 'plugin-panels/local-console/console/builds').iterdir())) == 2
 
             # A failing rebuild keeps the previous artifact usable.
             (tmp_path / 'plugin' / 'version.txt').write_text('2', encoding='utf-8')
@@ -169,7 +172,7 @@ def test_build_enable_serve_duplicate_failure_and_unbuild(tmp_path):
             assert failed['status'] == 'failed' and failed['available']
             assert 'code 3' in failed['lastError']
             assert 'intentional build failure' in failed['log']
-            assert b'v1' in host.panel_asset('local-console', 'console', 'assets/app.js').path.read_bytes()
+            assert b'v1' in host.panel_asset('local-console', 'console', build_a, 'assets/app.js').path.read_bytes()
             assert host.panels()[0]['id'] == 'console'
 
             # Unbuild removes only the host copy; source files and settings stay.
@@ -244,23 +247,211 @@ def test_panel_build_http_routes_ignore_page_supplied_commands(tmp_path):
                 assert state['status'] == 'built', state
                 assert 'built version 1' in state['log']
                 assert (await client.post('/api/plugin-panels/local-console/console/enable')).status_code == 200
+                build_id = state['activeBuild']
+                base = f'/panel-assets/local-console/console/{build_id}/'
                 navigation = (await client.get('/api/plugins/panels')).json()['panels']
                 assert navigation == [{'id': 'console', 'title': 'Local Console',
                                        'renderer': 'web-app/v1', 'entry': 'index.html',
                                        'pluginId': 'local-console', 'path': '/plugins/local-console/console',
-                                       'assetPath': '/panel-assets/local-console/console/'}]
-                page = await client.get('/panel-assets/local-console/console/')
+                                       'assetPath': base}]
+                page = await client.get(base)
                 assert page.status_code == 200 and page.headers['content-type'].startswith('text/html')
-                script = await client.get('/panel-assets/local-console/console/assets/app.js')
+                script = await client.get(base + 'assets/app.js')
                 assert script.status_code == 200 and script.headers['content-type'].startswith('text/javascript')
-                traversal = await client.get('/panel-assets/local-console/console/%2e%2e/%2e%2e/state.json')
+                traversal = await client.get(base + '%2e%2e/%2e%2e/state.json')
                 assert traversal.status_code != 200 or b'panelId' not in traversal.content
                 assert (await client.post('/api/plugin-panels/local-console/console/disable')).status_code == 200
-                assert (await client.get('/panel-assets/local-console/console/')).status_code == 404
+                assert (await client.get(base)).status_code == 404
                 assert (await client.post('/api/plugin-panels/local-console/console/unbuild')).status_code == 200
                 assert (await client.get('/api/plugin-panels/local-console/console')).json()['status'] == 'unbuilt'
         finally:
             server.app.state.plugin_panels = None
+            await host.close()
+
+    asyncio.run(run())
+
+
+TREE_SCRIPT = """\
+import pathlib, subprocess, sys, time
+root = pathlib.Path(__file__).resolve().parent
+mode = (root / 'mode.txt').read_text(encoding='utf-8').strip()
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+(root / 'child.pid').write_text(str(child.pid), encoding='utf-8')
+out = root / 'dist'
+(out / 'assets').mkdir(parents=True, exist_ok=True)
+(out / 'index.html').write_text('<!doctype html><title>tree</title>', encoding='utf-8')
+(out / 'assets' / 'app.js').write_text('console.log("tree")', encoding='utf-8')
+if mode == 'exit':
+    print('root exited with a live child', flush=True)
+    sys.exit(0)
+time.sleep(60)
+"""
+
+
+def tree_plugin(tmp_path: Path, mode: str, timeout: int = 30) -> Path:
+    manifest_path = write_plugin(tmp_path / 'plugin')
+    plugin = tmp_path / 'plugin'
+    (plugin / 'build.py').write_text(TREE_SCRIPT, encoding='utf-8')
+    (plugin / 'mode.txt').write_text(mode, encoding='utf-8')
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    manifest['plugins'][0]['panels'][0]['build']['timeout_seconds'] = timeout
+    manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+    return manifest_path
+
+
+async def async_child_pid(plugin: Path) -> int:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        path = plugin / 'child.pid'
+        if path.exists():
+            return int(path.read_text(encoding='utf-8'))
+        await asyncio.sleep(0.02)
+    raise AssertionError('build child pid was not recorded')
+
+
+def test_root_exit_with_child_holding_stdout_is_cleaned_and_bounded(tmp_path):
+    plugin = tmp_path / 'plugin'
+    manifest_path = tree_plugin(tmp_path, 'exit')
+
+    async def run():
+        host = host_for(manifest_path, tmp_path / 'data')
+        try:
+            started = time.monotonic()
+            await host.start_build('local-console', 'console')
+            state = await host.builds.wait('local-console', 'console')
+            elapsed = time.monotonic() - started
+            assert state['status'] == 'built', state
+            assert 'Terminated ' in state['log'] and 'remaining build Job' in state['log']
+            assert elapsed < 10, elapsed
+            pid = int((plugin / 'child.pid').read_text(encoding='utf-8'))
+            assert not psutil.pid_exists(pid), f'build child {pid} survived'
+        finally:
+            await host.close()
+
+    asyncio.run(run())
+
+
+def test_build_timeout_kills_the_whole_tree_and_reports_failure(tmp_path):
+    plugin = tmp_path / 'plugin'
+    manifest_path = tree_plugin(tmp_path, 'sleep', timeout=1)
+
+    async def run():
+        host = host_for(manifest_path, tmp_path / 'data')
+        try:
+            await host.start_build('local-console', 'console')
+            state = await host.builds.wait('local-console', 'console')
+            assert state['status'] == 'failed'
+            assert 'timed out' in state['lastError']
+            assert 'not confirmed' not in state['lastError']
+            pid = int((plugin / 'child.pid').read_text(encoding='utf-8'))
+            assert not psutil.pid_exists(pid), f'timed-out build child {pid} survived'
+        finally:
+            await host.close()
+
+    asyncio.run(run())
+
+
+def test_cancelled_build_and_host_close_clean_the_owned_tree(tmp_path):
+    async def run():
+        for mode in ('cancel', 'close'):
+            manifest_path = tree_plugin(tmp_path / mode, 'sleep', timeout=60)
+            data = tmp_path / mode / 'data'
+            host = host_for(manifest_path, data)
+            key = ('local-console', 'console')
+            await host.start_build('local-console', 'console')
+            pid = await async_child_pid(tmp_path / mode / 'plugin')
+            if mode == 'cancel':
+                task = host.builds._tasks[key]
+                task.cancel()
+                state = await host.builds.wait('local-console', 'console')
+                assert state['status'] == 'failed'
+                assert 'cancelled' in state['lastError']
+                await host.close()
+            else:
+                await host.close()
+                saved = json.loads((data / 'plugin-panels/local-console/console/state.json')
+                                   .read_text(encoding='utf-8'))
+                assert saved['status'] == 'failed'
+                assert 'cancelled' in saved['lastError']
+            assert not psutil.pid_exists(pid), f'owned build child {pid} survived {mode}'
+
+    asyncio.run(run())
+
+
+def test_rebuild_keeps_old_immutable_assets_for_open_pages_and_cold_load(tmp_path):
+    plugin = tmp_path / 'plugin'
+    manifest_path = write_plugin(plugin, version='1')
+    data = tmp_path / 'data'
+
+    async def run():
+        host = host_for(manifest_path, data)
+        try:
+            await host.start_build('local-console', 'console')
+            first = await host.builds.wait('local-console', 'console')
+            host.set_panel_enabled('local-console', 'console', True)
+            first_id = first['activeBuild']
+            first_base = host.builds.asset_path('local-console', 'console', first_id)
+            assert host.panels()[0]['assetPath'] == first_base
+            assert b'v1' in host.panel_asset('local-console', 'console', first_id, 'assets/app.js').path.read_bytes()
+
+            (plugin / 'version.txt').write_text('2', encoding='utf-8')
+            await host.start_build('local-console', 'console')
+            second = await host.builds.wait('local-console', 'console')
+            assert second['status'] == 'built' and second['activeBuild'] != first_id
+            second_base = host.builds.asset_path('local-console', 'console', second['activeBuild'])
+            assert host.panels()[0]['assetPath'] == second_base
+            # The already-open page keeps requesting its old immutable URL.
+            assert b'v1' in host.panel_asset('local-console', 'console', first_id, 'assets/app.js').path.read_bytes()
+            assert b'v2' in host.panel_asset('local-console', 'console', second['activeBuild'], 'assets/app.js').path.read_bytes()
+        finally:
+            await host.close()
+
+        resumed = host_for(manifest_path, data)
+        try:
+            state = resumed.builds.status('local-console', 'console')
+            assert state['activeBuild'] == second['activeBuild']
+            assert resumed.panels()[0]['assetPath'] == second_base
+            assert b'v1' in resumed.panel_asset('local-console', 'console', first_id, 'assets/app.js').path.read_bytes()
+            assert b'v2' in resumed.panel_asset('local-console', 'console', second['activeBuild'], 'assets/app.js').path.read_bytes()
+        finally:
+            await resumed.close()
+
+    asyncio.run(run())
+
+
+def test_publish_state_failure_keeps_previous_build_and_pointer(tmp_path, monkeypatch):
+    plugin = tmp_path / 'plugin'
+    manifest_path = write_plugin(plugin, version='1')
+    data = tmp_path / 'data'
+
+    async def run():
+        host = host_for(manifest_path, data)
+        try:
+            await host.start_build('local-console', 'console')
+            first = await host.builds.wait('local-console', 'console')
+            host.set_panel_enabled('local-console', 'console', True)
+            first_id = first['activeBuild']
+            real_save = host.builds._save
+
+            def failing_save(state):
+                if state['status'] == 'built' and state['activeBuild'] != first_id:
+                    raise OSError('simulated disk failure')
+                real_save(state)
+
+            monkeypatch.setattr(host.builds, '_save', failing_save)
+            (plugin / 'version.txt').write_text('2', encoding='utf-8')
+            await host.start_build('local-console', 'console')
+            failed = await host.builds.wait('local-console', 'console')
+            assert failed['status'] == 'failed'
+            assert 'publish' in failed['lastError']
+            assert failed['activeBuild'] == first_id
+            assert b'v1' in host.panel_asset('local-console', 'console', first_id, 'assets/app.js').path.read_bytes()
+            builds = sorted(item.name for item in
+                            (data / 'plugin-panels/local-console/console/builds').iterdir())
+            assert builds == [first_id]
+            monkeypatch.setattr(host.builds, '_save', real_save)
+            assert host.builds.asset('local-console', 'console', first_id, '') is not None
+        finally:
             await host.close()
 
     asyncio.run(run())

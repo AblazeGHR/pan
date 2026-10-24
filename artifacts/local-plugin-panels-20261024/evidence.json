@@ -1,14 +1,14 @@
 {
-  "sourceSha": "9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5",
-  "testedCommit": "f94a36a032bd6417e7b9bce3dce5f5860e38b486",
-  "testedTree": "0472bb28f9e495dd3eb6d22e68df4d5b52908e5c",
-  "port": 62874,
+  "sourceSha": "525fb7de7db934f01229b258acb7a977ff854687",
+  "port": 57106,
   "profile": "<owned temporary data root>",
   "pluginDir": "<owned temporary example copy>",
   "browser": {
     "build": true,
     "enable": true,
     "iframeApi": true,
+    "oldLazyChunkAfterRebuild": true,
+    "newPageUsesNewBuild": true,
     "failedRebuildRetained": true,
     "disable": true,
     "unbuild": true,
@@ -20,5 +20,15 @@
     "retainedBuildStatus": 200,
     "unbuiltAssetStatus": 404,
     "sourceFilesPreserved": true
-  }
+  },
+  "builds": {
+    "a": "20261024T215032-9de3d401",
+    "b": "20261024T215034-029b5b5f",
+    "assetA": "/panel-assets/react-console/console/20261024T215032-9de3d401/",
+    "assetB": "/panel-assets/react-console/console/20261024T215034-029b5b5f/",
+    "oldLazy": "Bundle A",
+    "newLazy": "Bundle B"
+  },
+  "portReleased": true,
+  "ownedDescendantsAfterStop": []
 }

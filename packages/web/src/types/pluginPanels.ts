@@ -14,7 +14,7 @@ export interface LocalPluginPanel {
   panelId: string;
   title: string;
   entry: string;
-  assetPath: string;
+  assetPath: string | null;
   enabled: boolean;
   status: 'unbuilt' | 'building' | 'built' | 'failed';
   /** A successful artifact exists even when the latest build failed. */

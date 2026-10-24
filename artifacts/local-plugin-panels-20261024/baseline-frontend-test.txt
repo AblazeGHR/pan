@@ -1,0 +1,317 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m<temp-baseline>/packages/web/src[39m
+
+ [31m❯[39m views/PluginPanelView.test.tsx [2m([22m[2m35 tests[22m[2m | [22m[31m1 failed[39m[2m | [22m[33m34 skipped[39m[2m)[22m[90m 63[2mms[22m[39m
+[31m   [31m×[31m plugin account panel[2m > [22mreveals an active plugin route after async catalog load and handles removal[90m 63[2mms[22m[31m[39m
+[31m     → Unable to find a label with the text of: 界面入口，第 3 组，共 3 组
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<nav[31m
+      [33maria-label[31m=[32m"界面入口"[31m
+      [33mclass[31m=[32m"flex min-w-0 items-center gap-1"[31m
+    [36m>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"上一组界面入口"[31m
+        [33mclass[31m=[32m"shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-chevron-left"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m15 18-6-6 6-6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<div[31m
+        [33maria-label[31m=[32m"界面入口，第 4 组，共 4 组"[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 overflow-hidden"[31m
+        [33mtabindex[31m=[32m"0"[31m
+      [36m>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"flex transition-transform duration-200 ease-out motion-reduce:transition-none"[31m
+          [33mstyle[31m=[32m"transform: translateX(-300%);"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"grid w-full min-w-0 shrink-0 grid-cols-3"[31m
+            [33minert[31m=[32m""[31m
+          [36m>[31m
+            [36m<a[31m
+              [33maria-label[31m=[32m"Chat"[31m
+              [33mclass[31m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[31m
+              [33mdata-discover[31m=[32m"true"[31m
+              [33mdraggable[31m=[32m"false"[31m
+              [33mhref[31m=[32m"/"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33mclass[31m=[32m"flex min-w-0 items-center justify-center gap-1"[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-message-square shrink-0"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"12"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"12"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+                  [36m/>[31m
+                [36m</svg>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mChat[0m
+                [36m</span>[31m
+              [36m</span>[31m
+            [36m</a>[31m
+            [36m<a[31m
+              [33maria-label[31m=[32m"Editor"[31m
+              [33mclass[31m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[31m
+              [33mdata-discover[31m=[32m"true"[31m
+              [33mdraggable[31m=[32m"false"[31m
+              [33mhref[31m=[32m"/editor"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33mclass[31m=[32m"flex min-w-0 items-center justify-center gap-1"[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-code shrink-0"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"12"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"12"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"m16 18 6-6-6-6"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"m8 6-6 6 6 6"[31m
+                  [36m/>[31m
+                [36m</svg>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mEditor[0m
+                [36m</span>[31m
+              [36m</span>[31m
+            [36m</a>[31m
+            [36m<a[31m
+              [33maria-label[31m=[32m"Jobs"[31m
+              [33mclass[31m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[31m
+              [33mdata-discover[31m=[32m"true"[31m
+              [33mdraggable[31m=[32m"false"[31m
+              [33mhref[31m=[32m"/jobs"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33mclass[31m=[32m"flex min-w-0 items-center justify-center gap-1"[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-list-checks shrink-0"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"12"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"12"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M13 5h8"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33m...[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m views/PluginPanelView.test.tsx[2m > [22mplugin account panel[2m > [22mreveals an active plugin route after async catalog load and handles removal
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find a label with the text of: 界面入口，第 3 组，共 3 组
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<nav[39m
+      [33maria-label[39m=[32m"界面入口"[39m
+      [33mclass[39m=[32m"flex min-w-0 items-center gap-1"[39m
+    [36m>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"上一组界面入口"[39m
+        [33mclass[39m=[32m"shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-chevron-left"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m15 18-6-6 6-6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<div[39m
+        [33maria-label[39m=[32m"界面入口，第 4 组，共 4 组"[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 overflow-hidden"[39m
+        [33mtabindex[39m=[32m"0"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex transition-transform duration-200 ease-out motion-reduce:transition-none"[39m
+          [33mstyle[39m=[32m"transform: translateX(-300%);"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"grid w-full min-w-0 shrink-0 grid-cols-3"[39m
+            [33minert[39m=[32m""[39m
+          [36m>[39m
+            [36m<a[39m
+              [33maria-label[39m=[32m"Chat"[39m
+              [33mclass[39m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[39m
+              [33mdata-discover[39m=[32m"true"[39m
+              [33mdraggable[39m=[32m"false"[39m
+              [33mhref[39m=[32m"/"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"flex min-w-0 items-center justify-center gap-1"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-message-square shrink-0"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"12"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"12"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mChat[0m
+                [36m</span>[39m
+              [36m</span>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33maria-label[39m=[32m"Editor"[39m
+              [33mclass[39m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[39m
+              [33mdata-discover[39m=[32m"true"[39m
+              [33mdraggable[39m=[32m"false"[39m
+              [33mhref[39m=[32m"/editor"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"flex min-w-0 items-center justify-center gap-1"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-code shrink-0"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"12"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"12"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"m16 18 6-6-6-6"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"m8 6-6 6 6 6"[39m
+                  [36m/>[39m
+                [36m</svg>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mEditor[0m
+                [36m</span>[39m
+              [36m</span>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33maria-label[39m=[32m"Jobs"[39m
+              [33mclass[39m=[32m"relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover"[39m
+              [33mdata-discover[39m=[32m"true"[39m
+              [33mdraggable[39m=[32m"false"[39m
+              [33mhref[39m=[32m"/jobs"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"flex min-w-0 items-center justify-center gap-1"[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-list-checks shrink-0"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"12"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"12"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M13 5h8"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33m...
+[90m [2m❯[22m Object.getElementError D:/project/pan-worktrees/local-plugin-panels-20261024/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m getAllByLabelText D:/project/pan-worktrees/local-plugin-panels-20261024/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/queries/label-text.js:[2m111:38[22m[39m
+[90m [2m❯[22m D:/project/pan-worktrees/local-plugin-panels-20261024/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m D:/project/pan-worktrees/local-plugin-panels-20261024/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m views/PluginPanelView.test.tsx:[2m184:19[22m[39m
+    [90m182| [39m    [34mact[39m(() [33m=>[39m usePluginPanelStore[33m.[39m[34msetState[39m({ panels[33m,[39m loaded[33m:[39m [35mtrue[39m }))[33m;[39m
+    [90m183| [39m    [34mexpect[39m(screen[33m.[39m[34mgetByRole[39m([32m'link'[39m[33m,[39m { name[33m:[39m [32m'Third'[39m })[33m.[39m[34mgetAttribute[39m([32m'h[39m…
+    [90m184| [39m    [34mexpect[39m(screen[33m.[39m[34mgetByLabelText[39m([32m'界面入口，第 3 组，共 3 组'[39m))[33m.[39m[34mtoBeTr[39m…
+    [90m   | [39m                  [31m^[39m
+    [90m185| [39m    [34mact[39m(() [33m=>[39m usePluginPanelStore[33m.[39m[34msetState[39m({ panels[33m:[39m [] }))[33m;[39m
+    [90m186| [39m    [34mexpect[39m(screen[33m.[39m[34mgetByRole[39m([32m'link'[39m[33m,[39m { name[33m:[39m [32m'Chat'[39m }))[33m.[39m[34mtoBeTruthy[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[33m34 skipped[39m[90m (35)[39m
+[2m   Start at [22m 21:42:32
+[2m   Duration [22m 1.95s[2m (transform 122ms, setup 11ms, collect 344ms, tests 63ms, environment 460ms, prepare 98ms)[22m

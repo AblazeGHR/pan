@@ -36,7 +36,9 @@ manifest.json
 {"command": ["pnpm", "exec", "vite", "build"], "cwd": ".", "output": "dist", "timeout_seconds": 300}
 ```
 
-Set `base: './'` so generated asset URLs stay relative to `/panel-assets/<plugin>/<panel>/`.
+Set `base: './'` so generated asset URLs stay relative to
+`/panel-assets/<plugin>/<panel>/<buildId>/`. Old build IDs remain readable while retained, so an
+already-open page can still load a delayed asset after a rebuild.
 The declared `entry` (`index.html`) is also the SPA fallback for unknown extensionless routes.
 
 The builder here intentionally has no dependencies, so the example can be built and verified without

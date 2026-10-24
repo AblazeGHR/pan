@@ -1,0 +1,25 @@
+{
+  "plugins": [
+    {
+      "protocol": "pan-plugin/v1",
+      "id": "react-console",
+      "display_name": "React Console",
+      "version": "1.0.0",
+      "source": {"kind": "panel"},
+      "panels": [
+        {
+          "id": "console",
+          "title": "React Console",
+          "renderer": "web-app/v1",
+          "entry": "index.html",
+          "build": {
+            "command": ["node", "build.mjs"],
+            "cwd": ".",
+            "output": "dist",
+            "timeout_seconds": 120
+          }
+        }
+      ]
+    }
+  ]
+}

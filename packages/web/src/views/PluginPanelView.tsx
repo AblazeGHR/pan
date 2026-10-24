@@ -51,10 +51,11 @@ export default function PluginPanelView() {
 /** Free-form plugin UI. The host only provides the container and the build's
  *  asset origin; links, storage and remote resources stay the plugin's choice. */
 function WebAppPanel({ panel }: { panel: PluginPanel }) {
-  const source = panel.assetPath
-    ?? `/panel-assets/${encodeURIComponent(panel.pluginId)}/${encodeURIComponent(panel.id)}/`;
+  if (!panel.assetPath) return <div className="p-6 text-text-secondary" role="status">
+    Panel build URL is unavailable. Rebuild and enable the panel.
+  </div>;
   return <section className="h-full min-h-0" aria-label={panel.title}>
-    <iframe key={source} title={panel.title} src={source}
+    <iframe key={panel.assetPath} title={panel.title} src={panel.assetPath}
       className="h-full w-full border-0 bg-bg-primary" />
   </section>;
 }

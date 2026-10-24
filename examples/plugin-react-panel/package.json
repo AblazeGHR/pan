@@ -1,0 +1,16 @@
+{
+  "name": "pan-react-panel-example",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "vite": "6.4.3"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

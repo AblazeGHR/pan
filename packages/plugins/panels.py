@@ -33,7 +33,9 @@ class PanelHost:
                 navigation = {key: value for key, value in panel.items() if key != 'build'}
                 navigation.update(pluginId=plugin.id, path=f"/plugins/{plugin.id}/{panel['id']}")
                 if panel['renderer'] == 'web-app/v1':
-                    navigation['assetPath'] = f"/panel-assets/{plugin.id}/{panel['id']}/"
+                    state = self.builds.status(plugin.id, panel['id'])
+                    navigation['assetPath'] = self.builds.asset_path(
+                        plugin.id, panel['id'], state['activeBuild'])
                 result.append(navigation)
         return result
 
@@ -44,10 +46,12 @@ class PanelHost:
             for panel in plugin.panels:
                 if panel['renderer'] != 'web-app/v1':
                     continue
+                status = self.builds.status(plugin.id, panel['id'])
                 result.append({'pluginId': plugin.id, 'panelId': panel['id'],
                                'title': panel['title'], 'entry': panel['entry'],
-                               'assetPath': f"/panel-assets/{plugin.id}/{panel['id']}/",
-                               **self.builds.status(plugin.id, panel['id'])})
+                               'assetPath': (self.builds.asset_path(plugin.id, panel['id'], status['activeBuild'])
+                                             if status['activeBuild'] else None),
+                               **status})
         return result
 
     def _web_panel(self, plugin_id, panel_id):
@@ -73,9 +77,9 @@ class PanelHost:
         self._web_panel(plugin_id, panel_id)
         return self.builds.unbuild(plugin_id, panel_id)
 
-    def panel_asset(self, plugin_id, panel_id, path):
+    def panel_asset(self, plugin_id, panel_id, build_id, path):
         self._web_panel(plugin_id, panel_id)
-        return self.builds.asset(plugin_id, panel_id, path)
+        return self.builds.asset(plugin_id, panel_id, build_id, path)
 
     async def invoke(self, plugin_id, panel_id, action, arguments, request_id=None):
         if self.closing:
