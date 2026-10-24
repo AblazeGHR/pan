@@ -233,6 +233,26 @@ class JobObjectGuard:
             )
         self._limit_flags = flags
 
+    @classmethod
+    def from_retained_handle(cls, handle: int):
+        """Adopt a duplicated existing Job; query only, never reset its limits.
+
+        Caller retains ownership on validation failure and closes the handle.
+        """
+        obj = cls.__new__(cls)
+        obj._handle = int(handle)
+        obj._name = None
+        obj._lock = threading.Lock()
+        obj._last_terminate_error = None
+        flags = obj.limit_flags()
+        if (flags is None or not flags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                or flags & (JOB_OBJECT_LIMIT_BREAKAWAY_OK | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK)):
+            raise GuardQueryError("duplicated Job ownership limits unproven")
+        obj._kill_on_close = True
+        obj._limit_flags = flags
+        obj.member_pids()  # object type/query permission must also be observable
+        return obj
+
     # ------------------------------------------------------------- properties
     @property
     def raw_handle(self) -> int:

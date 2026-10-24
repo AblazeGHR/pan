@@ -316,7 +316,7 @@ def test_delete_active_job_unknown_receipt_is_fail_closed_and_idempotent(monkeyp
     retained = jobs.get("job_delete_unknown")
     assert retained["status"] == "cleanup_pending"
     assert "live owned PID" in retained["cleanupError"]
-    with pytest.raises(ValueError, match="cleanup is pending"):
+    with pytest.raises(ValueError, match="live owned PID"):
         jobs.delete_job("job_delete_unknown")
 
 

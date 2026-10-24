@@ -1101,11 +1101,11 @@ async def delete_job(job_id: str):
         if job.get("kind") == background_jobs.SCHEDULED_TASK_KIND:
             from packages.scheduler import store as scheduler_store
             task_id = job.get("taskId") or job["jobId"]
-            ok = scheduler_store.delete_task(task_id)
+            ok = await asyncio.to_thread(scheduler_store.delete_task, task_id)
             if not ok:
-                ok = background_jobs.delete_job(job["jobId"], registry_root=_job_root())
+                ok = await asyncio.to_thread(background_jobs.delete_job, job["jobId"], registry_root=_job_root())
         else:
-            ok = background_jobs.delete_job(job["jobId"], registry_root=_job_root())
+            ok = await asyncio.to_thread(background_jobs.delete_job, job["jobId"], registry_root=_job_root())
     except ValueError as exc:
         return _err("job_busy", str(exc))
     if not ok:

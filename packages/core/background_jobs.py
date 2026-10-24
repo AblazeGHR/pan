@@ -743,6 +743,14 @@ def _runner_command(job_id: str) -> list[str]:
 
 
 def _spawn_background_runner(job: dict, registry_root: str | Path | None = None) -> dict:
+    with _registry_lock("spawn-" + job["jobId"], registry_root):
+        current = get(job["jobId"], registry_root)
+        if not current or current.get("status") not in {"starting", "running"}:
+            raise ValueError("Job no longer admitted for runner spawn")
+        return _spawn_background_runner_unlocked(job, registry_root)
+
+
+def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | None = None) -> dict:
     job_id = job["jobId"]
     log_path = Path(job["logPath"])
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -866,7 +874,8 @@ def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
     # delete that would orphan an active shell run.
     with _lock, _job_lock(parent_id, registry_root):
         parent = _load_path(_job_path(parent_id, registry_root))
-        if not parent or parent.get("kind") != SCHEDULED_TASK_KIND:
+        if (not parent or parent.get("kind") != SCHEDULED_TASK_KIND
+                or parent.get("status") in {"cleanup_pending", "deleting"}):
             raise ValueError("scheduled parent Job not found")
         action = parent.get("action")
         if admitted_execution is not None:
@@ -1460,147 +1469,70 @@ def is_recovery_running() -> bool:
 
 
 def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
-    """Delete a Job only after an owned active process tree is confirmed gone.
+    """Serialize explicit delete/recheck; never unlink unconfirmed process owners.
 
-    Active records are first marked ``cleanup_pending``.  This makes a second
-    delete request fail closed while the first request is terminating a runner
-    and its child.  A missing/reused identity, an unknown receipt, or a live
-    process after the bounded wait leaves that record in place for recovery.
+    Only the per-delete mutex spans OS waits. Registry/global locks are released
+    before cleanup, so unrelated Jobs and runner facts can continue to commit.
     """
-    with _lock, _job_lock(job_id, registry_root):
-        path = _job_path(job_id, registry_root)
-        current = _load_path(path)
-        if not current:
-            return False
-        status = current.get("status")
-        if status in {"starting", "running", "cleanup_pending", "deleting"}:
-            if status in {"cleanup_pending", "deleting"}:
-                raise ValueError("cannot delete Job while process cleanup is pending")
-            # Include scheduled shell children in the same deletion transaction.
-            active = [current]
-            active.extend(child for child in list_jobs(registry_root)
-                          if child.get("scheduledParentJobId") == job_id
-                          and child.get("status") in {"starting", "running"})
-            # Publish the in-progress state before any OS effect.  A concurrent
-            # delete therefore cannot race through the same record and unlink
-            # it while this request is waiting for process exit.
-            current.update({"status": "cleanup_pending",
-                            "cleanupAttemptAt": time.time(),
-                            "updatedAt": time.time()})
-            _write_job(path, current)
-            try:
-                receipt = _terminate_job_processes(active)
-            except ValueError as exc:
-                _mark_cleanup_pending_locked(path, current, str(exc))
-                raise
-            if not receipt.get("confirmed"):
-                reason = receipt.get("reason") or "process termination receipt is unknown"
-                _mark_cleanup_pending_locked(path, current, reason)
-                raise ValueError(reason)
-            # Remove child records only after every owned process is confirmed
-            # absent; a child left on disk is still an orphaned executable Job.
-            for child in active[1:]:
-                child_path = _job_path(child["jobId"], registry_root)
-                try:
-                    child_path.unlink()
-                except OSError as exc:
-                    _mark_cleanup_pending_locked(
-                        path, current, f"child record cleanup failed: {exc}")
-                    raise ValueError(f"child Job record cleanup failed: {exc}")
-        action = current.get("action")
-        if (current.get("kind") == SCHEDULED_TASK_KIND
-                and isinstance(action, dict) and action.get("api") == "shell"
-                and any(child.get("scheduledParentJobId") == job_id
-                        and child.get("status") in {"starting", "running"}
-                        for child in list_jobs(registry_root))):
-            raise ValueError("cannot delete a scheduled shell Job while its process is active")
+    with (_registry_lock("delete-" + job_id, registry_root),
+          _registry_lock("spawn-" + job_id, registry_root),
+          _registry_lock("task-spawn-" + job_id, registry_root)):
+        with _lock, _job_lock(job_id, registry_root):
+            path = _job_path(job_id, registry_root)
+            current = _load_path(path)
+            if not current:
+                return False
+            if current.get("executionOwner") == "independent-job-service":
+                raise ValueError("independent Job deletion is unsupported")
+            action = current.get("action")
+            if (current.get("kind") == SCHEDULED_TASK_KIND
+                    and isinstance(action, dict) and action.get("api") == "shell"):
+                if current.get("status") in {"running", "starting"} or any(
+                        child.get("scheduledParentJobId") == job_id
+                        and child.get("status") not in {"completed", "failed", "cancelled"}
+                        for child in list_jobs(registry_root)):
+                    raise ValueError("cannot delete scheduled shell Job with an active dispatch/child")
+            active = current.get("status") in {"starting", "running", "cleanup_pending", "deleting"}
+            if active:
+                current.setdefault("cleanupOriginalStatus", current.get("status"))
+                current.update(status="cleanup_pending", cleanupAttemptAt=time.time(),
+                               updatedAt=time.time(), cleanupError="process cleanup in progress")
+                _write_job(path, current)
+            else:
+                path.unlink()
+                return True
+
+        def persist_proof(proof):
+            with _lock, _job_lock(job_id, registry_root):
+                latest = _load_path(path)
+                if not latest or latest.get("status") != "cleanup_pending":
+                    raise ValueError("Job cleanup admission changed")
+                latest.update(proof, updatedAt=time.time())
+                _write_job(path, latest)
+
         try:
+            frozen = dict(current)
+            frozen["_cleanupPersist"] = persist_proof
+            receipt = _terminate_job_processes([frozen])
+            if not isinstance(receipt, dict) or receipt.get("confirmed") is not True:
+                raise ValueError((receipt or {}).get("reason") or "process cleanup receipt unknown")
+        except Exception as exc:
+            persist_proof({"cleanupError": str(exc)[:500]})
+            raise ValueError(f"cannot safely delete: {exc}") from exc
+        with _lock, _job_lock(job_id, registry_root):
+            latest = _load_path(path)
+            if not latest:
+                return False
+            if latest.get("status") != "cleanup_pending":
+                raise ValueError("Job cleanup state changed; record retained")
             path.unlink()
-        except OSError:
-            return False
-        return True
-
-
-def _mark_cleanup_pending_locked(path: Path, current: dict, reason: str) -> None:
-    """Persist a visible deletion failure without overwriting terminal facts."""
-    try:
-        if current.get("status") in {"completed", "failed", "cancelled"}:
-            return
-        current.update({
-                "status": "cleanup_pending",
-                "cleanupError": str(reason)[:500],
-                "cleanupAttemptAt": time.time(),
-                "updatedAt": time.time(),
-        })
-        _write_job(path, current)
-    except Exception:
-        # The original deletion error remains the caller-visible failure.  A
-        # write failure must never turn an unsafe delete into a success.
-        pass
+            return True
 
 
 def _terminate_job_processes(jobs: list[dict], *, timeout: float | None = None) -> dict:
-    """Terminate only processes whose PID and creation identity are trusted."""
-    import psutil
-
-    timeout = JOB_DELETE_PROCESS_TIMEOUT_SEC if timeout is None else float(timeout)
-    if timeout < 0 or not math.isfinite(timeout):
-        raise ValueError("invalid process cleanup timeout")
-    members: dict[tuple[int, float], Any] = {}
-    roots: list[Any] = []
-    for job in jobs:
-        identities = ((job.get("pid"), job.get("processCreatedAt")),
-                      (job.get("runnerPid"), job.get("runnerProcessCreatedAt")))
-        present = False
-        for pid, expected in identities:
-            if pid is None:
-                continue
-            present = True
-            if expected is None:
-                raise ValueError("cannot safely delete: process birth identity is unavailable")
-            try:
-                proc = psutil.Process(int(pid))
-                actual = float(proc.create_time())
-                if abs(actual - float(expected)) > 1.0:
-                    raise ValueError("cannot safely delete: process PID identity was reused")
-                if proc.is_running() and proc.status() != psutil.STATUS_ZOMBIE:
-                    roots.append(proc)
-            except psutil.NoSuchProcess:
-                # A recorded process may have exited between the durable read
-                # and deletion; it is safe only when its identity was present.
-                continue
-            except (OSError, ValueError, TypeError) as exc:
-                raise ValueError(str(exc)) from exc
-        if not present:
-            raise ValueError("cannot safely delete: active Job process identity is unavailable")
-    for root in roots:
-        try:
-            children = root.children(recursive=True)
-        except (OSError, psutil.NoSuchProcess):
-            children = []
-        for proc in [*reversed(children), root]:
-            try:
-                members[(int(proc.pid), float(proc.create_time()))] = proc
-                proc.kill()
-            except (OSError, psutil.NoSuchProcess):
-                pass
-    deadline = time.monotonic() + timeout
-    while True:
-        live = []
-        for pid, expected in members:
-            try:
-                proc = psutil.Process(pid)
-                if abs(float(proc.create_time()) - expected) <= 1.0 and proc.is_running() \
-                        and proc.status() != psutil.STATUS_ZOMBIE:
-                    live.append(pid)
-            except psutil.NoSuchProcess:
-                continue
-        if not live:
-            return {"confirmed": True, "killed": len(members)}
-        if time.monotonic() >= deadline:
-            return {"confirmed": False, "reason":
-                    f"process termination timed out; live owned PIDs: {live}"}
-        time.sleep(0.02)
+    from packages.jobs.process_cleanup import terminate_owned_jobs
+    return terminate_owned_jobs(jobs, timeout=(JOB_DELETE_PROCESS_TIMEOUT_SEC
+                                               if timeout is None else timeout))
 
 
 def register_completed_job_retention(*, on_deleted=None) -> None:
@@ -3361,6 +3293,45 @@ def claim_hidden_runner(job_id: str) -> bool:
         return True
 
 
+def runner_spawn(job_id: str, factory):
+    """Serialize task spawn/publication without holding the global registry gate."""
+    with _registry_lock("task-spawn-" + job_id):
+        with _lock, _job_lock(job_id):
+            path = _job_path(job_id)
+            current = _load_path(path)
+            if (not current or current.get("status") not in {"starting", "running"}
+                    or current.get("cancelRequestedAt")):
+                raise ValueError("Job no longer admitted for task spawn")
+        proc = factory()
+        try:
+            facts = dict(status="running", pid=proc.pid,
+                         processCreatedAt=_process_create_time(proc.pid), updatedAt=time.time())
+            if os.name == "nt":
+                from packages.core.terminal.identity import probe_process
+                probe = probe_process(proc.pid)
+                if probe.identity is None:
+                    raise ValueError("spawned task identity unavailable")
+                facts["processFiletime"] = str(probe.identity.created_at_filetime)
+                guard = getattr(proc, "job_guard", None)
+                if guard is not None:
+                    facts["processJobHandle"] = str(guard.raw_handle)
+            with _lock, _job_lock(job_id):
+                current = _load_path(path)
+                if (not current or current.get("status") not in {"starting", "running"}
+                        or current.get("cancelRequestedAt")):
+                    raise ValueError("Job no longer admitted after task spawn")
+                current.update(facts)
+                _write_job(path, current)
+            return proc
+        except BaseException:
+            if getattr(proc, "job_guard", None) is not None:
+                proc.close()
+            else:
+                proc.kill()
+                proc.wait(timeout=2)
+            raise
+
+
 def runner_update(job_id: str, **changes: Any) -> dict:
     job = get(job_id)
     if not job:
@@ -3377,7 +3348,8 @@ def runner_update(job_id: str, **changes: Any) -> dict:
             # The runner may finish before the cancelling caller commits (or
             # that caller may disappear). Do not leave an active pending record.
             changes.update(status="cancelled", exitCode=None)
-        if current.get("status") == "cancelled": changes.pop("status", None)
+        if current.get("status") in {"cancelled", "cleanup_pending", "deleting"}:
+            changes.pop("status", None)
         current.update(changes)
         _write_job(_job_path(job_id), current)
         return current

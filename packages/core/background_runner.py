@@ -28,23 +28,16 @@ def main() -> int:
             options = command_window_options(job.get("hideWindow", True))
             shell_command = job.get("shellCommand")
             hidden_desktop = os.name == "nt" and job.get("hideWindow", True)
-            if hidden_desktop:
-                proc = DesktopCommand(shell_command if isinstance(shell_command, str) else job["argv"],
-                                      job["cwd"], log, shell=isinstance(shell_command, str))
-            elif isinstance(shell_command, str):
-                proc = subprocess.Popen(
-                    shell_command, cwd=job["cwd"], shell=True,
-                    stdout=log, stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL, **options,
-                )
-            else:
-                proc = subprocess.Popen(
-                    job["argv"], cwd=job["cwd"], stdout=log,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL, **options,
-                )
+            def spawn():
+                if hidden_desktop:
+                    return DesktopCommand(shell_command if isinstance(shell_command, str) else job["argv"],
+                                          job["cwd"], log, shell=isinstance(shell_command, str))
+                return subprocess.Popen(
+                    shell_command if isinstance(shell_command, str) else job["argv"],
+                    cwd=job["cwd"], shell=isinstance(shell_command, str),
+                    stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **options)
+            proc = jobs.runner_spawn(args.job_id, spawn)
             with proc if hidden_desktop else nullcontext():
-                jobs.runner_update(args.job_id, status="running", pid=proc.pid, processCreatedAt=jobs._process_create_time(proc.pid))
                 return_code = proc.wait()
         current = jobs.get(args.job_id)
         if not current or current.get("status") != "cancelled":
