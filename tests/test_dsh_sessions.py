@@ -118,6 +118,51 @@ def test_dsh_home_respects_environment(monkeypatch, tmp_path):
     assert S.dsh_home() == Path.home() / ".dsh"
 
 
+# ── zstd 后端选择（Python 3.12 只有 zstandard；3.14+ 用标准库） ──
+
+
+class _Explode:
+    """任何访问都失败的哨兵：证明该后端没有被使用。"""
+
+    def __getattr__(self, name):  # pragma: no cover - 命中即失败
+        raise AssertionError(f"unexpected stdlib zstd use: {name}")
+
+
+@requires_zstd
+def test_zstandard_only_backend_handles_read_write(dsh_home, monkeypatch):
+    """模拟无 ``compression.zstd`` 的 Python（3.12）：仅 zstandard 也要全绿。"""
+    monkeypatch.setattr(S, "_std_zstd", _Explode())
+    assert S.zstd_available() is True
+
+    sid = "session-zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+    _write_session(dsh_home, [_header(sid), _user("hi", 1)], sid,
+                   S.project_key(WORKDIR))
+    assert S.parse_history(sid, WORKDIR)[0]["content"] == "hi"
+    S.write_custom_title(sid, "only zstandard", WORKDIR)
+    assert S.get_session_title(sid, WORKDIR) == "only zstandard"
+    child = S.fork_session(sid, "branch2", WORKDIR)
+    assert S.parse_history(child, WORKDIR) == S.parse_history(sid, WORKDIR)
+
+
+def test_missing_zstd_backend_degrades_without_raising(tmp_path, monkeypatch):
+    monkeypatch.setenv("DSH_HOME", str(tmp_path / "home"))
+    sid = "session-yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+    session_dir = tmp_path / "home" / "sessions" / S.project_key(WORKDIR) / sid
+    session_dir.mkdir(parents=True)
+    (session_dir / "session.v4.jsonl.zstd").write_bytes(b"not-decodable")
+    monkeypatch.setattr(S, "_zstandard", None)
+    monkeypatch.setattr(S, "_std_zstd", None)
+
+    assert S.zstd_available() is False
+    assert S.list_sessions() == []
+    assert S.parse_history(sid, WORKDIR) == []
+    assert S.get_raw_usage(sid, WORKDIR) == []
+    assert S.get_session_title(sid, WORKDIR) == ""
+    S.write_custom_title(sid, "no backend", WORKDIR)  # 静默降级
+    with pytest.raises(RuntimeError):
+        S.fork_session(sid, "branch", WORKDIR)
+
+
 # ── 列表 ──
 
 
@@ -286,7 +331,8 @@ def test_get_raw_usage_skips_empty_sessions(dsh_home):
 
 
 @requires_zstd
-def test_get_session_title_priority(dsh_home):
+def test_get_session_title_log_beats_stale_projcache(dsh_home):
+    """日志里的 session/title 是权威来源（Pan 写入后不必等 DSH 重投影）。"""
     sid = "session-99999999-9999-9999-9999-999999999999"
     _write_session(dsh_home, [_header(sid), _user("first   real prompt", 1)],
                    sid, S.project_key(WORKDIR))
@@ -295,9 +341,105 @@ def test_get_session_title_priority(dsh_home):
     _write_projcache(dsh_home, sid, title="cached")
     assert S.get_session_title(sid, WORKDIR) == "cached"
 
+    S.write_custom_title(sid, "renamed in log", WORKDIR)
+    assert S.get_session_title(sid, WORKDIR) == "renamed in log"
+    assert S.list_sessions(WORKDIR)[0]["title"] == "renamed in log"
 
-def test_write_custom_title_is_documented_noop(dsh_home):
-    assert S.write_custom_title("session-x", "new name") is None
+
+@requires_zstd
+def test_get_session_title_takes_last_title_event(dsh_home):
+    """自动标题在前、用户重命名在后：必须取最后一条（DSH foldSessionTitle 语义）。"""
+    sid = "session-abababab-abab-abab-abab-abababababab"
+    events = [
+        _header(sid),
+        _user("first prompt", 1),
+        {"type": "session/title", "seq": 2, "time": 1_792_856_941_920,
+         "data": {"title": "auto title", "messageSeqs": [1],
+                  "source": {"kind": "fallback"}}},
+        {"type": "session/title", "seq": 3, "time": 1_792_856_941_930,
+         "data": {"title": "user title", "messageSeqs": [],
+                  "source": {"kind": "user"}}},
+    ]
+    _write_session(dsh_home, events, sid, S.project_key(WORKDIR))
+    assert S.get_session_title(sid, WORKDIR) == "user title"
+    assert S.list_sessions(WORKDIR)[0]["title"] == "user title"
+
+
+@requires_zstd
+def test_write_custom_title_overrides_auto_title(dsh_home):
+    sid = "session-acacacac-acac-acac-acac-acacacacacac"
+    events = [
+        _header(sid),
+        _user("first prompt", 1),
+        {"type": "session/title", "seq": 2, "time": 1_792_856_941_920,
+         "data": {"title": "auto title", "messageSeqs": [1],
+                  "source": {"kind": "fallback"}}},
+    ]
+    _write_session(dsh_home, events, sid, S.project_key(WORKDIR))
+    S.write_custom_title(sid, "Pan name", WORKDIR)
+    assert S.get_session_title(sid, WORKDIR) == "Pan name"
+    assert S.list_sessions(WORKDIR)[0]["title"] == "Pan name"
+
+
+def test_normalize_title_matches_dsh_rules():
+    assert S.normalize_title("  a \n\t b  ") == "a b"
+    # 控制字符 / 方向性不可见字符被剥掉
+    assert S.normalize_title("bad\x1b[31mred\x07title\u202e") == "badredtitle"
+    # 80 字节 UTF-8 预算（中文 3 字节/字 → 26 字）
+    long_cn = "中" * 40
+    assert len(S.normalize_title(long_cn).encode("utf-8")) <= 80
+    assert S.normalize_title("   ") == ""
+
+
+@requires_zstd
+def test_write_custom_title_appends_dsh_title_event(dsh_home):
+    """写标题 = 追加一条 user 来源的 session/title 帧（DSH rename 的同一机制）。"""
+    sid = "session-dddddddd-dddd-dddd-dddd-dddddddddddd"
+    events = [_header(sid), _user("first prompt", 1), _assistant("done", 2)]
+    session_dir = _write_session(dsh_home, events, sid, S.project_key(WORKDIR))
+    store = session_dir / "session.v4.jsonl.zstd"
+    before_bytes = store.read_bytes()
+    before_events = S._iter_events(store)
+    history_before = S.parse_history(sid, WORKDIR)
+
+    S.write_custom_title(sid, "  Pan   renamed  ", WORKDIR)
+
+    after_events = S._iter_events(store)
+    assert len(after_events) == len(before_events) + 1
+    appended = after_events[-1]
+    assert appended["type"] == "session/title"
+    assert appended["data"] == {"title": "Pan renamed", "messageSeqs": [],
+                                "source": {"kind": "user"}}
+    # seq 连续递增（DSH 的日志不变量），time 是 epoch ms
+    assert appended["seq"] == before_events[-1]["seq"] + 1
+    assert isinstance(appended["time"], int) and appended["time"] > 1_700_000_000_000
+    # 只追加：既有字节前缀不变，历史不受影响
+    assert store.read_bytes().startswith(before_bytes)
+    assert S.parse_history(sid, WORKDIR) == history_before
+    assert S.get_session_title(sid, WORKDIR) == "Pan renamed"
+
+
+@requires_zstd
+def test_write_custom_title_is_idempotent(dsh_home):
+    sid = "session-eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+    session_dir = _write_session(dsh_home, [_header(sid), _user("p", 1)], sid,
+                                 S.project_key(WORKDIR))
+    S.write_custom_title(sid, "same title", WORKDIR)
+    count = len(S._iter_events(session_dir / "session.v4.jsonl.zstd"))
+    S.write_custom_title(sid, "same title", WORKDIR)
+    assert len(S._iter_events(session_dir / "session.v4.jsonl.zstd")) == count
+
+
+@requires_zstd
+def test_write_custom_title_tolerates_missing_or_empty(dsh_home):
+    # 会话不存在 / 标题归一化后为空 / 会话日志为空：都不写、不抛
+    S.write_custom_title("session-missing", "name", WORKDIR)
+    sid = "session-ffffffff-ffff-ffff-ffff-ffffffffffff"
+    session_dir = _write_session(dsh_home, [_header(sid), _user("p", 1)], sid,
+                                 S.project_key(WORKDIR))
+    before = (session_dir / "session.v4.jsonl.zstd").read_bytes()
+    S.write_custom_title(sid, "   \x1b[0m  ", WORKDIR)
+    assert (session_dir / "session.v4.jsonl.zstd").read_bytes() == before
 
 
 @requires_zstd
@@ -339,8 +481,11 @@ def test_fork_session_copies_history_and_rewrites_header(dsh_home):
     # 历史与父会话一致，且新 id 可被 provider 独立读取
     assert S.parse_history(child, WORKDIR) == S.parse_history(parent, WORKDIR)
     assert S.session_exists(child, WORKDIR) is True
-    # 投影缓存按新 id 复制，列表/标题立即可用
-    assert S.get_session_title(child, WORKDIR) == "parent title"
+    # fork 追加了一条 user 来源的标题帧：原生标题 = 分支名
+    child_events = S._iter_events(child_dir / "session.v4.jsonl.zstd")
+    assert child_events[-1]["type"] == "session/title"
+    assert child_events[-1]["data"]["title"] == "branch"
+    assert S.get_session_title(child, WORKDIR) == "branch"
 
 
 @requires_zstd

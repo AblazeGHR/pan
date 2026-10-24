@@ -99,13 +99,37 @@ $DSH_HOME/storages/session_projcache/sessions/<sessionId>.json
 
 **fork**：`sessions.fork_session(parent, name, cwd)` 复制 `<parent>/` 到新
 `session-<uuid>/`，改写 header 的 `id`（并写 `forkedFrom`），按「一行一帧」重新
-压缩；projcache 按新 id 复制。实测：复制后的会话可被 `--session-id` 采用，且
+压缩，并追加一条 `session/title`（user 来源，标题 = 分支名，与 rename 同一机制）；
+projcache 按新 id 复制。实测：复制后的会话可被 `--session-id` 采用，且
 `turn` 号继续递增 → 历史被完整读取。`supports_fork = True`。
 
-**标题**：`get_session_title` = 投影缓存 `title` > `session/title` 事件 > 首条真实
-用户消息（截断 80）。`write_custom_title` **明确降级为 no-op**：DSH 的会话标题
-由其 `session-title` 插件按首条消息派生，投影缓存里的 `title` 行带 `ver/seq`
-版本号，外部改写会被下一次投影覆盖并可能破坏版本不变量。Pan 侧重命名不受影响。
+**标题**：`get_session_title` = 日志里**最后一条** `session/title` > 投影缓存 >
+首条真实用户消息（截断 80 字节）。取最后一条与 DSH 自己的 `foldSessionTitle`
+一致（它也是 `findLast`），因此自动标题在前、用户重命名在后时能正确读到后者。
+
+`write_custom_title` 走 **DSH 官方 rename 的同一机制**：向
+`session.v4.jsonl.zstd` 追加一条
+
+```json
+{"type":"session/title","seq":N+1,"time":<epoch ms>,
+ "data":{"title":"…","messageSeqs":[],"source":{"kind":"user"}}}
+```
+
+（`source.kind = "user"` 会把标题 **pin 住**：DSH 的自动标题生成让位，后续用户
+消息也不再重新生成。）实测（2026-10-24，DSH 44.7.0，本机真实 CLI）：
+
+1. 追加后 `dsh headless --session-id` 正常 resume（turn:2），stderr 无 corrupt；
+2. 该次运行后 DSH 自己的投影缓存
+   `storages/session_projcache/sessions/<sid>.json` 的 `title` **变成我们写的值**
+   ——说明 DSH 接受这条事件并据此重投影，而不是覆盖它；
+3. 日志里仍然只有两条 title 事件（原始 auto + 我们的 user），DSH 没有追加新标题；
+4. 历史/usage 读取不受影响。
+
+仍保持 best-effort：会话不存在、标题归一化后为空、zstd 不可用、写入失败时静默
+返回（Pan 侧重命名已生效）。标题按 DSH 的 `maxTitleBytes`（80）归一化：剥掉
+OSC/CSI/ESC、C0/C1 控制符与方向性不可见字符，空白折叠成一行。并发窗口：会话
+日志是单写者追加文件，`_append_events` 只做「原文件大小未变」的廉价检查再追加
+一帧（不做跨进程锁，DSH 本身也不加锁），因此应在会话空闲时调用。
 
 **历史**：只取*提交*的 `assistant/message`（被 retry 丢弃的 `assistant/attempt`
 不写入历史，与 DSH 自己的 `--json` 投影一致）；`user/message` 中
@@ -118,9 +142,11 @@ $DSH_HOME/storages/session_projcache/sessions/<sessionId>.json
 `cacheRead/WriteTokens → cache_read/write_tokens`、`reasoningTokens → reasoning_tokens`、
 `totalTokens → total_tokens`。全 0 时返回 `[]`（不污染账本）。
 
-**zstd 依赖**：读取需要 `zstandard`（本机 0.25.0）或 Python ≥ 3.14 的
-`compression.zstd`。两者都缺时 sessions provider 返回空并记一次 warning；
-**实时对话不受影响**（adapter 只依赖 CLI 的 NDJSON）。
+**zstd 依赖**：读取需要 `zstandard` 或 Python ≥ 3.14 的 `compression.zstd`；
+`minimal-requirements.txt` 已声明 `zstandard>=0.25; python_version < "3.14"`
+（3.14+ 走标准库）。两者都缺时 sessions provider 返回空并记一次 warning，列表里
+也不再出现"读不到日志"的空壳行；**实时对话不受影响**（adapter 只依赖 CLI 的
+NDJSON）。
 
 ## 5. 注入面：model / effort / permission / system prompt / MCP
 
@@ -171,8 +197,22 @@ DSH 把这些都放在 profile 配置里，没有 CLI flag。本 adapter 用 **`
 - **takeover**：headless 是「跑完即退」，不能就地接管。返回交互式 profile 的续接
   命令（`--profile tui|desktop --resume <id>`），**仅当** `$DSH_HOME/profiles/<p>`
   已存在（实测未创建时 `dsh --profile tui` 报 `profile "tui" does not exist`）；
-  否则返回 `[]`，上层给出「不支持 takeover」。本机没有 tui/desktop profile，
-  该路径未做实机验证。
+  否则返回 `[]`，上层给出「不支持 takeover」。
+
+  **必须带 `ELECTRON_RUN_AS_NODE=1`**：DSH CLI 是
+  `DeepSeek Harness.exe --expose-internals cli.js`，由 Electron 二进制以 Node 模式
+  执行；缺这个变量时窗口会启动**桌面 GUI**而不是 CLI 会话。Pan 的
+  `_open_terminal` 只开 PowerShell 跑命令串、不注入环境，所以：
+
+  - 解析到 `.cmd` shim 时直接返回 shim（安装 shim 自己 `set
+    "ELECTRON_RUN_AS_NODE=1"`）；
+  - 只解析到 exe 时，在 `data/dsh-configs/takeover-launcher.cmd` 生成 Pan 自有
+    launcher（`set "ELECTRON_RUN_AS_NODE=1"` + `"<exe>" --expose-internals
+    "<cli.js>" %*`），返回 `[launcher, --profile <p>, --resume <id>]`。
+
+  实测（本机）：launcher `-V` 输出 `0.2.1-rc.3` 并退出，未知 profile 返回
+  `profile "…" does not exist` + 退出码 1 → 确实是 CLI 而非 GUI。profile 不存在时
+  仍返回 `[]`；交互式 profile 本身未实机跑过（本机没有 tui/desktop profile）。
 
 ## 6. 凭据（本机阻塞项，不是 mock）
 
@@ -205,11 +245,14 @@ DEEPSEEK_API_KEY"），`error_source=dsh_turn_error`。要恢复 GUI 保存的�
 | 执行模式 | `["stream"]`（wrapper 长驻，内部逐条 `dsh headless --json`） |
 | 事件协议 | wrapper 把 DSH NDJSON 归一为 cbc 形状（`system/init` + `assistant` + 合成 `result`） |
 | session 存储 | `$DSH_HOME/sessions/<projectKey>/<session-id>/session.v4.jsonl.zstd`（多帧 zstd）+ projcache JSON |
-| resume / fork | `--session-id <id>` / 目录复制 + header 改写 + 逐帧重写 |
+| resume / fork | `--session-id <id>` / 目录复制 + header 改写 + 逐帧重写（+ 追加分支名标题帧） |
+| 原生标题 | 追加 `session/title`（user 来源，pin 住自动标题）；读取取日志最后一条 |
 | MCP 落点 | `data/dsh-configs/<sid>.patch.yml` + `--patch`（根 insert `dsh-mcp-client`） |
 | enrich 数据源 | 会话日志 `assistant/message.data.usage` 聚合（回退 projcache） |
 | 凭据 | 环境变量 / `.env`（headless 忽略 GUI 凭据库） |
-| 不可用能力 | 无 `--system-prompt`（首条消息注入）、无 approval 交互、无标题写回、无 SSE MCP |
+| takeover | `tui`/`desktop` profile 存在时：shim 或 Pan 自有 launcher（`ELECTRON_RUN_AS_NODE=1`） |
+| 不可用能力 | 无 `--system-prompt`（首条消息注入）、无 approval 交互、无 SSE MCP |
+| zstd 依赖 | `minimal-requirements.txt`: `zstandard>=0.25; python_version < "3.14"` |
 
 ## 8. 证据（2026-10-24，本机真实 CLI）
 
@@ -236,7 +279,16 @@ DEEPSEEK_API_KEY"），`error_source=dsh_turn_error`。要恢复 GUI 保存的�
    `Processing request of type ListToolsRequest`（握手成功）。
 7. 会话读取：`/api/adapters/dsh/sessions` 同源的 provider 函数在真实
    `~/.dsh/sessions` 上列出 7 条会话（标题/cwd/消息数正确）。
-8. 单元测试：`tests/test_dsh*.py`（55 项）。
+8. 原生标题写入（真实 CLI）：`write_custom_title` 追加 `session/title` 后，
+   `get_session_title` 立即返回新值；`dsh --session-id` resume 无 corrupt；
+   DSH 重投影的 projcache `title` 变为新值；日志仍只有 auto + user 两条 title
+   事件（未被覆盖/追加），历史读取不变。
+9. takeover launcher（真实 CLI）：`takeover-launcher.cmd -V` → `0.2.1-rc.3`
+   + 退出 0；未知 profile → `profile "…" does not exist` + 退出 1（证明是 CLI
+   而不是桌面 GUI）。
+10. 单元测试：`tests/test_dsh_adapter.py` + `tests/test_dsh_sessions.py`（65 项，
+    覆盖 NDJSON 解析、spawn argv、resume、final/error、sessions provider、
+    zstd 后端选择、标题写入/幂等、fork、takeover launcher）。
 
 未验证（明确缺口）：有凭据时的**模型真实回答**、`tui`/`desktop` profile 的
-takeover、SSE 型 MCP、Windows 之外的路径。
+交互式 takeover 会话本身、SSE 型 MCP、Windows 之外的路径。

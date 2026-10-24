@@ -391,15 +391,64 @@ class DshAdapter:
         桌面 ``desktop``）profile，且 **profile 必须先存在**：实测 ``dsh --profile
         tui`` 在未创建时报 `profile "tui" does not exist`。因此这里只在 profile
         目录存在时返回命令，否则返回 []，让上层给出明确的「不支持 takeover」。
+
+        **必须带上 ``ELECTRON_RUN_AS_NODE=1``**：DSH 的 CLI 是
+        ``DeepSeek Harness.exe --expose-internals cli.js``，由 Electron 二进制以
+        Node 模式执行；缺少该环境变量时窗口会启动**桌面 GUI**而不是 CLI 会话。
+        Pan 的 ``_open_terminal`` 只开一个 PowerShell 跑命令串、不额外设环境，
+        所以这里不能直接返回 ``[exe, --expose-internals, cli.js]``：
+
+        - 启动器本身是 ``.cmd``（npm/安装 shim）时直接用它——shim 自己
+          ``set "ELECTRON_RUN_AS_NODE=1"``；
+        - 只解析到 exe 时，在 Pan 自有目录生成一个 launcher ``.cmd``，
+          显式设变量后再 exec ``exe + cli.js``，参数经 ``%*`` 透传。
         """
         if not s.cli_session_id:
             return []
+        profile = next((name for name in ("tui", "desktop")
+                        if (_dsh_home() / "profiles" / name).is_dir()), "")
+        if not profile:
+            return []
+        shim = self._resolve_dsh_path()
+        if shim.lower().endswith((".cmd", ".bat")):
+            return [shim, "--profile", profile, "--resume", s.cli_session_id]
+        launcher = self._takeover_launcher()
+        if not launcher:
+            return []
+        return [launcher, "--profile", profile, "--resume", s.cli_session_id]
+
+    def _takeover_launcher(self) -> str | None:
+        """生成/复用 Pan 自有的 takeover launcher（``.cmd``，设 node 模式后 exec）。
+
+        落在 ``data/dsh-configs/``（与 patch 同目录，Pan 自有数据、不写 DSH 安装
+        目录）。同一个 exe/cli.js 组合共用一个文件，内容只在路径变化时重写。
+        """
         exe, cli_js = self._resolve_entry()
-        base = [exe, "--expose-internals", cli_js] if (cli_js and exe.lower().endswith(".exe")) else [exe]
-        for profile in ("tui", "desktop"):
-            if (_dsh_home() / "profiles" / profile).is_dir():
-                return [*base, "--profile", profile, "--resume", s.cli_session_id]
-        return []
+        if not cli_js or not exe.lower().endswith(".exe"):
+            return None
+        path = _patch_dir() / "takeover-launcher.cmd"
+        body = (
+            "@echo off\r\n"
+            "rem Pan-owned DSH takeover launcher: run the CLI (not the desktop GUI).\r\n"
+            "setlocal DisableDelayedExpansion\r\n"
+            "set \"ELECTRON_RUN_AS_NODE=1\"\r\n"
+            f"\"{exe}\" --expose-internals \"{cli_js}\" %*\r\n"
+            "exit /b %errorlevel%\r\n"
+        )
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            current = ""
+            if path.is_file():
+                # newline="" 保留 CRLF：否则比较永远不相等，每次 spawn 都重写。
+                with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
+                    current = handle.read()
+            if current != body:
+                with open(path, "w", encoding="utf-8", newline="") as handle:
+                    handle.write(body)
+        except OSError as exc:
+            _log.warning("failed to write dsh takeover launcher at %s: %s", path, exc)
+            return None
+        return str(path)
 
     # ── enrich ──
 

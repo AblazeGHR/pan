@@ -600,13 +600,64 @@ def test_enrich_after_result_without_session_or_usage(monkeypatch):
 
 def test_takeover_requires_existing_profile(tmp_path, monkeypatch):
     monkeypatch.setenv("DSH_HOME", str(tmp_path))
-    monkeypatch.setenv("PAN_DSH_PATH", r"C:\stub\dsh.exe")
+    monkeypatch.setenv("PAN_DSH_PATH", "C:/stub/dsh.cmd")
     monkeypatch.delenv("PAN_DSH_CLI_JS", raising=False)
     a = _adapter()
     assert a.takeover_command(_session()) == []
+    # 有 cli_session_id 但没有任何交互式 profile → 明确不支持
     assert a.takeover_command(_session(cli_session_id="session-1")) == []
     (tmp_path / "profiles" / "tui").mkdir(parents=True)
     cmd = a.takeover_command(_session(cli_session_id="session-1"))
-    assert cmd == [r"C:\stub\dsh.exe", "--profile", "tui", "--resume", "session-1"]
+    assert cmd == ["C:/stub/dsh.cmd", "--profile", "tui", "--resume", "session-1"]
 
 
+def test_takeover_prefers_shim_that_sets_node_mode(tmp_path, monkeypatch):
+    """shim 自己 set ELECTRON_RUN_AS_NODE=1，直接用它才不会拉起桌面 GUI。"""
+    monkeypatch.setenv("DSH_HOME", str(tmp_path))
+    (tmp_path / "profiles" / "tui").mkdir(parents=True)
+    monkeypatch.setenv("PAN_DSH_PATH", "C:/stub/dsh.cmd")
+    monkeypatch.delenv("PAN_DSH_CLI_JS", raising=False)
+    cmd = _adapter().takeover_command(_session(cli_session_id="session-1"))
+    assert cmd[0].lower().endswith(".cmd")
+    assert "--expose-internals" not in cmd
+
+
+def test_takeover_exe_gets_launcher_with_node_mode(tmp_path, monkeypatch):
+    """只解析到 exe 时，必须经 Pan 自有 launcher 设 ELECTRON_RUN_AS_NODE。"""
+    monkeypatch.setenv("DSH_HOME", str(tmp_path))
+    (tmp_path / "profiles" / "tui").mkdir(parents=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    exe = "D:/DSH/DeepSeek Harness.exe"
+    cli_js = "D:/DSH/resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js"
+    monkeypatch.setenv("PAN_DSH_PATH", exe)
+    monkeypatch.setenv("PAN_DSH_CLI_JS", cli_js)
+
+    cmd = _adapter().takeover_command(_session(cli_session_id="session-1"))
+    launcher = Path(cmd[0])
+    assert launcher.name == "takeover-launcher.cmd"
+    assert launcher.parent == tmp_path / "dsh-configs"
+    body = launcher.read_text(encoding="utf-8")
+    assert 'set "ELECTRON_RUN_AS_NODE=1"' in body
+    assert exe in body and cli_js in body
+    assert "--expose-internals" in body
+    assert body.rstrip().endswith("%*") or "%*" in body
+    # argv 只把 launcher 当可执行体，绝不裸传 exe（那会启动 GUI）
+    assert cmd == [str(launcher), "--profile", "tui", "--resume", "session-1"]
+    assert exe not in cmd
+
+    # 幂等：同一路径第二次调用不重写文件
+    mtime = launcher.stat().st_mtime_ns
+    again = _adapter().takeover_command(_session(cli_session_id="session-1"))
+    assert again == cmd
+    assert launcher.stat().st_mtime_ns == mtime
+
+
+def test_takeover_launcher_write_failure_returns_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("DSH_HOME", str(tmp_path))
+    (tmp_path / "profiles" / "tui").mkdir(parents=True)
+    blocker = tmp_path / "blocked"
+    blocker.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(dsh_adapter, "_patch_dir", lambda: blocker / "sub")
+    monkeypatch.setenv("PAN_DSH_PATH", "D:/DSH/DeepSeek Harness.exe")
+    monkeypatch.setenv("PAN_DSH_CLI_JS", "D:/DSH/app.asar/cli.js")
+    assert _adapter().takeover_command(_session(cli_session_id="session-1")) == []

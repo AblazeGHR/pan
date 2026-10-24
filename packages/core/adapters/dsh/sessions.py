@@ -40,6 +40,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -322,33 +323,53 @@ def _count_messages(events: list[dict]) -> int:
     return count
 
 
-def _session_meta(session_dir: Path) -> dict | None:
-    """会话元数据：projcache 优先（快），日志 header 兜底（权威）。"""
+def _session_meta(session_dir: Path, events: list[dict] | None = None) -> dict | None:
+    """会话元数据：日志是权威来源，projcache 只做读不到日志时的兜底。
+
+    标题取**最后一条** ``session/title``（DSH 自己的 ``foldSessionTitle`` 也是
+    ``findLast``）；因此 Pan 追加的自定义标题会立刻出现在列表里，不必等 DSH 重写
+    投影缓存。
+    """
     session_id = session_dir.name
+    log = session_dir / _SESSION_LOG_NAME
+    if events is None:
+        events = _iter_events(log)
+    if not events:
+        # 读过不日志（缺 zstd 后端/日志损坏/尚在写入）：宁可不列这一行，也不
+        # 在导入列表里给出没有标题和工作目录的空壳。
+        return None
     cache = _projcache(session_id)
     identity = {}
     record = cache.get("record")
     if isinstance(record, dict) and isinstance(record.get("identity"), dict):
         identity = record["identity"]
-    log = session_dir / _SESSION_LOG_NAME
+
     created = identity.get("createdAt")
     cwd = identity.get("cwd")
-    title = _projcache_value(cache, "title")
+    title = ""
     model = ""
-    if not cwd or not created or not title or not model:
-        for event in _iter_events(log):
-            etype = event.get("type")
-            if etype == "session":
-                cwd = cwd or event.get("cwd")
-                created = created or event.get("createdAt")
-            elif etype == "session/title":
-                title = title or (event.get("data") or {}).get("title")
-            elif etype in ("request/context", "request/header"):
-                data = event.get("data") or {}
-                config = (data.get("header") or {}).get("config") if isinstance(
-                    data.get("header"), dict) else None
-                model = model or str((config or {}).get("model")
-                                     or data.get("model") or "")
+    for event in events:
+        etype = event.get("type")
+        if etype == "session":
+            cwd = cwd or event.get("cwd")
+            created = created or event.get("createdAt")
+        elif etype == "session/title":
+            value = (event.get("data") or {}).get("title")
+            if isinstance(value, str) and value.strip():
+                title = value  # 最后一条胜出（用户标题会 pin 住自动标题）
+        elif etype in ("request/context", "request/header"):
+            data = event.get("data") or {}
+            config = (data.get("header") or {}).get("config") if isinstance(
+                data.get("header"), dict) else None
+            model = model or str((config or {}).get("model")
+                                 or data.get("model") or "")
+    if not title:
+        cached = _projcache_value(cache, "title")
+        title = cached if isinstance(cached, str) else ""
+    if not model:
+        rows = _projcache_rows(cache)
+        row = rows.get("model") if isinstance(rows.get("model"), dict) else {}
+        model = str(row.get("val") or "")
     try:
         updated = log.stat().st_mtime
     except OSError:
@@ -360,7 +381,7 @@ def _session_meta(session_dir: Path) -> dict | None:
         "workDir": str(cwd or ""),
         "createdAt": _iso(created),
         "updatedAt": _iso(updated * 1000) if updated else "",
-        "message_count": 0,
+        "message_count": _count_messages(events),
         "model": model,
     }
 
@@ -392,7 +413,6 @@ def list_sessions(cwd: str | None = None) -> list[dict]:
                 continue
             if cwd and not _cwd_matches(meta.get("workDir"), cwd):
                 continue
-            meta["message_count"] = _count_messages(_iter_events(session_dir / _SESSION_LOG_NAME))
             rows.append(meta)
     rows.sort(key=lambda row: row.get("updatedAt") or "", reverse=True)
     return rows
@@ -527,39 +547,165 @@ def get_reimport_snapshot(session_id: str, cwd: str | None = None) -> str | None
 
 # ── 标题 ──
 
+# DSH `session-title` 的默认 maxTitleBytes（headless profile 未覆盖）。
+_TITLE_MAX_BYTES = 80
+
+# 与 dsh-session-title 的 cleanTitleText 对齐：剥掉 OSC/CSI/ESC/控制字符与方向性
+# 不可见字符，再把空白折叠成单行。
+_OSC_SEQUENCE = re.compile(r"(?:\x1b\]|\x9d)(?:(?!\x07|\x1b\\)[\s\S])*(?:\x07|\x1b\\|$)")
+_CSI_SEQUENCE = re.compile(r"(?:\x1b\[|\x9b)[0-?]*[ -/]*[@-~]")
+_ESC_SEQUENCE = re.compile(r"\x1b[@-_]")
+_CONTROL_CHARACTER = re.compile(
+    "[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]")
+_DIRECTIONAL_CONTROL = re.compile(
+    "[\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff]")
+
+
+def normalize_title(title: str) -> str:
+    """把任意标题归一成 DSH 接受的单行 UTF-8 预算内文本。"""
+    text = str(title or "")
+    for pattern in (_OSC_SEQUENCE, _CSI_SEQUENCE, _ESC_SEQUENCE,
+                    _CONTROL_CHARACTER, _DIRECTIONAL_CONTROL):
+        text = pattern.sub("", text)
+    text = " ".join(text.split()).strip()
+    encoded = text.encode("utf-8")
+    if len(encoded) <= _TITLE_MAX_BYTES:
+        return text
+    return encoded[:_TITLE_MAX_BYTES].decode("utf-8", errors="ignore").rstrip()
+
+
+def _last_event_meta(events: list[dict]) -> tuple[int, int]:
+    """返回 ``(last_seq, last_time_ms)``，用于派生新事件的 seq/time。"""
+    last_seq = -1
+    last_time = 0
+    for event in events:
+        seq = event.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool) and seq > last_seq:
+            last_seq = seq
+        stamp = event.get("time")
+        if isinstance(stamp, int) and not isinstance(stamp, bool) and stamp > last_time:
+            last_time = stamp
+    return last_seq, last_time
+
+
+def _tail_meta(lines: list[str]) -> tuple[int, int]:
+    """从原始 JSONL 行尾部找最新的 ``(seq, time)``（fork 时派生新事件用）。"""
+    last_seq = -1
+    last_time = 0
+    for raw in reversed(lines):
+        try:
+            event = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        seq = event.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool) and seq > last_seq:
+            last_seq = seq
+        stamp = event.get("time")
+        if isinstance(stamp, int) and not isinstance(stamp, bool) and stamp > last_time:
+            last_time = stamp
+        if last_seq >= 0:
+            break
+    return last_seq, last_time
+
+
+def _append_events(path: Path, events: list[dict]) -> bool:
+    """按 DSH 的「一行一帧」方式追加事件（只追加，不重写既有字节）。
+
+    先做一次「读到的字节数没变」检查，缩小与 DSH 自身追加写并发的窗口；帧本身
+    是一次 append 写，不会截断既有内容。
+    """
+    if not events:
+        return False
+    payload = _compress_frames([json.dumps(event, ensure_ascii=False) for event in events])
+    try:
+        size_before = path.stat().st_size
+        with open(path, "ab") as handle:
+            if handle.tell() != size_before:
+                return False
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError:
+        return False
+    return True
+
 
 def get_session_title(session_id: str, cwd: str | None = None) -> str:
-    """标题：投影缓存 > ``session/title`` 事件 > 首条用户消息（截断）。"""
+    """标题：日志里最后一条 ``session/title`` > 投影缓存 > 首条用户消息。
+
+    日志是权威来源（DSH 的 ``foldSessionTitle`` 也是取最后一条，Pan 追加的
+    自定义标题会覆盖自动标题），投影缓存只在读不到日志时兜底。
+    """
+    session_dir = _session_dir(session_id, cwd)
+    first_user = ""
+    logged_title = ""
+    if session_dir is not None:
+        for event in _iter_events(session_dir / _SESSION_LOG_NAME):
+            etype = event.get("type")
+            data = event.get("data") or {}
+            if etype == "session/title":
+                title = data.get("title")
+                if isinstance(title, str) and title.strip():
+                    # 最后一条胜出：自动标题在前，用户重命名在后。
+                    logged_title = title.strip()
+            elif etype == "user/message" and not first_user:
+                source = data.get("source") or {}
+                if isinstance(source, dict) and source.get("kind") == "user":
+                    first_user = _text_of(data.get("content"))
+    if logged_title:
+        return logged_title
     cache = _projcache(session_id)
     title = _projcache_value(cache, "title")
     if isinstance(title, str) and title.strip():
         return title.strip()
-    session_dir = _session_dir(session_id, cwd)
-    if session_dir is None:
-        return ""
-    first_user = ""
-    for event in _iter_events(session_dir / _SESSION_LOG_NAME):
-        etype = event.get("type")
-        data = event.get("data") or {}
-        if etype == "session/title":
-            title = data.get("title")
-            if isinstance(title, str) and title.strip():
-                return title.strip()
-        elif etype == "user/message" and not first_user:
-            source = data.get("source") or {}
-            if isinstance(source, dict) and source.get("kind") == "user":
-                first_user = _text_of(data.get("content"))
     return " ".join(first_user.split())[:80]
 
 
 def write_custom_title(session_id: str, title: str, cwd: str | None = None) -> None:
-    """DSH 没有可写的会话标题接口（标题由 session-title 插件按首条消息生成）。
+    """把 Pan 的会话名写成 DSH 原生标题（best-effort）。
 
-    投影缓存里的 ``title`` 行是 DSH 自己的派生投影（带 ver/seq 版本号），外部
-    改写会被下一次投影覆盖，也可能破坏其版本不变量，因此这里**明确降级**为
-    no-op：Pan 侧重命名照常生效，原生 CLI 里仍显示 DSH 自己的标题。
+    做法与 DSH 自己的 ``SessionTitleService.rename()`` 完全一致：追加一条
+    ``session/title`` 事件，``source.kind = "user"`` 且 ``messageSeqs = []``。
+    这会把标题「钉住」（pin）：DSH 的自动标题生成会让位，后续用户消息也不再重新
+    生成。实测（2026-10-24，DSH 44.7.0）：
+
+    - 追加后 ``dsh headless --session-id`` 正常 resume（turn:2），没有报日志损坏；
+    - DSH 重写投影缓存后 ``storages/session_projcache/sessions/<sid>.json`` 的
+      ``title`` 变成新值 —— 说明它接受这条事件并据此重投影，而不是覆盖它。
+
+    仍然保留 best-effort 语义：找不到会话、归一化后为空、zstd 不可用、或写入
+    失败时静默返回（Pan 侧的重命名已经生效，不该因为原生标题失败而报错）。
+    并发风险：DSH 会话日志是单写者追加文件，若此时恰好有 DSH 进程在同一会话里
+    写事件，理论上可能交错；``_append_events`` 只做「原文件大小未变」的廉价检查，
+    不做跨进程锁（DSH 本身也不加锁）。因此调用点应在会话空闲时使用。
     """
-    return None
+    normalized = normalize_title(title)
+    if not normalized:
+        return
+    session_dir = _session_dir(session_id, cwd)
+    if session_dir is None or not zstd_available():
+        return
+    path = session_dir / _SESSION_LOG_NAME
+    events = _iter_events(path)
+    if not events:
+        return
+    # 已经是同标题就不追加（DSH rename 语义幂等化）。
+    for event in reversed(events):
+        if event.get("type") == "session/title":
+            if (event.get("data") or {}).get("title") == normalized:
+                return
+            break
+    last_seq, last_time = _last_event_meta(events)
+    now_ms = int(time.time() * 1000)
+    event = {
+        "type": "session/title",
+        "seq": max(last_seq + 1, 0),
+        "time": max(now_ms, last_time),
+        "data": {"title": normalized, "messageSeqs": [], "source": {"kind": "user"}},
+    }
+    _append_events(path, [event])
 
 
 # ── fork ──
@@ -580,8 +726,8 @@ def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
 
     实测依据：DSH 只校验"第一帧恰好是一行 header"，因此按"一行一帧"重写既有
     日志即可被 ``--session-id`` 采用（本机验证：复制后 turn 号继续递增，说明
-    历史被完整读取）。``name`` 目前只作为 Pan 侧会话名，DSH 侧标题仍由其
-    session-title 插件派生（见 ``write_custom_title`` 的降级说明）。
+    历史被完整读取）。新会话会额外追加一条 ``session/title``（user 来源），把
+    DSH 原生标题钉成 Pan 的分支名（与 ``write_custom_title`` 同一机制）。
     """
     parent_dir = _session_dir(parent_id, cwd)
     if parent_dir is None:
@@ -602,6 +748,16 @@ def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
     header["id"] = new_id
     header["forkedFrom"] = parent_id
     lines[0] = json.dumps(header, ensure_ascii=False)
+
+    title = normalize_title(name)
+    if title:
+        last_seq, last_time = _tail_meta(lines)
+        lines.append(json.dumps({
+            "type": "session/title",
+            "seq": max(last_seq + 1, 0),
+            "time": max(int(time.time() * 1000), last_time),
+            "data": {"title": title, "messageSeqs": [], "source": {"kind": "user"}},
+        }, ensure_ascii=False))
 
     new_dir = parent_dir.parent / new_id
     new_dir.mkdir(parents=True, exist_ok=True)
