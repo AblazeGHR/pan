@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="1.158" timestamp="2026-10-24T14:30:52.293958+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_main_combination" name="test_cleanup_pending_preserves_system_snapshot_attempt_and_no_terminal_notice" time="0.056"><failure message="AssertionError: late terminal observation cannot publish a terminal notice&#10;assert not 'job_snapshot_delete:terminal'&#10; +  where 'job_snapshot_delete:terminal' = &lt;built-in method get of dict object at 0x0000019043B7DB40&gt;('terminalEventId')&#10; +    where &lt;built-in method get of dict object at 0x0000019043B7DB40&gt; = {'jobId': 'job_snapshot_delete', 'kind': 'background-process', 'status': 'cleanup_pending', 'name': 'owned', ...}.get">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4158/test_cleanup_pending_preserves0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019043BFD480&gt;
+
+    def test_cleanup_pending_preserves_system_snapshot_attempt_and_no_terminal_notice(tmp_path, monkeypatch):
+        record=dict(jobId='job_snapshot_delete',kind='background-process',status='starting',
+                    name='owned',targetSessionId='owned',argv=['synthetic'],cwd=str(tmp_path),createdAt=1)
+        jobs._create(record)
+        before=jobs.get(record['jobId'])
+        snapshot=copy.deepcopy(before['attemptSnapshot'])
+        attempt=copy.deepcopy(before['attempts'])
+        monkeypatch.setattr(jobs,'_terminate_job_processes',lambda *a: {'confirmed':False,'reason':'unconfirmed'})
+        with pytest.raises(ValueError,match='unconfirmed'):
+            jobs.delete_job(record['jobId'])
+        jobs.runner_update(record['jobId'],status='completed',exitCode=0,processTreeEnded=True)
+        current=jobs.get(record['jobId'])
+        assert current['status']=='cleanup_pending'
+        assert current['attemptSnapshot']==snapshot
+        assert current['attempts']==attempt
+        assert current['snapshotCleanup']=='active'
+&gt;       assert not current.get('terminalEventId'), 'late terminal observation cannot publish a terminal notice'
+E       AssertionError: late terminal observation cannot publish a terminal notice
+E       assert not 'job_snapshot_delete:terminal'
+E        +  where 'job_snapshot_delete:terminal' = &lt;built-in method get of dict object at 0x0000019043B7DB40&gt;('terminalEventId')
+E        +    where &lt;built-in method get of dict object at 0x0000019043B7DB40&gt; = {'jobId': 'job_snapshot_delete', 'kind': 'background-process', 'status': 'cleanup_pending', 'name': 'owned', ...}.get
+
+tests\test_job_delete_main_combination.py:31: AssertionError</failure></testcase><testcase classname="tests.test_job_delete_main_combination" name="test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard" time="0.142" /></testsuite></testsuites>

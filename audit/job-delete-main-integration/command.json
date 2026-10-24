@@ -1,0 +1,28 @@
+{
+  "sourceSha": "a137ea1fc8c4ab0c3d4d7571fc6d22ad512e7b41",
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_delete_main_combination.py",
+    "tests/test_job_delete_safety.py",
+    "tests/test_job_delete_http_owned.py",
+    "tests/test_background_jobs.py",
+    "tests/test_jobs_api.py",
+    "tests/test_job_system_actions.py",
+    "tests/test_job_action_templates.py",
+    "tests/test_authorization_permissions.py",
+    "tests/test_authorization_runtime.py",
+    "tests/test_authorization_mcp.py",
+    "tests/test_terminal_guard.py",
+    "tests/test_job_runner_venv.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=audit/job-delete-main-integration/final-junit.xml"
+  ],
+  "exitCode": 0
+}

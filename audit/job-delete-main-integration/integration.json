@@ -1,0 +1,16 @@
+{
+  "base": "f03e7c652c45e207486d2ee33643b95ae915985b",
+  "testedSha": "a137ea1fc8c4ab0c3d4d7571fc6d22ad512e7b41",
+  "baseIsAncestor": true,
+  "allowedProductPaths": [
+    "packages/core/background_jobs.py",
+    "packages/core/background_runner.py",
+    "packages/core/terminal/guard.py",
+    "packages/jobs/api.py",
+    "packages/jobs/process_cleanup.py"
+  ],
+  "originalCoreHead": "1557ae41685ba535f3da947c608434efb9153b64",
+  "originalCoreStatus": "",
+  "main": "f03e7c652c45e207486d2ee33643b95ae915985b",
+  "practical": "53dff07b42450105b4e43512c43395ccedf228b4"
+}
