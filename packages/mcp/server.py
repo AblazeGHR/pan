@@ -25,7 +25,7 @@ Tools exposed:
     - session_unclaim: Release the managed relationship entirely (auto-unsubscribes reports; session becomes unmanaged)
     - session_unclaim_many: Batch-unclaim multiple sessions
     - session_readonly: Set or clear readonly on a session already managed by caller
-    - session_handoff: 替身交接——创建孪生 session B 接替 A（精简上下文/切换 adapter）
+    - session_handoff: 替身交接——新建或选择已有 B 接替来源 A，按模式区分提示元数据与实际消息
     - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
     - agent_task: Send a task to an agent (auto-spawns if no live worker)
     - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
@@ -1028,52 +1028,54 @@ def session_batch_delete(session_ids: list[str]) -> dict:
 def session_handoff(
     session_id: str,
     handoff_prompt: str,
-    copy_settings: bool = True,
+    copy_settings: StrictBool | None = None,
     adapter: str | None = None,
     model: str | None = None,
     permission_mode: str | None = None,
     override_original_prompt: StrictBool = False,
     original_prompt: StrictStr | None = None,
+    target_session_id: StrictStr | None = None,
 ) -> dict:
-    """替身交接：创建孪生 session B 接替 session A（精简上下文 / 切换 adapter）。
+    """替身交接（精简上下文 / 切换 adapter）。先确认用户要新建 B 还是已有 B，明确 A/B ID，不能反向。
 
-    场景：A 的上下文过大需要精简，或 A 想中途切换 adapter（普通 session 不能
-    切）。A 保留为可阅读上下文（重命名为 `(archive) <原名>`），B 接管 A 的名字
-    与全部 pan 关系网，随后解除 A 的原关系网。
+    分层：session_id 是将归档的来源 A；target_session_id 省略=新建 B，
+    提供=只使用该既有 B，不存在报错，绝不悄悄新建。不要把所有字段当设置覆盖。
 
-    行为（session_handoff v1）：
-    1. **关系网接替（自动、必然）**：B.managed = A.managed，A 的子会话
-       managed_by 改 B；A 的 report_subscriptions、QQ postbox 绑定
-       （session_qq_subscribe 订阅的 inbox 提醒）全部转移给 B。
-    2. **B 自动 manage A**：B.managed 追加 A，A.managed_by = B——A 归档为 B 的
-       被管理会话，B 会收到 A 的完成报告（可据 A 的 lastResult 持续读取旧上下文）。
-    3. **可选设置复制**：copy_settings=true 时 1:1 复制 A 的 adapter、
-       adapter_config、model、permission_mode、session_template、pan_access、
-       mcp_servers 等（**明确不含 system_prompt**；cli_session_id 清空——B 是
-       全新会话，不继承 A 的 CLI 上下文）；false 时 B 用默认设置（此时必须显式
-       传 adapter，否则报错）。
-    4. **B 的 system_prompt = 本次 handoff_prompt 与选定 original_prompt 拼接**（分
-       「交接上下文 / 原 system prompt」两节）。
-    5. **重命名**：A → `(archive) <原名>`，B → `<原名>`。
+    已有 B：保留名字、history、cli_session_id、workdir、adapter/config、
+    template、pan_access、插件绑定与约束。copy_settings 省略/false 保留 B；
+    true 拒绝，不能沿用新建默认来覆盖已有上下文。adapter 参数拒绝。
+    model/permission_mode 只在无活/native Worker 时可显式覆盖，省略保留 B。
+    original_prompt 是 Pan 元数据：默认覆盖为 A.original_prompt；
+    override_original_prompt=true 时用本次 original_prompt（字符串，空串清空）。
+    目标实际 system_prompt 逐字冻结，当前与以后 restart/resume/newspawn 都不从
+    这些元数据重合成。handoff_prompt 同时覆盖简报元数据并作为一条普通输入排队；
+    返回 briefDelivery.queueItemId 供核对，queued 不代表 CLI 已看到。
+    保留 Pause/Illegal/锁/owner/generation，绝不 kill/unlock/force。来源可运行并
+    自调用，其队列和最终报告保留；按新关系将 A 的报告送给 B。
+    B 原 managed/report/QQ/WeChat 合并去重，B 管理归档 A。祖先/父子、不同
+    manager、不同有效 Workspace、损坏关系、第三方 QQ/WeChat 冲突在修改前拒绝。
+    跨 Workspace 归属尚无产品策略，当前不支持。B 原名保留，A 加 archive 前缀。
+
+    新建 B（旧兼容）：copy_settings 省略=true，复制 A 设置，false 必须显式
+    adapter；model/permission_mode 优先于来源。CLI 身份/history 不复制。
+    original_prompt 按上述继承/覆写选择，B.system_prompt = 本次简报 + 选定
+    original_prompt（只有新建模式使用合成器），B 取 A 原名。
+
+    两种模式都转移 A 关系网、归档 A、B 管理 A。已有模式重复相同请求只查原回执，
+    更改参数拒绝；结果未知先查询 A.handoffReceipt 与 B 原 queueItemId/history，
+    禁止自动重投、换 ID 或降级为新建。source 和 target 都须有管理访问权限，
+    访问检查不会预先 claim 修改关系。详细逐字段来源见 /pan skill §2.7。
 
     Args:
-        session_id: 被交接的 session（A）id
-        handoff_prompt: 【必填】交接简报——由 session A 的 agent 编写，让 B 彻底
-            了解现状与重点（重要开发习惯、现状、上下文精华等）。原始提示会自动
-            继承（显式覆写时例外），无需重复抄入简报。仅本次简报成为 B.handoff_prompt，不叠加旧简报。
-        copy_settings: 是否 1:1 复制 A 的设置（见上）。默认 true。
-        override_original_prompt: 默认 false，继承 A.original_prompt 并忽略残留文本；
-            true 时使用本次 original_prompt，独立于 copy_settings。
-        original_prompt: 启用覆写时必填字符串，允许空字符串清空；不修改 A，
-            不继承旧简报。B.system_prompt = 本次简报 + 选定 original_prompt。
-        adapter: 切换 adapter 时传入（copy_settings=false 时必填）
-        model: 覆盖模型（copy_settings=true 时优先于复制值）
-        permission_mode: 覆盖权限模式
-
-    调用链：走 POST /api/sessions/{session_id}/handoff。切换 adapter 的典型
-    用法：copy_settings=false + adapter="kimi" + handoff_prompt=...。交接后
-    B 即可 agent_assign（兼容别名 worker_assign）派活；A 归档但可 session_get 读取。
-    完整编排流程见 /pan skill。
+        session_id: 来源 A，交接后归档；不是接班者。
+        target_session_id: 已有接班者 B 的精确 ID；省略才新建。
+        handoff_prompt: 必填交接简报，已有模式是一条普通输入，不是 system prompt。
+        copy_settings: 新建默认 true；已有默认保留，仅允许省略/false。
+        override_original_prompt: 默认 false 从 A 取元数据；true 使用本次文本。
+        original_prompt: 覆写开关 true 时必填；已有模式永不注入 CLI。
+        adapter: 只支持新建模式；copy_settings=false 时必填。
+        model: 显式覆盖模型，已有模式要求无活/native Worker。
+        permission_mode: 显式覆盖权限模式，已有模式要求无活/native Worker。
     """
     # Validate before access checks: claim=True may establish managed relationships.
     if type(override_original_prompt) is not bool or (
@@ -1081,14 +1083,27 @@ def session_handoff(
     ):
         return {"ok": False, "error": {"code": "invalid_params", "message":
             "override_original_prompt must be a boolean; when true, original_prompt must be a string (empty clears)"}}
-    denied = _check_access(session_id, claim=True)
+    if target_session_id is not None:
+        if not target_session_id or copy_settings is True or adapter is not None:
+            return {"ok": False, "error": {"code": "invalid_params", "message":
+                "Existing B requires a nonempty target_session_id, preserves settings (omit copy_settings/false), and rejects adapter override"}}
+        caller = _caller_identity()
+        for sid in (session_id, target_session_id):
+            denied = _check_access(sid, caller=caller)
+            if denied:
+                return denied
+    denied = _check_access(session_id, claim=target_session_id is None)
     if denied:
         return denied
-    if not copy_settings and not adapter:
+    if target_session_id is None and copy_settings is False and not adapter:
         return {"ok": False, "error": {
             "code": "missing_params",
             "message": "adapter is required when copy_settings is false"}}
-    body: dict = {"handoffPrompt": handoff_prompt, "copySettings": copy_settings}
+    body: dict = {"handoffPrompt": handoff_prompt}
+    if copy_settings is not None:
+        body["copySettings"] = copy_settings
+    if target_session_id is not None:
+        body["targetSessionId"] = target_session_id
     if override_original_prompt:
         body["overrideOriginalPrompt"] = True
         body["originalPrompt"] = original_prompt

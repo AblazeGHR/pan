@@ -19,6 +19,8 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
   const [brief, setBrief] = useState('');
   const [override, setOverride] = useState(false);
   const [original, setOriginal] = useState('');
+  const [target, setTarget] = useState('');
+  const sessions = useSessionStore((s) => s.sessions);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const active = useRef(true);
@@ -38,7 +40,7 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
     try {
       await handoffSession(session.id, {
         handoffPrompt: brief,
-        copySettings: true,
+        ...(target ? { targetSessionId: target } : { copySettings: true }),
         overrideOriginalPrompt: override,
         ...(override ? { originalPrompt: original } : {}),
       });
@@ -70,7 +72,22 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
         }}
       >
         <p className="text-sm text-text-secondary">
-          Create a new CLI session that takes over the relationships and settings, then archives the source session. Only this brief is carried over; previous briefs and chat history are not.
+          Source A: {session.name} ({session.id}). A is archived and managed by successor B. Select whether to create B or use an existing session.
+        </p>
+        <label className="block text-sm">
+          Successor B
+          <select value={target} onChange={(e) => setTarget(e.target.value)} disabled={busy}
+            className="mt-1 w-full rounded border border-border-default bg-bg-primary p-2">
+            <option value="">Create a new session</option>
+            {sessions.filter((s) => s.id !== session.id).map((s) => (
+              <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+            ))}
+          </select>
+        </label>
+        <p className="text-sm text-text-secondary">
+          {target
+            ? 'Existing B keeps its name, history, CLI identity, settings and effective system prompt. Relationships are merged; the brief is queued as ordinary input, respecting Pause and locks. Queued does not mean read. Different managers, ancestors and different Workspaces are rejected.'
+            : 'New B copies source settings and starts with a new CLI context. Previous briefs and chat history are not copied.'}
         </p>
         <label className="block text-sm">
           Handoff brief (required)
@@ -93,7 +110,7 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
           Override original prompt (originalPrompt)
         </label>
         <p className="text-sm text-text-secondary">
-          By default, the source session's original prompt is inherited. When enabled, the text below is used; an empty value clears the original prompt. The source session is unchanged.
+          By default, B's original prompt metadata is replaced with A's original prompt. When enabled, the text below is used; an empty value clears the metadata. A is unchanged. {target && 'This metadata is never injected into the existing target CLI, including later restart/resume.'}
         </p>
         <label className="block text-sm">
           New original prompt
@@ -106,7 +123,7 @@ function HandoffForm({ session, onClose }: { session: Session; onClose: () => vo
           />
         </label>
         <p className="text-sm text-text-secondary">
-          The new session system prompt combines this handoff brief with the selected original prompt.
+          {target ? 'Existing B: actual system prompt stays exactly as before. The brief is one separate input message.' : 'New B: system prompt combines this handoff brief with the selected original prompt.'}
         </p>
         {error && (
           <p role="alert" className="text-sm text-danger">
