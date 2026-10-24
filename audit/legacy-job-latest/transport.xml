@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="35" failures="0" errors="0" time="1.68">
+    <testsuite name="services/api.legacyJobs.test.ts" timestamp="2026-10-24T09:07:56.603Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0077023">
+        <testcase classname="services/api.legacyJobs.test.ts" name="retains JSON content type and current Bearer on legacy create/edit after user login" time="0.0043987">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="uses original endpoints for legacy get/cancel/retry/delete without Action auth" time="0.0009986">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0009703">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0003214">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0005069">
+        </testcase>
+    </testsuite>
+    <testsuite name="services/api.test.ts" timestamp="2026-10-24T09:07:56.606Z" hostname="ablaze" tests="30" failures="0" errors="0" skipped="0" time="0.0261981">
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; aborts the real XHR and rejects when its signal is cancelled" time="0.002725">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; keeps the stable server reference and reports completion progress" time="0.0010289">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported cbc history-import route" time="0.0009601">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported kimi history-import route" time="0.0002523">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported opencode history-import route" time="0.0002182">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported codex history-import route" time="0.0001722">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported claude history-import route" time="0.0001636">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; sends force only with the explicit Session-bound confirmation" time="0.0002284">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; retains the structured summary on a business error instead of losing it in a generic Error" time="0.0003296">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; rejects HTTP 200 responses that carry a worker error body" time="0.0003141">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; keeps an unknown Steer outcome distinct from a rejection so the draft cannot be resent" time="0.0005606">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; uses rejected status even when its detail contains unknown or awaiting words" time="0.0004304">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; queue mutations reject HTTP 200 responses that carry an error body" time="0.0008367">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; carries one edit token through queue lease, save, and release requests" time="0.0005946">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes the global query, bounds pages to 100, and forwards cancellation" time="0.0011629">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 409 so search can show the correct recovery state" time="0.0003177">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 503 so search can show the correct recovery state" time="0.0001834">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes occurrence counting, empty roles, ordinal seek and stable-ID relocation" time="0.0010067">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="history page API for search jumps &gt; opts in only explicit jump requests to the larger page cap" time="0.0006671">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="canonical Jobs completed-retention API &gt; reads and writes the same Jobs API route with the rules payload" time="0.0086258">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends workspaceIds when creating a new Session" time="0.000259">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends an empty workspaceIds array for all and ungrouped creation scopes" time="0.0001329">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in cbc import payloads" time="0.0001872">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in kimi import payloads" time="0.000208">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in opencode import payloads" time="0.0002325">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in codex import payloads" time="0.0001247">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="Jobs pin metadata envelope &gt; reports unknown metadata even when the list is empty" time="0.0021647">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="Jobs pin metadata envelope &gt; reports restored available metadata on the next read" time="0.000548">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="plugin panel structured failures &gt; keeps a host-provided code and leaves plain text uncoded" time="0.0002141">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="plugin panel structured failures &gt; throws the coded failure from an isError action response" time="0.0003187">
+        </testcase>
+    </testsuite>
+</testsuites>

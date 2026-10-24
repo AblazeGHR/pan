@@ -1,0 +1,204 @@
+{
+  "ok": true,
+  "version": "153.0.8010.12",
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/settings/ui"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspaces"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cli/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/startup-recovery"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/panels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapters"
+    },
+    {
+      "method": "GET",
+      "path": "/api/adapter/config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/kinds"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job-templates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/actions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/automation/login"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job-templates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/actions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-jobs/job_961e0a5392daca6ff03711d5"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_961e0a5392daca6ff03711d5"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_961e0a5392daca6ff03711d5/runs"
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-jobs/job_961e0a5392daca6ff03711d5/cancel"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_961e0a5392daca6ff03711d5"
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-jobs/job_961e0a5392daca6ff03711d5"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/queue"
+    },
+    {
+      "method": "POST",
+      "path": "/api/background-jobs/job_961e0a5392daca6ff03711d5/retry"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/queue"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/queue"
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-jobs/job_d21fdb334ba575306580c811"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/queue"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_d21fdb334ba575306580c811"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_d21fdb334ba575306580c811/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/history"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/jobs/job_d21fdb334ba575306580c811"
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-jobs/job_unknown_fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_unknown_fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_unknown_fixture/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/ses_5502f5a3880a0947/history"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/jobs/job_unknown_fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/jobs/job_unknown_fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/api/background-jobs/job_unknown_fixture"
+    }
+  ],
+  "errors": [],
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4172\\test_dual_job_tabs_and_old_lif0\\chromium-profile"
+}

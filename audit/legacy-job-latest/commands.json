@@ -1,0 +1,6 @@
+{
+  "api": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_delete_safety.py tests/test_job_delete_main_combination.py tests/test_jobs_api.py tests/test_background_job_api.py tests/test_authorization_permissions.py tests/test_authorization_runtime.py -q --tb=short --junitxml=audit/legacy-job-latest/api.xml",
+  "ui": "npm exec vitest -- run src/views/JobsView.bulk-search.test.tsx src/views/JobsView.schedule-shapes.test.tsx src/components/jobs/JobDetailDrawer.test.tsx src/services/api.legacyJobs.test.ts src/services/api.test.ts src/stores/jobStore.test.ts src/components/jobs/NewJobForm.selected-broadcast.test.tsx --reporter=default --reporter=junit --outputFile.junit=../../../audit/legacy-job-latest/ui.xml",
+  "build": "npm run build (cwd packages/web)",
+  "http": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_legacy_job_transition_http.py -q --tb=short --junitxml=audit/legacy-job-latest/http.xml"
+}

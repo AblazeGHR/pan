@@ -1,0 +1,17 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/legacy-job-latest-20261024/packages/web/src
+
+ ✓ stores/jobStore.test.ts (26 tests) 7ms
+ ✓ services/api.test.ts (30 tests) 38ms
+ ✓ services/api.legacyJobs.test.ts (5 tests) 10ms
+ ✓ components/jobs/JobDetailDrawer.test.tsx (3 tests) 81ms
+ ✓ components/jobs/NewJobForm.selected-broadcast.test.tsx (3 tests) 120ms
+ ✓ views/JobsView.schedule-shapes.test.tsx (5 tests) 545ms
+ ✓ views/JobsView.bulk-search.test.tsx (25 tests) 3053ms
+
+ Test Files  7 passed (7)
+      Tests  97 passed (97)
+   Start at  17:10:24
+   Duration  5.87s (transform 755ms, setup 62ms, collect 2.91s, tests 3.85s, environment 5.66s, prepare 1.26s)
+
+JUNIT report written to D:/project/pan-worktrees/legacy-job-latest-20261024/audit/legacy-job-latest/ui.xml

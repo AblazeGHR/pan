@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="9.925" timestamp="2026-10-24T17:10:44.572604+08:00" hostname="ablaze"><testcase classname="tests.test_legacy_job_transition_http" name="test_dual_job_tabs_and_old_lifecycle_over_real_http" time="9.615" /></testsuite></testsuites>

@@ -1,0 +1,115 @@
+Pan
+Chat
+Editor
+Jobs
+2
+Terminal
+Locker
+Actions
+Automation
+New
+Import
+recent
+Legacy-target
+0
+gpt-6-luna
+…/data/workdirs
+J
+codex
+工作区
+全部
+1
+无工作区
+1
+新建工作区
+全部
+Jobs
+Unified Jobs
+Legacy Jobs / 旧 Job
+New Job
+Settings
+
+旧 Job · background_jobs registry / legacy scheduler · 旧 runner 与原始 Job 状态。与新 Job 可共用存储目录；不迁移、不自动转换。删除走原安全取消/清理路径；退出未确认时保留 cleanup_pending，须显式再次核对。
+
+New legacy Job
+All
+Active
+Scheduled
+Completed
+Failed
+Timeout
+Undeliverable
+Kind
+All kinds
+后台进程
+定时消息
+群发消息
+定时任务
+服务生命周期
+Refresh
+Search
+Sort by 
+Active first
+Updated time
+Created time
+Kind
+Descending
+Pinned jobs first
+4 of 4 jobs
+Select jobs
+Legacy safe delete boundary
+Cancel job
+running
+后台进程
+agent → ses_d72ea74e6facddbe
+legacy running
+log: C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-4166\test_dual_job_tabs_and_old_lif0\data\background_jobs\logs\job_09242afe32fec210592b97e6.log
+Legacy tree boundary
+Cancel job
+running
+后台进程
+agent → ses_d72ea74e6facddbe
+legacy running
+log: C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-4166\test_dual_job_tabs_and_old_lif0\data\background_jobs\logs\job_56dda4d329d170bf8f9dd13e.log
+Legacy unknown boundary
+cleanup_pending
+后台进程
+system → ses_d72ea74e6facddbe
+legacy cleanup_pending
+Legacy timer boundary
+Cancel job
+pending
+定时消息
+agent → ses_d72ea74e6facddbe
+deliveries 0
+Original timed message delivery
+HTTP 422: Unprocessable Content
+New legacy Job
+
+创建旧 registry 记录，使用旧 runner / scheduler；不会转换为新 Action Job。
+
+创建定时任务
+Scheduled QQ message
+恢复所有 Illegal / 待恢复 Session
+自定义
+Createable Job kind
+定时任务
+定时消息
+群发消息
+后台进程
+按计划向一个 Session 发送文本 · Uses a schedule. System-owned main-lifecycle Jobs are not user-createable.
+Writable fields: name, description, target.sessionId, text, schedule.type, schedule.at, schedule.delaySeconds, schedule.intervalSeconds, schedule.weekday, schedule.time, schedule.timezone
+Name
+Description
+Source identity is assigned by the server and cannot be set here.
+Target session *
+Select a Session…
+Legacy-target · ses_d72ea74e6facddbe
+Message text *
+Schedule type
+Once
+Interval
+Weekly
+Interval (seconds)
+Source is server-assigned. These message Jobs do not expose maxRuns, pause, or per-entry schedule controls.
+Create job

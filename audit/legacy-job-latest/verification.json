@@ -1,0 +1,53 @@
+{
+  "baseSha": "4e1d7fa1307388623dc698938092ede59dece4a6",
+  "sourceSha": "7c29dd28e882ce242c7e3e8ff083efb70c96879d",
+  "branch": "integration/legacy-job-latest-20261024",
+  "originalCandidate": "0998277b5c8ee198868a7e587228d1591db8aebb",
+  "refsAtDelivery": {
+    "main": "4e1d7fa1307388623dc698938092ede59dece4a6",
+    "practical": "53dff07b42450105b4e43512c43395ccedf228b4"
+  },
+  "tests": {
+    "api": {
+      "tests": 124,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ui": {
+      "tests": 97,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "http": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "exitCodes": {
+    "api": 0,
+    "ui": 0,
+    "build": 0,
+    "http": 0
+  },
+  "buildCompressedAssets": 92,
+  "chromiumVersion": "153.0.8010.12",
+  "httpPort": 65460,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "ownedChromiumRemaining": [],
+  "protectedBackendFilesUnchanged": [
+    "packages/core/background_jobs.py",
+    "packages/core/background_runner.py",
+    "packages/jobs/process_cleanup.py",
+    "packages/jobs/api.py",
+    "packages/scheduler/api.py",
+    "packages/web/server.py",
+    "packages/automation/authorization.py",
+    "packages/automation/auth.py"
+  ],
+  "oldLegacyManagementImported": false
+}
