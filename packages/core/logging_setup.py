@@ -265,4 +265,3 @@ def rotate_whole_file(path: str | os.PathLike[str], backup_count: int) -> bool:
     except OSError:
         return False
     return True
-
