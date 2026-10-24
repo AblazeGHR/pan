@@ -15,7 +15,11 @@ def test_live_existing_running_cli_receives_brief_once(tmp_path):
     launcher = Path(__file__).parent / 'support' / 'handoff_existing_server.py'
     env = {k: v for k, v in os.environ.items() if not k.startswith('PAN_')}
     log = (runtime / 'server.log').open('w', encoding='utf-8')
-    proc = subprocess.Popen([sys.executable, str(launcher), str(runtime)], env=env,
+    # A venv python.exe on Windows is a redirector that runs the real interpreter
+    # as a grandchild, so the identity pid could never equal the Popen pid.
+    # Spawn the base interpreter to keep the owned-process assertion exact.
+    interpreter = getattr(sys, '_base_executable', sys.executable)
+    proc = subprocess.Popen([interpreter, str(launcher), str(runtime)], env=env,
         stdout=log, stderr=subprocess.STDOUT,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     identity = None
