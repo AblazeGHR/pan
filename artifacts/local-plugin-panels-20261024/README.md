@@ -2,7 +2,7 @@
 
 Baseline source: `9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5`.
 Previously reviewed candidate (preserved, not amended): `525fb7de7db934f01229b258acb7a977ff854687`.
-Tested implementation commit/tree: filled in below when the candidate commit is created.
+Tested implementation commit: `93b300d6877422b7ad0129335aea0b9e56e8232e`, tree `507093bda7546a8042c030493d1b4170f24da773`.
 
 The browser run used the production React bundle, a real Vite + React example built through the GUI,
 an owned server process on a random assigned port (last run `57106`), a temporary data root and a
