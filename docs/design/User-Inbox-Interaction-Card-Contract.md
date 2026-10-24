@@ -133,3 +133,14 @@ Locker 表单区分明确的回应前拒绝与不确定结果：HTTP 422 和 `40
 用户批准前复核当前定义，变化返回409 stale，旧未绑定 choice 返回409 incomplete，均不写 response。批准到持久 Event admission 间再复核，明确拒绝会记录 rejected delivery 和 dispatchError，而不是假 accepted；结果不明仍 unknown。Card/Event 保存的内部 Action 副本仅用于此类卡片，Engine 首次 attempt 和后续 attempt 校验绑定，执行该已绑定副本，并在每个 Session effect 前复核；不读取变化后定义来执行新目标。定义/权限变化允许明确失败，不更新卡片或扩大批准含义。没有通用 snapshot 生命周期，也不改变一般 Job 的动态 Action 引用或 Group pin。
 
 SQLite 增量新增 bindings 列，旧记录默认 `{}`，不重写原定义/签名/response，也不猜测旧 choice 权限。旧卡片仍可读/拒收；没有可信绑定不可直接执行。旧 in_flight/unknown（含删除后的 detached）只查原 Event receipt，不再要求当前 Trigger 仍启用；缺回执保留 unknown。已有 Event/Run 的持久接纳与 effect 成功仍是两层事实。
+
+
+## 无需回答终态（2026-10-25）
+
+`interaction_card` 增加 `list_pending` 与 `no_answer_needed` 操作。前者按可信 stdio 创建者筛选未终态且无执行意图的原卡片，返回 cards（稳定 id/revision/status）及 nextAfter，limit 1..500；分页 after 延续当前原卡片 ID 游标语义，游标被删除时显式 not_found，调用者重新读取，不能猜测漏项。后者使用 card_id/expected_revision，与 submit/reject 在 SQLite BEGIN IMMEDIATE 事务中 CAS 竞争，只允许一个终态胜出。同一可信创建者重复标记幂等，删除后 not_found，原 requestKey tombstone 不复活。
+
+新字段 producer 仅由 `/api/interaction-card-tools/create` 的本地 stdio caller 桥接身份写入，沿用 same-user loopback assertion（拒绝 Origin/Sec-Fetch 与远程 MCP），不是远程认证机制。owner 可以沿用既有创建范围，但 producer 权限不继承 owner、manager/managed 或请求自报 producerSessionId。旧 HTTP create/Job/router 及历史数据没有可证明创建者时 producer 保持 NULL，迁移不猜测来源，重试创建也不补绑。新增 producer 操作不接受 owner override，不获得用户 Bearer 或删除能力。
+
+无需回答持久存放在 no_answer_at 字段，response/event 均为空，不产生 response/rejection outbox，不执行 choice，不取消既有 Action。任何 response/event 或 delivery 非 not_requested 均不能标记。冷重启保留状态，用户混排列表继续返回原卡片；Locker 明显显示“无需回答 · No answer needed”与 Read-only，移除回答/拒绝/选择/文本输入，仅留删除。旧 UI 或重放 HTTP submit/respond/reject 均 409；用户 Bearer 删除权限不变，不提供恢复。现有 read/unread 通用写入与“只允许删除”冲突，本实现禁止该终态的 read 写入，并从批量已读操作中排除；不擅自把无需回答解释成已读。
+
+GUI 延续既有加载/手动 Refresh/窗口 focus 刷新机制；过期 UI 在 409 conflict 后读取原卡片并展示终态。无需回答不等于用户批准/拒绝，也不是 Trigger/Job 成功回执。

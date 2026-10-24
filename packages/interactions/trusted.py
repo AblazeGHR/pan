@@ -61,13 +61,20 @@ def resolve(service, request):
     return result
 
 
-def create(service, store, request):
+def create(service, store, request, *, producer_id=None):
+    # An existing identity is never rebound, including to a newer caller.
+    from .contracts import identity
+    with store.db() as db:
+        exists = db.execute('SELECT 1 FROM cards WHERE id=?',
+                            (identity('card_', [request['ownerSessionId'], request['requestKey']]),)).fetchone()
+    if exists:
+        return store.create(request, producer_id=producer_id)
     if not any(c.get('triggerRef') for c in request['card'].get('choices', [])):
-        return store.create(request)
+        return store.create(request, producer_id=producer_id)
     if service is None:
         raise InteractionError('incomplete', 'Trigger host unavailable')
     with service.ledger.lock, actions_lock:
-        return store.create(request, bindings=resolve(service, request))
+        return store.create(request, bindings=resolve(service, request), producer_id=producer_id)
 
 
 def verify(service, event):

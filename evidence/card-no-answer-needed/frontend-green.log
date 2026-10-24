@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/card-no-answer-needed-20261025/packages/web
+
+ ✓ src/views/LockerView.test.tsx (20 tests) 2234ms
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  03:39:41
+   Duration  7.28s (transform 478ms, setup 20ms, collect 1.35s, tests 2.23s, environment 1.34s, prepare 352ms)
+

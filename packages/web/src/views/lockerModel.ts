@@ -19,7 +19,7 @@ export interface InteractionCard {
   createdAt: string;
   read: boolean;
   revision: number;
-  status: 'open' | 'responded' | 'rejected';
+  status: 'open' | 'responded' | 'rejected' | 'no_answer_needed';
   definition: {
     title: string;
     body: string;

@@ -1,0 +1,33 @@
+{
+  "firstPid": 17852,
+  "restartedPid": 50720,
+  "sameProfile": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data",
+  "terminal": {
+    "schemaVersion": 1,
+    "lockerId": "ulocker_e43199f90863676affc20db25367915abcfc2a6f5c96fec4c317d810648683e1",
+    "read": false,
+    "sourceName": "ses_76d9b82082640a3e",
+    "id": "card_a72fec00b2daedfdadd6a37712e69ee5155236e2b5e4f333405a738879515854",
+    "ownerSessionId": "ses_76d9b82082640a3e",
+    "recipientId": "test-user",
+    "definition": {
+      "body": "Terminal must survive",
+      "title": "Cold restart",
+      "summaryBody": "Terminal must survive"
+    },
+    "trustedChoices": {},
+    "createdAt": "2026-10-24T19:41:12.281991+00:00",
+    "revision": 1,
+    "status": "no_answer_needed",
+    "response": null,
+    "delivery": {
+      "state": "not_requested"
+    },
+    "rejectionDelivery": {
+      "state": "not_requested"
+    }
+  },
+  "terminalPreserved": true,
+  "pendingExcluded": true,
+  "userDeleted": true
+}

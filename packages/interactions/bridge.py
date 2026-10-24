@@ -45,7 +45,7 @@ def job_response(card):
     """Compatibility waiter view: response recorded does not mean Job resumed."""
     validate('Card',card)
     return {'cardId':card['id'],'job':card['definition'].get('correlation',{}).get('job'),
-            'status':'response_recorded' if card['response'] is not None else 'waiting_response',
+            'status':'no_answer_needed' if card['status']=='no_answer_needed' else ('response_recorded' if card['response'] is not None else 'waiting_response'),
             'response':card['response'],'triggerDelivery':card['delivery']}
 
 

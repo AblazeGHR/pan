@@ -66,6 +66,11 @@ def test_mcp_producer_permissions_and_no_user_response_tool(monkeypatch):
     caller={'id':'owner','managed':[],'panAccess':{'restrictToManaged':True}}
     monkeypatch.setattr(server,'_require_caller',lambda:(caller,None))
     monkeypatch.setattr(server,'_api',lambda *args:calls.append(args) or {})
+    def local(path, body):
+        if body.get('ownerSessionId', 'owner') != 'owner':
+            return {'error': {'code': 'permission_denied'}}
+        return calls.append(('POST', path, {**body, 'ownerSessionId': 'owner'})) or {}
+    monkeypatch.setattr(server, '_local_producer_api', local)
     assert server.interaction_card('respond')['error']
     denied=server.interaction_card('create',owner_session_id='unmanaged',card={'title':'x','body':''})
     assert denied['error']['code']=='permission_denied' and not calls

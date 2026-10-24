@@ -18,7 +18,7 @@ from packages.jobs.window import command_window_options
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def run_http_mcp(tmp_path,*,browser=False):
+def run_http_mcp(tmp_path,*,browser=False,no_answer=False):
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0))
         port=sock.getsockname()[1]
@@ -28,6 +28,8 @@ def run_http_mcp(tmp_path,*,browser=False):
     (data/'config.json').write_text(json.dumps({'port':port,'memory':{'enabled':False},'scheduler':{'enabled':False},
         'plugin_manifests':[str(ROOT/'manifest.json'),str(ROOT/'packages/mcp/manifest.json')]}),encoding='utf-8')
     env={k:v for k,v in os.environ.items() if not k.upper().startswith('PAN_')}
+    if os.environ.get('PAN_TEST_CHROMIUM_EXECUTABLE'):
+        env['PAN_TEST_CHROMIUM_EXECUTABLE']=os.environ['PAN_TEST_CHROMIUM_EXECUTABLE']
     # fakeCLI must not consult the developer/runner's native provider history.
     provider_home = tmp_path / 'provider-home'
     provider_home.mkdir()
@@ -36,8 +38,10 @@ def run_http_mcp(tmp_path,*,browser=False):
         PAN_TEST_INBOX_NONCE=secrets.token_hex(16),PAN_E2E_FAKE_CLI=str(ROOT/'tests/support/fake_stream_cli.py'),
         PAN_E2E_FAKE_LOG=str(data/'fake-cli.jsonl'),PAN_TEST_DISABLE_QUEUE_WATCHDOG='1')
     base=f'http://127.0.0.1:{port}'
-    def call(method,path,body=None,*,user=False):
+    def call(method,path,body=None,*,user=False,caller=None):
         headers={'Content-Type':'application/json'}
+        if caller:
+            headers['X-Pan-Queue-Caller']=caller
         if user:
             headers['Authorization']='Bearer '+env['PAN_TEST_INTERACTION_TOKEN']
         request=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,method=method,headers=headers)
@@ -104,6 +108,47 @@ def run_http_mcp(tmp_path,*,browser=False):
         artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
             'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
         (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
+        if no_answer:
+            result=subprocess.run(['node',str(ROOT/'packages/web/e2e/card-no-answer.e2e.mjs'),base,
+                env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],
+                cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                capture_output=True,text=True,encoding='utf-8',timeout=100)
+            (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+            assert result.returncode==0,result.stdout+'\n'+result.stderr
+            with sqlite3.connect(ports['cardPath']) as db:
+                # Only the pre-existing answered baseline Card sends a notice.
+                assert db.execute('SELECT count(*) FROM response_outbox').fetchone()[0]==1
+                assert db.execute('SELECT count(*) FROM rejection_outbox').fetchone()[0]==0
+            with sqlite3.connect(ports['receiptPath']) as db:
+                assert db.execute('SELECT count(*) FROM receipts').fetchone()[0]==1
+            cold=call('POST','/api/interaction-card-tools/create',{
+                'recipientId':'test-user','requestKey':'cold-restart',
+                'card':{'title':'Cold restart','body':'Terminal must survive'}},caller=owner['id'])['card']
+            terminal=call('POST','/api/interaction-card-tools/no_answer_needed',{
+                'cardId':cold['id'],'expectedRevision':0},caller=owner['id'])['card']
+            first_pid=proc.pid
+            assert call('POST','/__test/inbox-exit',{})['ok']
+            proc.wait(timeout=20)
+            assert proc.returncode==0
+            proc=subprocess.Popen([sys.executable,'-m','tests.support.interaction_card_http_server','--port',str(port),
+                '--data-root',str(data)],cwd=ROOT,env=env,stdout=log,stderr=log,**command_window_options())
+            deadline=time.monotonic()+15
+            while True:
+                try:
+                    restarted=call('GET','/__test/inbox-identity')
+                    break
+                except OSError:
+                    assert time.monotonic()<deadline
+                    time.sleep(.1)
+            assert restarted['nonce']==ident['nonce'] and restarted['pid']!=ident['pid']
+            actual=psutil.Process(restarted['pid'])
+            assert proc.pid==actual.pid or proc.pid in {p.pid for p in actual.parents()}
+            assert call('GET',f"/api/user-inbox/{cold['id']}",user=True)['card']==terminal
+            assert call('POST','/api/interaction-card-tools/list_pending',{},caller=owner['id'])['cards']==[]
+            assert call('DELETE',f"/api/user-inbox/{cold['id']}",user=True)['deleted']
+            (tmp_path/'cold-restart.json').write_text(json.dumps({
+                'firstPid':first_pid,'restartedPid':proc.pid,'sameProfile':str(data),'terminal':terminal,
+                'terminalPreserved':True,'pendingExcluded':True,'userDeleted':True},indent=2),encoding='utf-8')
         if browser:
             result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-panel.e2e.mjs'),base,
                 env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser')],
@@ -150,3 +195,7 @@ def run_http_mcp(tmp_path,*,browser=False):
 
 def test_http_mcp_user_response_and_directed_trigger(tmp_path):
     run_http_mcp(tmp_path)
+
+
+def test_no_answer_http_stdio_production_browser(tmp_path):
+    run_http_mcp(tmp_path,no_answer=True)
