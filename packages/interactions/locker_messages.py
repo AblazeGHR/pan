@@ -1,6 +1,6 @@
 """Internal, source-Session-only admission of dedicated Locker messages.
 
-No producer HTTP/MCP endpoint and no Chat/Job/QQ forwarding. Callers must
+No Chat/Job/QQ forwarding. The local stdio producer bridge and internal callers must
 already possess a trusted source Session identity; never take it from a user
 request. Storage is independent of Session history and queue consumption.
 """
@@ -28,7 +28,7 @@ def attachment_ids(message):
 
 
 def accept_locker_message(source_session_id, recipient_id, message):
-    """Minimal internal adapter boundary, not a public producer API."""
+    """Shared admission boundary for internal and trusted local stdio producers."""
     from packages.core import session
     from packages.web import server
     from .api import get_store

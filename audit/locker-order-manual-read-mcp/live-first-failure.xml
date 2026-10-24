@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="37.182" timestamp="2026-10-24T14:05:28.917248+08:00" hostname="ablaze"><testcase classname="tests.test_locker_product_live" name="test_locker_messages_cards_real_service_browser_cli_restart" time="32.353" /><testcase classname="tests.test_locker_order_scroll_live" name="test_locker_order_scroll_live" time="3.824"><failure message="KeyError: 'id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4134/test_locker_order_scroll_live0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000181EB9775C0&gt;
+
+    def test_locker_order_scroll_live(tmp_path, monkeypatch):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(h, 'PORT', port)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', ROOT/'tests/support/locker_product_http_server.py')
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_LOCKER_NONCE', nonce)
+        monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
+        rt = h._PanRuntime(tmp_path/'profile/data')
+        rt.data_root.mkdir(parents=True)
+        (rt.data_root/'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        proof = {'port': port, 'profile': str(rt.data_root), 'apiInterception': False}
+        try:
+            rt.start()
+            proof['identity'] = rt.request('GET', '/__test/job-inbox-identity')
+            assert str(rt.data_root) == str(__import__('pathlib').Path(proof['identity']['sessions']).parent)
+            key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            source = rt.request('POST', '/api/sessions', json={'name': 'Scroll source', 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(tmp_path)})
+&gt;           rt.request('PATCH', f"/api/sessions/{source['id']}/queue/paused", json={'paused': True})
+                                                 ^^^^^^^^^^^^
+E           KeyError: 'id'
+
+tests\test_locker_order_scroll_live.py:33: KeyError</failure></testcase></testsuite></testsuites>

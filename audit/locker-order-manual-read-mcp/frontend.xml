@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="21" failures="0" errors="0" time="3.066">
+    <testsuite name="src/views/lockerModel.auth.test.ts" timestamp="2026-10-24T06:11:35.784Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.0027713">
+        <testcase classname="src/views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0019692">
+        </testcase>
+        <testcase classname="src/views/lockerModel.auth.test.ts" name="discards a late old-user response and never clears a successor token" time="0.0002982">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/views/LockerView.test.tsx" timestamp="2026-10-24T06:11:35.789Z" hostname="ablaze" tests="19" failures="0" errors="0" skipped="0" time="1.0980382">
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0012229">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0743311">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0234662">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.0753329">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0541131">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0291346">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.062481">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0268399">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.0613904">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.083743">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0165567">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0107836">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.0917122">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.0937658">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.0629474">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.0618078">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.0795717">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.0791981">
+        </testcase>
+        <testcase classname="src/views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.1088764">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="40.502" timestamp="2026-10-24T14:06:29.567769+08:00" hostname="ablaze"><testcase classname="tests.test_locker_order_scroll_live" name="test_locker_order_scroll_live" time="10.506"><failure message="AssertionError: &#10;  node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  ExpectError: expect(received).toBeLessThan(expected)&#10;  &#10;  Expected: &lt; 8&#10;  Received:   24.15625&#10;      at captureRawStack (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)&#10;      at callMatcherAsStep (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)&#10;      at Object.toBeLessThan (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)&#10;      at D:\project\pan-worktrees\locker-order-manual-read-mcp-20261024\packages\web\e2e\locker-order-scroll.mjs:39:28 {&#10;    matcherResult: {&#10;      message: 'expect(received).toBeLessThan(expected)\n' +&#10;        '\n' +&#10;        'Expected: &lt; 8\n' +&#10;        'Received:   24.15625',&#10;      pass: false,&#10;      name: 'toBeLessThan'&#10;    }&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\locker-order-manual-read-mcp-20261024\\packages\\web\\e2e\...d: &lt; 8\\n' +\n      'Received:   24.15625',\n    pass: false,\n    name: 'toBeLessThan'\n  }\n}\n\nNode.js v24.22.1\n&quot;).returncode">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4135/test_locker_order_scroll_live0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021B9BBF2FD0&gt;
+
+    def test_locker_order_scroll_live(tmp_path, monkeypatch):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(h, 'PORT', port)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', ROOT/'tests/support/locker_product_http_server.py')
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_LOCKER_NONCE', nonce)
+        monkeypatch.setenv('PAN_TEST_DISABLE_QUEUE_WATCHDOG', '1')
+        rt = h._PanRuntime(tmp_path/'profile/data')
+        rt.data_root.mkdir(parents=True)
+        (rt.data_root/'config.json').write_text(json.dumps({'memory': {'enabled': False}, 'plugin_manifests': [str(ROOT/'manifest.json'), str(ROOT/'packages/mcp/manifest.json')]}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        proof = {'port': port, 'profile': str(rt.data_root), 'apiInterception': False}
+        try:
+            rt.start()
+            proof['identity'] = rt.request('GET', '/__test/job-inbox-identity')
+            assert str(rt.data_root) == str(__import__('pathlib').Path(proof['identity']['sessions']).parent)
+            key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            source = rt.request('POST', '/api/sessions', json={'name': 'Scroll-source', 'adapter': 'cbc', 'mcpServers': [], 'workdir': str(tmp_path)})
+            assert source.get('id'), source
+            rt.request('PATCH', f"/api/sessions/{source['id']}/queue/paused", json={'paused': True})
+            ids=[]
+            for index in range(110):
+                message = {'messageId': f'scroll-{index:03}', 'role': 'assistant', 'content': f'## Scroll row {index:03}\n\nReading ordinary content.\n\n'+('Paragraph with stable height.\n\n'*3), 'ts': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}
+                row = rt.request('POST', '/__test/locker/accept', headers={'x-locker-fixture':nonce},
+                    json={'sourceSessionId':source['id'],'recipientId':'user','message':message})['message']
+                ids.append(row['id'])
+                if index in {20,60,90}:
+                    card=rt.request('POST','/api/interaction-cards',json={'ownerSessionId':source['id'],'recipientId':'user','requestKey':f'scroll-card-{index}',
+                        'card':{'title':f'Mixed Card {index}','body':'A real Card between ordinary messages.','summaryBody':'Mixed Card'}})['card']
+                    ids.append(card['id'])
+            # Use production createdAt/ID comparator rather than synthetic insertion assumptions.
+            auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
+            items=rt.request('GET','/api/user-locker-messages?limit=500',headers=auth)['messages']+rt.request('GET','/api/user-inbox',headers=auth)['cards']
+            ids=[item['id'] for item in sorted(items,key=lambda item:(item['createdAt'],item['id']))]
+            fixture={'ids':ids,'locker':row['lockerId'],'source':source['id'],'nonce':nonce}
+            fixture_path=OUT/'fixture.json';fixture_path.write_text(json.dumps(fixture),encoding='utf-8')
+            result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-order-scroll.mjs'),rt.base_url,str(OUT),str(fixture_path)],
+                cwd=ROOT,env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)
+            (OUT/'browser.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+            proof['browserExitCode']=result.returncode
+&gt;           assert result.returncode==0,result.stdout+'\n'+result.stderr
+E           AssertionError: 
+E             node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             ExpectError: expect(received).toBeLessThan(expected)
+E             
+E             Expected: &lt; 8
+E             Received:   24.15625
+E                 at captureRawStack (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+E                 at callMatcherAsStep (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+E                 at Object.toBeLessThan (D:\project\Pan-main\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+E                 at D:\project\pan-worktrees\locker-order-manual-read-mcp-20261024\packages\web\e2e\locker-order-scroll.mjs:39:28 {
+E               matcherResult: {
+E                 message: 'expect(received).toBeLessThan(expected)\n' +
+E                   '\n' +
+E                   'Expected: &lt; 8\n' +
+E                   'Received:   24.15625',
+E                 pass: false,
+E                 name: 'toBeLessThan'
+E               }
+E             }
+E             
+E             Node.js v24.22.1
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\locker-order-manual-read-mcp-20261024\\packages\\web\\e2e\...d: &lt; 8\\n' +\n      'Received:   24.15625',\n    pass: false,\n    name: 'toBeLessThan'\n  }\n}\n\nNode.js v24.22.1\n").returncode
+
+tests\test_locker_order_scroll_live.py:55: AssertionError</failure></testcase><testcase classname="tests.test_locker_product_live" name="test_locker_messages_cards_real_service_browser_cli_restart" time="29.263" /></testsuite></testsuites>

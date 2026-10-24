@@ -12,7 +12,7 @@ from tests import test_real_queue_http_e2e as h
 from tests.test_automation_core import action, trigger
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT/'audit/locker-messages-product-20261023/live'
+OUT = ROOT/'artifacts/authorization-main-combination/locker-live'
 
 
 def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkeypatch):
@@ -48,6 +48,9 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         proof['identity'] = ident
         key = (rt.data_root/'automation/user.key').read_text(encoding='utf-8')
         auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
+        initial_grants = rt.request('GET', '/api/automation/authorization', headers=auth)
+        assert initial_grants['authorizationRevision'] == 0
+        assert not any(value for grants in initial_grants['permissions'].values() for value in grants.values())
         def source(name):
             directory = rt.data_root/'workdirs'/name
             directory.mkdir(parents=True)
@@ -62,7 +65,7 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         workspace = rt.request('POST', '/api/workspaces', json={'name': 'Workspace A'})['workspace']
         for obj in (one, two):
             assert rt.request('PUT', f"/api/sessions/{obj['id']}/workspaces", json={'workspaceIds': [workspace['id']]})['ok']
-        rt.request('POST', '/api/actions/actions', json={'item': action([target['id']])})
+        rt.request('POST', '/api/actions/actions', headers=auth, json={'item': action([target['id']])})
         rt.request('POST', '/api/automation/triggers', headers=auth,
             json={'item': {**trigger('locker-live-pause'), 'eventTypes': ['pan.interaction.responded']}, 'expectedRevision': 0})
         attachment = httpx.post(rt.base_url+f"/api/sessions/{one['id']}/attachments?filename=review.txt",
@@ -70,8 +73,45 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         def accept(sid, mid, ts, body, parts=None):
             message = {'messageId': mid, 'role': 'assistant', 'content': body, 'ts': ts,
                 'parts': parts or [{'type': 'text', 'text': body}], 'futureMetadata': {'retained': True}}
-            return rt.request('POST', '/__test/locker/accept', headers=fixture_headers,
-                json={'sourceSessionId': sid, 'recipientId': 'user', 'message': message})['message']
+            import asyncio
+            import sys
+            from mcp import ClientSession, StdioServerParameters
+            from mcp.client.stdio import stdio_client
+            async def stdio_create():
+                params = StdioServerParameters(command=sys.executable,
+                    args=['-m', 'packages.mcp.server'], cwd=str(ROOT),
+                    env={**os.environ, 'PAN_API_URL': rt.base_url, 'PAN_AGENT_SESSION_ID': sid})
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as client:
+                        await client.initialize()
+                        listing = await client.list_tools()
+                        assert {'locker_message', 'authorization_objects'} <= {t.name for t in listing.tools}
+                        tool = next(t for t in listing.tools if t.name == 'locker_message')
+                        assert 'owner_session_id' not in tool.inputSchema['properties']
+                        async def call(arguments):
+                            result = await client.call_tool('locker_message', arguments)
+                            assert not result.isError, result
+                            return json.loads(result.content[0].text)
+                        created = await call({'operation': 'create', 'message': message})
+                        assert created['message']['ownerSessionId'] == sid
+                        assert await call({'operation': 'create', 'message': message}) == created
+                        assert await call({'operation': 'get', 'message_id': mid}) == created
+                        forged = await client.call_tool('locker_message', {'operation': 'create', 'message': message,
+                            'owner_session_id': empty['id'], 'source_session_id': empty['id'], 'recipient_id': 'other'})
+                        if not forged.isError:
+                            assert json.loads(forged.content[0].text) == created, 'extra arguments must never change source/recipient'
+
+                        conflict = await call({'operation': 'create', 'message': {**message, 'content': 'changed'}})
+                        assert conflict['error']['code'] == 'conflict'
+                        if sid == two['id']:
+                            denied = await call({'operation': 'create', 'message': {**message, 'messageId': 'foreign-attachment',
+                                'parts': [{'type': 'attachment', 'attachmentId': attachment['attachmentId'], 'displayName': 'foreign.txt'}]}})
+                            assert denied['error']['code'] == 'forbidden'
+                        proof.setdefault('stdioProducer', []).append({'source': sid, 'messageId': mid, 'discovered': True,
+                            'idempotent': True, 'lookup': True, 'conflictRejected': True, 'sourceOverrideCannotImpersonate': True,
+                            'foreignAttachmentRejected': sid == two['id']})
+                        return created['message']
+            return asyncio.run(stdio_create())
         ordinary = accept(one['id'], 'dedicated-one', '2026-10-23T00:00:00Z', '## Ordinary Locker message\n\n**Markdown**, no Chat copy.\n\n```ts\nconst locker = true;\n```',
             [{'type': 'text', 'text': '## Ordinary Locker message\n\n**Markdown**, no Chat copy.\n\n```ts\nconst locker = true;\n```'},
              {'type': 'attachment', 'attachmentId': attachment['attachmentId'], 'displayName': 'review.txt', 'mimeType': 'text/plain'}])
@@ -103,7 +143,7 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
                    'archived': archived['id'], 'approval': approval['id'], 'reply': reply['id'], 'reason': reason['id'], 'silent': silent['id'], 'nonce': nonce}
         browser('exercise', fixture, key)
         def completed():
-            runs = rt.request('GET', '/api/automation')['runs']
+            runs = rt.request('GET', '/api/automation', headers=auth)['runs']
             return list(runs.values()) if len(runs) == 1 and next(iter(runs.values()))['status'] == 'succeeded' else None
         runs = h._wait_for(completed, label='trusted real Trigger Pause run')
         assert runs[0]['triggerId'] == 'locker-live-pause'
@@ -152,7 +192,11 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         assert not rt.request('GET', f"/api/user-locker-messages/{archived['id']}",headers=cold_auth)['message']['read']
         assert httpx.get(rt.base_url+'/api/user-locker-messages', headers=auth, trust_env=False).status_code == 401
         browser('cold', fixture, key)
-        assert len(rt.request('GET', '/api/automation')['runs']) == 1
+        assert len(rt.request('GET', '/api/automation', headers=cold_auth)['runs']) == 1
+        final_grants = rt.request('GET', '/api/automation/authorization', headers=cold_auth)
+        assert final_grants['authorizationRevision'] == initial_grants['authorizationRevision']
+        assert final_grants['permissions'] == initial_grants['permissions']
+        proof['defaultGrantsUnchanged'] = True
         proof['coldRestart'] = True
         assert h._received(rt) == received, 'Cold restart must not replay notifications'
         rt._capture_owned_processes()

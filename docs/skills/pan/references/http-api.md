@@ -592,3 +592,14 @@ existing private plugin IPC transport, never the user's password/Bearer or a
 self-reported HTTP identity header. Operation mappings, CAS, system immutability,
 revocation and fixture contracts are documented in
 [`Authorization-Profile-Agent-Matrix.md`](../../../design/Authorization-Profile-Agent-Matrix.md).
+
+### Ordinary Locker Message producer (2026-10-24)
+
+MCP `locker_message(operation="create", message={messageId,role,content,ts,...})`
+uses only its bound local stdio caller as source, defaults to this profile user,
+and never copies into Chat or Session Queue. Get by the original source message
+identity: `locker_message(operation="get", message_id="...")`. Same ID/document
+is idempotent; changed contents conflict. Unknown outcomes require lookup, never
+automatic resend. The existing schema endpoint declares LockerMessageProducer.
+The same-user loopback bridge rejects remote/SSE/browser callers and source or
+recipient overrides. See [ordinary Locker contract](../../../design/user-locker-messages-internal-v1.md).

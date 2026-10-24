@@ -2,7 +2,15 @@ import { LockerMessageRow } from './LockerMessageRow';
 import { SessionDragGutter } from '@/components/session/SessionDragGutter';
 import { createPortal } from 'react-dom';
 import { SidebarPanelContext } from '@/components/layout/SidebarPanelContext';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Archive,
@@ -72,9 +80,6 @@ function Card({
     operation: 'submit' | 'reject' | 'delete';
     payload: Record<string, unknown>;
   } | null>(null);
-  const element = useRef<HTMLElement>(null);
-  const acknowledged = useRef(false);
-  const manualRead = useRef(false);
   const [rejecting, setRejecting] = useState(false);
   const open = card.status === 'open';
   useEffect(() => {
@@ -86,33 +91,6 @@ function Card({
       setChoiceId(card.response?.choiceId ?? '');
     }
   }, [card.response, open]);
-  useEffect(() => {
-    if (
-      hidden ||
-      card.read ||
-      manualRead.current ||
-      acknowledged.current ||
-      typeof IntersectionObserver === 'undefined'
-    )
-      return;
-    const mark = () => {
-      if (acknowledged.current) return;
-      acknowledged.current = true;
-      void lockerRequest<{ card: InteractionCard }>(`/api/user-inbox/${card.id}/read`, 'PUT', {
-        read: true,
-      })
-        .then((result) => update(result.card))
-        .catch((errorValue) => {
-          acknowledged.current = false;
-          setError(String(errorValue));
-        });
-    };
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) mark();
-    });
-    if (element.current) observer.observe(element.current);
-    return () => observer.disconnect();
-  }, [card.id, card.read, update, hidden]);
   const act = async (operation: 'submit' | 'reject' | 'delete') => {
     if (busy) return;
     setBusy(true);
@@ -170,7 +148,6 @@ function Card({
   );
   return (
     <article
-      ref={element}
       hidden={hidden}
       data-card-id={card.id}
       className="locker-card message-row message-row-assistant relative px-3 sm:px-6 lg:px-8"
@@ -190,7 +167,6 @@ function Card({
           aria-label={card.read ? 'Mark card as unread' : 'Mark card as read'}
           title={card.read ? 'Mark as unread' : 'Mark as read'}
           onClick={() => {
-            manualRead.current = true;
             void lockerRequest<{ card: InteractionCard }>(
               `/api/user-inbox/${card.id}/read`,
               'PUT',
@@ -512,12 +488,7 @@ export default function LockerView() {
     ++generation.current;
     setLoading(false);
     setCards((previous) =>
-      previous.map((item) =>
-        item.id === card.id &&
-        card.revision >= item.revision
-          ? card
-          : item,
-      ),
+      previous.map((item) => (item.id === card.id && card.revision >= item.revision ? card : item)),
     );
   }, []);
   const remove = useCallback((id: string) => {
@@ -558,6 +529,46 @@ export default function LockerView() {
         .toLowerCase()
         .includes(query.toLowerCase());
     });
+  // History-style tail following and prepend anchoring, in chronological DOM order.
+  const timeline = useRef<HTMLElement>(null);
+  const follow = useRef(true);
+  const scope = `${token}:${activeWorkspaceId}:${selected}:${query}:${unreadOnly}`;
+  const previousScope = useRef('');
+  const [windowSize, setWindowSize] = useState(50);
+  const prepend = useRef<{ height: number; top: number } | null>(null);
+  const ordered = [...visible].sort(compareLockerItems);
+  const firstVisible = useRef<string | undefined>(undefined);
+  const oldStart = ordered.findIndex((item) => item.id === firstVisible.current);
+  const start =
+    !follow.current && previousScope.current === scope && oldStart >= 0
+      ? Math.min(oldStart, Math.max(0, ordered.length - windowSize))
+      : Math.max(0, ordered.length - windowSize);
+  const windowItems = ordered.slice(start);
+  firstVisible.current = windowItems[0]?.id;
+  const windowIds = new Set(windowItems.map((item) => item.id));
+  useLayoutEffect(() => {
+    const node = timeline.current;
+    if (!node) return;
+    if (previousScope.current !== scope) {
+      previousScope.current = scope;
+      follow.current = true;
+      prepend.current = null;
+      setWindowSize(50);
+    }
+    if (prepend.current) {
+      node.scrollTop = prepend.current.top + node.scrollHeight - prepend.current.height;
+      prepend.current = null;
+    } else if (follow.current) node.scrollTop = node.scrollHeight;
+  });
+  useEffect(() => {
+    const node = timeline.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (follow.current) node.scrollTop = node.scrollHeight;
+    });
+    for (const child of node.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [cards, scope, windowSize]);
   const workspaceName =
     activeWorkspaceId === ALL_WORKSPACES
       ? 'All Workspaces'
@@ -817,7 +828,33 @@ export default function LockerView() {
       </div>
       <div className="locker-workspace-layout">
         {sidebarPanel ? sidebarPanel[0] && createPortal(sourceList, sidebarPanel[0]) : sourceList}
-        <section aria-label="Locker messages" className="locker-timeline">
+        <section
+          ref={timeline}
+          aria-label="Locker messages"
+          className="locker-timeline"
+          onScroll={() => {
+            const node = timeline.current;
+            if (!node) return;
+            follow.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 48;
+            if (node.scrollTop <= 48 && start > 0 && !prepend.current) {
+              prepend.current = { height: node.scrollHeight, top: node.scrollTop };
+              setWindowSize(windowItems.length + 50);
+            }
+          }}
+        >
+          {start > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const node = timeline.current;
+                if (node) prepend.current = { height: node.scrollHeight, top: node.scrollTop };
+                follow.current = false;
+                setWindowSize(windowItems.length + 50);
+              }}
+            >
+              Load older messages
+            </button>
+          )}
           {loading && (
             <div role="status" className="locker-state">
               <Loader2 size={18} className="animate-spin" />
@@ -838,7 +875,7 @@ export default function LockerView() {
                 <LockerMessageRow
                   key={`${token}:${card.id}`}
                   item={card}
-                  hidden={!visible.some((item) => item.id === card.id)}
+                  hidden={!windowIds.has(card.id)}
                   source={lockers.find((locker) => locker.id === card.lockerId)}
                   update={update}
                   remove={remove}
@@ -846,7 +883,7 @@ export default function LockerView() {
               ) : (
                 <Card
                   key={`${token}:${card.id}`}
-                  hidden={!visible.some((item) => item.id === card.id)}
+                  hidden={!windowIds.has(card.id)}
                   card={card}
                   source={lockers.find((locker) => locker.id === card.lockerId)}
                   update={update}

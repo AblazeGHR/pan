@@ -60,6 +60,11 @@ try {
     await page.getByTestId('workspace-rail-handle').click();
     await expect(msg(f.ordinary)).toBeVisible();
     checks.push('actual WorkspaceRail filters ordinary messages and Cards together');
+    await expect(msg(f.ordinary).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
+    await expect(card(f.approval).getByRole('button',{name:'Mark card as read'})).toBeVisible();
+    expect(api.filter(row=>row.method==='PUT' && row.path.endsWith('/read'))).toEqual([]);
+    checks.push('viewing, scrolling and Workspace switching do not mark ordinary messages or Cards read');
+    await msg(f.ordinary).getByRole('button',{name:'Mark read',exact:true}).click();
     await expect(msg(f.ordinary).getByRole('button',{name:'Mark unread'})).toBeVisible();
     await msg(f.ordinary).getByRole('button',{name:'Mark unread'}).click();
     await expect(msg(f.ordinary).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
@@ -134,11 +139,12 @@ try {
     await expect(page.locator('[data-testid^="locker-source-"]')).toHaveCount(0);
     auth = await login();
     checks.push('logout, captured late GET, successor login and actual 401 leave no old-user rows or sources');
-    await expect(msg(f.archived).getByRole('button',{name:'Mark unread'})).toBeVisible();
-    await msg(f.archived).getByRole('button',{name:'Mark unread'}).click();
+    await expect(msg(f.archived).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
     await expect(msg(f.archived).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
   } else {
     await expect(msg(f.archived)).toBeVisible();
+    await expect(msg(f.ordinary).getByRole('button',{name:'Mark unread'})).toBeVisible();
+    await expect(msg(f.archived).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
     await expect(card(f.approval).getByText('Read-only')).toBeVisible();
     await expect(card(f.reason).getByText('Please narrow the proposal.')).toBeVisible();
     await expect(card(f.silent)).toHaveCount(0);
