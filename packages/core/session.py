@@ -9,7 +9,9 @@ Each session is stored as data/sessions/<id>.json.
 The ID format is ses_<16-hex-chars> (e.g. ses_a1b2c3d4e5f67890).
 
 Prompt schema: JSON persists original_prompt and handoff_prompt. system_prompt
-is a computed compatibility property and to_dict() export alias. Constructors
+is a compatibility property and to_dict() export alias. Existing-target handoff
+also persists frozen_system_prompt so metadata can never change CLI instructions.
+Constructors
 still accept the legacy keyword. If original_prompt is absent, legacy text is
 preserved verbatim as the baseline, even if it already contains old handoffs;
 there is no reliable way to recover its author-intended original by splitting
@@ -1378,6 +1380,9 @@ class Session:
     session_template: str | None = None  # session_template name this session was configured with (None = built-in default)
     original_prompt: str | None = None  # stable instructions, never a generated handoff
     handoff_prompt: str | None = None  # only the latest handoff brief
+    # Existing-target handoffs update metadata without changing CLI instructions.
+    frozen_system_prompt: dict | None = None
+    handoff_receipt: dict | None = None
     game_id: str | None = None        # RuleWhisper game identifier for MCP tool calls
     raw_usage: dict | None = None
     total_usage: dict | None = None
@@ -1545,7 +1550,9 @@ class Session:
                  agent_reports_paused: bool = False,
                  queue_item_locks_version: int = 1,
                  original_prompt: str | None | object = _PROMPT_UNSET,
-                 handoff_prompt: str | None = None):
+                 handoff_prompt: str | None = None,
+                 frozen_system_prompt: dict | None = None,
+                 handoff_receipt: dict | None = None):
         """Manual init so legacy top-level capability kwargs still construct.
 
         ``pan_access`` is the single source of truth for the three capability
@@ -1573,6 +1580,8 @@ class Session:
         # Explicit canonical values (including None/"") beat the legacy alias.
         self.original_prompt = system_prompt if original_prompt is _PROMPT_UNSET else original_prompt
         self.handoff_prompt = handoff_prompt
+        self.frozen_system_prompt = frozen_system_prompt
+        self.handoff_receipt = handoff_receipt
         self.game_id = game_id
         self.raw_usage = raw_usage
         self.total_usage = total_usage
@@ -1797,8 +1806,11 @@ class Session:
         """Effective worker prompt; a compatibility view, never an inheritance source.
 
         Keep stored text verbatim. Empty/whitespace-only briefs add no wrapper;
-        sessions without a brief retain their original prompt exactly.
+        sessions without a brief retain their original prompt exactly. Existing
+        targets use their durable frozen value even after original/brief changes.
         """
+        if self.frozen_system_prompt is not None:
+            return self.frozen_system_prompt["value"]
         brief = self.handoff_prompt
         original = self.original_prompt
         if not brief or not brief.strip():
@@ -1821,6 +1833,7 @@ class Session:
         """
         self.original_prompt = value
         self.handoff_prompt = None
+        self.frozen_system_prompt = None
 
     # ── pan_access convenience accessors (capability flags) ──
 
@@ -1962,6 +1975,8 @@ class Session:
             "system_prompt": self.system_prompt,
             "original_prompt": self.original_prompt,
             "handoff_prompt": self.handoff_prompt,
+            "frozen_system_prompt": self.frozen_system_prompt,
+            "handoff_receipt": self.handoff_receipt,
             "game_id": self.game_id,
             "raw_usage": self.raw_usage,
             "total_usage": self.total_usage,
@@ -3666,19 +3681,194 @@ def unclaim(manager_id: str, session_id: str) -> str | None:
     return None
 
 
+def _handoff_existing(a, target_session_id, handoff_prompt, *, copy_settings,
+                      override_original_prompt, original_prompt, adapter, model, permission_mode):
+    """Preflight first, then one store-locked commit; never write to a CLI here.
+
+    HTTP callers also hold both queue locks. The normal queue consumer alone
+    owns reservation/delivery, including uncertain-outcome recovery.
+    """
+    from . import worker
+
+    if not isinstance(target_session_id, str) or not target_session_id:
+        return "target_session_id must be a nonempty existing Session ID (B)"
+    b = get(target_session_id)
+    if b is None:
+        return f"Target Session {target_session_id} not found; existing mode never creates B"
+    if a.id == b.id:
+        return "Source A and target B must be different Sessions"
+    if not isinstance(handoff_prompt, str) or not handoff_prompt.strip():
+        return "handoff_prompt must be a nonempty ordinary input for target B"
+    if copy_settings not in (None, False) or type(copy_settings) not in (bool, type(None)):
+        return "Existing target preserves B settings: omit copy_settings or pass false; true is unsupported. Use explicit model/permission_mode overrides"
+    if adapter is not None:
+        return "Existing target preserves B adapter and CLI context; adapter override is unsupported"
+    if type(override_original_prompt) is not bool or (override_original_prompt and not isinstance(original_prompt, str)):
+        return "override_original_prompt must be boolean; true requires original_prompt string (empty clears metadata only)"
+    intent = dict(targetSessionId=b.id, brief=handoff_prompt.strip(),
+                  overrideOriginalPrompt=override_original_prompt,
+                  originalPrompt=original_prompt if override_original_prompt else None,
+                  model=model, permissionMode=permission_mode)
+    if a.handoff_receipt is not None:
+        if a.handoff_receipt.get("intent") == intent:
+            return a, b  # Query the original receipt; never enqueue again.
+        return "Source A already handed off; inspect its handoff_receipt, do not resend an unknown result"
+    if a.readonly_session or b.readonly_session:
+        return "Readonly source/target cannot hand off"
+    # As in create mode, A may call handoff from its own running turn. Neither
+    # its runtime, final report, queued inputs nor Pause/Illegal state is reset.
+    # The terminal path reads the committed manager graph and reports to B.
+    if model is not None or permission_mode is not None:
+        if worker.find_alive_worker_by_session(b.id) is not None or worker._native_handoff_blocked(b):
+            return "Explicit target settings require B without a live/native Worker; handoff never restarts it"
+        from .adapters.validation import resolve_adapter, validate_model, validate_permission_mode
+        try:
+            target_adapter = resolve_adapter(b.adapter)
+            if model is not None:
+                validate_model(target_adapter, model)
+            if permission_mode is not None:
+                validate_permission_mode(target_adapter, permission_mode)
+        except (ValueError, TypeError) as exc:
+            return str(exc)
+
+    all_sessions = list_all(load_history=False)
+    by_id = {s.id: s for s in all_sessions}
+    # Validate complete affected trees and ancestors before touching backlinks.
+    affected = set()
+    for root in (a, b):
+        current = root
+        seen = set()
+        while current.managed_by:
+            if current.id in seen or current.managed_by not in by_id:
+                return "Managed cycle or missing manager; repair graph before handoff"
+            seen.add(current.id)
+            current = by_id[current.managed_by]
+        todo = [current]
+        seen = set()
+        while todo:
+            current = todo.pop()
+            if current.id in seen:
+                return "Managed cycle/shared child; handoff rejected"
+            seen.add(current.id)
+            affected.add(current.id)
+            if len(current.managed) != len(set(current.managed)):
+                return "Duplicate managed backlinks; handoff rejected"
+            owners = [s.id for s in all_sessions if current.id in s.managed]
+            if owners != ([current.managed_by] if current.managed_by else []):
+                return "Inconsistent manager backlinks; handoff rejected"
+            for child_id in current.managed:
+                child = by_id.get(child_id)
+                if child is None or child.managed_by != current.id:
+                    return "Missing/inconsistent managed child; handoff rejected"
+                todo.append(child)
+    def ancestors(s):
+        result = set()
+        while s.managed_by:
+            result.add(s.managed_by)
+            s = by_id[s.managed_by]
+        return result
+    if a.id in ancestors(b) or b.id in ancestors(a):
+        return "Source/target ancestor or parent-child handoff is unsupported; detach explicitly first"
+    if a.managed_by != b.managed_by:
+        return "Source and existing target have different managers; handoff cannot silently reparent B"
+    if effective_workspace_ids(a) != effective_workspace_ids(b) or len(effective_workspace_ids(a)) > 1:
+        return "Source/target Workspace inheritance differs; align roots explicitly before handoff"
+    for s in all_sessions:
+        if s.id not in (a.id, b.id) and (
+                s.qq_subscriptions & a.qq_subscriptions or s.wechat_subscriptions & a.wechat_subscriptions):
+            return "QQ/WeChat binding conflict with another Session; no binding is stolen"
+
+    fields = ("name", "managed", "managed_by", "workspace_ids", "report_subscriptions",
+              "qq_subscriptions", "wechat_subscriptions", "original_prompt", "handoff_prompt",
+              "frozen_system_prompt", "handoff_receipt", "model", "permission_mode",
+              "queue_pending", "queue_delivery_ledger", "queue_idempotency_index", "queue_revision",
+              "task_seq", "illegal_batches", "accepted_input_ids")
+    before = {s.id: {f: copy.deepcopy(getattr(s, f)) for f in fields} for s in all_sessions}
+    index_flags = {key: getattr(b, key, _PROMPT_UNSET) for key in
+                   ("_idempotency_index_present", "_idempotency_index_built")}
+    attempted = []
+    try:
+        # Freeze BEFORE metadata changes. None/empty/whitespace are preserved.
+        b.frozen_system_prompt = {"value": b.system_prompt}
+        b.original_prompt = original_prompt if override_original_prompt else a.original_prompt
+        b.handoff_prompt = handoff_prompt.strip()
+        if model is not None:
+            b.model = model
+        if permission_mode is not None:
+            b.permission_mode = permission_mode
+        b.managed = list(dict.fromkeys([*b.managed, *a.managed, a.id]))
+        b.report_subscriptions = (b.report_subscriptions | a.report_subscriptions | {a.id}) - {b.id}
+        b.qq_subscriptions |= a.qq_subscriptions
+        b.wechat_subscriptions |= a.wechat_subscriptions
+        for child_id in a.managed:
+            by_id[child_id].managed_by = b.id
+            by_id[child_id].workspace_ids = []
+        if a.managed_by:
+            parent = by_id[a.managed_by]
+            parent.managed = list(dict.fromkeys(b.id if sid == a.id else sid for sid in parent.managed))
+        for s in all_sessions:
+            if s.id not in (a.id, b.id) and a.id in s.report_subscriptions:
+                s.report_subscriptions.discard(a.id)
+                s.report_subscriptions.add(b.id)
+        a.managed = []
+        a.managed_by = b.id
+        a.workspace_ids = []
+        a.report_subscriptions = set()
+        a.qq_subscriptions = set()
+        a.wechat_subscriptions = set()
+        a.name = _available_name(f"(archive) {a.name}", exclude_ids={a.id})
+        item_id = f"q_{uuid.uuid4().hex}"
+        item = {"id": item_id, "type": "task", "text": handoff_prompt.strip(),
+                "source": "agent", "sourceSessionId": a.id,
+                "kind": "task", "queueItemId": item_id, "seq": b.task_seq + 1,
+                "revision": 1, "deliveryState": "queued", "dispatchState": "queued",
+                "taskId": b.active_task_id, "taskIdSource": "active", "createdAt": time.time(),
+                "clientMessageId": f"handoff:{a.id}:{b.id}"}
+        worker._stage_new_queue_item(b, item)  # Includes Illegal lock + original receipt/index.
+        b.task_seq += 1
+        a.handoff_receipt = {"intent": intent, "targetSessionId": b.id, "queueItemId": item_id}
+        for s in all_sessions:
+            if any(getattr(s, f) != before[s.id][f] for f in fields):
+                attempted.append(s.id)
+                save(s)
+    except Exception as exc:
+        for sid, values in before.items():
+            for f, value in values.items():
+                setattr(by_id[sid], f, value)
+        for key, value in index_flags.items():
+            if value is _PROMPT_UNSET:
+                b.__dict__.pop(key, None)
+            else:
+                setattr(b, key, value)
+        failures = []
+        for sid in reversed(attempted):
+            try:
+                save(by_id[sid])
+            except Exception as rollback_exc:
+                failures.append(f"{sid}: {rollback_exc}")
+        return f"Handoff persistence failed: {exc}; rollback failures: {failures}"
+    return a, b
+
+
 @_store_serialized
 def handoff_session(
     session_id: str,
     handoff_prompt: str,
     *,
-    copy_settings: bool = True,
+    copy_settings: bool | None = None,
     override_original_prompt: bool = False,
     original_prompt: str | None = None,
     adapter: str | None = None,
     model: str | None = None,
     permission_mode: str | None = None,
+    target_session_id: str | None = None,
 ) -> tuple[Session, Session] | str:
-    """替身交接（session_handoff v1）：创建孪生 session B 接替 session A。
+    """替身交接：省略 target_session_id 新建 B；指定则接替至已有 B。
+
+    已有 B 不调用新建合成器：冻结有效 system_prompt，覆盖 original 元数据，
+    简报持久入普通队列，返回 A.handoff_receipt 原消息 ID；设置默认保留 B。
+    copy_settings=true / adapter 覆写在已有模式拒绝。关系合并与回滚见
+    _handoff_existing；以下旧行为说明仅适用于新建模式。
 
     用途：精简上下文（B 全新会话，不继承 A 的 history / cli_session_id），或
     切换 adapter（普通 session 不能中途切 adapter）。
@@ -3705,6 +3895,15 @@ def handoff_session(
     a = get(session_id)
     if a is None:
         return f"Session {session_id} not found"
+    if target_session_id is not None:
+        return _handoff_existing(
+            a, target_session_id, handoff_prompt, copy_settings=copy_settings,
+            override_original_prompt=override_original_prompt, original_prompt=original_prompt,
+            adapter=adapter, model=model, permission_mode=permission_mode)
+    if a.handoff_receipt is not None:
+        return "Source already handed off to existing B; inspect handoff_receipt, do not fall back to creating a new Session"
+    if copy_settings is None:
+        copy_settings = True
     if not isinstance(handoff_prompt, str) or not handoff_prompt.strip():
         return "handoff_prompt is required — session A 的 agent 必须编写交接简报"
 

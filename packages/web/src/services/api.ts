@@ -839,6 +839,7 @@ export async function renameSession(id: string, name: string): Promise<ApiGeneri
 
 export interface HandoffOptions {
   handoffPrompt: string;
+  targetSessionId?: string;
   copySettings?: boolean;
   adapter?: string;
   overrideOriginalPrompt?: boolean;
