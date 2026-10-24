@@ -31,6 +31,7 @@ const BASE = (process.argv[2] || '').replace(/\/$/, '');
 const OUT = process.argv[3];
 const RUNS = Number((process.argv.find(a => a.startsWith('--runs=')) || '--runs=3').split('=')[1]);
 const DIAG = process.argv.includes('--diag');
+const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').split('=')[1] || '';
 
 if (!BASE || !OUT) {
   console.error('usage: node e2e/session-load-perf.mjs <baseUrl> <outJson> [--runs=N] [--diag]');
@@ -115,6 +116,8 @@ const summarize = (rows, from, to) => {
     apiCount: scoped.filter(r => r.url.startsWith('/api/')).length,
     thirdParty: scoped.filter(r => !r.url.startsWith('/') && !r.url.includes('127.0.0.1'))
       .map(r => `${r.url.split('?')[0]}:${r.bytes}`),
+    thirdPartyFailed: scoped.filter(r => !r.url.startsWith('/') && r.failed)
+      .map(r => `${r.url.split('?')[0]}:${r.failed}`),
     failed: scoped.filter(r => r.failed).map(r => r.url),
   };
 };
@@ -222,6 +225,17 @@ async function measure(page, recorder, { thinkMs = 0, quick = false, listTimeout
   const historyStep = await clickSession(page, STANDARD_SESSION);
   const largeStep = quick ? null : await clickSession(page, LARGE_SESSION);
   const backStep = quick ? null : await clickSession(page, STANDARD_SESSION);
+  const uiChecks = await page.evaluate(() => ({
+    cards: document.querySelectorAll('[data-session-card-id]').length,
+    bodyFontFamily: getComputedStyle(document.body).fontFamily,
+    // False when the webfont could not load: the declared stack falls back to
+    // the system UI font, which is the readable state this scenario verifies.
+    // Registered @font-face entries: 0 when the stylesheet carrying them failed.
+    // (document.fonts.check() is not usable here: it reports true for a family
+    // that has no registered face at all.)
+    fontFaces: document.fonts ? document.fonts.size : null,
+    fontStatus: document.fonts ? document.fonts.status : 'unsupported',
+  }));
 
   // Wall clock of performance.now()===0 for this document, for timeline alignment.
   const timeOriginWall = await page.evaluate(() => Date.now() - performance.now());
@@ -229,9 +243,12 @@ async function measure(page, recorder, { thinkMs = 0, quick = false, listTimeout
   const timeline = recorder.snapshot(timeOriginWall, timeOriginWall);
   return {
     paints,
+    uiChecks,
     marks: { listMs, history: historyStep, large: largeStep, back: backStep },
     listMs,
     historyMs: historyStep ? historyStep.ms : null,
+    // Absolute navigation-start -> first readable history of the clicked Session.
+    navToHistoryMs: historyStep ? Math.round(historyStep.rowsAt) : null,
     largeHistoryMs: largeStep ? largeStep.ms : null,
     switchBackMs: backStep ? backStep.ms : null,
     phases: {
@@ -271,6 +288,13 @@ async function runScenario(browser, scenario) {
   });
   try {
     const page = await context.newPage();
+    if (scenario.abortFont) {
+      // Deterministic *request failure* simulation for any webfont origin the
+      // page asks for. This is NOT a DNS blackhole: the request fails at once,
+      // so it measures "the app still boots when the font CDN is unreachable",
+      // not real-world connect timeouts.
+      await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort('failed'));
+    }
     const tags = [TAGS[STANDARD_SESSION], TAGS[LARGE_SESSION]];
     await page.addInitScript(IN_PAGE_MARKS, tags);
     if (DIAG) await page.addInitScript(FETCH_DIAG_SCRIPT);
@@ -302,12 +326,16 @@ const scenarios = [
   // Worst case (click the instant the cards appear) is above; this one waits a
   // realistic think time, which is what a deferred chat-graph download needs.
   { name: 'cold-weak-think', throttle: true, warm: false, thinkMs: 1200, quick: true },
+  // Deterministic webfont-request failure (route.abort, see above). Confirms the
+  // UI still boots and history stays readable with the fallback font stack.
+  { name: 'cold-fontfail', throttle: false, warm: false, quick: true, abortFont: true },
 ];
 
 const browser = await chromium.launch({ headless: true });
 const result = { baseUrl: BASE, runs: RUNS, throttle: THROTTLE, scenarios: {} };
 try {
   for (const scenario of scenarios) {
+    if (ONLY && scenario.name !== ONLY) continue;
     const samples = [];
     for (let run = 0; run < RUNS; run += 1) {
       samples.push(await runScenario(browser, scenario));

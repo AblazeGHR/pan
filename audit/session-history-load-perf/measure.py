@@ -14,6 +14,7 @@ Usage (from the repo root):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -191,8 +192,33 @@ def server_matrix(data_root: Path, repeat: int) -> dict:
     return {"runs": runs, "medians": medians}
 
 
-def browser_matrix(data_root: Path, out: Path, repeat: int, diag: bool) -> dict:
+def install_dist(dist: Path | None) -> dict | None:
+    """Serve a specific built bundle for the browser matrix.
+
+    Baseline and the two candidates are different builds of the same tree; the
+    server always reads packages/web/dist, so the variant under test is copied
+    into place. Returns a fingerprint so the report binds numbers to a build.
+    """
+    if dist is None:
+        return None
+    target = ROOT / "packages" / "web" / "dist"
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(dist, target)
+    index_html = (target / "index.html").read_text(encoding="utf-8")
+    assets = sorted(p.name for p in (target / "assets").glob("*") if p.suffix in {".js", ".css"})
+    return {
+        "source": str(dist),
+        "indexSha256": hashlib.sha256(index_html.encode("utf-8")).hexdigest()[:16],
+        "jsCssAssets": len(assets),
+        "tinyAssets": sum(1 for p in (target / "assets").glob("*.js") if p.stat().st_size < 3000),
+    }
+
+
+def browser_matrix(data_root: Path, out: Path, repeat: int, diag: bool,
+                   dist: Path | None, only: str = "") -> dict:
     out = out.resolve()
+    fingerprint = install_dist(dist)
     with OwnedServer(data_root) as server:
         # Steady-state server: the browser numbers below are about browser work
         # and the wire, not about the process's first seconds.
@@ -203,19 +229,24 @@ def browser_matrix(data_root: Path, out: Path, repeat: int, diag: bool) -> dict:
         ]
         if diag:
             command.append("--diag")
+        if only:
+            command.append(f"--only={only}")
         completed = subprocess.run(command, cwd=str(ROOT / "packages" / "web"),
                                    capture_output=True, text=True, encoding="utf-8",
                                    timeout=3600)
         if completed.returncode != 0:
             raise RuntimeError(f"browser run failed: {completed.stderr[-4000:]}")
-        return json.loads(out.read_text(encoding="utf-8"))
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        payload["dist"] = fingerprint
+        return payload
 
 
 def medians_for_browser(payload: dict) -> dict:
     summary = {}
     for name, samples in payload["scenarios"].items():
         entry = {}
-        for field in ("listMs", "historyMs", "largeHistoryMs", "switchBackMs"):
+        for field in ("listMs", "historyMs", "navToHistoryMs", "largeHistoryMs",
+                      "switchBackMs"):
             values = [s[field] for s in samples if s.get(field) is not None]
             entry[field] = round(statistics.median(values), 1) if values else None
         for field in ("fcpMs", "lcpMs", "loadMs"):
@@ -238,6 +269,10 @@ def main() -> None:
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--skip-browser", action="store_true")
     parser.add_argument("--skip-server", action="store_true")
+    parser.add_argument("--dist", type=Path, default=None,
+                        help="serve this built bundle (copied into packages/web/dist)")
+    parser.add_argument("--only", default="",
+                        help="run a single browser scenario by name")
     parser.add_argument("--diag", action="store_true",
                         help="record the client call stack that issued each /api/sessions read")
     args = parser.parse_args()
@@ -266,8 +301,10 @@ def main() -> None:
             evidence["server"] = server_matrix(data_root, args.repeat)
         if not args.skip_browser:
             raw_path = args.out.with_suffix(".browser.json")
-            raw = browser_matrix(data_root, raw_path, args.repeat, args.diag)
-            evidence["browser"] = {"medians": medians_for_browser(raw), "raw": str(raw_path.name)}
+            raw = browser_matrix(data_root, raw_path, args.repeat, args.diag, args.dist,
+                                 args.only)
+            evidence["browser"] = {"medians": medians_for_browser(raw),
+                                   "dist": raw.get("dist"), "raw": str(raw_path.name)}
     finally:
         evidence["cleanup"] = {"workRoot": str(work_root)}
         args.out.parent.mkdir(parents=True, exist_ok=True)

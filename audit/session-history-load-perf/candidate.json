@@ -1,375 +1,132 @@
 {
   "label": "candidate",
   "repeat": 3,
-  "sourceSha": "03158ec517a98493e41b292b7f0575fefb49fe12",
+  "sourceSha": "dea32a43b573eaaba83cb91eb0e773a491f39475",
   "dirty": [
-    "M packages/web/e2e/verify-precompressed-assets.mjs",
-    " M packages/web/src/index.css",
-    " M packages/web/src/index.html",
+    "M audit/session-history-load-perf/baseline.browser.json",
+    " M audit/session-history-load-perf/baseline.json",
+    " M audit/session-history-load-perf/candidate.browser.json",
+    " M audit/session-history-load-perf/candidate.json",
+    " M audit/session-history-load-perf/measure.py",
+    " M packages/web/e2e/session-load-perf.mjs",
+    " M packages/web/e2e/verify-precompressed-assets.mjs",
     " M packages/web/vite.config.ts"
   ],
-  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-n0wcjfa9\\data",
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-o9v2p2e9\\data",
   "dataset": {
     "sessions": 31,
     "rows": 76000,
     "bytes": 13745527,
-    "seedSeconds": 0.33
-  },
-  "server": {
-    "runs": [
-      {
-        "run": 0,
-        "settleSeconds": 2.05,
-        "list": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 31.3,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "listRepeat": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 30.22,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "historyStandardFirst": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 32.53,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyStandardRepeat": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 28.55,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeFirst": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 42.44,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeRepeat": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 36.05,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeOlder": {
-          "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
-          "status": 200,
-          "ms": 22.17,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "legacyList": {
-          "path": "/api/sessions",
-          "status": 200,
-          "ms": 504.69,
-          "wireBytes": 17123,
-          "decodedBytes": 458561,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        }
-      },
-      {
-        "run": 1,
-        "settleSeconds": 2.08,
-        "list": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 31.18,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "listRepeat": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 31.48,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "historyStandardFirst": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 31.56,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyStandardRepeat": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 30.39,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeFirst": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 40.08,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeRepeat": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 38.94,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeOlder": {
-          "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
-          "status": 200,
-          "ms": 22.49,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "legacyList": {
-          "path": "/api/sessions",
-          "status": 200,
-          "ms": 482.0,
-          "wireBytes": 17123,
-          "decodedBytes": 458561,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        }
-      },
-      {
-        "run": 2,
-        "settleSeconds": 2.02,
-        "list": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 30.66,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "listRepeat": {
-          "path": "/api/sessions?summary=1",
-          "status": 200,
-          "ms": 31.85,
-          "wireBytes": 2965,
-          "decodedBytes": 60824,
-          "encoding": "gzip",
-          "cacheControl": "private, no-cache"
-        },
-        "historyStandardFirst": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 32.81,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyStandardRepeat": {
-          "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
-          "status": 200,
-          "ms": 28.37,
-          "wireBytes": 621,
-          "decodedBytes": 12499,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeFirst": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 42.34,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeRepeat": {
-          "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
-          "status": 200,
-          "ms": 36.96,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "historyLargeOlder": {
-          "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
-          "status": 200,
-          "ms": 39.83,
-          "wireBytes": 623,
-          "decodedBytes": 12851,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        },
-        "legacyList": {
-          "path": "/api/sessions",
-          "status": 200,
-          "ms": 514.8,
-          "wireBytes": 17123,
-          "decodedBytes": 458561,
-          "encoding": "gzip",
-          "cacheControl": "no-cache, no-store, must-revalidate"
-        }
-      }
-    ],
-    "medians": {
-      "list": {
-        "ms": 31.18,
-        "wireBytes": 2965,
-        "encoding": "gzip"
-      },
-      "listRepeat": {
-        "ms": 31.48,
-        "wireBytes": 2965,
-        "encoding": "gzip"
-      },
-      "historyStandardFirst": {
-        "ms": 32.53,
-        "wireBytes": 621,
-        "encoding": "gzip"
-      },
-      "historyStandardRepeat": {
-        "ms": 28.55,
-        "wireBytes": 621,
-        "encoding": "gzip"
-      },
-      "historyLargeFirst": {
-        "ms": 42.34,
-        "wireBytes": 623,
-        "encoding": "gzip"
-      },
-      "historyLargeRepeat": {
-        "ms": 36.96,
-        "wireBytes": 623,
-        "encoding": "gzip"
-      },
-      "historyLargeOlder": {
-        "ms": 22.49,
-        "wireBytes": 623,
-        "encoding": "gzip"
-      },
-      "legacyList": {
-        "ms": 504.69,
-        "wireBytes": 17123,
-        "encoding": "gzip"
-      }
-    }
+    "seedSeconds": 0.35
   },
   "browser": {
     "medians": {
       "cold-fast": {
-        "listMs": 164.2,
-        "historyMs": 55,
-        "largeHistoryMs": 45.7,
-        "switchBackMs": 23.3,
-        "fcpMs": 96,
+        "listMs": 191.1,
+        "historyMs": 56.1,
+        "navToHistoryMs": 273,
+        "largeHistoryMs": 39.3,
+        "switchBackMs": 22.5,
+        "fcpMs": 88,
         "lcpMs": null,
-        "loadMs": 139,
-        "navRequests": 30,
-        "navBytes": 541590,
+        "loadMs": 125,
+        "navRequests": 42,
+        "navBytes": 554255,
         "historyRequests": 8,
-        "historyBytes": 2925,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "warm-fast": {
-        "listMs": 105.7,
-        "historyMs": 49,
-        "largeHistoryMs": 31.2,
-        "switchBackMs": 13.8,
+        "listMs": 103.3,
+        "historyMs": 53.6,
+        "navToHistoryMs": 178,
+        "largeHistoryMs": 34.6,
+        "switchBackMs": 13.5,
         "fcpMs": 44,
         "lcpMs": null,
         "loadMs": 22,
-        "navRequests": 32,
-        "navBytes": 9502,
+        "navRequests": 42,
+        "navBytes": 9416,
         "historyRequests": 8,
-        "historyBytes": 2925,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "cold-weak": {
-        "listMs": 2314,
-        "historyMs": 1308.1,
-        "largeHistoryMs": 303.4,
-        "switchBackMs": 37.2,
-        "fcpMs": 1476,
+        "listMs": 2714.5,
+        "historyMs": 985.5,
+        "navToHistoryMs": 3729,
+        "largeHistoryMs": 326.4,
+        "switchBackMs": 22.7,
+        "fcpMs": 1440,
         "lcpMs": null,
-        "loadMs": 2797,
-        "navRequests": 28,
-        "navBytes": 532530,
-        "historyRequests": 11,
-        "historyBytes": 10722,
+        "loadMs": 2813,
+        "navRequests": 36,
+        "navBytes": 540227,
+        "historyRequests": 12,
+        "historyBytes": 11237,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "warm-weak": {
-        "listMs": 542.9,
-        "historyMs": 235.2,
-        "largeHistoryMs": 190.3,
-        "switchBackMs": 24.7,
-        "fcpMs": 220,
+        "listMs": 434.2,
+        "historyMs": 340.3,
+        "navToHistoryMs": 804,
+        "largeHistoryMs": 191,
+        "switchBackMs": 25.7,
+        "fcpMs": 228,
         "lcpMs": null,
-        "loadMs": 189,
-        "navRequests": 32,
-        "navBytes": 18083,
+        "loadMs": 199,
+        "navRequests": 43,
+        "navBytes": 19061,
         "historyRequests": 8,
-        "historyBytes": 2925,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "cold-weak-think": {
-        "listMs": 2331.7,
-        "historyMs": 217.7,
+        "listMs": 2723.5,
+        "historyMs": 223.1,
+        "navToHistoryMs": 4182,
         "largeHistoryMs": null,
         "switchBackMs": null,
-        "fcpMs": 1480,
+        "fcpMs": 1468,
         "lcpMs": null,
-        "loadMs": 2818,
-        "navRequests": 28,
-        "navBytes": 532530,
+        "loadMs": 2844,
+        "navRequests": 35,
+        "navBytes": 538617,
         "historyRequests": 8,
-        "historyBytes": 1719,
+        "historyBytes": 2341,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      },
+      "cold-fontfail": {
+        "listMs": 191.3,
+        "historyMs": 56.2,
+        "navToHistoryMs": 293,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 100,
+        "lcpMs": null,
+        "loadMs": 97,
+        "navRequests": 39,
+        "navBytes": 502359,
+        "historyRequests": 8,
+        "historyBytes": 2924,
         "switchBackRequests": null,
         "switchBackBytes": null
       }
     },
+    "dist": {
+      "source": "D:\\tmp\\pan-abl\\v1",
+      "indexSha256": "a7411e9586de05a6",
+      "jsCssAssets": 61,
+      "tinyAssets": 24
+    },
     "raw": "candidate.browser.json"
   },
   "cleanup": {
-    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-n0wcjfa9"
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-o9v2p2e9"
   }
 }

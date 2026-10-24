@@ -1,11 +1,16 @@
 {
   "label": "baseline",
   "repeat": 3,
-  "sourceSha": "03158ec517a98493e41b292b7f0575fefb49fe12",
+  "sourceSha": "dea32a43b573eaaba83cb91eb0e773a491f39475",
   "dirty": [
-    "M packages/web/e2e/verify-precompressed-assets.mjs"
+    "M audit/session-history-load-perf/candidate.browser.json",
+    " M audit/session-history-load-perf/candidate.json",
+    " M audit/session-history-load-perf/measure.py",
+    " M packages/web/e2e/session-load-perf.mjs",
+    " M packages/web/e2e/verify-precompressed-assets.mjs",
+    " M packages/web/vite.config.ts"
   ],
-  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-baseline-k989tac_\\data",
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-baseline-01s4ykiw\\data",
   "dataset": {
     "sessions": 31,
     "rows": 76000,
@@ -16,12 +21,12 @@
     "runs": [
       {
         "run": 0,
-        "settleSeconds": 2.06,
+        "settleSeconds": 2.01,
         "list": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 30.79,
-          "wireBytes": 3186,
+          "ms": 8.18,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -29,8 +34,8 @@
         "listRepeat": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 30.57,
-          "wireBytes": 3186,
+          "ms": 9.93,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -38,8 +43,8 @@
         "historyStandardFirst": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 32.5,
-          "wireBytes": 618,
+          "ms": 28.83,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -47,8 +52,8 @@
         "historyStandardRepeat": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 29.18,
-          "wireBytes": 618,
+          "ms": 29.89,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -56,8 +61,8 @@
         "historyLargeFirst": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 41.67,
-          "wireBytes": 624,
+          "ms": 36.5,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -65,8 +70,8 @@
         "historyLargeRepeat": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 35.0,
-          "wireBytes": 624,
+          "ms": 25.83,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -74,8 +79,8 @@
         "historyLargeOlder": {
           "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
           "status": 200,
-          "ms": 40.64,
-          "wireBytes": 624,
+          "ms": 26.45,
+          "wireBytes": 622,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -83,8 +88,8 @@
         "legacyList": {
           "path": "/api/sessions",
           "status": 200,
-          "ms": 514.56,
-          "wireBytes": 17085,
+          "ms": 524.47,
+          "wireBytes": 17173,
           "decodedBytes": 458561,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -92,12 +97,12 @@
       },
       {
         "run": 1,
-        "settleSeconds": 2.05,
+        "settleSeconds": 2.08,
         "list": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 30.12,
-          "wireBytes": 3186,
+          "ms": 26.35,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -105,8 +110,8 @@
         "listRepeat": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 31.76,
-          "wireBytes": 3186,
+          "ms": 32.55,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -114,8 +119,8 @@
         "historyStandardFirst": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 32.65,
-          "wireBytes": 618,
+          "ms": 34.64,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -123,8 +128,8 @@
         "historyStandardRepeat": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 28.37,
-          "wireBytes": 618,
+          "ms": 7.88,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -132,8 +137,8 @@
         "historyLargeFirst": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 42.56,
-          "wireBytes": 624,
+          "ms": 19.47,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -141,8 +146,8 @@
         "historyLargeRepeat": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 38.32,
-          "wireBytes": 624,
+          "ms": 31.41,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -150,8 +155,8 @@
         "historyLargeOlder": {
           "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
           "status": 200,
-          "ms": 41.53,
-          "wireBytes": 624,
+          "ms": 35.96,
+          "wireBytes": 622,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -159,8 +164,8 @@
         "legacyList": {
           "path": "/api/sessions",
           "status": 200,
-          "ms": 548.81,
-          "wireBytes": 17085,
+          "ms": 544.67,
+          "wireBytes": 17173,
           "decodedBytes": 458561,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -172,8 +177,8 @@
         "list": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 14.27,
-          "wireBytes": 3186,
+          "ms": 31.04,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -181,8 +186,8 @@
         "listRepeat": {
           "path": "/api/sessions?summary=1",
           "status": 200,
-          "ms": 32.36,
-          "wireBytes": 3186,
+          "ms": 31.03,
+          "wireBytes": 2921,
           "decodedBytes": 60824,
           "encoding": "gzip",
           "cacheControl": "private, no-cache"
@@ -190,8 +195,8 @@
         "historyStandardFirst": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 31.9,
-          "wireBytes": 618,
+          "ms": 30.93,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -199,8 +204,8 @@
         "historyStandardRepeat": {
           "path": "/api/sessions/ses-perf-00/history?before=0&limit=50",
           "status": 200,
-          "ms": 27.72,
-          "wireBytes": 618,
+          "ms": 29.3,
+          "wireBytes": 620,
           "decodedBytes": 12499,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -208,8 +213,8 @@
         "historyLargeFirst": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 41.32,
-          "wireBytes": 624,
+          "ms": 43.79,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -217,8 +222,8 @@
         "historyLargeRepeat": {
           "path": "/api/sessions/ses-perf-large/history?before=0&limit=50",
           "status": 200,
-          "ms": 15.4,
-          "wireBytes": 624,
+          "ms": 19.6,
+          "wireBytes": 623,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -226,8 +231,8 @@
         "historyLargeOlder": {
           "path": "/api/sessions/ses-perf-large/history?before=20000&limit=50",
           "status": 200,
-          "ms": 47.46,
-          "wireBytes": 624,
+          "ms": 13.04,
+          "wireBytes": 622,
           "decodedBytes": 12851,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -235,8 +240,8 @@
         "legacyList": {
           "path": "/api/sessions",
           "status": 200,
-          "ms": 529.45,
-          "wireBytes": 17085,
+          "ms": 513.55,
+          "wireBytes": 17173,
           "decodedBytes": 458561,
           "encoding": "gzip",
           "cacheControl": "no-cache, no-store, must-revalidate"
@@ -245,43 +250,43 @@
     ],
     "medians": {
       "list": {
-        "ms": 30.12,
-        "wireBytes": 3186,
+        "ms": 26.35,
+        "wireBytes": 2921,
         "encoding": "gzip"
       },
       "listRepeat": {
-        "ms": 31.76,
-        "wireBytes": 3186,
+        "ms": 31.03,
+        "wireBytes": 2921,
         "encoding": "gzip"
       },
       "historyStandardFirst": {
-        "ms": 32.5,
-        "wireBytes": 618,
+        "ms": 30.93,
+        "wireBytes": 620,
         "encoding": "gzip"
       },
       "historyStandardRepeat": {
-        "ms": 28.37,
-        "wireBytes": 618,
+        "ms": 29.3,
+        "wireBytes": 620,
         "encoding": "gzip"
       },
       "historyLargeFirst": {
-        "ms": 41.67,
-        "wireBytes": 624,
+        "ms": 36.5,
+        "wireBytes": 623,
         "encoding": "gzip"
       },
       "historyLargeRepeat": {
-        "ms": 35.0,
-        "wireBytes": 624,
+        "ms": 25.83,
+        "wireBytes": 623,
         "encoding": "gzip"
       },
       "historyLargeOlder": {
-        "ms": 41.53,
-        "wireBytes": 624,
+        "ms": 26.45,
+        "wireBytes": 622,
         "encoding": "gzip"
       },
       "legacyList": {
-        "ms": 529.45,
-        "wireBytes": 17085,
+        "ms": 524.47,
+        "wireBytes": 17173,
         "encoding": "gzip"
       }
     }
@@ -289,84 +294,111 @@
   "browser": {
     "medians": {
       "cold-fast": {
-        "listMs": 355.7,
-        "historyMs": 51.7,
-        "largeHistoryMs": 27.5,
-        "switchBackMs": 19,
-        "fcpMs": 252,
+        "listMs": 284.5,
+        "historyMs": 53.3,
+        "navToHistoryMs": 361,
+        "largeHistoryMs": 23.2,
+        "switchBackMs": 21.2,
+        "fcpMs": 188,
         "lcpMs": null,
-        "loadMs": 418,
+        "loadMs": 362,
         "navRequests": 41,
-        "navBytes": 550594,
+        "navBytes": 552359,
         "historyRequests": 8,
-        "historyBytes": 2922,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "warm-fast": {
-        "listMs": 89.7,
-        "historyMs": 51.1,
-        "largeHistoryMs": 32.4,
-        "switchBackMs": 14.4,
-        "fcpMs": 44,
+        "listMs": 96.7,
+        "historyMs": 50.2,
+        "navToHistoryMs": 168,
+        "largeHistoryMs": 31.7,
+        "switchBackMs": 13.5,
+        "fcpMs": 48,
         "lcpMs": null,
         "loadMs": 23,
-        "navRequests": 41,
+        "navRequests": 42,
         "navBytes": 8673,
         "historyRequests": 8,
-        "historyBytes": 2922,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "cold-weak": {
-        "listMs": 2719.9,
-        "historyMs": 981.7,
-        "largeHistoryMs": 320.1,
-        "switchBackMs": 22.1,
-        "fcpMs": 1456,
+        "listMs": 2739.6,
+        "historyMs": 988,
+        "navToHistoryMs": 3751,
+        "largeHistoryMs": 314.5,
+        "switchBackMs": 24.6,
+        "fcpMs": 1468,
         "lcpMs": null,
-        "loadMs": 2813,
+        "loadMs": 2832,
         "navRequests": 35,
-        "navBytes": 535871,
-        "historyRequests": 11,
-        "historyBytes": 11155,
+        "navBytes": 538501,
+        "historyRequests": 17,
+        "historyBytes": 21622,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "warm-weak": {
-        "listMs": 541.3,
-        "historyMs": 224.6,
-        "largeHistoryMs": 193.7,
-        "switchBackMs": 26.4,
-        "fcpMs": 216,
+        "listMs": 548.6,
+        "historyMs": 329.7,
+        "navToHistoryMs": 828,
+        "largeHistoryMs": 195.3,
+        "switchBackMs": 28.7,
+        "fcpMs": 220,
         "lcpMs": null,
-        "loadMs": 189,
+        "loadMs": 194,
         "navRequests": 42,
-        "navBytes": 18317,
+        "navBytes": 17451,
         "historyRequests": 8,
-        "historyBytes": 2922,
+        "historyBytes": 2924,
         "switchBackRequests": 0,
         "switchBackBytes": 0
       },
       "cold-weak-think": {
-        "listMs": 2725.2,
-        "historyMs": 216.7,
+        "listMs": 2719,
+        "historyMs": 225.4,
+        "navToHistoryMs": 4188,
         "largeHistoryMs": null,
         "switchBackMs": null,
         "fcpMs": 1448,
         "lcpMs": null,
-        "loadMs": 2802,
-        "navRequests": 36,
-        "navBytes": 536738,
+        "loadMs": 2794,
+        "navRequests": 35,
+        "navBytes": 538501,
         "historyRequests": 8,
-        "historyBytes": 2339,
+        "historyBytes": 2341,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      },
+      "cold-fontfail": {
+        "listMs": 177.2,
+        "historyMs": 59.8,
+        "navToHistoryMs": 269,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 84,
+        "lcpMs": null,
+        "loadMs": 81,
+        "navRequests": 41,
+        "navBytes": 503206,
+        "historyRequests": 8,
+        "historyBytes": 2924,
         "switchBackRequests": null,
         "switchBackBytes": null
       }
     },
+    "dist": {
+      "source": "D:\\tmp\\pan-abl\\v0",
+      "indexSha256": "7b869bb80c1369c9",
+      "jsCssAssets": 61,
+      "tinyAssets": 24
+    },
     "raw": "baseline.browser.json"
   },
   "cleanup": {
-    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-baseline-k989tac_"
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-baseline-01s4ykiw"
   }
 }
