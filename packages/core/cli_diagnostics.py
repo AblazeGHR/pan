@@ -16,6 +16,7 @@ _LABELS = {
     "opencode": "opencode (OpenCode CLI)",
     "claude": "claude (Claude Code CLI)",
     "codex": "codex (OpenAI Codex CLI)",
+    "dsh": "dsh (DeepSeek Harness)",
 }
 
 _HINTS = {
@@ -38,6 +39,11 @@ _HINTS = {
     "codex": (
         "安装 OpenAI Codex CLI，并确保 codex（npm 全局目录）和 node 在启动 Pan 的 PATH 中；"
         "也可设置 PAN_CODEX_PATH / PAN_CODEX_NODE。"
+    ),
+    "dsh": (
+        "安装 DeepSeek Harness（DSH）桌面版，并确保 dsh 启动器在启动 Pan 的 PATH 中；"
+        "也可设置 PAN_DSH_PATH（可执行文件或 dsh.cmd）与 PAN_DSH_CLI_JS（cli.js）。"
+        "headless profile 需要环境变量 DEEPSEEK_API_KEY 才能跑模型。"
     ),
 }
 
@@ -151,7 +157,7 @@ def log_cli_preflight(logger: logging.Logger) -> list[CliDiagnostic]:
         logger.error(
             "[Pan] No supported Agent CLI is available. Pan will start, but "
             "new Workers cannot run until at least one of cbc, kimi, opencode, "
-            "claude, or codex is installed and visible to the Pan process."
+            "claude, codex, or dsh is installed and visible to the Pan process."
         )
     return checks
 
