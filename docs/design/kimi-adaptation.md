@@ -278,7 +278,6 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 | 队列行为 | 通用 worker 队列 | 通用 | 通用（stream 长驻，无 oneshot） | 已支持（无 kimi 专属分支） |
 
 ### 8.5 限制与凭据要求
-
 - **凭据**：kimi 依赖 `~/.kimi-code/config.toml` 的 provider + api_key
   （Pan 只读拷贝进隔离 home，不写回、不打印）。模型调用会消耗账户余额；
   2026-10-24 复核时该账户返回 429 `insufficient balance`，**真实 token 消费
@@ -294,3 +293,73 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
   `-S`（文档化入口）。
 - **隔离 home 清理**：branch 出的会话共享父会话 home；删除父会话时
   `_cleanup_kimi_home` 检测共享引用并跳过删除。
+
+## 9. Terminal TUI（native control）与 steer（2026-10-24，T-KIMI-002）
+
+> 前提：kimi 2.3.1；Moonshot 账户余额不足，模型侧用本地 OpenAI 兼容端点脚本化，
+> **进程、PTY、argv、MCP、wire.jsonl 全部真实**。验证脚本与原始输出保留在
+> `%TEMP%/pan-kimi-e2e/`（repo 外）。
+
+### 9.1 三条通道的真实能力（先验证后实现）
+
+| 通道 | 能做什么 | 关键实测证据 | 结论 |
+|---|---|---|---|
+| **PTY TUI**（`kimi -S <id>`） | 渲染完整 TUI；括号粘贴 + 回车提交多行 prompt；Ctrl+C 取消运行中的回合 | 回合中键入的文本**在 `turn.ended` 之后才出现 `turn.prompt`**（排队成下一轮，不是 steer、不是忽略）；Ctrl+C → wire `turn.cancel` → `turn.step.interrupted` → `turn.ended{reason:"cancelled"}` | **作为 Terminal TUI 传输**；无 steer；中断=Ctrl+C + wire 回执 |
+| **`kimi acp`**（JSON-RPC stdio） | `initialize`（capabilities: loadSession / session{list,resume,close,delete,fork} / mcp{http,sse}）、`session/new|prompt|cancel|list|resume|set_model`、`session/request_permission`；`session/prompt` 收到 `session/update`（agent_message_chunk / tool_call / usage_update） | TUI 持有会话时 `session/resume` 返回 **"This session is in use by another Kimi Code CLI instance"** | 结构化通道完整，但**不能与 TUI 共驱同一会话**（单写者）；保留为未来「无 TUI 的 headless native」候选 |
+| **`kimi web`**（127.0.0.1:58627，bearer token） | OpenAPI 暴露 `POST /sessions/{id}/prompts`、**`prompts:steer`**（把排队 prompt 注入运行中回合）、`prompts/{id}:abort`、approvals、snapshot/transcript/WS | 对 TUI 占用的会话 `POST /prompts` → `code 40931 "This session is in use by another Kimi Code CLI instance"` | 有真实 steer API，但**同样被单写者锁拒绝**；不能作为 TUI 的旁路 |
+
+**架构结论**：kimi 对同一 session 强制单写者（TUI 进程持有租约/锁，web 与 ACP 均被拒），
+所以「TUI 视图 + 结构化 steer」无法共存。Pan 选择 **PTY TUI 独占 + wire.jsonl 事实**：
+
+- **Terminal TUI**：`native_bridge.py` 用 `ConPtyBackend` 独占 `kimi -S`，PTY 字节只做展示
+  （`pan.native_output` → 终端视图），**不回读屏幕推断回合**；
+- **回合生命周期**：只认 wire.jsonl —— `turn.prompt{origin}` → `agent.turn.started` →
+  `context.append_loop_event{content.part|tool.call}` → `turn.ended{reason}`（`completed`
+  /`cancelled`），中断额外有 `turn.cancel`/`turn.step.interrupted`；
+- **steer**：**不支持**。`supports_native_steer=False`、`supports_steer_receipt=False`；
+  UI 不显示 steer；文档与错误信息明确写「终端输入 = 排队为下一轮」；
+- **interrupt**：控制通道 `{"type":"interrupt"}` → PTY 写 Ctrl+C → bridge 回执
+  `pan.native_write{ok:true}`，最终结果由 wire `turn.ended.reason=cancelled` 确认
+  （不是 kill 进程）；在工作进程僵死时仍由既有 watchdog 兜底重启；
+- **输入确认**：Pan 发起的 prompt 用括号粘贴 + 回车，**以 wire `turn.prompt` 文本回显为
+  回执**（不是「写入成功即认为执行」）；一次回车丢失时只重试回车、不重贴文本；
+- **就绪判据**：PTY 输出静止（传输层，不推断回合）+ 工作区信任标记存在；
+  未信任时 bridge 发 `pan.native_trust_required`，pan 模式提交明确拒绝，用户在终端视图
+  里按一次回车信任即可（kimi 把信任写在 `<home>/workspace-trust/<opaque>`，按 root 匹配）。
+
+### 9.2 能力位与门禁
+
+| 能力位 | codex | cbc（native） | kimi（native） |
+|---|---|---|---|
+| `supports_native_control` | ✅ | ✅ | ✅ |
+| `supports_native_interrupt` | ✅ | ✅ | ✅ |
+| `interrupt_via_native_control` | — | ✅（ESC + FinalStop） | ✅（Ctrl+C + wire） |
+| `supports_native_steer` | ✅ | ❌ | ❌ |
+| `supports_steer_receipt` | ✅ | ❌ | ❌ |
+| `supports_native_admission` | ✅ | ✅ | ❌（观察式：wire 即事实） |
+
+门禁已从硬编码集合改为能力位：`worker.py`（`_apply_pending_native_configuration` /
+`_create_worker` / `switch_native_control` / `write_native_control` / interrupt 分支 /
+`pan.native_ready` 路由）、`native_control_api._target`、`server._build_session_params`，
+前端 `useTerminalTuiEntry` / `SettingsPopover` / `TopBar` 读会话字段
+`nativeControlCapable`（后端按 `adapter_supports_native_control(name)` 生成；旧载荷
+回退到 codex/cbc，避免局部更新把入口闪没）。
+
+### 9.3 已知限制（不伪装）
+
+- **无 steer**：kimi 2.3.1 的 TUI 把回合中提交排队成下一轮；web/ACP 的结构化 steer
+  被单写者锁挡住。故 `supports_native_steer=False`，Pan 的 steer 按钮/队列 steer 对
+  kimi 关闭。
+- **首次在未信任目录**开 Terminal TUI：需要用户在终端视图里接受一次信任提示
+  （bridge 不代答；代答会改变项目级 MCP/hook 的安全边界）。信任后不再询问。
+- **native 模式的历史**：用户在 TUI 里键入的 prompt 由 wire `turn.prompt` 观察记录
+  （`source: native-tui`，按 `turnId`+`promptId` 去重）；没有 cbc 式的「运行前持久化
+  admission」——回合已经开始，Pan 只做观察记录，不声称能拒绝它。
+- **Pan 的 system prompt**：native 模式下仅在**新建会话**（无 `cli_session_id`）通过
+  `--agent-file` 注入；`-S` 恢复的会话沿用创建时的人设（kimi 禁止 `--agent-file` 与
+  `-S` 组合），bridge 不伪造。
+- **单写者**：TUI 持有会话时，`kimi -p`/`kimi web`/`kimi acp` 对同一会话都会被拒；
+  因此 Pan 在 native 模式下不会再对同一 session 起 stream worker（同一 worker 进程切换）。
+- **ACP / web 未接入**：两者都能结构化 prompt/cancel/steer，但无法与 TUI 共存；
+  若未来要「无 TUI 的 native」，ACP 是更好的传输（已实测方法集），需要单独设计
+  Pan 事件映射与 MCP（ACP 只支持 http/sse MCP，stdio 需转换）。

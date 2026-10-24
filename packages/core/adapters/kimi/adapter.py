@@ -66,6 +66,20 @@ class KimiAdapter:
     # oneshot。oneshot_args 不会被调用，返回 [] 作为防御兜底。
     execution_modes = ["stream"]
 
+    # Native control（Terminal TUI）能力位：真实传输是 native_adapter 的 PTY
+    # bridge；stream 适配器声明能力以便门禁按能力位判断（而非硬编码 adapter
+    # 名集合）。stream 模式本身没有 native 通道；本字段只表示「该 adapter 有
+    # 可用的 Terminal TUI 实现」。
+    supports_native_control = True
+    # kimi 2.3.1 无 mid-turn steer 通道：-p 一次性进程不可能注入，TUI 把
+    # 回合中提交的输入排队成下一轮（实测），web/ACP 结构化 steer 在 TUI 占用
+    # 会话时被 kimi 拒绝（40931 / in-use）。因此不声明 steer 能力。
+    supports_native_steer = False
+    supports_steer_receipt = False
+    # The TUI journals turn.prompt/turn.ended; Pan observes native turns from
+    # wire.jsonl instead of admitting them before they run.
+    supports_native_admission = False
+
     # 实际有效默认模型（~/.kimi-code/config.toml 的 default_model）。旧值
     # kimi-code/kimi-for-coding 已不存在（不在 kimi 可选模型内）。
     _DEFAULT_MODEL = "moonshot-cn/kimi-k2.6"

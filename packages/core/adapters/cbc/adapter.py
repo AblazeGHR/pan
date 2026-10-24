@@ -209,6 +209,14 @@ class CbcAdapter:
     # cbc 同时支持 stream 长驻（原生 stdin/stdout）与 oneshot 逐任务短进程
     # （prompt 作末参，配合 --mcp-config）。故声明两种。
     execution_modes = ["stream", "oneshot"]
+    # Terminal TUI (native control) capable: the native transport is
+    # CbcNativeAdapter (PTY + hooks). Capability bit, not a name allow-list.
+    supports_native_control = True
+    # Native interrupt goes through the bridge control channel (ESC) and its
+    # FinalStop receipt, not through the generic stdin interrupt path.
+    interrupt_via_native_control = True
+    # UserPromptSubmit hook = durable admission before the turn runs.
+    supports_native_admission = True
     # CBC >= 2.140: dedicated control_request, not another user/next turn.
     supports_native_steer = True
     supports_steer_receipt = True

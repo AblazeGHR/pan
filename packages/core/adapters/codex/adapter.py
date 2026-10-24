@@ -149,6 +149,11 @@ class CodexAdapter:
     supports_native_interrupt = True
     supports_native_steer = True
     supports_steer_receipt = True
+    # Terminal TUI (native control) capable: the app-server bridge is the
+    # native transport. Capability bit, not a name allow-list.
+    supports_native_control = True
+    # app-server turn/start admission commits the run before it runs.
+    supports_native_admission = True
     # codex reasoning effort（config: model_reasoning_effort）。空表示不覆盖。
     # models_cache.json may add xhigh/max/ultra; keep the fallback useful even
     # before Codex has populated its cache.

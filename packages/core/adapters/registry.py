@@ -69,3 +69,16 @@ def provider_kwargs(func, **candidates) -> dict:
            for p in params.values()):
         return dict(candidates)
     return {k: v for k, v in candidates.items() if k in params}
+
+
+def adapter_supports_native_control(name: str) -> bool:
+    """True when the registered adapter declares a Terminal TUI transport.
+
+    Gate by capability (``supports_native_control``), never by a hardcoded
+    adapter-name set: cbc/codex/kimi declare it, others do not.
+    """
+    try:
+        adapter = get_adapter(name)
+    except KeyError:
+        return False
+    return bool(getattr(adapter, "supports_native_control", False))

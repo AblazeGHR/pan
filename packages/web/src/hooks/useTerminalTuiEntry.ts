@@ -76,11 +76,15 @@ export function resetTerminalTuiEntryForTests(): void {
  * and manual retry after an unconfirmed ownership error.
  */
 export function useTerminalTuiEntry(
-  session: Pick<Session, 'id' | 'adapter' | 'nativeControl'> | null | undefined,
+  session: Pick<Session, 'id' | 'adapter' | 'nativeControl' | 'nativeControlCapable'> | null | undefined,
   { poll = false }: TerminalTuiEntryOptions = {},
 ): TerminalTuiEntry {
   const id = session?.id;
-  const supportsNativeTui = session?.adapter === 'codex' || session?.adapter === 'cbc';
+  // Capability bit from the API (adapter declares a Terminal TUI transport).
+  // Partial session payloads (older cached objects, incremental updates) may
+  // omit it; fall back to the transports that shipped before the bit existed.
+  const supportsNativeTui =
+    session?.nativeControlCapable ?? (session?.adapter === 'codex' || session?.adapter === 'cbc');
   const nativeState = useNativeControlStore((s) => (id ? s.sessions[id] : undefined));
   const nativeSwitching = useNativeControlStore((s) => (id ? s.switching[id] : false));
   const terminalView = useNativeControlStore((s) => (id ? s.terminalViews[id] : undefined));
@@ -124,7 +128,7 @@ export function useTerminalTuiEntry(
       if (!session.nativeControl) {
         if (
           !window.confirm(
-            `Upgrade this ${session.adapter === 'cbc' ? 'CBC' : 'Codex'} Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.`,
+            `Upgrade this ${session.adapter === 'cbc' ? 'CBC' : session.adapter === 'kimi' ? 'Kimi' : 'Codex'} Session to Terminal TUI control? The current task will finish first; at the next idle boundary the Worker will restart using the same thread. History and queue are retained.`,
           )
         )
           return;

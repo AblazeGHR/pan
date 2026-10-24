@@ -7,6 +7,7 @@ import time
 
 from fastapi import APIRouter, Request
 from packages.core import session, worker
+from packages.core.adapters import adapter_supports_native_control
 from packages.web.terminal_api import _enter, read_json_object, fail, ok, BodyError
 
 router = APIRouter(prefix="/api/sessions/{session_id}/native-control")
@@ -19,7 +20,8 @@ def _target(request, session_id, *, require_enabled=True):
     s = session.get(session_id, load_history=False)
     if s is None:
         return None, fail(404, "session-not-found")
-    if s.readonly_session or s.adapter not in {"codex", "cbc"} or (require_enabled and s.adapter_config.get("native_control") is not True):
+    if (s.readonly_session or not adapter_supports_native_control(s.adapter)
+            or (require_enabled and s.adapter_config.get("native_control") is not True)):
         return None, fail(409, "native-control-unavailable")
     return s, None
 
