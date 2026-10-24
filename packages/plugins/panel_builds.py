@@ -33,6 +33,8 @@ MAX_BUILD_BYTES = 512 * 1024 * 1024
 RETAINED_BUILDS = 3
 TERMINATE_TREE_TIMEOUT = 5.0
 READER_DRAIN_TIMEOUT = 3.0
+SPAWN_REAP_TIMEOUT = 2.0
+SPAWN_TIMEOUT = 30.0
 _CREATE_SUSPENDED = 0x00000004
 _SAFE_ID = re.compile(r"[a-z][a-z0-9_-]{0,47}\Z")
 _MEDIA = {
@@ -127,6 +129,15 @@ class _BuildProcess:
         self.exit_event = None
         self.code = None
         self.terminated = 0
+        self._spawn_thread = None
+        self._spawn_event = None
+        self._spawn_done = threading.Event()
+        self._spawn_lock = threading.Lock()
+        self._spawn_abandoned = False
+        self._spawn_cleaned = False
+        self._spawn_cleanup_done = threading.Event()
+        self._spawn_receipt_cb = None
+        self.spawn_error = None
 
     def spawn(self) -> None:
         from packages.jobs.window import command_window_options
@@ -176,6 +187,128 @@ class _BuildProcess:
         self.proc = proc
         self.reader = threading.Thread(target=self._read, name="panel-build-output", daemon=True)
         self.reader.start()
+
+    def start_spawn(self, loop, receipt_callback=None) -> None:
+        """Start process creation in an owned thread with a completion event."""
+        if self._spawn_thread is not None:
+            raise RuntimeError("spawn already started")
+        self._spawn_receipt_cb = receipt_callback
+        self._spawn_event = asyncio.Event()
+        self._spawn_thread = threading.Thread(
+            target=self._spawn_worker, args=(loop,), name="panel-build-spawn", daemon=True)
+        self._spawn_thread.start()
+
+    @property
+    def spawn_event(self):
+        return self._spawn_event
+
+    def _spawn_worker(self, loop) -> None:
+        error = None
+        try:
+            self.spawn()
+        except BaseException as exc:
+            error = exc
+        with self._spawn_lock:
+            self.spawn_error = error
+            self._spawn_done.set()
+            abandoned = self._spawn_abandoned
+            has_process = self.proc is not None
+            claim = abandoned and has_process and not self._spawn_cleaned
+            if claim:
+                self._spawn_cleaned = True
+        try:
+            if abandoned:
+                if claim:
+                    self._late_cleanup()
+                elif not has_process:
+                    self._emit_spawn_receipt(
+                        "spawn_failed", str(error) if error else "spawn ended without a process")
+        finally:
+            try:
+                loop.call_soon_threadsafe(self._spawn_event.set)
+            except RuntimeError:
+                pass  # the host loop is already closed; cleanup receipt stands.
+
+    def abandon_spawn(self) -> None:
+        with self._spawn_lock:
+            self._spawn_abandoned = True
+
+    def spawn_pending(self) -> bool:
+        return self._spawn_thread is not None and not self._spawn_done.is_set()
+
+    async def reap_spawn_after_cancel(self, timeout: float = SPAWN_REAP_TIMEOUT) -> str | None:
+        """Take ownership of a late spawn result after task cancellation.
+
+        The worker keeps the process until the spawn call returns. If it is
+        still blocked, a receipt-backed reaper will clean it when it appears.
+        """
+        self.abandon_spawn()
+        if self._spawn_event is None:
+            return "spawn transaction is unavailable"
+        try:
+            await asyncio.wait_for(self._spawn_event.wait(), timeout)
+        except TimeoutError:
+            return "spawn still running; late creation is owned by the cleanup reaper"
+        if self.proc is None:
+            return None
+        with self._spawn_lock:
+            if self._spawn_cleaned:
+                return None  # the spawn worker already reaped it
+            self._spawn_cleaned = True
+        errors = []
+        try:
+            errors = await asyncio.to_thread(self._abort_sync)
+            if not await self._wait_reader(READER_DRAIN_TIMEOUT):
+                cancel_error = await asyncio.to_thread(self._cancel_reader)
+                if not await self._wait_reader(READER_DRAIN_TIMEOUT):
+                    errors.append("build output reader did not stop")
+                    if cancel_error:
+                        errors.append(cancel_error)
+                else:
+                    await self._close_reader_if_done()
+            else:
+                await self._close_reader_if_done()
+            dispose_error = await asyncio.to_thread(self._dispose_impl)
+            if dispose_error:
+                errors.append(dispose_error)
+        except Exception as exc:
+            errors.append(f"late spawn cleanup failed: {exc}")
+        finally:
+            self._spawn_cleanup_done.set()
+        self._emit_spawn_receipt(
+            "cleaned" if not errors else "unconfirmed", "; ".join(errors))
+        return "; ".join(errors) or None
+
+    def _late_cleanup(self) -> None:
+        errors = []
+        try:
+            errors = self._abort_sync()
+            cancel_error = self._cancel_reader()
+            if cancel_error:
+                errors.append(cancel_error)
+            if self.reader_done.wait(READER_DRAIN_TIMEOUT):
+                self._close_reader_sync()
+            else:
+                errors.append("build output reader did not stop")
+            dispose_error = self._dispose_impl()
+            if dispose_error:
+                errors.append(dispose_error)
+        except Exception as exc:
+            errors.append(f"late spawn cleanup failed: {exc}")
+        finally:
+            self._spawn_cleanup_done.set()
+        self._emit_spawn_receipt(
+            "cleaned" if not errors else "unconfirmed", "; ".join(errors))
+
+    def _emit_spawn_receipt(self, outcome: str, detail: str) -> None:
+        if self._spawn_receipt_cb is None:
+            return
+        pid = getattr(self.proc, "pid", None)
+        try:
+            self._spawn_receipt_cb({"pid": pid, "outcome": outcome,
+                                    "detail": detail[:500]})
+        except Exception:
+            pass  # A receipt callback must not keep a late process alive.
 
     def _read(self) -> None:
         try:
@@ -263,22 +396,25 @@ class _BuildProcess:
     async def _wait_reader(self, timeout: float) -> bool:
         return await asyncio.to_thread(self.reader_done.wait, timeout)
 
+    def _close_reader_sync(self) -> None:
+        if not self.reader_done.is_set():
+            return
+        try:
+            self.proc.stdout.close()
+        except (OSError, ValueError):
+            pass
+        for fd in (self.wake_read, self.wake_write):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        self.wake_read = self.wake_write = None
+
     async def _close_reader_if_done(self) -> str | None:
         if not self.reader_done.is_set():
             return "build output reader is still active"
-        def close():
-            try:
-                self.proc.stdout.close()
-            except (OSError, ValueError):
-                pass
-            for fd in (self.wake_read, self.wake_write):
-                if fd is not None:
-                    try:
-                        os.close(fd)
-                    except OSError:
-                        pass
-            self.wake_read = self.wake_write = None
-        await asyncio.to_thread(close)
+        await asyncio.to_thread(self._close_reader_sync)
         return None
 
     def start_monitor(self, loop) -> None:
@@ -427,20 +563,46 @@ class _BuildProcess:
     async def abort(self) -> str | None:
         if self.proc is None:
             return None
-        errors = await asyncio.to_thread(self._abort_sync)
-        if not await self._wait_reader(READER_DRAIN_TIMEOUT):
-            cancel_error = await asyncio.to_thread(self._cancel_reader)
+        if self.spawn_pending():
+            return "spawn still running; cleanup is owned by the spawn transaction"
+        claimed = False
+        with self._spawn_lock:
+            if self._spawn_cleaned:
+                return None
+            if self._spawn_thread is not None:
+                self._spawn_cleaned = True
+                claimed = True
+        errors = []
+        try:
+            errors = await asyncio.to_thread(self._abort_sync)
             if not await self._wait_reader(READER_DRAIN_TIMEOUT):
-                errors.append("build output reader did not stop")
-                if cancel_error:
-                    errors.append(cancel_error)
+                cancel_error = await asyncio.to_thread(self._cancel_reader)
+                if not await self._wait_reader(READER_DRAIN_TIMEOUT):
+                    errors.append("build output reader did not stop")
+                    if cancel_error:
+                        errors.append(cancel_error)
+                else:
+                    await self._close_reader_if_done()
             else:
                 await self._close_reader_if_done()
-        else:
-            await self._close_reader_if_done()
+        except Exception as exc:
+            errors.append(f"build cleanup failed: {exc}")
+        finally:
+            if claimed:
+                self._spawn_cleanup_done.set()
+        if claimed and self._spawn_abandoned:
+            self._emit_spawn_receipt(
+                "cleaned" if not errors else "unconfirmed", "; ".join(errors))
         return "; ".join(errors) or None
 
     def dispose(self) -> str | None:
+        if self.spawn_pending():
+            return "spawn still in progress; cleanup is owned by the spawn reaper"
+        if self._spawn_cleaned and not self._spawn_cleanup_done.is_set():
+            return "late spawn cleanup is in progress"
+        return self._dispose_impl()
+
+    def _dispose_impl(self) -> str | None:
         error = None
         if self.guard is not None:
             if not self.guard.close():
@@ -462,6 +624,9 @@ class PanelBuildStore:
         self._states: dict[tuple[str, str], dict] = {}
         self._tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._guard = asyncio.Lock()
+        self._closed = False
+        self._spawn_receipts: list[dict] = []
+        self._receipt_lock = threading.Lock()
 
     # ── paths ──
     def _owned(self, plugin_id: str, panel_id: str) -> Path:
@@ -558,6 +723,17 @@ class PanelBuildStore:
         self._save(state)
         return self.status(plugin_id, panel_id)
 
+    def _record_spawn_receipt(self, plugin_id: str, panel_id: str, receipt: dict) -> None:
+        with self._receipt_lock:
+            self._spawn_receipts.append({
+                "pluginId": plugin_id, "panelId": panel_id,
+                "pid": receipt.get("pid"), "outcome": receipt.get("outcome"),
+                "detail": receipt.get("detail", "")})
+
+    def spawn_receipts(self) -> list[dict]:
+        with self._receipt_lock:
+            return [dict(item) for item in self._spawn_receipts]
+
     # ── build ──
     @staticmethod
     def _spec(panel: dict) -> dict:
@@ -569,11 +745,15 @@ class PanelBuildStore:
                 "timeout": int(build.get("timeout_seconds", DEFAULT_TIMEOUT))}
 
     async def start(self, plugin_id: str, panel: dict) -> dict:
+        if self._closed:
+            raise ValueError("Panel build store is closed")
         spec = self._spec(panel)
         if not spec["command"]:
             raise ValueError("Panel has no build command")
         key = (plugin_id, panel["id"])
         async with self._guard:
+            if self._closed:
+                raise ValueError("Panel build store is closed")
             running = self._tasks.get(key)
             if running is not None and not running.done():
                 return self.status(plugin_id, panel["id"])
@@ -632,8 +812,26 @@ class PanelBuildStore:
             if not spec["cwd"].is_dir():
                 raise ValueError("Panel build cwd does not exist")
             process = _BuildProcess(spec["command"], spec["cwd"], append)
-            await asyncio.to_thread(process.spawn)
-            process.start_monitor(asyncio.get_running_loop())
+            loop = asyncio.get_running_loop()
+            process.start_spawn(
+                loop, lambda receipt: self._record_spawn_receipt(plugin_id, panel_id, receipt))
+            try:
+                await asyncio.wait_for(process.spawn_event.wait(), SPAWN_TIMEOUT)
+            except asyncio.CancelledError:
+                receipt = await process.reap_spawn_after_cancel()
+                failure = "Build was cancelled."
+                if receipt:
+                    failure += f" Spawn cleanup: {receipt}."
+                raise
+            except TimeoutError:
+                receipt = await process.reap_spawn_after_cancel()
+                failure = f"Build process creation timed out after {SPAWN_TIMEOUT} seconds."
+                if receipt:
+                    failure += f" Spawn cleanup: {receipt}."
+                raise ValueError(failure)
+            if process.spawn_error is not None:
+                raise process.spawn_error
+            process.start_monitor(loop)
             exited = await process.wait_exit(spec["timeout"])
             if not exited:
                 failure = f"Build timed out after {spec['timeout']} seconds."
@@ -683,7 +881,8 @@ class PanelBuildStore:
                     except OSError as exc:
                         append(f"\nCould not remove an older build: {exc}\n")
         except asyncio.CancelledError:
-            failure = "Build was cancelled."
+            if failure is None:
+                failure = "Build was cancelled."
             if process is not None:
                 cleanup = await process.abort()
                 if cleanup:
@@ -809,7 +1008,9 @@ class PanelBuildStore:
         return SimpleNamespace(path=resolved, media_type=media_type(resolved), cache="no-cache")
 
     async def close(self) -> None:
-        tasks = list(self._tasks.values())
+        async with self._guard:
+            self._closed = True
+            tasks = list(self._tasks.values())
         for task in tasks:
             task.cancel()
         if tasks:

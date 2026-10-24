@@ -54,7 +54,7 @@
 
 宿主重启时仍处于 `building` 的记录会标记为失败（“Build was interrupted by a Pan restart.”），不会永久显示进行中。
 
-构建进程由宿主自有守护管理：Windows 使用 `CREATE_SUSPENDED` 创建、assign 到 `KILL_ON_JOB_CLOSE` Job Object、证明成员后再 resume；超时、取消、Pan 关闭和 root 先退出但子进程仍持有 stdout 时，都终止整个 Job 并核对无残留。阻塞输出由 Windows `CancelSynchronousIo` 或 POSIX 唤醒管道中断，reader 完成前不关闭 `BufferedReader`。POSIX spawn 时保存 session leader 的 PGID，root 退出后仍按保存值终止/校验整组；权限拒绝或未知查询返回失败，不当作已清空。查询或清理无法证明时状态直接失败并显示原因，不按 PID 猜测或只杀 root，也不会停在 `building`。清理失败不会发布新构建。
+构建进程由宿主自有守护管理：Windows 使用 `CREATE_SUSPENDED` 创建、assign 到 `KILL_ON_JOB_CLOSE` Job Object、证明成员后再 resume；超时、取消、Pan 关闭和 root 先退出但子进程仍持有 stdout 时，都终止整个 Job 并核对无残留。进程创建本身是独立事务：取消/关闭与 spawn 竞争时，迟到创建仍归宿主所有并由 reaper 清理，关闭后的 store 拒绝再构建。阻塞输出由 Windows `CancelSynchronousIo` 或 POSIX 唤醒管道中断，reader 完成前不关闭 `BufferedReader`。POSIX spawn 时保存 session leader 的 PGID，root 退出后仍按保存值终止/校验整组；权限拒绝或未知查询返回失败，不当作已清空。查询或清理无法证明时状态直接失败并显示原因，不按 PID 猜测或只杀 root，也不会停在 `building`。清理失败不会发布新构建。
 
 ## 资源加载
 

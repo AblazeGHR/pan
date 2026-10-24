@@ -14,7 +14,7 @@ not used. `scripts/run_tests_isolated.py` cleared inherited `PAN_*` and assigned
 | Command | Result |
 | --- | --- |
 | `pnpm --dir packages/web build` | exit 0; `tsc -b` + Vite build, 92 compressed assets |
-| `pytest tests/test_plugin_panel_builds.py tests/test_plugin_panels.py tests/test_plugin_platform.py tests/test_plugin_session_config.py tests/test_plugin_developer_help.py -q` | 65 passed (1 unrelated pydantic warning) |
+| `pytest tests/test_plugin_panel_builds.py tests/test_plugin_panels.py tests/test_plugin_platform.py tests/test_plugin_session_config.py tests/test_plugin_developer_help.py -q` | 66 passed (1 unrelated pydantic warning) |
 | `vitest run PluginPanelView.test.tsx LocalPluginPanelsSettings.test.tsx AppSettingsModal.test.tsx` | 98 passed |
 | `scripts/run_tests_isolated.py -- pytest tests/test_local_plugin_panels_http.py -q` | 1 passed; port released; no owned descendants; no page errors |
 | baseline `525fb7de` archive: `vitest run PluginPanelView.test.tsx -t "reveals an active plugin route…"` | 1 failed (stale 3-group fixture), see `baseline-frontend-test.txt` |
@@ -37,6 +37,8 @@ the panel remains visibly failed with no published build. No PID scan or root-on
 tree cleanup. Tests use a real Python parent + child where the child inherits stdout; the child PID is
 read from the plugin directory and checked with psutil. The old candidate timed out and left that child
 running (cleaned after the red run).
+
+Spawn completion is its own transaction: cancellation waits up to 2s for the worker, then a receipt-backed reaper owns the late result; `dispose` refuses to run while spawn is pending or late cleanup is in progress, and a closed store rejects new builds. The exact barrier test holds `spawn()` before process creation, closes the host, releases the gate and asserts `close` returned first, the late process is reaped, a receipt exists, and `start` is rejected. Browser evidence in this directory predates this spawn-transaction-only change; normal/timeout/cancel/barrier backend tests cover it with no GUI or HTTP contract change.
 
 POSIX spawn saves the session leader PID as the owned PGID immediately. Termination and verification
 use that saved group even after the root exits; `PermissionError`/unknown group queries are reported as

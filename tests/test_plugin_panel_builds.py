@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import threading
 import time
 from types import SimpleNamespace
 
@@ -599,3 +600,59 @@ def test_posix_group_cleanup_permission_and_unknown_are_not_success(monkeypatch)
     monkeypatch.setattr(os, 'killpg', unknown, raising=False)
     with pytest.raises(RuntimeError, match='could not terminate'):
         process._terminate_tree()
+
+
+def test_close_during_spawn_reaps_late_owned_process(tmp_path, monkeypatch):
+    plugin = tmp_path / 'plugin'
+    manifest_path = tree_plugin(tmp_path, 'sleep', timeout=60)
+    data = tmp_path / 'data'
+    entered = threading.Event()
+    gate = threading.Event()
+    spawned = threading.Event()
+    holder = {}
+    original_spawn = _BuildProcess.spawn
+
+    def gated_spawn(self):
+        holder['process'] = self
+        entered.set()
+        assert gate.wait(10), 'test did not release the spawn gate'
+        original_spawn(self)
+        spawned.set()
+
+    monkeypatch.setattr(_BuildProcess, 'spawn', gated_spawn)
+
+    async def run():
+        host = host_for(manifest_path, data)
+        await host.start_build('local-console', 'console')
+        assert await asyncio.to_thread(entered.wait, 5), 'spawn was not entered'
+        started = time.monotonic()
+        await asyncio.wait_for(host.close(), 10)
+        close_elapsed = time.monotonic() - started
+        assert close_elapsed < 8, f'close blocked on spawn: {close_elapsed:.1f}s'
+        assert not spawned.is_set(), 'close returned only after spawn finished'
+
+        gate.set()
+        assert await asyncio.to_thread(spawned.wait, 10), 'spawn did not finish after release'
+        process = holder['process']
+        pid = process.proc.pid
+
+        async def receipt():
+            for _ in range(200):
+                items = host.builds.spawn_receipts()
+                if items:
+                    return items[-1]
+                await asyncio.sleep(0.05)
+            return None
+
+        item = await receipt()
+        assert item and item['pid'] == pid and item['outcome'] == 'cleaned', item
+        assert process.proc.poll() is not None, 'late process was not reaped'
+        await _pid_gone(pid, 'late-spawn')
+        saved = json.loads((data / 'plugin-panels/local-console/console/state.json')
+                           .read_text(encoding='utf-8'))
+        assert saved['status'] == 'failed' and saved['activeBuild'] is None
+        assert 'cancelled' in saved['lastError']
+        with pytest.raises(ValueError, match='closed'):
+            await host.start_build('local-console', 'console')
+
+    asyncio.run(run())
