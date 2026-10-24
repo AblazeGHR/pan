@@ -1,3 +1,4 @@
+import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -442,6 +443,7 @@ function JobRow({
  * 契约；WS 订阅 5 类 job 事件驱动列表与 toast。客户端做排序与筛选。
  */
 export default function JobsView() {
+  const authorizationToken = useAutomationAuth((state) => state.token);
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
   const toastRef = useRef(showToast); toastRef.current = showToast;
@@ -514,7 +516,7 @@ export default function JobsView() {
   // — and it keeps working when the socket never connected.
   useEffect(() => {
     void loadJobs();
-  }, [loadJobs]);
+  }, [loadJobs, authorizationToken]);
 
   useEffect(() => {
     void fetchJobKinds()
@@ -528,7 +530,7 @@ export default function JobsView() {
     void fetchActionRegistry().then((registry) => { if (active) setActions(registry.actions || []); })
       .catch((e: unknown) => { if (active) toastRef.current(errMsg(e), 'error'); });
     return () => { active = false; };
-  }, [tab, editJobId]);
+  }, [tab, editJobId, authorizationToken]);
 
   useEffect(() => {
     void loadSessions();

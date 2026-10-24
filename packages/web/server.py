@@ -311,6 +311,8 @@ async def lifespan(app: FastAPI):
                     from packages.automation.service import Service as AutomationService
                     automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
                     app.state.automation = automation
+                    from packages.automation.authorization import bind_objects
+                    bind_objects(plugin_runtime, app)
                     try:
                         await automation.start()
                         from packages.interactions.runtime import bind as bind_interactions

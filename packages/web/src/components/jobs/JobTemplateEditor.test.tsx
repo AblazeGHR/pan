@@ -7,7 +7,7 @@ import { deleteCompleteJobTemplate, fetchCompleteJobTemplates, instantiateComple
 vi.mock('@/services/api', async (original) => ({ ...await original<typeof import('@/services/api')>(),
   fetchCompleteJobTemplates: vi.fn(), instantiateCompleteJobTemplate: vi.fn(), deleteCompleteJobTemplate: vi.fn(), saveCompleteJobTemplate: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-const template = { id: 'jtpl_fixed', name: 'Fixed template', revision: 7, enabled: true,
+const template = { id: 'jtpl_fixed', name: 'Fixed template', revision: 7, usable: true,
   config: { name: 'fixed', actionId: 'a', arguments: {}, schedule: [], trigger: { kind: 'immediate' as const }, enabled: false } };
 
 async function setup() {
@@ -52,7 +52,7 @@ it('template deletion uses the selected revision only after explicit confirmatio
   confirmation.mockRestore();
 });
 
-it('saves Template capability independently from disabled copied Job execution and rotates key only on confirmed revision', async () => {
+it('saves passive Template independently from disabled copied Job execution and rotates key only on confirmed revision', async () => {
   await setup();
   vi.mocked(instantiateCompleteJobTemplate).mockRejectedValue(new Error('unknown receipt'));
   fireEvent.click(screen.getByRole('button', { name: 'Instantiate fixed Template' }));
@@ -62,7 +62,8 @@ it('saves Template capability independently from disabled copied Job execution a
   vi.mocked(saveCompleteJobTemplate).mockResolvedValue({ ...template, revision: 8 });
   fireEvent.click(screen.getByRole('button', { name: 'Save complete Template' }));
   await waitFor(() => expect(saveCompleteJobTemplate).toHaveBeenCalledOnce());
-  expect(vi.mocked(saveCompleteJobTemplate).mock.calls[0]?.[0]).toMatchObject({ enabled: true, config: { enabled: false } });
+  expect(vi.mocked(saveCompleteJobTemplate).mock.calls[0]?.[0]).toMatchObject({ config: { enabled: false } });
+  expect(vi.mocked(saveCompleteJobTemplate).mock.calls[0]?.[0]).not.toHaveProperty('enabled');
   await waitFor(() => expect(screen.getByText(/Instantiate copies revision 8/)).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: 'Instantiate fixed Template' }));
   await waitFor(() => expect(instantiateCompleteJobTemplate).toHaveBeenCalledTimes(2));

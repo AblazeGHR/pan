@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from packages.core.system_fields import public_schema
 from .store import Conflict
+from .authorization import require as object_require, require_write, authority
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
 
@@ -22,10 +23,7 @@ def install(server):
             raise HTTPException(401, 'User login required')
 
     async def require_permission(request, kind, capability):
-        await require(request)
-        allowed, _ = await service().engine.io(service().auth.permission_allowed, kind, capability)
-        if not allowed:
-            raise HTTPException(403, f'Authorization denied: {kind}.{capability}')
+        return await object_require(request, kind, capability)
 
     @router.get('/api/automation/authorization')
     async def authorization_status(request: Request):
@@ -184,16 +182,19 @@ def install(server):
         try:
             state = await svc.engine.io(svc.ledger.read)
             existing = state['triggers'].get(data['item'].get('id'))
-            enabled_change = bool(existing) and existing.get('enabled', False) != data['item'].get('enabled', False)
-            await require_permission(request, 'trigger', 'create' if existing is None else ('lifecycle' if enabled_change else 'updateConfig'))
-            if existing is None and data['item'].get('enabled'):
-                await require_permission(request, 'trigger', 'lifecycle')
+            normalized = dict(data['item'])
+            if existing:
+                for key in ('executionMode', 'maxConcurrency', 'retry'):
+                    normalized.setdefault(key, existing.get(key))
+            await require_write(request, 'trigger', existing, normalized,
+                                ignored=('id','revision','createdBy','createdAt','updatedAt','authorization'))
             if data['item'].get('id') not in state['triggers'] and len(state['triggers']) >= svc.engine.max_triggers:
                 raise ValueError('Trigger capacity reached')
-            user = await authorized(request)
+            source = await authority(request)
+            user = True
             # Origin is informational. It grants no privileges.
-            creator = {'type': 'user'} if user else {'type': 'agent', 'id': data.get('agentId')}
-            item = await svc.engine.io(svc.ledger.put, data['item'], data.get('expectedRevision'), user, creator)
+            creator = {'type': source['type']}
+            item = await svc.engine.io(svc.ledger.put, data['item'], data.get('expectedRevision'), user, creator, source)
             await svc.engine.kick()
             return {'item': item}
         except PermissionError as exc:
@@ -202,6 +203,20 @@ def install(server):
             raise HTTPException(409, str(exc)) from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    @router.post('/api/automation/triggers/{tid}/lifecycle')
+    async def trigger_lifecycle(tid: str, data: dict, request: Request):
+        await require_permission(request, 'trigger', 'lifecycle')
+        if set(data) != {'enabled','expectedRevision'} or type(data['enabled']) is not bool:
+            raise HTTPException(400, 'Expected enabled and expectedRevision')
+        svc=service()
+        try:
+            item=await svc.engine.io(svc.ledger.set_enabled, tid, data['enabled'],
+                                     data['expectedRevision'], await authority(request))
+            await svc.engine.kick()
+            return {'item':item}
+        except KeyError as exc:raise HTTPException(404,'Trigger missing') from exc
+        except Conflict as exc:raise HTTPException(409,str(exc)) from exc
 
     @router.delete('/api/automation/triggers/{tid}')
     async def delete(tid: str, expectedRevision: int, request: Request):
@@ -216,7 +231,7 @@ def install(server):
 
     @router.post('/api/automation/runs/{rid}/cancel')
     async def cancel(rid: str, data: dict, request: Request):
-        await require_permission(request, 'trigger', 'lifecycle')
+        await require_permission(request, 'job', 'lifecycle')
         if set(data) != {'expectedRevision'}:
             raise HTTPException(400, 'Expected expectedRevision')
         try:
@@ -231,12 +246,12 @@ def install(server):
 
     @router.post('/api/automation/runs/{rid}/confirm-recovery')
     async def confirm_recovery(rid: str, data: dict, request: Request):
-        await require_permission(request, 'trigger', 'lifecycle')
+        await require_permission(request, 'job', 'execute')
         if set(data) != {'expectedRevision', 'confirm'} or data['confirm'] is not True:
             raise HTTPException(400, 'Expected expectedRevision and confirm:true; uncertain effects may repeat')
         try:
             svc = service()
-            run = await svc.engine.io(svc.ledger.confirm_uncertain, rid, data['expectedRevision'], svc.engine.max_pending)
+            run = await svc.engine.io(svc.ledger.confirm_uncertain, rid, data['expectedRevision'], svc.engine.max_pending, await authority(request))
             await svc.engine.kick()
             return {'run': run}
         except Conflict as exc:
@@ -246,9 +261,6 @@ def install(server):
 
     @router.get('/api/automation/events')
     async def events(after: int = 0, limit: int = 20):
-        # Event history is read-only but still profile-wide controlled.
-        # Keep this endpoint's legacy public shape; callers without a Service
-        # (schema/tests) continue to receive the same validation behavior.
         try:
             return {**await service().engine.io(service().events.page, after, limit),
                     'storage': await service().engine.io(service().events.stats)}

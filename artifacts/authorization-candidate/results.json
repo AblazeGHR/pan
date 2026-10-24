@@ -1,0 +1,51 @@
+{
+  "unit.xml": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "443",
+    "time": "229.014",
+    "timestamp": "2026-10-24T13:56:49.674183+08:00",
+    "hostname": "ablaze"
+  },
+  "runtime.xml": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "171",
+    "time": "17.490",
+    "timestamp": "2026-10-24T14:04:02.319560+08:00",
+    "hostname": "ablaze"
+  },
+  "http.xml": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "10",
+    "time": "153.842",
+    "timestamp": "2026-10-24T14:04:02.359732+08:00",
+    "hostname": "ablaze"
+  },
+  "uniquePythonCases": 456,
+  "finalHttpPort": 62315,
+  "frontend": {
+    "files": 7,
+    "tests": 136,
+    "failed": 0,
+    "skipped": 0
+  },
+  "build": {
+    "typeScript": true,
+    "vite": true,
+    "compressedAssets": 92
+  },
+  "baseline": {
+    "main": "03158ec517a98493e41b292b7f0575fefb49fe12",
+    "practical": "53dff07b42450105b4e43512c43395ccedf228b4",
+    "passwordCherryPick": "6398b215",
+    "supersededCandidate": "f9454991"
+  }
+}

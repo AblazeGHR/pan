@@ -187,6 +187,18 @@ _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
 def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
+    from packages.automation.authorization import object_path
+    if object_path(path):
+        if _terminal_transport != 'stdio':
+            return {'ok': False, 'error': {'code': 403, 'message': 'Trusted local MCP transport required'}}
+        try:
+            from packages.plugins.ipc import request
+            return request({'operation': 'authorization_objects',
+                            'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
+                            'method': method, 'path': path, 'body': body})
+        except Exception:
+            return {'ok': False, 'error': {'code': 'object_transport_unavailable',
+                    'message': 'Trusted MCP object transport unavailable; outcome unconfirmed, do not replay'}}
     url = f"{_pan_api_url}{path}"
     data = json.dumps(body).encode("utf-8") if body else None
     req = urllib.request.Request(url, data=data, method=method)
@@ -3213,10 +3225,36 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
             body['expectedRevision'] = expected_revision
             return _api('PUT', path + '/' + quote(item_id, safe=''), body)
         return _api('POST', path, body)
-    item = {'name': name or draft.get('name'), 'enabled': False, 'config': draft}
+    item = {'name': name or draft.get('name'), 'config': draft}
     if item_id: item['id'] = item_id
     return _api('PUT' if item_id else 'POST', path + ('/' + quote(item_id, safe='') if item_id else ''),
                 {'item': item, 'expectedRevision': expected_revision if item_id else 0})
+
+
+@mcp.tool()
+def authorization_objects(kind: str, operation: str, item: dict | None = None,
+                          item_id: str | None = None, expected_revision: int | None = None,
+                          idempotency_key: str | None = None) -> dict:
+    """Profile-wide delegated Trigger/Action/Job Template/Action-reference Job operations.
+
+    Uses trusted local IPC and the user's Agent grant, never a user password or Bearer.
+    kind: trigger/action/jobTemplate/job. Operations: read/create/updateConfig/delete;
+    trigger/action/job also enable/disable; job also pause/resume/cancel/execute/retry/
+    confirmRecovery; jobTemplate only use (copies a passive fixed configuration).
+    item is the complete Trigger/Action/Template or Job config. Updates and lifecycle
+    require current expected_revision; use also requires stable idempotency_key.
+    Template has no enabled/lifecycle/execute. System definitions cannot be edited or
+    deleted; only their separate enable/disable state is configurable with the explicit
+    manageSystemActions grant. Trigger matches never grant effects; delegated effects
+    also require job.execute. Creation outcome unknown: inspect before retry, never replay.
+    """
+    from packages.automation.authorization import object_request
+    try:
+        method, path, body = object_request(kind, operation, item, item_id,
+                                            expected_revision, idempotency_key)
+    except ValueError:
+        return {'ok': False, 'error': {'code': 'invalid_operation', 'message': 'Invalid four-object operation'}}
+    return _api(method, path, body)
 
 
 def main():

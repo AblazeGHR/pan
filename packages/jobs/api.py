@@ -28,7 +28,8 @@ import inspect
 import math
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from packages.automation.authorization import may_read_jobs, require_job
 
 from packages.core import background_jobs
 from packages.core import config as _config
@@ -67,7 +68,7 @@ def _view(job: dict) -> dict:
         job=runtime.view(job)
     value, status = pins.snapshot(_job_root())
     from packages.jobs.unified import project
-    return {**background_jobs.job_public_view(job),'unified':project(job),
+    return {**background_jobs.job_public_view(job),'unified':job.get('unified') or project(job),
             **pins.presentation(job["jobId"], value, status)}
 
 
@@ -128,7 +129,7 @@ async def _drain(awaitable) -> None:
 @router.get("")
 @router.get("/")
 async def list_jobs(kind: str | None = None, status: str | None = None,
-                    includeCompleted: bool = True):
+                    includeCompleted: bool = True, request: Request = None):
     """全部 kind 的 job 列表；active-first 排序，可按 kind/status 过滤。"""
     jobs = [background_jobs.job_public_view(j)
             for j in background_jobs.list_jobs(registry_root=_job_root())
@@ -143,12 +144,14 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
             if job["jobId"] not in local_ids:
                 jobs.append(background_jobs.job_public_view(job))
     from packages.jobs.action_runtime import for_root, is_action_job
+    if not await may_read_jobs(request):
+        jobs=[j for j in jobs if not is_action_job(j)]
     runtime=for_root(_job_root())
     if runtime:
         jobs=[await asyncio.to_thread(runtime.view,j) if is_action_job(j) else j for j in jobs]
     pinned, pin_status = pins.snapshot(_job_root())
     from packages.jobs.unified import project
-    jobs = [{**job, 'unified':project(job), **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
+    jobs = [{**job, 'unified':job.get('unified') or project(job), **pins.presentation(job["jobId"], pinned, pin_status)} for job in jobs]
     if kind:
         jobs = [j for j in jobs if j.get("kind") == kind]
     if status:
@@ -761,7 +764,7 @@ async def delete_template(template_id: str):
 
 
 @router.get("/next")
-async def next_preview(count: int = 5):
+async def next_preview(count: int = 5, request: Request = None):
     """全 kind 下一次触发点预览（scheduled-task entries + message nextRunAt）。"""
     try:
         count = max(1, min(int(count), _job_cron.MAX_PREVIEW))
@@ -769,7 +772,10 @@ async def next_preview(count: int = 5):
         count = 5
     now = datetime.now().replace(microsecond=0)
     items: list[dict] = []
+    from packages.jobs.action_runtime import is_action_job
+    permitted=await may_read_jobs(request)
     for job in background_jobs.list_jobs(registry_root=_job_root()):
+        if is_action_job(job) and not permitted:continue
         kind = job.get("kind")
         if kind == background_jobs.SCHEDULED_TASK_KIND:
             spec_entries = [entry for entry in (job.get("schedule") or [])
@@ -799,10 +805,11 @@ async def next_preview(count: int = 5):
 
 
 @router.get("/{job_id}")
-async def get_job(job_id: str):
+async def get_job(job_id: str, request: Request = None):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
+    await require_job(request, job)
     return _ok(job=await asyncio.to_thread(_view,job))
 
 
@@ -810,12 +817,13 @@ async def get_job(job_id: str):
 
 
 @router.put("/{job_id}/pin")
-async def pin_job(job_id: str, data: dict):
+async def pin_job(job_id: str, data: dict, request: Request = None):
     if set(data) != {"pinned"} or type(data.get("pinned")) is not bool:
         return _err("invalid_argument", "pinned must be a boolean and the only field")
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
+    await require_job(request, job, 'updateConfig')
     # Cancelling this await cannot stop the writer thread or roll back its commit.
     # Clients with an interrupted response must GET the Job/list to read durable state.
     try:
@@ -1107,13 +1115,14 @@ async def delete_job(job_id: str):
 
 
 @router.get("/{job_id}/runs")
-async def job_runs(job_id: str, limit: int = 100):
+async def job_runs(job_id: str, limit: int = 100, request: Request = None):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
     if not isinstance(limit, int) or limit < 1 or limit > 500:
         return _err("invalid_argument", "limit must be between 1 and 500")
     task_key = job.get("taskId") or job["jobId"]
+    await require_job(request, job)
     runs = background_jobs.list_run_records(
         task_id=task_key, limit=limit, registry_root=_job_root())
     return _ok(runs=runs)

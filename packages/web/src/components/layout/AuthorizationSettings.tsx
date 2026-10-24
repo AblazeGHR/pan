@@ -96,8 +96,8 @@ export function AuthorizationSettings() {
       <Button type="submit" disabled={busy || !status}>{busy ? 'Saving…' : 'Change password'}</Button>
     </form>}
     {token && permissions && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void savePermissions(event)}>
-      <h3 className="font-semibold text-text-primary">Profile-wide permissions</h3>
-      <p className="text-[11px] text-text-secondary">Unchecked capabilities are denied. Changes use a revision CAS and apply immediately to HTTP and MCP writes.</p>
+      <h3 className="font-semibold text-text-primary">Profile-wide Agent permissions</h3>
+      <p className="text-[11px] text-text-secondary">Unchecked capabilities deny delegated Agent operations. User Bearer management remains available. Saves use revision CAS and apply immediately to trusted MCP calls and new delegated effects.</p>
       <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left">Object</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <th key={cap} className="px-2 text-left">{cap}</th>)}</tr></thead><tbody>{(Object.keys(PERMISSIONS) as PermissionKind[]).map((kind) => <tr key={kind}><th className="py-1 text-left">{kind}</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <td key={cap} className="px-2">{(PERMISSIONS[kind] as readonly string[]).includes(cap) && <input aria-label={`${kind}.${cap}`} type="checkbox" checked={Boolean(permissions[kind][cap])} onChange={(event) => setPermissions({ ...permissions, [kind]: { ...permissions[kind], [cap]: event.target.checked } })} />}</td>)}</tr>)}</tbody></table></div>
       <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save permissions'}</Button>
     </form>}

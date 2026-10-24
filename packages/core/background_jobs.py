@@ -464,6 +464,10 @@ def job_public_view(job: dict | None) -> dict | None:
     view["target"] = identity["target"]
     view.pop("sourceStruct", None)
     view.pop("targetStruct", None)
+    if isinstance(view.get('config'), dict) and view.get('action', {}).get('api') == 'action_reference':
+        from packages.jobs.unified import project
+        view.pop('unified', None)
+        view['unified'] = project(view)
     return view
 
 

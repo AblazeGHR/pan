@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Owned real HTTP, fake Worker/CLI and production Chromium combination."""
 from datetime import datetime, timedelta
 import json
@@ -19,7 +20,7 @@ OUT=Path('artifacts/job-unified-live')
 def test_unified_event_system_actions_legacy_and_production_ui(tmp_path,monkeypatch):
     assert h.PORT not in (8767,8768)
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
-    rt=h._PanRuntime(tmp_path/'owned-unified-profile');rt.data_root.mkdir()
+    rt=h._PanRuntime(tmp_path/'owned-unified-profile'); authenticate_user_requests(rt);rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
     OUT.mkdir(parents=True,exist_ok=True)
     identities={}

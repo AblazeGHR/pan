@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Owned product HTTP + stdio MCP + deterministic CLI report handoff."""
 import asyncio
 import json
@@ -17,7 +18,7 @@ def test_trusted_locker_and_error_report_share_product_runtime(tmp_path,monkeypa
     assert base.PORT not in {8767,8768}, 'Use run_tests_isolated.py'
     monkeypatch.setattr(base,'FAKE_CLI',FAKE_CLI)
     monkeypatch.setattr(base,'SERVER_LAUNCHER',Path(__file__).parent/'support/job_inbox_http_server.py')
-    rt=base._PanRuntime(tmp_path/'data');rt.data_root.mkdir()
+    rt=base._PanRuntime(tmp_path/'data');authenticate_user_requests(rt);rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'scheduler':{'enabled':True},
         'memory':{'enabled':False},'worker':{'idle_sec':300},
         'plugin_manifests':[str(base.ROOT/'manifest.json'),str(base.ROOT/'packages/mcp/manifest.json')]}),encoding='utf-8')

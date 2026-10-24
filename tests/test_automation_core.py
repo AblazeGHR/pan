@@ -278,9 +278,11 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
     async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
         draft = {**trigger(), 'enabled': False}
         assert (await client.post('/api/automation/triggers', json={'item': trigger(), 'expectedRevision': 0})).status_code == 401
-        created = await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 0, 'agentId': 'agent'})
+        headers = {'Authorization': 'Bearer ' + svc.auth.login(key)}
+        created = await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 0, 'agentId': 'agent'}, headers=headers)
         assert created.status_code == 200
-        assert created.json()['item']['createdBy'] == {'type': 'agent', 'id': 'agent'}
+        assert created.json()['item']['createdBy'] == {'type': 'user'}
+        assert created.json()['item']['authorization'] == {'type': 'user'}
         login = await client.post('/api/automation/login', json={'key': key})
         assert login.json()['expiresIn'] == 43200
         headers = {'Authorization': 'Bearer ' + login.json()['token']}

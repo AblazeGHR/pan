@@ -16,6 +16,8 @@ try {
   await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
   await page.getByRole('button',{name:'Log in',exact:true}).click();
   await expect(page.getByRole('button',{name:'Log out',exact:true})).toBeVisible();
+  const login=await (await page.request.post(base+'/api/automation/login',{data:{key:process.env.PAN_TEST_JOB_KEY}})).json();
+  const apiHeaders={Authorization:'Bearer '+login.token};
   const fill = async name => {
     await page.getByLabel('Name',{exact:true}).fill(name);
     await page.getByLabel('Action reference',{exact:true}).selectOption('system_session_message');
@@ -28,15 +30,14 @@ try {
   await page.getByRole('button',{name:'Save unified Job',exact:true}).click();
   await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true})).toBeVisible();
   await expect.poll(async () => {
-    const data=await (await page.request.get(base+'/api/jobs')).json();
+    const data=await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json();
     return data.jobs.find(job=>job.name==='Unified production UI message')?.status;
   },{timeout:15000}).toBe('completed');
   // A dirty editor must keep its opened CAS revision after a real WS update.
   await page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true}).click();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByLabel('Name',{exact:true}).fill('Retained conflicting draft');
-  const existing=(await (await page.request.get(base+'/api/jobs')).json()).jobs.find(j=>j.name==='Unified production UI message');
-  const login=await (await page.request.post(base+'/api/automation/login',{data:{key:process.env.PAN_TEST_JOB_KEY}})).json();
+  const existing=(await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json()).jobs.find(j=>j.name==='Unified production UI message');
   const changed=await page.request.put(base+'/api/jobs/action-jobs/'+existing.jobId,{headers:{Authorization:'Bearer '+login.token},
     data:{config:{...existing.unified.config,name:'Concurrent remote config'},expectedRevision:existing.configRevision}});
   if (!changed.ok()) throw Error('Owned concurrent update rejected: '+changed.status());
@@ -50,13 +51,13 @@ try {
   await page.getByRole('button',{name:'New Job',exact:true}).click();
   await page.getByLabel('Create',{exact:true}).selectOption('template');
   await fill('Unified production complete Template');
-  await page.getByLabel('Enable Template instantiation capability',{exact:true}).check();
+  await expect(page.getByLabel('Enable Template instantiation capability',{exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Save complete Template',exact:true}).click();
   await expect(page.getByRole('button',{name:'Instantiate fixed Template',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Instantiate fixed Template',exact:true}).click();
   await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production complete Template',{exact:true})).toBeVisible();
   await expect.poll(async () => {
-    const data=await (await page.request.get(base+'/api/jobs')).json();
+    const data=await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json();
     return data.jobs.find(job=>job.name==='Unified production complete Template')?.status;
   },{timeout:15000}).toBe('completed');
   await page.getByRole('button',{name:'New Job',exact:true}).click();

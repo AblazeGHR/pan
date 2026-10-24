@@ -69,7 +69,7 @@ def filled_arguments(action, value):
         if key not in result and isinstance(spec, dict) and 'default' in spec:
             result[key] = copy.deepcopy(spec['default'])
     try:jsonschema.Draft202012Validator(action['input_schema']).validate(result)
-    except jsonschema.ValidationError as exc:raise ValueError('Invalid Action arguments: '+exc.message) from exc
+    except jsonschema.ValidationError as exc:raise ValueError('Invalid Action arguments') from exc
     return result
 
 
@@ -232,11 +232,12 @@ class Templates:
     def view(item,state):
         result = copy.deepcopy(item)
         result['integrity'] = integrity(state,item['config'],item['referenceGeneration'])
-        result['enabled'] = item['enabled'] and result['integrity']['status']=='complete' and not result['integrity']['approvalRequired']
+        result.pop('enabled', None)  # Legacy field is ignored; Templates are passive configuration.
+        result['usable'] = result['integrity']['status']=='complete' and not result['integrity']['approvalRequired']
         return result
 
     def put(self, raw, expected, authorized=False, item_id=None):
-        strict(raw, {'id','name','description','enabled','config'}, 'Job Template')
+        strict(raw, {'id','name','description','config'}, 'Job Template')
         def change(state):
             item = copy.deepcopy(raw)
             tid = item.setdefault('id',item_id or 'jtpl_'+uuid.uuid4().hex[:24])
@@ -249,22 +250,21 @@ class Templates:
                 raise ValueError('Job Template capacity reached')
             if not isinstance(item.get('name'),str) or not item['name'].strip():
                 raise ValueError('Template name required')
-            item.setdefault('description','');item.setdefault('enabled',False)
-            if not isinstance(item['description'],str) or type(item['enabled']) is not bool:
+            item.setdefault('description','')
+            if not isinstance(item['description'],str):
                 raise ValueError('Invalid Template metadata')
             item['config'] = config_value(item.get('config'),state)
             aid = item['config']['actionId'];gen = generation(state,aid)
             repairing = old and (old['config']['actionId']!=aid or old['referenceGeneration']!=gen)
-            if not authorized and (item['enabled'] or item['config']['enabled'] or (old and old['enabled']) or repairing):
-                raise PermissionError('User Bearer required for Template enable/edit/repair')
-            if repairing:item['enabled']=False
+            if not authorized and (item['config']['enabled'] or repairing):
+                raise PermissionError('Authorized caller required for enabled Job config or reference repair')
             versions = state.setdefault('templateVersions',{})
             if tid not in versions and len(versions)>=MAX_RECEIPTS:
                 raise ValueError('Job Template revision tombstone capacity reached')
             item.update(revision=versions.get(tid,0)+1, referenceGeneration=gen)
             versions[tid]=item['revision'];items[tid]=item
             check_action_graph(state,state['actions'][aid])
-            return copy.deepcopy(item)
+            return self.view(item,state)
         return self.transaction(change)
 
     def delete(self, tid, expected):
@@ -276,7 +276,7 @@ class Templates:
             state.setdefault('templateVersions',{})[tid]=item['revision']+1
         self.transaction(change)
 
-    def reserve(self, tid, expected, key, overrides=None, *, job_root, admitted_template=None):
+    def reserve(self, tid, expected, key, overrides=None, *, job_root, admitted_template=None, authority=None):
         if not isinstance(key,str) or not 1<=len(key)<=200:
             raise ValueError('idempotencyKey requires 1..200 characters')
         overrides = {} if overrides is None else overrides
@@ -296,12 +296,15 @@ class Templates:
             if not item:raise KeyError(tid)
             revision(item['revision'],expected)
             view = self.view(item,state) if admitted_template is None else item
-            if not view['enabled']:raise Conflict('Template disabled, incomplete or requires user repair')
+            if not view['usable']:raise Conflict('Template incomplete or requires user repair')
             config = (config_value({**item['config'],**overrides},state) if admitted_template is None
                       else copy.deepcopy({**item['config'],**overrides}))
+            if not state['actions'][config['actionId']]['enabled'] or state.get('actionLifecycle',{}).get(config['actionId']) is False:
+                raise Conflict('Action disabled; new Job refused')
             job_id = 'job_'+digest('template-instance:'+key)[:24]
             intent = dict(key=receipt_key,fingerprint=fingerprint,jobId=job_id,templateId=tid,templateRevision=expected,
-                          config=config,referenceGeneration=item['referenceGeneration'],jobRoot=job_root,phase='reserved')
+                          config=config,referenceGeneration=item['referenceGeneration'],jobRoot=job_root,phase='reserved',
+                          authorization=copy.deepcopy(authority or {'type':'user'}))
             receipts[receipt_key]=intent
             state.setdefault('jobReferences',{})[job_id]={'actionId':config['actionId'],'position':'/config/actionId','jobRoot':job_root}
             return copy.deepcopy(intent)
@@ -321,7 +324,7 @@ class Templates:
             if status['status']!='complete' or status['approvalRequired']:
                 raise Conflict('Action reference incomplete or requires user repair: '+aid)
             action=validate_action(state['actions'][aid])
-            if not action['enabled'] or action['effect']=='high_risk':
+            if not action['enabled'] or state.get('actionLifecycle',{}).get(aid) is False or action['effect']=='high_risk':
                 raise ValueError('Action disabled or requires approval policy')
             snapshots=state.setdefault('jobExecutions',{})
             if len(snapshots)>=MAX_SNAPSHOTS:raise ValueError('Temporary snapshot capacity reached')
@@ -333,7 +336,7 @@ class Templates:
             if action['execution']['kind']=='job_template':
                 fixed=state['jobTemplates'][action['execution']['templateId']]
                 view=self.view(fixed,state)
-                if not view['enabled']:raise Conflict('Fixed Job Template unavailable')
+                if not view['usable']:raise Conflict('Fixed Job Template unavailable')
                 snap['fixedTemplate']=copy.deepcopy(view)
             strict(snap, set(snap), 'execution snapshot')
             snapshots[execution['id']]=snap

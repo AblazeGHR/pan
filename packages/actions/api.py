@@ -5,23 +5,21 @@ import shutil
 from fastapi import APIRouter, HTTPException, Request
 
 from packages.plugins.lifecycle import coordinator, io, pinned, settled
-from .store import Store, PersistenceError
+from .store import Store, PersistenceError, validate_action
+from packages.automation.authorization import require, require_write, delegated
 
 
 def install(server):
     router = APIRouter()
 
     async def user(request):
+        if delegated(request):
+            return True
         svc = getattr(server.app.state, 'automation', None)
         return bool(svc and await io(svc.auth.authorized, request.headers.get('authorization','')))
 
     async def require_capability(request, capability):
-        svc = getattr(server.app.state, 'automation', None)
-        if not svc or not await io(svc.auth.authorized, request.headers.get('authorization','')):
-            raise HTTPException(401, 'User login required')
-        allowed, _ = await io(svc.auth.permission_allowed, 'action', capability)
-        if not allowed:
-            raise HTTPException(403, f'Authorization denied: action.{capability}')
+        return await require(request, 'action', capability)
 
     async def sessions():
         return await io(server.sess.list_all, load_history=False)
@@ -37,7 +35,7 @@ def install(server):
                 result.append({'id': session.id, 'name': session.name})
         return result
 
-    async def view():
+    async def view(request):
         state, owners = await io(Store().read), await sessions()
         groups = []
         for group in state['groups'].values():
@@ -52,7 +50,13 @@ def install(server):
                     item['sessions'].append({'id': session.id, 'name': session.name, **binding,
                                              'loadedVersion': frozen.version if frozen else None})
             groups.append(item)
-        return {'revision': state['revision'], 'actions': list(state['actions'].values()), 'groups': groups}
+        try:
+            await require_capability(request, 'read')
+            readable=True
+        except HTTPException as exc:
+            if exc.status_code not in (401,403,503):raise
+            readable=False
+        return {'revision': state['revision'], 'actions': list(state['actions'].values()) if readable else [], 'groups': groups}
 
     @router.get('/api/actions/session-operation-template')
     async def session_operation_template(request: Request):
@@ -63,7 +67,7 @@ def install(server):
     @router.get('/api/actions')
     async def listing(request: Request):
         await require_capability(request, 'read')
-        return await view()
+        return await view(request)
 
     @router.post('/api/actions/{kind}')
     async def create(kind: str, data: dict, request: Request):
@@ -72,13 +76,10 @@ def install(server):
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict):
             raise HTTPException(400, 'Request requires item and optional expectedRevision')
         try:
-            await require_capability(request, 'create')
-            if kind == 'actions' and data['item'].get('enabled'):
-                await require_capability(request, 'lifecycle')
-            if kind == 'actions' and data['item'].get('system'):
-                await require_capability(request, 'manageSystemActions')
+            if kind == 'actions':
+                await require_write(request, 'action', None, data['item'])
             item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True, authorized=await user(request))
-            return {**await view(), 'item': item}
+            return {**await view(request), 'item': item}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
@@ -93,16 +94,11 @@ def install(server):
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
             raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
         try:
-            await require_capability(request, 'updateConfig')
             if kind == 'actions':
                 current = await io(Store().read)
-                old = current['actions'].get(item_id)
-                if old and old.get('enabled', False) != data['item'].get('enabled', False):
-                    await require_capability(request, 'lifecycle')
-            if kind == 'actions' and data['item'].get('system'):
-                await require_capability(request, 'manageSystemActions')
+                await require_write(request, 'action', current['actions'].get(item_id), validate_action(data['item']))
             await io(Store().put, kind, data['item'], data.get('expectedRevision'), authorized=await user(request))
-            return await view()
+            return await view(request)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
@@ -110,14 +106,32 @@ def install(server):
         except PersistenceError as exc:
             raise HTTPException(503,str(exc)) from exc
 
+    @router.post('/api/actions/actions/{item_id}/lifecycle')
+    async def lifecycle(item_id: str, data: dict, request: Request):
+        await require_capability(request, 'lifecycle')
+        if set(data) != {'enabled', 'expectedRevision'} or type(data['enabled']) is not bool:
+            raise HTTPException(400, 'Expected enabled and expectedRevision')
+        state = await io(Store().read)
+        item = state['actions'].get(item_id)
+        if not item:
+            raise HTTPException(404, 'Action missing')
+        if item.get('system'):
+            await require_capability(request, 'manageSystemActions')
+        try:
+            await io(Store().set_enabled, item_id, data['enabled'], data['expectedRevision'])
+            return await view(request)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
     @router.delete('/api/actions/{kind}/{item_id}')
     async def delete(kind: str, item_id: str, request: Request, expectedRevision: int | None = None, confirmReferences: bool = False):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
-            await require_capability(request, 'delete')
+            if kind == 'actions':
+                await require_capability(request, 'delete')
             await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
-            return await view()
+            return await view(request)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         except PermissionError as exc:
@@ -132,7 +146,6 @@ def install(server):
             raise HTTPException(400, 'Expected build or unbuild and optional expectedRevision')
         pid = 'action-group-' + group_id.replace('_', '-')
         try:
-            await require_capability(request, 'lifecycle')
             # Group first; this closes new-reference admission before collecting
             # Sessions. No mutex or store writer lock is held while we await IO.
             async with coordinator().claim(exclusive={pid}):
@@ -194,7 +207,7 @@ def install(server):
                             await io(cleanup)
                         except OSError as exc:
                             raise HTTPException(500, 'Group unregistered, but release file cleanup failed: ' + str(exc)) from exc
-            return await view()
+            return await view(request)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
@@ -203,13 +216,20 @@ def install(server):
         if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision'}:
             raise HTTPException(400, 'Invalid draft operation')
         try:
-            await require_capability(request, 'create' if operation == 'put' else 'delete')
+            if kind == 'actions':
+                current = await io(Store().read)
+                if operation == 'put':
+                    raw = data.get('item') or {}
+                    old = current['actions'].get(raw.get('id'))
+                    await require_write(request, 'action', old, {**raw, 'enabled': False})
+                else:
+                    await require_capability(request, 'delete')
             if operation == 'put':
                 item = await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
-                return {**await view(), 'item': item}
+                return {**await view(request), 'item': item}
             else:
                 await io(Store().delete, kind, data.get('id'), data.get('expectedRevision'))
-            return await view()
+            return await view(request)
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
         except ValueError as exc:

@@ -1,0 +1,20 @@
+
+ RUN  v2.1.9 D:/project/Pan/data/workdirs/authorization-mcp-capabilities-20261024-candidate/packages/web/src
+
+ ✓ stores/actionRegistryStore.test.ts (16 tests) 12ms
+ ✓ components/layout/AuthorizationSettings.test.tsx (2 tests) 146ms
+ ✓ components/jobs/JobTemplateEditor.test.tsx (4 tests) 315ms
+ ✓ views/AutomationView.test.tsx (14 tests) 1911ms
+   ✓ creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs 356ms
+ ✓ views/JobsView.bulk-search.test.tsx (24 tests) 2628ms
+   ✓ JobsView search, status filters, and bulk actions > keeps the opened config revision when WS replaces a dirty unified Job 304ms
+ ✓ views/ActionsView.test.tsx (16 tests) 3568ms
+   ✓ Action create, edit and duplicate > edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query 595ms
+   ✓ Action create, edit and duplicate > edits, duplicates and saves a Session Operation without changing its original or Group release 545ms
+ ✓ components/layout/AppSettingsModal.test.tsx (60 tests) 4149ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1101ms
+
+ Test Files  7 passed (7)
+      Tests  136 passed (136)
+   Start at  13:56:50
+   Duration  7.69s (transform 2.38s, setup 48ms, collect 6.12s, tests 12.73s, environment 5.15s, prepare 1.33s)

@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Actual owned HTTP/Worker/fakeCLI/template capability/command/restart proof."""
 from datetime import datetime,timedelta
 import json
@@ -15,7 +16,7 @@ from tests.test_job_action_templates import config
 def test_complete_template_reference_snapshot_and_recovery_http(tmp_path,monkeypatch):
     assert h.PORT not in {8767,8768}
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
-    rt=h._PanRuntime(tmp_path/'owned-job-profile');rt.data_root.mkdir()
+    rt=h._PanRuntime(tmp_path/'owned-job-profile'); authenticate_user_requests(rt);rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
     cli=tmp_path/'owned-command';cli.mkdir();(cli/'fixture.marker').write_text('job-action-fixture',encoding='utf-8')
     evidence={'port':h.PORT,'root':str(rt.data_root),'processes':[],'cleanupActions':[]}
@@ -72,7 +73,7 @@ def test_complete_template_reference_snapshot_and_recovery_http(tmp_path,monkeyp
         schema=request('GET','/api/jobs/action-jobs/schema?actionId=pause')
         assert schema['config']['properties']['arguments']['additionalProperties'] is False
         cfg=config();cfg['name']='fixed Pause Job'
-        template=request('POST','/api/jobs/job-templates',json={'item':{'name':'complete','enabled':True,'config':cfg},'expectedRevision':0},headers=auth)['item']
+        template=request('POST','/api/jobs/job-templates',json={'item':{'name':'complete','config':cfg},'expectedRevision':0},headers=auth)['item']
         path='/api/jobs/job-templates/'+template['id']+'/instantiate';body={'expectedRevision':1,'idempotencyKey':'owned-http'}
         assert call('POST',path,body).status_code==401
         assert call('POST',path,{**body,'overrides':{'arguments':{'text':'inject'}}},auth).status_code==400

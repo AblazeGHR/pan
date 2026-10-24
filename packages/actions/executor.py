@@ -16,7 +16,11 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     action = await asyncio.to_thread(validate_action, action, automation=True)
     if not action['enabled'] or action['effect'] == 'high_risk':
         raise ValueError('Action disabled or requires approval policy')
-    jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    try:
+        jsonschema.Draft202012Validator(action['input_schema']).validate(arguments)
+    except jsonschema.ValidationError as exc:
+        category = 'Additional properties' if exc.validator == 'additionalProperties' else str(exc.validator)
+        raise ValueError('Action argument ' + category + ' validation failed') from None
     if action['execution']['kind'] == 'system_job':
         execute_system = getattr(progress, 'execute_system', None)
         if execute_system is None:

@@ -15,7 +15,8 @@ import asyncio
 import inspect
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from packages.automation.authorization import may_read_jobs, require_job
 
 from packages.core import session as sess
 from packages.core.config import load_config
@@ -275,9 +276,12 @@ def _emit_task(event_type: str, task: dict, **extra) -> None:
 
 
 @router.get("/tasks")
-async def list_tasks(includeDisabled: bool = True):
+async def list_tasks(includeDisabled: bool = True, request: Request = None):
     """列出全部定时任务（含 nextFireAt / lastFireAt / lastStatus）。"""
     tasks = scheduler_store.list_tasks(include_disabled=includeDisabled)
+    if not await may_read_jobs(request):
+        from packages.jobs.action_runtime import is_action_job
+        tasks=[t for t in tasks if not is_action_job(scheduler_store._job_for_task(t['id']))]
     return _ok(tasks=[_public(t) for t in tasks])
 
 
@@ -332,11 +336,12 @@ async def create_task(data: dict):
 
 
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str):
+async def get_task(task_id: str, request: Request = None):
     """单个定时任务详情。"""
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
+    await require_job(request, scheduler_store._job_for_task(task_id))
     return _ok(task=_public(task))
 
 
@@ -464,18 +469,19 @@ async def run_task_now(task_id: str):
 
 
 @router.get("/tasks/{task_id}/runs")
-async def task_runs(task_id: str, limit: int = 100):
+async def task_runs(task_id: str, limit: int = 100, request: Request = None):
     """某任务的执行历史（runs.jsonl，最新在前）。"""
     if scheduler_store.get_task(task_id) is None:
         return _err("not_found", f"task {task_id} not found")
     if not isinstance(limit, int) or limit < 1 or limit > 500:
         return _err("invalid_argument", "limit must be between 1 and 500")
+    await require_job(request, scheduler_store._job_for_task(task_id))
     runs = scheduler_store.list_runs(task_id=task_id, limit=limit)
     return _ok(runs=[_public_run(r) for r in runs])
 
 
 @router.get("/next")
-async def next_preview(task_id: str | None = None, count: int = 5):
+async def next_preview(task_id: str | None = None, count: int = 5, request: Request = None):
     """下次触发时间预览（前端「下次运行」列用）。"""
     if not isinstance(count, int) or count < 1 or count > 20:
         return _err("invalid_argument", "count must be between 1 and 20")
@@ -483,6 +489,9 @@ async def next_preview(task_id: str | None = None, count: int = 5):
         return _err("not_found", f"task {task_id} not found")
     try:
         items = await scheduler_engine.preview_next(task_id=task_id, count=count)
+        if not await may_read_jobs(request):
+            from packages.jobs.action_runtime import is_action_job
+            items=[item for item in (items or []) if not is_action_job(scheduler_store._job_for_task(item.get('taskId', item.get('task_id'))))]
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     return _ok(next=items or [])

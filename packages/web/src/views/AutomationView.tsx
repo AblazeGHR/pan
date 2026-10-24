@@ -35,7 +35,8 @@ export default function AutomationView() {
     if (editor && !leaveGuard.current?.()) return;
     setEditor({ key: ++editorSequence.current, initial });
   }
-  useEffect(() => { void refresh(); }, [refresh]);
+  const authorizationToken = useAutomationAuth((state) => state.token);
+  useEffect(() => { void refresh(); }, [refresh, authorizationToken]);
   return <section aria-label="Automation management" className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div className="mx-auto max-w-5xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Events → Triggers → Actions</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void refresh(tab !== 'Runs')}>{tab === 'Runs' ? 'Refresh Runs' : 'Refresh'}</Button></div></header>
     {registryError && <p role="alert" className="text-sm text-danger">Action refresh failed: {registryError}. Cached Actions are retained.</p>}

@@ -205,7 +205,7 @@ async def test_api_bounded_pages_replay_authorization_and_dedup(tmp_path):
             assert (await client.post('/api/automation/events/replay',json={'eventIds':['api']},headers=auth)).status_code==200
             assert (await client.post('/api/automation/events/replay',json={'eventIds':['missing']},headers=auth)).status_code==409
             assert (await client.post('/api/automation/events',json={'source':'core'})).status_code==405
-            storage=(await client.get('/api/automation')).json()['storage']
+            storage=(await client.get('/api/automation',headers=auth)).json()['storage']
             assert storage['events']['events']==1
         await until(lambda:asyncio.sleep(0,result=svc.events.stats()['pending']==0))
         assert calls==['selected']

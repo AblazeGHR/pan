@@ -185,6 +185,11 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
 }
 
 async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$))/.test(url)) {
+    const { useAutomationAuth } = await import('@/stores/automationStore');
+    const token = useAutomationAuth.getState().token;
+    if (token) options = { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } };
+  }
   const finish = background ? () => {} : beginForegroundRequest();
   try { return await requestBody<T>(url, options, background); }
   finally { finish(); }
@@ -2589,7 +2594,7 @@ export async function updateActionJob(jobId: string, config: import('@/types/job
 }
 
 export interface CompleteJobTemplate {
-  id: string; name: string; description?: string; revision: number; enabled: boolean;
+  id: string; name: string; description?: string; revision: number; usable: boolean;
   config: import('@/types/jobs').UnifiedJobConfig;
 }
 

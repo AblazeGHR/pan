@@ -1,3 +1,4 @@
+from tests.support.authorization import authenticate_user_requests
 """Owned Node -> durable Event Store -> query -> Pause, replay and restart HTTP."""
 from dataclasses import asdict
 import json
@@ -21,7 +22,7 @@ def test_actual_running_event_persists_before_query_pause(tmp_path,monkeypatch):
 def test_node_durable_event_http_replay_restart_and_uncertain(tmp_path,monkeypatch):
     assert h.PORT not in {8767,8768}
     monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
-    rt=h._PanRuntime(tmp_path/'owned-store-profile');rt.data_root.mkdir()
+    rt=h._PanRuntime(tmp_path/'owned-store-profile'); authenticate_user_requests(rt);rt.data_root.mkdir()
     m=manifest();mf=tmp_path/'plugins.json'
     mf.write_text(json.dumps({'mcp_servers':[{k:v for k,v in asdict(s).items() if v is not None} for s in m.mcp_servers],'plugins':m.plugins}),encoding='utf-8')
     (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[str(mf)],'scheduler':{'enabled':False}}),encoding='utf-8')

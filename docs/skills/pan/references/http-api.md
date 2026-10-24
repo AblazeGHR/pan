@@ -578,3 +578,17 @@ User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Sessio
 全部用户入口复用运行中 Automation UserAuth（或受信宿主 principal verifier）；缺认证宿主=503，错/缺 Bearer=401，其他 recipient=404，绝不借用 MCP/Session 身份代答。schema/API/迁移/UI/运行时边界见 `docs/design/User-Inbox-Interaction-Card-Contract.md`。
 
 带 choice trigger 的创建由服务端产生不可变 `Card.trustedChoices[choiceId]`：固定 Trigger revision、Action digest、arguments、targetIds、authorization 和可信 operation 摘要。生产者不得提供该字段。范围外目标403；动态/不可证明目标或旧未绑定 choice 409 incomplete；定义变化409 stale。当前绑定只支持能证明 Session 范围的 explicit Session Operation；无 trigger 的普通卡片不受影响。前端显示可信摘要、目标和参数映射。提交通知 CLI JSON 包含 cardId、responseKind、可选 answer/choiceId、最多200字符 summaryBody；完整正文/附件不转发。unknown 只核对原回执，不能重新 submit。
+
+### Profile-wide Agent authorization (four objects)
+
+User Bearer management is independent of the profile-wide Agent grant matrix.
+`GET /api/automation/authorization` returns `authorizationRevision`/`permissions`;
+`PUT /api/automation/authorization/permissions` requires user Bearer and
+`{expectedRevision,permissions}`. Defaults are all false. The four objects are
+Trigger, Action, passive Job Template and Action-reference Job only.
+
+Core MCP `authorization_objects` and existing four-object draft tools use the
+existing private plugin IPC transport, never the user's password/Bearer or a
+self-reported HTTP identity header. Operation mappings, CAS, system immutability,
+revocation and fixture contracts are documented in
+[`Authorization-Profile-Agent-Matrix.md`](../../../design/Authorization-Profile-Agent-Matrix.md).

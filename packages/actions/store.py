@@ -186,18 +186,24 @@ class Store:
         self.root = Path(directory) if directory else root()
         self.path = self.root / 'registry.json'
 
-    def read(self):
+    def read(self, *, effective=True):
         if not self.path.exists():
             return {'revision': 0, 'actions': {}, 'groups': {}, 'retired_plugins': []}
         for attempt in range(10):
-            try:return json.loads(self.path.read_text(encoding='utf-8'))
+            try:
+                state = json.loads(self.path.read_text(encoding='utf-8'))
+                if effective:
+                    for aid, enabled in state.get('actionLifecycle', {}).items():
+                        if aid in state['actions']:
+                            state['actions'][aid]['enabled'] = enabled
+                return state
             except PermissionError as exc:
                 if attempt==9:raise PersistenceError('Action registry read failed: '+str(exc)) from exc
                 time.sleep(.01)
 
     def mutate(self, change, expected=None, *, versioned=True):
         with _lock:
-            state = self.read()
+            state = self.read(effective=False)
             if expected is not None and (type(expected) is not int or state['revision'] != expected):
                 raise ValueError('Action registry changed; reload before saving')
             result = change(state)
@@ -245,6 +251,21 @@ class Store:
                 revisions = state.setdefault('actionRevisions', {})
                 revisions[item['id']] = revisions.get(item['id'], 0)+1
             return copy.deepcopy(item)
+        return self.mutate(change, expected)
+
+    def set_enabled(self, aid, enabled, expected):
+        if type(enabled) is not bool or type(expected) is not int:
+            raise ValueError('Expected boolean enabled and integer revision')
+        def change(state):
+            if aid not in state['actions']:
+                raise ValueError('Action missing')
+            if state['actions'][aid].get('system'):
+                # Definition is untouched; only a separate lifecycle override.
+                state.setdefault('actionLifecycle', {})[aid] = enabled
+            else:
+                state['actions'][aid]['enabled'] = enabled
+            revisions = state.setdefault('actionRevisions', {})
+            revisions[aid] = revisions.get(aid, 0) + 1
         return self.mutate(change, expected)
 
     def validate_group(self, raw, state):

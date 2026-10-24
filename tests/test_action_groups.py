@@ -76,6 +76,17 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(srv.worker, 'find_alive_worker_by_session', lambda _: None)
     monkeypatch.setattr(srv, 'broadcast', AsyncMock())
     monkeypatch.setattr(srv.worker, 'request_delayed_restart', Mock())
+    from packages.automation.auth import UserAuth
+    auth = UserAuth(tmp_path / 'authorization')
+    token = auth.login(auth.key())
+    monkeypatch.setattr(srv.app.state, 'automation', SimpleNamespace(auth=auth), raising=False)
+    # These are user management regression tests, not delegated MCP calls.
+    # Default grants remain off; authenticate each owned ASGI client as user.
+    original_client = httpx.AsyncClient
+    def user_client(*args, **kwargs):
+        kwargs.setdefault('headers', {'Authorization': 'Bearer ' + token})
+        return original_client(*args, **kwargs)
+    monkeypatch.setattr(httpx, 'AsyncClient', user_client)
     _pins.clear()
     yield Store(), manager._manifest_config
     _pins.clear()

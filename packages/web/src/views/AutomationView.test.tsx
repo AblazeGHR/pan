@@ -64,7 +64,8 @@ async function openNew() {
   fireEvent.change(screen.getByLabelText('Action reference'), { target: { value: 'pause' } });
   return view;
 }
-it('creates a disabled serial draft without auth, OR Events and typed parameters, preserving draft across tabs', async () => {
+it('creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs', async () => {
+  useAutomationAuth.setState({ token: 'private-token', expiresAt: Date.now() + 60000 });
   await openNew();
   fireEvent.click(screen.getByLabelText('plugin.ready · Unavailable'));
   fireEvent.change(screen.getByLabelText('Parameter name'), { target: { value: 'message' } });
@@ -76,7 +77,7 @@ it('creates a disabled serial draft without auth, OR Events and typed parameters
   fireEvent.click(screen.getByRole('button', { name: 'Save disabled draft' }));
   await screen.findByText('Trigger saved.');
   expect(writes[0]!.body).toMatchObject({ expectedRevision: 0, item: { enabled: false, executionMode: 'serial', eventTypes: ['workers.all_idle', 'plugin.ready'], arguments: { message: { from: 'literal', value: 'kept' } } } });
-  expect(writes[0]!.init.headers).not.toHaveProperty('Authorization');
+  expect(writes[0]!.init.headers).toHaveProperty('Authorization', 'Bearer private-token');
 });
 it('requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft', async () => {
   await openNew();

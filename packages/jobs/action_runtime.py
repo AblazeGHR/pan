@@ -53,7 +53,8 @@ def config_job(root, intent):
         job.update(schedule=[],nextFireAt=None)
     job.update(jobId=intent['jobId'],config=copy.deepcopy(cfg),configRevision=1,
                referenceGeneration=intent['referenceGeneration'],creationFingerprint=intent['fingerprint'],
-               status='scheduled' if cfg['enabled'] else 'pending',creationEventPending=True)
+               status='scheduled' if cfg['enabled'] else 'pending',creationEventPending=True,
+               templateId=intent.get('templateId'), authorization=copy.deepcopy(intent.get('authorization', {'type':'user'})))
     if intent.get('templateId'):
         job.update(templateId=intent['templateId'],templateRevision=intent['templateRevision'])
     return job
@@ -68,12 +69,25 @@ class Runtime:
         self.tasks={};self.admissions={};self.closed=False;self.diagnostics=deque(maxlen=100);self.limit=5;self.cancelled=set()
         self.task_jobs={};self.admission_jobs={};self.authorization=None
 
-    async def _check_authorization(self, capability='execute', expected_revision=None):
+    async def _check_authorization(self, source, action=None, expected_revision=None, *, creating=False, enabled=False):
+        if source.get('type') != 'agent':
+            return None
         if self.authorization is None:
-            return 0
-        allowed, revision_value = await io(self.authorization, 'job', capability)
-        if not allowed or (expected_revision is not None and revision_value != expected_revision):
-            raise AuthorizationRevoked('Job authorization changed before effect admission')
+            raise AuthorizationRevoked('Delegated authorization unavailable')
+        capabilities = [('job','execute')]
+        if creating:
+            capabilities = [('jobTemplate','use'), ('job','create')]
+            if enabled:capabilities.append(('job','lifecycle'))
+        if action and action.get('system'):
+            capabilities.append(('action','manageSystemActions'))
+        revision_value = None
+        for kind, capability in capabilities:
+            allowed, current = await io(self.authorization, kind, capability)
+            if not allowed or (expected_revision is not None and current != expected_revision):
+                raise AuthorizationRevoked('Delegated authorization changed before effect admission')
+            if revision_value is not None and current != revision_value:
+                raise AuthorizationRevoked('Delegated authorization changed during admission')
+            revision_value = current
         return revision_value
 
     @staticmethod
@@ -120,6 +134,9 @@ class Runtime:
         result['integrity']=integrity(state,job['config'],job['referenceGeneration'])
         result['enabled']=(job['enabled'] and result['integrity']['status']=='complete' and not result['integrity']['approvalRequired'])
         result['config']['enabled']=result['enabled']
+        from .unified import project
+        result.pop('unified',None)
+        result['unified']=project(result)
         return result
 
     def list(self):
@@ -153,36 +170,42 @@ class Runtime:
         if intent['phase']=='reserved':self.templates.complete_intent(intent['key'])
         return self.view(old)
 
-    def create(self,raw,authorized=False):
+    def create(self,raw,authorized=False,authority=None):
         def change(state):
             cfg=config_value(raw,state)
+            if not state['actions'][cfg['actionId']]['enabled'] or state.get('actionLifecycle',{}).get(cfg['actionId']) is False:
+                raise Conflict('Action disabled; new Job refused')
             if cfg['enabled'] and not authorized:raise PermissionError('Agent may create disabled Job draft only')
             jid='job_'+uuid.uuid4().hex[:24];key=digest(jid)
             intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=generation(state,cfg['actionId']),
-                        fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root))
+                        fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root),
+                        authorization=copy.deepcopy(authority or {'type':'user'}))
             if len(state.setdefault('jobInstantiations',{}))>=10000:raise ValueError('Instantiation capacity reached')
             state['jobInstantiations'][key]=intent
             state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'position':'/config/actionId','jobRoot':str(self.root)}
             return copy.deepcopy(intent)
         return self.publish_intent(self.templates.transaction(change))
 
-    def instantiate(self,tid,expected,key,overrides=None,admitted_template=None):
+    def instantiate(self,tid,expected,key,overrides=None,admitted_template=None,authority=None):
         scoped=digest({'root':str(self.root),'key':key})
-        intent=self.templates.reserve(tid,expected,scoped,overrides,job_root=str(self.root),admitted_template=admitted_template)
+        intent=self.templates.reserve(tid,expected,scoped,overrides,job_root=str(self.root),admitted_template=admitted_template,authority=authority)
         return self.publish_intent(intent)
 
-    async def instantiate_action(self,action,key,fixed=None):
+    async def instantiate_action(self,action,key,fixed=None,authority=None,authorization_revision=None):
         ex=action['execution']
         if not action['enabled'] or ex['kind']!='job_template' or action['effect']!='write_local':
             raise PermissionError('Fixed template capability unavailable')
-        try:job=await io(self.instantiate,ex['templateId'],ex['templateRevision'],'action:'+action['id']+':'+key,None,fixed)
+        template=fixed or (await io(self.actions.read)).get('jobTemplates',{}).get(ex['templateId'],{})
+        await self._check_authorization(authority or {'type':'user'}, action, authorization_revision,
+                                        creating=True,enabled=template.get('config',{}).get('enabled',False))
+        try:job=await io(self.instantiate,ex['templateId'],ex['templateRevision'],'action:'+action['id']+':'+key,None,fixed,authority)
         except CreationPending as exc:
             from packages.automation.engine import PersistenceError
             raise PersistenceError(str(exc)) from exc
         return {'ok':True,'jobId':job['jobId'],'created':True,'jobCompleted':False,
                 'templateId':ex['templateId'],'templateRevision':ex['templateRevision']}
 
-    def update(self,jid,raw,expected,authorized=False):
+    def update(self,jid,raw,expected,authorized=False,authority=None):
         # Action reference validation/index is committed first; Job publication
         # validates its current revision under its own lock. Stale index entries
         # only conservatively require delete confirmation, never grant execution.
@@ -207,14 +230,17 @@ class Runtime:
             old=self.get(jid);revision(old['configRevision'],expected)
             maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
             if len(self.active(old))>maximum:raise Conflict('Active execution count exceeds new overlap limit')
-            intent={'jobId':jid,'config':cfg,'fingerprint':old['creationFingerprint'],'referenceGeneration':gen}
+            intent={'jobId':jid,'config':cfg,'fingerprint':old['creationFingerprint'],'referenceGeneration':gen,
+                    'authorization':copy.deepcopy(authority or {'type':'user'})}
             replacement=config_job(self.root,intent)
-            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible'):
+            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','runAuthorization','paused','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible'):
                 if key in old:replacement[key]=copy.deepcopy(old[key])
             if cfg['schedule']==old['config']['schedule']:
                 replacement['schedule']=copy.deepcopy(old['schedule'])
                 replacement['nextFireAt']=old.get('nextFireAt')
             if old['status'] in {'running','cleaning'}:replacement['status']=old['status']
+            if authority is not None and not self.active(old):
+                replacement['runAuthorization']=copy.deepcopy(authority)
             replacement['configRevision']=expected+1
             if not cfg['enabled']:replacement['pendingRuns']=[]
             jobs._write_job(jobs._job_path(jid,self.root),replacement)
@@ -225,7 +251,7 @@ class Runtime:
         self.templates.transaction(narrow)
         return self.view(replacement)
 
-    def claim(self,jid,eid,expected=None,entry=None,queued=None,confirmed=False):
+    def claim(self,jid,eid,expected=None,entry=None,queued=None,confirmed=False,authority=None,authorization_revision=None):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
             if expected is not None:revision(job['configRevision'],expected)
@@ -234,6 +260,7 @@ class Runtime:
             maximum=policy.get('parallelLimit',3) if policy.get('mode')=='parallel' else 1
             if len(active)>=maximum:raise Conflict('Job overlap capacity reached')
             if not job['enabled'] and not confirmed:raise Conflict('Job disabled')
+            if job.get('paused'):raise Conflict('Job paused')
             confirmation=job.get('recoveryConfirmation') if confirmed else None
             if confirmed and (not confirmation or confirmation.get('status')!='reserved' or confirmation['configRevision']!=job['configRevision']):
                 raise Conflict('Explicit recovery confirmation no longer current')
@@ -251,6 +278,8 @@ class Runtime:
             config=job['config']
             recovering=job.get('status')=='restarting' or confirmed
             if recovering and not confirmed and job.get('runRecoveryEligible') is not True:raise Conflict('Original Run lacks frozen recovery eligibility')
+            source=copy.deepcopy(authority or (job.get('runAuthorization') if recovering else None) or job.get('authorization', {'type':'user'}))
+            job['runAuthorization']=source
             if not recovering:
                 job['runPolicy']={key:copy.deepcopy(config[key]) for key in ('recovery','completion','notification')}
                 job['recoveryFailures']=0
@@ -261,7 +290,7 @@ class Runtime:
             attempt_id='attempt_'+uuid.uuid4().hex[:24]
             execution={'id':eid,'runId':run_id,'attemptId':attempt_id,'attemptCount':attempt_count,
                        'startedAt':time.time(),
-                       'policy':policy,
+                       'policy':policy,'authorization':source,'authorizationRevision':authorization_revision,
                        'jobRoot':str(self.root),'phase':'preparing','entryId':entry,'context':context,
                        'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
                        'templateRevision':job.get('templateRevision'),'backoffSec':0,
@@ -314,6 +343,7 @@ class Runtime:
             job.get('executionFinalizations',{}).pop(eid,None)
             job['activeExecutions']=active
             summary={'id':eid,'runId':execution_audit.get('runId') or job.get('runId'),'attemptId':execution_audit.get('attemptId'),
+                     'authorization':copy.deepcopy(execution_audit.get('authorization',{'type':'user'})),
                      'executionKind':execution_audit.get('executionKind'),'status':outcome['status'],'notificationPolicy':copy.deepcopy(execution_audit.get('policy',{}).get('notification',{})),**outcome['audit']}
             event_id=execution_audit.get('context',{}).get('eventId')
             if event_id:
@@ -375,6 +405,10 @@ class Runtime:
                             'status':summary['status']}):continue
                     delivered=True
                     for sid in configured.get('sessionIds',[]):
+                        try:
+                            await self._check_authorization(summary.get('authorization',job.get('authorization',{'type':'user'})))
+                        except AuthorizationRevoked:
+                            continue  # Suppressed after revocation; never replay a withdrawn notice.
                         import json
                         result=await jobs._worker.enqueue_notice(sid,json.dumps({'jobId':job['jobId'],'runId':summary.get('runId'),
                             'attemptId':summary.get('attemptId'),'status':summary['status']}),source='automation',
@@ -401,7 +435,7 @@ class Runtime:
                 try:await io(self.templates.checkpoint,eid,fields)
                 except Exception as exc:raise SnapshotPersistenceError(str(exc)) from exc
             progress.checkpoint={'id':job['execution']['runId'],**copy.deepcopy(job['execution'].get('recoveryCheckpoint',{}))}
-            progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'))
+            progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'),job['execution']['authorization'],job['execution'].get('authorizationRevision'))
             from .system_actions import execute as execute_system
             progress.execute_system=execute_system
             if job['execution']['attemptCount']>1 and job['config']['recovery']['enabled']:
@@ -416,7 +450,14 @@ class Runtime:
                 selection={'ids':selected['ids'],'candidateCount':selected['candidateCount']}
                 await progress(triggerTargetIds=selected['ids'],triggerSelection=selection)
                 snapshot['context']['jobSelection']=selection
-            await self._check_authorization('execute', job['execution'].get('authorizationRevision'))
+            async def before_effect():
+                current = (await io(self.actions.read))['actions'].get(snapshot['actionId'])
+                if not current or not current.get('enabled'):
+                    raise AuthorizationRevoked('Action disabled before effect admission')
+                await self._check_authorization(job['execution'].get('authorization', {'type':'user'}), current,
+                                                job['execution'].get('authorizationRevision'))
+            progress.before_effect = before_effect
+            await before_effect()
             result=await execute_dynamic(snapshot['definition'],snapshot['arguments'],snapshot['context'],progress,self.pause)
             checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
             audit.update(self.selection_audit(checkpoint))
@@ -527,15 +568,19 @@ class Runtime:
             await io(self.queue_event,event,target)
         await self.tick(await io(jobs._scheduled_task_config))
 
-    async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False):
+    async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False,authority=None):
         if self.closed:raise Conflict('Job runtime closed')
         if len(self.admissions)+sum(not t.done() for t in self.tasks.values())>=self.limit:
             raise Conflict('Shared scheduler dispatch capacity reached')
         eid='jexec_'+uuid.uuid4().hex
         self.admissions[eid]=asyncio.current_task();self.admission_jobs[eid]=jid
         try:
-            authorization_revision = await self._check_authorization('execute')
             before=await io(self.get,jid)
+            source = authority or (before.get('runAuthorization') if before.get('status')=='restarting' else None) or before.get('authorization', {'type':'user'})
+            action = (await io(self.actions.read))['actions'].get(before['config']['actionId'])
+            if not action or not action.get('enabled'):
+                raise Conflict('Action disabled or missing')
+            authorization_revision = await self._check_authorization(source, action)
             view=await io(self.view,before)
             if not view['enabled'] and not (confirmed and view['integrity']['status']=='complete' and not view['integrity']['approvalRequired']):raise Conflict('Job disabled, incomplete or requires user repair')
             if before['config']['trigger']['kind']=='event' and not all(getattr(self,'event_available',lambda _:True)(t) for t in before['config']['trigger']['eventTypes']):
@@ -544,15 +589,13 @@ class Runtime:
                 from .system_actions import recovery_ready
                 state=await io(self.actions.read)
                 if not await io(recovery_ready,state['actions'][before['config']['actionId']],before['config']['arguments']):raise Conflict('Recovery blocked by business gates; budget unchanged')
-            try:job=await io(self.claim,jid,eid,expected,entry,queued,confirmed)
+            try:job=await io(self.claim,jid,eid,expected,entry,queued,confirmed,source,authorization_revision)
             except Conflict as exc:
                 if queued is None and before['config']['overlap']['mode']=='queue' and 'overlap capacity' in str(exc):
                     waiting=await io(self.enqueue,jid,expected,entry)
                     await io(self.consume_entry,waiting,entry)
                     return await io(self.view,waiting)
                 raise
-            if job.get('execution'):
-                job['execution']['authorizationRevision'] = authorization_revision
             job=await io(self.consume_entry,job,entry)
             public=await io(self.view,job)
             if self.closed or eid in self.cancelled:raise asyncio.CancelledError()
@@ -603,7 +646,7 @@ class Runtime:
                     self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':'Queued Run configuration changed; cancelled'})
                     continue
                 try:await self.launch(job['jobId'],expected=job['configRevision'],queued=pending['id'])
-                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':str(exc)})
+                except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':str(exc)})
                 continue
             recovery=job.get('runPolicy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
             if job.get('status')=='restarting':
@@ -614,18 +657,18 @@ class Runtime:
                     continue
                 if job.get('nextAttemptAt',0)>time.time():continue
                 try:await self.launch(job['jobId'],expected=job.get('configRevision'))
-                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
+                except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                 continue
             if job['config']['trigger']['kind']=='immediate' and not job.get('runCount'):
                 try:await self.launch(job['jobId'])
-                except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
+                except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                 continue
             for entry in job.get('schedule',[]):
                 if entry.get('enabled',True) and jobs._entry_is_due(entry,datetime.now().replace(microsecond=0)):
                     if await io(self.skip_misfire,job,entry,cfg):
                         break
                     try:await self.launch(job['jobId'],entry=entry['id'])
-                    except (Conflict,ValueError) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
+                    except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                     break
 
     def finalize_recovery_exhausted(self,job):
@@ -706,6 +749,20 @@ class Runtime:
         self.templates.transaction(detach)
         return {'deleted':True,'jobId':jid}
 
+    def set_enabled(self,jid,enabled,expected,authority):
+        old=self.get(jid)
+        return self.update(jid,{**old['config'],'enabled':enabled},expected,True,authority)
+
+    def set_paused(self, jid, paused, expected, authority=None):
+        with jobs._lock, jobs._job_lock(jid, self.root):
+            job=self.get(jid); revision(job['configRevision'], expected)
+            job['paused']=paused; job['configRevision']+=1
+            if not paused and authority is not None:
+                job['authorization']=copy.deepcopy(authority)
+                if not self.active(job):job['runAuthorization']=copy.deepcopy(authority)
+            jobs._write_job(jobs._job_path(jid,self.root),job)
+        return self.view(job)
+
     async def cancel(self,jid,expected):
         def disable():
             with jobs._lock,jobs._job_lock(jid,self.root):
@@ -750,9 +807,14 @@ class Runtime:
             jobs._write_job(jobs._job_path(jid,self.root),job)
             return job
 
-    async def confirm_recovery(self,jid,expected,failed=False):
+    async def confirm_recovery(self,jid,expected,failed=False,authority=None):
+        current=await io(self.get,jid)
+        source=authority or current.get('runAuthorization') or current.get('authorization',{'type':'user'})
+        action=(await io(self.actions.read))['actions'].get(current['config']['actionId'])
+        if not action or not action.get('enabled'):raise Conflict('Action disabled or missing')
+        await self._check_authorization(source,action)
         job=await io(self.reserve_recovery,jid,expected,('failed',) if failed else ('uncertain','unknown'))
-        return await self.launch(jid,job['configRevision'],confirmed=True)
+        return await self.launch(jid,job['configRevision'],confirmed=True,authority=source)
 
     async def close(self):
         self.closed=True

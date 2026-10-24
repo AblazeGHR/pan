@@ -1,3 +1,4 @@
+import { useAutomationAuth } from '@/stores/automationStore';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Field, inputClass } from './ScheduleListEditor';
@@ -13,10 +14,10 @@ export function JobTemplateEditor({ actions, submitting, onCreate, onInstantiate
   onInstantiated: (job: Job) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const authorizationToken = useAutomationAuth((state) => state.token);
   const [templates, setTemplates] = useState<CompleteJobTemplate[]>([]);
   const [selected, setSelected] = useState('');
   const [mode, setMode] = useState<'job' | 'template'>('job');
-  const [templateEnabled, setTemplateEnabled] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState(false);
@@ -25,11 +26,11 @@ export function JobTemplateEditor({ actions, submitting, onCreate, onInstantiate
     void fetchCompleteJobTemplates().then((items) => { if (active) setTemplates(items); })
       .catch((e: unknown) => { if (active) setError(e instanceof Error ? e.message : 'Templates unavailable'); });
     return () => { active = false; };
-  }, []);
+  }, [authorizationToken]);
   const template = templates.find((item) => item.id === selected);
   const save = async (config: UnifiedJobConfig) => {
     if (mode === 'job') { await onCreate(config); return; }
-    const item = await saveCompleteJobTemplate({ ...(template ? { id: template.id } : {}), name: config.name, description: config.description, enabled: templateEnabled, config }, template?.revision ?? 0);
+    const item = await saveCompleteJobTemplate({ ...(template ? { id: template.id } : {}), name: config.name, description: config.description, config }, template?.revision ?? 0);
     setTemplates((items) => [...items.filter((old) => old.id !== item.id), item]); setSelected(item.id); setDraft(false);
     key.current = crypto.randomUUID(); // A confirmed new revision is a new intent.
   };
@@ -43,7 +44,7 @@ export function JobTemplateEditor({ actions, submitting, onCreate, onInstantiate
   const remove = async () => {
     if (!template || !window.confirm(`Delete Template ${template.name} revision ${template.revision}? Existing Jobs keep their copied configuration.`)) return;
     setBusy(true); setError('');
-    try { await deleteCompleteJobTemplate(template); setTemplates((items) => items.filter((item) => item.id !== template.id)); setSelected(''); setTemplateEnabled(false); setDraft(false); }
+    try { await deleteCompleteJobTemplate(template); setTemplates((items) => items.filter((item) => item.id !== template.id)); setSelected(''); setDraft(false); }
     catch (e) { setError(e instanceof Error ? e.message : 'Template deletion failed; reload revision'); }
     finally { setBusy(false); }
   };
@@ -54,11 +55,10 @@ export function JobTemplateEditor({ actions, submitting, onCreate, onInstantiate
     }}><option value="job">Job instance</option><option value="template">Complete Job Template</option></select></Field>
     <Field label="Complete Template"><select aria-label="Complete Template" className={inputClass} value={selected} onChange={(e) => {
       if (draft && !window.confirm('Discard unsaved changes and load the selected complete configuration?')) return;
-      setSelected(e.target.value); setTemplateEnabled(templates.find((item) => item.id === e.target.value)?.enabled ?? false); setDraft(false); key.current = crypto.randomUUID();
-    }}><option value="">New configuration</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name} · revision {item.revision}{item.enabled ? '' : ' · disabled'}</option>)}</select></Field>
-    {template && <><p className="text-xs text-text-secondary">Instantiate copies revision {template.revision} unchanged; Action stays a live reference. Editor changes are never applied to instantiate.</p><Button disabled={busy || submitting || !template.enabled || draft} onClick={() => void instantiate()}>Instantiate fixed Template</Button>{mode === 'template' && <Button disabled={busy || submitting || draft} onClick={() => void remove()}>Delete complete Template</Button>}</>}
+      setSelected(e.target.value); setDraft(false); key.current = crypto.randomUUID();
+    }}><option value="">New configuration</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name} · revision {item.revision}{item.usable ? '' : ' · incomplete'}</option>)}</select></Field>
+    {template && <><p className="text-xs text-text-secondary">Instantiate copies revision {template.revision} unchanged; Action stays a live reference. Editor changes are never applied to instantiate.</p><Button disabled={busy || submitting || !template.usable || draft} onClick={() => void instantiate()}>Instantiate fixed Template</Button>{mode === 'template' && <Button disabled={busy || submitting || draft} onClick={() => void remove()}>Delete complete Template</Button>}</>}
     {error && <p role="alert" className="text-xs text-danger break-words">{error}</p>}
-    {mode === 'template' && <><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={templateEnabled} onChange={(e) => { setTemplateEnabled(e.target.checked); setDraft(true); onDirtyChange?.(true); }} /> Enable Template instantiation capability</label><p className="text-xs text-text-secondary">Template authorization is separate from Job execution: the configuration below controls whether copied Job instances start enabled.</p></>}
     <div onChange={() => setDraft(true)}><UnifiedJobForm key={`${selected}:${template?.revision ?? 0}:${mode}`} initial={template?.config} expectedRevision={mode === 'template' ? template?.revision : undefined} actions={actions} submitting={submitting || busy} onSubmit={save} onDirtyChange={onDirtyChange} submitLabel={mode === 'template' ? 'Save complete Template' : 'Save unified Job'} /></div>
   </div>;
 }

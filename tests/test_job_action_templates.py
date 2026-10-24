@@ -55,8 +55,9 @@ def test_complete_fields_defaults_and_template_revision(tmp_path):
     store.put('actions',a);templates=Templates(store)
     with pytest.raises(ValueError):templates.put({'name':'hole','config':config()},0)
     t=templates.put({'name':'complete','config':{**config(),'enabled':False,'arguments':{'count':2}}},0)
-    assert not t['enabled'] and t['config']['arguments']=={'count':2,'tag':'fixed'}
-    with pytest.raises(PermissionError):templates.put({k:v for k,v in {**t,'enabled':True}.items() if k in {'id','name','enabled','config'}},1)
+    assert 'enabled' not in t and t['config']['arguments']=={'count':2,'tag':'fixed'}
+    with pytest.raises(ValueError, match='Unknown or invalid Job Template'):
+        templates.put({k:v for k,v in {**t,'enabled':True}.items() if k in {'id','name','enabled','config'}},1)
     with pytest.raises(Conflict):templates.put({'id':t['id'],'name':'stale','config':t['config']},0,True)
 
 
@@ -64,12 +65,12 @@ def test_complete_fields_defaults_and_template_revision(tmp_path):
 async def test_instantiate_copy_revision_display_only_and_idempotence(tmp_path):
     rt,_=await setup(tmp_path)
     try:
-        t=rt.templates.put({'name':'complete','enabled':True,'config':config()},0,True)
+        t=rt.templates.put({'name':'complete','config':config()},0,True)
         with ThreadPoolExecutor(max_workers=4) as pool:
             results=list(pool.map(lambda _:rt.instantiate(t['id'],1,'key',{'name':'instance'}),range(8)))
         assert len({r['jobId'] for r in results})==1
         job=results[0];assert job['templateRevision']==1 and job['config']['name']=='instance'
-        updated=rt.templates.put({'id':t['id'],'name':'edited','enabled':True,'config':{**config(),'name':'changed'}},1,True)
+        updated=rt.templates.put({'id':t['id'],'name':'edited','config':{**config(),'name':'changed'}},1,True)
         assert updated['revision']==2 and rt.get(job['jobId'])['config']['name']=='instance'
         assert rt.instantiate(t['id'],1,'key',{'name':'instance'})['jobId']==job['jobId']
         with pytest.raises(Conflict):rt.instantiate(t['id'],2,'key')
@@ -84,7 +85,7 @@ async def test_instantiate_copy_revision_display_only_and_idempotence(tmp_path):
 @async_test
 async def test_reserved_creation_recovers_after_template_delete_and_write_failure(tmp_path,monkeypatch):
     rt,_=await setup(tmp_path)
-    t=rt.templates.put({'name':'complete','enabled':True,'config':config()},0,True)
+    t=rt.templates.put({'name':'complete','config':config()},0,True)
     original=jobs._create
     def fail(*args,**kwargs):raise OSError('injected Job registry write failure')
     monkeypatch.setattr(jobs,'_create',fail)
@@ -104,14 +105,14 @@ async def test_reserved_creation_recovers_after_template_delete_and_write_failur
 @async_test
 async def test_template_edit_delete_while_job_write_blocked_uses_admitted_copy(tmp_path,monkeypatch):
     rt,_=await setup(tmp_path);entered,release=threading.Event(),threading.Event()
-    t=rt.templates.put({'name':'complete','enabled':True,'config':config()},0,True)
+    t=rt.templates.put({'name':'complete','config':config()},0,True)
     original=jobs._create
     def blocked(*args,**kwargs):entered.set();assert release.wait(3);return original(*args,**kwargs)
     monkeypatch.setattr(jobs,'_create',blocked)
     task=asyncio.create_task(asyncio.to_thread(rt.instantiate,t['id'],1,'interleaved'))
     try:
         assert await asyncio.to_thread(entered.wait,2)
-        changed=rt.templates.put({'id':t['id'],'name':'edited','enabled':True,'config':{**config(),'name':'new'}},1,True)
+        changed=rt.templates.put({'id':t['id'],'name':'edited','config':{**config(),'name':'new'}},1,True)
         rt.templates.delete(t['id'],changed['revision'])
         rt.actions.put('actions',{**action(),'id':'unrelated'})
         release.set();job=await task
@@ -270,7 +271,7 @@ async def test_fixed_template_action_capability_idempotence_and_group_gate(tmp_p
     from packages.actions.executor import execute_dynamic
     rt,_=await setup(tmp_path)
     try:
-        t=rt.templates.put({'name':'fixed','enabled':True,'config':{**config(),'enabled':False}},0,True)
+        t=rt.templates.put({'name':'fixed','config':{**config(),'enabled':False}},0,True)
         a={**action(),'id':'instantiate','execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
         with pytest.raises(PermissionError):rt.actions.put('actions',a)
         rt.actions.put('actions',a,authorized=True)
@@ -282,7 +283,7 @@ async def test_fixed_template_action_capability_idempotence_and_group_gate(tmp_p
         with pytest.raises(Exception):await execute_dynamic(a,{'text':'override'}, {},progress,rt.pause)
         rt.actions.put('groups',{'id':'g','name':'g','action_ids':['instantiate']})
         with pytest.raises(ValueError):rt.actions.build('g')
-        rt.templates.put({'id':t['id'],'name':'new intent','enabled':True,'config':{**config(),'name':'new','enabled':False}},1,True)
+        rt.templates.put({'id':t['id'],'name':'new intent','config':{**config(),'name':'new','enabled':False}},1,True)
         progress.checkpoint={'id':'a-later-run'}
         with pytest.raises(Conflict):await execute_dynamic(a,{}, {},progress,rt.pause)
         with pytest.raises(ValueError):validate_action({**a,'input_schema':{'type':'object','properties':{'x':{'type':'string'}},'additionalProperties':False}})
@@ -293,7 +294,7 @@ async def test_fixed_template_action_capability_idempotence_and_group_gate(tmp_p
 async def test_running_template_instantiation_uses_private_context_after_template_delete(tmp_path,monkeypatch):
     import packages.actions.executor as executor
     rt,_=await setup(tmp_path)
-    t=rt.templates.put({'name':'fixed','enabled':True,'config':{**config(),'enabled':False}},0,True)
+    t=rt.templates.put({'name':'fixed','config':{**config(),'enabled':False}},0,True)
     a={**action(),'id':'instantiate','execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
     rt.actions.put('actions',a,authorized=True)
     parent=rt.create({**config(),'actionId':'instantiate'},True)
@@ -314,17 +315,17 @@ async def test_running_template_instantiation_uses_private_context_after_templat
 async def test_reference_graph_cycle_rejected_and_template_restore_does_not_enable(tmp_path):
     rt,_=await setup(tmp_path)
     try:
-        t=rt.templates.put({'name':'fixed','enabled':True,'config':config()},0,True)
+        t=rt.templates.put({'name':'fixed','config':config()},0,True)
         loop={**action(),'execution':{'kind':'job_template','templateId':t['id'],'templateRevision':1}}
         with pytest.raises(ValueError,match='cycle'):rt.actions.put('actions',loop,authorized=True)
         rt.actions.delete('actions','pause',authorized=True,confirm_references=True)
         rt.actions.put('actions',action())
         view=rt.templates.list()[0]
-        assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['enabled']
-        fixed=rt.templates.put({'id':t['id'],'name':'fixed','enabled':True,'config':config()},1,True)
-        assert not fixed['enabled'] and fixed['revision']==2
-        enabled=rt.templates.put({'id':t['id'],'name':'fixed','enabled':True,'config':config()},2,True)
-        assert enabled['enabled']
+        assert view['integrity']['status']=='complete' and view['integrity']['approvalRequired'] and not view['usable']
+        fixed=rt.templates.put({'id':t['id'],'name':'fixed','config':config()},1,True)
+        assert fixed['revision']==2 and fixed['referenceGeneration']==rt.actions.read()['actionGenerations']['pause']
+        enabled=rt.templates.put({'id':t['id'],'name':'fixed','config':config()},2,True)
+        assert rt.templates.view(enabled, rt.actions.read())['usable']
     finally:await rt.close()
 
 
@@ -347,14 +348,15 @@ async def test_api_permissions_unknown_fields_legacy_aliases_and_repair(tmp_path
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://owned') as client:
             assert (await client.post('/api/jobs/action-jobs',json={'config':config()})).status_code==401
-            assert (await client.post('/api/jobs/action-jobs',json={'config':{**config(),'text':'inject'}})).status_code==400
-            draft=(await client.post('/api/jobs/action-jobs',json={'config':{**config(),'enabled':False}})).json()['job']
+            token=auth.login(auth.key());headers={'Authorization':'Bearer '+token}
+            assert (await client.post('/api/jobs/action-jobs',json={'config':{**config(),'text':'inject'}},headers=headers)).status_code==400
+            draft=(await client.post('/api/jobs/action-jobs',json={'config':{**config(),'enabled':False}},headers=headers)).json()['job']
             assert not draft['enabled']
             base='/api/jobs/action-jobs/'+draft['jobId']
             assert (await client.put(base,json={'config':config(),'expectedRevision':1})).status_code==401
-            assert (await client.post('/api/jobs/job-templates',json={'item':{'name':'x','enabled':True,'config':config()},'expectedRevision':0})).status_code==401
+            assert (await client.post('/api/jobs/job-templates',json={'item':{'name':'x','config':config()},'expectedRevision':0})).status_code==401
             token=(await client.post('/api/automation/login',json={'key':auth.key()})).json()['token'];headers={'Authorization':'Bearer '+token}
-            t=(await client.post('/api/jobs/job-templates',json={'item':{'name':'fixed','enabled':True,'config':config()},'expectedRevision':0},headers=headers)).json()['item']
+            t=(await client.post('/api/jobs/job-templates',json={'item':{'name':'fixed','config':config()},'expectedRevision':0},headers=headers)).json()['item']
             endpoint='/api/jobs/job-templates/'+t['id']+'/instantiate'
             body={'expectedRevision':1,'idempotencyKey':'http-key'}
             assert (await client.post(endpoint,json=body)).status_code==401
@@ -368,7 +370,7 @@ async def test_api_permissions_unknown_fields_legacy_aliases_and_repair(tmp_path
             assert not (await client.delete('/api/jobs/'+first['jobId'])).json()['ok']
             assert (await client.delete('/api/actions/actions/pause')).status_code==401
             assert (await client.delete('/api/actions/actions/pause?confirmReferences=true',headers=headers)).status_code==200
-            incomplete=(await client.get('/api/jobs/action-jobs')).json()['jobs']
+            incomplete=(await client.get('/api/jobs/action-jobs',headers=headers)).json()['jobs']
             assert all(j['integrity']['status']=='incomplete' for j in incomplete)
             rt.actions.put('actions',action())
             repaired=(await client.put(base,json={'config':config(),'expectedRevision':1},headers=headers)).json()['job']
@@ -514,6 +516,12 @@ async def test_disabled_and_high_risk_action_gates_block_job_effects(tmp_path):
         import sys
         for patch in ({'enabled':False},{'effect':'high_risk','execution':{'kind':'command','executable':sys.executable,'args':['-c','raise RuntimeError("must never execute")'],'cwd':str(tmp_path)}}):
             rt.actions.put('actions',{**action(),**patch})
-            await rt.launch(job['jobId'],1);await finished(rt,job['jobId'],'failed')
+            if patch.get('enabled') is False:
+                before=len(rt.get(job['jobId']).get('attempts',[]))
+                with pytest.raises(Conflict,match='Action disabled'):
+                    await rt.launch(job['jobId'],1)
+                assert len(rt.get(job['jobId']).get('attempts',[]))==before
+            else:
+                await rt.launch(job['jobId'],1);await finished(rt,job['jobId'],'failed')
             assert not calls and not rt.actions.read().get('jobExecutions')
     finally:await rt.close()
