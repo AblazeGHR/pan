@@ -3043,6 +3043,8 @@ def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
         return pan_bridge.public_job(pan_bridge.request("cancel", job_id))
     if job.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
         return cancel_message(job_id, registry_root)
+    if job.get("status") in {"cleanup_pending", "deleting"}:
+        raise ValueError("cannot safely cancel: deletion cleanup pending; use explicit DELETE to recheck")
     if job.get("status") in {"completed", "failed", "cancelled"}:
         return job
     proc = _owns_process(job)
@@ -3057,6 +3059,8 @@ def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
     with _lock, _job_lock(job_id, registry_root):
         current = _load_path(_job_path(job_id, registry_root))
         if not current: raise ValueError("job not found")
+        if current.get("status") in {"cleanup_pending", "deleting"}:
+            raise ValueError("cannot safely cancel: deletion cleanup pending")
         if current.get("status") in {"completed", "failed", "cancelled"}: return current
         current["cancelRequestedAt"] = time.time()
         _write_job(_job_path(job_id, registry_root), current)
@@ -3068,6 +3072,8 @@ def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
         current = _load_path(_job_path(job_id, registry_root))
         if not current:
             raise ValueError("job not found")
+        if current.get("status") in {"cleanup_pending", "deleting"}:
+            raise ValueError("cannot safely cancel: deletion cleanup pending")
         if current.get("status") in {"completed", "failed", "cancelled"}:
             return current
         current.update(status="cancelled", exitCode=None, updatedAt=time.time(),

@@ -275,3 +275,21 @@ def test_spawn_wait_does_not_block_unrelated_job(monkeypatch,tree):
         release.set()
         with pytest.raises(ValueError,match='test spawn rejected'):
             spawning.result(timeout=3)
+
+
+@pytest.mark.parametrize('phase',['before','during_probe','during_kill'])
+def test_cancel_cannot_turn_unconfirmed_delete_into_terminal(monkeypatch,tree,phase):
+    processes,_,record=tree
+    if phase=='before':record['status']='cleanup_pending'
+    jobs._save(record)
+    def mark():jobs._update(record['jobId'],{'status':'cleanup_pending'})
+    def probe(data):
+        if phase=='during_probe':mark()
+        return processes[10]
+    def kill(proc):
+        if phase=='during_kill':mark()
+    monkeypatch.setattr(jobs,'_owns_process',probe)
+    monkeypatch.setattr(jobs,'_kill_tree',kill)
+    with pytest.raises(ValueError,match='cleanup pending'):
+        jobs.cancel(record['jobId'])
+    assert jobs.get(record['jobId'])['status']=='cleanup_pending'
