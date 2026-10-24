@@ -13,7 +13,7 @@ and user processes were not touched.
 - Worktree: `D:/project/pan-worktrees/report-prompt-reference-20261025`.
 - Fixed baseline: `be46c1448a0a0e157d21fc0a9b0722c3411e6ec1` (main/practical unchanged; not moved).
 - Product/test/docs commit: `55fb6c0cc1d2d8691dbd81db0e37d63b2c0df24f`.
-- The evidence-only commit that follows this README is the deliverable tip; obtain it with `git rev-parse HEAD`.
+- This evidence-only commit is the deliverable tip; confirm it with `git rev-parse HEAD`.
 
 ## Behavior delivered
 
