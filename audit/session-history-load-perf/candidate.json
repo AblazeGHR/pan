@@ -1,0 +1,132 @@
+{
+  "label": "candidate",
+  "repeat": 3,
+  "sourceSha": "dea32a43b573eaaba83cb91eb0e773a491f39475",
+  "dirty": [
+    "M audit/session-history-load-perf/baseline.browser.json",
+    " M audit/session-history-load-perf/baseline.json",
+    " M audit/session-history-load-perf/candidate.browser.json",
+    " M audit/session-history-load-perf/candidate.json",
+    " M audit/session-history-load-perf/measure.py",
+    " M packages/web/e2e/session-load-perf.mjs",
+    " M packages/web/e2e/verify-precompressed-assets.mjs",
+    " M packages/web/vite.config.ts"
+  ],
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-o9v2p2e9\\data",
+  "dataset": {
+    "sessions": 31,
+    "rows": 76000,
+    "bytes": 13745527,
+    "seedSeconds": 0.35
+  },
+  "browser": {
+    "medians": {
+      "cold-fast": {
+        "listMs": 191.1,
+        "historyMs": 56.1,
+        "navToHistoryMs": 273,
+        "largeHistoryMs": 39.3,
+        "switchBackMs": 22.5,
+        "fcpMs": 88,
+        "lcpMs": null,
+        "loadMs": 125,
+        "navRequests": 42,
+        "navBytes": 554255,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-fast": {
+        "listMs": 103.3,
+        "historyMs": 53.6,
+        "navToHistoryMs": 178,
+        "largeHistoryMs": 34.6,
+        "switchBackMs": 13.5,
+        "fcpMs": 44,
+        "lcpMs": null,
+        "loadMs": 22,
+        "navRequests": 42,
+        "navBytes": 9416,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "cold-weak": {
+        "listMs": 2714.5,
+        "historyMs": 985.5,
+        "navToHistoryMs": 3729,
+        "largeHistoryMs": 326.4,
+        "switchBackMs": 22.7,
+        "fcpMs": 1440,
+        "lcpMs": null,
+        "loadMs": 2813,
+        "navRequests": 36,
+        "navBytes": 540227,
+        "historyRequests": 12,
+        "historyBytes": 11237,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-weak": {
+        "listMs": 434.2,
+        "historyMs": 340.3,
+        "navToHistoryMs": 804,
+        "largeHistoryMs": 191,
+        "switchBackMs": 25.7,
+        "fcpMs": 228,
+        "lcpMs": null,
+        "loadMs": 199,
+        "navRequests": 43,
+        "navBytes": 19061,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "cold-weak-think": {
+        "listMs": 2723.5,
+        "historyMs": 223.1,
+        "navToHistoryMs": 4182,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 1468,
+        "lcpMs": null,
+        "loadMs": 2844,
+        "navRequests": 35,
+        "navBytes": 538617,
+        "historyRequests": 8,
+        "historyBytes": 2341,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      },
+      "cold-fontfail": {
+        "listMs": 191.3,
+        "historyMs": 56.2,
+        "navToHistoryMs": 293,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 100,
+        "lcpMs": null,
+        "loadMs": 97,
+        "navRequests": 39,
+        "navBytes": 502359,
+        "historyRequests": 8,
+        "historyBytes": 2924,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      }
+    },
+    "dist": {
+      "source": "D:\\tmp\\pan-abl\\v1",
+      "indexSha256": "a7411e9586de05a6",
+      "jsCssAssets": 61,
+      "tinyAssets": 24
+    },
+    "raw": "candidate.browser.json"
+  },
+  "cleanup": {
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-candidate-o9v2p2e9"
+  }
+}

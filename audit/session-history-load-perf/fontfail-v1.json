@@ -1,0 +1,53 @@
+{
+  "label": "fontfail-v1",
+  "repeat": 3,
+  "sourceSha": "dea32a43b573eaaba83cb91eb0e773a491f39475",
+  "dirty": [
+    "M audit/session-history-load-perf/REPORT.md",
+    " M audit/session-history-load-perf/baseline.browser.json",
+    " M audit/session-history-load-perf/baseline.json",
+    " M audit/session-history-load-perf/candidate.browser.json",
+    " M audit/session-history-load-perf/candidate.json",
+    " M audit/session-history-load-perf/measure.py",
+    " M packages/web/e2e/session-load-perf.mjs",
+    " M packages/web/e2e/verify-precompressed-assets.mjs",
+    " M packages/web/vite.config.ts"
+  ],
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-fontfail-v1-ab4us2p5\\data",
+  "dataset": {
+    "sessions": 31,
+    "rows": 76000,
+    "bytes": 13745527,
+    "seedSeconds": 0.33
+  },
+  "browser": {
+    "medians": {
+      "cold-fontfail": {
+        "listMs": 194.8,
+        "historyMs": 64,
+        "navToHistoryMs": 293,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 100,
+        "lcpMs": null,
+        "loadMs": 99,
+        "navRequests": 39,
+        "navBytes": 502103,
+        "historyRequests": 8,
+        "historyBytes": 2923,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      }
+    },
+    "dist": {
+      "source": "D:\\tmp\\pan-abl\\v1",
+      "indexSha256": "a7411e9586de05a6",
+      "jsCssAssets": 61,
+      "tinyAssets": 24
+    },
+    "raw": "fontfail-v1.browser.json"
+  },
+  "cleanup": {
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-fontfail-v1-ab4us2p5"
+  }
+}

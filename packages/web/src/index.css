@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* The Inter webfont loads from index.html as a non-blocking stylesheet. A CSS
+   @import here would gate CSSOM — and therefore module execution and the first
+   data read — on a third-party round trip. */
 @import 'tailwindcss';
 
 .sidebar-selection-bar {

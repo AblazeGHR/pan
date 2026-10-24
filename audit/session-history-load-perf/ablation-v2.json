@@ -1,0 +1,133 @@
+{
+  "label": "ablation-v2",
+  "repeat": 3,
+  "sourceSha": "dea32a43b573eaaba83cb91eb0e773a491f39475",
+  "dirty": [
+    "M audit/session-history-load-perf/REPORT.md",
+    " M audit/session-history-load-perf/baseline.browser.json",
+    " M audit/session-history-load-perf/baseline.json",
+    " M audit/session-history-load-perf/candidate.browser.json",
+    " M audit/session-history-load-perf/candidate.json",
+    " M audit/session-history-load-perf/measure.py",
+    " M packages/web/e2e/session-load-perf.mjs",
+    " M packages/web/e2e/verify-precompressed-assets.mjs",
+    " M packages/web/vite.config.ts"
+  ],
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-ablation-v2-ef9sdac1\\data",
+  "dataset": {
+    "sessions": 31,
+    "rows": 76000,
+    "bytes": 13745527,
+    "seedSeconds": 0.33
+  },
+  "browser": {
+    "medians": {
+      "cold-fast": {
+        "listMs": 169.1,
+        "historyMs": 53.6,
+        "navToHistoryMs": 263,
+        "largeHistoryMs": 30.5,
+        "switchBackMs": 15.9,
+        "fcpMs": 104,
+        "lcpMs": null,
+        "loadMs": 144,
+        "navRequests": 29,
+        "navBytes": 543047,
+        "historyRequests": 8,
+        "historyBytes": 2926,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-fast": {
+        "listMs": 127,
+        "historyMs": 51.2,
+        "navToHistoryMs": 198,
+        "largeHistoryMs": 31.5,
+        "switchBackMs": 14.2,
+        "fcpMs": 48,
+        "lcpMs": null,
+        "loadMs": 22,
+        "navRequests": 33,
+        "navBytes": 9504,
+        "historyRequests": 8,
+        "historyBytes": 2926,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "cold-weak": {
+        "listMs": 2337.4,
+        "historyMs": 1318.3,
+        "navToHistoryMs": 3679,
+        "largeHistoryMs": 309.6,
+        "switchBackMs": 29.3,
+        "fcpMs": 1472,
+        "lcpMs": null,
+        "loadMs": 2819,
+        "navRequests": 27,
+        "navBytes": 533986,
+        "historyRequests": 12,
+        "historyBytes": 11167,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "warm-weak": {
+        "listMs": 542.9,
+        "historyMs": 226.3,
+        "navToHistoryMs": 799,
+        "largeHistoryMs": 276.7,
+        "switchBackMs": 26.9,
+        "fcpMs": 212,
+        "lcpMs": null,
+        "loadMs": 188,
+        "navRequests": 32,
+        "navBytes": 16388,
+        "historyRequests": 8,
+        "historyBytes": 2926,
+        "switchBackRequests": 0,
+        "switchBackBytes": 0
+      },
+      "cold-weak-think": {
+        "listMs": 2311.1,
+        "historyMs": 222.3,
+        "navToHistoryMs": 3810,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 1468,
+        "lcpMs": null,
+        "loadMs": 2811,
+        "navRequests": 27,
+        "navBytes": 533986,
+        "historyRequests": 8,
+        "historyBytes": 1720,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      },
+      "cold-fontfail": {
+        "listMs": 165.3,
+        "historyMs": 62.6,
+        "navToHistoryMs": 251,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "fcpMs": 92,
+        "lcpMs": null,
+        "loadMs": 90,
+        "navRequests": 31,
+        "navBytes": 496891,
+        "historyRequests": 13,
+        "historyBytes": 7935,
+        "switchBackRequests": null,
+        "switchBackBytes": null
+      }
+    },
+    "dist": {
+      "source": "D:\\tmp\\pan-abl\\v2",
+      "indexSha256": "b3865fd590151030",
+      "jsCssAssets": 49,
+      "tinyAssets": 11
+    },
+    "raw": "ablation-v2.browser.json"
+  },
+  "cleanup": {
+    "workRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-perf-ablation-v2-ef9sdac1"
+  }
+}

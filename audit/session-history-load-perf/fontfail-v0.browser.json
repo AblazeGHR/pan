@@ -1,0 +1,1880 @@
+{
+  "baseUrl": "http://127.0.0.1:56753",
+  "runs": 3,
+  "throttle": {
+    "offline": false,
+    "latency": 150,
+    "downloadThroughput": 209715,
+    "uploadThroughput": 96000
+  },
+  "scenarios": {
+    "cold-fontfail": [
+      {
+        "paints": {
+          "fcpMs": 240,
+          "lcpMs": null,
+          "domContentLoadedMs": 187,
+          "loadMs": 236
+        },
+        "uiChecks": {
+          "cards": 31,
+          "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          "fontFaces": 0,
+          "fontStatus": "loaded"
+        },
+        "marks": {
+          "listMs": 1793.5999999940395,
+          "history": {
+            "clickAt": 1820.0999999940395,
+            "rowsAt": 1885.7000000029802,
+            "ms": 65.6000000089407
+          },
+          "large": null,
+          "back": null
+        },
+        "listMs": 1793.5999999940395,
+        "historyMs": 65.6000000089407,
+        "navToHistoryMs": 1886,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "phases": {
+          "nav": {
+            "count": 42,
+            "bytes": 506804,
+            "scriptCount": 25,
+            "tinyCount": 17,
+            "apiCount": 13,
+            "thirdParty": [
+              "https://fonts.googleapis.com/css2:0"
+            ],
+            "thirdPartyFailed": [
+              "https://fonts.googleapis.com/css2:net::ERR_FAILED"
+            ],
+            "failed": [
+              "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            ]
+          },
+          "history": {
+            "count": 8,
+            "bytes": 2924,
+            "scriptCount": 0,
+            "tinyCount": 0,
+            "apiCount": 8,
+            "thirdParty": [],
+            "thirdPartyFailed": [],
+            "failed": []
+          },
+          "largeHistory": null,
+          "switchBack": null
+        },
+        "timeline": [
+          {
+            "url": "/react/",
+            "type": "Document",
+            "method": "GET",
+            "status": 200,
+            "bytes": 867,
+            "cached": false,
+            "failed": null,
+            "startMs": 0.5,
+            "endMs": 14.5
+          },
+          {
+            "url": "/react/assets/index-Ds_znnYB-pc2.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 110009,
+            "cached": false,
+            "failed": null,
+            "startMs": 14.5,
+            "endMs": 165.5
+          },
+          {
+            "url": "/react/assets/react-vendor-DZ42Ocw1.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 86983,
+            "cached": false,
+            "failed": null,
+            "startMs": 14.5,
+            "endMs": 164.5
+          },
+          {
+            "url": "/react/assets/index-t1BeNpq3.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 17901,
+            "cached": false,
+            "failed": null,
+            "startMs": 14.5,
+            "endMs": 160.5
+          },
+          {
+            "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": null,
+            "bytes": 0,
+            "cached": false,
+            "failed": "net::ERR_FAILED",
+            "startMs": 160.5,
+            "endMs": 161.5
+          },
+          {
+            "url": "/react/assets/ChatView-oGGRlTgq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 66720,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/nativeControlStore-C5JrRQBA.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1875,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 233.5
+          },
+          {
+            "url": "/react/assets/codexRateLimits-D0VsjuO0.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1457,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 233.5
+          },
+          {
+            "url": "/react/assets/clipboard-Bka3b3-h.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 970,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/copy-CECilNGY.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 810,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/download-8GQKKMnN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 815,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-B24k7XkR.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 11851,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/editorFileLinks-DrlOhaen.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2025,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 234.5
+          },
+          {
+            "url": "/react/assets/markdown-vendor-B3UHhm0a.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 162837,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 239.5
+          },
+          {
+            "url": "/react/assets/file-D2J1Y0vN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 849,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 235.5
+          },
+          {
+            "url": "/react/assets/check-DHafOm5c.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 699,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 235.5
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-BEHUn5zE.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 926,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 231.5
+          },
+          {
+            "url": "/react/assets/MessageTimestamp-CidapqOq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1075,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 238.5
+          },
+          {
+            "url": "/react/assets/user-round-CHiT6cwV.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 762,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 238.5
+          },
+          {
+            "url": "/react/assets/external-link-D9iwFKt-.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 839,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 238.5
+          },
+          {
+            "url": "/react/assets/play-MLK5PRXr.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 769,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 241.5
+          },
+          {
+            "url": "/react/assets/pause-DDJ_AHLy.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 791,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 301.5
+          },
+          {
+            "url": "/react/assets/FreshnessStatus-B84S4JfO.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 971,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 1748.5
+          },
+          {
+            "url": "/react/assets/DirectoryInput-Cv65ZtVS.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2218,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 1748.5
+          },
+          {
+            "url": "/react/assets/terminal-DfNNVWGw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1221,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 1749.5
+          },
+          {
+            "url": "/api/settings/ui",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 719,
+            "cached": false,
+            "failed": null,
+            "startMs": 189.5,
+            "endMs": 242.5
+          },
+          {
+            "url": "/api/workspaces",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 230,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 301.5
+          },
+          {
+            "url": "/api/cli/status",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1997,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 302.5
+          },
+          {
+            "url": "/api/main/startup-recovery",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 458,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 309.5
+          },
+          {
+            "url": "/api/plugins/panels",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 679,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 309.5
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 1782.5
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 231.5,
+            "endMs": 1748.5
+          },
+          {
+            "url": "/api/adapters",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 806,
+            "cached": false,
+            "failed": null,
+            "startMs": 238.5,
+            "endMs": 1748.5
+          },
+          {
+            "url": "/api/adapter/config?adapter=cbc",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1693,
+            "cached": false,
+            "failed": null,
+            "startMs": 238.5,
+            "endMs": 1783.5
+          },
+          {
+            "url": "/react/assets/automationStore-CA8MJGyZ.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3058,
+            "cached": false,
+            "failed": null,
+            "startMs": 238.5,
+            "endMs": 1782.5
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 251.5,
+            "endMs": 1783.5
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 251.5,
+            "endMs": 1781.5
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 350.5,
+            "endMs": 1783.5
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 350.5,
+            "endMs": 1781.5
+          },
+          {
+            "url": "/react/assets/SessionHistorySearch-DBkM9X4x.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 5208,
+            "cached": false,
+            "failed": null,
+            "startMs": 1771.5,
+            "endMs": 1782.5
+          },
+          {
+            "url": "/react/assets/GlobalHistorySearch-DuqsmIiD.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 4099,
+            "cached": false,
+            "failed": null,
+            "startMs": 1771.5,
+            "endMs": 1782.5
+          },
+          {
+            "url": "/react/assets/globe-CIb3vFuw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 817,
+            "cached": false,
+            "failed": null,
+            "startMs": 1771.5,
+            "endMs": 1803.5
+          },
+          {
+            "url": "/api/jobs",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 266,
+            "cached": false,
+            "failed": null,
+            "startMs": 1803.5,
+            "endMs": 1815.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/history?before=0&limit=50",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 881,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1854.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1851.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/native-control",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 403,
+            "bytes": 268,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1844.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/delayed-restart",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 236,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1852.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/queue",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 290,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1852.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1852.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/draft",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 274,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1898.5
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/bookmarks",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 309,
+            "cached": false,
+            "failed": null,
+            "startMs": 1840.5,
+            "endMs": 1898.5
+          }
+        ]
+      },
+      {
+        "paints": {
+          "fcpMs": 96,
+          "lcpMs": null,
+          "domContentLoadedMs": 47,
+          "loadMs": 96
+        },
+        "uiChecks": {
+          "cards": 31,
+          "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          "fontFaces": 0,
+          "fontStatus": "loaded"
+        },
+        "marks": {
+          "listMs": 176.29999999701977,
+          "history": {
+            "clickAt": 204.6000000089407,
+            "rowsAt": 267.20000000298023,
+            "ms": 62.599999994039536
+          },
+          "large": null,
+          "back": null
+        },
+        "listMs": 176.29999999701977,
+        "historyMs": 62.599999994039536,
+        "navToHistoryMs": 267,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "phases": {
+          "nav": {
+            "count": 39,
+            "bytes": 502337,
+            "scriptCount": 25,
+            "tinyCount": 17,
+            "apiCount": 11,
+            "thirdParty": [
+              "https://fonts.googleapis.com/css2:0"
+            ],
+            "thirdPartyFailed": [
+              "https://fonts.googleapis.com/css2:net::ERR_FAILED"
+            ],
+            "failed": [
+              "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            ]
+          },
+          "history": {
+            "count": 8,
+            "bytes": 2924,
+            "scriptCount": 0,
+            "tinyCount": 0,
+            "apiCount": 8,
+            "thirdParty": [],
+            "thirdPartyFailed": [],
+            "failed": []
+          },
+          "largeHistory": null,
+          "switchBack": null
+        },
+        "timeline": [
+          {
+            "url": "/react/",
+            "type": "Document",
+            "method": "GET",
+            "status": 200,
+            "bytes": 867,
+            "cached": false,
+            "failed": null,
+            "startMs": -0.199951171875,
+            "endMs": 7.800048828125
+          },
+          {
+            "url": "/react/assets/index-Ds_znnYB-pc2.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 110009,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.800048828125,
+            "endMs": 23.800048828125
+          },
+          {
+            "url": "/react/assets/react-vendor-DZ42Ocw1.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 86983,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.800048828125,
+            "endMs": 23.800048828125
+          },
+          {
+            "url": "/react/assets/index-t1BeNpq3.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 17901,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.800048828125,
+            "endMs": 18.800048828125
+          },
+          {
+            "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": null,
+            "bytes": 0,
+            "cached": false,
+            "failed": "net::ERR_FAILED",
+            "startMs": 18.800048828125,
+            "endMs": 19.800048828125
+          },
+          {
+            "url": "/react/assets/ChatView-oGGRlTgq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 66720,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 91.800048828125
+          },
+          {
+            "url": "/react/assets/nativeControlStore-C5JrRQBA.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1875,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 91.800048828125
+          },
+          {
+            "url": "/react/assets/codexRateLimits-D0VsjuO0.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1457,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 91.800048828125
+          },
+          {
+            "url": "/react/assets/clipboard-Bka3b3-h.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 970,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 92.800048828125
+          },
+          {
+            "url": "/react/assets/copy-CECilNGY.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 810,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 92.800048828125
+          },
+          {
+            "url": "/react/assets/download-8GQKKMnN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 815,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 92.800048828125
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-B24k7XkR.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 11851,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 92.800048828125
+          },
+          {
+            "url": "/react/assets/editorFileLinks-DrlOhaen.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2025,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/markdown-vendor-B3UHhm0a.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 162837,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 94.800048828125
+          },
+          {
+            "url": "/react/assets/file-D2J1Y0vN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 849,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/check-DHafOm5c.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 699,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-BEHUn5zE.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 926,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 91.800048828125
+          },
+          {
+            "url": "/react/assets/MessageTimestamp-CidapqOq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1075,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/user-round-CHiT6cwV.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 762,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/external-link-D9iwFKt-.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 839,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 93.800048828125
+          },
+          {
+            "url": "/react/assets/play-MLK5PRXr.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 769,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 94.800048828125
+          },
+          {
+            "url": "/react/assets/pause-DDJ_AHLy.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 791,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 94.800048828125
+          },
+          {
+            "url": "/react/assets/FreshnessStatus-B84S4JfO.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 971,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 94.800048828125
+          },
+          {
+            "url": "/react/assets/DirectoryInput-Cv65ZtVS.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2218,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 95.800048828125
+          },
+          {
+            "url": "/react/assets/terminal-DfNNVWGw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1221,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 95.800048828125
+          },
+          {
+            "url": "/api/settings/ui",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 719,
+            "cached": false,
+            "failed": null,
+            "startMs": 47.800048828125,
+            "endMs": 96.800048828125
+          },
+          {
+            "url": "/api/workspaces",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 230,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 100.800048828125
+          },
+          {
+            "url": "/api/cli/status",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1997,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 138.800048828125
+          },
+          {
+            "url": "/api/main/startup-recovery",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 458,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 143.800048828125
+          },
+          {
+            "url": "/api/plugins/panels",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 679,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 143.800048828125
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 163.800048828125
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 89.800048828125,
+            "endMs": 152.800048828125
+          },
+          {
+            "url": "/api/adapters",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 806,
+            "cached": false,
+            "failed": null,
+            "startMs": 97.800048828125,
+            "endMs": 156.800048828125
+          },
+          {
+            "url": "/api/adapter/config?adapter=cbc",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1693,
+            "cached": false,
+            "failed": null,
+            "startMs": 97.800048828125,
+            "endMs": 159.800048828125
+          },
+          {
+            "url": "/react/assets/automationStore-CA8MJGyZ.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3058,
+            "cached": false,
+            "failed": null,
+            "startMs": 97.800048828125,
+            "endMs": 176.800048828125
+          },
+          {
+            "url": "/react/assets/SessionHistorySearch-DBkM9X4x.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 5208,
+            "cached": false,
+            "failed": null,
+            "startMs": 124.800048828125,
+            "endMs": 176.800048828125
+          },
+          {
+            "url": "/react/assets/GlobalHistorySearch-DuqsmIiD.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 4099,
+            "cached": false,
+            "failed": null,
+            "startMs": 124.800048828125,
+            "endMs": 188.800048828125
+          },
+          {
+            "url": "/react/assets/globe-CIb3vFuw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 817,
+            "cached": false,
+            "failed": null,
+            "startMs": 124.800048828125,
+            "endMs": 176.800048828125
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 155.800048828125,
+            "endMs": 166.800048828125
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 155.800048828125,
+            "endMs": 164.800048828125
+          },
+          {
+            "url": "/api/jobs",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 266,
+            "cached": false,
+            "failed": null,
+            "startMs": 177.800048828125,
+            "endMs": 195.800048828125
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 201.800048828125,
+            "endMs": 224.800048828125
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 201.800048828125,
+            "endMs": 203.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/history?before=0&limit=50",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 881,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 235.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 231.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/native-control",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 403,
+            "bytes": 268,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 230.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/delayed-restart",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 236,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 231.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/queue",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 290,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 231.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 234.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/draft",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 274,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 267.800048828125
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/bookmarks",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 309,
+            "cached": false,
+            "failed": null,
+            "startMs": 223.800048828125,
+            "endMs": 279.800048828125
+          }
+        ]
+      },
+      {
+        "paints": {
+          "fcpMs": 92,
+          "lcpMs": null,
+          "domContentLoadedMs": 46,
+          "loadMs": 92
+        },
+        "uiChecks": {
+          "cards": 31,
+          "bodyFontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          "fontFaces": 0,
+          "fontStatus": "loaded"
+        },
+        "marks": {
+          "listMs": 193.79999999701977,
+          "history": {
+            "clickAt": 223.40000000596046,
+            "rowsAt": 283.59999999403954,
+            "ms": 60.19999998807907
+          },
+          "large": null,
+          "back": null
+        },
+        "listMs": 193.79999999701977,
+        "historyMs": 60.19999998807907,
+        "navToHistoryMs": 284,
+        "largeHistoryMs": null,
+        "switchBackMs": null,
+        "phases": {
+          "nav": {
+            "count": 39,
+            "bytes": 502337,
+            "scriptCount": 25,
+            "tinyCount": 17,
+            "apiCount": 11,
+            "thirdParty": [
+              "https://fonts.googleapis.com/css2:0"
+            ],
+            "thirdPartyFailed": [
+              "https://fonts.googleapis.com/css2:net::ERR_FAILED"
+            ],
+            "failed": [
+              "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            ]
+          },
+          "history": {
+            "count": 8,
+            "bytes": 2924,
+            "scriptCount": 0,
+            "tinyCount": 0,
+            "apiCount": 8,
+            "thirdParty": [],
+            "thirdPartyFailed": [],
+            "failed": []
+          },
+          "largeHistory": null,
+          "switchBack": null
+        },
+        "timeline": [
+          {
+            "url": "/react/",
+            "type": "Document",
+            "method": "GET",
+            "status": 200,
+            "bytes": 867,
+            "cached": false,
+            "failed": null,
+            "startMs": -0.800048828125,
+            "endMs": 7.199951171875
+          },
+          {
+            "url": "/react/assets/index-Ds_znnYB-pc2.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 110009,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.199951171875,
+            "endMs": 23.199951171875
+          },
+          {
+            "url": "/react/assets/react-vendor-DZ42Ocw1.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 86983,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.199951171875,
+            "endMs": 21.199951171875
+          },
+          {
+            "url": "/react/assets/index-t1BeNpq3.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 17901,
+            "cached": false,
+            "failed": null,
+            "startMs": 6.199951171875,
+            "endMs": 18.199951171875
+          },
+          {
+            "url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": null,
+            "bytes": 0,
+            "cached": false,
+            "failed": "net::ERR_FAILED",
+            "startMs": 18.199951171875,
+            "endMs": 19.199951171875
+          },
+          {
+            "url": "/react/assets/ChatView-oGGRlTgq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 66720,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/nativeControlStore-C5JrRQBA.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1875,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/codexRateLimits-D0VsjuO0.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1457,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/clipboard-Bka3b3-h.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 970,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/copy-CECilNGY.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 810,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 89.199951171875
+          },
+          {
+            "url": "/react/assets/download-8GQKKMnN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 815,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-B24k7XkR.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 11851,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 89.199951171875
+          },
+          {
+            "url": "/react/assets/editorFileLinks-DrlOhaen.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2025,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 89.199951171875
+          },
+          {
+            "url": "/react/assets/markdown-vendor-B3UHhm0a.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 162837,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 91.199951171875
+          },
+          {
+            "url": "/react/assets/file-D2J1Y0vN.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 849,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 90.199951171875
+          },
+          {
+            "url": "/react/assets/check-DHafOm5c.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 699,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 90.199951171875
+          },
+          {
+            "url": "/react/assets/MarkdownRenderer-BEHUn5zE.css",
+            "type": "Stylesheet",
+            "method": "GET",
+            "status": 200,
+            "bytes": 926,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 88.199951171875
+          },
+          {
+            "url": "/react/assets/MessageTimestamp-CidapqOq.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1075,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 89.199951171875
+          },
+          {
+            "url": "/react/assets/user-round-CHiT6cwV.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 762,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 90.199951171875
+          },
+          {
+            "url": "/react/assets/external-link-D9iwFKt-.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 839,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 90.199951171875
+          },
+          {
+            "url": "/react/assets/play-MLK5PRXr.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 769,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 94.199951171875
+          },
+          {
+            "url": "/react/assets/pause-DDJ_AHLy.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 791,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 93.199951171875
+          },
+          {
+            "url": "/react/assets/FreshnessStatus-B84S4JfO.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 971,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 150.199951171875
+          },
+          {
+            "url": "/react/assets/DirectoryInput-Cv65ZtVS.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 2218,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 139.199951171875
+          },
+          {
+            "url": "/react/assets/terminal-DfNNVWGw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1221,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 150.199951171875
+          },
+          {
+            "url": "/api/settings/ui",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 719,
+            "cached": false,
+            "failed": null,
+            "startMs": 46.199951171875,
+            "endMs": 93.199951171875
+          },
+          {
+            "url": "/api/workspaces",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 230,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 96.199951171875
+          },
+          {
+            "url": "/api/cli/status",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1997,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 139.199951171875
+          },
+          {
+            "url": "/api/main/startup-recovery",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 458,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 146.199951171875
+          },
+          {
+            "url": "/api/plugins/panels",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 679,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 146.199951171875
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 182.199951171875
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 86.199951171875,
+            "endMs": 172.199951171875
+          },
+          {
+            "url": "/api/adapters",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 806,
+            "cached": false,
+            "failed": null,
+            "startMs": 93.199951171875,
+            "endMs": 181.199951171875
+          },
+          {
+            "url": "/api/adapter/config?adapter=cbc",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 1693,
+            "cached": false,
+            "failed": null,
+            "startMs": 93.199951171875,
+            "endMs": 182.199951171875
+          },
+          {
+            "url": "/react/assets/automationStore-CA8MJGyZ.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3058,
+            "cached": false,
+            "failed": null,
+            "startMs": 93.199951171875,
+            "endMs": 182.199951171875
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 149.199951171875,
+            "endMs": 182.199951171875
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 149.199951171875,
+            "endMs": 182.199951171875
+          },
+          {
+            "url": "/react/assets/SessionHistorySearch-DBkM9X4x.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 5208,
+            "cached": false,
+            "failed": null,
+            "startMs": 172.199951171875,
+            "endMs": 183.199951171875
+          },
+          {
+            "url": "/react/assets/GlobalHistorySearch-DuqsmIiD.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 4099,
+            "cached": false,
+            "failed": null,
+            "startMs": 172.199951171875,
+            "endMs": 183.199951171875
+          },
+          {
+            "url": "/react/assets/globe-CIb3vFuw.js",
+            "type": "Script",
+            "method": "GET",
+            "status": 200,
+            "bytes": 817,
+            "cached": false,
+            "failed": null,
+            "startMs": 172.199951171875,
+            "endMs": 183.199951171875
+          },
+          {
+            "url": "/api/sessions?summary=1",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 3373,
+            "cached": false,
+            "failed": null,
+            "startMs": 196.199951171875,
+            "endMs": 213.199951171875
+          },
+          {
+            "url": "/api/list",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 227,
+            "cached": false,
+            "failed": null,
+            "startMs": 197.199951171875,
+            "endMs": 213.199951171875
+          },
+          {
+            "url": "/api/jobs",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 266,
+            "cached": false,
+            "failed": null,
+            "startMs": 207.199951171875,
+            "endMs": 213.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/history?before=0&limit=50",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 881,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 252.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 250.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/native-control",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 403,
+            "bytes": 268,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 246.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/delayed-restart",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 236,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 246.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/queue",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 290,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 246.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/worker/takeover-readiness",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 333,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 250.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/draft",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 274,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 250.199951171875
+          },
+          {
+            "url": "/api/sessions/ses-perf-00/bookmarks",
+            "type": "Fetch",
+            "method": "GET",
+            "status": 200,
+            "bytes": 309,
+            "cached": false,
+            "failed": null,
+            "startMs": 241.199951171875,
+            "endMs": 295.199951171875
+          }
+        ]
+      }
+    ]
+  }
+}
