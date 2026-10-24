@@ -33,7 +33,7 @@ import sys
 import threading
 import time
 import uuid
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -2260,6 +2260,7 @@ def _session_to_api(
         "sessionTemplate": s.session_template,
         "originalPrompt": s.original_prompt,
         "handoffPrompt": s.handoff_prompt,
+        "handoffReceipt": s.handoff_receipt,
         "systemPrompt": s.system_prompt,  # derived, read-only compatibility view
         "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
         "effort": ac.get("effort") or config.get("effort", ""),
@@ -9834,8 +9835,70 @@ async def api_branch_session(session_id: str, data: dict):
 
 
 @app.post("/api/sessions/{session_id}/handoff")
-@_plugin_copy_admission
 async def api_session_handoff(session_id: str, data: dict):
+    """A is the URL Session; targetSessionId selects EXISTING B, never a new ID.
+
+    Existing mode preserves B's effective systemPrompt, CLI identity/history,
+    settings and name. originalPrompt metadata follows the override selector;
+    handoffPrompt is also one ordinary queued input. copySettings true and
+    adapter changes are unsupported for existing B. See skill field table.
+    """
+    if "targetSessionId" not in data:
+        return await _api_session_handoff_new(session_id, data)
+    target_id = data["targetSessionId"]
+    if not isinstance(target_id, str) or not target_id:
+        return {"error": "targetSessionId must be a nonempty existing Session ID (B)"}
+    if "copySettings" in data and type(data["copySettings"]) is not bool:
+        return {"error": "copySettings must be boolean when explicitly provided; omit it to preserve B settings"}
+    if any(key not in {"targetSessionId", "handoffPrompt", "copySettings", "adapter", "model",
+                        "permissionMode", "overrideOriginalPrompt", "originalPrompt"} for key in data):
+        return {"error": "Unknown existing-target handoff field; confirm source A, target B and settings intent"}
+    async with AsyncExitStack() as stack:
+        # Same spawn -> plugin -> queue order as normal delivery; no await
+        # between core preflight and completion of its multi-record commit.
+        for sid in sorted({session_id, target_id}):
+            await stack.enter_async_context(await worker._session_spawn_lock(sid))
+        from packages.plugins.lifecycle import session_claim
+        for sid in sorted({session_id, target_id}):
+            s = sess.get(sid)
+            if s is None:
+                return {"error": f"Session {sid} not found; existing mode never creates B"}
+            await stack.enter_async_context(session_claim(s))
+        for sid in sorted({session_id, target_id}):
+            await stack.enter_async_context(worker.queue_lock(sid))
+        result = sess.handoff_session(
+            session_id, data.get("handoffPrompt"), target_session_id=target_id,
+            copy_settings=data.get("copySettings"), adapter=data.get("adapter"),
+            model=data.get("model"), permission_mode=data.get("permissionMode"),
+            override_original_prompt=data.get("overrideOriginalPrompt", False),
+            original_prompt=data.get("originalPrompt"))
+        if isinstance(result, str):
+            return {"error": result}
+        a, b = result
+    # The original durable message is consumed by the ordinary watchdog/queue.
+    # Do not force/restart, unlock, or inject metadata into a running CLI.
+    try:
+        job_retarget = background_jobs.retarget_session_jobs(a.id, b.id)
+    except Exception as exc:
+        job_retarget = {"errors": [{"error": str(exc)}]}
+    await broadcast({"type": "session.updated", "sessionId": a.id})
+    await broadcast({"type": "session.updated", "sessionId": b.id})
+    # Only a queue signal; never use Force or unlock gates for a handoff brief.
+    await worker._wake_worker(b.id)
+    item_id = a.handoff_receipt["queueItemId"]
+    record = worker._ledger_record(b, item_id)
+    state = worker._delivery_state(record) if record is not None else None
+    delivery_status = ("sent_to_cli" if state == "sent_to_cli" else
+                       "queued" if state == "queued" else "unconfirmed")
+    return {"ok": True, "mode": "existing", "archivedSession": _session_to_api(a),
+            "session": _session_to_api(b), "jobRetarget": job_retarget,
+            "briefDelivery": {"status": delivery_status, "deliveryState": state,
+                              "queueItemId": item_id,
+                              "sessionId": b.id}}
+
+
+@_plugin_copy_admission
+async def _api_session_handoff_new(session_id: str, data: dict):
     """替身交接（session_handoff v1）：创建孪生 session B 接替 A。
 
     Body: {"handoffPrompt": <必填，A 的 agent 编写的交接简报>,

@@ -132,3 +132,17 @@ it('closes a successful submission and refreshes the list exactly once', async (
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   expect(useSessionStore.getState().loadSessions).toHaveBeenCalledTimes(1);
 });
+
+it('selects an existing B without the new-session copy default and explains prompt isolation', async () => {
+  useSessionStore.setState({ sessions: [a, b] });
+  vi.mocked(handoffSession).mockRejectedValue(new Error('keep draft'));
+  render(<HandoffSessionModal session={a} onClose={() => {}} />);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Successor B' }), { target: { value: 'b' } });
+  expect(screen.getByText(/actual system prompt stays exactly as before/)).toBeTruthy();
+  fireEvent.change(brief(), { target: { value: 'brief for B' } });
+  submit();
+  await waitFor(() => expect(handoffSession).toHaveBeenCalledWith('a', {
+    handoffPrompt: 'brief for B', targetSessionId: 'b', overrideOriginalPrompt: false,
+  }));
+  expect(screen.getByRole('alert').textContent).toBe('keep draft');
+});

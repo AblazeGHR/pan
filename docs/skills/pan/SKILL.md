@@ -250,7 +250,15 @@ query 是去首尾空白后的大小写不敏感字面子串（非正则/FTS 查
 
 ### 2.7 替身交接（session_handoff）：精简上下文 / 切换 adapter
 
-> 场景：当前 session（A）上下文过大需要精简，或想中途切换 adapter（普通 session **不能**中途切换 adapter）。A 保留为可阅读上下文（归档重命名 `(archive) <原名>`），创建孪生 session B 接管 A 的名字与全部 pan 关系网。
+**先确认新建 B 还是已有 B，再确认来源 A / 目标 B 的精确 ID 与覆盖意图。** `session_id` 永远是归档来源 A；省略 `target_session_id` 才新建，提供则必须命中已有 B。不存在不自动新建，不反向交接。
+
+**以下旧流程只适用于新建 B。** 已有模式默认保留 B 设置、名字、CLI 身份/history 与实际 system_prompt；`copy_settings=true` 和 adapter 覆写明确拒绝。B.original_prompt 元数据按来源 A / 本次显式 original 选择覆盖，但实际 system_prompt 独立冻结，当前和后续 restart/resume/newspawn 都不从元数据合成。必填简报既存 metadata，又作为唯一一条普通输入持久入队，遵守 Pause/Illegal/owner/锁；以返回的 `briefDelivery.queueItemId` 核对，queued 不代表 CLI 已读。A 运行/自调用与原队列不被终止或清空。
+
+逐项设置来源（A / 保留 B / 本次显式值）、模式限制、关系合并冲突、回执与未知不重投规则必须先读 [交接字段决策表与操作手册](references/handoff.md)。用户边界不清楚就问具体缺口，不把 original 元数据、有效系统提示词和实际简报消息当同一层。
+
+已有目标示例：`session_handoff(session_id="ses_A", target_session_id="ses_B", handoff_prompt="交接职责与现状")`。两者均需受管理访问权限；MCP 预检不会先 claim。仅支持同有效 Workspace、同 manager 或两个 root，祖先/父子与绑定冲突整体拒绝。B 原 managed/subscriptions/bindings 合并去重保留，B 管理归档 A；B 原名不改。
+
+新建场景：A 上下文过大需要精简，或想切换 adapter。A 归档保留，创建全新 B 接管名字与关系网：
 
 ```
 session_handoff(session_id="ses_a...",
@@ -341,7 +349,7 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 | `session_update` | `session_id`, `model?`, `permission_mode?`, `always_thinking_enabled?`, `effort?`, `max_thinking_tokens?`, `mcp_servers?`, `game_id?`, `model_context_window?`, `model_auto_compact_token_limit?`, `clear_model_context_window?`, `clear_model_auto_compact_token_limit?`, `workspace_ids?` | PATCH 封装；设置**即时持久化**到 session，worker 下次 (re)spawn 时生效——**managed Agent 可中途更新 `mcp_servers`**（中途换 adapter 才需 `session_handoff`）。`mcp_servers` 只传 manifest 中声明的**服务名列表**（如 `["pan"]`，服务端解析为完整配置）：非空即启用、`[]` 显式清空/禁用、**省略 = 保持不变**；未知/不可用服务名报错，不产生无效配置；模板 `mcp_mode=always/never` 锁死增删（MCP 工具无 `forceMcp` 旁路，仅 HTTP PATCH 可解锁）。**`workspace_ids?` 移动会话到 Workspace**（0 或 1 个 id，`[]` = 取消分组/ungrouped，省略 = 保持不变；复用 Dashboard 同一个 `PUT /api/sessions/{id}/workspaces`）：成员关系只存于 **management-tree 根**，被管理后代通过 managedBy 链**继承**，因此根移动会传播给整棵子树；**目标 session 若已被管理则拒绝**（错误码 `managed_session`），须先 `session_unclaim` 分离——与 Dashboard 拖拽「先分离再移动」一致，杜绝跨 Workspace 的管理树分裂。两个上下文覆盖值为可选正整数；省略保持当前设置，传对应 `clear_* = true` 持久化清除并交给 Codex/模型默认值。改 MCP 或任一上下文覆盖值（或有活 worker 时改任何进程相关字段）响应带 `requireRestart: true`，重启自动完成：**idle worker 立即 respawn 生效、running worker 回 idle 时自动 respawn、无 worker 下次 spawn 生效**（要立即打断切换才手动 agent_kill + agent_spawn）（references/http-api.md） |
 | `session_delete` | `session_id` | 删除会话并 kill worker |
 | `session_batch_delete` | `session_ids` | 批量删除多个会话（逐个过 managed 隔离检查，等价 HTTP `POST /api/sessions/batch-delete`） |
-| `session_handoff` | `session_id`, `handoff_prompt`(**必填**), `copy_settings?`(=true), `override_original_prompt?`(=false), `original_prompt?`, `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：创建孪生 session B 接替 A，精简上下文或切换 adapter。B 接管 A 的关系网并自动 manage A；`handoff_prompt` 由 A 的 agent 编写（交接简报），B.system_prompt = 本次简报 + 选定 original_prompt（默认继承；显式启用覆写后可用空串清空）；`copy_settings` 复制 A 的设置（不含 system_prompt，cli_session_id 清空），false 时须显式传 `adapter` |
+| `session_handoff` | `session_id`（来源A）, `handoff_prompt`(**必填**), `target_session_id?`（已有B）, `copy_settings?`, `override_original_prompt?`(=false), `original_prompt?`, `adapter?`, `model?`, `permission_mode?` | **替身交接**（§2.7）：先确认新建/已有。省略 target 才新建（copy 默认true）；已有 B 默认保留设置/CLI上下文/实际system_prompt，copy=true/adapter覆写拒绝。original 元数据按 A/本次值覆盖，永不改已有 B 有效系统提示词；简报普通入队，返回原 queueItemId，未知不重投。[逐字段来源与限制](references/handoff.md) |
 | `session_readonly` | `session_id`, `enabled?`(默认 true) | 为**当前 manager 已管理**的 session 设置或清除持久只读状态；不会自动 claim。只读目标拒绝其他 session 发来的任务/消息/通知，返回 `readonly_session`；需 `PAN_AGENT_SESSION_ID` |
 | `session_claim` | `session_id` | 当前 agent（`PAN_AGENT_SESSION_ID`）认领会话，建立 managed 关系（立项 4.2）。**claim 自动 report_subscribe**（订阅即接管，开启完成报告推送；后端实现）。走 `POST /api/claim`（带 `_check_access(claim=True)` 隔离检查）；目标已被他人管理则拒绝。需 `PAN_AGENT_SESSION_ID` |
 | `session_claim_many` | `session_ids` | 批量认领：逐个处理，返回 `{"ok": true, "claimed": [...], "failed": [{"sessionId", "error"}]}`，单个失败不影响其余 |

@@ -116,6 +116,7 @@ packages/web/test-results/
 /evidence/queue-send-latency-red.xml
 /evidence/mcp-send-latency-red.xml
 /evidence/queue-latency-prewrite-rejection-red.xml
+/.artifacts/handoff-existing/
 /evidence/queue-latency-ma-runtime-red.xml
 
 # Isolated plugin-platform validation dependencies and mutable runtime data.
