@@ -36,6 +36,18 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 显式 Wake 使用 `POST /api/sessions/wake`，同次持久化“发送 Behavior 配置的消息、解除其 Illegal 锁、置于队首”，再调度。UI 多选 Wake、启动恢复、定时恢复统一此操作，不能用普通 send/broadcast 模拟。相同去重 ID 不重发、重排或重新解锁。Oneshot Worker 模式已停用入口，历史配置解析为 stream；实现保留，Job 的 one-shot 调度不受影响。
 
+## 未获回答的用户问题：使用交互卡保留待办
+
+Agent 向用户提出需要回答的问题后，若下一轮仍没有得到真实用户的对应答复，强烈建议使用 `interaction_card(operation="create", ...)` 将问题保留到 User Locker，避免旧问题被消息流淹没。尤其适用于设计取舍、API 接入信息、Token 配置、许可，以及阻塞任务推进的决定。无需为了等下一轮而主动轮询；问题明确会阻塞时，可在首次提问时直接创建交互卡。
+
+- 按可信来源判断答复，不以 provider 的 `role=user` 或下一轮有输入为依据。Notification、Report、MA/其他 Agent 消息不是用户答复；除非用户明确授予其代答权限，不能替用户选择、授权或补齐凭据。用户回答了别的问题时，原问题仍未解决。
+- 卡片写清所需信息、为什么需要、影响哪一步、可选项及推荐项；收拢相关问题，让用户能够直接作答，不必翻找旧聊天。API/Token 等敏感信息优先请求用户在指定配置入口填写，卡片只收集非敏感说明或“已配置”确认；避免把秘密复制进卡片正文、摘要、通知或报告。
+- 同一待决事项复用原卡片身份，保存 `cardId`/`requestKey`；创建结果 unknown 时先按原身份查询，不重复投递。后续通知、报告或继续工作不应反复新建同一问题的卡片。
+- 创建成功只证明问题已持久接纳，不等于用户已看见、回答或批准。按原卡片查询回应并核对回答的范围；超时、拒收、无关消息或普通“继续”不补齐缺失答案或许可。用户已在聊天中明确回答时直接采用，不强迫其再答卡片。
+- 卡片等待期间继续推进不依赖该答复的工作；依赖项保持待答并保留恢复条件。交互卡工具不可用时，明确保留待答问题及下一步，通过现有对话询问，不伪造用户回应。
+
+MA 与 TA 均适用；TA 对需由 MA 决策的问题仍先遵守任务汇报关系，不能把 MA 的实现意见等同用户授权。工具参数见 `interaction_card` 当前 schema；卡片回应不是 Trigger/Job 执行成功的证明。
+
 ## 0. 快速开始（30 秒冷启动）
 
 **主服务用户 CLI（Windows）**：Windows setup.bat / start_pan.bat 自动注册 `pan`（单纯 clone 不触发；任意分支或无 Git 可用；冲突警告不阻断启动），支持 start / exit / restart / debug / status / logs [-f] / doctor / show console / hide console / --help / --version。start 按 console_hidden 独立启动并等待 ready；exit/restart 走显式合法 API 与持久 Job 终态，ask 策略需 `--running offline|preserve`。debug 是前台 main.py，不改永久配置；doctor 只读。show/hide 只控制 Pan 独占交互窗口；logs 跟随退出不停止服务。status 区分 stopped/unknown 并显示运行版本。步骤见 [Pan CLI](../../PAN_CLI.md)。稳定安装的 PATH 不应指向临时 TA 树；注册与同步由任务授权决定。
