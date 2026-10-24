@@ -58,4 +58,3 @@ for (const link of indexHtmlWithScripts.match(/<link\b[^>]*>/g) ?? []) {
 }
 
 console.log(`Verified ${checked} compressed production assets`);
-
