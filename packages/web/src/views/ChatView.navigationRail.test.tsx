@@ -10,14 +10,17 @@ import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore
 import { fetchHistorySearch, fetchSessionNavigation } from '@/services/api';
 import type { Message } from '@/types';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 const mockedGlobalHistorySearch = vi.hoisted(() => vi.fn());
+const mockedPrepareHistorySearch = vi.hoisted(() => vi.fn());
 
 vi.mock('@/services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/api')>()),
   fetchSessionNavigation: vi.fn(),
   fetchHistorySearch: mockedGlobalHistorySearch,
+  prepareHistorySearch: mockedPrepareHistorySearch,
 }));
 
 // Keep the topbar action visible to the tests while leaving unrelated layout
@@ -61,6 +64,9 @@ beforeEach(() => {
   viewport.isMobile = false;
   mockedHistory.mockReset();
   mockedGlobalSearch.mockReset();
+  mockedPrepareHistorySearch.mockReset();
+  mockedPrepareHistorySearch.mockImplementation(async () => {});
+  useHistorySearchViewStore.getState().update(null);
   mockedGlobalSearch.mockResolvedValue({
     hits: [], versions: [], limit: 50, hasMore: false, nextCursor: null,
   });
@@ -82,6 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  useHistorySearchViewStore.getState().update(null);
   vi.restoreAllMocks();
 });
 
@@ -426,5 +433,134 @@ describe('ChatView: message navigation rail switch', () => {
     const dock = container.querySelector<HTMLElement>('[data-testid="message-navigation-dock"]')!;
     fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
     expect(chatMessages.getAttribute('data-hide-scroll-to-bottom')).toBe('false');
+  });
+});
+
+describe('ChatView: Search ↔ Global Search quick switch', () => {
+  const GLOBAL_HIT = {
+    sessionId: 'hit-session',
+    messageId: 'm-1',
+    messageIndex: 0,
+    role: 'user' as const,
+    snippet: 'needle snippet',
+    historyEpoch: 'epoch-1',
+    historyRevision: 1,
+    historyTotal: 1,
+  };
+
+  /** Open the folded chat-tools dock, then the Session search popup. */
+  async function openSessionSearch(view: ReturnType<typeof render>) {
+    fireEvent.click(view.getByRole('button', { name: 'Open chat tools sidebar' }));
+    fireEvent.click(view.getByRole('button', { name: 'Search Session history' }));
+    return view.findByTestId('session-history-search-input');
+  }
+
+  it('switches both ways from the popup button and keeps each keyword independent', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const view = render(<ChatView />);
+    const sessionInput = await openSessionSearch(view);
+    fireEvent.change(sessionInput, { target: { value: 'session-only' } });
+
+    // Session → global: the Session popup unmounts, the global one opens empty.
+    fireEvent.click(view.getByRole('button', { name: 'Switch to global search' }));
+    const globalInput = await view.findByTestId('global-history-search-input');
+    expect(sessionInput.isConnected).toBe(false);
+    expect((globalInput as HTMLInputElement).value).toBe('');
+    fireEvent.change(globalInput, { target: { value: 'global-only' } });
+
+    // Global → Session: the Session keyword survived the round trip.
+    fireEvent.click(view.getByRole('button', { name: 'Switch to Session search' }));
+    const sessionInputAgain = await view.findByTestId('session-history-search-input');
+    expect((sessionInputAgain as HTMLInputElement).value).toBe('session-only');
+    expect(document.querySelector('[data-testid="global-history-search-input"]')).toBeNull();
+
+    // …and the global keyword survives the way back.
+    fireEvent.click(view.getByRole('button', { name: 'Switch to global search' }));
+    const globalInputAgain = await view.findByTestId('global-history-search-input');
+    expect((globalInputAgain as HTMLInputElement).value).toBe('global-only');
+  });
+
+  it('exposes the switch as a native, focusable, non-disabled button in both views', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const view = render(<ChatView />);
+    await openSessionSearch(view);
+
+    const toGlobal = view.getByRole('button', { name: 'Switch to global search' });
+    expect(toGlobal.tagName).toBe('BUTTON');
+    expect(toGlobal.getAttribute('type')).toBe('button');
+    expect((toGlobal as HTMLButtonElement).disabled).toBe(false);
+    toGlobal.focus();
+    expect(document.activeElement).toBe(toGlobal);
+
+    fireEvent.click(toGlobal);
+    const toSession = await view.findByRole('button', { name: 'Switch to Session search' });
+    expect(toSession.tagName).toBe('BUTTON');
+    expect(toSession.getAttribute('type')).toBe('button');
+    expect((toSession as HTMLButtonElement).disabled).toBe(false);
+    toSession.focus();
+    expect(document.activeElement).toBe(toSession);
+  });
+
+  it('keeps clear behavior independent — the global eraser never touches the Session keyword', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const view = render(<ChatView />);
+    const sessionInput = await openSessionSearch(view);
+    fireEvent.change(sessionInput, { target: { value: 'session-only' } });
+    fireEvent.click(view.getByRole('button', { name: 'Switch to global search' }));
+    const globalInput = await view.findByTestId('global-history-search-input');
+    fireEvent.change(globalInput, { target: { value: 'global-only' } });
+
+    fireEvent.click(view.getByRole('button', { name: 'Clear global search' }));
+    expect((globalInput as HTMLInputElement).value).toBe('');
+
+    fireEvent.click(view.getByRole('button', { name: 'Switch to Session search' }));
+    const sessionInputAgain = await view.findByTestId('session-history-search-input');
+    expect((sessionInputAgain as HTMLInputElement).value).toBe('session-only');
+  });
+
+  it('opens global search with the dispatched shell action and stays inert while disabled', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    const { findByTestId, getByRole, queryByTestId } = render(<ChatView />);
+    fireEvent.click(getByRole('button', { name: 'Open chat tools sidebar' }));
+
+    fireEvent(window, new Event('pan:shortcut:global-history-search'));
+    expect(await findByTestId('global-history-search-input')).not.toBeNull();
+    expect(queryByTestId('session-history-search-input')).toBeNull();
+
+    act(() => useAppSettingsStore.setState({ showHistorySearch: false }));
+    expect(queryByTestId('global-history-search-input')).toBeNull();
+    fireEvent(window, new Event('pan:shortcut:global-history-search'));
+    expect(queryByTestId('global-history-search-input')).toBeNull();
+  });
+
+  it('restores the global hit scope after a mode round trip without losing the query', async () => {
+    useAppSettingsStore.setState({ showHistorySearch: true });
+    mockedGlobalSearch.mockReset();
+    mockedGlobalSearch.mockResolvedValue({
+      hits: [GLOBAL_HIT],
+      matchingSessionIds: ['hit-session'],
+      versions: [], limit: 50, hasMore: false, nextCursor: null, totalMatches: 1,
+    });
+    const view = render(<ChatView />);
+    fireEvent.click(view.getByRole('button', { name: 'Open chat tools sidebar' }));
+    fireEvent.click(view.getByRole('button', { name: 'Search all Session history' }));
+    const globalInput = await view.findByTestId('global-history-search-input');
+    fireEvent.change(globalInput, { target: { value: 'needle' } });
+    await waitFor(() => expect(mockedGlobalSearch).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(useHistorySearchViewStore.getState().matchingSessionIds?.has('hit-session')).toBe(true));
+
+    // Switching away closes global search: the hit scope clears, the query survives.
+    fireEvent.click(view.getByRole('button', { name: 'Switch to Session search' }));
+    expect(await view.findByTestId('session-history-search-input')).not.toBeNull();
+    await waitFor(() => expect(useHistorySearchViewStore.getState().matchingSessionIds).toBeNull());
+
+    // Switching back re-runs the same query and the hit scope returns.
+    fireEvent.click(view.getByRole('button', { name: 'Switch to global search' }));
+    const reopened = await view.findByTestId('global-history-search-input');
+    expect((reopened as HTMLInputElement).value).toBe('needle');
+    await waitFor(() => expect(mockedGlobalSearch.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() =>
+      expect(useHistorySearchViewStore.getState().matchingSessionIds?.has('hit-session')).toBe(true));
   });
 });

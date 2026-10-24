@@ -179,4 +179,20 @@ describe('central shortcut dispatcher', () => {
     window.removeEventListener('pan:shortcut:command-palette', palette);
     window.removeEventListener('pan:shortcut:history-search', history);
   });
+
+  it('dispatches global history search on Mod+G but never from an editable target', () => {
+    const navigate = vi.fn();
+    const globalHistory = vi.fn();
+    window.addEventListener('pan:shortcut:global-history-search', globalHistory);
+    render(<Harness navigate={navigate} />);
+    press({ key: 'g', code: 'KeyG', ctrlKey: true });
+    expect(globalHistory).toHaveBeenCalledTimes(1);
+
+    // Typing in either search input must never reach the rail or switch modes.
+    const input = document.createElement('input');
+    document.body.append(input);
+    press({ key: 'g', code: 'KeyG', ctrlKey: true }, input);
+    expect(globalHistory).toHaveBeenCalledTimes(1);
+    window.removeEventListener('pan:shortcut:global-history-search', globalHistory);
+  });
 });

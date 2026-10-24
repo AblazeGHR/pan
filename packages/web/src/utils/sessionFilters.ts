@@ -424,6 +424,14 @@ export interface WorkspaceRowVisibility {
  * `membersByWorkspace` / `ungroupedMembers` are the caller's already-resolved
  * effective memberships (see {@link effectiveWorkspaceIds}); passing them in
  * keeps this a single-pass derivation over the Session list.
+ *
+ * Global search workspace filtering: when `matchingSessionIds` is a non-null
+ * Set (a global history search is active), only real workspaces with at least
+ * one hit member stay visible, and 'ungrouped' only stays when an ungrouped
+ * session is a hit. Workspaces without any hit Session disappear from the
+ * rail; 'all' keeps listing every hit Session. The hit scope composes with
+ * the keyword/status/adapter filters (AND). It is a pure view filter: it
+ * never touches the backend search, persistence, or the rail's own query.
  */
 export function computeWorkspaceRowVisibility(
   workspaces: Workspace[],
@@ -439,11 +447,15 @@ export function computeWorkspaceRowVisibility(
     membersByWorkspace: Map<string, Session[]>;
     /** Sessions with no effective workspace membership. */
     ungroupedMembers: Session[];
+    /** Active global-search hit Sessions; `null`/undefined means no global search. */
+    matchingSessionIds?: Set<string> | null;
   },
 ): WorkspaceRowVisibility {
   const everything: WorkspaceRowVisibility = { workspaces, showAll: true, showUngrouped: true };
   if (!options.expanded) return everything;
-  if (!options.searchQuery.trim() && options.specialFilters.size === 0 && !options.adapterFilters?.size) {
+  const hitSessions = options.matchingSessionIds;
+  const filteringByHits = hitSessions !== undefined && hitSessions !== null;
+  if (!filteringByHits && !options.searchQuery.trim() && options.specialFilters.size === 0 && !options.adapterFilters?.size) {
     return everything;
   }
 
@@ -468,10 +480,15 @@ export function computeWorkspaceRowVisibility(
   const sessionMatches = (session: Session) =>
     matchesSpecialFilters(session, sessions, options.specialFilters, filterContext) &&
     matchesAdapterFilter(session, options.adapterFilters);
+  const workspacesWithHits = filteringByHits
+    ? visibleWorkspaces.filter((workspace) =>
+        (options.membersByWorkspace.get(workspace.id) ?? []).some((session) => hitSessions!.has(session.id)))
+    : visibleWorkspaces;
   return {
-    workspaces: visibleWorkspaces,
+    workspaces: workspacesWithHits,
     showAll: sessions.some(sessionMatches),
-    showUngrouped: options.ungroupedMembers.some(sessionMatches),
+    showUngrouped: options.ungroupedMembers.some(sessionMatches) &&
+      (!filteringByHits || options.ungroupedMembers.some((session) => hitSessions!.has(session.id))),
   };
 }
 

@@ -79,6 +79,18 @@ const GENERAL_ACTIONS: ShortcutAction[] = [
       }
     },
   },
+  {
+    id: 'app.globalHistorySearch',
+    label: 'Search all Session history',
+    description: 'Opens global Session history search when it is enabled in Appearance.',
+    group: 'General',
+    defaultBinding: 'Mod+G',
+    run: () => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('pan:shortcut:global-history-search'));
+      }
+    },
+  },
 ];
 
 const COMPOSER_ACTIONS: ShortcutAction[] = [

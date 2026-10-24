@@ -17,6 +17,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useHistorySearchViewStore } from '@/stores/historySearchViewStore';
 import { CREATE_WORKSPACE_DROP_TARGET_ID, useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   ALL_WORKSPACES,
@@ -102,6 +103,11 @@ export function WorkspaceRail({
   const setWorkspaceSearchQuery = useUIStore((s) => s.setWorkspaceSearchQuery);
   const specialFilters = useUIStore((s) => s.specialFilters);
   const adapterFilters = useUIStore((s) => s.adapterFilters);
+  // Global history search hit Sessions (null while no global search runs).
+  // The rail keeps only real Workspaces that contain at least one hit Session;
+  // 'all' still lists every hit. Pure view filtering — no backend or
+  // persistence involvement.
+  const matchingSessionIds = useHistorySearchViewStore((s) => s.matchingSessionIds);
 
   const [editing, setEditing] = useState<{ id: string | '__new__'; value: string } | null>(null);
   const [menuFor, setMenuFor] = useState<{ workspace: Workspace; x: number; y: number } | null>(null);
@@ -175,8 +181,9 @@ export function WorkspaceRail({
         adapterFilters,
         membersByWorkspace: memberStats.members,
         ungroupedMembers: memberStats.ungroupedMembers,
+        matchingSessionIds,
       }),
-    [isExpanded, workspaces, sessions, workspaceSearchQuery, specialFilters, adapterFilters, memberStats],
+    [isExpanded, workspaces, sessions, workspaceSearchQuery, specialFilters, adapterFilters, memberStats, matchingSessionIds],
   );
 
   const activeName = activeWorkspaceId === ALL_WORKSPACES

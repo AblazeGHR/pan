@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Globe, Loader2, Search, X } from 'lucide-react';
 import { ApiRequestError, fetchHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, ApiHistorySearchResponse, HistorySearchRole } from '@/types';
@@ -18,6 +18,8 @@ interface SessionHistorySearchProps {
   onOpenChange?: (open: boolean) => void;
   onHighlightMessage: (messageId: string | null, query?: string, occurrence?: number) => void;
   navigationOnly?: boolean;
+  /** Switch to the other search mode (Session ↔ global); ChatView owns the union. */
+  onSwitchMode?: () => void;
   navigationEnabled?: boolean;
   refreshKey?: number;
   externalQuery?: string;
@@ -32,7 +34,7 @@ const countOf = (hit: ApiHistorySearchHit) => hit.matchCount ?? 1;
 const startOf = (hit: ApiHistorySearchHit, index: number) => hit.matchStart ?? index;
 
 export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, onHighlightMessage, popupContainer,
-  navigationOnly = false, navigationEnabled = true, refreshKey = 0, externalQuery, externalRoles, selectedMessageId, navigationRef }: SessionHistorySearchProps) {
+  navigationOnly = false, onSwitchMode, navigationEnabled = true, refreshKey = 0, externalQuery, externalRoles, selectedMessageId, navigationRef }: SessionHistorySearchProps) {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const sessionVersion = useSessionStore((state) => {
     const session = state.sessions.find((item) => item.id === state.currentSessionId);
@@ -253,6 +255,8 @@ export function SessionHistorySearch({ chatRef, isMobile, isOpen, onOpenChange, 
           <input ref={input} data-testid="session-history-search-input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={keyboard}
             aria-label="Search Session history" placeholder="Search history…" maxLength={512} />
           {navigationControls}
+          {onSwitchMode && <button type="button" className="session-history-search__switch" data-testid="session-history-search-switch-global"
+            aria-label="Switch to global search" title="Switch to global search (Ctrl+G)" onClick={onSwitchMode}><Globe size={16} /></button>}
           <button type="button" aria-label="Close search" title="Close Session history search (Esc)" onClick={close}><X size={16} /></button>
         </div>
         <HistorySearchRoles roles={roles} onChange={setRoles} />

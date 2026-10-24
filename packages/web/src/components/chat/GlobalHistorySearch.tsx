@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
-import { Eraser, Globe, Loader2, X } from 'lucide-react';
+import { Eraser, Globe, Loader2, Search, X } from 'lucide-react';
 import { ApiRequestError, fetchHistorySearch, prepareHistorySearch } from '@/services/api';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { ApiHistorySearchHit, HistorySearchRole } from '@/types';
@@ -20,6 +20,8 @@ interface GlobalHistorySearchProps {
   isMobile: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Switch to the other search mode (global ↔ Session); ChatView owns the union. */
+  onSwitchMode?: () => void;
   onHighlightMessage: (sessionId: string | null, messageId: string | null, query?: string, occurrence?: number) => void;
 }
 
@@ -63,6 +65,7 @@ export function GlobalHistorySearch({
   isMobile,
   open,
   onOpenChange,
+  onSwitchMode,
   onHighlightMessage,
   popupContainer,
 }: GlobalHistorySearchProps) {
@@ -182,6 +185,16 @@ export function GlobalHistorySearch({
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [open]);
+
+  // The shell dispatcher owns the configurable open action (Mod+G). This
+  // component only listens for the dispatched action, never for the raw
+  // keydown, so the shared editable-target guard keeps it inert while the
+  // user types in either search input.
+  useEffect(() => {
+    const openSearch = () => onOpenChange(true);
+    window.addEventListener('pan:shortcut:global-history-search', openSearch);
+    return () => window.removeEventListener('pan:shortcut:global-history-search', openSearch);
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -539,6 +552,8 @@ export function GlobalHistorySearch({
                 <Eraser size={14} />
               </button>
             )}
+            {onSwitchMode && <button type="button" className="global-history-search__switch" data-testid="global-history-search-switch-session"
+              aria-label="Switch to Session search" title="Switch to Session search (Ctrl+F)" onClick={onSwitchMode}><Search size={16} /></button>}
             <button type="button" aria-label="Close global search" title="Close global search (Esc)" onClick={closeSearch}>
               <X size={15} />
             </button>

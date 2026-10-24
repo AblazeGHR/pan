@@ -81,6 +81,13 @@ export default function ChatView() {
     setActiveHistorySearch((active) => open ? 'global' : active === 'global' ? null : active);
   }, []);
 
+  // Quick switch between the two search modes. The union stays exclusive, so
+  // opening the other mode closes this popup while each component keeps its
+  // own keyword and results — nothing is handed off or cleared on a switch.
+  const switchHistorySearch = useCallback(() => {
+    setActiveHistorySearch((active) => active === 'session' ? 'global' : active === 'global' ? 'session' : active);
+  }, []);
+
   const handleSessionHighlight = useCallback((messageId: string | null, query?: string, occurrence = 0) => {
     if (!messageId) {
       setSearchTarget(null);
@@ -168,6 +175,7 @@ export default function ChatView() {
                         isMobile={isMobile}
                         isOpen={activeHistorySearch === 'session'}
                         onOpenChange={handleSessionSearchOpenChange}
+                        onSwitchMode={switchHistorySearch}
                         onHighlightMessage={handleSessionHighlight}
                       />
                     </Suspense>
@@ -178,6 +186,7 @@ export default function ChatView() {
                         isMobile={isMobile}
                         open={activeHistorySearch === 'global'}
                         onOpenChange={handleGlobalSearchOpenChange}
+                        onSwitchMode={switchHistorySearch}
                         onHighlightMessage={handleGlobalHighlight}
                       />
                     </Suspense>

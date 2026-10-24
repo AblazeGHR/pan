@@ -313,4 +313,81 @@ describe('computeWorkspaceRowVisibility', () => {
     expect(visibility.showAll).toBe(true);
     expect(visibility.showUngrouped).toBe(false);
   });
+
+  it('keeps every row when no global search is active (null/undefined hit scope)', () => {
+    for (const matchingSessionIds of [undefined, null]) {
+      const visibility = computeWorkspaceRowVisibility(workspaces, sessions, { ...baseOptions, matchingSessionIds });
+      expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha', 'ws_beta']);
+      expect(visibility.showAll).toBe(true);
+      expect(visibility.showUngrouped).toBe(true);
+    }
+  });
+
+  it('keeps only Workspaces with at least one hit Session during a global search', () => {
+    const visibility = computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      matchingSessionIds: new Set(['w-one']),
+    });
+    expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha']);
+    // 'all' still lists every hit Session; 'ungrouped' has no hit.
+    expect(visibility.showAll).toBe(true);
+    expect(visibility.showUngrouped).toBe(false);
+  });
+
+  it('shows every hit Workspace when the hits span workspaces', () => {
+    const visibility = computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      matchingSessionIds: new Set(['w-one', 'w-two']),
+    });
+    expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha', 'ws_beta']);
+  });
+
+  it('keeps the ungrouped scope for ungrouped hits only', () => {
+    expect(computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      matchingSessionIds: new Set(['w-loose']),
+    })).toMatchObject({ workspaces: [], showUngrouped: true, showAll: true });
+    expect(computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      matchingSessionIds: new Set(['w-one']),
+    }).showUngrouped).toBe(false);
+  });
+
+  it('hides every real Workspace for an empty hit set but keeps the all scope', () => {
+    const visibility = computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      matchingSessionIds: new Set(),
+    });
+    expect(visibility.workspaces).toEqual([]);
+    expect(visibility.showAll).toBe(true);
+    expect(visibility.showUngrouped).toBe(false);
+  });
+
+  it('composes the hit scope with the keyword and status filters (AND)', () => {
+    expect(computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      searchQuery: 'alpha',
+      matchingSessionIds: new Set(['w-one', 'w-two']),
+    }).workspaces.map((w) => w.id)).toEqual(['ws_alpha']);
+    // w-one is idle, so ws_alpha fails the running filter even though it has a hit.
+    expect(computeWorkspaceRowVisibility(workspaces, sessions, {
+      ...baseOptions,
+      specialFilters: new Set(['running']),
+      matchingSessionIds: new Set(['w-one']),
+    }).workspaces.map((w) => w.id)).toEqual([]);
+  });
+
+  it('counts an inherited hit child as its root Workspace', () => {
+    const tree = [
+      makeSession('mgr', { workspaceIds: ['ws_alpha'], workerStatus: 'idle' }),
+      makeSession('kid', { managedBy: 'mgr', workerStatus: 'running' }),
+    ];
+    const visibility = computeWorkspaceRowVisibility([alpha, beta], tree, {
+      ...baseOptions,
+      membersByWorkspace: new Map([['ws_alpha', tree]]),
+      ungroupedMembers: [],
+      matchingSessionIds: new Set(['kid']),
+    });
+    expect(visibility.workspaces.map((w) => w.id)).toEqual(['ws_alpha']);
+  });
 });

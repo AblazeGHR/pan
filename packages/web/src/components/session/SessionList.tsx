@@ -206,6 +206,7 @@ async function persistSessionDrop(p: RealDropParams): Promise<void> {
 
 export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps) {
   const matchingSessionIds = useHistorySearchViewStore((state) => state.matchingSessionIds);
+  const historySearchPreparing = useHistorySearchViewStore((state) => state.preparing);
   const sessions = useSessionStore((s) => s.sessions);
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -1221,7 +1222,10 @@ export function SessionList({ onSessionClick, onSessionMenu }: SessionListProps)
     );
   }
 
-  if (filtered.length === 0 && (searchQuery.trim() || specialFilters.size > 0 || adapterFilters.size > 0)) {
+  // An active global search with zero visible hits is a no-match state too
+  // (the sidebar banner already reports "still searching…" while preparing).
+  if (filtered.length === 0 && (searchQuery.trim() || specialFilters.size > 0 || adapterFilters.size > 0
+    || (matchingSessionIds !== null && !historySearchPreparing))) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4 gap-2">
         <p className="text-sm text-text-tertiary">No matching sessions</p>

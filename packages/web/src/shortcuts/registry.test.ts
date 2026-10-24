@@ -92,6 +92,7 @@ describe('dynamic panel shortcut registry', () => {
         'app.toggleSidebar',
         'app.commandPalette',
         'app.historySearch',
+        'app.globalHistorySearch',
         'queue.togglePanel',
         'queue.enqueueLocked',
         'queue.lockAll',
@@ -108,5 +109,7 @@ describe('dynamic panel shortcut registry', () => {
         expect(action.defaultBinding, action.id).toBeNull();
       }
     }
+    expect(actions.find((action) => action.id === 'app.historySearch')?.defaultBinding).toBe('Mod+F');
+    expect(actions.find((action) => action.id === 'app.globalHistorySearch')?.defaultBinding).toBe('Mod+G');
   });
 });
