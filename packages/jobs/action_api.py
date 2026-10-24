@@ -20,6 +20,15 @@ async def user(request,required=False):
     return ok
 
 
+async def require_capability(request, kind, capability):
+    svc = getattr(request.app.state, 'automation', None)
+    if not svc or not await io(svc.auth.authorized, request.headers.get('authorization','')):
+        raise HTTPException(401, 'User Bearer required')
+    allowed, _ = await io(svc.auth.permission_allowed, kind, capability)
+    if not allowed:
+        raise HTTPException(403, f'Authorization denied: {kind}.{capability}')
+
+
 def body(data,allowed,required):
     try:strict(data,allowed,'request')
     except ValueError as exc:raise HTTPException(400,str(exc)) from exc
@@ -43,11 +52,13 @@ async def invoke(fn,*args,**kwargs):
 
 @router.get('/action-jobs')
 async def list_jobs(request:Request):
+    await require_capability(request, 'job', 'read')
     rt=runtime(request)
     return {'jobs':await invoke(rt.list),'diagnostics':list(rt.diagnostics)}
 
 @router.get('/action-jobs/{job_id}/runs')
 async def runs(job_id:str,request:Request):
+    await require_capability(request, 'job', 'read')
     rt=runtime(request)
     try:job=await invoke(rt.get,job_id)
     except KeyError as exc:raise HTTPException(404,str(exc)) from exc
@@ -57,6 +68,7 @@ async def runs(job_id:str,request:Request):
 
 @router.get('/action-jobs/schema')
 async def schema(request:Request,actionId:str|None=None):
+    await require_capability(request, 'job', 'read')
     from .action_templates import MAX_DOCUMENT_BYTES,MAX_TEMPLATES,MAX_RECEIPTS,MAX_SNAPSHOTS
     state=await invoke(runtime(request).actions.read)
     arguments={'type':'object'}
@@ -95,6 +107,7 @@ async def schema(request:Request,actionId:str|None=None):
 
 @router.get('/action-references/{action_id}')
 async def reference_list(action_id:str,request:Request):
+    await require_capability(request, 'action', 'read')
     rt=runtime(request)
     state=await invoke(rt.actions.read)
     return {'actionId':action_id,'references':references(state,action_id)}
@@ -102,18 +115,30 @@ async def reference_list(action_id:str,request:Request):
 
 @router.post('/action-jobs')
 async def create_job(data:dict,request:Request):
+    await require_capability(request, 'job', 'create')
+    if isinstance(data.get('config'), dict) and data['config'].get('enabled'):
+        await require_capability(request, 'job', 'lifecycle')
     body(data,{'config'},{'config'})
     return {'job':await invoke(runtime(request).create,data['config'],await user(request))}
 
 
 @router.put('/action-jobs/{job_id}')
 async def put_job(job_id:str,data:dict,request:Request):
+    await require_capability(request, 'job', 'updateConfig')
+    if isinstance(data.get('config'), dict) and 'enabled' in data['config']:
+        try:
+            current = runtime(request).get(job_id)
+            if current.get('enabled', False) != data['config'].get('enabled', False):
+                await require_capability(request, 'job', 'lifecycle')
+        except KeyError:
+            pass
     body(data,{'config','expectedRevision'},{'config','expectedRevision'})
     return {'job':await invoke(runtime(request).update,job_id,data['config'],data['expectedRevision'],await user(request))}
 
 
 @router.post('/action-jobs/{job_id}/run-now')
 async def run_now(job_id:str,data:dict,request:Request):
+    await require_capability(request, 'job', 'execute')
     body(data,{'expectedRevision'},{'expectedRevision'});await user(request,True)
     try:return {'job':await runtime(request).launch(job_id,data['expectedRevision'])}
     except Conflict as exc:raise HTTPException(409,str(exc)) from exc
@@ -123,6 +148,7 @@ async def run_now(job_id:str,data:dict,request:Request):
 
 @router.post('/action-jobs/{job_id}/cancel')
 async def cancel(job_id:str,data:dict,request:Request):
+    await require_capability(request, 'job', 'lifecycle')
     body(data,{'expectedRevision'},{'expectedRevision'});await user(request,True)
     try:return {'job':await runtime(request).cancel(job_id,data['expectedRevision'])}
     except Conflict as exc:raise HTTPException(409,str(exc)) from exc
@@ -132,13 +158,14 @@ async def cancel(job_id:str,data:dict,request:Request):
 
 @router.delete('/action-jobs/{job_id}')
 async def delete_job(job_id:str,expectedRevision:int,request:Request):
-    await user(request,True)
+    await require_capability(request, 'job', 'delete')
     return await invoke(runtime(request).delete,job_id,expectedRevision)
 
 
 @router.post('/action-jobs/{job_id}/confirm-recovery')
 @router.post('/action-jobs/{job_id}/retry')
 async def confirm_recovery(job_id:str,data:dict,request:Request):
+    await require_capability(request, 'job', 'execute')
     body(data,{'expectedRevision','confirm'},{'expectedRevision','confirm'});await user(request,True)
     if data['confirm'] is not True:raise HTTPException(400,'Explicit confirm:true required')
     try:return {'job':await runtime(request).confirm_recovery(job_id,data['expectedRevision'],request.url.path.endswith('/retry'))}
@@ -148,30 +175,35 @@ async def confirm_recovery(job_id:str,data:dict,request:Request):
 
 
 @router.get('/job-templates')
-async def list_templates(request:Request):return {'templates':await invoke(runtime(request).templates.list)}
+async def list_templates(request:Request):
+    await require_capability(request, 'jobTemplate', 'read')
+    return {'templates':await invoke(runtime(request).templates.list)}
 
 
 @router.post('/job-templates')
 async def create_template(data:dict,request:Request):
+    await require_capability(request, 'jobTemplate', 'create')
     body(data,{'item','expectedRevision'},{'item','expectedRevision'})
     return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request))}
 
 
 @router.put('/job-templates/{template_id}')
 async def update_template(template_id:str,data:dict,request:Request):
+    await require_capability(request, 'jobTemplate', 'updateConfig')
     body(data,{'item','expectedRevision'},{'item','expectedRevision'})
     return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request),template_id)}
 
 
 @router.delete('/job-templates/{template_id}')
 async def delete_template(template_id:str,expectedRevision:int,request:Request):
-    await user(request,True)
+    await require_capability(request, 'jobTemplate', 'delete')
     await invoke(runtime(request).templates.delete,template_id,expectedRevision)
     return {'deleted':True}
 
 
 @router.post('/job-templates/{template_id}/instantiate')
 async def instantiate(template_id:str,data:dict,request:Request):
+    await require_capability(request, 'jobTemplate', 'use')
     body(data,{'expectedRevision','idempotencyKey','overrides'},{'expectedRevision','idempotencyKey'})
     await user(request,True)
     key=data['idempotencyKey']

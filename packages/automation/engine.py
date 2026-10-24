@@ -77,6 +77,15 @@ class Engine:
         self.diagnostics = deque(maxlen=100)
         self.closed = False
         self.matching = asyncio.Lock()
+        self.authorization = None
+
+    async def _check_authorization(self, kind='trigger', capability='lifecycle', expected_revision=None):
+        if self.authorization is None:
+            return 0
+        allowed, revision_value = await self.io(self.authorization, kind, capability)
+        if not allowed or (expected_revision is not None and revision_value != expected_revision):
+            raise PermissionError(f'Authorization denied: {kind}.{capability}')
+        return revision_value
 
     async def io(self, fn, *args, **kw):
         # Settle writes before propagating cancellation; no orphan disk writer.
@@ -237,6 +246,11 @@ class Engine:
                         if remaining > 0:
                             delay = remaining if delay is None else min(delay, remaining)
                             continue
+                    try:
+                        authorization_revision = await self._check_authorization()
+                    except PermissionError:
+                        await self.io(self.ledger.update, run['id'], status='cancelled', finishedAt=now(), error='Authorization revoked')
+                        continue
                     claimed = await self.io(self.ledger.claim, run['id'])
                     if self.closed:
                         return
@@ -250,6 +264,7 @@ class Engine:
                     if not self.available(trigger):
                         await self.io(self.ledger.defer_unavailable, claimed['id'], claimed['revision'])
                         break
+                    claimed['authorizationRevision'] = authorization_revision
                     task = asyncio.create_task(self.run_attempt(claimed), name='automation-attempt-'+claimed['activeAttemptId'])
                     active[claimed['id']] = task
                     task.add_done_callback(lambda _: signal.set())
@@ -305,6 +320,7 @@ class Engine:
                 nonlocal effect_started
                 # No await between the current Bus fence and the business call.
                 # Shared executors call again after query/checkpoint/verification.
+                await self._check_authorization(expected_revision=run.get('authorizationRevision'))
                 if self.closed or not trigger or not self.available(trigger):
                     raise DependencyUnavailable('Event dependency unavailable before effect')
                 effect_started = True
@@ -326,6 +342,7 @@ class Engine:
                 progress.instantiate_template = self.job_runtime.instantiate_action
             if self.closed or not trigger or not self.available(trigger):
                 raise DependencyUnavailable('Event dependency unavailable before effect')
+            await self._check_authorization(expected_revision=run.get('authorizationRevision'))
             result = await self.execute(action, run['arguments'], run['event'], progress)
             ok = not result.get('isError', False) and result.get('ok', True)
             try:

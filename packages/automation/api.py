@@ -21,6 +21,12 @@ def install(server):
         if not await authorized(request):
             raise HTTPException(401, 'User login required')
 
+    async def require_permission(request, kind, capability):
+        await require(request)
+        allowed, _ = await service().engine.io(service().auth.permission_allowed, kind, capability)
+        if not allowed:
+            raise HTTPException(403, f'Authorization denied: {kind}.{capability}')
+
     @router.get('/api/automation/authorization')
     async def authorization_status(request: Request):
         await require(request)
@@ -44,6 +50,21 @@ def install(server):
         except OSError as exc:
             raise HTTPException(503, str(exc)) from exc
 
+    @router.put('/api/automation/authorization/permissions')
+    async def authorization_permissions(data: dict, request: Request):
+        await require(request)
+        if set(data) != {'permissions', 'expectedRevision'}:
+            raise HTTPException(400, 'Expected permissions and expectedRevision')
+        try:
+            return await service().engine.io(service().auth.change_permissions,
+                                             data['permissions'], data['expectedRevision'])
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, str(exc)) from exc
+
     @router.post('/api/automation/login')
     async def login(data: dict):
         try:
@@ -60,7 +81,8 @@ def install(server):
         return {'ok': True}
 
     @router.get('/api/automation')
-    async def view():
+    async def view(request: Request):
+        await require_permission(request, 'trigger', 'read')
         svc = service()
         state = await svc.engine.io(svc.ledger.read)
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
@@ -161,6 +183,11 @@ def install(server):
             raise HTTPException(400, 'Expected item and expectedRevision')
         try:
             state = await svc.engine.io(svc.ledger.read)
+            existing = state['triggers'].get(data['item'].get('id'))
+            enabled_change = bool(existing) and existing.get('enabled', False) != data['item'].get('enabled', False)
+            await require_permission(request, 'trigger', 'create' if existing is None else ('lifecycle' if enabled_change else 'updateConfig'))
+            if existing is None and data['item'].get('enabled'):
+                await require_permission(request, 'trigger', 'lifecycle')
             if data['item'].get('id') not in state['triggers'] and len(state['triggers']) >= svc.engine.max_triggers:
                 raise ValueError('Trigger capacity reached')
             user = await authorized(request)
@@ -178,7 +205,7 @@ def install(server):
 
     @router.delete('/api/automation/triggers/{tid}')
     async def delete(tid: str, expectedRevision: int, request: Request):
-        await require(request)
+        await require_permission(request, 'trigger', 'delete')
         try:
             await service().engine.io(service().ledger.delete, tid, expectedRevision)
             return {'ok': True}
@@ -189,7 +216,7 @@ def install(server):
 
     @router.post('/api/automation/runs/{rid}/cancel')
     async def cancel(rid: str, data: dict, request: Request):
-        await require(request)
+        await require_permission(request, 'trigger', 'lifecycle')
         if set(data) != {'expectedRevision'}:
             raise HTTPException(400, 'Expected expectedRevision')
         try:
@@ -204,7 +231,7 @@ def install(server):
 
     @router.post('/api/automation/runs/{rid}/confirm-recovery')
     async def confirm_recovery(rid: str, data: dict, request: Request):
-        await require(request)
+        await require_permission(request, 'trigger', 'lifecycle')
         if set(data) != {'expectedRevision', 'confirm'} or data['confirm'] is not True:
             raise HTTPException(400, 'Expected expectedRevision and confirm:true; uncertain effects may repeat')
         try:
@@ -219,6 +246,9 @@ def install(server):
 
     @router.get('/api/automation/events')
     async def events(after: int = 0, limit: int = 20):
+        # Event history is read-only but still profile-wide controlled.
+        # Keep this endpoint's legacy public shape; callers without a Service
+        # (schema/tests) continue to receive the same validation behavior.
         try:
             return {**await service().engine.io(service().events.page, after, limit),
                     'storage': await service().engine.io(service().events.stats)}

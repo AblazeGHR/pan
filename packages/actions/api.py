@@ -15,6 +15,14 @@ def install(server):
         svc = getattr(server.app.state, 'automation', None)
         return bool(svc and await io(svc.auth.authorized, request.headers.get('authorization','')))
 
+    async def require_capability(request, capability):
+        svc = getattr(server.app.state, 'automation', None)
+        if not svc or not await io(svc.auth.authorized, request.headers.get('authorization','')):
+            raise HTTPException(401, 'User login required')
+        allowed, _ = await io(svc.auth.permission_allowed, 'action', capability)
+        if not allowed:
+            raise HTTPException(403, f'Authorization denied: action.{capability}')
+
     async def sessions():
         return await io(server.sess.list_all, load_history=False)
 
@@ -47,12 +55,14 @@ def install(server):
         return {'revision': state['revision'], 'actions': list(state['actions'].values()), 'groups': groups}
 
     @router.get('/api/actions/session-operation-template')
-    async def session_operation_template():
+    async def session_operation_template(request: Request):
+        await require_capability(request, 'read')
         from .session_query import template
         return template()
 
     @router.get('/api/actions')
-    async def listing():
+    async def listing(request: Request):
+        await require_capability(request, 'read')
         return await view()
 
     @router.post('/api/actions/{kind}')
@@ -62,6 +72,11 @@ def install(server):
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict):
             raise HTTPException(400, 'Request requires item and optional expectedRevision')
         try:
+            await require_capability(request, 'create')
+            if kind == 'actions' and data['item'].get('enabled'):
+                await require_capability(request, 'lifecycle')
+            if kind == 'actions' and data['item'].get('system'):
+                await require_capability(request, 'manageSystemActions')
             item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True, authorized=await user(request))
             return {**await view(), 'item': item}
         except ValueError as exc:
@@ -78,6 +93,14 @@ def install(server):
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
             raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
         try:
+            await require_capability(request, 'updateConfig')
+            if kind == 'actions':
+                current = await io(Store().read)
+                old = current['actions'].get(item_id)
+                if old and old.get('enabled', False) != data['item'].get('enabled', False):
+                    await require_capability(request, 'lifecycle')
+            if kind == 'actions' and data['item'].get('system'):
+                await require_capability(request, 'manageSystemActions')
             await io(Store().put, kind, data['item'], data.get('expectedRevision'), authorized=await user(request))
             return await view()
         except ValueError as exc:
@@ -92,6 +115,7 @@ def install(server):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
+            await require_capability(request, 'delete')
             await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
             return await view()
         except ValueError as exc:
@@ -103,11 +127,12 @@ def install(server):
 
     @router.post('/api/actions/groups/{group_id}/{operation}')
     @settled
-    async def release(group_id: str, operation: str, data: dict):
+    async def release(group_id: str, operation: str, data: dict, request: Request):
         if operation not in {'build', 'unbuild'} or set(data) - {'expectedRevision'}:
             raise HTTPException(400, 'Expected build or unbuild and optional expectedRevision')
         pid = 'action-group-' + group_id.replace('_', '-')
         try:
+            await require_capability(request, 'lifecycle')
             # Group first; this closes new-reference admission before collecting
             # Sessions. No mutex or store writer lock is held while we await IO.
             async with coordinator().claim(exclusive={pid}):
@@ -174,10 +199,11 @@ def install(server):
             raise HTTPException(400, str(exc)) from exc
 
     @router.post('/api/action-drafts/{kind}/{operation}')
-    async def drafts(kind: str, operation: str, data: dict):
+    async def drafts(kind: str, operation: str, data: dict, request: Request):
         if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision'}:
             raise HTTPException(400, 'Invalid draft operation')
         try:
+            await require_capability(request, 'create' if operation == 'put' else 'delete')
             if operation == 'put':
                 item = await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
                 return {**await view(), 'item': item}

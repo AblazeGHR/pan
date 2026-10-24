@@ -3,7 +3,15 @@ import { Button } from '@/components/ui/Button';
 import { Field, inputClass } from '@/components/jobs/ScheduleListEditor';
 import { automationLogin, useAutomationAuth } from '@/stores/automationStore';
 
-type Status = { configured: boolean; revision: string };
+const PERMISSIONS = {
+  trigger: ['read', 'create', 'updateConfig', 'lifecycle', 'delete'],
+  action: ['read', 'create', 'updateConfig', 'lifecycle', 'delete', 'manageSystemActions'],
+  jobTemplate: ['read', 'create', 'updateConfig', 'use', 'delete'],
+  job: ['read', 'create', 'updateConfig', 'lifecycle', 'execute', 'delete'],
+} as const;
+type PermissionKind = keyof typeof PERMISSIONS;
+type Permissions = Record<PermissionKind, Record<string, boolean>>;
+type Status = { configured: boolean; revision: string; authorizationRevision: number; permissions: Permissions };
 
 export function AuthorizationSettings() {
   const token = useAutomationAuth((state) => state.token);
@@ -16,6 +24,8 @@ export function AuthorizationSettings() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [permissions, setPermissions] = useState<Permissions | null>(null);
+  const [permissionRevision, setPermissionRevision] = useState(0);
 
   useEffect(() => {
     if (!token) { setStatus(null); return; }
@@ -25,7 +35,7 @@ export function AuthorizationSettings() {
         if (!response.ok) throw new Error('Authorization status unavailable');
         return response.json() as Promise<Status>;
       })
-      .then((value) => { if (!cancelled) setStatus(value); })
+      .then((value) => { if (!cancelled) { setStatus(value); setPermissions(value.permissions); setPermissionRevision(value.authorizationRevision); } })
       .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Authorization status unavailable'); });
     return () => { cancelled = true; };
   }, [token]);
@@ -34,6 +44,22 @@ export function AuthorizationSettings() {
     const secret = key; setKey(''); setError(''); setBusy(true);
     try { await automationLogin(secret); setMessage('Logged in for this browser session.'); }
     catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Login failed'); }
+    finally { setBusy(false); }
+  };
+
+  const savePermissions = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setError(''); setMessage('');
+    try {
+      const response = await fetch('/api/automation/authorization/permissions', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ permissions, expectedRevision: permissionRevision }),
+      });
+      const body = await response.json().catch(() => ({})) as { detail?: string; revision?: number; permissions?: Permissions };
+      if (!response.ok) throw new Error(body.detail || `Permission save failed (${response.status})`);
+      if (body.permissions) setPermissions(body.permissions);
+      if (typeof body.revision === 'number') setPermissionRevision(body.revision);
+      setMessage('Permission matrix saved and active for new operations.');
+    } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Permission save failed'); }
     finally { setBusy(false); }
   };
 
@@ -68,6 +94,12 @@ export function AuthorizationSettings() {
       <Field label="New password"><input className={inputClass} type="password" autoComplete="new-password" minLength={16} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></Field>
       <Field label="Confirm new password"><input className={inputClass} type="password" autoComplete="new-password" minLength={16} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required /></Field>
       <Button type="submit" disabled={busy || !status}>{busy ? 'Saving…' : 'Change password'}</Button>
+    </form>}
+    {token && permissions && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void savePermissions(event)}>
+      <h3 className="font-semibold text-text-primary">Profile-wide permissions</h3>
+      <p className="text-[11px] text-text-secondary">Unchecked capabilities are denied. Changes use a revision CAS and apply immediately to HTTP and MCP writes.</p>
+      <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr><th className="text-left">Object</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <th key={cap} className="px-2 text-left">{cap}</th>)}</tr></thead><tbody>{(Object.keys(PERMISSIONS) as PermissionKind[]).map((kind) => <tr key={kind}><th className="py-1 text-left">{kind}</th>{Array.from(new Set(Object.values(PERMISSIONS).flat())).map((cap) => <td key={cap} className="px-2">{(PERMISSIONS[kind] as readonly string[]).includes(cap) && <input aria-label={`${kind}.${cap}`} type="checkbox" checked={Boolean(permissions[kind][cap])} onChange={(event) => setPermissions({ ...permissions, [kind]: { ...permissions[kind], [cap]: event.target.checked } })} />}</td>)}</tr>)}</tbody></table></div>
+      <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save permissions'}</Button>
     </form>}
     {message && <p role="status" className="text-success text-xs">{message}</p>}
     {error && <p role="alert" className="text-danger text-xs">{error}</p>}

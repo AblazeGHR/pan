@@ -25,6 +25,10 @@ class RecoveryBlocked(RuntimeError):
     pass
 
 
+class AuthorizationRevoked(RuntimeError):
+    """Capability was withdrawn before an effect was admitted."""
+
+
 def is_action_job(job):
     return isinstance(job,dict) and isinstance(job.get('action'),dict) and job['action'].get('api')=='action_reference'
 
@@ -62,7 +66,15 @@ class Runtime:
         from packages.jobs.independent_service import ServiceLock
         self.ownership=ServiceLock(self.actions.root/'job-runtime');self.owned=False;self.lifecycle=asyncio.Lock()
         self.tasks={};self.admissions={};self.closed=False;self.diagnostics=deque(maxlen=100);self.limit=5;self.cancelled=set()
-        self.task_jobs={};self.admission_jobs={}
+        self.task_jobs={};self.admission_jobs={};self.authorization=None
+
+    async def _check_authorization(self, capability='execute', expected_revision=None):
+        if self.authorization is None:
+            return 0
+        allowed, revision_value = await io(self.authorization, 'job', capability)
+        if not allowed or (expected_revision is not None and revision_value != expected_revision):
+            raise AuthorizationRevoked('Job authorization changed before effect admission')
+        return revision_value
 
     @staticmethod
     def active(job):
@@ -404,6 +416,7 @@ class Runtime:
                 selection={'ids':selected['ids'],'candidateCount':selected['candidateCount']}
                 await progress(triggerTargetIds=selected['ids'],triggerSelection=selection)
                 snapshot['context']['jobSelection']=selection
+            await self._check_authorization('execute', job['execution'].get('authorizationRevision'))
             result=await execute_dynamic(snapshot['definition'],snapshot['arguments'],snapshot['context'],progress,self.pause)
             checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
             audit.update(self.selection_audit(checkpoint))
@@ -422,6 +435,8 @@ class Runtime:
             outcome='restarting' if job['config']['recovery']['enabled'] else 'failed';audit['error']=str(exc)
         except RecoveryBlocked as exc:
             outcome='restarting';audit.update(error=str(exc),gateBlocked=True)
+        except AuthorizationRevoked as exc:
+            outcome='cancelled';audit['error']=str(exc)
         except Exception as exc:
             from packages.automation.engine import PersistenceError
             outcome='uncertain' if isinstance(exc,(SnapshotPersistenceError,PersistenceError,TimeoutError)) else 'failed';audit['error']=str(exc)[:1000]
@@ -519,6 +534,7 @@ class Runtime:
         eid='jexec_'+uuid.uuid4().hex
         self.admissions[eid]=asyncio.current_task();self.admission_jobs[eid]=jid
         try:
+            authorization_revision = await self._check_authorization('execute')
             before=await io(self.get,jid)
             view=await io(self.view,before)
             if not view['enabled'] and not (confirmed and view['integrity']['status']=='complete' and not view['integrity']['approvalRequired']):raise Conflict('Job disabled, incomplete or requires user repair')
@@ -535,6 +551,8 @@ class Runtime:
                     await io(self.consume_entry,waiting,entry)
                     return await io(self.view,waiting)
                 raise
+            if job.get('execution'):
+                job['execution']['authorizationRevision'] = authorization_revision
             job=await io(self.consume_entry,job,entry)
             public=await io(self.view,job)
             if self.closed or eid in self.cancelled:raise asyncio.CancelledError()
