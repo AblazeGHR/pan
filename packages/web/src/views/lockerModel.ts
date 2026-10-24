@@ -15,6 +15,7 @@ export interface InteractionCard {
   id: string;
   lockerId: string;
   ownerSessionId: string;
+  relatedMessageId?: string | null;
   recipientId?: string;
   createdAt: string;
   read: boolean;
@@ -57,6 +58,7 @@ export interface LockerMessage {
   id: string;
   lockerId: string;
   ownerSessionId: string;
+  relatedMessageId?: string | null;
   recipientId: string;
   createdAt: string;
   read: boolean;

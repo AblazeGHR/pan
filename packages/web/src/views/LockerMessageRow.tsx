@@ -1,3 +1,4 @@
+import { RelatedContextButton } from './RelatedContextButton';
 import { useState } from 'react';
 import { Check, Circle, Trash2 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
@@ -122,6 +123,7 @@ export function LockerMessageRow({
           {item.read ? <Circle size={12} /> : <Check size={13} />}
         </button>
       </header>
+      <RelatedContextButton ownerSessionId={item.ownerSessionId} relatedMessageId={item.relatedMessageId} source={source} hidden={hidden} />
       <MarkdownRenderer
         content={lockerMessageMarkdown(item)}
         sourceSessionId={item.ownerSessionId}

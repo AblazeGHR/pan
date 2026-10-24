@@ -1,0 +1,116 @@
+{
+  "baseline": "57df8c3a5de60042318cc001bce0986026c784df",
+  "branch": "feature/locker-related-msg-jump-20261025",
+  "checks": {
+    "backend": {
+      "tests": 67,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "navigation": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "frontend": {
+      "tests": 89,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "live": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    }
+  },
+  "build": {
+    "command": "pnpm run build",
+    "steps": [
+      "tsc -b",
+      "vite build",
+      "node e2e/verify-precompressed-assets.mjs"
+    ],
+    "exitCode": 0,
+    "verifiedCompressedAssets": 92
+  },
+  "diffCheck": {
+    "command": "git diff --cached 57df8c3a --check",
+    "exitCode": 0
+  },
+  "sourceFiles": {
+    "docs/design/User-Inbox-Interaction-Card-Contract.md": "05ab8522f7b6965f37cfe19c6f638cc26b017019313f0b99550d90173b8d852c",
+    "docs/skills/pan/SKILL.md": "90dd43227fbc914c14076843aad9e68c4c7ef463d9083a3b6c9758e28a54656a",
+    "docs/skills/pan/references/http-api.md": "4b78f97c9e6f97a95987aa52f276435e488be3dcea5b4827e89af0986bfde09f",
+    "docs/skills/pan/references/ta.md": "52f2c7fb538a432d44491452ea838803754dfe023d84bffd1565bd1e7aa73bc3",
+    "packages/core/message_navigation.py": "b09ad1a8c782b85343d08b79e2328fdcdfdec0a0ce8807891833e75df8a2fd27",
+    "packages/interactions/api.py": "f913352579e56cc1cca7b9e0d7ffa487bf9c76452ea847883bbdfc14a59f8bc6",
+    "packages/interactions/locker_messages.py": "d8bfb2c21aca1a921a451d8e08a03695224cab20943361734615e989ac21f6cc",
+    "packages/interactions/related_context.py": "b9f48b600480a91449ab87435777f052299919d7649a284951e3533936880730",
+    "packages/interactions/schema.json": "d290d3c7d9457e7184c05cf6cf7556863800d4556abee68b88609ee6427b77d4",
+    "packages/interactions/store.py": "70490b08a8f5a0eda36793a5ce3cd5710d34d295fd3624437cd526ad0604979f",
+    "packages/interactions/trusted.py": "c06ae930522679fd7ff5f23d1cde119fa1a1f23d7cb503a6f6b9af2bfdfa1816",
+    "packages/web/server.py": "251c6dabbaea5004e6784ea69ea8bc498ca34f154153f5c15fb0d14728ec3e4e",
+    "packages/web/src/components/chat/MessageNavigationRail.tsx": "4c3f1796baf497210cb406c0af285d8b52ea56d9e28cb975977e461d8fd7fa33",
+    "packages/web/src/components/chat/jumpToMessage.test.ts": "757f13856390fba9833a8a66a35570945488aec4f39a57351e98f2931c37d0f1",
+    "packages/web/src/components/chat/jumpToMessage.ts": "007ce9bb4e095e2fc970a04d8e08e35e3e4ea99b1b6d9db6dc8984cabebd9c29",
+    "packages/web/src/components/chat/navigationUserCases.json": "f02f466852cd0fdc217c4e85e82940eb7db7f2b98d16d901b858929120763e29",
+    "packages/web/src/components/chat/relatedMessageTarget.test.ts": "16538565ded81481097cc4e49ed916436a74af59c979ca900ec0f6340b1906c7",
+    "packages/web/src/components/chat/relatedMessageTarget.ts": "d01d745d3e2f25c80145ce7c38d010be32962ce38735094b3c143d4b0f25b458",
+    "packages/web/src/stores/relatedMessageStore.ts": "33b6c25c8f75d9cfb6387f40949a756a866a253d49bdd1bd83f9ebeb7e3a9259",
+    "packages/web/src/views/ChatView.relatedContext.test.tsx": "5ff1d53cc4ca5176f6b754e3ff243ac748690d8c23838bab0abc7901ca28bf95",
+    "packages/web/src/views/ChatView.tsx": "5bcec379f8067dbd4fde40b5b850733651107e5f7d75cbde63cb397d7a17f99f",
+    "packages/web/src/views/LockerMessageRow.tsx": "5edb2618c59b5041bc4d6e0ba8f77e948bbb84e65db4d76c8290b842d6ae8a22",
+    "packages/web/src/views/LockerView.test.tsx": "5c96cd1a57e8957f7278db4fef805aaeac31366dbe3fbc868488fa3a4c19aa71",
+    "packages/web/src/views/LockerView.tsx": "eaa5f59029b5167e18bfe2c2c9283a6755f0b33b6f80470a251b0546e9a98d87",
+    "packages/web/src/views/RelatedContextButton.tsx": "6394b02437db0d2a0b9ef866ebc05b00d4873fd0c6f98356a7356209802e8d55",
+    "packages/web/src/views/lockerModel.ts": "04385cfd87df280ab63e8f9482d2f1ba787a19a88be97276ae7624240f37d38f",
+    "packages/web/src/views/lockerView.css": "ec8bee6f35fcb03ea591636c48298510da2ae92da39be7209175f49082591bca",
+    "tests/support/locker_context_http_server.py": "dd2715883d0de27eb6c5bd855b292be472da75432c0d38f403085b4620ac5714",
+    "tests/test_locker_context_live.py": "e7932627216566f2d49d901b0ca0d555ab762ec30ef149368916d1e3a527132e",
+    "tests/test_locker_related_context.py": "cae41d81f41b0c58382c764114f8c0b43496b3bdb94fa2d58fcb30fea201ac10"
+  },
+  "creationReadBound": {
+    "rows": 200,
+    "bytes": 1048576,
+    "hot": "locked tail slice",
+    "cold": "metadata get(load_history=False) + seek JSONL tail; signature recheck; no history_page/hydration"
+  },
+  "navigationReadBound": {
+    "pageSize": 500,
+    "maxPages": 200,
+    "maxCanonicalRows": 100000
+  },
+  "semantics": [
+    "owner history, not MA history",
+    "trusted local MCP producer only",
+    "NULL on uncertainty/legacy/automation",
+    "immutable original idempotent rows; metadata excluded from signatures",
+    "JS whitespace and provenance shared cases plus actual compact wire projection"
+  ],
+  "environment": [
+    "Initial worktree clean; own frozen-lockfile dependency installation, ignore-scripts",
+    "Shared dependency directory incomplete; read-only junction replaced with own node_modules",
+    "No provider Workers started; real stdio producer and HTTP service only"
+  ],
+  "unverified": [
+    "No real-browser visual/virtualizer end-to-end click acceptance in this task; frontend Vitest uses actual shared jump with mocked pagination/scroll handles",
+    "No remote CI/push/main/practical integration or human MA acceptance",
+    "No legacy inline-history scan/backfill; bounded misses remain NULL",
+    "Existing pytest timeout/Starlette/Pydantic and Vite chunk-size warnings retained"
+  ],
+  "preservedRedEvidence": [
+    "frontend-red.log.gz",
+    "frontend-red.junit.xml.gz",
+    "frontend-query-red.log.gz",
+    "frontend-query-red.junit.xml.gz"
+  ],
+  "evidenceStorage": "Raw logs remain locally; gzip archives preserve original bytes in Git, including red evidence with assertion whitespace."
+}

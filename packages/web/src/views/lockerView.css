@@ -558,3 +558,8 @@
     padding-left: 40px;
   }
 }
+
+.locker-related-context { margin: 4px 0 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.locker-related-context button { display: inline-flex; align-items: center; gap: 4px; color: var(--color-accent); font-size: 12px; }
+.locker-related-context button:disabled { opacity: .55; cursor: not-allowed; }
+.locker-related-context small { color: var(--color-text-tertiary); font-size: 11px; }

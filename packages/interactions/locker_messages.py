@@ -27,7 +27,7 @@ def attachment_ids(message):
             if part.get('type') == 'attachment'}
 
 
-def accept_locker_message(source_session_id, recipient_id, message):
+def accept_locker_message(source_session_id, recipient_id, message, *, agent_producer=False):
     """Shared admission boundary for internal and trusted local stdio producers."""
     from packages.core import session
     from packages.web import server
@@ -53,8 +53,10 @@ def accept_locker_message(source_session_id, recipient_id, message):
         error = server._attachment_id_error(source_session_id, attachment_id)
         if error:
             raise InteractionError('forbidden', error['code'])
+    from .related_context import previous_user_message_id
+    related = previous_user_message_id(source_session_id) if agent_producer else None
     return get_store().accept_message(source_session_id, recipient_id, value,
-        source_name=source.name, workspace_ids=session.effective_workspace_ids(source))
+        source_name=source.name, workspace_ids=session.effective_workspace_ids(source), related_message_id=related)
 
 
 def _validate_links(server, source_id, text):

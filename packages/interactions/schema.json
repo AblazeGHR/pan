@@ -288,6 +288,7 @@
         "createdAt"
       ],
       "properties": {
+        "relatedMessageId": {"type": ["string", "null"]},
         "schemaVersion": {
           "const": 1
         },

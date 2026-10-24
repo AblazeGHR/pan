@@ -1,3 +1,4 @@
+import { jumpToMessage } from './jumpToMessage';
 import {
   useCallback,
   useEffect,
@@ -114,10 +115,6 @@ function markerLabel(kind: RailNavigationKind, bookmarked: boolean): string {
   return bookmarked ? `${base} (Bookmark)` : KIND_META[kind].label;
 }
 
-function nextPaint(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-}
-
 /** Apply the freshest PROVEN bookmark state to one row.  `undefined` means
  *  the store has no evidence yet and the row keeps its projection; a proven
  *  absent mark (false) must override a stale projected `true`. */
@@ -141,7 +138,6 @@ export function MessageNavigationRail({
     const session = s.sessions.find((item) => item.id === s.currentSessionId);
     return session?.historyTotal ?? null;
   });
-  const ensureMessageLoaded = useSessionStore((s) => s.ensureMessageLoaded);
   const showMetaAgent = useAppSettingsStore((s) => s.showMetaAgent);
   const showTaskAgent = useAppSettingsStore((s) => s.showTaskAgent);
   const showQQ = useAppSettingsStore((s) => s.showQQ);
@@ -447,19 +443,7 @@ export function MessageNavigationRail({
     const current = () => contextRef.current === contextAtClick
       && useSessionStore.getState().currentSessionId === contextAtClick.sessionId;
     try {
-      const message = await ensureMessageLoaded(context.index.total - 1 - target.offset, context.index.total);
-      if (!current()) return;
-      if (!message || (target.messageId && message.messageId !== target.messageId)) {
-        setJumpError('Unable to load this canonical message.'); return;
-      }
-      await nextPaint();
-      if (!current()) return;
-      let didJump = chatRef.current?.scrollToMessage(message, target.offset) ?? false;
-      if (!didJump) {
-        await nextPaint(); if (!current()) return;
-        didJump = chatRef.current?.scrollToMessage(message, target.offset) ?? false;
-      }
-      if (!didJump) { setJumpError('Message loaded, but its rendered row could not be located.'); return; }
+      if (!await jumpToMessage(chatRef, { ...target, total: context.index.total }, current)) return;
       setActiveOffset(target.offset);
       // The clicked tag becomes the active tag, reusing the exact nearest-tag
       // highlight state and CSS (inverted color + enlarged) instead of a
@@ -470,7 +454,8 @@ export function MessageNavigationRail({
       setViewportTarget({ context: contextAtClick, epoch: openEpochRef.current, offset: target.offset });
       const epochAtJump = openEpochRef.current;
       window.setTimeout(() => { if (current() && epochAtJump === openEpochRef.current) setActiveOffset(null); }, 1200);
-    } finally { if (current()) setJumpingOffset(null); }
+    } catch (error) { if (current()) setJumpError(String(error)); }
+    finally { if (current()) setJumpingOffset(null); }
   };
 
   const setMarkerPreview = useCallback((element: HTMLElement, target: NavigationTarget, mode: PreviewMode) => {

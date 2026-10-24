@@ -134,7 +134,7 @@ def register(app):
                 raise InteractionError('invalid', 'operation belongs in the route')
             if operation == 'create':
                 from .locker_messages import accept_locker_message
-                return {'message': accept_locker_message(caller['id'], LOCAL_RECIPIENT, data['message'])}
+                return {'message': accept_locker_message(caller['id'], LOCAL_RECIPIENT, data['message'], agent_producer=True)}
             mid = identity('lmsg_', [LOCAL_RECIPIENT, caller['id'], data['messageId']])
             from .store import UserPrincipal
             return {'message': get_store().get_message(UserPrincipal(LOCAL_RECIPIENT), mid)}

@@ -1,3 +1,7 @@
+import { resolveRelatedMessageTarget } from '@/components/chat/relatedMessageTarget';
+import { useRelatedMessageStore } from '@/stores/relatedMessageStore';
+import { useSessionStore } from '@/stores/sessionStore';
+vi.mock('@/components/chat/relatedMessageTarget', () => ({ resolveRelatedMessageTarget: vi.fn() }));
 import { useAutomationAuth } from '@/stores/automationStore';
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -529,4 +533,52 @@ it('never marks visible Cards or ordinary messages read on entry, scroll, refres
   fireEvent.click(screen.getByRole('button', { name: /^Mark read$/ }));
   await screen.findByRole('button', { name: /^Mark unread$/ });
   expect(calls.filter((call) => call.path.endsWith('/read'))).toHaveLength(1);
+});
+
+
+it('shows context controls on cards and ordinary messages and transfers exact owner/id', async () => {
+  cards = [{ ...card(), relatedMessageId: 'msg_card' }];
+  messages = [{ kind: 'message', revision: 0, id: 'm', lockerId: 'l1', ownerSessionId: 'ses_one', recipientId: 'user',
+    createdAt: '2026-10-25T00:00:00Z', read: false, relatedMessageId: 'msg_message',
+    message: { role: 'assistant', content: 'Ordinary body' } }];
+  vi.mocked(resolveRelatedMessageTarget).mockImplementation(async (_owner, id) => ({ offset: 3, total: 10, messageId: id }));
+  const select = vi.spyOn(useSessionStore.getState(), 'selectSession').mockImplementation(async (id) => { useSessionStore.setState({ currentSessionId: id }); });
+  mount();
+  await waitFor(() => expect(screen.getAllByRole('button', { name: '跳转到相关上下文' })).toHaveLength(2));
+  for (const [index, id] of ['msg_card', 'msg_message'].entries()) {
+    const button = screen.getAllByRole('button', { name: '跳转到相关上下文' })[index]!;
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(useRelatedMessageStore.getState().target).toEqual({ sessionId: 'ses_one', messageId: id }));
+    expect(select).toHaveBeenCalledWith('ses_one', expect.any(AbortSignal));
+    expect(resolveRelatedMessageTarget).toHaveBeenCalledWith('ses_one', id, expect.any(AbortSignal));
+  }
+  select.mockRestore();
+});
+
+it('hides missing ids, disables unreachable contexts and explains the reason', async () => {
+  cards = [{ ...card(), relatedMessageId: 'stale' }, card('b', 'l2')];
+  vi.mocked(resolveRelatedMessageTarget).mockRejectedValue(new Error('相关消息已被替换'));
+  mount();
+  await waitFor(() => expect(screen.getByText('Error: 相关消息已被替换')).toBeTruthy());
+  expect(screen.getAllByRole('button', { name: '跳转到相关上下文' })).toHaveLength(1);
+  expect((screen.getByRole('button', { name: '跳转到相关上下文' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it('does not show context buttons for either item type without a related id', async () => {
+  cards = [card()];
+  messages = [{ kind: 'message', revision: 0, id: 'm', lockerId: 'l1', ownerSessionId: 'ses_one', recipientId: 'user',
+    createdAt: '2026-10-25T00:00:00Z', read: false, relatedMessageId: null,
+    message: { role: 'assistant', content: 'No related id' } }];
+  mount();
+  await within(screen.getByRole('region', { name: 'Locker messages' })).findByText('No related id');
+  expect(screen.queryByRole('button', { name: '跳转到相关上下文' })).toBeNull();
+});
+
+it('disables the context button when its owner Session is deleted', async () => {
+  cards = [{ ...card('b', 'l2'), relatedMessageId: 'msg_deleted_owner' }];
+  mount();
+  await screen.findByText('所属 Session 已删除或不可用。');
+  expect((screen.getByRole('button', { name: '跳转到相关上下文' }) as HTMLButtonElement).disabled).toBe(true);
 });
