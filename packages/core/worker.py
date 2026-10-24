@@ -10194,51 +10194,53 @@ def _queue_history_row(items: list[dict], text: str | None = None) -> dict:
     return row
 
 
-def _prompt_body(item: dict) -> str | None:
-    """Body a queue row contributed to the provider-visible input.
-
-    Task rows carry ``text``; report/Job notices carry ``result``; channel
-    notices carry ``text``.  The attachment projection never participates, so
-    an internal server path can never become a prompt summary.
-    """
-    body = item.get("text")
-    if not isinstance(body, str):
-        body = item.get("result")
-    return body if isinstance(body, str) and body else None
-
-
 def _freeze_prompt_ref(items: list[dict], history_row) -> dict | None:
     """Freeze the canonical input identity at the actual provider hand-off.
 
     ``queueItemId`` is the delivery transaction key, not a message identity:
     the canonical messageId is the one ``session.append_history`` assigned to
-    the input row during this successful hand-off (or accepted Steer).  A
-    merged batch is exactly one provider-visible message, so every member
-    shares that row's messageId; the last admitted item in actual order is the
-    single reference and supplies the optional summary.  Nothing is invented
-    when the row has no Pan messageId (legacy/no admission evidence).
+    the input row during this successful hand-off (or accepted Steer).  The
+    summary is a prefix of that same row's canonical ``content``, so looking up
+    the reported messageId always yields a body starting with the summary.
+
+    A merged batch is exactly one provider-visible message (one history row).
+    Its summary is attached only when every contributing item's frozen
+    decision explicitly enabled summaries; any off/unknown/Report item makes
+    the summary null, because one enabled source must never preview bodies that
+    another disabled/report source contributed to the same row.  Nothing is
+    invented when the row has no Pan messageId (legacy/no admission evidence).
     """
     row = history_row if isinstance(history_row, dict) else {}
     message_id = row.get("messageId")
     if not isinstance(message_id, str) or not _sess.is_pan_message_id(message_id):
         return None
-    last = items[-1] if items else None
-    decision = last.get("autoReportAdmission") if isinstance(last, dict) else None
+    content = row.get("content")
+    decisions = [item.get("autoReportAdmission") if isinstance(item, dict) else None
+                 for item in items]
     summary = None
-    if isinstance(decision, dict) and decision.get("summary") is True:
-        summary = _auto_report.summary_excerpt(_prompt_body(last))
+    if (decisions and isinstance(content, str) and content
+            and all(isinstance(decision, dict) and decision.get("summary") is True
+                    for decision in decisions)):
+        summary = _auto_report.summary_excerpt(content)
     return {"promptMessageId": message_id, "promptSummary": summary}
 
 
 def _delivered_prompt_row(s, items: list[dict], history_row):
-    """Recover the canonical row of an already-marked delivery, never a new id."""
+    """Recover the canonical row an already-marked delivery wrote, never a new id.
+
+    A recovery row must prove **every** member's delivery key on the same row;
+    a row carrying only part of this unit belongs to a different/partial batch
+    and must not lend its messageId.  Missing proof returns None.
+    """
     if isinstance(history_row, dict) and _sess.is_pan_message_id(history_row.get("messageId")):
         return history_row
     keys = {_delivery_key(item) for item in items}
+    if not keys:
+        return None
     for row in reversed(getattr(s, "history", None) or []):
         if not isinstance(row, dict):
             continue
-        if any(key in (row.get("delivered_keys") or ()) for key in keys):
+        if keys <= set(row.get("delivered_keys") or ()):
             return row
     return None
 

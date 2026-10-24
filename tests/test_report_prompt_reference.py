@@ -137,11 +137,14 @@ def test_handoff_freezes_real_input_identity_per_origin(monkeypatch, origin, tex
         row = s.history[-1]
         assert row['role'] == 'user'
         if origin == 'automation':
+            # A notice's provider-visible body is its formatted batch text.
             assert text in row['content']
+            assert row['content'].startswith('////by pan system')
         else:
             assert row['content'] == text
+        # The summary is always a prefix of the canonical row the id resolves to.
         assert w._prompt_ref == {'promptMessageId': row['messageId'],
-                                 'promptSummary': text[:100]}
+                                 'promptSummary': row['content'][:100]}
         # The queue transaction id is not a message identity.
         assert w._prompt_ref['promptMessageId'] != queue_id
         assert sess.is_pan_message_id(w._prompt_ref['promptMessageId'])
@@ -214,14 +217,145 @@ def test_batch_uses_last_admitted_input_and_queued_newcomers_do_not_cross_turns(
         row = s.history[-1]
         assert row['queueItemIds'] == [worker._queue_item_id(item) for item in unit]
         assert w._prompt_ref['promptMessageId'] == row['messageId']
-        # One provider-visible batch message, last item in actual order previews it.
-        assert w._prompt_ref['promptSummary'] == unit[-1]['result'][:100]
-        assert w._prompt_ref['promptSummary'].startswith('last notice')
+        # One provider-visible batch message: the summary is that row's body
+        # prefix, not a single member's raw result.
+        assert w._prompt_ref['promptSummary'] == row['content'][:100]
+        assert row['content'].startswith('////by pan system')
+        assert 'last notice' in row['content']
         # The queued newcomer remains untouched for its own later turn.
         assert any(item is late for item in s.queue_pending)
         assert late.get('autoReportAdmission') is None or \
             late['autoReportAdmission'].get('summary') is False
     asyncio.run(run())
+
+
+def test_mixed_batch_summary_requires_every_contributing_source():
+    async def run():
+        s = session('mixed-batch'); s.queue_paused = False
+        w = runtime_worker(s)
+        # The live policy is deliberately all-on: the frozen per-input decisions
+        # are authoritative and must not be re-derived at hand-off.
+        await set_policy(summary={'system': True})
+        secret = '关闭来源的机密正文' * 8
+        first = await worker.enqueue_notice(s.id, secret, source='automation',
+                                            notice_kind='background_job_terminal',
+                                            job_id='job-off')
+        second = await worker.enqueue_notice(s.id, '开启来源的正文' * 8, source='automation',
+                                             notice_kind='background_job_terminal',
+                                             job_id='job-on')
+        assert first['ok'] and second['ok']
+        rows = s.queue_pending[-2:]
+        rows[0]['autoReportAdmission'] = {'version': 1, 'origin': {'kind': 'system'},
+                                          'enabled': True, 'summary': False}
+        rows[1]['autoReportAdmission'] = {'version': 1, 'origin': {'kind': 'system'},
+                                          'enabled': True, 'summary': True}
+        await admit_unit(w, s, worker._select_queue_unit(s))
+        row = s.history[-1]
+        # The canonical id is still reported, but the disabled contributor's
+        # body must not be previewed through the enabled one.
+        assert w._prompt_ref['promptMessageId'] == row['messageId']
+        assert w._prompt_ref['promptSummary'] is None
+        assert secret[:100] not in json.dumps(w._prompt_ref, ensure_ascii=False)
+        terminal = await worker._persist_terminal_state(w, s, 'done', 'answer')
+        assert terminal['promptSummary'] is None
+    asyncio.run(run())
+
+
+def test_all_enabled_batch_summary_is_the_canonical_row_prefix():
+    async def run():
+        s = session('all-on-batch'); s.queue_paused = False
+        w = runtime_worker(s)
+        await set_policy(summary={'system': True})
+        for index, text in enumerate(['第一条正文 ' + '甲' * 60, '第二条正文 ' + '乙' * 60]):
+            result = await worker.enqueue_notice(
+                s.id, text, source='automation',
+                notice_kind='background_job_terminal', job_id=f'job-{index}')
+            assert result['ok']
+        await admit_unit(w, s, worker._select_queue_unit(s))
+        row = s.history[-1]
+        assert w._prompt_ref['promptMessageId'] == row['messageId']
+        assert w._prompt_ref['promptSummary'] == row['content'][:100]
+        assert w._prompt_ref['promptSummary'] == auto_report.summary_excerpt(row['content'])
+        # Looking up the reported id yields exactly the summarized body.
+        found = next(item for item in s.history if item['messageId'] == row['messageId'])
+        assert found['content'][:100] == w._prompt_ref['promptSummary']
+    asyncio.run(run())
+
+
+def test_single_formatted_notice_reference_resolves_to_summary_prefix():
+    async def run():
+        s = session('notice-single'); s.queue_paused = False
+        w = runtime_worker(s)
+        await set_policy(summary={'system': True})
+        await worker.enqueue_notice(s.id, '单条通知正文 ' + '丙' * 90,
+                                    source='automation',
+                                    notice_kind='background_job_terminal',
+                                    job_id='job-single')
+        await admit_unit(w, s, worker._select_queue_unit(s))
+        row = s.history[-1]
+        assert row['content'].startswith('////by pan system')
+        assert w._prompt_ref['promptSummary'] == row['content'][:100]
+        assert w._prompt_ref['promptSummary'].startswith('////by pan system')
+        found = next(item for item in s.history
+                     if item['messageId'] == w._prompt_ref['promptMessageId'])
+        assert found['content'].startswith(w._prompt_ref['promptSummary'])
+    asyncio.run(run())
+
+
+def test_disabled_and_report_inputs_never_attach_a_summary():
+    async def run():
+        s = session('never-summary'); s.queue_paused = False
+        w = runtime_worker(s)
+        await set_policy(system=True, ma=True, user=True,
+                         summary={'system': True, 'ma': True, 'user': True})
+        await worker.enqueue_notice(s.id, '关闭摘要的通知', source='automation',
+                                    notice_kind='background_job_terminal', job_id='job-off')
+        s.queue_pending[-1]['autoReportAdmission'] = {
+            'version': 1, 'origin': {'kind': 'system'}, 'enabled': True, 'summary': False}
+        await admit_unit(w, s, worker._select_queue_unit(s))
+        assert w._prompt_ref['promptSummary'] is None
+
+        # A Report batch never gets a summary even with every Core switch on.
+        reports = []
+        for index in range(2):
+            reports.append({
+                'type': 'report', 'kind': 'report', 'id': f'q_report_{index}',
+                'queueItemId': f'q_report_{index}', 'source': 'report',
+                'status': 'done', 'result': f'child answer {index}',
+                'sessionId': s.id, 'taskId': None, 'workerId': 'w',
+                'deliveryState': 'queued', 'dispatchState': 'queued', 'revision': 1,
+                'createdAt': index,
+            })
+        s.queue_pending = reports
+        s.queue_paused = False
+        await admit_unit(w, s, worker._select_queue_unit(s))
+        assert w._prompt_ref['promptMessageId'] == s.history[-1]['messageId']
+        assert w._prompt_ref['promptSummary'] is None
+    asyncio.run(run())
+
+
+def test_delivery_recovery_requires_every_key_on_the_same_row():
+    items = [
+        {'type': 'task', 'id': 'q_a', 'queueItemId': 'q_a', 'text': 'A', 'source': 'user'},
+        {'type': 'task', 'id': 'q_b', 'queueItemId': 'q_b', 'text': 'B', 'source': 'user'},
+    ]
+    for item in items:
+        item['autoReportAdmission'] = {'version': 1, 'origin': {'kind': 'user'},
+                                       'enabled': False, 'summary': True}
+    keys = [worker._delivery_key(item) for item in items]
+    s = session('recovery-proof')
+    partial = {'role': 'user', 'content': 'partial body',
+               'messageId': sess._new_pan_message_id(), 'delivered_keys': [keys[0]]}
+    s.history = [partial]
+    assert worker._delivered_prompt_row(s, items, {}) is None
+    # A partial row after the complete one must not lend its identity either.
+    complete = {'role': 'user', 'content': 'complete canonical body',
+                'messageId': sess._new_pan_message_id(), 'delivered_keys': keys}
+    s.history = [complete, partial]
+    assert worker._delivered_prompt_row(s, items, {}) is complete
+    frozen = worker._freeze_prompt_ref(items, worker._delivered_prompt_row(s, items, {}))
+    assert frozen == {'promptMessageId': complete['messageId'],
+                      'promptSummary': complete['content'][:100]}
 
 
 def test_accepted_steer_updates_reference_rejected_and_unknown_do_not():

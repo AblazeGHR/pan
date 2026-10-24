@@ -75,9 +75,10 @@ identity cannot be proven:
 
 - `promptMessageId`: the canonical Pan history `messageId` of the input this
   execution actually admitted.
-- `promptSummary`: the first 100 Unicode characters of that same input body,
-  only when the prompt-summary policy for that input's structured origin is
-  enabled.
+- `promptSummary`: the first 100 Unicode characters of the canonical body that
+  `promptMessageId` resolves to, only when the prompt-summary policy for that
+  input's structured origin is enabled (and, for a merged batch, for every
+  contributor).
 
 Identity rules:
 
@@ -95,12 +96,22 @@ Identity rules:
   structured `source`/`sourceSessionId`/`sourcePluginId`/`noticeKind` fields,
   never from `role=user` or body markers.
 - A merged report/channel batch is one provider-visible input message and
-  therefore has one canonical `messageId` shared by its members. The last
-  admitted member in actual order is the single reference and supplies the
-  summary.
+  therefore has one canonical `messageId` shared by its members. Its
+  `promptSummary` is the prefix of that same canonical row content, and it is
+  attached only when **every** contributing item's frozen decision explicitly
+  enabled summaries. If any contributor is disabled, unknown or a Report, the
+  summary is `null`: one enabled source must never preview a body that another
+  source contributed to the same provider-visible message.
+- Single inputs use the same rule: the summary is taken from the canonical
+  history row (task body, or the formatted notice/report batch text), not from
+  a parallel raw field. Looking up the reported `messageId` therefore always
+  returns a body whose first 100 characters equal `promptSummary`.
 - An accepted Steer replaces this turn's reference with the Steer input row.
   Rejected or unknown receipts, and late acceptances for another Worker,
   generation or execution, never count as admission and never change it.
+- A recovered hand-off may reuse an existing history row only when that one row
+  carries **every** member's delivery key; a partial match belongs to a
+  different/partial batch and yields no reference instead of borrowing its id.
 - No id is invented when evidence is missing: native-TUI admission, preflight
   failures before hand-off, zombie reports for a run that never handed off,
   legacy terminal/report rows and legacy `autoReportAdmission` decisions all
@@ -113,10 +124,11 @@ The summary policy is independent of whether a report is sent:
 - `ui.autoReport.summary` has the same four origins (system/ma/user/plugin) as
   answer reporting. Every switch defaults to false, and a plugin override never
   inherits `message_source.auto_report_default`.
-- The excerpt is a verbatim prefix of the same body and carries no model call,
-  no suffix and no notice header. With the switch off, both the Worker and the
-  report store `promptSummary: null`; the input body never leaves the Session
-  with the report.
+- The excerpt is a verbatim prefix of the canonical history body its
+  `messageId` resolves to, and carries no model call, no suffix and no notice
+  header of its own. With the switch off for any contributing input, both the
+  Worker and the report store `promptSummary: null`; the input body never
+  leaves the Session with the report.
 - `GET /api/plugins/message-sources` adds `effectiveSummaryEnabled` (explicit
   override or false). `PUT /api/settings/ui` validates `summary` strictly and
   keeps omitted members at the all-false defaults.
