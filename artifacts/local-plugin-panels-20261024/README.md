@@ -5,7 +5,7 @@ Previously reviewed candidate (preserved, not amended): `525fb7de7db934f01229b25
 Tested implementation commit: `93b300d6877422b7ad0129335aea0b9e56e8232e`, tree `507093bda7546a8042c030493d1b4170f24da773`.
 
 The browser run used the production React bundle, a real Vite + React example built through the GUI,
-an owned server process on a random assigned port (last run `57106`), a temporary data root and a
+an owned server process on a random assigned port (last run `63004`), a temporary data root and a
 plugin copy under the same temporary root. Ports 8767/8768 and any existing Pan profile/service were
 not used. `scripts/run_tests_isolated.py` cleared inherited `PAN_*` and assigned the port.
 
@@ -14,7 +14,7 @@ not used. `scripts/run_tests_isolated.py` cleared inherited `PAN_*` and assigned
 | Command | Result |
 | --- | --- |
 | `pnpm --dir packages/web build` | exit 0; `tsc -b` + Vite build, 92 compressed assets |
-| `pytest tests/test_plugin_panel_builds.py tests/test_plugin_panels.py tests/test_plugin_platform.py tests/test_plugin_session_config.py tests/test_plugin_developer_help.py -q` | 60 passed (1 unrelated pydantic warning) |
+| `pytest tests/test_plugin_panel_builds.py tests/test_plugin_panels.py tests/test_plugin_platform.py tests/test_plugin_session_config.py tests/test_plugin_developer_help.py -q` | 65 passed (1 unrelated pydantic warning) |
 | `vitest run PluginPanelView.test.tsx LocalPluginPanelsSettings.test.tsx AppSettingsModal.test.tsx` | 98 passed |
 | `scripts/run_tests_isolated.py -- pytest tests/test_local_plugin_panels_http.py -q` | 1 passed; port released; no owned descendants; no page errors |
 | baseline `525fb7de` archive: `vitest run PluginPanelView.test.tsx -t "reveals an active plugin route…"` | 1 failed (stale 3-group fixture), see `baseline-frontend-test.txt` |
@@ -29,11 +29,19 @@ three fixture panels. The exact label assertion is unchanged.
 `_BuildProcess` creates the build command suspended, assigns it to a host-owned
 `JobObjectGuard` (`KILL_ON_JOB_CLOSE`, no breakaway), proves membership and only then resumes it.
 Timeout, cancellation, host close and root-exit-with-live-child all terminate the whole Job and verify
-`member_pids()` is empty before a build may be published. `close` waits for bounded task cleanup and a
-terminal state; a query/cleanup failure is persisted as a visible failed build. No PID scan or root-only
-kill is used for tree cleanup. Tests use a real Python parent + child where the child inherits stdout;
-the child PID is read from the plugin directory and checked with psutil. The old candidate timed out and
-left that child running (cleaned after the red run).
+`member_pids()` is empty before a build may be published. Cleanup runs in a worker rather than on the
+event loop; a blocked `BufferedReader` is interrupted with `CancelSynchronousIo` (or a POSIX wake pipe)
+and is never closed before its reader finishes. Deterministic negative controls force unconfirmed
+termination with a live reader, assert the heartbeat continues, `abort`/`host.close` stay bounded, and
+the panel remains visibly failed with no published build. No PID scan or root-only kill is used for
+tree cleanup. Tests use a real Python parent + child where the child inherits stdout; the child PID is
+read from the plugin directory and checked with psutil. The old candidate timed out and left that child
+running (cleaned after the red run).
+
+POSIX spawn saves the session leader PID as the owned PGID immediately. Termination and verification
+use that saved group even after the root exits; `PermissionError`/unknown group queries are reported as
+unconfirmed rather than empty success. Branch tests mock `os.killpg` for root-gone and permission paths;
+no real Linux host was available, so that platform remains untested end-to-end.
 
 ## Immutable builds
 
@@ -64,7 +72,9 @@ Server log: `server.log` with owned paths redacted.
 ## Boundaries
 
 - Build tree cleanup is implemented and tested on Windows with the repository's Job Object guard;
-  the POSIX branch uses an owned session/process group but was not exercised on this machine.
+  the POSIX branch saves the session leader PGID at spawn, uses it after the root is gone, and treats
+  PermissionError/unknown group checks as unconfirmed. POSIX behavior is covered by mocked branch tests
+  but was not exercised on a real Linux host here.
 - A build command that deliberately escapes its Job (breakaway) is rejected by the guard contract;
   third-party daemons installed outside the build tree are not owned or killed.
 - No real user profile, provider, account, port 8767/8768, main/practical branch, push or CI was used.

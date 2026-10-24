@@ -117,8 +117,13 @@ class _BuildProcess:
         self.append = append
         self.proc = None
         self.guard = None
+        self.pgid = None
         self.reader = None
         self.reader_done = threading.Event()
+        self.reader_ready = threading.Event()
+        self.reader_tid = None
+        self.wake_read = None
+        self.wake_write = None
         self.exit_event = None
         self.code = None
         self.terminated = 0
@@ -161,11 +166,32 @@ class _BuildProcess:
                 self.argv, cwd=str(self.cwd), stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 start_new_session=True)
+            # The session leader ID is the process group ID. Save it now:
+            # after the root exits, os.getpgid(pid) no longer resolves, while
+            # children can still be alive in that group.
+            self.pgid = int(proc.pid)
+            read_fd, write_fd = os.pipe()
+            os.set_blocking(write_fd, False)
+            self.wake_read, self.wake_write = read_fd, write_fd
         self.proc = proc
         self.reader = threading.Thread(target=self._read, name="panel-build-output", daemon=True)
         self.reader.start()
 
     def _read(self) -> None:
+        try:
+            if sys.platform == "win32":
+                self._read_windows()
+            else:
+                self._read_posix()
+        finally:
+            self.reader_done.set()
+
+    def _read_windows(self) -> None:
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetCurrentThreadId.restype = wintypes.DWORD
+        self.reader_tid = int(kernel.GetCurrentThreadId())
+        self.reader_ready.set()
         try:
             while True:
                 chunk = self.proc.stdout.read(4096)
@@ -174,8 +200,86 @@ class _BuildProcess:
                 self.append(chunk.decode("utf-8", "replace"))
         except (OSError, ValueError):
             pass
-        finally:
-            self.reader_done.set()
+
+    def _read_posix(self) -> None:
+        import select
+        fd = self.proc.stdout.fileno()
+        self.reader_ready.set()
+        try:
+            while True:
+                ready, _, _ = select.select([fd, self.wake_read], [], [], 0.2)
+                if self.wake_read in ready:
+                    try:
+                        os.read(self.wake_read, 4096)
+                    except OSError:
+                        pass
+                    break
+                if fd in ready:
+                    chunk = os.read(fd, 4096)
+                    if not chunk:
+                        break
+                    self.append(chunk.decode("utf-8", "replace"))
+        except (OSError, ValueError):
+            pass
+
+    def _cancel_reader(self) -> str | None:
+        """Interrupt a blocked reader without closing its BufferedReader.
+
+        Windows uses CancelSynchronousIo on the reader's own thread, so the
+        BufferedReader lock stays valid. POSIX wakes the reader through its
+        own pipe. Never call BufferedReader.close() before reader_done.
+        """
+        if self.reader_done.is_set() or self.reader is None:
+            return None
+        if sys.platform == "win32":
+            if not self.reader_ready.wait(1.0):
+                return "build reader did not start"
+            from ctypes import wintypes
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.OpenThread.restype = wintypes.HANDLE
+            kernel.CancelSynchronousIo.argtypes = [wintypes.HANDLE]
+            kernel.CancelSynchronousIo.restype = wintypes.BOOL
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel.OpenThread(0x0001, False, int(self.reader_tid or 0))  # THREAD_TERMINATE
+            if not handle:
+                return f"OpenThread failed ({ctypes.get_last_error()})"
+            try:
+                ok = kernel.CancelSynchronousIo(handle)
+                error = int(ctypes.get_last_error())
+            finally:
+                kernel.CloseHandle(handle)
+            if not ok and not self.reader_done.is_set():
+                if error == 1168:  # ERROR_NOT_FOUND: the read already ended
+                    return None
+                return f"CancelSynchronousIo failed ({error})"
+            return None
+        try:
+            os.write(self.wake_write, b"x")
+            return None
+        except OSError as exc:
+            return f"could not wake build reader ({exc})"
+
+    async def _wait_reader(self, timeout: float) -> bool:
+        return await asyncio.to_thread(self.reader_done.wait, timeout)
+
+    async def _close_reader_if_done(self) -> str | None:
+        if not self.reader_done.is_set():
+            return "build output reader is still active"
+        def close():
+            try:
+                self.proc.stdout.close()
+            except (OSError, ValueError):
+                pass
+            for fd in (self.wake_read, self.wake_write):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+            self.wake_read = self.wake_write = None
+        await asyncio.to_thread(close)
+        return None
 
     def start_monitor(self, loop) -> None:
         self.exit_event = asyncio.Event()
@@ -200,25 +304,44 @@ class _BuildProcess:
             _owned, remaining = self.guard.terminate_tree(
                 self.proc.pid, timeout=TERMINATE_TREE_TIMEOUT)
             return remaining
+        if self.pgid is None:
+            raise RuntimeError("build process group identity is unavailable")
         import signal
+        sig = getattr(signal, "SIGKILL", signal.SIGTERM)
         try:
-            os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
-        except (ProcessLookupError, PermissionError, OSError):
-            return []
+            os.killpg(self.pgid, sig)
+        except ProcessLookupError:
+            return []  # the whole saved group is already gone
+        except PermissionError as exc:
+            raise RuntimeError(f"permission denied terminating build group {self.pgid}") from exc
+        except OSError as exc:
+            raise RuntimeError(f"could not terminate build group {self.pgid}: {exc}") from exc
         deadline = time.monotonic() + TERMINATE_TREE_TIMEOUT
         while time.monotonic() < deadline:
             try:
-                os.killpg(os.getpgid(self.proc.pid), 0)
+                os.killpg(self.pgid, 0)
             except ProcessLookupError:
                 return []
-            except (PermissionError, OSError):
-                return []
+            except PermissionError as exc:
+                raise RuntimeError(f"permission denied verifying build group {self.pgid}") from exc
+            except OSError as exc:
+                raise RuntimeError(f"could not verify build group {self.pgid}: {exc}") from exc
             time.sleep(0.02)
-        return [self.proc.pid]
+        return [self.pgid]
 
     def _confirm_empty(self) -> None:
         if self.guard is None:
-            return
+            if self.pgid is None:
+                raise RuntimeError("build process group identity is unavailable")
+            try:
+                os.killpg(self.pgid, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError as exc:
+                raise RuntimeError(f"permission denied verifying build group {self.pgid}") from exc
+            except OSError as exc:
+                raise RuntimeError(f"could not verify build group {self.pgid}: {exc}") from exc
+            raise RuntimeError(f"build process group {self.pgid} still exists")
         members = self.guard.member_pids()
         if members:
             raise RuntimeError(f"build process tree still has members {members}")
@@ -239,42 +362,54 @@ class _BuildProcess:
             return False
 
     async def _drain_reader(self) -> str | None:
-        if await asyncio.to_thread(self.reader_done.wait, READER_DRAIN_TIMEOUT):
-            return None
-        # A descendant inherited the pipe (or the root is gone but a child
-        # keeps it open). Terminate the guarded tree, then close the read end
-        # so the reader cannot block forever.
+        if await self._wait_reader(READER_DRAIN_TIMEOUT):
+            return await self._close_reader_if_done()
         try:
-            self._terminate_and_confirm()
+            await asyncio.to_thread(self._terminate_and_confirm)
         except Exception as exc:
-            return f"could not confirm build descendants exited: {exc}"
+            cancel_error = await asyncio.to_thread(self._cancel_reader)
+            if await self._wait_reader(READER_DRAIN_TIMEOUT):
+                await self._close_reader_if_done()
+            return f"could not confirm build descendants exited: {exc}" + (
+                f"; {cancel_error}" if cancel_error else "")
+        if await self._wait_reader(READER_DRAIN_TIMEOUT):
+            return await self._close_reader_if_done()
+        cancel_error = await asyncio.to_thread(self._cancel_reader)
+        if await self._wait_reader(READER_DRAIN_TIMEOUT):
+            return await self._close_reader_if_done()
+        return ("build output pipe did not close after the process tree ended"
+                + (f"; {cancel_error}" if cancel_error else ""))
+
+    def _live_members(self) -> list[int]:
+        if self.guard is not None:
+            return self.guard.member_pids()
+        if self.pgid is None:
+            raise RuntimeError("build process group identity is unavailable")
         try:
-            self.proc.stdout.close()
-        except (OSError, ValueError):
-            pass
-        if await asyncio.to_thread(self.reader_done.wait, READER_DRAIN_TIMEOUT):
-            return None
-        return "build output pipe did not close after the process tree ended"
+            os.killpg(self.pgid, 0)
+        except ProcessLookupError:
+            return []
+        except PermissionError as exc:
+            raise RuntimeError(f"permission denied verifying build group {self.pgid}") from exc
+        except OSError as exc:
+            raise RuntimeError(f"could not verify build group {self.pgid}: {exc}") from exc
+        return [self.pgid]
 
     async def finish_root_exit(self) -> str | None:
-        members = 0
-        if self.guard is not None:
+        try:
+            members = len(self._live_members())
+        except Exception as exc:
+            return f"could not confirm build descendants exited: {exc}"
+        if members:
             try:
-                members = len(self.guard.member_pids())
+                await asyncio.to_thread(self._terminate_and_confirm)
             except Exception as exc:
                 return f"could not confirm build descendants exited: {exc}"
-            if members:
-                try:
-                    self._terminate_and_confirm()
-                except Exception as exc:
-                    return f"could not confirm build descendants exited: {exc}"
-                self.terminated = members
-                self.append(f"\nTerminated {members} remaining build Job member(s).\n")
+            self.terminated = members
+            self.append(f"\nTerminated {members} remaining build process(es).\n")
         return await self._drain_reader()
 
-    async def abort(self) -> str | None:
-        if self.proc is None:
-            return None
+    def _abort_sync(self) -> list[str]:
         errors = []
         try:
             self._terminate_and_confirm()
@@ -287,12 +422,22 @@ class _BuildProcess:
                 pass
             if not self._root_gone(2.0):
                 errors.append("build root did not exit")
-        try:
-            self.proc.stdout.close()
-        except (OSError, ValueError):
-            pass
-        if not await asyncio.to_thread(self.reader_done.wait, READER_DRAIN_TIMEOUT):
-            errors.append("build output reader did not stop")
+        return errors
+
+    async def abort(self) -> str | None:
+        if self.proc is None:
+            return None
+        errors = await asyncio.to_thread(self._abort_sync)
+        if not await self._wait_reader(READER_DRAIN_TIMEOUT):
+            cancel_error = await asyncio.to_thread(self._cancel_reader)
+            if not await self._wait_reader(READER_DRAIN_TIMEOUT):
+                errors.append("build output reader did not stop")
+                if cancel_error:
+                    errors.append(cancel_error)
+            else:
+                await self._close_reader_if_done()
+        else:
+            await self._close_reader_if_done()
         return "; ".join(errors) or None
 
     def dispose(self) -> str | None:
@@ -487,7 +632,7 @@ class PanelBuildStore:
             if not spec["cwd"].is_dir():
                 raise ValueError("Panel build cwd does not exist")
             process = _BuildProcess(spec["command"], spec["cwd"], append)
-            process.spawn()
+            await asyncio.to_thread(process.spawn)
             process.start_monitor(asyncio.get_running_loop())
             exited = await process.wait_exit(spec["timeout"])
             if not exited:
@@ -554,7 +699,7 @@ class PanelBuildStore:
             if staging is not None:
                 shutil.rmtree(staging, ignore_errors=True)
             if process is not None:
-                dispose_error = process.dispose()
+                dispose_error = await asyncio.to_thread(process.dispose)
                 if dispose_error:
                     failure = f"{failure or 'Build stopped.'} Cleanup: {dispose_error}."
             if failure is not None:

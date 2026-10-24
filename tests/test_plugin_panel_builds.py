@@ -5,16 +5,18 @@ plugin, real Pan data directory or network is involved.
 """
 import asyncio
 import json
+import os
 from pathlib import Path
 import sys
 import time
+from types import SimpleNamespace
 
 import psutil
 import pytest
 
 from packages.core.manifest_loader import load_manifests
 from packages.plugins.catalog import Catalog
-from packages.plugins.panel_builds import PanelNotReady
+from packages.plugins.panel_builds import PanelNotReady, _BuildProcess
 from packages.plugins.panels import PanelHost
 
 BUILD_SCRIPT = """\
@@ -321,7 +323,7 @@ def test_root_exit_with_child_holding_stdout_is_cleaned_and_bounded(tmp_path):
             state = await host.builds.wait('local-console', 'console')
             elapsed = time.monotonic() - started
             assert state['status'] == 'built', state
-            assert 'Terminated ' in state['log'] and 'remaining build Job' in state['log']
+            assert 'Terminated ' in state['log'] and 'remaining build process' in state['log']
             assert elapsed < 10, elapsed
             pid = int((plugin / 'child.pid').read_text(encoding='utf-8'))
             assert not psutil.pid_exists(pid), f'build child {pid} survived'
@@ -455,3 +457,145 @@ def test_publish_state_failure_keeps_previous_build_and_pointer(tmp_path, monkey
             await host.close()
 
     asyncio.run(run())
+
+
+def _unconfirmed(_self):
+    raise RuntimeError('simulated unconfirmed tree')
+
+
+async def _pid_gone(pid: int, label: str, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while psutil.pid_exists(pid) and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    assert not psutil.pid_exists(pid), f'{label}: owned child {pid} survived'
+
+
+async def _heartbeat():
+    stats = {'ticks': 0, 'max_gap': 0.0}
+    last = time.monotonic()
+
+    async def beat():
+        nonlocal last
+        while True:
+            await asyncio.sleep(0.01)
+            now = time.monotonic()
+            stats['max_gap'] = max(stats['max_gap'], now - last)
+            stats['ticks'] += 1
+            last = now
+
+    task = asyncio.create_task(beat())
+    return task, stats
+
+
+def test_abort_with_unconfirmed_tree_is_bounded_and_does_not_close_live_reader(tmp_path):
+    plugin = tmp_path / 'plugin'
+    tree_plugin(tmp_path, 'sleep', timeout=60)
+
+    async def run():
+        process = _BuildProcess([sys.executable, str(plugin / 'build.py')], plugin, lambda _text: None)
+        process.spawn()
+        pid = await async_child_pid(plugin)
+        process._terminate_and_confirm = lambda: _unconfirmed(process)
+        task, stats = await _heartbeat()
+        try:
+            result = await asyncio.wait_for(process.abort(), 15)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        assert 'not confirmed' in result
+        assert process.reader_done.is_set(), 'blocked reader must be interrupted without closing it'
+        assert stats['ticks'] > 20 and stats['max_gap'] < 0.5, stats
+        process.dispose()
+        await _pid_gone(pid, 'abort')
+        assert not psutil.pid_exists(pid), 'owned child survived abort cleanup'
+
+    asyncio.run(run())
+
+
+def test_drain_reader_unconfirmed_cleanup_keeps_heartbeat(tmp_path):
+    plugin = tmp_path / 'plugin'
+    tree_plugin(tmp_path, 'exit')  # root exits; child keeps stdout open
+
+    async def run():
+        process = _BuildProcess([sys.executable, str(plugin / 'build.py')], plugin, lambda _text: None)
+        process.spawn()
+        pid = await async_child_pid(plugin)
+        process._terminate_and_confirm = lambda: _unconfirmed(process)
+        task, stats = await _heartbeat()
+        try:
+            result = await asyncio.wait_for(process._drain_reader(), 10)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        assert result and 'could not confirm' in result
+        assert process.reader_done.is_set()
+        assert stats['ticks'] > 20 and stats['max_gap'] < 0.5, stats
+        process.dispose()
+        await _pid_gone(pid, 'drain')
+        assert not psutil.pid_exists(pid)
+
+    asyncio.run(run())
+
+
+def test_host_close_with_unconfirmed_tree_is_bounded_and_visible(tmp_path, monkeypatch):
+    plugin = tmp_path / 'plugin'
+    manifest_path = tree_plugin(tmp_path, 'sleep', timeout=60)
+    data = tmp_path / 'data'
+    monkeypatch.setattr(_BuildProcess, '_terminate_and_confirm', _unconfirmed)
+
+    async def run():
+        host = host_for(manifest_path, data)
+        await host.start_build('local-console', 'console')
+        pid = await async_child_pid(plugin)
+        task, stats = await _heartbeat()
+        try:
+            await asyncio.wait_for(host.close(), 20)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        saved = json.loads((data / 'plugin-panels/local-console/console/state.json')
+                           .read_text(encoding='utf-8'))
+        assert saved['status'] == 'failed'
+        assert saved['activeBuild'] is None
+        assert 'cancelled' in saved['lastError'] and 'not confirmed' in saved['lastError']
+        assert stats['ticks'] > 20 and stats['max_gap'] < 0.5, stats
+        await _pid_gone(pid, 'host-close')
+        assert not psutil.pid_exists(pid), 'owned child survived host close'
+
+    asyncio.run(run())
+
+
+def test_posix_group_cleanup_uses_saved_pgid_after_root_exit(monkeypatch):
+    process = _BuildProcess(['unused'], Path('.'), lambda _text: None)
+    process.proc = SimpleNamespace(pid=12345)
+    process.pgid = 4242
+    calls = []
+
+    def killpg(pgid, sig):
+        calls.append((pgid, sig))
+        if sig == 0:
+            raise ProcessLookupError
+
+    monkeypatch.setattr(os, 'killpg', killpg, raising=False)
+    monkeypatch.setattr(os, 'getpgid', lambda _pid: (_ for _ in ()).throw(AssertionError('getpgid is not allowed')), raising=False)
+    assert process._terminate_tree() == []
+    assert calls and calls[0][0] == 4242, calls
+
+
+def test_posix_group_cleanup_permission_and_unknown_are_not_success(monkeypatch):
+    process = _BuildProcess(['unused'], Path('.'), lambda _text: None)
+    process.proc = SimpleNamespace(pid=12345)
+    process.pgid = 4243
+
+    monkeypatch.setattr(os, 'killpg', lambda _pgid, _sig: (_ for _ in ()).throw(PermissionError('denied')), raising=False)
+    with pytest.raises(RuntimeError, match='permission denied'):
+        process._terminate_tree()
+    with pytest.raises(RuntimeError, match='permission denied'):
+        process._terminate_and_confirm()
+
+    def unknown(_pgid, _sig):
+        raise OSError('unknown')
+
+    monkeypatch.setattr(os, 'killpg', unknown, raising=False)
+    with pytest.raises(RuntimeError, match='could not terminate'):
+        process._terminate_tree()

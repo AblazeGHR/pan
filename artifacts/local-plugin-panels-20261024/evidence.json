@@ -1,6 +1,6 @@
 {
-  "sourceSha": "525fb7de7db934f01229b258acb7a977ff854687",
-  "port": 57106,
+  "sourceSha": "c65a69defc3a2c1c7609ae9e214d9c79c6af0848",
+  "port": 63004,
   "profile": "<owned temporary data root>",
   "pluginDir": "<owned temporary example copy>",
   "browser": {
@@ -22,15 +22,13 @@
     "sourceFilesPreserved": true
   },
   "builds": {
-    "a": "20261024T215032-9de3d401",
-    "b": "20261024T215034-029b5b5f",
-    "assetA": "/panel-assets/react-console/console/20261024T215032-9de3d401/",
-    "assetB": "/panel-assets/react-console/console/20261024T215034-029b5b5f/",
+    "a": "20261024T220320-90f75244",
+    "b": "20261024T220323-4c9e27cb",
+    "assetA": "/panel-assets/react-console/console/20261024T220320-90f75244/",
+    "assetB": "/panel-assets/react-console/console/20261024T220323-4c9e27cb/",
     "oldLazy": "Bundle A",
     "newLazy": "Bundle B"
   },
   "portReleased": true,
-  "ownedDescendantsAfterStop": [],
-  "testedCommit": "93b300d6877422b7ad0129335aea0b9e56e8232e",
-  "testedTree": "507093bda7546a8042c030493d1b4170f24da773"
+  "ownedDescendantsAfterStop": []
 }
