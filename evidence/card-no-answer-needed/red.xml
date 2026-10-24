@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="9" time="0.873" timestamp="2026-10-25T03:34:24.579436+08:00" hostname="ablaze"><testcase classname="tests.test_interaction_no_answer" name="test_terminal_retained_idempotent_no_response_or_notice_and_delete" time="0.065"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_terminal_retained_idempot0')
+
+    def test_terminal_retained_idempotent_no_response_or_notice_and_delete(tmp_path):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E6996A0&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_creator_not_owner_or_manager_and_pagination" time="0.017"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_creator_not_owner_or_mana0')
+
+    def test_creator_not_owner_or_manager_and_pagination(tmp_path):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       cards = [create(store, str(i)) for i in range(3)]
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E6E9BD0&gt;
+key = '0', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_two_terminal_writers_barrier[respond]" time="0.021"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_two_terminal_writers_barr0')
+operation = 'respond'
+
+    @pytest.mark.parametrize('operation', ['respond', 'reject'])
+    def test_two_terminal_writers_barrier(tmp_path, operation):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+        for i in range(12):
+&gt;           card = create(store, str(i))
+                   ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E6EA490&gt;
+key = '0', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_two_terminal_writers_barrier[reject]" time="0.021"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_two_terminal_writers_barr1')
+operation = 'reject'
+
+    @pytest.mark.parametrize('operation', ['respond', 'reject'])
+    def test_two_terminal_writers_barrier(tmp_path, operation):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+        for i in range(12):
+&gt;           card = create(store, str(i))
+                   ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E821220&gt;
+key = '0', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[pending]" time="0.020"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_effect_state_never_overwr0')
+state = 'pending'
+
+    @pytest.mark.parametrize('state', ['pending', 'in_flight', 'unknown', 'accepted', 'rejected'])
+    def test_effect_state_never_overwritten(tmp_path, state):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E8228B0&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[in_flight]" time="0.021"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_effect_state_never_overwr1')
+state = 'in_flight'
+
+    @pytest.mark.parametrize('state', ['pending', 'in_flight', 'unknown', 'accepted', 'rejected'])
+    def test_effect_state_never_overwritten(tmp_path, state):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303D3469F0&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[unknown]" time="0.021"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_effect_state_never_overwr2')
+state = 'unknown'
+
+    @pytest.mark.parametrize('state', ['pending', 'in_flight', 'unknown', 'accepted', 'rejected'])
+    def test_effect_state_never_overwritten(tmp_path, state):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E7A48D0&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[accepted]" time="0.021"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_effect_state_never_overwr3')
+state = 'accepted'
+
+    @pytest.mark.parametrize('state', ['pending', 'in_flight', 'unknown', 'accepted', 'rejected'])
+    def test_effect_state_never_overwritten(tmp_path, state):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E7A5040&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[rejected]" time="0.020"><failure message="TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4415/test_effect_state_never_overwr4')
+state = 'rejected'
+
+    @pytest.mark.parametrize('state', ['pending', 'in_flight', 'unknown', 'accepted', 'rejected'])
+    def test_effect_state_never_overwritten(tmp_path, state):
+        store = InteractionStore(tmp_path / 'cards.sqlite')
+&gt;       card = create(store)
+               ^^^^^^^^^^^^^
+
+tests\test_interaction_no_answer.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+store = &lt;packages.interactions.store.InteractionStore object at 0x000002303E813B50&gt;
+key = 'q', producer = 'producer', owner = 'owner'
+
+    def create(store, key='q', producer='producer', owner='owner'):
+&gt;       return store.create({'ownerSessionId': owner, 'recipientId': 'user', 'requestKey': key,
+                             'card': {'title': 'Question', 'body': 'Keep visible', 'answerInput': {}}},
+                            producer_id=producer)
+E       TypeError: InteractionStore.create() got an unexpected keyword argument 'producer_id'
+
+tests\test_interaction_no_answer.py:11: TypeError</failure></testcase></testsuite></testsuites>

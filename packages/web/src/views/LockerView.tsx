@@ -82,6 +82,7 @@ function Card({
   } | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const open = card.status === 'open';
+  const noAnswer = card.status === 'no_answer_needed';
   useEffect(() => {
     if (!open) {
       setAnswer(
@@ -124,6 +125,21 @@ function Card({
     } catch (value) {
       if (
         value instanceof LockerRequestError &&
+        value.status === 409 &&
+        value.code === 'conflict'
+      ) {
+        try {
+          const current = await lockerRequest<{ card: InteractionCard }>(
+            `/api/user-inbox/${card.id}`,
+          );
+          update(current.card);
+          if (current.card.status === 'no_answer_needed') intent.current = null;
+        } catch {
+          /* Preserve the original action error if refresh is unavailable. */
+        }
+      }
+      if (
+        value instanceof LockerRequestError &&
         (value.status === 422 ||
           (value.status === 403 && value.code === 'forbidden') ||
           (value.status === 409 && ['capacity', 'stale', 'incomplete'].includes(value.code ?? '')))
@@ -158,12 +174,19 @@ function Card({
         <code title={card.ownerSessionId}>{card.ownerSessionId}</code>
         <MessageTimestamp ts={card.createdAt} />
         <span className={`locker-status ${open ? 'open' : card.status}`}>
-          {open ? 'Awaiting response' : card.status === 'rejected' ? 'Rejected' : 'Submitted'}
+          {open
+            ? 'Awaiting response'
+            : noAnswer
+              ? '无需回答 · No answer needed'
+              : card.status === 'rejected'
+                ? 'Rejected'
+                : 'Submitted'}
         </span>
         <button
           type="button"
           className="locker-read-toggle"
-          disabled={busy}
+          hidden={noAnswer}
+          disabled={busy || noAnswer}
           aria-label={card.read ? 'Mark card as unread' : 'Mark card as read'}
           title={card.read ? 'Mark as unread' : 'Mark as read'}
           onClick={() => {
@@ -290,8 +313,16 @@ function Card({
         <section className="locker-response completed" aria-label="Completed interaction">
           <div className="locker-completed-label">
             <CheckCheck size={14} />
-            {card.status === 'rejected' ? 'Rejected' : 'Submitted'} <span>Read-only</span>
+            {noAnswer
+              ? '无需回答 · No answer needed'
+              : card.status === 'rejected'
+                ? 'Rejected'
+                : 'Submitted'}{' '}
+            <span>Read-only</span>
           </div>
+          {noAnswer && (
+            <p>This question no longer requires an answer. Only deletion is available.</p>
+          )}
           {responseChoice && (
             <p className="locker-saved-choice">
               <Check size={13} />
@@ -576,7 +607,9 @@ export default function LockerView() {
         ? 'No Workspace'
         : (workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ?? 'Workspace');
   const markSourceRead = async (locker: Locker) => {
-    const unread = sourceCards(cards, locker.id).filter((card) => !card.read);
+    const unread = sourceCards(cards, locker.id).filter(
+      (card) => !card.read && ('message' in card || card.status !== 'no_answer_needed'),
+    );
     await Promise.all(
       unread.map((card) =>
         lockerRequest<{ card?: InteractionCard; message?: LockerMessage }>(

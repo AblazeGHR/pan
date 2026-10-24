@@ -159,6 +159,25 @@ function mount() {
   );
 }
 describe('Locker panel', () => {
+  it('retains no-answer-needed cards visibly with only deletion and skips bulk read', async () => {
+    cards[0] = { ...card(), status: 'no_answer_needed', revision: 1 };
+    mount();
+    const heading = await screen.findByRole('heading', { name: 'Card a' });
+    const row = within(heading.closest('article')!);
+    expect(row.getAllByText('无需回答 · No answer needed')).toHaveLength(2);
+    expect(row.queryByRole('textbox')).toBeNull();
+    expect(row.queryByRole('radio')).toBeNull();
+    expect(row.queryByRole('button', { name: 'Submit' })).toBeNull();
+    expect(row.queryByRole('button', { name: 'Reject' })).toBeNull();
+    expect(row.queryByRole('button', { name: /Mark card/ })).toBeNull();
+    fireEvent.click(
+      within(screen.getByTestId('locker-source-l1')).getByRole('button', { name: 'Read all' }),
+    );
+    expect(calls.filter((c) => c.path === '/api/user-inbox/a/read')).toHaveLength(0);
+    fireEvent.click(row.getByRole('button', { name: 'Delete record' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Card a' })).toBeNull());
+  });
+
   it('projects original Cards by Workspace without an aggregate container', () => {
     expect(
       lockerProjection(lockers, [card('b', 'l2'), card()], '', 'aggregate').map((item) => item.id),

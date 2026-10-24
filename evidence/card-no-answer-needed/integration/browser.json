@@ -1,0 +1,45 @@
+{
+  "base": "http://127.0.0.1:59952",
+  "owner": "ses_76d9b82082640a3e",
+  "cardId": "card_cf174107c073c97d5ce79b1cc8581fe28e5ee71f3c8eeea22aeec2ebba4ae69b",
+  "done": {
+    "schemaVersion": 1,
+    "lockerId": "ulocker_e43199f90863676affc20db25367915abcfc2a6f5c96fec4c317d810648683e1",
+    "read": false,
+    "sourceName": "ses_76d9b82082640a3e",
+    "id": "card_cf174107c073c97d5ce79b1cc8581fe28e5ee71f3c8eeea22aeec2ebba4ae69b",
+    "ownerSessionId": "ses_76d9b82082640a3e",
+    "recipientId": "test-user",
+    "definition": {
+      "body": "Keep this original question visible",
+      "choices": [
+        {
+          "id": "yes",
+          "label": "Yes"
+        }
+      ],
+      "title": "No answer lifecycle",
+      "summaryBody": "Keep this original question visible"
+    },
+    "trustedChoices": {},
+    "createdAt": "2026-10-24T19:40:54.393257+00:00",
+    "revision": 1,
+    "status": "no_answer_needed",
+    "response": null,
+    "delivery": {
+      "state": "not_requested"
+    },
+    "rejectionDelivery": {
+      "state": "not_requested"
+    }
+  },
+  "realStdio": true,
+  "pendingVisible": true,
+  "staleSubmit409": true,
+  "reject409": true,
+  "terminalVisible": true,
+  "reloadPreserved": true,
+  "deleted": true,
+  "tombstonePreserved": true,
+  "pageErrors": []
+}

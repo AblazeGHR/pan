@@ -1,0 +1,22 @@
+[
+  {
+    "profile": "evidence\\card-no-answer-needed\\runtime\\test_http_mcp_user_response_an0\\profile\\data",
+    "port": 59137,
+    "listenerClosed": true
+  },
+  {
+    "profile": "evidence\\card-no-answer-needed\\runtime\\test_no_answer_http_stdio_prod0\\profile\\data",
+    "port": 52212,
+    "listenerClosed": true
+  },
+  {
+    "profile": "evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data",
+    "port": 59952,
+    "listenerClosed": true
+  },
+  {
+    "profile": "evidence\\card-no-answer-needed\\runtime-retry\\test_no_answer_http_stdio_prod0\\profile\\data",
+    "port": 64510,
+    "listenerClosed": true
+  }
+]

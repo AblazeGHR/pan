@@ -559,7 +559,7 @@ Notification 不携正文、不消费；开订阅及变更模式默认只收新�
 
 基于 Agent Inbox 候选的后续后端批次新增 `/api/interaction-cards` 生产者请求与
 `/api/user-inbox` 用户读取/一次性答复接口。用户端在未注入受信登录验证器时明确503关闭；
-MCP `interaction_card` 只导出create/get，不导出用户答复。可选answerInput、可选choice
+MCP `interaction_card` 导出 create/get/receipt/list_pending/no_answer_needed，不导出用户答复。可选answerInput、可选choice
 triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
 [Interaction Card契约](../../../design/User-Inbox-Interaction-Card-Contract.md)，
 [完整Schema](../../../../packages/interactions/schema.json)。此接口不会自动继续/完成Job，
@@ -603,3 +603,13 @@ is idempotent; changed contents conflict. Unknown outcomes require lookup, never
 automatic resend. The existing schema endpoint declares LockerMessageProducer.
 The same-user loopback bridge rejects remote/SSE/browser callers and source or
 recipient overrides. See [ordinary Locker contract](../../../design/user-locker-messages-internal-v1.md).
+
+
+### Interaction Card 生产者待答清理
+
+本地 stdio `interaction_card(operation="create")` 走 `POST /api/interaction-card-tools/create`，从既有本地 caller 桥接身份记录可信 producer。相同身份重试不补绑创建者。旧 `/api/interaction-cards` 创建仍兼容，但 payload 的 producerSessionId/ownerSessionId 不赋予新清理权限；历史无可信 producer 的卡片保持可读、可回答，不猜测创建者。
+
+- `POST /api/interaction-card-tools/list_pending {limit?:1..500,after?:cardId}`：只返回 caller 自己创建、未终态且无执行意图的 cards 与 nextAfter；每项有稳定 id/revision/status。禁止 owner/managed/recipient override。游标沿用原卡片 ID，已被删除的游标返回 not_found。
+- `POST /api/interaction-card-tools/no_answer_needed {cardId,expectedRevision}`：原子 CAS 进入持久 `status=no_answer_needed`；重复同一标记幂等。拒绝已答复/拒绝/执行中/unknown 的卡片，不能取消 Action。请求没有用户答复、choice 或通知副作用。
+- 以上是沿用 Locker stdio 的 same-user loopback caller assertion，拒绝浏览器 Origin/Sec-Fetch、非 loopback 或无有效 Session caller；MCP SSE/远端不能转借身份。不是远程登录或用户 Bearer。
+- 无需回答卡片留在原混排列表，明显标示终态，只允许用户 Bearer 删除。submit/respond/reject/read/dispatch 均 409，无恢复操作，Agent 不获得删除权限。GUI 延续刷新/focus 机制，并在旧回答得到 409 conflict 后读回原卡片状态。

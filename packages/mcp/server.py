@@ -1971,6 +1971,14 @@ def locker_message(operation: str, message: dict | None = None, message_id: str 
 
     完整编排流程见 /pan skill。
     """
+    if operation not in {"create", "get"}:
+        return {"ok": False, "error": "invalid_operation"}
+    body = {"message": message} if operation == "create" else {"messageId": message_id}
+    return _local_producer_api(f"/api/locker-message-tools/{operation}", body)
+
+
+def _local_producer_api(path, body):
+    """Same-user loopback assertion, never forwarded from remote MCP transports."""
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     try:
         url = urlsplit(_pan_api_url)
@@ -1985,11 +1993,8 @@ def locker_message(operation: str, message: dict | None = None, message_id: str 
     caller, error = _require_caller()
     if error or caller.get("id") != sid:
         return error or {"ok": False, "error": "caller_unavailable"}
-    if operation not in {"create", "get"}:
-        return {"ok": False, "error": "invalid_operation"}
-    body = {"message": message} if operation == "create" else {"messageId": message_id}
     req = urllib.request.Request(
-        f"{_pan_api_url.rstrip('/')}/api/locker-message-tools/{operation}",
+        f"{_pan_api_url.rstrip('/')}{path}",
         data=json.dumps(body).encode("utf-8"), method="POST",
         headers={"Content-Type": "application/json", "X-Pan-Queue-Caller": sid})
     class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -2008,16 +2013,36 @@ def locker_message(operation: str, message: dict | None = None, message_id: str 
 
 @mcp.tool()
 def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
-                     recipient_id: str = "", request_key: str = "", card: dict | None = None) -> dict:
-    """Create/get/receipt for a Session-owned user request. Never answer as a user.
+                     recipient_id: str = "", request_key: str = "", card: dict | None = None,
+                     expected_revision: int | None = None, limit: int = 100, after: str | None = None) -> dict:
+    """Create/get/receipt/list_pending/no_answer_needed for user questions.
+
+    list_pending lists ONLY cards created by this bound stdio Session, with
+    card id/revision/status and nextAfter pagination (limit 1..500).
+    no_answer_needed closes an original card after a chat answer or when the
+    question is obsolete; requires card_id and expected_revision. It is terminal,
+    retained visibly in Locker, and permits only user deletion. It is NOT user
+    approval/rejection and does not execute choices or send response notices.
+    Neither operation accepts owner overrides or managed Session authority.
+    Unknown results: query the original card; never invent a response.
 
     Card supports optional answerInput, choices with optional triggerRef, and
     notification metadata. A recorded response is not Job/Trigger completion.
 
     完整编排流程见 /pan skill。
     """
-    if operation not in {"create", "get", "receipt"}:
-        return {"error": "Only create/get/receipt producer operations are available"}
+    if operation in {"list_pending", "no_answer_needed"}:
+        if owner_session_id is not None:
+            return {"error": "Own creator scope only; owner override is forbidden"}
+        body = ({"limit": limit, **({"after": after} if after is not None else {})}
+                if operation == "list_pending" else {"cardId": card_id, "expectedRevision": expected_revision})
+        return _local_producer_api(f"/api/interaction-card-tools/{operation}", body)
+    if operation == "create":
+        return _local_producer_api("/api/interaction-card-tools/create", {
+            **({"ownerSessionId": owner_session_id} if owner_session_id is not None else {}),
+            "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
+    if operation not in {"get", "receipt"}:
+        return {"error": "Only create/get/receipt/list_pending/no_answer_needed producer operations are available"}
     caller, error = _require_caller()
     if error:
         return error
@@ -2028,8 +2053,7 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
     if operation in {"get", "receipt"}:
         suffix = "/receipt" if operation == "receipt" else ""
         return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
-    return _api("POST", "/api/interaction-cards", {
-        "ownerSessionId": target, "producerSessionId": caller['id'], "recipientId": recipient_id, "requestKey": request_key, "card": card or {}})
+
 
 
 @mcp.tool()
