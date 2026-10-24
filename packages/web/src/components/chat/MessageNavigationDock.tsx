@@ -51,6 +51,18 @@ export function MessageNavigationDock({
   const [pointerWithin, setPointerWithin] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [keyboardDismissed, setKeyboardDismissed] = useState(false);
+  // The rail portals its tag-filter menu to <body>, so the menu is physically
+  // outside this dock: pointer leave would fold the panel out from under the
+  // open menu. The rail reports that menu's lifetime; while it is open the
+  // hover fold is held, and releasing it restores the plain pointer/focus
+  // rules. This is the rail's own popover, not a global open-popover probe.
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const filterPopoverOpenRef = useRef(false);
+  const pointerInsideRef = useRef(false);
+  const focusWithinRef = useRef(focusWithin);
+  focusWithinRef.current = focusWithin;
+  const keyboardDismissedRef = useRef(keyboardDismissed);
+  keyboardDismissedRef.current = keyboardDismissed;
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const [openedSession, setOpenedSession] = useState<{ id: string | null } | null>(null);
   // Folding keeps this Session's index warm. A different Session must not
@@ -59,7 +71,7 @@ export function MessageNavigationDock({
 
   const expanded = isMobile
     ? mobileExpanded
-    : pointerWithin || (focusWithin && !keyboardDismissed);
+    : pointerWithin || filterPopoverOpen || (focusWithin && !keyboardDismissed);
   const label = children ? 'chat tools sidebar' : 'message navigation rail';
 
   useEffect(() => {
@@ -77,18 +89,21 @@ export function MessageNavigationDock({
     if (dock?.contains(document.activeElement)) onRestoreFocus();
   }, [dockRef, onRestoreFocus]);
 
-  const cancelPendingCollapse = () => {
+  const cancelPendingCollapse = useCallback(() => {
     if (collapseTimerRef.current !== null) {
       window.clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const schedulePointerCollapse = () => {
+  const schedulePointerCollapse = useCallback(() => {
     cancelPendingCollapse();
     collapseTimerRef.current = window.setTimeout(() => {
       collapseTimerRef.current = null;
-      if (focusWithin && !keyboardDismissed) return;
+      // An open rail popover owns the panel: folding now would hide its anchor
+      // while the menu is still on screen. The release path re-schedules.
+      if (filterPopoverOpenRef.current) return;
+      if (focusWithinRef.current && !keyboardDismissedRef.current) return;
       setPointerWithin(false);
       const focusedElement = document.activeElement;
       if (
@@ -100,7 +115,21 @@ export function MessageNavigationDock({
         handleRef.current?.focus();
       }
     }, COLLAPSE_DELAY_MS);
-  };
+  }, [cancelPendingCollapse]);
+
+  const handleFilterOpenChange = useCallback((open: boolean) => {
+    filterPopoverOpenRef.current = open;
+    setFilterPopoverOpen(open);
+    if (open) {
+      // A fold queued by leaving the dock for the just-opened menu must not
+      // fire underneath it.
+      cancelPendingCollapse();
+      return;
+    }
+    // Closing the menu restores the original mouse-leave fold: only when the
+    // pointer really is outside the dock.
+    if (!isMobile && !pointerInsideRef.current) schedulePointerCollapse();
+  }, [cancelPendingCollapse, isMobile, schedulePointerCollapse]);
 
   const isInsideDock = (target: EventTarget | null) => target instanceof Node && Boolean(rootRef.current?.contains(target));
   const handleFocus = (event: FocusEvent<HTMLDivElement>) => {
@@ -134,6 +163,7 @@ export function MessageNavigationDock({
       return;
     }
     cancelPendingCollapse();
+    pointerInsideRef.current = true;
     setPointerWithin(true);
     setOpenedSession({ id: currentSessionId });
   };
@@ -144,6 +174,7 @@ export function MessageNavigationDock({
     if (event.relatedTarget instanceof Node && rootRef.current?.contains(event.relatedTarget)) {
       return;
     }
+    pointerInsideRef.current = false;
     schedulePointerCollapse();
   };
 
@@ -227,6 +258,7 @@ export function MessageNavigationDock({
               expanded={expanded}
               isMobile={isMobile}
               mobileExpanded={mobileExpanded}
+              onFilterOpenChange={handleFilterOpenChange}
             />
           </div>
         )}

@@ -911,3 +911,162 @@ describe('bookmark rail decoration and tag filter', () => {
       /\.message-navigation-marker-bookmark-badge\s*\{[^}]*color:\s*inherit/);
   });
 });
+
+describe('navigation filter keeps the folding dock open', () => {
+  const dockElement = (showNavigation: boolean) => (
+    <MessageNavigationDock
+      chatRef={{ current: null }}
+      dockRef={{ current: null }}
+      isMobile={false}
+      mobileExpanded={false}
+      onMobileClose={() => {}}
+      onRestoreFocus={() => {}}
+      showNavigation={showNavigation}
+    />
+  );
+  const filterMenu = () => document.querySelector<HTMLElement>('[data-navigation-filter-menu]');
+
+  /** Open the dock, let the lazily mounted rail index, and return the dock. */
+  const openDock = async (view: ReturnType<typeof render>) => {
+    const dock = view.getByTestId('message-navigation-dock');
+    fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+    await act(async () => { await Promise.resolve(); });
+    return dock;
+  };
+  const openFilter = (view: ReturnType<typeof render>) => {
+    fireEvent.click(view.getByRole('button', { name: 'Filter navigation tags by type' }));
+    return filterMenu()!;
+  };
+  const tick = async (ms: number) => {
+    await act(async () => { vi.advanceTimersByTime(ms); });
+  };
+
+  it('holds the dock open while the body-portaled filter menu is open, then restores the leave fold', async () => {
+    vi.useFakeTimers();
+    seedSession('rail-filter-hold');
+    const view = render(dockElement(true));
+    try {
+      const dock = await openDock(view);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+      const menu = openFilter(view);
+      expect(menu).not.toBeNull();
+      expect(view.container.querySelector('.message-navigation-rail')).not.toBeNull();
+
+      // Leaving the dock for the menu (a body portal, so outside the dock DOM)
+      // must not fold the panel while the menu is on screen.
+      fireEvent.pointerOut(dock, { pointerType: 'mouse', relatedTarget: menu });
+      fireEvent.pointerLeave(dock, { pointerType: 'mouse', relatedTarget: menu });
+      await tick(200);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+      expect(filterMenu()).not.toBeNull();
+      expect(view.container.querySelector('.message-navigation-rail')).not.toBeNull();
+
+      // A menu row is also outside the dock and must not fold it either.
+      fireEvent.click(document.querySelector('[data-navigation-filter-kind="user"]')!);
+      await tick(200);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+      expect(filterMenu()).not.toBeNull();
+
+      // Closing restores the original mouse-leave behavior: the pointer is
+      // outside, so the next fold is the plain 90 ms one.
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(filterMenu()).toBeNull();
+      await tick(200);
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+
+      // Hovering again expands exactly as before.
+      fireEvent.pointerEnter(dock, { pointerType: 'mouse' });
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('cancels a fold queued before the menu opened instead of collapsing under it', async () => {
+    vi.useFakeTimers();
+    seedSession('rail-filter-hold');
+    const view = render(dockElement(true));
+    try {
+      const dock = await openDock(view);
+      // Leaving queues the 90 ms fold from the existing pointer-leave rule.
+      fireEvent.pointerLeave(dock, { pointerType: 'mouse', relatedTarget: document.body });
+      await tick(40);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+
+      // Opening the menu inside that window cancels the queued fold.
+      openFilter(view);
+      await tick(300);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+      expect(filterMenu()).not.toBeNull();
+
+      // The lock is not sticky: closing with the pointer outside folds again.
+      fireEvent.click(view.getByRole('button', { name: 'Filter navigation tags by type' }));
+      expect(filterMenu()).toBeNull();
+      await tick(200);
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('lets the dock handle still fold the panel manually while the menu is open', async () => {
+    vi.useFakeTimers();
+    seedSession('rail-filter-hold');
+    const view = render(dockElement(true));
+    try {
+      const dock = await openDock(view);
+      openFilter(view);
+      const handle = view.container.querySelector<HTMLButtonElement>('.message-navigation-dock__handle')!;
+      // A real click starts with an outside pointerdown (which closes the
+      // menu), then toggles the dock; the hold must not keep it open.
+      fireEvent.pointerDown(handle, { pointerType: 'mouse' });
+      fireEvent.click(handle);
+      expect(filterMenu()).toBeNull();
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+      await tick(200);
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('closes the menu on Escape even when the folding host stops that key', async () => {
+    vi.useFakeTimers();
+    seedSession('rail-filter-hold');
+    const view = render(dockElement(true));
+    try {
+      const dock = await openDock(view);
+      openFilter(view);
+      // The dock handles Escape itself (and stops propagation) whenever the
+      // focus is inside it: the menu must still be the thing that closes.
+      fireEvent.keyDown(view.getByRole('button', { name: 'Filter navigation tags by type' }), { key: 'Escape' });
+      expect(filterMenu()).toBeNull();
+      await tick(200);
+      // Releasing restores the plain rules: the pointer is gone and the host
+      // dismissed itself, so the next state is folded.
+      expect(dock.getAttribute('data-expanded')).toBe('false');
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('releases the hold when the rail unmounts with the menu still open', async () => {
+    vi.useFakeTimers();
+    seedSession('rail-filter-hold');
+    const view = render(dockElement(true));
+    try {
+      const dock = await openDock(view);
+      openFilter(view);
+      fireEvent.pointerLeave(dock, { pointerType: 'mouse', relatedTarget: document.body });
+      await tick(50);
+      expect(dock.getAttribute('data-expanded')).toBe('true');
+
+      view.rerender(dockElement(false));
+      expect(filterMenu()).toBeNull();
+      await tick(200);
+      expect(view.getByTestId('message-navigation-dock').getAttribute('data-expanded')).toBe('false');
+    } finally {
+      view.unmount();
+    }
+  });
+});

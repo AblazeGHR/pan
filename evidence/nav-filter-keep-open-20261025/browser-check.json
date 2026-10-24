@@ -1,0 +1,30 @@
+{
+  "task": "T-NAV-FILTER-KEEP-OPEN-20261025-1",
+  "kind": "real-browser interaction (isolated vite dev server + temporary harness, not committed)",
+  "date": "2026-10-25",
+  "environment": {
+    "server": "vite dev on 127.0.0.1:5301 (strictPort), stopped after the run",
+    "browser": "Playwright chromium.launch({ channel: 'msedge', headless: true }) with a fresh context",
+    "fixture": "real MessageNavigationDock + MessageNavigationRail, 12 canonical fixture rows, navigation API stubbed in the page",
+    "not_used": "no 8767/8768, no real profile, no provider, no repo service"
+  },
+  "observed": {
+    "portalIsBodyChildAndOutsideDockDom": true,
+    "A_menuHover_dockExpanded": "true",
+    "A_menuStillOpen": 1,
+    "B_pointerOutsideBoth_dockExpanded": "true",
+    "B_menuStillOpen": 1,
+    "C_closeViaToggle_thenPointerLeave_menuCount": 0,
+    "C_closeViaToggle_thenPointerLeave_dockExpanded": "false",
+    "D_escape_menuCount": 0,
+    "D_escape_dockExpanded": "false",
+    "E_hoverAgain_dockExpanded": "true",
+    "pageErrors": []
+  },
+  "meaning": {
+    "A/B": "the dock no longer folds while the body-portaled filter menu is open, including with the pointer outside both",
+    "C": "after closing the menu, the original mouse-leave fold returns",
+    "D": "Escape closes the menu and releases the hold",
+    "E": "plain hover expansion is unchanged"
+  }
+}

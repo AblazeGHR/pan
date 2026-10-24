@@ -28,6 +28,10 @@ interface MessageNavigationRailProps {
   expanded?: boolean;
   isMobile?: boolean;
   mobileExpanded?: boolean;
+  /** Reports the tag-filter menu lifetime to a host that folds around the
+   *  rail. The menu is body-portaled, so a host kept open by pointer presence
+   *  would fold while the menu is still on screen. */
+  onFilterOpenChange?: (open: boolean) => void;
 }
 
 type IndexStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -127,6 +131,7 @@ export function MessageNavigationRail({
   expanded = true,
   isMobile = false,
   mobileExpanded = false,
+  onFilterOpenChange,
 }: MessageNavigationRailProps) {
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const currentHistoryEpoch = useSessionStore((s) => s.currentSessionId
@@ -598,6 +603,23 @@ export function MessageNavigationRail({
     else next.add(kind);
     return next;
   });
+  // The filter menu is portaled to <body>, so a host that folds on pointer
+  // leave cannot see it. Report its lifetime (only real changes) and release
+  // on unmount, which covers closing the menu by toggle, Escape, an outside
+  // pointer or the rail going away.
+  const filterOpenChangeRef = useRef(onFilterOpenChange);
+  filterOpenChangeRef.current = onFilterOpenChange;
+  const filterReportedOpenRef = useRef(false);
+  useEffect(() => {
+    if (filterReportedOpenRef.current === filterOpen) return;
+    filterReportedOpenRef.current = filterOpen;
+    filterOpenChangeRef.current?.(filterOpen);
+  }, [filterOpen]);
+  useEffect(() => () => {
+    if (!filterReportedOpenRef.current) return;
+    filterReportedOpenRef.current = false;
+    filterOpenChangeRef.current?.(false);
+  }, []);
   useEffect(() => {
     if (!filterOpen) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setFilterOpen(false); };
@@ -607,10 +629,12 @@ export function MessageNavigationRail({
           && (target.closest('[data-navigation-filter-menu]') || target.closest('[data-navigation-filter-toggle]'))) return;
       setFilterOpen(false);
     };
-    window.addEventListener('keydown', onKey);
+    // Capture: the hosting dock handles Escape itself and stops propagation
+    // when the focus is inside it, which must not leave this menu on screen.
+    window.addEventListener('keydown', onKey, true);
     window.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, [filterOpen]);
