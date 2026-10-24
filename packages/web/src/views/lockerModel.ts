@@ -64,9 +64,27 @@ export interface LockerMessage {
   read: boolean;
   message: Message;
 }
-export type LockerItem = InteractionCard | LockerMessage;
+export interface UserCard {
+  direction: 'user';
+  kind: 'question' | 'task';
+  id: string;
+  lockerId: string;
+  ownerSessionId: string;
+  createdAt: string;
+  answeredAt: string | null;
+  body: string;
+  attachments: { id: string; name: string; mimeType?: string; size?: number }[];
+  revision: number;
+  status: 'pending' | 'answered';
+  answer: string | null;
+  read: boolean;
+}
+export function isUserCard(item: LockerItem): item is UserCard {
+  return 'direction' in item && item.direction === 'user';
+}
+export type LockerItem = InteractionCard | LockerMessage | UserCard;
 export function lockerItemPreview(item: LockerItem | undefined): string {
-  return item ? ('message' in item ? item.message.content : item.definition.title) : 'No messages';
+  return item ? (isUserCard(item) ? item.body : 'message' in item ? item.message.content : item.definition.title) : 'No messages';
 }
 export function compareLockerItems(a: LockerItem, b: LockerItem): number {
   return Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id);
@@ -153,4 +171,16 @@ export function lockerProjection<T extends LockerItem>(
       .map((locker) => locker.id),
   );
   return cards.filter((card) => ids.has(card.lockerId)).sort(compareLockerItems);
+}
+
+/** Positions are projections only; counts and actions always use the original item. */
+export function lockerTimeline(items: LockerItem[]) {
+  return items.flatMap((item) => {
+    const original = { item, position: 'created' as const, displayedAt: item.createdAt, key: `${item.id}:created` };
+    return isUserCard(item) && item.answeredAt
+      ? [original, { item, position: 'answered' as const, displayedAt: item.answeredAt, key: `${item.id}:answered` }]
+      : [original];
+  }).sort((a, b) => Date.parse(a.displayedAt) - Date.parse(b.displayedAt)
+    || (a.position === b.position ? 0 : a.position === 'created' ? -1 : 1)
+    || a.item.id.localeCompare(b.item.id));
 }

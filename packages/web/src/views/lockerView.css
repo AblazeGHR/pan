@@ -563,3 +563,12 @@
 .locker-related-context button { display: inline-flex; align-items: center; gap: 4px; color: var(--color-accent); font-size: 12px; }
 .locker-related-context button:disabled { opacity: .55; cursor: not-allowed; }
 .locker-related-context small { color: var(--color-text-tertiary); font-size: 11px; }
+.user-card-row .locker-card-origin { flex-wrap: wrap; row-gap: 6px; }
+.user-card-row .locker-card-origin > span:has(.message-timestamp) { display: inline-flex; align-items: center; gap: 4px; color: var(--color-text-tertiary); font-size: 10px; }
+.user-card-row .locker-card-origin .message-timestamp { margin-left: 0; }
+.user-card-row .locker-card-origin .locker-read-toggle { margin-left: auto; }
+.user-card-row .user-card-direction { display: inline-flex; align-items: center; gap: 3px; }
+.user-card-row .user-card-heading { display: flex; align-items: center; gap: 7px; font-size: 14px; margin-top: 12px; color: var(--color-text-primary); }
+.user-card-answer-label { display: block; color: var(--color-text-secondary); font-size: 11px; font-weight: 500; margin-bottom: 5px; }
+.user-card-row button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.user-card-row button:disabled { cursor: not-allowed; opacity: .5; }

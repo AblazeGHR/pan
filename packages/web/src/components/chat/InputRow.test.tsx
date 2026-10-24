@@ -2304,3 +2304,43 @@ describe('InputRow PermissionPill', () => {
     expect(screen.getByText('read-only (auto)')).toBeTruthy();
   });
 });
+
+describe('user card composer', () => {
+  it('toggles card mode, keeps draft on Escape/toggle, changes kind and clears on Session switch', async () => {
+    setBusySession(); render(<InputRow />);
+    const input = screen.getByPlaceholderText(/Type a message/);
+    fireEvent.change(input, {target: {value: 'question draft'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    expect(screen.getByRole('button', {name: 'Send question card'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', {name: 'Task'}));
+    expect(screen.getByRole('button', {name: 'Send task card'})).toBeTruthy();
+    fireEvent.keyDown(input, {key: 'Escape'});
+    expect(screen.getByRole('button', {name: 'Send'})).toBeTruthy();
+    expect((input as HTMLTextAreaElement).value).toBe('question draft');
+    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    expect((input as HTMLTextAreaElement).value).toBe('question draft');
+    useSessionStore.setState({currentSessionId: 's2', inputDrafts: {s1: 'question draft', s2: 'ordinary s2'}});
+    await waitFor(() => expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value).toBe('ordinary s2'));
+    expect(useSessionStore.getState().inputDrafts.s1).toBe('');
+    expect(screen.queryByLabelText('Card type')).toBeNull();
+  });
+  it('sends a user task with the existing uploaded attachment identity without enqueue or Steer', async () => {
+    setBusySession();
+    const fetcher = vi.fn(async (_path: string, _init?: RequestInit) => ({ok: true, json: async () => ({card: {id: 'uc'}})}));
+    vi.stubGlobal('fetch', fetcher);
+    render(<InputRow />);
+    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    fireEvent.click(screen.getByRole('radio', {name: 'Task'}));
+    fireEvent.change(screen.getByPlaceholderText(/Type a message/), {target: {value: 'task body'}});
+    fireEvent.change(screen.getByTestId('client-attachment-input'), {target: {files: [new File(['evidence'], 'evidence.txt', {type:'text/plain'})]}});
+    await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
+    fireEvent.click(screen.getByRole('button', {name: 'Send task card'}));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledWith('/api/user-cards', expect.anything()));
+    const request = fetcher.mock.calls.find((args) => String(args[0]) === '/api/user-cards')!;
+    const body = JSON.parse(String((request[1] as RequestInit).body));
+    expect(body).toMatchObject({ownerSessionId:'s1', kind:'task', body:'task body', requestKey:expect.any(String),
+      attachments:[{id:expect.any(String), name:'evidence.txt'}]});
+    expect(enqueueSessionMessage).not.toHaveBeenCalled(); expect(steerSessionWorker).not.toHaveBeenCalled();
+  });
+});

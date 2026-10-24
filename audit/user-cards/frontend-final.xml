@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="168" failures="0" errors="0" time="10.128">
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-24T20:42:12.408Z" hostname="ablaze" tests="28" failures="0" errors="0" skipped="0" time="3.4020905">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.1419847">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0011386">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0604356">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0565307">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.1471321">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0981191">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0522903">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.1322995">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0362116">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.1199483">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.1361387">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.047679">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0260541">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1539659">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1418775">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1440901">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1404555">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1314419">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.164107">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.1946988">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.0936412">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.111064">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0602365">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.1122584">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.6083857">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; renders pending once without read controls and keeps answered projections ordered deterministically" time="0.0430644">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 0 update/remove both identical rows" time="0.1364515">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="user card positions share one record &gt; read and delete from position 1 update/remove both identical rows" time="0.108772">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/InputRow.test.tsx" timestamp="2026-10-24T20:42:12.417Z" hostname="ablaze" tests="80" failures="0" errors="0" skipped="1" time="6.7949577">
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; routes configured Steer through the existing button transaction exactly once" time="0.1051478">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;isComposing&quot;:true}" time="0.0396178">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;keyCode&quot;:229}" time="0.0403881">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not send during IME or repeat: {&quot;repeat&quot;:true}" time="0.0333789">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; disables ambiguous composer/global bindings, including Ctrl/Mod aliases" time="0.0328627">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; uses the normal locked send mode and does not let hidden Steer bypass it" time="0.1605743">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="composer keyboard actions &gt; does not repeat an unknown Steer admission and suppresses keys during recording" time="0.0742438">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the CBC stream capability for direct Steer and hides it for native TUI/oneshot" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps CBC stream Steer and native TUI capability boundaries" time="0.0562881">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps Codex Steer visible and routes by sessionId when the session summary is stale" time="0.0902987">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not put a delayed Steer response into a newly selected Session" time="0.1592347">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a delayed Steer success clear a newer draft in the same Session" time="0.1438937">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; selects server files, renders attachment chips, and enqueues standard Markdown links" time="0.2218026">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; stages native multi-selection in the original modal and registers only on confirmation" time="0.1427588">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues pasted URLs as standard Markdown links in order" time="0.0958286">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; sends intentionally repeated URLs twice instead of deduplicating by URL" time="0.0746459">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; preserves an HTML link title in the outbound Markdown payload" time="0.0789053">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; serializes URL nodes to Markdown in the queue editor body" time="0.0382826">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores a URL-only submission after an explicit enqueue rejection" time="0.0604519">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; drops a message attachment into the editor and queues it at the text caret" time="0.0888643">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; accepts a cross-Session editor payload and keeps its line range in text and parts" time="0.0746976">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps separate occurrences when the same resource is inserted twice" time="0.0872022">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; removes an embedded attachment when native select-all Backspace removes its node" time="0.0240531">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unembedded attachment chip when native select-all clears only editor text" time="0.0264189">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; simulates direct client upload in mock mode, then reuses its chip as an inline node" time="0.3802259">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; deduplicates repeated files within one mock selection and keeps distinct files" time="0.281251">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; allows cancelling an in-flight mock file without restoring its chip after completion" time="0.3406592">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; aborts an in-flight real upload when its pending chip is cancelled" time="0.0544186">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores each session draft and its inline attachment structure independently" time="0.0880116">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let an old Session attachment registration update the newly selected Session" time="0.0321037">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; consumes an editor request through the existing server attachment and queue path" time="0.0786242">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; revalidates a selected server attachment before enqueue and cancels on a stale path" time="0.1457739">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not finish an attachment send after a queue edit starts during validation" time="0.1841807">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; closes the server browser with its close button and backdrop" time="0.1425913">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps attachments after a failed enqueue and allows cancelling one" time="0.1663715">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uploads client files and combines them with server attachments on send" time="0.2168108">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; shows deterministic aggregate progress and blocks send until upload completes" time="0.1114124">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; restores an interrupted upload as retryable after switching away and ignores its late response" time="0.0936268">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps failed uploads visible with a retry action" time="0.1347351">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; enqueues through the server when worker busy, then shows the pending row" time="0.0743308">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; blocks button, Enter, and imperative send paths while a queue item is being edited" time="0.1012616">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps the queue badge at the real item count through one edit and repeated save" time="0.1527063">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the current Session runtime worker, not the stale summary, to suppress optimistic history" time="0.065169">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for idle runtime" time="0.0430885">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for offline runtime" time="0.0287942">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for no runtime entry" time="0.0292517">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for another Session runtime" time="0.0349337">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps one optimistic row for mismatched runtime entry" time="0.0314258">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not render a stale localStorage queue after a page reload" time="0.014643">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; also queues when worker is idle; Provider delivery is not a UI ack" time="0.0200018">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; uses the durable HTTP enqueue path when WS is unavailable" time="0.0213795">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; clears optimistically and restores the complete draft when enqueue fails" time="0.031967">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps an unconfirmed send cleared and blocks retransmission" time="0.0818106">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not let a pending send overwrite input typed after the optimistic clear" time="0.0697495">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; suppresses the optimistic row if the runtime becomes running before enqueue acknowledgement" time="0.0727155">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a send that started in the live path suppressed if the runtime becomes idle before acknowledgement" time="0.0751496">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; keeps a new Session draft isolated while the old Session send completes" time="0.0866081">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; does not duplicate a submission on repeated clicks while its request is pending" time="0.153099">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow send queue wiring &gt; supports consecutive reset/send transactions without retaining stale text" time="0.1182505">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; renders the desktop resize handle and changes height by pointer drag" time="0.0555857">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the desktop queue above a short composer without changing its height" time="0.0348809">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; shows only the mobile fullscreen control and enters/exits with click or Escape" time="0.0666088">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; uses a viewport-filling modal for server attachments on mobile" time="0.0423684">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; opens the ordinary mobile queue above the composer" time="0.0098722">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow responsive composer controls &gt; keeps the queue in fullscreen mobile flow so it stays inside the viewport" time="0.0306654">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow pill visibility &gt; shows the model pill on mobile and keeps the permission pill desktop-only" time="0.0310054">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; anchors the queue count badge to the Queue button, including the desktop busy hint" time="0.0311396">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; uses a wider Queue control and right-aligns desktop attachment" time="0.0237731">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; shows both attachment choices outside the clipped control row" time="0.0444284">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps settings, model and permission menus visible outside the composer clipping contexts" time="0.0728984">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; keeps desktop attachment in the control row, separate from textarea and Send" time="0.043399">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow control row layout contract &gt; orders mobile settings, queue, model, effort, attachment and fullscreen, hiding Thinking first" time="0.0426065">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; opens a searchable dropdown and filters models by keyword" time="0.0634158">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; applies the selected model immediately and closes the dropdown" time="0.0606817">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow ModelPill search &gt; closes the dropdown when clicking outside" time="0.0349192">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; uses the normal send transaction with locked=true for text and URL nodes" time="0.0515238">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow locked-message shortcut bridge &gt; restores the draft and attachments when a locked enqueue is rejected (no retry)" time="0.047538">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="InputRow PermissionPill &gt; keeps the collapsed Codex permission pill to the short label" time="0.0265793">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; toggles card mode, keeps draft on Escape/toggle, changes kind and clears on Session switch" time="0.1450912">
+        </testcase>
+        <testcase classname="components/chat/InputRow.test.tsx" name="user card composer &gt; sends a user task with the existing uploaded attachment identity without enqueue or Steer" time="0.1261638">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/AppSettingsModal.test.tsx" timestamp="2026-10-24T20:42:12.432Z" hostname="ablaze" tests="60" failures="0" errors="0" skipped="0" time="4.3089038">
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders nothing when closed" time="0.0266187">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; defaults to Lifecycle and keeps Reset on Appearance" time="0.0979272">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads lifecycle preferences from config with ask defaults and saves updates" time="0.0932089">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists a custom wake message from Behavior" time="0.1396178">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows lifecycle preference save errors and keeps the last saved value" time="0.0902631">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a preference load error and retries the server read" time="0.1077379">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved offline policy without asking again" time="0.0500974">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved preserve-running policy without asking again" time="0.0526336">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved offline policy without asking again" time="0.0597479">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved preserve-running policy without asking again" time="0.0460353">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; refreshes both lifecycle statuses on every modal open and clears stale Exit state" time="0.0600528">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle actions disabled after a status fetch error until Retry succeeds" time="0.0638561">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; ignores status responses from an earlier modal-open cycle" time="0.0320528">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not let a lifecycle action response from an earlier open overwrite the new status" time="0.0626753">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps all settings tabs reachable in a horizontal-only scroller" time="0.0341781">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps the canonical category order with the integrated Shortcuts page" time="0.0196928">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; places each setting on exactly its category page" time="0.1343909">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; navigates from Lifecycle to the exact Behavior policy without writing or acting" time="0.0968992">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; focuses the Behavior policy after preferences finish loading, then reopens on Lifecycle" time="0.0899436">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle load errors available across tab switches and focuses the section on jump" time="0.0769531">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads the Data catalog on demand and keeps long paths usable in a narrow panel" time="0.0735034">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Data catalog loading and failure states without blocking other tabs" time="0.124757">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads disabled retention policies, edits days, saves, and shows recent scan counts" time="0.1183179">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists independent orphan workdir settings and warns in English" time="0.0444548">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; projects the shared Jobs retention editor in Data and saves via its canonical API" time="0.0291043">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows retention settings loading and failure while keeping the Data path panel usable" time="0.0180121">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows message visibility on the Appearance tab and keeps its settings and persistence" time="0.0347223">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style" time="0.0252788">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the default new Session Workspace preference and persists it" time="0.0154115">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Behavior worker-kill report switch off by default and persists it" time="0.0227449">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Behavior save errors and keeps the last saved value" time="0.0365765">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows three independent auto Force switches, all off by default" time="0.0157367">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists one auto Force switch without changing the others" time="0.034645">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows auto Force save failures and keeps the last saved switch position" time="0.059006">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles merged tool/thinking groups on the Appearance tab and persists the setting" time="0.0335286">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the per-session scroll memory on the Appearance tab and persists it" time="0.037311">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the message navigation rail on the Appearance tab and persists it" time="0.0446014">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles only the Chat view switcher on the Appearance tab and persists it" time="0.0429339">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Codex warning Toast option on the Notifications tab" time="0.035044">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads and replaces the Codex whitelist on the Adapters tab" time="0.1375174">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a readable Codex refresh error in the Adapters tab" time="0.0619305">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Codex terminal input popup option and persists it" time="0.0357538">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; is full-screen on mobile and ~75% of the viewport on desktop" time="0.017885">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes when the backdrop is clicked" time="0.0173889">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not close when clicking inside the card" time="0.0158441">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes on Escape" time="0.0171055">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles a setting through a switch and writes the store" time="0.0420034">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists the Session history search setting when its switch changes" time="0.0896351">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; exposes the group-by settings only on the Appearance tab without duplicates" time="0.075648">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles Show Group by on the Appearance tab and persists it" time="0.0241797">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the desktop sidebar collapse handle on the Appearance tab and persists it" time="0.0177927">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; changes Default group by on the Appearance tab and persists the selection" time="0.0222586">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; scopes Reset to saved UI preferences and keeps lifecycle/worker/remote untouched" time="0.0155717">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and reports successful main-service recovery" time="1.1043417">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and schedules a stop-only Pan exit without health polling" time="0.0522474">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows an unavailable exit control and API error state" time="0.0251248">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; allows stopping the bounded health check and does not call health forever" time="0.073175">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the main-service control when restart scripts are unavailable" time="0.0366352">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a finite timeout when the restarted service never becomes healthy" time="0.0522994">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires an explicit lifecycle status refresh when the final restart status read fails" time="0.0916546">
+        </testcase>
+    </testsuite>
+</testsuites>

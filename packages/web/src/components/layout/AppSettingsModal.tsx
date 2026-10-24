@@ -1,3 +1,4 @@
+import { UserCardReminderSettings } from './UserCardReminderSettings';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
@@ -1651,6 +1652,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             <ShortcutsSettings />
           ) : activeTab === 'behavior' ? (
             <>
+              <UserCardReminderSettings />
               <AutoReportSettingsGroup />
               <section
                 ref={behaviorSessionRef}

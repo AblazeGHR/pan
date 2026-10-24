@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="44" time="6.395" timestamp="2026-10-25T04:26:24.233084+08:00" hostname="ablaze"><testcase classname="tests.test_user_cards" name="test_independent_identity_scope_rules_and_tombstone" time="0.128" /><testcase classname="tests.test_user_cards" name="test_revision_cas_race" time="0.056" /><testcase classname="tests.test_user_cards" name="test_fake_clock_first_periodic_stop_and_restart[answer]" time="0.143" /><testcase classname="tests.test_user_cards" name="test_fake_clock_first_periodic_stop_and_restart[delete]" time="0.142" /><testcase classname="tests.test_user_cards" name="test_recovered_outbox_uses_original_id_and_no_burst" time="0.057" /><testcase classname="tests.test_user_cards" name="test_invalid_interval[0]" time="0.026" /><testcase classname="tests.test_user_cards" name="test_invalid_interval[1441]" time="0.031" /><testcase classname="tests.test_user_cards" name="test_invalid_interval[True]" time="0.025" /><testcase classname="tests.test_user_cards" name="test_invalid_interval[1.5]" time="0.024" /><testcase classname="tests.test_user_cards" name="test_invalid_interval[10]" time="0.024" /><testcase classname="tests.test_user_cards" name="test_reminder_only_persists_never_wakes_or_recovers[False]" time="0.010" /><testcase classname="tests.test_user_cards" name="test_reminder_only_persists_never_wakes_or_recovers[True]" time="0.008"><failure message="RuntimeError: Illegal responsibility has no durable incident">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4485/test_reminder_only_persists_ne1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002080DF09CC0&gt;
+illegal = True
+
+    @pytest.mark.parametrize('illegal',[False,True])
+    def test_reminder_only_persists_never_wakes_or_recovers(tmp_path,monkeypatch,illegal):
+        from packages.core import session,worker,legal_offline
+        source=session.create('owner',workdir=str(tmp_path))
+        source.queue_paused=True
+        if illegal:
+            source.execution_operations={'op':dict(id='op',state='illegal',safeTerminal=False,kind='foreground')}
+        session.save(source)
+        spawn=AsyncMock(); wake=AsyncMock(); auto=AsyncMock()
+        monkeypatch.setattr(worker,'create_worker',spawn)
+        monkeypatch.setattr(worker,'_wake_worker',wake)
+        monkeypatch.setattr(worker,'_schedule_auto_force',auto)
+        monkeypatch.setattr(worker,'_bcast',AsyncMock())
+        async def run():
+            assert await enqueue_reminder(source.id,'notice1',REMINDER)
+            assert await enqueue_reminder(source.id,'notice1',REMINDER)
+            current=session.get(source.id,load_history=False)
+            assert current.queue_paused and len(current.queue_pending)==1
+            assert legal_offline.is_illegal(current)==illegal
+            if illegal: assert worker._queue_item_locked(current.queue_pending[0])
+            # Removing Pause does not make reminder-only queues spawnable.
+            current.queue_paused=False
+            assert not worker._has_dispatchable_items(current)
+            await worker._recover_session(source.id)
+            spawn.assert_not_called(); wake.assert_not_called(); auto.assert_not_called()
+&gt;       asyncio.run(run())
+
+tests\test_user_cards.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_user_cards.py:143: in run
+    assert await enqueue_reminder(source.id,'notice1',REMINDER)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\user_cards.py:191: in enqueue_reminder
+    item=await worker._append_new_queue_item(target,dict(id=qid,queueItemId=qid,type='notice',kind='report',
+packages\core\worker.py:6140: in _append_new_queue_item
+    await _commit_offline(s, stage)
+packages\core\worker.py:681: in _commit_offline
+    await _sess._persist_async_outcome(s.id, commit)
+packages\core\session.py:2790: in _persist_async_outcome
+    raise outcome.error
+packages\core\session.py:2777: in _persist_async_outcome
+    await asyncio.shield(inner)
+packages\core\session.py:147: in run
+    value = operation()
+            ^^^^^^^^^^^
+packages\core\session.py:2765: in &lt;lambda&gt;
+    ticket, lambda: context.run(
+packages\core\session.py:2504: in _run_persistence_ticket
+    return operation()
+           ^^^^^^^^^^^
+packages\core\worker.py:672: in commit
+    result = mutate(candidate)
+             ^^^^^^^^^^^^^^^^^
+packages\core\worker.py:6139: in stage
+    _stage_new_queue_item(candidate, item.copy(), wake=wake)
+packages\core\worker.py:6115: in _stage_new_queue_item
+    _offline.lock_new_message(s, item)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+s = Session(id='ses_debb6305baafae4d', name='owner', adapter='cbc', model=None, permission_mode=None, pan_access={'restric...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False})
+item = {'id': 'notice1', 'queueItemId': 'notice1', 'type': 'notice', 'kind': 'report', ...}
+
+    def lock_new_message(s, item: dict) -&gt; bool:
+        """Admit a truly new queued identity to the current Illegal incident.
+    
+        Called only while staging its first enqueue, never on edits, receipts,
+        recovery, duplicate event IDs or explicit manual unlock. Caller persists
+        membership, row and ledger together. Other lock sources stay independent.
+        """
+        if not is_illegal(s) or queue_locks.source(item) is not None:
+            return False
+        batches = [batch for batch in s.illegal_batches.values()
+                   if not batch.get("recovered")
+                   and s.execution_operations.get(batch["id"], {}).get("state") == "illegal"]
+        if not batches:
+&gt;           raise RuntimeError("Illegal responsibility has no durable incident")
+E           RuntimeError: Illegal responsibility has no durable incident
+
+packages\core\legal_offline.py:250: RuntimeError</failure></testcase><testcase classname="tests.test_user_cards" name="test_http_auth_attachments_owner_counts_and_terminal" time="1.357" /><testcase classname="tests.test_interaction_no_answer" name="test_terminal_retained_idempotent_no_response_or_notice_and_delete" time="0.072" /><testcase classname="tests.test_interaction_no_answer" name="test_creator_not_owner_or_manager_and_pagination" time="0.076" /><testcase classname="tests.test_interaction_no_answer" name="test_two_terminal_writers_barrier[respond]" time="0.433" /><testcase classname="tests.test_interaction_no_answer" name="test_two_terminal_writers_barrier[reject]" time="0.486" /><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[pending]" time="0.036" /><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[in_flight]" time="0.035" /><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[unknown]" time="0.034" /><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[accepted]" time="0.040" /><testcase classname="tests.test_interaction_no_answer" name="test_effect_state_never_overwritten[rejected]" time="0.033" /><testcase classname="tests.test_interaction_no_answer" name="test_old_schema_migration_never_invents_creator" time="0.048" /><testcase classname="tests.test_interaction_no_answer" name="test_trusted_http_creator_scope_and_negative_controls" time="0.281" /><testcase classname="tests.test_interaction_no_answer" name="test_mcp_remote_and_owner_override_fail_closed" time="0.471" /><testcase classname="tests.test_interaction_no_answer" name="test_each_writer_wins_while_other_waits_at_transaction_barrier[producer-respond]" time="0.060" /><testcase classname="tests.test_interaction_no_answer" name="test_each_writer_wins_while_other_waits_at_transaction_barrier[producer-reject]" time="0.061" /><testcase classname="tests.test_interaction_no_answer" name="test_each_writer_wins_while_other_waits_at_transaction_barrier[user-respond]" time="0.049" /><testcase classname="tests.test_interaction_no_answer" name="test_each_writer_wins_while_other_waits_at_transaction_barrier[user-reject]" time="0.062" /><testcase classname="tests.test_locker_messages" name="test_persist_unknown_parts_fields_idempotency_conflict_and_no_history" time="0.063" /><testcase classname="tests.test_locker_messages" name="test_read_delete_original_identity_tombstone_and_no_notification" time="0.078" /><testcase classname="tests.test_locker_messages" name="test_cursor_is_query_only_scoped_stable_after_delete_and_no_capacity_truncation" time="0.093" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change0]" time="0.024" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change1]" time="0.030" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change2]" time="0.025" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change3]" time="0.017" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change4]" time="0.017" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change5]" time="0.016" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change6]" time="0.015" /><testcase classname="tests.test_locker_messages" name="test_schema_rejects_invalid_without_creating_locker[change7]" time="0.025" /><testcase classname="tests.test_locker_messages" name="test_legacy_cards_migration_is_additive_idempotent_and_concurrent_admission" time="0.218" /><testcase classname="tests.test_locker_messages" name="test_internal_source_boundary_and_user_api_auth_scope" time="0.134" /><testcase classname="tests.test_locker_message_producer" name="test_local_caller_source_schema_idempotency_lookup_tombstone" time="0.107" /><testcase classname="tests.test_locker_message_producer" name="test_mcp_transport_and_unknown_never_resends" time="0.003" /></testsuite></testsuites>

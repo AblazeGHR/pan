@@ -323,7 +323,17 @@ async def lifespan(app: FastAPI):
                         await automation.engine.kick()
                         await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
                         app.state.plugin_events = plugin_runtime.events
-                        yield
+                        from packages.interactions.user_cards_api import scheduler as user_card_scheduler
+                        user_card_task = asyncio.create_task(user_card_scheduler(app).run())
+                        try:
+                            yield
+                        finally:
+                            user_card_task.cancel()
+                            try:
+                                await user_card_task
+                            except asyncio.CancelledError:
+                                pass
+                            app.state.user_card_scheduler = None
                     finally:
                         try:
                             app.state.plugin_events = None
