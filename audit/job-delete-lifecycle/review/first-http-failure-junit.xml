@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="16" time="7.712" timestamp="2026-10-24T14:17:22.310736+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[children_oserror]" time="0.011" /><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[children_denied]" time="0.003" /><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[birth]" time="0.002" /><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[kill]" time="0.003" /><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[missing_pid]" time="0.002" /><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[late_child]" time="0.003" /><testcase classname="tests.test_job_delete_safety" name="test_all_roots_captured_before_guard_effect_and_late_children_caught" time="0.002" /><testcase classname="tests.test_job_delete_safety" name="test_pending_recheck_does_not_repeat_effects_after_confirmed_exit" time="0.002" /><testcase classname="tests.test_job_delete_safety" name="test_delete_failure_recheck_and_runner_writeback" time="0.030" /><testcase classname="tests.test_job_delete_safety" name="test_concurrent_delete_serializes_and_unrelated_job_not_blocked" time="0.022" /><testcase classname="tests.test_job_delete_safety" name="test_spawn_denied_after_delete_intent" time="0.008" /><testcase classname="tests.test_job_delete_safety" name="test_scheduled_parent_keeps_active_child_and_no_resurrection" time="0.010" /><testcase classname="tests.test_job_delete_safety" name="test_legacy_unguarded_tree_is_not_proof" time="0.003" /><testcase classname="tests.test_job_delete_safety" name="test_explicit_recheck_finishes_runner_only_after_durable_tree_proof" time="0.003" /><testcase classname="tests.test_job_delete_safety" name="test_uncertain_runner_kill_keeps_durable_tree_proof" time="0.027" /><testcase classname="tests.test_job_delete_http_owned" name="test_real_owned_tree_delete_http" time="6.300"><failure message="AssertionError: {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: process birth identity mismatch (zero tolerance)'}}&#10;assert False&#10; +  where False = &lt;built-in method get of dict object at 0x000001F4A52E3880&gt;('ok')&#10; +    where &lt;built-in method get of dict object at 0x000001F4A52E3880&gt; = {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: process birth identity mismatch (zero tolerance)'}}.get">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4144/test_real_owned_tree_delete_ht0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F4A4FB6BA0&gt;
+
+    @pytest.mark.skipif(os.name != 'nt', reason='Windows retained identity / owned Job verification')
+    def test_real_owned_tree_delete_http(tmp_path, monkeypatch):
+        root=tmp_path/'jobs-root'
+        monkeypatch.setattr(jobs,'DEFAULT_ROOT',root)
+        monkeypatch.setattr(store,'DEFAULT_ROOT',root)
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+        monkeypatch.setenv('PAN_SCHEDULER_DIR',str(root))
+        session._cache['ses_delete_owned']=session.Session(id='ses_delete_owned',name='owned',workdir=str(tmp_path))
+        child_script=tmp_path/'owned.py'
+        ready=tmp_path/'ready.json'
+        child_script.write_text("import subprocess,sys,time,json,os\nfrom pathlib import Path\np=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\nPath(sys.argv[1]).write_text(json.dumps({'parent':os.getpid(),'child':p.pid}),encoding='utf-8')\ntime.sleep(60)\n",encoding='utf-8')
+        app=FastAPI();app.include_router(api.router)
+        sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        assert port not in (8767,8768)
+        server=uvicorn.Server(uvicorn.Config(app,log_level='error',lifespan='off'))
+        thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True)
+        thread.start()
+        job=None; identities=[]; evidence={'port':port}
+        try:
+            deadline=time.monotonic()+10
+            while not server.started and time.monotonic()&lt;deadline:time.sleep(.02)
+            assert server.started
+            job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+            deadline=time.monotonic()+15
+            while time.monotonic()&lt;deadline:
+                job=jobs.get(job['jobId'],root)
+                if ready.exists() and job.get('processJobHandle'):break
+                time.sleep(.02)
+            assert ready.exists(), job
+            assert job.get('processJobHandle'), job
+            pids=json.loads(ready.read_text(encoding='utf-8'))
+            for pid in {*pids.values(),job['runnerPid']}:
+                proc=psutil.Process(pid);identities.append((pid,proc.create_time()))
+            with httpx.Client(base_url=f'http://127.0.0.1:{port}',timeout=10) as client:
+                response=client.delete('/api/jobs/'+job['jobId']).json()
+                evidence['response']=response
+&gt;               assert response.get('ok'), response
+E               AssertionError: {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: process birth identity mismatch (zero tolerance)'}}
+E               assert False
+E                +  where False = &lt;built-in method get of dict object at 0x000001F4A52E3880&gt;('ok')
+E                +    where &lt;built-in method get of dict object at 0x000001F4A52E3880&gt; = {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: process birth identity mismatch (zero tolerance)'}}.get
+
+tests\test_job_delete_http_owned.py:56: AssertionError</failure></testcase></testsuite></testsuites>

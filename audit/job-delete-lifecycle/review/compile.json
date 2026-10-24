@@ -1,0 +1,15 @@
+{
+  "sourceSha": "ede83d7034912b71591c9a1c502a43549ba9f445",
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "py_compile",
+    "packages/core/background_jobs.py",
+    "packages/core/background_runner.py",
+    "packages/core/terminal/guard.py",
+    "packages/jobs/process_cleanup.py",
+    "packages/jobs/api.py"
+  ],
+  "exitCode": 0,
+  "output": ""
+}

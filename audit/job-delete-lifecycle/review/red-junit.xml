@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.325" timestamp="2026-10-24T14:16:47.100183+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[children_oserror]" time="0.017"><failure message="AssertionError: assert True is not True&#10; +  where True = &lt;built-in method get of dict object at 0x0000017539230EC0&gt;('confirmed')&#10; +    where &lt;built-in method get of dict object at 0x0000017539230EC0&gt; = {'confirmed': True, 'killed': 3}.get">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000175390B2C40&gt;
+tree = ({10: &lt;test_job_delete_safety.Process object at 0x00000175390C2E40&gt;, 11: &lt;test_job_delete_safety.Process object at 0x0...0x00000175390C2F90&gt;, {'jobId': 'job_delete_safety', 'kind': 'background-process', 'status': 'running', 'pid': 10, ...})
+fault = 'children_oserror'
+
+    @pytest.mark.parametrize('fault', ['children_oserror','children_denied','birth','kill','missing_pid','late_child'])
+    def test_unobservable_tree_never_confirmed(monkeypatch, tree, fault):
+        processes, guard, record = tree
+        if fault == 'children_oserror':
+            processes[11].error = OSError('enumeration unavailable')
+        elif fault == 'children_denied':
+            processes[11].error = psutil.AccessDenied(11)
+        elif fault == 'birth':
+            processes[12].create_time = lambda: (_ for _ in ()).throw(OSError('birth unreadable'))
+        elif fault == 'kill':
+            guard.last_terminate_error = 5
+            guard.terminate_tree = lambda *a, **k: ([10,12], [12])
+            processes[12].kill = lambda: (_ for _ in ()).throw(OSError('kill denied'))
+        elif fault == 'missing_pid':
+            record.pop('pid')
+        else:
+            guard.terminate_tree = lambda *a, **k: ([10,12,13], [13])
+        try:
+            receipt = jobs._terminate_job_processes([record], timeout=0)
+        except Exception:
+            return
+&gt;       assert receipt.get('confirmed') is not True
+E       AssertionError: assert True is not True
+E        +  where True = &lt;built-in method get of dict object at 0x0000017539230EC0&gt;('confirmed')
+E        +    where &lt;built-in method get of dict object at 0x0000017539230EC0&gt; = {'confirmed': True, 'killed': 3}.get
+
+tests\test_job_delete_safety.py:97: AssertionError</failure></testcase><testcase classname="tests.test_job_delete_safety" name="test_unobservable_tree_never_confirmed[birth]" time="0.004"><failure message="AssertionError: assert True is not True&#10; +  where True = &lt;built-in method get of dict object at 0x000001753924BAC0&gt;('confirmed')&#10; +    where &lt;built-in method get of dict object at 0x000001753924BAC0&gt; = {'confirmed': True, 'killed': 2}.get">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000175390B28B0&gt;
+tree = ({10: &lt;test_job_delete_safety.Process object at 0x00000175390B3BB0&gt;, 11: &lt;test_job_delete_safety.Process object at 0x0...0x00000175390C34D0&gt;, {'jobId': 'job_delete_safety', 'kind': 'background-process', 'status': 'running', 'pid': 10, ...})
+fault = 'birth'
+
+    @pytest.mark.parametrize('fault', ['children_oserror','children_denied','birth','kill','missing_pid','late_child'])
+    def test_unobservable_tree_never_confirmed(monkeypatch, tree, fault):
+        processes, guard, record = tree
+        if fault == 'children_oserror':
+            processes[11].error = OSError('enumeration unavailable')
+        elif fault == 'children_denied':
+            processes[11].error = psutil.AccessDenied(11)
+        elif fault == 'birth':
+            processes[12].create_time = lambda: (_ for _ in ()).throw(OSError('birth unreadable'))
+        elif fault == 'kill':
+            guard.last_terminate_error = 5
+            guard.terminate_tree = lambda *a, **k: ([10,12], [12])
+            processes[12].kill = lambda: (_ for _ in ()).throw(OSError('kill denied'))
+        elif fault == 'missing_pid':
+            record.pop('pid')
+        else:
+            guard.terminate_tree = lambda *a, **k: ([10,12,13], [13])
+        try:
+            receipt = jobs._terminate_job_processes([record], timeout=0)
+        except Exception:
+            return
+&gt;       assert receipt.get('confirmed') is not True
+E       AssertionError: assert True is not True
+E        +  where True = &lt;built-in method get of dict object at 0x000001753924BAC0&gt;('confirmed')
+E        +    where &lt;built-in method get of dict object at 0x000001753924BAC0&gt; = {'confirmed': True, 'killed': 2}.get
+
+tests\test_job_delete_safety.py:97: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,22 @@
+{
+  "sourceSha": "ede83d7034912b71591c9a1c502a43549ba9f445",
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_delete_safety.py",
+    "tests/test_background_jobs.py",
+    "tests/test_jobs_api.py",
+    "tests/test_job_delete_http_owned.py",
+    "tests/test_terminal_guard.py",
+    "tests/test_job_runner_venv.py",
+    "-o",
+    "addopts=",
+    "-q",
+    "--junitxml=audit/job-delete-lifecycle/review/final-junit.xml"
+  ],
+  "exitCode": 0
+}

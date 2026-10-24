@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="6.108" timestamp="2026-10-24T14:17:42.382133+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_http_owned" name="test_real_owned_tree_delete_http" time="5.392"><failure message="AssertionError: {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: captured descendant lacks kernel Job ownership'}}&#10;assert False&#10; +  where False = &lt;built-in method get of dict object at 0x000001F061FE9780&gt;('ok')&#10; +    where &lt;built-in method get of dict object at 0x000001F061FE9780&gt; = {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: captured descendant lacks kernel Job ownership'}}.get">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4146/test_real_owned_tree_delete_ht0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F061F2F5C0&gt;
+
+    @pytest.mark.skipif(os.name != 'nt', reason='Windows retained identity / owned Job verification')
+    def test_real_owned_tree_delete_http(tmp_path, monkeypatch):
+        root=tmp_path/'jobs-root'
+        monkeypatch.setattr(jobs,'DEFAULT_ROOT',root)
+        monkeypatch.setattr(store,'DEFAULT_ROOT',root)
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+        monkeypatch.setenv('PAN_SCHEDULER_DIR',str(root))
+        session._cache['ses_delete_owned']=session.Session(id='ses_delete_owned',name='owned',workdir=str(tmp_path))
+        child_script=tmp_path/'owned.py'
+        ready=tmp_path/'ready.json'
+        child_script.write_text("import subprocess,sys,time,json,os\nfrom pathlib import Path\np=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\nPath(sys.argv[1]).write_text(json.dumps({'parent':os.getpid(),'child':p.pid}),encoding='utf-8')\ntime.sleep(60)\n",encoding='utf-8')
+        app=FastAPI();app.include_router(api.router)
+        sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        assert port not in (8767,8768)
+        server=uvicorn.Server(uvicorn.Config(app,log_level='error',lifespan='off'))
+        thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True)
+        thread.start()
+        job=None; identities=[]; evidence={'port':port}
+        try:
+            deadline=time.monotonic()+10
+            while not server.started and time.monotonic()&lt;deadline:time.sleep(.02)
+            assert server.started
+            job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+            deadline=time.monotonic()+15
+            while time.monotonic()&lt;deadline:
+                job=jobs.get(job['jobId'],root)
+                if ready.exists() and job.get('processJobHandle'):break
+                time.sleep(.02)
+            assert ready.exists(), job
+            assert job.get('processJobHandle'), job
+            pids=json.loads(ready.read_text(encoding='utf-8'))
+            for pid in {*pids.values(),job['runnerPid']}:
+                proc=psutil.Process(pid);identities.append((pid,proc.create_time()))
+            with httpx.Client(base_url=f'http://127.0.0.1:{port}',timeout=10) as client:
+                response=client.delete('/api/jobs/'+job['jobId']).json()
+                evidence['response']=response
+&gt;               assert response.get('ok'), response
+E               AssertionError: {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: captured descendant lacks kernel Job ownership'}}
+E               assert False
+E                +  where False = &lt;built-in method get of dict object at 0x000001F061FE9780&gt;('ok')
+E                +    where &lt;built-in method get of dict object at 0x000001F061FE9780&gt; = {'ok': False, 'error': {'code': 'job_busy', 'message': 'cannot safely delete: captured descendant lacks kernel Job ownership'}}.get
+
+tests\test_job_delete_http_owned.py:56: AssertionError</failure></testcase></testsuite></testsuites>
