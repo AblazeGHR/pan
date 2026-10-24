@@ -30,5 +30,7 @@
     "newLazy": "Bundle B"
   },
   "portReleased": true,
-  "ownedDescendantsAfterStop": []
+  "ownedDescendantsAfterStop": [],
+  "testedCommit": "5b643e582a8089eda86b7e05930493635ae5fded",
+  "testedTree": "e1fb4ba24930905cb33bc8c037622d7414b28e89"
 }
