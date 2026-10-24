@@ -165,6 +165,12 @@ class UserCardStore:
         with self.db() as db:
             db.execute('DELETE FROM user_card_outbox WHERE id=?',(qid,))
 
+    def drop_reminders(self, owner):
+        """Forget reminder state only when the owner Session is definitively gone."""
+        with self.db() as db:
+            db.execute('DELETE FROM user_card_reminders WHERE owner=?',(owner,))
+            db.execute('DELETE FROM user_card_outbox WHERE owner=?',(owner,))
+
     def delay(self):
         with self.db() as db:
             if db.execute('SELECT 1 FROM user_card_outbox').fetchone():
@@ -182,19 +188,27 @@ def get_store():
 
 
 async def enqueue_reminder(owner, qid, body):
-    """Durable Notification only. No wake, auto-force, recovery or lease mutation."""
+    """Admit a normal queued Notification, preserving Illegal/Pause gates."""
     from packages.core import worker
     target=worker._get_session_shallow(owner)
-    if target is None or worker._shutdown_started:
+    if target is None:
+        # A deleted Session cannot ever consume this reminder.  Clear only its
+        # reminder bookkeeping; do not touch other card data or queue state.
+        get_store().drop_reminders(owner)
+        return True
+    if worker._shutdown_started:
         return False
     async with worker.queue_lock(owner):
         if any(r.get('id')==qid for r in [*target.queue_pending,*target.queue_delivery_ledger.values()]):
             return True
-        item=await worker._append_new_queue_item(target,dict(id=qid,queueItemId=qid,type='notice',kind='report',
+        item=await worker._append_new_queue_item(target,dict(id=qid,queueItemId=qid,type='notice',kind='notice',
             source='system',status='notice',noticeKind='user_card_reminder',result=body,
             sessionId=owner,revision=1,createdAt=time.time(),deliveryState='queued',dispatchState='queued'))
     await worker._bcast(dict(type='queue.item_added',sessionId=owner,queueItemId=qid,
                              queueRevision=target.queue_revision,item=dict(item)))
+    # Reminder admission follows ordinary queue delivery.  _wake_worker keeps
+    # Pause and Illegal gates; it never force-clears an Illegal lock.
+    await worker._wake_worker(owner, auto_spawn=True)
     return True
 
 

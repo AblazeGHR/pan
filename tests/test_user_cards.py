@@ -157,38 +157,63 @@ def test_scheduler_waits_on_event_without_empty_polling(tmp_path):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('illegal',[False,True])
-def test_reminder_admission_keeps_pause_and_illegal_with_normal_queue_recovery(tmp_path,monkeypatch,illegal):
+def test_reminder_legal_path_wakes_normal_queue(tmp_path,monkeypatch):
     from packages.core import session,worker,legal_offline
     source=session.create('owner',workdir=str(tmp_path))
-    source.queue_paused=True
-    if illegal:
-        identity=dict(token='failed',generation=1,serviceId='previous',workerId='old',pid=None)
-        legal_offline.admit(source,identity,kind='foreground')
-        legal_offline.detect(source,'test-crash',eligible=lambda row:True,remember=lambda row:None)
     session.save(source)
-    spawn=AsyncMock(); wake=AsyncMock(); auto=AsyncMock()
-    monkeypatch.setattr(worker,'create_worker',spawn)
+    wake=AsyncMock()
     monkeypatch.setattr(worker,'_wake_worker',wake)
-    monkeypatch.setattr(worker,'_schedule_auto_force',auto)
     monkeypatch.setattr(worker,'_bcast',AsyncMock())
     async def run():
         assert await enqueue_reminder(source.id,'notice1',REMINDER)
         assert await enqueue_reminder(source.id,'notice1',REMINDER)
         current=session.get(source.id,load_history=False)
-        assert current.queue_paused and len(current.queue_pending)==1
-        assert legal_offline.is_illegal(current)==illegal
-        if illegal: assert worker._queue_item_locked(current.queue_pending[0])
-        # Admission itself only persists. Normal queue recovery remains unchanged.
-        spawn.assert_not_called(); wake.assert_not_called(); auto.assert_not_called()
-        current.queue_paused=False
-        assert worker._has_dispatchable_items(current)==(not illegal)
-        if illegal:
-            await worker._recover_session(source.id)
-            assert legal_offline.is_illegal(current)
-            assert worker._queue_item_locked(current.queue_pending[0])
-            spawn.assert_not_called()
+        assert len(current.queue_pending)==1
+        assert current.queue_pending[0]['type']=='notice'
+        assert current.queue_pending[0]['kind']=='notice'
+        wake.assert_awaited_once_with(source.id,auto_spawn=True)
     asyncio.run(run())
+
+
+def test_reminder_illegal_stays_locked_and_wake_does_not_unlock(tmp_path,monkeypatch):
+    from packages.core import session,worker,legal_offline,queue_locks
+    source=session.create('owner',workdir=str(tmp_path))
+    identity=dict(token='failed',generation=1,serviceId='previous',workerId='old',pid=None)
+    legal_offline.admit(source,identity,kind='foreground')
+    legal_offline.detect(source,'test-crash',eligible=lambda row:True,remember=lambda row:None)
+    session.save(source)
+    original_wake=worker._wake_worker
+    created=AsyncMock()
+    monkeypatch.setattr(worker,'create_worker',created)
+    monkeypatch.setattr(worker,'_bcast',AsyncMock())
+    async def run():
+        assert await enqueue_reminder(source.id,'illegal-notice',REMINDER)
+        current=session.get(source.id,load_history=False)
+        row=current.queue_pending[0]
+        assert row['type']=='notice' and row['kind']=='notice'
+        assert legal_offline.is_illegal(current)
+        assert queue_locks.source(row)=='illegal'
+        await original_wake(source.id,auto_spawn=True)
+        assert legal_offline.is_illegal(current)
+        assert queue_locks.source(row)=='illegal'
+        created.assert_not_called()
+    asyncio.run(run())
+
+
+def test_missing_owner_drops_reminder_state(tmp_path,monkeypatch):
+    import packages.interactions.user_cards as user_cards
+    box=store(tmp_path)
+    monkeypatch.setattr(user_cards,'get_store',lambda:box)
+    with box.db() as db:
+        db.execute('INSERT INTO user_card_reminders VALUES(?,?)',('deleted-owner',1000))
+        db.execute('INSERT INTO user_card_outbox VALUES(?,?,?)',('deleted-notice','deleted-owner',REMINDER))
+    async def run():
+        assert await enqueue_reminder('deleted-owner','deleted-notice',REMINDER)
+    asyncio.run(run())
+    assert box.delay() is None
+    with box.db() as db:
+        assert db.execute('SELECT count(*) FROM user_card_reminders').fetchone()[0]==0
+        assert db.execute('SELECT count(*) FROM user_card_outbox').fetchone()[0]==0
 
 
 def test_http_auth_attachments_owner_counts_and_terminal(tmp_path,monkeypatch):
