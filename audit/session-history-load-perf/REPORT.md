@@ -2,7 +2,7 @@
 
 - 最新 main 基线：`f03e7c652c45e207486d2ee33643b95ae915985b`
 - 合并提交（`--no-ff`，保留历史，未 rebase）：`dea32a43b573eaaba83cb91eb0e773a491f39475`
-- 本轮候选（仅字体非阻塞）：见 §11「提交与一致性」的实际 SHA
+- 本轮候选（仅字体非阻塞）：`83ce5b99aff2866dfe870653590fc62b408be806`（其后仅有一个补充 SHA 的文档提交）
 - 分支 `feature/session-history-load-perf-20261024`，隔离树 `D:/project/pan-worktrees/session-history-load-perf-20261024`
 - 未 push，未改动 main / practical，未重启或访问真实服务（8767/8768），未触碰其他授权/Job/CI 工作树
 
@@ -177,6 +177,8 @@ await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort('
 
 ## 11. 提交与一致性
 
+- 候选提交：`83ce5b99aff2866dfe870653590fc62b408be806`（源码 + 证据 + 本报告）。
+  其后若新增提交，只允许是回填该 SHA 的文档提交。
 - 交付树只包含：`packages/web/src/index.css`、`packages/web/src/index.html`、
   `packages/web/e2e/verify-precompressed-assets.mjs`、测量工具（`packages/web/e2e/session-load-perf.mjs`、
   `audit/session-history-load-perf/*`）。`vite.config.ts` 已还原为 main 内容（不交付 icon 合并）。
