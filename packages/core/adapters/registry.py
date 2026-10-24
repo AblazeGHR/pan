@@ -1,6 +1,7 @@
 """Adapter 注册表 — 按名注册和查找 CliAdapter 实例 / SessionsProvider。"""
 
 from __future__ import annotations
+import inspect
 from .base import CliAdapter, SessionsProvider
 
 _adapters: dict[str, CliAdapter] = {}
@@ -49,3 +50,22 @@ def get_sessions_provider(name: str) -> SessionsProvider:
 def list_sessions_providers() -> list[SessionsProvider]:
     """返回已注册的 sessions provider 清单。"""
     return list(_sessions_providers.values())
+
+
+def provider_kwargs(func, **candidates) -> dict:
+    """Filter *candidates* to the keyword arguments *func* actually accepts.
+
+    SessionsProvider 协议外，个别 provider 支持额外 kwargs（目前只有 kimi 的
+    ``kimi_home``：方案 C 隔离 HOME，MCP 会话的原生状态只存在于该 HOME）。
+    调用方（server 的 rename/branch、worker 的 branch）按 session 的
+    adapter_config 构造候选值，由本函数按签名过滤——不支持该参数的 provider
+    （cbc/codex/claude/opencode）不会收到多余 kwarg（否则 TypeError）。
+    """
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return {}
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD
+           for p in params.values()):
+        return dict(candidates)
+    return {k: v for k, v in candidates.items() if k in params}

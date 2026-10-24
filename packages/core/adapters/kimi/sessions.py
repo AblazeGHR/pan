@@ -2,22 +2,36 @@
 
 Scans ~/.kimi-code/sessions/ and workspaces.json for resumable Kimi sessions,
 parses wire.jsonl transcripts into Pan history format.
+
+Session 索引双源（2026-10-24 kimi 2.3.1 实测）：
+- 旧布局 ``<home>/session_index.jsonl``：追加式索引，仍在写入（真实 home
+  653 条），但**新建的隔离 home（方案 C）不再生成它**——只在特定操作后
+  惰性出现，不能作为唯一来源。
+- 2.3.1 新布局 ``<home>/sessions/.index-cache/scan.json``：kimi 自己维护的
+  同步索引（每次 turn/fork 后即更新），含 id→workspace/cwd/时间戳。
+- 兜底：直接扫描 ``<home>/sessions/wd_*/session_*/state.json``。
+
+``_load_session_index`` 合并三者（按 sessionId 去重，jsonl 优先），保证
+真实 home / 隔离 home / 刚 fork 出的会话都能被定位。
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+import subprocess
 import time
 import uuid as _uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from packages.jobs.window import command_window_options
+
 
 _KIMI_DIR = Path.home() / ".kimi-code"
 _WORKSPACES_FILE = _KIMI_DIR / "workspaces.json"
-_SESSION_INDEX_FILE = _KIMI_DIR / "session_index.jsonl"
 
 # 平台分支开关（模块级常量，便于测试 monkeypatch 模拟另一平台）
 _IS_WINDOWS = os.name == "nt"
@@ -47,27 +61,88 @@ def _kimi_dir(kimi_home: str | None = None) -> Path:
 
 
 def _load_session_index(kimi_home: str | None = None) -> list[dict]:
-    """Return list of session index entries from session_index.jsonl.
+    """Return list of session index entries, merged across kimi's index sources.
 
-    Reads ``<kimi_home>/session_index.jsonl`` when *kimi_home* is set, otherwise
-    the real ``~/.kimi-code/session_index.jsonl``.
+    Reads (in priority order, dedup by sessionId):
+    1. ``<kimi_home>/session_index.jsonl`` — legacy append-only index (real
+       user home; still written by 2.3.1, but absent in fresh isolated homes);
+    2. ``<kimi_home>/sessions/.index-cache/scan.json`` — kimi 2.3.1's
+       synchronous index (updated after every turn/fork);
+    3. ``<kimi_home>/sessions/wd_*/session_*`` directory scan (state.json
+       fallback when neither index file exists).
+
+    Each entry has the legacy shape ``{"sessionId", "sessionDir", "workDir"}``
+    so downstream lookups stay unchanged.
     """
-    index_file = _kimi_dir(kimi_home) / "session_index.jsonl"
-    if not index_file.exists():
-        return []
+    home = _kimi_dir(kimi_home)
     entries: list[dict] = []
-    try:
-        with open(index_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
+    seen: set[str] = set()
+
+    def _add(entry: dict) -> None:
+        sid = entry.get("sessionId")
+        if not sid or sid in seen:
+            return
+        seen.add(sid)
+        entries.append(entry)
+
+    # 1. legacy session_index.jsonl
+    index_file = home / "session_index.jsonl"
+    if index_file.exists():
+        try:
+            with open(index_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        _add(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        except OSError:
+            pass
+
+    # 2. kimi 2.3.1 scan.json (sessions/.index-cache/scan.json)
+    scan_file = home / "sessions" / ".index-cache" / "scan.json"
+    if scan_file.is_file():
+        try:
+            data = json.loads(scan_file.read_text(encoding="utf-8"))
+            sessions = data.get("sessions") if isinstance(data, dict) else None
+            if isinstance(sessions, dict):
+                for sid, info in sessions.items():
+                    if not isinstance(info, dict):
+                        continue
+                    ws = info.get("ws") or ""
+                    summary = info.get("summary") or {}
+                    _add({
+                        "sessionId": sid,
+                        "sessionDir": str(home / "sessions" / ws / sid) if ws else "",
+                        "workDir": summary.get("cwd", ""),
+                    })
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 3. directory scan fallback (sessions missing from both index files).
+    # kimi 的会话目录名即 session id，已被索引收录的目录直接跳过、不读
+    # state.json——真实 home 有 650+ 目录，避免每次索引加载做几百次文件读。
+    sessions_root = home / "sessions"
+    if sessions_root.is_dir():
+        try:
+            for ws_dir in sessions_root.glob("wd_*"):
+                if not ws_dir.is_dir():
                     continue
-                try:
-                    entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        pass
+                for sdir in ws_dir.glob("session_*"):
+                    if sdir.name in seen or not sdir.is_dir():
+                        continue
+                    state = _read_state(sdir)
+                    sid = state.get("id") or sdir.name
+                    _add({
+                        "sessionId": sid,
+                        "sessionDir": str(sdir),
+                        "workDir": state.get("cwd", ""),
+                    })
+        except OSError:
+            pass
+
     return entries
 
 
@@ -91,6 +166,23 @@ def _iso_ts(ts_ms: int | None) -> str:
         return datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
     except (OSError, ValueError):
         return str(ts_ms)
+
+
+def _iso_or_raw(value) -> str:
+    """Normalize a state.json timestamp to an ISO string.
+
+    kimi 2.3.1 的 state.json 把 createdAt/updatedAt 写成 epoch ms 整数，旧版
+    是 ISO 字符串（真实 home 629 条字符串 + 26 条整数，2026-10-24 实测）。
+    API 输出统一为 ISO 字符串，避免前端/排序面对混合类型。
+    """
+    if isinstance(value, bool) or value is None or value == "":
+        return ""
+    if isinstance(value, (int, float)):
+        return _iso_ts(int(value))
+    text = str(value)
+    if text.isdigit():
+        return _iso_ts(int(text))
+    return text
 
 
 def _read_state(session_dir: Path) -> dict:
@@ -169,8 +261,8 @@ def list_kimi_sessions(project_cwd: str | None = None) -> list[dict]:
             "workspace_id": workspace_id,
             "title": state.get("title", ""),
             "workDir": workdir,
-            "createdAt": state.get("createdAt", ""),
-            "updatedAt": state.get("updatedAt", ""),
+            "createdAt": _iso_or_raw(state.get("createdAt", "")),
+            "updatedAt": _iso_or_raw(state.get("updatedAt", "")),
             "message_count": len([h for h in history if h.get("role") in ("user", "assistant")]),
             "model": model,
         })
@@ -354,6 +446,11 @@ def get_session_title(session_id: str, workdir: str | None = None,
                       kimi_home: str | None = None) -> str:
     """Return the title stored in state.json for a Kimi session.
 
+    Doubles as the SessionsProvider ``get_session_title`` (cwd 传 workdir）。
+    2.3.1 实测：新会话 state.json 无 ``title`` 字段（kimi 惰性生成/可替换），
+    仅 fork 出的会话与自定义标题后才有；此时返回 ""，与 `kimi session list`
+    不展示标题的行为一致。
+
     *kimi_home*: isolated Pan-managed kimi home; when set, state is read from
     there instead of the real ~/.kimi-code.
     """
@@ -432,14 +529,24 @@ def list_sessions(cwd: str | None = None) -> list[dict]:
     return list_kimi_sessions()
 
 
-def parse_history(session_id: str, cwd: str | None = None) -> list[dict]:
-    """SessionsProvider：解析 kimi session 历史。"""
-    return parse_kimi_history(session_id, cwd)
+def parse_history(session_id: str, cwd: str | None = None,
+                  kimi_home: str | None = None) -> list[dict]:
+    """SessionsProvider：解析 kimi session 历史。
+
+    *kimi_home*：方案 C 隔离 HOME（MCP 会话的状态不在真实 ~/.kimi-code），
+    由 server 在 provider 支持该参数时透传（见 _provider_kimi_home_kwargs）。
+    """
+    return parse_kimi_history(session_id, cwd, kimi_home=kimi_home)
 
 
-def fork_session(parent_id: str, name: str, cwd: str | None = None) -> str:
-    """SessionsProvider：fork kimi session（目录复制 + 注册新 session）。"""
-    return fork_kimi_session(parent_id, name, cwd)
+def fork_session(parent_id: str, name: str, cwd: str | None = None,
+                 kimi_home: str | None = None) -> str:
+    """SessionsProvider：fork kimi session（优先原生 ``kimi fork``）。
+
+    *kimi_home*：隔离 HOME；设置时父会话定位与 fork 都在该 HOME 内进行
+    （MCP 会话的原生状态只存在于隔离 HOME，真实 home 索引里找不到）。
+    """
+    return fork_kimi_session(parent_id, name, cwd, kimi_home=kimi_home)
 
 
 def _find_session_dir(session_id: str, workdir: str | None = None,
@@ -460,19 +567,75 @@ def _find_session_dir(session_id: str, workdir: str | None = None,
     return None
 
 
-def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None,
-                      kimi_home: str | None = None) -> str:
-    """Fork a Kimi session by copying its directory and registering the new session.
+# ── 原生 fork（kimi 2.3.1 `kimi fork` 子命令，2026-10-24 实测）──
 
-    This is a best-effort implementation: Kimi CLI does not expose a stable
-    `--fork` flag, so we copy the session files directly. The forked session can
-    then be resumed with `kimi -S <new_session_id>`.
+# 2.3.1 `kimi fork <id> --cwd <wd> -y` stdout: "Forked to session_<uuid> (...)".
+_FORK_OUTPUT_RE = re.compile(r"Forked to (session_[0-9a-fA-F-]{36})")
 
-    Returns the new Kimi session id.
 
-    *kimi_home*: isolated Pan-managed kimi home; when set, the parent session is
-    located there (required for MCP-enabled sessions whose state lives under the
-    isolated home, not the real ~/.kimi-code).
+def _kimi_executable() -> str:
+    """Resolve the kimi CLI entry (mirrors KimiAdapter._KIMI_PATH).
+
+    优先级：PAN_KIMI_PATH / CLICONDUCTOR_KIMI_PATH 环境变量 > Windows 默认
+    ``~/.kimi-code/bin/kimi.exe`` > PATH 上的 ``kimi``。
+    """
+    env = os.environ.get("PAN_KIMI_PATH") or os.environ.get("CLICONDUCTOR_KIMI_PATH")
+    if env:
+        return env
+    if os.name == "nt":
+        return str(Path.home() / ".kimi-code" / "bin" / "kimi.exe")
+    return "kimi"
+
+
+def _native_fork_session(parent_id: str, name: str, workdir: str | None,
+                         kimi_home: str | None) -> str | None:
+    """Fork via the native ``kimi fork`` subcommand; None when unavailable.
+
+    2.3.1 起 kimi 提供原生 fork：正确处理 scan.json 索引注册、title 与
+    ``forkedFrom`` 元数据（目录复制做不到后两者）。旧版 kimi 无该子命令、
+    可执行文件缺失或输出无法解析时返回 None，由调用方回退到目录复制。
+    """
+    exe = _kimi_executable()
+    if not (Path(exe).is_file() or shutil.which(exe)):
+        return None
+    cmd = [exe, "fork", parent_id, "-y"]
+    if workdir:
+        cmd.extend(["--cwd", str(Path(workdir))])
+    env = dict(os.environ)
+    if kimi_home:
+        env["KIMI_CODE_HOME"] = str(kimi_home)
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, env=env,
+            **command_window_options(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    match = _FORK_OUTPUT_RE.search(proc.stdout or "")
+    if not match:
+        return None
+    new_id = match.group(1)
+    if name:
+        # 原生 fork 的标题形如 "Fork: <parent>"；用 Pan 选择的名字覆盖
+        # （state.json title + isCustomTitle，kimi 原生读取同字段）。
+        try:
+            write_custom_title(new_id, name, workdir, kimi_home)
+        except Exception:
+            pass
+    return new_id
+
+
+def _fork_by_copy(parent_id: str, name: str, workdir: str | None = None,
+                  kimi_home: str | None = None) -> str:
+    """Fork by copying the session directory (fallback for kimi < 2.3.1).
+
+    Registers the new session in the **same home's** session_index.jsonl
+    (isolated home when *kimi_home* is set — writing the real home's index
+    would both lose the fork and pollute the user's index). kimi's own
+    scan.json is left untouched; kimi discovers the copied directory on its
+    next index rebuild, while Pan reads it back through the merged index.
     """
     parent_dir = _find_session_dir(parent_id, workdir, kimi_home)
     if not parent_dir:
@@ -514,9 +677,10 @@ def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None,
 
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # Register in session_index.jsonl
+    # Register in the SAME home's session_index.jsonl (fallback path only;
+    # native fork registers itself in kimi's scan.json).
     parent_entry = None
-    for entry in _load_session_index():
+    for entry in _load_session_index(kimi_home):
         if entry.get("sessionId") == parent_id:
             parent_entry = entry
             break
@@ -527,9 +691,30 @@ def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None,
         "workDir": parent_entry.get("workDir", "") if parent_entry else "",
     }
     try:
-        with open(_SESSION_INDEX_FILE, "a", encoding="utf-8") as f:
+        with open(_kimi_dir(kimi_home) / "session_index.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(new_entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
 
     return new_id
+
+
+def fork_kimi_session(parent_id: str, name: str, workdir: str | None = None,
+                      kimi_home: str | None = None) -> str:
+    """Fork a Kimi session and return the new Kimi session id.
+
+    Primary path (kimi 2.3.1+,实测 2026-10-24): native ``kimi fork`` — the CLI
+    copies wire.jsonl/state and registers the fork in its own scan.json index
+    with ``forkedFrom`` metadata. Fallback: directory copy
+    (``_fork_by_copy``) for older kimi builds or when the native command
+    fails; the copy is registered in the same home's session_index.jsonl.
+
+    *kimi_home*: isolated Pan-managed kimi home (KIMI_CODE_HOME); when set,
+    the parent session is located there and the fork happens inside it —
+    required for MCP-enabled sessions whose state lives under the isolated
+    home, not the real ~/.kimi-code.
+    """
+    new_id = _native_fork_session(parent_id, name, workdir, kimi_home)
+    if new_id:
+        return new_id
+    return _fork_by_copy(parent_id, name, workdir, kimi_home)

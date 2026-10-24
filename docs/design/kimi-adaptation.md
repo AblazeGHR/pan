@@ -202,3 +202,95 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 - 不碰运行中服务（8768/8080/NapCat），测试用独立端口。
 - 依赖 kimi CLI 的验证在 worktree 内进行；kimi -p 会消耗 token，测试用最短 prompt 控制成本。
 - commit 可自行提交（本分支），push 等用户指示。
+
+## 8. kimi 2.3.1 复核与加固（2026-10-24，T-KIMI-001）
+
+> 环境：kimi 2.3.1（`C:/Users/14709/.kimi-code/bin/kimi.exe`），provider
+> `moonshot-cn`（`https://api.moonshot.cn/v1`），模型 k2.6 / k2.7-code 均在
+> `~/.kimi-code/config.toml` 中。复核方式：真实 CLI 进程 + 本地
+> OpenAI 兼容端点驱动脚本化模型（Moonshot 账户余额不足，429
+> `insufficient balance`，真实 token 消费被阻塞——见 §8.5）。
+
+### 8.1 实测成立（真实 kimi 进程、真实 argv、真实事件流）
+
+| 项 | 证据 |
+|---|---|
+| `-p/--prompt` + `--output-format stream-json` | 首轮输出 `meta/system.version(2.3.1)` → `assistant` → `meta/session.resume_hint(session_id)` |
+| `-S <id>` resume | 二轮请求体中携带一轮的 user prompt 与 assistant 回复；中文回答正确；`resume_hint` 另广告 `kimi -r <id>`（等价入口，`--help` 未列出） |
+| `-m <model>` / `--agent-file <md>` | wrapper 首轮 argv 全部被 2.3.1 接受；`--agent-file` 与 `-S` 互斥（wrapper 只在无 session_id 时传，正确） |
+| wrapper 全链路 | 真实 spawn → stdin `{"text":...}` → `-p/-m/--agent-file` → `-S` 二轮 → 合成 result；session_id 从 resume_hint 捕获 |
+| tool 事件 | `role:"assistant"` + `tool_calls`（Bash）；**2.3.1 新增 `role:"tool"` 结果事件**（`tool_call_id` + `content`，MCP 结果附 `<mcp-result-extras>`）；两者均被现有解析正确处理（tool 结果事件为瞬态，不入历史） |
+| MCP（方案 C） | 隔离 home 的 `mcp.json` 被识别（wire 出现 `mcp.tools_discovered`；请求 tools 列表出现 `mcp__pan-probe__pan_probe`），工具被真实调用并写 marker |
+| 原生 fork | `kimi fork <id> --cwd <wd> -y` → `Forked to session_xxx`；新会话自带 `title:"Fork: <parent>"`、`forkedFrom`、`titleKind`，并进入 `sessions/.index-cache/scan.json` |
+| 权限 | `-p` 与 `-y/--auto/--plan` 互斥（仍报 `Cannot combine --prompt with ...`）；`-p` 进程内部固定 `permission.set_mode mode=auto` |
+| sessions provider | 真实 home：list 653 条 / workspaces 31；parse/usage/title 正常；enrich 游标（`usage.record.time`）增量为空时返回 None |
+| CLI status | `resolved_cli_argv()` → `C:\Users\14709\.kimi-code\bin\kimi.exe`，`available=true` |
+
+### 8.2 2.3.1 布局变化（已适配）
+
+1. **会话索引双源**：`session_index.jsonl` 仍在真实 home 追加（653 条，含
+   Pan 探针），但**新建隔离 home（方案 C）只有 `sessions/.index-cache/scan.json`**
+   （每次 turn/fork 同步更新，含 ws/cwd/时间戳）。此前 `_load_session_index`
+   只读 jsonl → 隔离 home 的 MCP 会话 list/parse/usage/fork 全部为空。
+   **修复**：合并 jsonl + scan.json + `wd_*/session_*/state.json` 目录扫描
+   （按 sessionId 去重，jsonl 优先）。
+2. **state.json 时间戳类型**：2.3.1 写 epoch ms 整数（真实 home 26 条），旧版
+   是 ISO 字符串（629 条）。**修复**：`list_kimi_sessions` 输出统一转 ISO。
+3. **state.json 标题**：新会话无 `title` 字段（kimi 惰性生成，`titleKind`
+   可替换）；只有 fork/自定义标题后才有。`get_session_title` 返回 ""，与
+   `kimi session list` 不展示标题一致；`write_custom_title` 写
+   `title`+`isCustomTitle` 仍有效。
+4. **wire.jsonl 事件扩展**：新增 `agent.message.appended` / `llm.request` /
+   `token_counting.turn_recorded` / `prompt.completed` / `agent.turn.started` /
+   `agent.turn.ended` / `runtime.set_binding` / `profile.bind` /
+   `plugin.session_start` / `mcp.tools_discovered` / `changeNotifier.snapshot`；
+   `usage.record` 增 `usageScope`。历史解析只依赖 `context.append_message`、
+   `context.append_loop_event(content.part/tool.call)`、`usage.record`，均未变。
+
+### 8.3 本轮修复的缺陷
+
+| # | 缺陷 | 影响 | 修复 |
+|---|---|---|---|
+| F1 | 隔离 home 无 `session_index.jsonl` 时索引为空 | MCP 会话 list/parse/usage/fork 全断 | `_load_session_index` 三源合并 |
+| F2 | `fork_kimi_session` 恒写**真实 home** 的 jsonl（即使 `kimi_home` 已设） | 隔离 home 的 fork 在真实 home 留脏条目、且 kimi 侧不可见 | 原生 `kimi fork` 优先；回退写同一 home 的 jsonl |
+| F3 | `fork_args` 自行 fork 且返回 `[]`，worker branch 路径随后再经 provider fork | **双重 fork**，每次 branch 留孤儿 kimi 会话 | `fork_args` 改为纯返回 `[]`（对齐 claude/opencode/codex） |
+| F4 | branch 端点不向 provider 传 `kimi_home` | MCP 会话 branch 直接失败（父会话不在真实 home） | `provider_kwargs` 按签名透传 `kimi_home`（server branch + worker branch） |
+| F5 | branch 不继承 `kimi_home_dir` | 分支会话首轮建空 HOME，`-S` 找不到 fork 出的会话 | branch 复制 `kimi_home_dir`；`_cleanup_kimi_home` 对共享 HOME 跳过清理 |
+| F6 | rename 对**所有** provider 传 `kimi_home=` | cbc/codex/claude/opencode 重命名抛 TypeError，原生标题静默不写 | 同样按签名过滤 |
+| F7 | state.json 时间戳混合类型（int/ISO） | 前端/排序面对混合类型 | 输出统一 ISO |
+| F8 | `default_permission_mode` property 被同名类属性覆盖（死代码） | config 的 kimi.permission_mode 被静默忽略 | 删除死 property，保留恒 "" 的类属性并注释原因 |
+
+### 8.4 能力对照（cbc/codex vs kimi，2026-10-24）
+
+| 能力 | cbc | codex | kimi（本轮后） | 结论 |
+|---|---|---|---|---|
+| Terminal TUI / native control | ✅ PTY + 结构化 hook（`cbc/native_bridge.py`） | ✅ app-server native control | ❌ | **需 native 控制**（阶段 2）：kimi 无 hook，但 wire.jsonl 有 `agent.turn.started/ended`、`turn.ended`、`prompt.completed`、`turn.prompt` 可作生命周期来源；`kimi -S` 可拉起交互 TUI 但无结构化控制通道 |
+| steer（mid-turn） | ✅ 原生 | ✅ native steer + receipt | ❌ | **需 native 控制**（阶段 2）：候选通道 `kimi acp`（JSON-RPC stdio）或 `kimi web`（REST/WS）；`-p` 一次性进程天然无 mid-turn 注入 |
+| interrupt（中断回合） | ✅ | ✅ 原生 interrupt | △ 仅杀进程 | **受 kimi CLI 限制**：`-p` 无取消信号；现在只能 kill kimi 子进程（wrapper 随之结束）。要做优雅中断需 ACP/web 通道 |
+| takeover（接管交互） | ✅ `--resume` 拉起 | ✅ `codex resume` | ✅ `kimi -S <id>`（隔离 HOME 时经 `KIMI_CODE_HOME` execv） | 已支持 |
+| fork / branch | ✅ `--fork-session` | ✅ DB 行复制 | ✅ 原生 `kimi fork`（2.3.1+）/ 旧版目录复制 | 已支持（本轮修 F2/F3/F5） |
+| import | ✅ | ✅ | ✅ `/api/kimi/*` + 通用 provider 端点（真实 home） | 已支持；隔离 home 的 MCP 会话不经 import（由 Pan 自管） |
+| usage/enrich | ✅ rawUsage 游标 | ✅ token_count 增量 | ✅ `usage.record` time 游标 | 已支持（值依赖 provider 返回） |
+| MCP | ✅ `--mcp-config` | ✅ `-c` 内联 | ✅ KIMI_CODE_HOME 隔离 home + mcp.json（2.3.1 实测调用成功） | 已支持 |
+| 模型列表 | config>help>兜底 | models_cache + catalog | config.json > config.toml `[models."..."]` > 兜底（k2.6/k2.7-code） | 已支持；2.3.1 config.toml 中两模型仍有效 |
+| 权限模式 | `--permission-mode` | sandbox/-c 覆盖 | ❌ 不可用（`-p` 与 `-y/--auto/--plan` 互斥，进程内固定 auto） | **受 kimi CLI 限制**；声明与实际一致（`permission_mode_args` 返回 []） |
+| CLI status | ✅ | ✅ | ✅ `resolved_cli_argv` 解析到 exe | 已支持 |
+| 队列行为 | 通用 worker 队列 | 通用 | 通用（stream 长驻，无 oneshot） | 已支持（无 kimi 专属分支） |
+
+### 8.5 限制与凭据要求
+
+- **凭据**：kimi 依赖 `~/.kimi-code/config.toml` 的 provider + api_key
+  （Pan 只读拷贝进隔离 home，不写回、不打印）。模型调用会消耗账户余额；
+  2026-10-24 复核时该账户返回 429 `insufficient balance`，**真实 token 消费
+  被阻塞**——因此真实模型回答的 E2E 以本地 OpenAI 兼容端点驱动真实 kimi
+  进程完成（进程/argv/事件/MCP 全部真实，仅模型脚本化）。
+- **thinking 事件形态未在真实模型上复现**：脚本端点返回 `reasoning_content`
+  时 2.3.1 未输出 `role:"thinking"` 事件（可能因 kimi 只对特定模型字段映射
+  思考流）。adapter 对 `role:"thinking"`（扁平 content 或结构化块）的解析
+  保持不变并有单测覆盖。
+- **子代理 wire**：会话下 `agents/` 可能有非 main 代理目录；Pan 只读
+  `agents/main/wire.jsonl`（与既有行为一致）。
+- **`kimi -r`**：resume_hint 广告的别名，未在 `--help` 文档中列出；Pan 统一用
+  `-S`（文档化入口）。
+- **隔离 home 清理**：branch 出的会话共享父会话 home；删除父会话时
+  `_cleanup_kimi_home` 检测共享引用并跳过删除。

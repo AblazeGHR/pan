@@ -14,6 +14,7 @@ from .registry import (
     register_sessions_provider,
     get_sessions_provider,
     list_sessions_providers,
+    provider_kwargs,
 )
 from .cbc import CbcAdapter
 from .cbc import sessions as cbc_sessions
@@ -54,6 +55,7 @@ __all__ = [
     "register_sessions_provider",
     "get_sessions_provider",
     "list_sessions_providers",
+    "provider_kwargs",
     "resolve_execution_mode",
     "CbcAdapter",
     "KimiAdapter",

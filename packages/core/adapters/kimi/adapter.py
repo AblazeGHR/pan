@@ -69,7 +69,6 @@ class KimiAdapter:
     # 实际有效默认模型（~/.kimi-code/config.toml 的 default_model）。旧值
     # kimi-code/kimi-for-coding 已不存在（不在 kimi 可选模型内）。
     _DEFAULT_MODEL = "moonshot-cn/kimi-k2.6"
-    _DEFAULT_PERMISSION_MODE = ""
     _DEFAULT_ALWAYS_THINKING_ENABLED = False
     _DEFAULT_EFFORT = ""
 
@@ -81,10 +80,6 @@ class KimiAdapter:
         if model and model in self.supported_models:
             return model
         return self._DEFAULT_MODEL
-
-    @property
-    def default_permission_mode(self) -> str:
-        return self._kimi_config.get("permission_mode", self._DEFAULT_PERMISSION_MODE)
 
     @property
     def default_always_thinking_enabled(self) -> bool:
@@ -137,8 +132,10 @@ class KimiAdapter:
     # cbc 续写 JSONL 且 worker 在 one-shot MCP 路径 resume；kimi 仅恢复对话
     # 上下文，无 init 事件回放）。语义上等价于 cbc resume，故置 True 让 worker
     # 在 one-shot MCP 路径 resume，stream 路径由 wrapper 自己 -S（§4.8）。
+    # 2026-10-24 kimi 2.3.1 实测复核：-S resume 上下文完整保留（二轮问答可见
+    # 一轮的 assistant 消息）；resume_hint 事件另广告 `kimi -r <id>`（等价入口）。
     supports_resume = True
-    supports_fork = True  # 通过文件复制实现 fork
+    supports_fork = True  # 经 sessions provider（原生 `kimi fork`，2.3.1+）
     effort_values = ["low", "high", "max"]
     permission_modes = [
         {"value": "", "label": "default (interactive)"},
@@ -148,11 +145,12 @@ class KimiAdapter:
     ]
     default_permission_mode = ""
 
-    # wrapper 使用 `kimi -p` 一次性 prompt 模式。实测（2026-08-25）：`-p` 与
-    # `-y`/`--auto`/`--plan` 均互斥——kimi 直接报错
+    # kimi `-p <prompt>` 一次性 prompt 模式。实测（2026-08-25，2026-10-24
+    # kimi 2.3.1 复核均成立）：`-p` 与 `-y`/`--auto`/`--plan` 均互斥——kimi 直接报错
     # "Cannot combine --prompt with --yolo/--auto/--plan"，故 -p 模式下权限参数
-    # 不可用；thinking/effort 也无 CLI 参数（在 config.toml 全局配置）。
-    # 前端只展示 model 设置（§4.6）。
+    # 不可用（2.3.1 的 -p 进程内部固定按 auto 权限运行，wire.jsonl 里可见
+    # permission.set_mode mode=auto）；thinking/effort 也无 CLI 参数（在
+    # config.toml 全局配置）。前端只展示 model 设置（§4.6）。
     supported_settings = ["model"]
 
     @property
@@ -203,24 +201,16 @@ class KimiAdapter:
         return []
 
     def fork_args(self, s: Session | None = None) -> list[str]:
-        """Fork a Kimi session by copying files.
+        """Fork 由 SessionsProvider.fork_session 完成，此处返回 []（与
+        claude/opencode/codex 同模式）。
 
-        Kimi CLI has no stable --fork flag, so we copy the session directory and
-        register the new session in session_index.jsonl. The new session id is
-        written into s.cli_session_id; build_spawn_args will then resume from it.
+        server 的 branch 端点与 worker 的 branch 路径都经 provider fork
+        （原生 `kimi fork`，2.3.1+；旧版回退目录复制），provider 会把新
+        cli_session_id 写回 session，build_spawn_args 随后以 -S 续接。
+        历史上此处自行 fork 并写 s.cli_session_id，与 worker branch 路径的
+        provider fork 叠加会**双重 fork**（每次 branch 留一个孤儿 kimi
+        会话）——2026-10-24 修复，行为对齐其它 adapter。
         """
-        if s is None or not s.cli_session_id:
-            return []
-        try:
-            from . import sessions as kimi_sessions
-            new_id = kimi_sessions.fork_kimi_session(
-                s.cli_session_id, s.name, workdir=s.workdir or None,
-                kimi_home=s.adapter_config.get("kimi_home_dir"),
-            )
-            s.cli_session_id = new_id
-        except Exception as exc:
-            print(f"[KimiAdapter] fork failed: {exc}")
-            return []
         return []
 
     def build_spawn_args(self, s: Session,

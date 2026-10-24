@@ -50,6 +50,7 @@ READONLY_SESSION_ERROR = (
 from .adapters import (
     get_adapter,
     get_sessions_provider,
+    provider_kwargs,
     CliAdapter,
     resolve_execution_mode,
 )
@@ -9495,8 +9496,11 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         s.adapter_config["always_thinking_enabled"] = s.adapter_config.get("always_thinking_enabled") or orig.adapter_config.get("always_thinking_enabled")
         if not s.adapter_config.get("max_thinking_tokens"):
             s.adapter_config["max_thinking_tokens"] = orig.adapter_config.get("max_thinking_tokens")
-        # For adapters that fork via file copy (e.g. kimi), pass the parent's
-        # cli_session_id so fork_args can create the branched session.
+        # For adapters whose fork lives in the SessionsProvider (kimi/claude/
+        # opencode/codex), pass the parent's cli_session_id so the provider
+        # fork below can locate the native session. Adapters with a native
+        # fork flag (cbc --fork-session) instead return non-empty extra_args
+        # from fork_args and skip the provider path entirely.
         if orig.cli_session_id and not s.cli_session_id:
             s.cli_session_id = orig.cli_session_id
         if not s.system_prompt:
@@ -9526,22 +9530,33 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     if not extra_args and provider is not None:
         if not orig or not orig.cli_session_id:
             return "Session has no native CLI session ID — cannot fork"
+        # kimi 的方案 C 隔离 HOME：MCP 会话的原生状态只在隔离 HOME 内，
+        # provider_kwargs 按签名过滤（仅 kimi 的 fork_session/parse_history/
+        # get_raw_usage 接受 kimi_home），其余 adapter 不受影响。
+        home_kwargs = provider_kwargs(
+            provider.fork_session,
+            kimi_home=orig.adapter_config.get("kimi_home_dir"))
         try:
             new_cli_id = await asyncio.to_thread(
                 provider.fork_session,
                 orig.cli_session_id,
                 s.name,
                 s.workdir or None,
+                **home_kwargs,
             )
             s.cli_session_id = new_cli_id
             parsed_history = await asyncio.to_thread(
-                provider.parse_history, new_cli_id, s.workdir or None
+                provider.parse_history, new_cli_id, s.workdir or None,
+                **provider_kwargs(provider.parse_history,
+                                  kimi_home=orig.adapter_config.get("kimi_home_dir")),
             )
             _sess.replace_history(
                 s, _sess.assign_pan_message_ids(parsed_history),
             )
             raw_usage_entries = await asyncio.to_thread(
-                provider.get_raw_usage, new_cli_id, s.workdir or None
+                provider.get_raw_usage, new_cli_id, s.workdir or None,
+                **provider_kwargs(provider.get_raw_usage,
+                                  kimi_home=orig.adapter_config.get("kimi_home_dir")),
             )
             # New branch Session has no Worker or pending enrichment yet.
             _sess.replace_usage_totals(
