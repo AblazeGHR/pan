@@ -299,6 +299,11 @@ class Worker:
     _current_task_idempotent: bool = False  # formal assign vs inherited send context
     _current_task_assistant_ids: set[str] = field(default_factory=set)
     _auto_report_admission: dict | None = None
+    # Canonical identity of the input this execution actually admitted:
+    # ``{"promptMessageId": <history messageId>, "promptSummary": <str|None>}``.
+    # Set only at a durable provider hand-off (or an accepted Steer) and never
+    # derived from history/role/user text afterwards.
+    _prompt_ref: dict | None = None
     _current_source_session_id: str | None = None  # 当前 item 的来源 Session（审计元数据）
     # 当前正在执行的持久 queue item。直到 provider hand-off 成功前，item
     # 仍保留在 Session.queue_pending；这里仅保留运行期引用用于结果配对。
@@ -1947,6 +1952,10 @@ async def _persist_terminal_state_locked(
     # Freeze before the logging/persistence awaits. Later turns/generations
     # must never supply error or assistant context for this terminal receipt.
     report_diagnostic = _error_report_diagnostic(w, status, task_seq)
+    # The admitted input identity was captured at the durable hand-off/Steer
+    # acceptance; freeze its projection here so queue/history mutations after
+    # this point cannot retarget the report.
+    prompt_fields = _prompt_report_fields(w._prompt_ref)
     if report_diagnostic is not None:
         report_diagnostic.update(_error_log.terminal_report_fields(
             (error_context or {}).get("cli_raw")))
@@ -2052,6 +2061,7 @@ async def _persist_terminal_state_locked(
         "status": status,
         "result": result_text,
         "autoReportAdmission": copy.deepcopy(w._auto_report_admission),
+        **prompt_fields,
         "taskSeq": task_seq,
         "executionSeq": w._execution_seq or None,
         "taskId": task_id,
@@ -2081,6 +2091,7 @@ async def _persist_terminal_state_locked(
         "resultCursor": result_cursor,
         "sourceSessionId": source_session_id,
         "terminalKey": terminal_key,
+        **prompt_fields,
     }
     if report_diagnostic is not None:
         terminal_record["reportDiagnostic"] = copy.deepcopy(report_diagnostic)
@@ -2216,6 +2227,7 @@ async def _persist_terminal_state_locked(
         "reportDiagnostic": report_diagnostic,
         "historyEpoch": getattr(s, "history_epoch", None),
         "historyRevision": getattr(s, "history_revision", 0),
+        **prompt_fields,
     }
 
 
@@ -2276,6 +2288,7 @@ def _finish_terminal_bookkeeping(w: Worker, terminal: dict) -> None:
     w._current_task_idempotent = False
     w._current_source_session_id = None
     w._auto_report_admission = None
+    w._prompt_ref = None
     w.last_activity = time.monotonic()
     _signal_task_done(w)
     _maybe_restart_pending(w)
@@ -2970,6 +2983,9 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
         w._task_started_at = time.monotonic()
         w._current_queue_item = None
         w._current_report_items.clear()
+        # Native TUI input has no canonical Pan input message identity, so the
+        # report must carry null instead of guessing one.
+        w._prompt_ref = None
         w._current_serialized = None
         w._claimed_queue_index = None
         w._current_task_assistant_ids.clear()
@@ -3372,7 +3388,8 @@ async def _read_stdout(w: Worker):
             await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                                   terminal["taskId"], w.worker_id,
                                   admission=terminal.get("autoReportAdmission"),
-                                  diagnostic=terminal.get("reportDiagnostic"))
+                                  diagnostic=terminal.get("reportDiagnostic"),
+                                  prompt=terminal)
             was_native = w._native_external_turn_active
             w._native_external_turn_active = False
             w._native_reservation_busy = False
@@ -3918,8 +3935,15 @@ async def _commit_queue_handoff(w: Worker, s, items: list[dict]) -> bool:
     # The adapter has crossed its actual hand-off boundary. Persist the body
     # and receipt now; reservation/writing must never look like a sent turn.
     history_row = _queue_history_row(items)
+    appended = False
     if not all(_delivery_mark_in_history(s, item) for item in items):
         _sess.append_history(s, history_row)
+        appended = True
+    # The hand-off is now real.  Freeze this unit's canonical input identity
+    # before anything else can append history; later queue rows or provider
+    # frames must never replace it.
+    w._prompt_ref = _freeze_prompt_ref(
+        items, history_row if appended else _delivered_prompt_row(s, items, history_row))
     w._current_handoff_acked = True
     old_queue_revision = getattr(s, "queue_revision", 0)
     s.queue_revision = old_queue_revision + 1
@@ -4023,6 +4047,9 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
     if not items:
         return
     w._execution_seq += 1
+    # A previous turn's reference can never describe this unit; it is set again
+    # only by a durable hand-off below.
+    w._prompt_ref = None
     expected_revisions = [item.get("revision", 1) for item in items]
     kind = _queue_item_kind(items[0])
     if kind == "task":
@@ -4108,6 +4135,9 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
                 w._current_queue_item = None
             if kind != "task":
                 w._current_report_items = []
+            # The unit is over (terminal already persisted or requeued); its
+            # input reference must not leak into a later turn.
+            w._prompt_ref = None
             if w._current_task_id == items[0].get("taskId") if kind == "task" else False:
                 w._current_task_id = None
                 w._current_task_idempotent = False
@@ -6113,7 +6143,8 @@ async def _enqueue_report(session_id: str, status: str, result: str,
                           task_id: str | None, worker_id: str,
                           report_type: str | None = None,
                           diagnostic: dict | None = None,
-                          admission: dict | None = None):
+                          admission: dict | None = None,
+                          prompt: dict | None = None):
     """订阅制报告入队：session 完成 → 若被其 managed_by 订阅，报告 append 到
     manager 的落盘队列 queue_pending，并唤醒 manager 的 consumer。
 
@@ -6128,6 +6159,10 @@ async def _enqueue_report(session_id: str, status: str, result: str,
     原生错误字段分开）。成功/取消路径不改变正文；不在此查日志或旧任务。
 
     未订阅 / 无 managed_by → 不 append（保留现有 worker.result 广播不变）。
+
+    prompt：终态冻结的输入引用（promptMessageId/promptSummary）。两个字段始终
+    存在；无法证明真实输入身份时为 null，绝不据此生成伪 message id。摘要开关
+    关闭时该字段为 null，正文不会随报告离开本 Session。
     """
     if _shutdown_started:
         return
@@ -6158,6 +6193,7 @@ async def _enqueue_report(session_id: str, status: str, result: str,
         "dispatchState": _DELIVERY_QUEUED,
         "revision": 1,
         "createdAt": time.time(),
+        **_prompt_report_fields(prompt),
     }
     item["queueItemId"] = item["id"]
     if report_type is not None:
@@ -6547,6 +6583,9 @@ async def enqueue_manual_report(session_id: str, task_id: str | None,
             "manual": True,
             "messageId": message_id,
             "manualReportKey": key,
+            # Same run reference the terminal row froze; legacy run rows have
+            # no such evidence and stay null instead of borrowing an id.
+            **_prompt_report_fields(terminal),
             "deliveryState": _DELIVERY_QUEUED,
             "dispatchState": _DELIVERY_QUEUED,
             "revision": 1,
@@ -6936,7 +6975,8 @@ async def _enqueue_zombie_report(w: Worker, reason: str) -> None:
     task_id = w._current_task_id
     await _enqueue_report(w.session_id, "error", f"worker died: {reason}",
                           task_id, w.worker_id, report_type="zombie",
-                          diagnostic=_error_report_diagnostic(w, "error"))
+                          diagnostic=_error_report_diagnostic(w, "error"),
+                          prompt=w._prompt_ref)
     # A hand-off-complete task has no queue row to recover.  Clear its
     # persisted context after emitting the exact zombie report; an unfinished
     # queue row remains the active retry context for the replacement Worker.
@@ -7973,7 +8013,8 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
     await _enqueue_report(w.session_id, terminal["status"], terminal["result"],
                           terminal["taskId"], w.worker_id,
                           admission=terminal.get("autoReportAdmission"),
-                          diagnostic=terminal.get("reportDiagnostic"))
+                          diagnostic=terminal.get("reportDiagnostic"),
+                          prompt=terminal)
     _finish_terminal_bookkeeping(w, terminal)
 
 
@@ -9167,6 +9208,7 @@ async def _restart_tasks(w: Worker):
     w._current_queue_item = None
     w._claimed_queue_index = None
     w._current_report_items = []
+    w._prompt_ref = None
     w._current_handoff_acked = False
     w._queue_unit_active = False
     w._terminal_finishing = False
@@ -10152,6 +10194,66 @@ def _queue_history_row(items: list[dict], text: str | None = None) -> dict:
     return row
 
 
+def _prompt_body(item: dict) -> str | None:
+    """Body a queue row contributed to the provider-visible input.
+
+    Task rows carry ``text``; report/Job notices carry ``result``; channel
+    notices carry ``text``.  The attachment projection never participates, so
+    an internal server path can never become a prompt summary.
+    """
+    body = item.get("text")
+    if not isinstance(body, str):
+        body = item.get("result")
+    return body if isinstance(body, str) and body else None
+
+
+def _freeze_prompt_ref(items: list[dict], history_row) -> dict | None:
+    """Freeze the canonical input identity at the actual provider hand-off.
+
+    ``queueItemId`` is the delivery transaction key, not a message identity:
+    the canonical messageId is the one ``session.append_history`` assigned to
+    the input row during this successful hand-off (or accepted Steer).  A
+    merged batch is exactly one provider-visible message, so every member
+    shares that row's messageId; the last admitted item in actual order is the
+    single reference and supplies the optional summary.  Nothing is invented
+    when the row has no Pan messageId (legacy/no admission evidence).
+    """
+    row = history_row if isinstance(history_row, dict) else {}
+    message_id = row.get("messageId")
+    if not isinstance(message_id, str) or not _sess.is_pan_message_id(message_id):
+        return None
+    last = items[-1] if items else None
+    decision = last.get("autoReportAdmission") if isinstance(last, dict) else None
+    summary = None
+    if isinstance(decision, dict) and decision.get("summary") is True:
+        summary = _auto_report.summary_excerpt(_prompt_body(last))
+    return {"promptMessageId": message_id, "promptSummary": summary}
+
+
+def _delivered_prompt_row(s, items: list[dict], history_row):
+    """Recover the canonical row of an already-marked delivery, never a new id."""
+    if isinstance(history_row, dict) and _sess.is_pan_message_id(history_row.get("messageId")):
+        return history_row
+    keys = {_delivery_key(item) for item in items}
+    for row in reversed(getattr(s, "history", None) or []):
+        if not isinstance(row, dict):
+            continue
+        if any(key in (row.get("delivered_keys") or ()) for key in keys):
+            return row
+    return None
+
+
+def _prompt_report_fields(prompt) -> dict:
+    """Report-facing prompt fields; both keys are always present, null if unproven."""
+    source = prompt if isinstance(prompt, dict) else {}
+    message_id = source.get("promptMessageId")
+    summary = source.get("promptSummary")
+    return {
+        "promptMessageId": message_id if isinstance(message_id, str) and message_id else None,
+        "promptSummary": summary if isinstance(summary, str) and summary else None,
+    }
+
+
 _queue_steer_tasks: dict[tuple[str, str], asyncio.Task] = {}
 _queue_steer_owners: set[asyncio.Task] = set()
 
@@ -10476,6 +10578,10 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
             additions = [member["autoReportAdmission"] for member in items
                          if member.get("autoReportExecutionSeq") == w._execution_seq
                          and isinstance(member.get("autoReportAdmission"), dict)]
+            row = _queue_history_row(items, history_text)
+            if origin is not None:
+                row["steer"] = dict(origin)
+            _sess.append_history(s, row)
             if (additions and workers.get(w.worker_id) is w
                     and w.generation == generation and not w._terminal_handled):
                 previous = w._auto_report_admission or {"version": 1, "inputs": [], "enabled": False}
@@ -10484,10 +10590,10 @@ async def _settle_queue_steer(w: Worker, s, item: dict, history_text: str, error
                     "enabled": previous["enabled"] or any(d["enabled"] and d["origin"]["kind"] != "report" for d in additions)}
                 if s.offline_run:
                     s.offline_run["autoReportAdmission"] = copy.deepcopy(w._auto_report_admission)
-            row = _queue_history_row(items, history_text)
-            if origin is not None:
-                row["steer"] = dict(origin)
-            _sess.append_history(s, row)
+                # An actually accepted Steer is this turn's latest admitted
+                # input. Rejected/unknown never reach this branch, and a late
+                # receipt for another execution keeps the original reference.
+                w._prompt_ref = _freeze_prompt_ref(items, row)
             # One native admission, one history row, one receipt per original ID.
             for member in items:
                 _set_delivery_state(s, member, _DELIVERY_SENT)

@@ -3369,10 +3369,16 @@ def _plugin_manifest():
 @app.get("/api/plugins/message-sources")
 async def api_plugin_message_sources():
     from packages.core import auto_report
-    settings, sources = await auto_report.context()
+    settings, sources, summary = await auto_report.context()
     overrides = settings["plugins"]
-    return {"sources": [{**p, "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"])}
-                        for p in sources]}
+    summary_overrides = summary["plugins"]
+    return {"sources": [{
+        **p,
+        "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"]),
+        # Prompt summaries never inherit auto_report_default; the switch is
+        # off unless the user explicitly enabled this plugin's summary.
+        "effectiveSummaryEnabled": summary_overrides.get(p["id"], False),
+    } for p in sources]}
 
 
 @app.post("/api/plugins/{plugin_id}/messages")

@@ -2278,6 +2278,8 @@ export interface PluginMessageSource {
   label: string;
   defaultEnabled: boolean;
   effectiveEnabled: boolean;
+  /** Effective prompt-summary switch; never inherited from defaultEnabled. */
+  effectiveSummaryEnabled: boolean;
 }
 
 export async function fetchPluginMessageSources(): Promise<{ sources: PluginMessageSource[] }> {

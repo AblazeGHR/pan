@@ -28,7 +28,7 @@ status 仍为 error；不能用助手正文替代诊断或改成 done。done/can
 
 `/api/assign`、`/api/send`（含 force）及 `/api/task` 根据验证后的 `sourceSessionId` 和管理祖先链将上行 agent 消息标为 `source=report`，保留原 task 投递事务。设置不影响手动上行投递。
 
-全局 `GET/PUT /api/settings/ui` 的 `autoReport` 值为 `{system:false, ma:true, user:false, plugins:{}}`。PUT 提供完整该值，`plugins` 是按插件 ID 的显式覆盖；重置传默认值及空覆盖。`GET /api/plugins/message-sources` 返回消息能力插件及声明默认/有效开关。插件以可选 `message_source` 对象声明消息能力，`auto_report_default` 可省略，省略为 false；没有消息能力对象的普通注册插件不出现在此列表。
+全局 `GET/PUT /api/settings/ui` 的 `autoReport` 值为 `{system:false, ma:true, user:false, plugins:{}, summary:{system:false, ma:false, user:false, plugins:{}}}`。PUT 提供完整该值，`plugins` 是按插件 ID 的显式覆盖；`summary` 是独立的 prompt 摘要策略（默认全关，插件覆盖不继承 `auto_report_default`）；重置传默认值及空覆盖。`GET /api/plugins/message-sources` 返回消息能力插件及声明的 `defaultEnabled`/有效 `effectiveEnabled`，另附 `effectiveSummaryEnabled`（无用户覆盖时恒为 false）。插件以可选 `message_source` 对象声明消息能力，`auto_report_default` 可省略，省略为 false；没有消息能力对象的普通注册插件不出现在此列表。
 
 `POST /api/plugins/{plugin_id}/messages` 接受 `{sessionId, text, clientMessageId?}`；要求该插件声明消息能力，持久化 `source=plugin`/`sourcePluginId`，使用原有队列 gate。它与 `/api/send` 同属本地信任边界，不授予额外访问能力。详细快照、旧 QQ 兼容、Stop reports 和防循环规则见 [设计契约](../../../source-aware-auto-report.md)。
 

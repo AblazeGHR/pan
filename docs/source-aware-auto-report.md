@@ -34,7 +34,8 @@ the manager subscription rules remain independently required.
 Global persisted configuration is `ui.autoReport`:
 
 ```json
-{"system": false, "ma": true, "user": false, "plugins": {}}
+{"system": false, "ma": true, "user": false, "plugins": {},
+ "summary": {"system": false, "ma": false, "user": false, "plugins": {}}}
 ```
 
 System includes structured background Job terminal notices and automation
@@ -65,6 +66,65 @@ Automatic answers still require a current subscribed manager. Replying to a
 Report therefore produces ordinary output and a terminal result, but no further
 automatic manager report. This prevents Report-answer feedback even with every
 Core switch enabled or corrupt management cycles.
+
+## Prompt reference on reports
+
+Every automatic answer report, the durable terminal row and `lastResult` carry
+two prompt fields. Both keys are always present; both are `null` when the input
+identity cannot be proven:
+
+- `promptMessageId`: the canonical Pan history `messageId` of the input this
+  execution actually admitted.
+- `promptSummary`: the first 100 Unicode characters of that same input body,
+  only when the prompt-summary policy for that input's structured origin is
+  enabled.
+
+Identity rules:
+
+- The canonical id is assigned by `session.append_history` when the input row is
+  committed at the successful provider hand-off, or when an accepted Steer row
+  is appended. Pan never derives it from the queue transaction id. A queue row's
+  `queueItemId`/`id` remains the durable delivery key; `delivered_keys` links it
+  to the history row, and only the history `messageId` is reported.
+- The reference is frozen at that admission moment on the Worker, then copied
+  into the terminal record before any terminal await. A row queued but not yet
+  executed, a late HTTP enqueue, a later history append or a provider frame
+  cannot supply or replace it, so turns cannot borrow each other's inputs.
+- Ordinary send, Force send, automatic Force, plugin ingress, Job/automation
+  notices and accepted Steers all use the same rule. Identity comes from the
+  structured `source`/`sourceSessionId`/`sourcePluginId`/`noticeKind` fields,
+  never from `role=user` or body markers.
+- A merged report/channel batch is one provider-visible input message and
+  therefore has one canonical `messageId` shared by its members. The last
+  admitted member in actual order is the single reference and supplies the
+  summary.
+- An accepted Steer replaces this turn's reference with the Steer input row.
+  Rejected or unknown receipts, and late acceptances for another Worker,
+  generation or execution, never count as admission and never change it.
+- No id is invented when evidence is missing: native-TUI admission, preflight
+  failures before hand-off, zombie reports for a run that never handed off,
+  legacy terminal/report rows and legacy `autoReportAdmission` decisions all
+  keep `null` (or the field absent on old data, which reads as `null` and is
+  never rewritten). Turning the summary switch on later never backfills an old
+  report.
+
+The summary policy is independent of whether a report is sent:
+
+- `ui.autoReport.summary` has the same four origins (system/ma/user/plugin) as
+  answer reporting. Every switch defaults to false, and a plugin override never
+  inherits `message_source.auto_report_default`.
+- The excerpt is a verbatim prefix of the same body and carries no model call,
+  no suffix and no notice header. With the switch off, both the Worker and the
+  report store `promptSummary: null`; the input body never leaves the Session
+  with the report.
+- `GET /api/plugins/message-sources` adds `effectiveSummaryEnabled` (explicit
+  override or false). `PUT /api/settings/ui` validates `summary` strictly and
+  keeps omitted members at the all-false defaults.
+
+Prompt fields follow the existing delivery boundaries: subscription report
+items, manual explicit reports resolved from the same terminal row, terminal
+diagnostics, report dedupe/unknown-no-retry, original queue ids and
+owner/generation checks are otherwise unchanged.
 
 ## Plugin contract
 

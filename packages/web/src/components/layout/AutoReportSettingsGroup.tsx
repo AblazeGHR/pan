@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { fetchPluginMessageSources } from '@/services/api';
 import type { PluginMessageSource } from '@/services/api';
-import { DEFAULT_AUTO_REPORT, useAppSettingsStore } from '@/stores/appSettingsStore';
-import type { AutoReportSettings } from '@/stores/appSettingsStore';
+import {
+  DEFAULT_AUTO_REPORT, DEFAULT_AUTO_REPORT_SUMMARY, useAppSettingsStore,
+} from '@/stores/appSettingsStore';
+import type { AutoReportSettings, AutoReportSourceFlags } from '@/stores/appSettingsStore';
+
+const CORE_SOURCES = [['system', 'System'], ['ma', 'MA'], ['user', 'Real user']] as const;
 
 export function AutoReportSettingsGroup() {
   const policy = useAppSettingsStore((s) => s.autoReport);
@@ -25,23 +29,54 @@ export function AutoReportSettingsGroup() {
     catch (err) { setError(String(err)); }
     finally { setBusy(false); }
   }
-  return <section aria-label="Auto report">
-    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Auto report</h3>
-    <p className="text-xs text-text-secondary mb-2">Automatically report answers to a subscribed manager based on what started the execution. Manual reports and messages remain available.</p>
-    <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-      {([['system', 'System'], ['ma', 'MA'], ['user', 'Real user']] as const).map(([key, label]) =>
-        <label key={key} className="flex items-center justify-between px-3 py-2 text-sm">
-          {label}<input type="checkbox" aria-label={`Auto report ${label}`} checked={policy[key]} disabled={busy}
-            onChange={(e) => { void apply({ ...policy, [key]: e.target.checked }); }} />
+  const summary: AutoReportSourceFlags = policy.summary;
+  const applySummary = (next: AutoReportSourceFlags) => apply({ ...policy, summary: next });
+  return <>
+    <section aria-label="Auto report">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Auto report</h3>
+      <p className="text-xs text-text-secondary mb-2">Automatically report answers to a subscribed manager based on what started the execution. Manual reports and messages remain available.</p>
+      <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+        {CORE_SOURCES.map(([key, label]) =>
+          <label key={key} className="flex items-center justify-between px-3 py-2 text-sm">
+            {label}<input type="checkbox" aria-label={`Auto report ${label}`} checked={policy[key]} disabled={busy}
+              onChange={(e) => { void apply({ ...policy, [key]: e.target.checked }); }} />
+          </label>)}
+        {sources?.map((source) => <label key={source.id} className="flex items-center justify-between px-3 py-2 text-sm">
+          {source.label}<input type="checkbox" aria-label={`Auto report plugin ${source.label}`} disabled={busy}
+            checked={policy.plugins[source.id] ?? source.defaultEnabled}
+            onChange={(e) => { void apply({ ...policy, plugins: { ...policy.plugins, [source.id]: e.target.checked } }); }} />
         </label>)}
-      {sources?.map((source) => <label key={source.id} className="flex items-center justify-between px-3 py-2 text-sm">
-        {source.label}<input type="checkbox" aria-label={`Auto report plugin ${source.label}`} disabled={busy}
-          checked={policy.plugins[source.id] ?? source.defaultEnabled}
-          onChange={(e) => { void apply({ ...policy, plugins: { ...policy.plugins, [source.id]: e.target.checked } }); }} />
-      </label>)}
-    </div>
-    {sources === null && !error && <p className="text-xs text-text-tertiary">Loading plugin message sources…</p>}
-    {error && <p role="alert" className="text-xs text-danger">{error}</p>}
-    <button type="button" disabled={busy} className="mt-2 text-xs text-accent" onClick={() => { void apply({ ...DEFAULT_AUTO_REPORT, plugins: {} }); }}>Reset auto report defaults</button>
-  </section>;
+      </div>
+      {sources === null && !error && <p className="text-xs text-text-tertiary">Loading plugin message sources…</p>}
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      <button type="button" disabled={busy} className="mt-2 text-xs text-accent" onClick={() => {
+        void apply({
+          ...policy,
+          system: DEFAULT_AUTO_REPORT.system,
+          ma: DEFAULT_AUTO_REPORT.ma,
+          user: DEFAULT_AUTO_REPORT.user,
+          plugins: {},
+        });
+      }}>Reset auto report defaults</button>
+    </section>
+    <section aria-label="Prompt summary" className="mt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Prompt summary</h3>
+      <p className="text-xs text-text-secondary mb-2">Also send the first 100 characters of the input that started the run with an automatic answer report. Off by default for every source; it never changes whether a report is sent and never enables one.</p>
+      <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+        {CORE_SOURCES.map(([key, label]) =>
+          <label key={key} className="flex items-center justify-between px-3 py-2 text-sm">
+            {label}<input type="checkbox" aria-label={`Prompt summary ${label}`} checked={summary[key]} disabled={busy}
+              onChange={(e) => { void applySummary({ ...summary, [key]: e.target.checked }); }} />
+          </label>)}
+        {sources?.map((source) => <label key={source.id} className="flex items-center justify-between px-3 py-2 text-sm">
+          {source.label}<input type="checkbox" aria-label={`Prompt summary plugin ${source.label}`} disabled={busy}
+            checked={summary.plugins[source.id] ?? source.effectiveSummaryEnabled}
+            onChange={(e) => { void applySummary({ ...summary, plugins: { ...summary.plugins, [source.id]: e.target.checked } }); }} />
+        </label>)}
+      </div>
+      <button type="button" disabled={busy} className="mt-2 text-xs text-accent" onClick={() => {
+        void applySummary({ ...DEFAULT_AUTO_REPORT_SUMMARY, plugins: {} });
+      }}>Reset prompt summary defaults</button>
+    </section>
+  </>;
 }

@@ -226,7 +226,11 @@ DEFAULT_CONFIG: dict = {
         # Force send 能力路由（system=Job 终态、ma=MA/管理器消息、
         # report=完成报告）。缺省三项全部关闭，保持既有排队行为。
         "autoForceSend": {"system": False, "ma": False, "report": False},
-        "autoReport": {"system": False, "ma": True, "user": False, "plugins": {}},
+        # 自动完成报告策略；summary 是独立策略，决定报告是否附带本轮输入
+        # 正文的前 100 个 Unicode 字符（不调用模型）。四项来源开关默认全关，
+        # 且不会继承插件的 auto_report_default。
+        "autoReport": {"system": False, "ma": True, "user": False, "plugins": {},
+                       "summary": {"system": False, "ma": False, "user": False, "plugins": {}}},
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,

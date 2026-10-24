@@ -42,7 +42,8 @@ def _read(p):
 
 
 _UI_DEFAULTS = {
-    "autoReport": {"system": False, "ma": True, "user": False, "plugins": {}},
+    "autoReport": {"system": False, "ma": True, "user": False, "plugins": {},
+                   "summary": {"system": False, "ma": False, "user": False, "plugins": {}}},
     "defaultGroupBy": "none",
     "showGroupBy": False,
     "showSidebarCollapseHandle": True,

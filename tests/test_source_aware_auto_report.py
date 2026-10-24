@@ -152,7 +152,8 @@ def test_dynamic_plugin_contract_omission_override_and_reset(monkeypatch, tmp_pa
     async def run():
         initial = (await server.api_plugin_message_sources())['sources']
         assert initial == [{'id': 'future', 'label': 'Future', 'defaultEnabled': False,
-                            'effectiveEnabled': False, 'legacySources': []}]
+                            'effectiveEnabled': False, 'effectiveSummaryEnabled': False,
+                            'legacySources': []}]
         await server.api_put_settings_ui({'autoReport': {'plugins': {'future': True}}})
         assert (await server.api_plugin_message_sources())['sources'][0]['effectiveEnabled'] is True
         target = session('target')

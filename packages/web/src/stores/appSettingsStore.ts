@@ -120,21 +120,45 @@ export function toggleUnreadRecordingScope(
   return ordered.length > 0 ? [...ordered] : ['none'];
 }
 
-export interface AutoReportSettings {
+export interface AutoReportSourceFlags {
   system: boolean;
   ma: boolean;
   user: boolean;
   plugins: Record<string, boolean>;
 }
 
-export const DEFAULT_AUTO_REPORT: AutoReportSettings = { system: false, ma: true, user: false, plugins: {} };
+export interface AutoReportSettings extends AutoReportSourceFlags {
+  /**
+   * Independent policy: whether an automatic answer report may include the
+   * first 100 characters of the input body that started the run. Every source
+   * defaults to off and plugin switches never inherit `auto_report_default`.
+   */
+  summary: AutoReportSourceFlags;
+}
 
-export function sanitizeAutoReport(value: unknown): AutoReportSettings {
+export const DEFAULT_AUTO_REPORT_SUMMARY: AutoReportSourceFlags = {
+  system: false, ma: false, user: false, plugins: {},
+};
+
+export const DEFAULT_AUTO_REPORT: AutoReportSettings = {
+  system: false, ma: true, user: false, plugins: {},
+  summary: DEFAULT_AUTO_REPORT_SUMMARY,
+};
+
+function sanitizeAutoReportSources(value: unknown, maDefault: boolean): AutoReportSourceFlags {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const plugins = raw.plugins && typeof raw.plugins === 'object' && !Array.isArray(raw.plugins)
     ? Object.fromEntries(Object.entries(raw.plugins).filter(([key, v]) => /^[a-z][a-z0-9_-]{0,47}$/.test(key) && typeof v === 'boolean')) as Record<string, boolean> : {};
-  return { system: raw.system === true, ma: typeof raw.ma === 'boolean' ? raw.ma : true,
+  return { system: raw.system === true, ma: typeof raw.ma === 'boolean' ? raw.ma : maDefault,
     user: raw.user === true, plugins };
+}
+
+export function sanitizeAutoReport(value: unknown): AutoReportSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    ...sanitizeAutoReportSources(raw, true),
+    summary: sanitizeAutoReportSources(raw.summary, false),
+  };
 }
 
 export interface AppSettings {
