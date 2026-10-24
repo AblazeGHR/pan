@@ -35,6 +35,11 @@ class InteractionStore:
                 UNIQUE(owner,request_key))''')
             db.execute('CREATE INDEX IF NOT EXISTS cards_recipient ON cards(recipient,id)')
             columns={r[1] for r in db.execute('PRAGMA table_info(cards)')}
+            if 'producer' not in columns:
+                # Historical owner/payload metadata is not trusted creator evidence.
+                db.execute('ALTER TABLE cards ADD COLUMN producer TEXT')
+            if 'no_answer_at' not in columns:
+                db.execute('ALTER TABLE cards ADD COLUMN no_answer_at TEXT')
             if 'is_read' not in columns:
                 db.execute('ALTER TABLE cards ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0')
             if 'bindings' not in columns:
@@ -82,11 +87,11 @@ class InteractionStore:
         notice=db.execute('SELECT state FROM rejection_outbox WHERE id=?',(identity('rejection_',[row['id']]),)).fetchone()
         return dict(schemaVersion=1,lockerId=identity('ulocker_',[row['recipient'],row['owner']]),read=bool(row['is_read']),sourceName=row['owner'],id=row['id'],ownerSessionId=row['owner'],recipientId=row['recipient'],
                     definition=definition,trustedChoices=json.loads(row['bindings']),createdAt=row['created_at'],revision=row['revision'],
-                    status=('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open',
+                    status='no_answer_needed' if row['no_answer_at'] else (('rejected' if response.get('outcome')=='reject' else 'responded') if response else 'open'),
                     response=response,
                     delivery=json.loads(row['delivery']),rejectionDelivery={'state':notice[0] if notice else 'not_requested'})
 
-    def create(self, request, *, bindings=None):
+    def create(self, request, *, bindings=None, producer_id=None):
         validate('Create',request)
         # Transport caller metadata never rebinds a historical create identity.
         signature = canonical({k:v for k,v in request.items() if k!='producerSessionId'})
@@ -101,13 +106,13 @@ class InteractionStore:
                     raise InteractionError('conflict','requestKey content conflict')
                 return self._view(row,db)
             db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(request['ownerSessionId'],request['recipientId']))
-            count = db.execute('SELECT count(*) FROM cards WHERE recipient=? AND response IS NULL',(request['recipientId'],)).fetchone()[0]
+            count = db.execute('SELECT count(*) FROM cards WHERE recipient=? AND response IS NULL AND no_answer_at IS NULL',(request['recipientId'],)).fetchone()[0]
             if count >= self.capacity:
                 raise InteractionError('capacity','User Inbox capacity reached; existing cards retained')
             db.execute('''INSERT INTO cards(id,owner,recipient,request_key,signature,definition,created_at,delivery)
                 VALUES(?,?,?,?,?,?,?,?)''', (card_id,request['ownerSessionId'],request['recipientId'],request['requestKey'],
                     signature,canonical(request['card']),now(),canonical({'state':'not_requested'})))
-            db.execute('UPDATE cards SET bindings=? WHERE id=?',(canonical(bindings or {}),card_id))
+            db.execute('UPDATE cards SET bindings=?,producer=? WHERE id=?',(canonical(bindings or {}),producer_id,card_id))
             if bindings:
                 validate('Card',self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db))
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
@@ -240,6 +245,46 @@ class InteractionStore:
                 raise InteractionError('not_found','Card not found for this owner')
             return self._view(row,db)
 
+    def list_pending_for_producer(self, producer, *, limit=100, after=None):
+        if after is not None:
+            validate('Id', after)
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise InteractionError('invalid', 'limit must be 1..500')
+        with self.db() as db:
+            cursor = 0
+            if after is not None:
+                row = db.execute('SELECT rowid FROM cards WHERE id=? AND producer=?', (after, producer)).fetchone()
+                if row is None:
+                    raise InteractionError('not_found', 'Cursor not found for this producer')
+                cursor = row[0]
+            rows = db.execute('''SELECT * FROM cards WHERE producer=? AND rowid>? AND response IS NULL
+                AND no_answer_at IS NULL AND event IS NULL AND json_extract(delivery,'$.state')='not_requested'
+                ORDER BY rowid LIMIT ?''', (producer, cursor, limit + 1)).fetchall()
+            page = rows[:limit]
+            return {'cards': [self._view(row, db) for row in page],
+                    'nextAfter': page[-1]['id'] if len(rows) > limit else None}
+
+    def no_answer_needed(self, producer, card_id, expected_revision):
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise InteractionError('invalid', 'expectedRevision must be a nonnegative integer')
+        with self.db() as db:
+            row = db.execute('SELECT * FROM cards WHERE id=? AND producer=?', (card_id, producer)).fetchone()
+            if row is None:
+                raise InteractionError('not_found', 'Card not found for this producer')
+            if row['no_answer_at']:
+                return self._view(row, db)
+            if row['response'] or row['event'] or json.loads(row['delivery'])['state'] != 'not_requested':
+                raise InteractionError('conflict', 'Card already completed or execution has started')
+            if row['revision'] != expected_revision:
+                raise InteractionError('conflict', 'Stale Card revision')
+            # The immediate transaction serializes this CAS with submit/reject.
+            changed = db.execute('''UPDATE cards SET no_answer_at=?,revision=revision+1
+                WHERE id=? AND producer=? AND revision=? AND response IS NULL AND no_answer_at IS NULL''',
+                (now(), card_id, producer, expected_revision)).rowcount
+            if changed != 1:
+                raise InteractionError('conflict', 'Card changed')
+            return self._view(db.execute('SELECT * FROM cards WHERE id=?', (card_id,)).fetchone(), db)
+
     def event_for_owner(self,owner,card_id):
         self.get_for_owner(owner,card_id)
         with self.db() as db:
@@ -252,6 +297,8 @@ class InteractionStore:
         supplied={k:data[k] for k in ('answer','choiceId') if k in data}
         with self.db() as db:
             row=self._user_row(db,principal,card_id)
+            if row['no_answer_at']:
+                raise InteractionError('conflict', 'Card no longer requires an answer')
             if row['response']:
                 previous=json.loads(row['response'])
                 previous_payload={k:previous[k] for k in ('answer','choiceId') if k in previous}
@@ -313,6 +360,8 @@ class InteractionStore:
     async def dispatch(self,principal,card_id,adapter):
         with self.db() as db:
             row=self._user_row(db,principal,card_id)
+            if row['no_answer_at']:
+                raise InteractionError('conflict', 'No-answer-needed Cards only allow deletion')
             state=json.loads(row['delivery'])['state']
             if state in {'not_requested','accepted'}:
                 return self._view(row,db)
@@ -362,7 +411,9 @@ class InteractionStore:
         if type(value) is not bool:
             raise InteractionError('invalid','read must be boolean')
         with self.db() as db:
-            self._user_row(db,principal,card_id)
+            row=self._user_row(db,principal,card_id)
+            if row['no_answer_at']:
+                raise InteractionError('conflict', 'No-answer-needed Cards only allow deletion')
             db.execute('UPDATE cards SET is_read=? WHERE id=?',(int(value),card_id))
             return self._view(self._user_row(db,principal,card_id),db)
 
@@ -370,6 +421,8 @@ class InteractionStore:
         validate('Reject',data)
         with self.db() as db:
             row=self._user_row(db,principal,card_id)
+            if row['no_answer_at']:
+                raise InteractionError('conflict', 'Card no longer requires an answer')
             if row['response']:
                 previous=json.loads(row['response'])
                 if previous.get('outcome')=='reject' and previous['requestId']==data['requestId'] and previous.get('answer', '') == data.get('answer', ''):
@@ -401,7 +454,7 @@ class InteractionStore:
             if old and old[0]==user_id:
                 return {'deleted':True,'id':card_id}
             row=self._user_row(db,principal,card_id)
-            if not row['response']:
+            if not row['response'] and not row['no_answer_at']:
                 raise InteractionError('conflict','Only completed Cards may be deleted')
             # The producer keeps its response receipt, not the user Card body.
             db.execute('INSERT OR IGNORE INTO owner_receipts VALUES(?,?,?,?,?)',

@@ -1,0 +1,8 @@
+{
+  "returncodeBeforeCleanup": null,
+  "forcedTerminate": false,
+  "exitResponse": {
+    "ok": true
+  },
+  "returncodeAfterCleanup": 0
+}

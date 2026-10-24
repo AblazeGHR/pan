@@ -46,6 +46,37 @@ def register(app):
     async def schema():
         return SCHEMA
 
+    @app.post('/api/interaction-card-tools/{operation}')
+    async def card_producer(operation: str, data: dict, request: Request):
+        from packages.web.terminal_tools_api import _local, resolve_caller, check_access
+        caller_id = request.headers.get('X-Pan-Queue-Caller')
+        caller = resolve_caller(caller_id) if caller_id and _local(request) else None
+        if not caller:
+            raise HTTPException(403, detail={'code': 'caller_unavailable'})
+        try:
+            from .contracts import validate
+            validate('CardProducer', {**data, 'operation': operation})
+            if 'operation' in data:
+                raise InteractionError('invalid', 'operation belongs in the route')
+            store = get_store()
+            if operation == 'list_pending':
+                return store.list_pending_for_producer(caller['id'], limit=data.get('limit', 100), after=data.get('after'))
+            if operation == 'no_answer_needed':
+                return {'card': store.no_answer_needed(caller['id'], data['cardId'], data['expectedRevision'])}
+            owner_id = data.get('ownerSessionId', caller['id'])
+            if not check_access(caller, owner_id):
+                raise InteractionError('forbidden', 'Owner is outside caller scope')
+            from .trusted import create as create_trusted
+            import asyncio
+            payload = {**data, 'ownerSessionId': owner_id, 'producerSessionId': caller['id']}
+            card = await asyncio.to_thread(create_trusted, getattr(app.state, 'automation', None), store,
+                                          payload, producer_id=caller['id'])
+            source = session.get(owner_id, load_history=False)
+            store.remember_source(owner_id, data['recipientId'], source.name, session.effective_workspace_ids(source))
+            return {'card': card}
+        except InteractionError as exc:
+            raise failure(exc) from exc
+
     @app.post('/api/interaction-cards')
     async def create(data:dict):
         owner(data.get('ownerSessionId'))
@@ -245,7 +276,7 @@ def register(app):
         try:
             current=store.get_for_user(principal,card_id)
             choice=next((c for c in current['definition'].get('choices',[]) if c['id']==data.get('choiceId')),None)
-            if current['response'] is None and choice and choice.get('triggerRef'):
+            if current['status'] == 'open' and choice and choice.get('triggerRef'):
                 from .trusted import verify
                 import asyncio
                 await asyncio.to_thread(verify,getattr(app.state,'automation',None),{

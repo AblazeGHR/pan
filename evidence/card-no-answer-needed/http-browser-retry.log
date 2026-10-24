@@ -1,0 +1,161 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+________________ test_no_answer_http_stdio_production_browser _________________
+
+tmp_path = WindowsPath('D:/project/pan-worktrees/card-no-answer-needed-20261025/evidence/card-no-answer-needed/runtime-retry/test_no_answer_http_stdio_prod0')
+
+    def test_no_answer_http_stdio_production_browser(tmp_path):
+>       run_http_mcp(tmp_path,no_answer=True)
+
+tests\test_interaction_card_http.py:199: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('D:/project/pan-worktrees/card-no-answer-needed-20261025/evidence/card-no-answer-needed/runtime-retry/test_no_answer_http_stdio_prod0')
+browser = False, no_answer = True
+
+    def run_http_mcp(tmp_path,*,browser=False,no_answer=False):
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0))
+            port=sock.getsockname()[1]
+        assert port not in {8767,8768}
+        data=tmp_path/'profile'/'data'
+        (data/'workdirs'/'owner').mkdir(parents=True)
+        (data/'config.json').write_text(json.dumps({'port':port,'memory':{'enabled':False},'scheduler':{'enabled':False},
+            'plugin_manifests':[str(ROOT/'manifest.json'),str(ROOT/'packages/mcp/manifest.json')]}),encoding='utf-8')
+        env={k:v for k,v in os.environ.items() if not k.upper().startswith('PAN_')}
+        # fakeCLI must not consult the developer/runner's native provider history.
+        provider_home = tmp_path / 'provider-home'
+        provider_home.mkdir()
+        env.update(USERPROFILE=str(provider_home), HOME=str(provider_home))
+        env.update(PYTHONIOENCODING='utf-8',PAN_TEST_INTERACTION_TOKEN=secrets.token_hex(32),
+            PAN_TEST_INBOX_NONCE=secrets.token_hex(16),PAN_E2E_FAKE_CLI=str(ROOT/'tests/support/fake_stream_cli.py'),
+            PAN_E2E_FAKE_LOG=str(data/'fake-cli.jsonl'),PAN_TEST_DISABLE_QUEUE_WATCHDOG='1')
+        base=f'http://127.0.0.1:{port}'
+        def call(method,path,body=None,*,user=False,caller=None):
+            headers={'Content-Type':'application/json'}
+            if caller:
+                headers['X-Pan-Queue-Caller']=caller
+            if user:
+                headers['Authorization']='Bearer '+env['PAN_TEST_INTERACTION_TOKEN']
+            request=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,method=method,headers=headers)
+            with urllib.request.urlopen(request,timeout=15) as response:
+                return json.load(response)
+        log=(tmp_path/'server.log').open('w',encoding='utf-8')
+        proc=subprocess.Popen([sys.executable,'-m','tests.support.interaction_card_http_server','--port',str(port),
+            '--data-root',str(data)],cwd=ROOT,env=env,stdout=log,stderr=log,**command_window_options())
+        try:
+            deadline=time.monotonic()+15
+            while True:
+                try:
+                    ident=call('GET','/__test/inbox-identity')
+                    break
+                except OSError:
+                    assert time.monotonic()<deadline,(tmp_path/'server.log').read_text(encoding='utf-8')
+                    time.sleep(.1)
+            assert ident['nonce']==env['PAN_TEST_INBOX_NONCE'] and Path(ident['cwd']).resolve()==ROOT
+            actual=psutil.Process(ident['pid'])
+            assert proc.pid==actual.pid or proc.pid in {p.pid for p in actual.parents()}
+            assert 'tests.support.interaction_card_http_server' in ' '.join(actual.cmdline())
+            assert any(c.status=='LISTEN' and c.laddr.port==port for c in actual.net_connections(kind='tcp'))
+            assert all(Path(p).is_relative_to(data) for p in ident['roots'].values())
+            ports=call('GET','/__test/interaction-identity')
+            assert Path(ports['cardPath']).is_relative_to(data) and Path(ports['receiptPath']).is_relative_to(data)
+            assert ports['auth']==ports['trigger']=='synthetic-test-only'
+            owner=call('POST','/api/sessions',{'name':'interaction-owner','adapter':'cbc','workdir':str(data/'workdirs/owner'),'mcpEnabled':False})
+            assert 'id' in owner,owner
+            assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+            async def mcp_create():
+                from mcp import ClientSession,StdioServerParameters
+                from mcp.client.stdio import stdio_client
+                params=StdioServerParameters(command=sys.executable,args=['-m','packages.mcp.server'],cwd=str(ROOT),
+                    env={**env,'PAN_API_URL':base,'PAN_AGENT_SESSION_ID':owner['id']})
+                async with stdio_client(params) as (read,write):
+                    async with ClientSession(read,write) as client:
+                        await client.initialize()
+                        assert 'interaction_card' in [t.name for t in (await client.list_tools()).tools]
+                        result=await client.call_tool('interaction_card',{'operation':'create','recipient_id':'test-user','request_key':'once',
+                            'card':{'title':'Backend Card','body':'Question','answerInput':{},'choices':[{'id':'go','label':'Go',
+                            'triggerRef':{'id':'synthetic-trigger','revision':1}}],'notification':{'summary':'metadata only'}}})
+                        assert not result.isError
+                        created=json.loads(result.content[0].text)
+                        assert 'card' in created,created
+                        card=created['card']
+                        rejected=await client.call_tool('interaction_card',{'operation':'respond','card_id':card['id']})
+                        assert json.loads(rejected.content[0].text).get('error')
+                        return card
+            card=asyncio.run(mcp_create())
+            with pytest.raises(urllib.error.HTTPError) as unauthorized:
+                call('POST',f"/api/user-inbox/{card['id']}/respond",{'requestId':'r','expectedRevision':0,'choiceId':'go'})
+            assert unauthorized.value.code==401
+            assert call('GET','/api/user-inbox',user=True)['cards'][0]['response'] is None
+            payload={'requestId':'response','expectedRevision':0,'answer':'user answer','choiceId':'go'}
+            done=call('POST',f"/api/user-inbox/{card['id']}/respond",payload,user=True)['card']
+            assert done['status']=='responded' and done['delivery']['state']=='accepted'
+            assert call('POST',f"/api/user-inbox/{card['id']}/respond",payload,user=True)['card']==done
+            with sqlite3.connect(ports['receiptPath']) as db:
+                assert db.execute('SELECT count(*) FROM receipts').fetchone()[0]==1
+                event=json.loads(db.execute('SELECT event FROM receipts').fetchone()[0])
+            assert event['payload']['response']['answer']=='user answer'
+            assert event['payload']['triggerRef']['id']=='synthetic-trigger'
+            assert all(not path.read_text(encoding='utf-8').strip() for path in (data/'sessions').glob('*.history.jsonl'))  # Session creation can create an empty file; no Card enters context.
+            artifact={'instance':ident,'interaction':ports,'ownerSessionId':owner['id'],'cardId':card['id'],
+                'eventId':event['id'],'receiptId':done['delivery']['receiptId'],'mcpProducerOnly':True,'oneResponse':True}
+            (tmp_path/'interaction-evidence.json').write_text(json.dumps(artifact,indent=2),encoding='utf-8')
+            if no_answer:
+                result=subprocess.run(['node',str(ROOT/'packages/web/e2e/card-no-answer.e2e.mjs'),base,
+                    env['PAN_TEST_INTERACTION_TOKEN'],owner['id'],str(tmp_path/'browser'),sys.executable],
+                    cwd=ROOT/'packages/web',env={**env, 'PAN_TEST_JOB_KEY': (data/'automation/user.key').read_text(encoding='utf-8').strip()},
+                    capture_output=True,text=True,encoding='utf-8',timeout=100)
+                (tmp_path/'browser-run.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
+>               assert result.returncode==0,result.stdout+'\n'+result.stderr
+E               AssertionError: 
+E                 node:internal/modules/run_main:107
+E                     triggerUncaughtException(
+E                     ^
+E                 
+E                 browserType.launch: Executable doesn't exist at C:\Users\14709\AppData\Local\ms-playwright\chromium_headless_shell-1243\chrome-headless-shell-win64\chrome-headless-shell.exe
+E                 �X�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�[
+E                 �U Looks like Playwright was just installed or updated.       �U
+E                 �U Please run the following command to download new browsers: �U
+E                 �U                                                            �U
+E                 �U     npx playwright install                                 �U
+E                 �U                                                            �U
+E                 �U <3 Playwright Team                                         �U
+E                 �^�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�a
+E                     at D:\project\pan-worktrees\card-no-answer-needed-20261025\packages\web\e2e\card-no-answer.e2e.mjs:15:32 {
+E                   log: [],
+E                   name: 'Error'
+E                 }
+E                 
+E                 Node.js v24.22.1
+E                 
+E               assert 1 == 0
+E                +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\packages\\web\\e2e\\card-n...ed-20261025\\packages\\web\\e2e\\card-no-answer.e2e.mjs:15:32 {\n  log: [],\n  name: 'Error'\n}\n\nNode.js v24.22.1\n").returncode
+
+tests\test_interaction_card_http.py:115: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+
+  warnings.warn(
+
+[10/25/26 03:40:32] INFO     Processing request of type           server.py:733
+
+                             ListToolsRequest                                  
+
+                    INFO     Processing request of type           server.py:733
+
+                             CallToolRequest                                   
+
+                    INFO     Processing request of type           server.py:733
+
+                             CallToolRequest                                   
+
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_interaction_card_http.py::test_no_answer_http_stdio_production_browser

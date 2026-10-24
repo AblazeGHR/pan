@@ -1,0 +1,19 @@
+
+> pan-web@ build D:\project\pan-worktrees\card-no-answer-needed-20261025\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+src/views/LockerView.test.tsx(163,5): error TS2322: Type '{ status: "no_answer_needed"; revision: number; id?: string | undefined; lockerId?: string | undefined; ownerSessionId?: string | undefined; recipientId?: string; createdAt?: string | undefined; ... 5 more ...; trustedChoices?: Record<string, { summary: string; actionId: string; actionDigest: string; triggerRevision...' is not assignable to type 'InteractionCard'.
+  Types of property 'id' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/views/LockerView.test.tsx(170,56): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement | null', gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement | null', gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+src/views/LockerView.test.tsx(171,56): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement | null', gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+  Overload 2 of 2, '(role: ByRoleMatcher, options?: ByRoleOptions | undefined): HTMLElement | null', gave the following error.
+    Object literal may only specify known properties, and 'exact' does not exist in type 'ByRoleOptions'.
+ ELIFECYCLE  Command failed with exit code 2.

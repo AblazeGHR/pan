@@ -1,0 +1,36 @@
+{
+  "instance": {
+    "pid": 17852,
+    "port": 59952,
+    "cwd": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025",
+    "roots": {
+      "data": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data",
+      "sessions": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\sessions",
+      "config": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\config.json",
+      "jobs": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\background_jobs",
+      "scheduler": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\background_jobs",
+      "terminal": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\terminals",
+      "gateway": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\qq_plugins\\manifest.json",
+      "inbox": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\agent_inbox\\inbox.sqlite",
+      "attachments": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\attachments",
+      "workdirs": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\workdirs",
+      "errorLog": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\logs\\session-errors.jsonl",
+      "mcpConfigs": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\mcp-configs"
+    },
+    "fakeCLI": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\tests\\support\\fake_stream_cli.py",
+    "nonce": "59c5fec93ac38b5eb90b3cceed53bd66"
+  },
+  "interaction": {
+    "pid": 17852,
+    "cardPath": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\user_inbox\\cards.sqlite",
+    "receiptPath": "D:\\project\\pan-worktrees\\card-no-answer-needed-20261025\\evidence\\card-no-answer-needed\\runtime-final\\test_no_answer_http_stdio_prod0\\profile\\data\\synthetic-trigger.sqlite",
+    "auth": "synthetic-test-only",
+    "trigger": "synthetic-test-only"
+  },
+  "ownerSessionId": "ses_76d9b82082640a3e",
+  "cardId": "card_813add430d5160f104a65b97b7eef3f0eff870684d613dbe0d879a0b28796620",
+  "eventId": "evt_d1453c5711d1f1054465c1c4b0a99775a28d3c05cbd863d5631c1bfed29e21da",
+  "receiptId": "receipt_b42ef362cf3601f46f5b3dbb3306133aed3ebb9c0897a38db6a5214b5199fd08",
+  "mcpProducerOnly": true,
+  "oneResponse": true
+}

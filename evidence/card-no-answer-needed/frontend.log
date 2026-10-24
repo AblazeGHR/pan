@@ -1,0 +1,38 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/card-no-answer-needed-20261025/packages/web
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: Cannot find module '@asamuzakjp/css-color'
+Require stack:
+- D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\parsers.js
+- D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\generated\properties.js
+- D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\CSSStyleDeclaration.js
+- D:\project\Pan-main\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js
+- D:\project\Pan-main\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\api.js
+ ❯ Module._resolveFilename ../../node:internal/modules/cjs/loader:1564:15
+ ❯ wrapResolveFilename ../../node:internal/modules/cjs/loader:1118:27
+ ❯ defaultResolveImplForCJSLoading ../../node:internal/modules/cjs/loader:1142:10
+ ❯ resolveForCJSWithHooks ../../node:internal/modules/cjs/loader:1169:12
+ ❯ Module._load ../../node:internal/modules/cjs/loader:1341:5
+ ❯ wrapModuleLoad ../../node:internal/modules/cjs/loader:261:19
+ ❯ Module.require ../../node:internal/modules/cjs/loader:1674:12
+ ❯ require ../../node:internal/modules/helpers:157:16
+ ❯ Object.<anonymous> ../../../../Pan-main/packages/web/node_modules/.pnpm/cssstyle@4.6.0/node_modules/cssstyle/lib/parsers.js:7:42
+ ❯ Module._compile ../../node:internal/modules/cjs/loader:1929:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'MODULE_NOT_FOUND', requireStack: [ 'D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\parsers.js', 'D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\generated\properties.js', 'D:\project\Pan-main\packages\web\node_modules\.pnpm\cssstyle@4.6.0\node_modules\cssstyle\lib\CSSStyleDeclaration.js', 'D:\project\Pan-main\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js', 'D:\project\Pan-main\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\api.js' ] }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ Test Files  no tests
+      Tests  no tests
+     Errors  1 error
+   Start at  03:36:45
+   Duration  2.52s (transform 14ms, setup 0ms, collect 0ms, tests 0ms, environment 0ms, prepare 0ms)
+

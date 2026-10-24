@@ -311,7 +311,8 @@
           "enum": [
             "open",
             "responded",
-            "rejected"
+            "rejected",
+            "no_answer_needed"
           ]
         },
         "response": {
@@ -751,6 +752,78 @@
             },
             "messageId": {
               "$ref": "#/$defs/Id"
+            }
+          }
+        }
+      ]
+    },
+    "CardProducer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "const": "list_pending"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "after": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "cardId",
+            "expectedRevision"
+          ],
+          "properties": {
+            "operation": {
+              "const": "no_answer_needed"
+            },
+            "cardId": {
+              "$ref": "#/$defs/Id"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "recipientId",
+            "requestKey",
+            "card"
+          ],
+          "properties": {
+            "operation": {
+              "const": "create"
+            },
+            "ownerSessionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "recipientId": {
+              "$ref": "#/$defs/Id"
+            },
+            "requestKey": {
+              "$ref": "#/$defs/Id"
+            },
+            "card": {
+              "$ref": "#/$defs/Definition"
             }
           }
         }
