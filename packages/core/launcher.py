@@ -30,6 +30,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
+from packages.core import console_logs
+
 
 DEFAULT_PORT = 8768
 READY_TIMEOUT_SEC = 30.0
@@ -758,18 +760,26 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
     # named checkout cannot satisfy identity by cwd alone.
     marker = f"--pan-root-marker={root}"
     argv = [*python_argv, str(main_path), f"--pan-root-marker={root}", f"--pan-port-marker={port}"]
+    console_out = log_path.parent / console_logs.OUT_NAME
+    console_err = log_path.parent / console_logs.ERR_NAME
+    redirect_console = hidden or os.name == "nt"
     stdout_handle = stderr_handle = None
     try:
-        if hidden or os.name == "nt":
-            stdout_handle = _open_redirect(log_path.parent / "pan-console.out.log", "a")
-            stderr_handle = _open_redirect(log_path.parent / "pan-console.err.log", "a")
+        if redirect_console:
+            stdout_handle = _open_redirect(console_out, "a")
+            stderr_handle = _open_redirect(console_err, "a")
         child_env = os.environ.copy()
         if os.name == "nt":
             child_env["PAN_MANAGED_CONSOLE"] = "1"
-        if hidden or os.name == "nt":
+        if redirect_console:
             # Text file handles do not transmit an encoding to child Python
             # interpreters. Pin main + inherited QQ/WeChat output explicitly.
             child_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
+            # The handles above are bootstrap evidence only. Once main.py is
+            # alive it takes the same paths over with a re-openable relay and
+            # rotates them; it needs the exact paths, not a guess from config.
+            child_env[console_logs.ENV_OUT] = str(console_out)
+            child_env[console_logs.ENV_ERR] = str(console_err)
         # Pin the port already selected by the launcher. Pan workers inherit this
         # environment and generate their MCP descriptors later, including after a
         # config reload has changed config.json.

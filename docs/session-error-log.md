@@ -8,13 +8,23 @@ diagnostic sample store, **not** a task ledger, retry journal or audit log.
   too).
 - Schema version: `1`.
 - Encoding: UTF-8, one JSON object per line.
-- Pan never rotates, truncates or evicts this file. `data_retention` only
-  deletes `pan.log.*` and leaves this file (and, on POSIX, its `.lock` sibling)
-  alone.
-  Retention is an operator decision.
+- The file is bounded by whole-file rotation, not truncation: when the active
+  file reaches `logging.session_error_max_bytes` (default 20 MiB), the append
+  path moves it to `session-errors.jsonl.1` (shifting `.1`…`.N-1`) and appends to
+  a fresh file. `logging.session_error_backup_count` (default 3) controls how
+  many backups are kept (active + N). The move happens under the same
+  cross-process lock as the append, and this process holds no append descriptor
+  at that moment, so a line is never cut or truncated.
+- Optional `data_retention.pan_logs` also treats the rotated names as
+  `pan_logs` candidates (same registered `data/logs` root only, exact basenames,
+  no link/junction following). The active file is always skipped.
 - Writes are best-effort: a failure is logged as a warning and counted in
   `sessionErrorLog` under `GET /api/diagnostics/persistence`. It never raises
   into worker/task/queue code and never changes execution semantics.
+- A failed rotation (for example an operator holding the file open) is counted
+  in `sessionErrorLog.rotationFailures` / `lastRotationError`; the sample is
+  still appended to the current file, so the size bound stays soft until a
+  later attempt succeeds. Nothing is dropped or truncated because of it.
 
 ## How records are selected
 
@@ -146,7 +156,9 @@ per-run scratch file. It is attached to terminal/crash samples as
   processes open a lock file; POSIX uses a sibling
   `session-errors.jsonl.lock` with `flock`. Each record is written by one
   `os.write` loop under `O_APPEND` while the lock is held, so concurrent
-  threads/processes cannot interleave bytes.
+  threads/processes cannot interleave bytes. The same lock serializes
+  whole-file rotation, so a rotation can never run beside an append in another
+  process.
 - The lock is mandatory. If acquisition fails (bounded ~1s in the writer
   thread), no unlocked write is attempted; the sample is dropped and
   `lockFailures`/`failures` increment.
@@ -280,6 +292,10 @@ re-derive `retryable` from wording.
 - `tests/test_session_error_log_multiprocess.py` – four real processes writing
   large records without interleaving; a long-lived writer must repair another
   process's crashed half line (tail re-check under lock).
+- `tests/test_session_error_log_rotation.py` – whole-file rotation keeps every
+  sample in order when capacity allows, a file held by another Windows process
+  degrades without dropping or truncating samples, and two real processes rotate
+  without losing or duplicating records.
 - `tests/test_session_error_log_e2e.py` – real isolated HTTP/uvicorn + local
   deterministic CLI on an ephemeral port (never 8767/8768), stream/one-shot,
   crash, huge text, >256 KiB structured error (type first, error first,
@@ -293,7 +309,8 @@ Run with the repository Python env:
 
 ```powershell
 python -m pytest tests/test_session_error_log.py tests/test_session_error_log_worker.py `
-  tests/test_session_error_log_multiprocess.py tests/test_session_error_log_e2e.py -q
+  tests/test_session_error_log_multiprocess.py tests/test_session_error_log_rotation.py `
+  tests/test_session_error_log_e2e.py -q
 ```
 
 ## RuntimeIssue/Event v0.3 projection

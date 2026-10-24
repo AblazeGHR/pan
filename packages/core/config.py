@@ -110,6 +110,13 @@ DEFAULT_CONFIG: dict = {
         "backup_count": 7,
         # 是否同时在控制台输出
         "console": True,
+        # 整文件轮转（rename 后开新文件，不 truncate 活跃文件）：
+        # pan-console.out.log / pan-console.err.log（主进程 stdout/stderr 转发）
+        "console_max_bytes": 20971520,
+        "console_backup_count": 3,
+        # data/logs/session-errors.jsonl（错误样本 JSONL）
+        "session_error_max_bytes": 20971520,
+        "session_error_backup_count": 3,
     },
     "kimi": {
         "model": "moonshot-cn/kimi-k2.6",

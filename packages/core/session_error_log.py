@@ -3,7 +3,12 @@
 One global JSONL file (``data/logs/session-errors.jsonl`` by default).  Every
 record keeps the complete error text, the CLI's raw error payload when Pan
 received one, and the full history message that preceded the error.  The file
-is never rotated or evicted by Pan; operators own its retention.
+is bounded: under the existing cross-process lock an oversized active file is
+moved to ``session-errors.jsonl.1`` (shifting ``.1``..``.N-1``) and a fresh
+active file is opened, so no line is ever truncated and no extra rotation
+mechanism exists.  Backup count and size are operator-configurable
+(``logging.session_error_max_bytes`` / ``logging.session_error_backup_count``,
+default 20 MiB and 3 backups).
 
 Design rules enforced here:
 
@@ -21,6 +26,11 @@ Design rules enforced here:
 * A lock failure or write failure drops the sample, increments observable
   counters and logs a warning.  It never writes without the cross-process lock
   and never raises into worker/task/queue code.
+* Rotation happens only while the lock is held and only after this process has
+  closed its append descriptor, so a rotation never cuts a line and never
+  truncates the active file.  A rotation failure (for example an operator
+  holding the file open) is counted, the append continues to the active file,
+  and the size bound stays soft until a later attempt succeeds.
 * The file tail is re-checked under the lock before every append; an in-process
   "already newline terminated" cache is intentionally not used.
 * Credentials are best-effort redacted; process argv/environment are never
@@ -93,6 +103,8 @@ def _shutdown_executor() -> None:
 atexit.register(_shutdown_executor)
 
 _path_override: Path | None = None
+_limits_override: tuple[int, int] | None = None
+_limits_cache: tuple[int, int] | None = None
 
 _STATS = {
     "written": 0,
@@ -100,6 +112,10 @@ _STATS = {
     "failures": 0,
     "lockFailures": 0,
     "pending": 0,
+    "rotated": 0,
+    "rotationFailures": 0,
+    "lastRotationAt": None,
+    "lastRotationError": None,
     "lastErrorType": None,
     "lastErrorAt": None,
     "lastEventAt": None,
@@ -128,17 +144,30 @@ _SECRET_TEXT_PATTERNS = (
 )
 
 
-def configure(path: str | os.PathLike[str] | None) -> None:
-    """Set the process-wide output path (called by logging setup / tests)."""
-    global _path_override
+def configure(path: str | os.PathLike[str] | None, *,
+              max_bytes: int | None = None,
+              backup_count: int | None = None) -> None:
+    """Set the process-wide output path and optional rotation bounds."""
+    global _path_override, _limits_override
     _path_override = Path(path) if path is not None else None
+    if max_bytes is not None or backup_count is not None:
+        if max_bytes is not None and backup_count is not None:
+            _limits_override = (max(1, int(max_bytes)), max(1, int(backup_count)))
+        else:
+            default_max, default_backups = _default_limits()
+            _limits_override = (
+                default_max if max_bytes is None else max(1, int(max_bytes)),
+                default_backups if backup_count is None else max(1, int(backup_count)),
+            )
 
 
 def reset_state() -> None:
     """Clear process-local caches and counters.  Tests only."""
-    global _path_override, _SEQUENCE
+    global _path_override, _limits_override, _limits_cache, _SEQUENCE
     with _THREAD_LOCK:
         _path_override = None
+        _limits_override = None
+        _limits_cache = None
         _RECENT_EVENT_IDS.clear()
         _RECENT_EVENT_ID_SET.clear()
         _INFLIGHT_EVENT_IDS.clear()
@@ -146,7 +175,9 @@ def reset_state() -> None:
         _SEQUENCE = 0
         _STATS.update({
             "written": 0, "duplicates": 0, "failures": 0, "lockFailures": 0,
-            "pending": 0, "lastErrorType": None, "lastErrorAt": None,
+            "pending": 0, "rotated": 0, "rotationFailures": 0,
+            "lastRotationAt": None, "lastRotationError": None,
+            "lastErrorType": None, "lastErrorAt": None,
             "lastEventAt": None, "lastEventId": None,
         })
 
@@ -170,11 +201,38 @@ def path() -> Path:
     return log_file.parent / "session-errors.jsonl"
 
 
+def _default_limits() -> tuple[int, int]:
+    from .logging_setup import (
+        DEFAULT_BOUNDED_BACKUP_COUNT, DEFAULT_BOUNDED_MAX_BYTES,
+        bounded_rotation_settings,
+    )
+    try:
+        from .config import load_config
+        cfg = load_config().get("logging", {}) or {}
+        return bounded_rotation_settings(
+            cfg, max_key="session_error_max_bytes", backup_key="session_error_backup_count")
+    except Exception:
+        return DEFAULT_BOUNDED_MAX_BYTES, DEFAULT_BOUNDED_BACKUP_COUNT
+
+
+def limits() -> tuple[int, int]:
+    """The active ``(max_bytes, backup_count)`` for this sample file."""
+    global _limits_cache
+    if _limits_override is not None:
+        return _limits_override
+    if _limits_cache is None:
+        _limits_cache = _default_limits()
+    return _limits_cache
+
+
 def stats() -> dict:
+    max_bytes, backups = limits()
     with _THREAD_LOCK:
         result = dict(_STATS)
         result["pending"] = len(_INFLIGHT_EVENT_IDS)
         result["path"] = str(path())
+        result["maxBytes"] = max_bytes
+        result["backupCount"] = backups
     return result
 
 
@@ -706,6 +764,34 @@ def _record_failure(exc: BaseException) -> None:
     )
 
 
+def _maybe_rotate_locked(destination: Path) -> None:
+    """Move an oversized active sample file aside.  Caller holds the lock.
+
+    This process has no open append descriptor at this point (``_append_line``
+    opens, writes and closes inside the lock), so the rename is a real
+    whole-file move, never a truncation.  A failed rename is counted and the
+    append continues to the current file.
+    """
+    max_bytes, backups = limits()
+    try:
+        size = destination.stat().st_size
+    except OSError:
+        return
+    if size < max_bytes:
+        return
+    from .logging_setup import rotate_whole_file
+    if rotate_whole_file(destination, backups):
+        with _THREAD_LOCK:
+            _STATS["rotated"] += 1
+            _STATS["lastRotationAt"] = datetime.now(timezone.utc).isoformat(
+                timespec="seconds")
+            _STATS["lastRotationError"] = None
+        return
+    with _THREAD_LOCK:
+        _STATS["rotationFailures"] += 1
+        _STATS["lastRotationError"] = "active_sample_file_open_elsewhere"
+
+
 def _append_line(destination: Path, line: bytes) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     lock_path = Path(str(destination) + ".lock")
@@ -718,6 +804,9 @@ def _append_line(destination: Path, line: bytes) -> None:
                 with _THREAD_LOCK:
                     _STATS["lockFailures"] += 1
                 raise OSError("session-error-log cross-process lock unavailable")
+            # Bound the file before appending: the lock is what makes the
+            # rename safe against every other Pan writer.
+            _maybe_rotate_locked(destination)
             # Always re-check the tail under the lock.  Another process may
             # have crashed after a partial line even though this process
             # previously wrote a newline-terminated record.
