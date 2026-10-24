@@ -1,25 +1,10 @@
-# After: same 200-line host through the relay, limit 2048 B / 3 backups (2026-10-24T19:37:41Z)
-exit_code=0
-
-## files
-  total 24
-  -rw-r--r-- 1 ablaze 197121   18 Oct 25 03:37 err.log
-  -rw-r--r-- 1 ablaze 197121    1 Oct 25 03:37 err.log.lock
-  -rw-r--r-- 1 ablaze 197121   32 Oct 25 03:37 out.log
-  -rw-r--r-- 1 ablaze 197121 2279 Oct 25 03:37 out.log.1
-  -rw-r--r-- 1 ablaze 197121 4134 Oct 25 03:37 out.log.2
-  -rw-r--r-- 1 ablaze 197121 4187 Oct 25 03:37 out.log.3
-  -rw-r--r-- 1 ablaze 197121    1 Oct 25 03:37 out.log.lock
-
-## counts
-  out.log lines=2
-  out.log.1 lines=43
-  out.log.2 lines=78
-  out.log.3 lines=79
-  TOTAL=202 (expected 200 host + 1 child + 1 status = 202)
-
-## max size vs bound
-  out.log.1 2279 <= 18432 True
-  out.log.2 4134 <= 18432 True
-  out.log.3 4187 <= 18432 True
-  out.log 32
+# After: real launch shape (launcher -> python -c shim -> main.py), venv redirector child
+child_pid 49584 interpreter D:\project\Pan-main\.venv\Scripts\python.exe 255200 bytes
+argv_tail ['C:\\Users\\14709\\AppData\\Local\\Temp\\pan-after-relay-5_s36s4e\\pan\\main.py', '--pan-root-marker=C:\\Users\\14709\\AppData\\Local\\Temp\\pan-after-relay-5_s36s4e\\pan', '--pan-port-marker=19999']
+files [('pan-console.out.log.1', 20975616), ('pan-console.out.log', 10817)]
+rotated_size_preserved 20975616 >= 20971520
+active_size 10817 bounded True
+host_lines_retained 200
+child_line_in_active True
+status relay-status={"active": true, "logs": {"pan-console.out.log": {"rotations": 1, "degraded": false, "sizeBytes": 10619}, "pan-console.err.log": {"rotations": 0, "degraded": false, "sizeBytes": 18}}}
+process_gone True

@@ -1,6 +1,6 @@
 """Baseline mechanism probe: a launcher-style inherited stdout descriptor.
 
-Parent opens pan-console.out.log in "a" mode exactly like launcher._open_redirect,
+Parent opens pan-console.out.log in "a" mode exactly like the old launcher did,
 passes it as the child's stdout, then closes its own copy. The child keeps the
 descriptor and writes past any size limit. The parent's cleanup rename then fails
 while that descriptor is alive, which is why the old pipeline could only ever

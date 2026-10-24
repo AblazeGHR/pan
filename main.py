@@ -349,10 +349,9 @@ def _spawn_qq_bot() -> None:
 
 if __name__ == "__main__":
     from packages.core import console_logs
-    # The launcher opens pan-console.out/err.log only as bootstrap evidence.
-    # Take those streams over with a re-openable relay before anything else can
-    # write, so the files can be rotated while the service is running: a file
-    # descriptor inherited from the launcher can never be renamed on Windows.
+    # Launcher-managed launches already installed this relay in the entry shim
+    # (console_bootstrap) before importing this module; the call is idempotent.
+    # It also covers a manual `python main.py` with the console paths exported.
     console_logs.install()
     from packages.core.host_console import console as host_console
     host_console.initialize()

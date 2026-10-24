@@ -7,6 +7,7 @@ the writer must degrade on instead of truncating live output.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -174,10 +175,12 @@ def test_relay_forwards_own_and_child_output_and_rotates(tmp_path):
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     out_lines = _all_lines(out_path)
-    assert out_lines[-1] == "status=True"
+    status = _relay_status(out_lines)
+    assert status["active"] is True
+    assert status["logs"]["pan-console.out.log"]["rotations"] >= 1
+    assert status["logs"]["pan-console.out.log"]["degraded"] is False
     assert any(line.startswith("host-00089-") for line in out_lines)
     assert "child-stdout-line" in out_lines
-    assert any(line.startswith("host-") for line in out_lines)
     assert (out_path.parent / (out_path.name + ".1")).exists()
     assert 2 <= len(_ordered_files(out_path)) <= 4
     assert all(file.stat().st_size <= 2048 + console_logs.RELAY_CHUNK_BYTES
@@ -202,22 +205,59 @@ def test_default_config_bounds_console_and_session_logs():
     assert logging_cfg["session_error_backup_count"] == 3
 
 
-def test_launcher_hands_console_logs_over_and_child_exits_without_residue(tmp_path):
+def _relay_status(lines: list[str]) -> dict:
+    for line in reversed(lines):
+        if line.startswith("relay-status="):
+            return json.loads(line[len("relay-status="):])
+    raise AssertionError(f"no relay-status line in {lines[-3:]}")
+
+
+@pytest.fixture(scope="module")
+def venv_redirector(tmp_path_factory) -> Path:
+    """A real Windows venv ``python.exe`` (redirector stub), like production."""
+    if os.name != "nt":
+        pytest.skip("Windows venv redirector shape")
+    target = tmp_path_factory.mktemp("venv") / "redirector"
+    completed = subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(target)],
+        capture_output=True, text=True, timeout=180, **command_window_options())
+    if completed.returncode != 0:
+        pytest.skip(f"cannot create a venv redirector: {completed.stderr[-400:]}")
+    python = target / "Scripts" / "python.exe"
+    assert python.is_file(), python
+    return python
+
+
+def _write_oversized_console_log(path: Path, size: int) -> None:
+    """Pre-fill the destination exactly like a long-running profile."""
+    with path.open("ab", buffering=0) as handle:
+        handle.write(b"a" * size)
+
+
+@pytest.mark.parametrize("interpreter_kind", ["direct", "venv-redirector"])
+def test_launcher_hands_console_logs_over_and_child_exits_without_residue(
+        tmp_path, interpreter_kind, venv_redirector):
+    """The production launch shape must rotate, not just the direct interpreter.
+
+    A venv ``python.exe`` is a redirector stub that keeps every inherited handle
+    for the child's whole lifetime, so the launcher must not hand it the console
+    log files at all.  Both interpreters go through the same shim.
+    """
     import psutil
 
+    interpreter = sys.executable if interpreter_kind == "direct" else str(venv_redirector)
     root = tmp_path / "pan"
     logs = root / "data" / "logs"
     (root / "scripts").mkdir(parents=True)
     logs.mkdir(parents=True)
     (root / "main.py").write_text(HOST.read_text(encoding="utf-8"), encoding="utf-8")
+    limit = pan_config.DEFAULT_CONFIG["logging"]["console_max_bytes"]
+    _write_oversized_console_log(logs / console_logs.OUT_NAME, limit + 4096)
 
     old_env = {key: os.environ.get(key) for key in (
-        "PYTHONPATH", "PAN_TEST_CONSOLE_MAX_BYTES", "PAN_TEST_CONSOLE_BACKUPS",
-        "PAN_TEST_CONSOLE_LINES", "PAN_TEST_CONSOLE_PAYLOAD",
+        "PYTHONPATH", "PAN_TEST_CONSOLE_LINES", "PAN_TEST_CONSOLE_PAYLOAD",
         "PAN_TEST_CONSOLE_SLEEP", "PAN_CONSOLE_OUT_LOG", "PAN_CONSOLE_ERR_LOG")}
     os.environ["PYTHONPATH"] = str(ROOT)
-    os.environ["PAN_TEST_CONSOLE_MAX_BYTES"] = "2048"
-    os.environ["PAN_TEST_CONSOLE_BACKUPS"] = "3"
     os.environ["PAN_TEST_CONSOLE_LINES"] = "90"
     os.environ["PAN_TEST_CONSOLE_PAYLOAD"] = "40"
     os.environ["PAN_TEST_CONSOLE_SLEEP"] = "1.5"
@@ -225,7 +265,7 @@ def test_launcher_hands_console_logs_over_and_child_exits_without_residue(tmp_pa
     os.environ.pop("PAN_CONSOLE_ERR_LOG", None)
     try:
         record = launcher._start_main(
-            root, 19999, [sys.executable], hidden=True,
+            root, 19999, [interpreter], hidden=True,
             log_path=logs / "pan-launcher.log")
     finally:
         for key, value in old_env.items():
@@ -245,10 +285,17 @@ def test_launcher_hands_console_logs_over_and_child_exits_without_residue(tmp_pa
 
     out_path = logs / console_logs.OUT_NAME
     err_path = logs / console_logs.ERR_NAME
+    rotated = logs / (out_path.name + ".1")
     assert out_path.exists() and err_path.exists()
-    out_lines = _all_lines(out_path)
-    assert out_lines[-1] == "status=True"
-    assert "child-stdout-line" in out_lines
-    assert (logs / (out_path.name + ".1")).exists()
+    assert rotated.exists(), "the active console log was never rotated"
+    assert rotated.stat().st_size >= limit, "the rotated file was truncated"
+    active_lines = out_path.read_text(encoding="utf-8").splitlines()
+    assert active_lines and active_lines[0].startswith("host-00000-")
+    assert "child-stdout-line" in active_lines
+    status = _relay_status(active_lines)
+    assert status["active"] is True
+    assert status["logs"]["pan-console.out.log"]["rotations"] >= 1
+    assert status["logs"]["pan-console.out.log"]["degraded"] is False
+    assert out_path.stat().st_size < 64 * 1024, "the active file is not bounded"
     assert len(_ordered_files(out_path)) <= 4
     assert "host-stderr-line" in _all_lines(err_path)

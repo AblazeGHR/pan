@@ -1,17 +1,18 @@
 """Bounded, re-openable console stdout/stderr logs for managed Pan launches.
 
-``launcher._start_main`` opens ``pan-console.out.log`` / ``pan-console.err.log``
-only as bootstrap evidence: an import error or a crash before Pan's own logging
-exists must still be visible in ``data/logs``.  After that hand-over the main
-process must not keep those files open.  On Windows an open handle blocks
-renaming the file, so a process that inherited its stdout as a file descriptor
-could never rotate it — the file simply grows without bound.
+``launcher._start_main`` no longer hands the console log files to the managed
+child as stdout/stderr: a Windows venv ``python.exe`` is a redirector stub that
+keeps its own copy of every inherited handle for the child's whole lifetime, so
+the real interpreter could never rename the file while Pan ran.  The launcher
+passes the destination paths and starts ``python -c <shim> main.py``; the shim
+(``console_bootstrap``) opens the files itself for bootstrap crash evidence and
+then calls :func:`install` here to take them over.
 
-``install()`` therefore re-points the process's own stdout/stderr at in-process
-pipes and forwards every byte to a writer that opens, appends and closes the
-file.  Rotation is then a real rename-aside plus a fresh file, and output of
-child processes that inherit the same streams (QQ/WeChat bots, provider
-children) is captured by the same relay.
+``install()`` re-points the process's own stdout/stderr at in-process pipes and
+forwards every byte to a writer that opens, appends and closes the file.
+Rotation is then a real rename-aside plus a fresh file, and output of child
+processes that inherit the same streams (QQ/WeChat bots, provider children) is
+captured by the same relay.
 
 Design boundaries:
 
@@ -43,11 +44,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import load_config
+from .console_bootstrap import ENV_ERR, ENV_OUT
 from .data_retention import cross_process_file_lock
 from .logging_setup import bounded_rotation_settings, rotate_whole_file
 
-ENV_OUT = "PAN_CONSOLE_OUT_LOG"
-ENV_ERR = "PAN_CONSOLE_ERR_LOG"
 OUT_NAME = "pan-console.out.log"
 ERR_NAME = "pan-console.err.log"
 

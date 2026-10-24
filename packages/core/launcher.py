@@ -30,7 +30,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
-from packages.core import console_logs
+from packages.core import console_bootstrap, console_logs
 
 
 DEFAULT_PORT = 8768
@@ -746,9 +746,17 @@ def _creation_flags(hidden: bool) -> int:
     return flags
 
 
-def _open_redirect(path: Path, mode: str):
+def _ensure_redirect_file(path: Path) -> None:
+    """Create/verify the console log destination without keeping a handle.
+
+    The launcher must not pass this file to the child: a Windows venv
+    ``python.exe`` is a redirector stub that holds every inherited handle for the
+    child's lifetime, which would make the file unrenamable for the whole run.
+    Opening it once here keeps the old early failure (unwritable ``data/logs``)
+    and the empty-file crash marker.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    return path.open(mode, encoding="utf-8")
+    path.open("a", encoding="utf-8").close()
 
 
 def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
@@ -759,45 +767,50 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
     # This marker is intentionally part of argv so PID reuse and a similarly
     # named checkout cannot satisfy identity by cwd alone.
     marker = f"--pan-root-marker={root}"
-    argv = [*python_argv, str(main_path), f"--pan-root-marker={root}", f"--pan-port-marker={port}"]
     console_out = log_path.parent / console_logs.OUT_NAME
     console_err = log_path.parent / console_logs.ERR_NAME
     redirect_console = hidden or os.name == "nt"
-    stdout_handle = stderr_handle = None
+    # When redirecting, the console destinations are owned by the child entry
+    # shim (see console_bootstrap): no log file handle crosses the process
+    # boundary, so a venv python.exe redirector cannot pin the file open.  Both
+    # argv shapes keep main.py and both markers visible for process identity.
+    if redirect_console:
+        argv = [*python_argv, "-c", console_bootstrap.SHIM, str(main_path),
+                f"--pan-root-marker={root}", f"--pan-port-marker={port}"]
+    else:
+        argv = [*python_argv, str(main_path),
+                f"--pan-root-marker={root}", f"--pan-port-marker={port}"]
     try:
         if redirect_console:
-            stdout_handle = _open_redirect(console_out, "a")
-            stderr_handle = _open_redirect(console_err, "a")
+            _ensure_redirect_file(console_out)
+            _ensure_redirect_file(console_err)
         child_env = os.environ.copy()
         if os.name == "nt":
             child_env["PAN_MANAGED_CONSOLE"] = "1"
         if redirect_console:
-            # Text file handles do not transmit an encoding to child Python
-            # interpreters. Pin main + inherited QQ/WeChat output explicitly.
+            # The shim redirects with a plain append handle first, which does not
+            # transmit an encoding to child Python interpreters. Pin main +
+            # inherited QQ/WeChat output explicitly.
             child_env["PYTHONIOENCODING"] = "utf-8:backslashreplace"
-            # The handles above are bootstrap evidence only. Once main.py is
-            # alive it takes the same paths over with a re-openable relay and
-            # rotates them; it needs the exact paths, not a guess from config.
-            child_env[console_logs.ENV_OUT] = str(console_out)
-            child_env[console_logs.ENV_ERR] = str(console_err)
+            # Exact destinations for the child's own open + relay; no file handle
+            # crosses the process boundary.
+            child_env[console_bootstrap.ENV_OUT] = str(console_out)
+            child_env[console_bootstrap.ENV_ERR] = str(console_err)
         # Pin the port already selected by the launcher. Pan workers inherit this
         # environment and generate their MCP descriptors later, including after a
         # config reload has changed config.json.
         child_env["PAN_PORT"] = str(port)
         process = subprocess.Popen(
             argv, cwd=str(root), stdin=subprocess.DEVNULL if hidden else None,
-            stdout=stdout_handle,
-            stderr=stderr_handle,
+            # DEVNULL also covers interpreters whose stdout handle would otherwise
+            # be invalid; the shim redirects to data/logs immediately.
+            stdout=subprocess.DEVNULL if redirect_console else None,
+            stderr=subprocess.DEVNULL if redirect_console else None,
             close_fds=True, creationflags=_creation_flags(hidden),
             env=child_env,
         )
     except OSError as exc:
         raise LauncherError(f"failed to launch Pan Core: {exc}") from exc
-    finally:
-        if stdout_handle is not None:
-            stdout_handle.close()
-        if stderr_handle is not None:
-            stderr_handle.close()
     created = process_create_time(process.pid)
     if created is None:
         process.terminate()
