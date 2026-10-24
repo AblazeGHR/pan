@@ -96,7 +96,7 @@ describe('SessionFilterMenu structure and a11y', () => {
     expect(state.textContent).toContain('State');
     // The pre-existing State filters stay immediately available; no adapter
     // item shows until the Adapter group is expanded.
-    expect(within(menu).getAllByRole('menuitemcheckbox')).toHaveLength(6);
+    expect(within(menu).getAllByRole('menuitemcheckbox')).toHaveLength(7);
     expect(within(menu).queryByText('cbc')).toBeNull();
   });
 
@@ -140,6 +140,7 @@ describe('SessionFilterMenu structure and a11y', () => {
       'Has subagentSession manages at least one other session',
       'Is MetaAgentSession mounts the pan MCP server',
       'Running stateActual Worker runtime status is running',
+      'Idle stateActual Worker runtime status is idle',
       'Illegal stateLegal state is running, but actual Worker status is not',
       'Has unreadUnread done count is greater than zero',
       'Has queued messagesPending queue count is greater than zero',
@@ -301,6 +302,47 @@ describe('SessionFilterMenu drives the real session list', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'Clear filters' }));
     expect(visibleSessionNames(container)).toEqual(['cbc-1', 'cbc-2', 'codex-1', 'kimi-1', 'none-1']);
+  });
+
+  it('the Idle state checkbox filters the list, ANDs with the adapter group, and follows live state changes', () => {
+    useSessionStore.setState({
+      sessions: [
+        mk('idle-cbc', 'Idle cbc', { adapter: 'cbc', workerStatus: 'idle' }),
+        mk('run-cbc', 'Run cbc', { adapter: 'cbc', workerStatus: 'running' }),
+        mk('idle-codex', 'Idle codex', { adapter: 'codex', workerStatus: 'idle' }),
+        mk('none', 'No status', { adapter: 'codex' }),
+      ],
+    });
+    const { container } = renderMenuAndList();
+    const menu = openMenu();
+
+    // Idle display: only the two idle sessions survive; running / no status drop out.
+    fireEvent.click(stateCheckbox(menu, 'Idle state'));
+    expect(visibleSessionNames(container)).toEqual(['idle-cbc', 'idle-codex']);
+
+    // Combined: AND with the adapter group → only the idle cbc session.
+    fireEvent.click(groupHeader(menu, 'adapter'));
+    fireEvent.click(adapterCheckbox(menu, 'cbc'));
+    expect(visibleSessionNames(container)).toEqual(['idle-cbc']);
+
+    // Clear filters → everything is back (name order: the 'recent' tie-break).
+    fireEvent.click(within(menu).getByRole('button', { name: 'Clear filters' }));
+    expect(visibleSessionNames(container)).toEqual(['idle-cbc', 'idle-codex', 'none', 'run-cbc']);
+
+    // State change: re-check Idle, then flip two worker statuses — the now-idle
+    // session enters the list and the now-running one leaves it.
+    fireEvent.click(stateCheckbox(menu, 'Idle state'));
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          mk('idle-cbc', 'Idle cbc', { adapter: 'cbc', workerStatus: 'idle' }),
+          mk('run-cbc', 'Run cbc', { adapter: 'cbc', workerStatus: 'idle' }),
+          mk('idle-codex', 'Idle codex', { adapter: 'codex', workerStatus: 'running' }),
+          mk('none', 'No status', { adapter: 'codex' }),
+        ],
+      });
+    });
+    expect(visibleSessionNames(container)).toEqual(['idle-cbc', 'run-cbc']);
   });
 
   it('select-mode select-all scope follows the adapter filter', () => {

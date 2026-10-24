@@ -50,6 +50,13 @@ describe('uiStore adapter filters', () => {
     expect(useUIStore.getState().adapterFilters.size).toBe(0);
   });
 
+  it('toggles the idle state filter on and off like running', () => {
+    useUIStore.getState().toggleSpecialFilter('idle');
+    expect([...useUIStore.getState().specialFilters]).toEqual(['idle']);
+    useUIStore.getState().toggleSpecialFilter('idle');
+    expect(useUIStore.getState().specialFilters.size).toBe(0);
+  });
+
   it('clearAllFilters clears both groups (the menu Clear filters action)', () => {
     useUIStore.getState().toggleSpecialFilter('running');
     useUIStore.getState().toggleSpecialFilter('unread');

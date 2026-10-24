@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMetaAgent, matchesSessionSearch } from './sessionFilters';
+import { isMetaAgent, matchesSessionSearch, matchesSpecialFilters } from './sessionFilters';
 import type { Session } from '@/types';
 
 function session(overrides: Partial<Session> = {}): Session {
@@ -60,5 +60,33 @@ describe('matchesSessionSearch', () => {
   it('treats an empty query as matching every session', () => {
     expect(matchesSessionSearch(session({ cliSessionId: undefined }), '')).toBe(true);
     expect(matchesSessionSearch(session({ cliSessionId: undefined }), '   ')).toBe(true);
+  });
+});
+
+describe('matchesSpecialFilters — idle state', () => {
+  it('keeps only sessions whose actual Worker status is idle', () => {
+    const idle = session({ id: 'a', workerStatus: 'idle' });
+    expect(matchesSpecialFilters(idle, [idle], new Set(['idle']))).toBe(true);
+    expect(matchesSpecialFilters(session({ id: 'b', workerStatus: 'running' }), [], new Set(['idle']))).toBe(false);
+    expect(matchesSpecialFilters(session({ id: 'c' }), [], new Set(['idle']))).toBe(false);
+    expect(matchesSpecialFilters(session({ id: 'd', workerStatus: null }), [], new Set(['idle']))).toBe(false);
+  });
+
+  it('ANDs idle with running — no session can be both at once', () => {
+    const idle = session({ id: 'a', workerStatus: 'idle' });
+    expect(matchesSpecialFilters(idle, [idle], new Set(['idle', 'running']))).toBe(false);
+  });
+
+  it('ANDs idle with another special filter', () => {
+    const both = session({ id: 'a', workerStatus: 'idle', queuePendingCount: 1 });
+    expect(matchesSpecialFilters(both, [both], new Set(['idle', 'queue']))).toBe(true);
+    expect(matchesSpecialFilters(session({ id: 'b', workerStatus: 'idle' }), [], new Set(['idle', 'queue']))).toBe(false);
+  });
+
+  it('an empty filter set still matches everything (default unchanged)', () => {
+    const idle = session({ id: 'a', workerStatus: 'idle' });
+    const running = session({ id: 'b', workerStatus: 'running' });
+    expect(matchesSpecialFilters(idle, [idle, running], new Set())).toBe(true);
+    expect(matchesSpecialFilters(running, [idle, running], new Set())).toBe(true);
   });
 });

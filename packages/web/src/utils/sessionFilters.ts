@@ -5,7 +5,7 @@ import type { Session, Workspace } from '@/types';
  * search box. Each filter is judged on real Session fields — never on
  * display text.
  */
-export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'illegal' | 'unread' | 'queue';
+export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'idle' | 'illegal' | 'unread' | 'queue';
 
 export interface SpecialFilterOption {
   id: SpecialFilterId;
@@ -30,6 +30,11 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
     id: 'running',
     label: 'Running state',
     description: 'Actual Worker runtime status is running',
+  },
+  {
+    id: 'idle',
+    label: 'Idle state',
+    description: 'Actual Worker runtime status is idle',
   },
   {
     id: 'illegal',
@@ -127,6 +132,7 @@ export function matchesSpecialFilters(
   if (filters.has('subagent') && !hasSubagents(session, allSessions, context)) return false;
   if (filters.has('metaagent') && !isMetaAgent(session)) return false;
   if (filters.has('running') && session.workerStatus !== 'running') return false;
+  if (filters.has('idle') && session.workerStatus !== 'idle') return false;
   if (
     filters.has('illegal') &&
     session.illegalOffline !== true
