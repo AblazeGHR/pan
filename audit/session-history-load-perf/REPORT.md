@@ -1,6 +1,7 @@
 # Session 列表 / History 冷加载与弱网优化（TA 交付）
 
-基线 `03158ec517a98493e41b292b7f0575fefb49fe12`，分支 `feature/session-history-load-perf-20261024`。
+基线 `03158ec517a98493e41b292b7f0575fefb49fe12`，候选 `e52f077dc3f7441eba861dd9e410bb2838203557`，
+分支 `feature/session-history-load-perf-20261024`。
 本报告只描述本工作树得到的测量与改动；不含 main / practical 推进、push、真实服务重启。
 
 ## 1. 结论
