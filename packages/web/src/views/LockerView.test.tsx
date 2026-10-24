@@ -1,7 +1,10 @@
+import * as api from '@/services/api';
 import { resolveRelatedMessageTarget } from '@/components/chat/relatedMessageTarget';
 import { useRelatedMessageStore } from '@/stores/relatedMessageStore';
 import { useSessionStore } from '@/stores/sessionStore';
-vi.mock('@/components/chat/relatedMessageTarget', () => ({ resolveRelatedMessageTarget: vi.fn() }));
+vi.mock('@/components/chat/relatedMessageTarget', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/components/chat/relatedMessageTarget')>(), resolveRelatedMessageTarget: vi.fn(),
+}));
 import { useAutomationAuth } from '@/stores/automationStore';
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -90,6 +93,7 @@ let cards: InteractionCard[];
 let messages: LockerMessage[];
 let calls: { path: string; body: Record<string, unknown>; method?: string }[];
 beforeEach(() => {
+  vi.mocked(resolveRelatedMessageTarget).mockReset();
   useAutomationAuth.setState({ token: 'unit-only', expiresAt: Date.now() + 60000 });
   uiState.activeWorkspaceId = 'all';
   cards = [card(), card('b', 'l2')];
@@ -549,20 +553,28 @@ it('shows context controls on cards and ordinary messages and transfers exact ow
     const button = screen.getAllByRole('button', { name: '跳转到相关上下文' })[index]!;
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(button);
-    await waitFor(() => expect(useRelatedMessageStore.getState().target).toEqual({ sessionId: 'ses_one', messageId: id }));
+    await waitFor(() => expect(useRelatedMessageStore.getState().target).toEqual({ sessionId: 'ses_one', messageId: id, offset: 3, total: 10 }));
     expect(select).toHaveBeenCalledWith('ses_one', expect.any(AbortSignal));
     expect(resolveRelatedMessageTarget).toHaveBeenCalledWith('ses_one', id, expect.any(AbortSignal));
   }
   select.mockRestore();
 });
 
-it('hides missing ids, disables unreachable contexts and explains the reason', async () => {
+it('hides missing ids and leaves failed context resolution retryable with an explicit reason', async () => {
   cards = [{ ...card(), relatedMessageId: 'stale' }, card('b', 'l2')];
   vi.mocked(resolveRelatedMessageTarget).mockRejectedValue(new Error('相关消息已被替换'));
   mount();
+  const button = await screen.findByRole('button', { name: '跳转到相关上下文' });
+  expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(resolveRelatedMessageTarget).not.toHaveBeenCalled();
+  fireEvent.click(button);
   await waitFor(() => expect(screen.getByText('Error: 相关消息已被替换')).toBeTruthy());
   expect(screen.getAllByRole('button', { name: '跳转到相关上下文' })).toHaveLength(1);
-  expect((screen.getByRole('button', { name: '跳转到相关上下文' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(resolveRelatedMessageTarget).toHaveBeenCalledTimes(1);
+  fireEvent.click(button);
+  await waitFor(() => expect(resolveRelatedMessageTarget).toHaveBeenCalledTimes(2));
+  await screen.findByText('Error: 相关消息已被替换');
 });
 
 
@@ -581,4 +593,28 @@ it('disables the context button when its owner Session is deleted', async () => 
   mount();
   await screen.findByText('所属 Session 已删除或不可用。');
   expect((screen.getByRole('button', { name: '跳转到相关上下文' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it('renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render', async () => {
+  const actual = await vi.importActual<typeof import('@/components/chat/relatedMessageTarget')>('@/components/chat/relatedMessageTarget');
+  vi.mocked(resolveRelatedMessageTarget).mockImplementation(actual.resolveRelatedMessageTarget);
+  const navigation = vi.spyOn(api, 'fetchSessionNavigation').mockResolvedValue({ history: [], start: 0, total: 0, hasMore: false });
+  cards = Array.from({ length: 10 }, (_, i) => ({ ...card(`card-${i}`), relatedMessageId: `msg_card_${i}` }));
+  messages = Array.from({ length: 10 }, (_, i) => ({ kind: 'message', revision: 0, id: `message-${i}`, lockerId: 'l1',
+    ownerSessionId: 'ses_one', recipientId: 'user', createdAt: '2026-10-25T00:00:00Z', read: false,
+    relatedMessageId: `msg_message_${i}`, message: { role: 'assistant', content: `Message ${i}` } }));
+  const view = mount();
+  await waitFor(() => expect(screen.getAllByRole('button', { name: '跳转到相关上下文' })).toHaveLength(20));
+  expect(navigation).not.toHaveBeenCalled();
+  expect(resolveRelatedMessageTarget).not.toHaveBeenCalled();
+  fireEvent.mouseEnter(screen.getAllByRole('button', { name: '跳转到相关上下文' })[0]!);
+  view.rerender(<MemoryRouter><LockerView /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh Locker' }));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh Locker' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.getAllByRole('button', { name: '跳转到相关上下文' })).toHaveLength(20);
+  expect(navigation).not.toHaveBeenCalled();
+  expect(resolveRelatedMessageTarget).not.toHaveBeenCalled();
+  expect(calls.filter(({ path }) => path.includes('/navigation'))).toEqual([]);
+  navigation.mockRestore();
 });

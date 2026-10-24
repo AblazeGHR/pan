@@ -1,32 +1,32 @@
 {
-  "port": 65305,
-  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data",
+  "port": 59810,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data",
   "providerWorkersStarted": false,
   "identity": {
-    "pid": 43852,
-    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data",
-    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\sessions",
-    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\config.json",
-    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\agent_inbox\\inbox.sqlite",
-    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data\\qq_plugins\\manifest.json",
+    "pid": 49288,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data\\qq_plugins\\manifest.json",
     "fakeCLI": "D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\fake_stream_cli.py"
   },
   "card": {
     "schemaVersion": 1,
-    "lockerId": "ulocker_1aa9c07cf1619b888561c82f604585fb4d50cf0603e8d9782e81a53007987b6b",
+    "lockerId": "ulocker_c965ffca65e8859749bd92ade415986410912356c30df63b6b7f342493b863c7",
     "read": false,
-    "sourceName": "ses_3d882d02595f488f",
-    "id": "card_f07d49d2bc108b5e4170d81aab0887365402a1f65aa920db181d2a7107ef2c86",
-    "ownerSessionId": "ses_3d882d02595f488f",
+    "sourceName": "ses_bde29cf661ddb29a",
+    "id": "card_115b0e8e11c45391d75ab785c659089e085be227fcc090916247d481e2eac227",
+    "ownerSessionId": "ses_bde29cf661ddb29a",
     "recipientId": "user",
-    "relatedMessageId": "pan:da71e71209ea45ec947e9908be214230",
+    "relatedMessageId": "pan:54f0c73ac08743ee916d6922da126b2b",
     "definition": {
       "body": "Body",
       "title": "Question",
       "summaryBody": "Body"
     },
     "trustedChoices": {},
-    "createdAt": "2026-10-24T20:06:29.469758+00:00",
+    "createdAt": "2026-10-24T20:10:52.049289+00:00",
     "revision": 0,
     "status": "open",
     "response": null,
@@ -38,13 +38,13 @@
     }
   },
   "message": {
-    "id": "lmsg_3cc1da9f0f5129dbb2617c98a87da4c13651466dce9e800229099bd3668d0090",
+    "id": "lmsg_1ac46242bd19d001abfc467fc6f8c93415a8d850629651a936804c76a6e7076f",
     "kind": "message",
     "schemaVersion": 1,
-    "lockerId": "ulocker_1aa9c07cf1619b888561c82f604585fb4d50cf0603e8d9782e81a53007987b6b",
-    "ownerSessionId": "ses_3d882d02595f488f",
+    "lockerId": "ulocker_c965ffca65e8859749bd92ade415986410912356c30df63b6b7f342493b863c7",
+    "ownerSessionId": "ses_bde29cf661ddb29a",
     "recipientId": "user",
-    "relatedMessageId": "pan:da71e71209ea45ec947e9908be214230",
+    "relatedMessageId": "pan:54f0c73ac08743ee916d6922da126b2b",
     "message": {
       "content": "Locker reply",
       "messageId": "ordinary",
@@ -55,20 +55,25 @@
     "read": false,
     "revision": 0
   },
-  "ownerUserId": "pan:da71e71209ea45ec947e9908be214230",
-  "maUserId": "pan:80dcc034f8684ebd9d624ca4ee47396f",
+  "ownerUserId": "pan:54f0c73ac08743ee916d6922da126b2b",
+  "maUserId": "pan:904ce501294a4c8788d3b940f71b9ff0",
   "listsAndSqlite": true,
   "immutableRetry": true,
   "ownedProcesses": [
     {
-      "pid": 43852,
-      "birth": 1792872386.6226852,
-      "command": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\locker_context_http_server.py --port 65305 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4472\\test_real_stdio_http_context0\\profile\\data"
+      "pid": 13784,
+      "birth": 1792872649.9127831,
+      "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\locker_context_http_server.py --port 59810 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data"
     },
     {
-      "pid": 49364,
-      "birth": 1792872386.6361556,
+      "pid": 40592,
+      "birth": 1792872649.9227824,
       "command": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    },
+    {
+      "pid": 49288,
+      "birth": 1792872649.9388309,
+      "command": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\locker-related-msg-jump-20261025\\tests\\support\\locker_context_http_server.py --port 59810 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4474\\test_real_stdio_http_context0\\profile\\data"
     }
   ],
   "portReleased": true

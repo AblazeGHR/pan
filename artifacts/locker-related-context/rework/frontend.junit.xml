@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="93" failures="0" errors="0" time="5.814">
+    <testsuite name="views/ChatView.navigationRail.test.tsx" timestamp="2026-10-24T20:15:28.308Z" hostname="ablaze" tests="20" failures="0" errors="0" skipped="0" time="2.3628732">
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="native and uncertain handoffs show only terminal and bottom queue, not history or input" time="0.3452271">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="history remains accessible without admitting input while ownership is unconfirmed" time="0.0489459">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; mounts the shared sidebar for either feature and stacks search above navigation" time="0.3734034">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; folds both search buttons inside the only desktop panel, including search-only mode" time="0.0372874">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; uses one mobile toggle to fold search-only and combined content without resetting on a feature change" time="0.0397672">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; does not mount the dock or request history while disabled" time="0.0059561">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; leaves Session search UI and its keyboard listener unmounted while disabled" time="0.0057235">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; loads search only through the enabled Suspense branch and supplies the initial chat-stage anchor for its viewport popup" time="0.0125417">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; mounts a mobile search control below the Session title and opens it with the centralized action" time="0.0324819">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; mounts the enabled desktop control in the chat top-right contract" time="0.0130814">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; keeps global search distinct, mutually exclusive, and idle until a non-empty query" time="0.346121">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; shows a folded desktop handle when enabled and indexes only after hover expansion" time="0.0162379">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; unmounts the dock and releases its indexed content when the master switch turns off" time="0.0154447">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; uses the topbar button on mobile and keeps one index across repeated toggles" time="0.0293202">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: message navigation rail switch &gt; hides the bottom button only while the enabled mobile navigation rail is expanded" time="0.0272999">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: Search ↔ Global Search quick switch &gt; switches both ways from the popup button and keeps each keyword independent" time="0.1508053">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: Search ↔ Global Search quick switch &gt; exposes the switch as a native, focusable, non-disabled button in both views" time="0.0725188">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: Search ↔ Global Search quick switch &gt; keeps clear behavior independent — the global eraser never touches the Session keyword" time="0.107812">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: Search ↔ Global Search quick switch &gt; opens global search with the dispatched shell action and stays inert while disabled" time="0.0291699">
+        </testcase>
+        <testcase classname="views/ChatView.navigationRail.test.tsx" name="ChatView: Search ↔ Global Search quick switch &gt; restores the global hit scope after a mode round trip without losing the query" time="0.652322">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/ChatView.relatedContext.test.tsx" timestamp="2026-10-24T20:15:28.323Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.2654422">
+        <testcase classname="views/ChatView.relatedContext.test.tsx" name="consumes the owner/id handoff with both tools off and calls the real shared jump" time="0.0958538">
+        </testcase>
+        <testcase classname="views/ChatView.relatedContext.test.tsx" name="explains stale targets and does not scroll to the replacement row" time="0.0348419">
+        </testcase>
+        <testcase classname="views/ChatView.relatedContext.test.tsx" name="resolves one time on click and hands the exact Session/offset/id to the real shared jump" time="0.0866445">
+        </testcase>
+        <testcase classname="views/ChatView.relatedContext.test.tsx" name="keeps failed resolution on Locker with the reason and one fresh resolve per retry" time="0.0308473">
+        </testcase>
+        <testcase classname="views/ChatView.relatedContext.test.tsx" name="disables a target found hidden by settings until settings change, without a background retry" time="0.016689">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-24T20:15:28.325Z" hostname="ablaze" tests="25" failures="0" errors="0" skipped="0" time="2.8323902">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.0968308">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0006356">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0325932">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0274642">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.1191773">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0932052">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0438823">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.1295879">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0336732">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.1250573">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.1528812">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0550865">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0266524">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1465176">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1417948">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1351165">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1308649">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1171665">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1699047">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.2284035">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.1077983">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.0966773">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0391941">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.0356503">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.5450688">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/jumpToMessage.test.ts" timestamp="2026-10-24T20:15:28.334Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.0060809">
+        <testcase classname="components/chat/jumpToMessage.test.ts" name="agrees with backend on every shared provenance/header case" time="0.0028082">
+        </testcase>
+        <testcase classname="components/chat/jumpToMessage.test.ts" name="uses the rail canonical pagination and real scroll call parameters, with mount retry" time="0.0016925">
+        </testcase>
+        <testcase classname="components/chat/jumpToMessage.test.ts" name="never scrolls a changed identity or abandoned Session" time="0.0009894">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/MessageNavigationRail.test.tsx" timestamp="2026-10-24T20:15:28.336Z" hostname="ablaze" tests="38" failures="0" errors="0" skipped="0" time="0.8047305">
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; ignores pointer, focus and Escape events from a physically external portal" time="0.0541108">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; waits to index until desktop hover and keeps the indexed rail mounted when folded" time="0.0185571">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; does not scan a newly selected Session behind a dock opened for the previous Session" time="0.0152461">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; stays open within the dock, then collapses after pointer click focus leaves" time="0.0153335">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; restores keyboard expansion after pointer focus leaves and supports Escape" time="0.0175117">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; does not auto-collapse while keyboard focus is using a marker and supports Escape" time="0.012498">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="message navigation dock &gt; jumps to a history item after the dock is expanded" time="0.0103397">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; keeps a mobile short press as a normal jump" time="0.0116851">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; previews multiple markers after a long press and suppresses the release click" time="0.0187023">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; leaves pre-long-press movement unprevented so the rail can scroll normally" time="0.0061614">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; clears the preview on pointer cancellation and suppresses its compatibility click" time="0.008517">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; ends the preview when the active finger leaves the rail bounds" time="0.0081501">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; clears the gesture on session changes and rail close" time="0.0215995">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="mobile message navigation scrub &gt; does not start scrubbing on desktop pointer interactions" time="0.0111878">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="jump single-flight lock across session switches &gt; re-enables the markers when the session changes while a jump is in flight" time="0.0130568">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="jump single-flight lock across session switches &gt; keeps the lock while staying in the same session" time="0.0050411">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="rail mounting cost &gt; does not rescan a complete transcript on streaming renders once the full index is ready" time="0.0044263">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="rail mounting cost &gt; loads a bounded tail page without a reliable viewport" time="0.0034039">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; locates from the loaded canonical window without history requests or body jumps; every reopen resnapshots" time="0.0325457">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; does not count local Task completed as a canonical navigation row" time="0.0046658">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; converges from an initially unavailable viewport via a notification, once only" time="0.0149291">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; programmatic scroll does not cancel pending pagination; genuine wheel does" time="0.0325879">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; bounds transient retry, retains local targets, and keyboard retry recovers single-flight" time="0.0183622">
+            <system-err>
+[message-navigation] compact index failed { sessionId: &apos;nearest&apos;, requests: 3, error: &apos;transient network&apos; }
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; aborts retries on close and rejects late responses after Session or filter changes" time="0.0303907">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; same-epoch appends refresh fromEnd without another snapshot, request or rail scroll" time="0.1109029">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; history epoch invalidation cannot reuse cached offsets or a late old page" time="0.0084966">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;nearest&apos;,
+  requests: 1,
+  error: &apos;Navigation history identity changed. Refresh the chat before retrying.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="open nearest canonical regression &gt; loads a complete continuous index automatically without visible paging controls" time="0.07067">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="clicked navigation tag reuses the nearest-tag highlight &gt; marks the clicked tag with the nearest-tag style until real input releases it" time="0.0507265">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;click-highlight&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+[message-navigation] compact index failed {
+  sessionId: &apos;click-highlight&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="clicked navigation tag reuses the nearest-tag highlight &gt; keeps the located nearest highlight through scroll, and clears a jump highlight on session switch" time="0.035743">
+            <system-err>
+[message-navigation] compact index failed {
+  sessionId: &apos;click-highlight&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+[message-navigation] compact index failed {
+  sessionId: &apos;click-highlight-other&apos;,
+  requests: 1,
+  error: &apos;Navigation history total regressed. Refresh the chat.&apos;
+}
+
+            </system-err>
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="bookmark rail decoration and tag filter &gt; decorates an existing tag and adds a bookmark tag without duplication" time="0.005486">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="bookmark rail decoration and tag filter &gt; applies the store overlay to the loaded window without a refetch" time="0.0089918">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="bookmark rail decoration and tag filter &gt; filters kinds with OR semantics and clears back to everything" time="0.020488">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="bookmark rail decoration and tag filter &gt; the highlight state keeps the bookmark badge layered with semantic colors" time="0.0007033">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="navigation filter keeps the folding dock open &gt; holds the dock open while the body-portaled filter menu is open, then restores the leave fold" time="0.0272983">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="navigation filter keeps the folding dock open &gt; cancels a fold queued before the menu opened instead of collapsing under it" time="0.0220026">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="navigation filter keeps the folding dock open &gt; lets the dock handle still fold the panel manually while the menu is open" time="0.0160867">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="navigation filter keeps the folding dock open &gt; closes the menu on Escape even when the folding host stops that key" time="0.0212557">
+        </testcase>
+        <testcase classname="components/chat/MessageNavigationRail.test.tsx" name="navigation filter keeps the folding dock open &gt; releases the hold when the rail unmounts with the menu still open" time="0.0151608">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/relatedMessageTarget.test.ts" timestamp="2026-10-24T20:15:28.351Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.0033767">
+        <testcase classname="components/chat/relatedMessageTarget.test.ts" name="loads older compact pages by canonical before offset" time="0.0017099">
+        </testcase>
+        <testcase classname="components/chat/relatedMessageTarget.test.ts" name="fails closed on uncovered/replaced/non-user targets" time="0.0011241">
+        </testcase>
+    </testsuite>
+</testsuites>

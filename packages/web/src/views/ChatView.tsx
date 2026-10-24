@@ -1,5 +1,4 @@
 import { useRelatedMessageStore } from '@/stores/relatedMessageStore';
-import { resolveRelatedMessageTarget } from '@/components/chat/relatedMessageTarget';
 import { jumpToMessage } from '@/components/chat/jumpToMessage';
 import { ChatLayout } from '@/components/layout/ChatLayout';
 import { ChatMessages, type ChatMessagesHandle } from '@/components/chat/ChatMessages';
@@ -54,8 +53,7 @@ export default function ChatView() {
     setRelatedError('');
     void (async () => {
       try {
-        const target = await resolveRelatedMessageTarget(relatedTarget.sessionId, relatedTarget.messageId, controller.signal);
-        if (current()) await jumpToMessage(chatRef, target, current, controller.signal);
+        if (current()) await jumpToMessage(chatRef, relatedTarget, current, controller.signal);
       } catch (error) { if (current()) setRelatedError(String(error)); }
       finally { if (current()) useRelatedMessageStore.setState({ target: null }); }
     })();
