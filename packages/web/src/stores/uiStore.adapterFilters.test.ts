@@ -57,6 +57,16 @@ describe('uiStore adapter filters', () => {
     expect(useUIStore.getState().specialFilters.size).toBe(0);
   });
 
+  it('toggles the held and offline state filters on and off', () => {
+    useUIStore.getState().toggleSpecialFilter('held');
+    useUIStore.getState().toggleSpecialFilter('offline');
+    expect([...useUIStore.getState().specialFilters]).toEqual(['held', 'offline']);
+    useUIStore.getState().toggleSpecialFilter('held');
+    expect([...useUIStore.getState().specialFilters]).toEqual(['offline']);
+    useUIStore.getState().toggleSpecialFilter('offline');
+    expect(useUIStore.getState().specialFilters.size).toBe(0);
+  });
+
   it('clearAllFilters clears both groups (the menu Clear filters action)', () => {
     useUIStore.getState().toggleSpecialFilter('running');
     useUIStore.getState().toggleSpecialFilter('unread');

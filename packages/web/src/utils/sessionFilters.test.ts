@@ -90,3 +90,39 @@ describe('matchesSpecialFilters — idle state', () => {
     expect(matchesSpecialFilters(running, [idle, running], new Set())).toBe(true);
   });
 });
+
+describe('matchesSpecialFilters — held and offline states', () => {
+  it('keeps only sessions whose actual Worker status is held', () => {
+    const held = session({ id: 'a', workerStatus: 'held', workerId: 'w1' });
+    expect(matchesSpecialFilters(held, [held], new Set(['held']))).toBe(true);
+    expect(matchesSpecialFilters(session({ id: 'b', workerStatus: 'idle', workerId: 'w2' }), [], new Set(['held']))).toBe(false);
+    expect(matchesSpecialFilters(session({ id: 'c', workerStatus: null, workerId: null }), [], new Set(['held']))).toBe(false);
+  });
+
+  it('offline matches the absent-worker projection (status and id both null)', () => {
+    expect(matchesSpecialFilters(session({ id: 'a', workerStatus: null, workerId: null }), [], new Set(['offline']))).toBe(true);
+    // Never spawned: both fields are simply absent from the payload.
+    expect(matchesSpecialFilters(session({ id: 'b' }), [], new Set(['offline']))).toBe(true);
+  });
+
+  it('offline also matches the explicit offline status', () => {
+    expect(matchesSpecialFilters(session({ id: 'a', workerStatus: 'offline', workerId: null }), [], new Set(['offline']))).toBe(true);
+  });
+
+  it('offline never sweeps in a real or unknown non-offline status', () => {
+    for (const status of ['running', 'idle', 'held', 'queued', 'done', 'error', 'cancelled', 'zombie', 'restarting', 'future-state']) {
+      expect(matchesSpecialFilters(session({ id: 'x', workerStatus: status, workerId: 'w' }), [], new Set(['offline']))).toBe(false);
+    }
+  });
+
+  it('offline requires the worker id to be absent too (projection pair)', () => {
+    expect(matchesSpecialFilters(session({ id: 'a', workerStatus: null, workerId: 'w-live' }), [], new Set(['offline']))).toBe(false);
+  });
+
+  it('ANDs held and offline — mutually exclusive on the real projection', () => {
+    const held = session({ id: 'a', workerStatus: 'held', workerId: 'w1' });
+    const gone = session({ id: 'b', workerStatus: null, workerId: null });
+    expect(matchesSpecialFilters(held, [held, gone], new Set(['held', 'offline']))).toBe(false);
+    expect(matchesSpecialFilters(gone, [held, gone], new Set(['held', 'offline']))).toBe(false);
+  });
+});

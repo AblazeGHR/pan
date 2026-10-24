@@ -5,7 +5,7 @@ import type { Session, Workspace } from '@/types';
  * search box. Each filter is judged on real Session fields — never on
  * display text.
  */
-export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'idle' | 'illegal' | 'unread' | 'queue';
+export type SpecialFilterId = 'subagent' | 'metaagent' | 'running' | 'idle' | 'held' | 'offline' | 'illegal' | 'unread' | 'queue';
 
 export interface SpecialFilterOption {
   id: SpecialFilterId;
@@ -35,6 +35,16 @@ export const SPECIAL_FILTERS: SpecialFilterOption[] = [
     id: 'idle',
     label: 'Idle state',
     description: 'Actual Worker runtime status is idle',
+  },
+  {
+    id: 'held',
+    label: 'Held state',
+    description: 'Actual Worker runtime status is held',
+  },
+  {
+    id: 'offline',
+    label: 'Offline state',
+    description: 'No active Worker on the session',
   },
   {
     id: 'illegal',
@@ -121,6 +131,29 @@ export function matchesSessionSearch(session: Session, query: string): boolean {
     .some((value) => String(value ?? '').toLowerCase().includes(normalizedQuery));
 }
 
+/**
+ * True when the session has no active Worker.
+ *
+ * The backend session projection emits `workerStatus` and `workerId` as a
+ * pair from a single lookup: both are null when no worker is registered or
+ * alive (a never-spawned session and a reclaimed-after-death one are
+ * indistinguishable in the payload — both are null). The explicit
+ * `'offline'` status is accepted too (the worker store and the status dot
+ * normalize a missing status to it).
+ *
+ * Any other non-null value — `running`, `idle`, `held`, `queued`, `done`,
+ * `error`, `cancelled`, `zombie`, `restarting`, or an unknown future state —
+ * is a real worker state and is NOT offline, and neither is a null status
+ * that still carries a live worker id. `illegalOffline` is a separate
+ * legality-ledger fact and stays orthogonal to this predicate.
+ */
+function isOffline(session: Session): boolean {
+  if (session.workerStatus === 'offline') return true;
+  const noStatus = session.workerStatus === null || session.workerStatus === undefined;
+  const noWorkerId = session.workerId === null || session.workerId === undefined;
+  return noStatus && noWorkerId;
+}
+
 /** True when the session passes every active special filter. */
 export function matchesSpecialFilters(
   session: Session,
@@ -133,6 +166,8 @@ export function matchesSpecialFilters(
   if (filters.has('metaagent') && !isMetaAgent(session)) return false;
   if (filters.has('running') && session.workerStatus !== 'running') return false;
   if (filters.has('idle') && session.workerStatus !== 'idle') return false;
+  if (filters.has('held') && session.workerStatus !== 'held') return false;
+  if (filters.has('offline') && !isOffline(session)) return false;
   if (
     filters.has('illegal') &&
     session.illegalOffline !== true

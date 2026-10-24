@@ -96,7 +96,7 @@ describe('SessionFilterMenu structure and a11y', () => {
     expect(state.textContent).toContain('State');
     // The pre-existing State filters stay immediately available; no adapter
     // item shows until the Adapter group is expanded.
-    expect(within(menu).getAllByRole('menuitemcheckbox')).toHaveLength(7);
+    expect(within(menu).getAllByRole('menuitemcheckbox')).toHaveLength(9);
     expect(within(menu).queryByText('cbc')).toBeNull();
   });
 
@@ -141,6 +141,8 @@ describe('SessionFilterMenu structure and a11y', () => {
       'Is MetaAgentSession mounts the pan MCP server',
       'Running stateActual Worker runtime status is running',
       'Idle stateActual Worker runtime status is idle',
+      'Held stateActual Worker runtime status is held',
+      'Offline stateNo active Worker on the session',
       'Illegal stateLegal state is running, but actual Worker status is not',
       'Has unreadUnread done count is greater than zero',
       'Has queued messagesPending queue count is greater than zero',
@@ -343,6 +345,55 @@ describe('SessionFilterMenu drives the real session list', () => {
       });
     });
     expect(visibleSessionNames(container)).toEqual(['idle-cbc', 'run-cbc']);
+  });
+
+  it('the Held and Offline state checkboxes filter on the real worker projection', () => {
+    useSessionStore.setState({
+      sessions: [
+        mk('future-1', 'Alpha future', { adapter: 'cbc', workerStatus: 'future-state', workerId: 'w-future' }),
+        mk('held-1', 'Bravo held', { adapter: 'cbc', workerStatus: 'held', workerId: 'w-held' }),
+        mk('idle-1', 'Charlie idle', { adapter: 'cbc', workerStatus: 'idle', workerId: 'w-idle' }),
+        mk('gone-1', 'Delta gone', { adapter: 'cbc', workerStatus: null, workerId: null }),
+        mk('offline-1', 'Echo offline', { adapter: 'cbc', workerStatus: 'offline', workerId: null }),
+      ],
+    });
+    const { container } = renderMenuAndList();
+    const menu = openMenu();
+
+    // Held: strict match on the actual worker status — nothing else survives.
+    fireEvent.click(stateCheckbox(menu, 'Held state'));
+    expect(visibleSessionNames(container)).toEqual(['held-1']);
+
+    // Offline: the absent-worker projection (status+id both null) and the
+    // explicit offline status match; an unknown status is NOT offline.
+    fireEvent.click(stateCheckbox(menu, 'Held state'));
+    fireEvent.click(stateCheckbox(menu, 'Offline state'));
+    expect(visibleSessionNames(container)).toEqual(['gone-1', 'offline-1']);
+
+    // Combined: held + offline are mutually exclusive under AND.
+    fireEvent.click(stateCheckbox(menu, 'Held state'));
+    expect(screen.getByText('No matching sessions')).toBeTruthy();
+    expect(visibleSessionNames(container)).toEqual([]);
+
+    // Clear filters → everything is back (name order: the 'recent' tie-break).
+    fireEvent.click(within(menu).getByRole('button', { name: 'Clear filters' }));
+    expect(visibleSessionNames(container)).toEqual(['future-1', 'held-1', 'idle-1', 'gone-1', 'offline-1']);
+
+    // Live state change: the held worker is released to idle and the idle one
+    // loses its worker — the offline filter follows immediately.
+    fireEvent.click(stateCheckbox(menu, 'Offline state'));
+    act(() => {
+      useSessionStore.setState({
+        sessions: [
+          mk('future-1', 'Alpha future', { adapter: 'cbc', workerStatus: 'future-state', workerId: 'w-future' }),
+          mk('held-1', 'Bravo held', { adapter: 'cbc', workerStatus: 'idle', workerId: 'w-held' }),
+          mk('idle-1', 'Charlie idle', { adapter: 'cbc', workerStatus: null, workerId: null }),
+          mk('gone-1', 'Delta gone', { adapter: 'cbc', workerStatus: null, workerId: null }),
+          mk('offline-1', 'Echo offline', { adapter: 'cbc', workerStatus: 'offline', workerId: null }),
+        ],
+      });
+    });
+    expect(visibleSessionNames(container)).toEqual(['idle-1', 'gone-1', 'offline-1']);
   });
 
   it('select-mode select-all scope follows the adapter filter', () => {
