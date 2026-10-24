@@ -2,7 +2,8 @@
 
 Baseline source: `9f3bea3e8c5f35e77d7da3fd999f1bf627caacd5`.
 Previously reviewed candidate (preserved, not amended): `525fb7de7db934f01229b258acb7a977ff854687`.
-Tested implementation commit: `5b643e582a8089eda86b7e05930493635ae5fded`, tree `e1fb4ba24930905cb33bc8c037622d7414b28e89`.
+Browser-tested implementation commit: `5b643e582a8089eda86b7e05930493635ae5fded`, tree `e1fb4ba24930905cb33bc8c037622d7414b28e89`.
+Spawn-transaction-only fix: `12ea7d702787948405bfd1e1ebaeb5cb6627801d`, tree `5676b30ac1fdeb8207e752acad33bf089aaeb71a` (browser evidence predates this lifecycle-only change; backend barrier/normal/timeout/cancel tests cover it).
 
 The browser run used the production React bundle, a real Vite + React example built through the GUI,
 an owned server process on a random assigned port (last run `63004`), a temporary data root and a

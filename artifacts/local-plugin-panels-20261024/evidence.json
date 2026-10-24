@@ -32,5 +32,7 @@
   "portReleased": true,
   "ownedDescendantsAfterStop": [],
   "testedCommit": "5b643e582a8089eda86b7e05930493635ae5fded",
-  "testedTree": "e1fb4ba24930905cb33bc8c037622d7414b28e89"
+  "testedTree": "e1fb4ba24930905cb33bc8c037622d7414b28e89",
+  "spawnTransactionCommit": "12ea7d702787948405bfd1e1ebaeb5cb6627801d",
+  "spawnTransactionTree": "5676b30ac1fdeb8207e752acad33bf089aaeb71a"
 }
