@@ -27,6 +27,8 @@ export type JobStatus =
   | 'cancelled'
   | 'restarting'
   | 'cleaning'
+  | 'cleanup_pending'
+  | 'deleting'
   | 'unknown'
   | 'uncertain';
 

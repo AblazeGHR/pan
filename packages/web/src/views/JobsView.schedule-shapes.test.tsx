@@ -16,6 +16,8 @@ const api = vi.hoisted(() => ({
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
 vi.mock('@/services/api', () => ({
+  fetchLegacyJob: vi.fn(async () => ({ jobId: 'legacy' })),
+  retryLegacyJob: vi.fn(),
   fetchActionRegistry: vi.fn(async () => ({ actions: [] })),
   fetchJobs: api.fetchJobs,
   fetchJob: api.fetchJob,
@@ -62,11 +64,13 @@ const job = (overrides: Record<string, unknown> = {}): Job =>
   }) as unknown as Job;
 
 function renderView() {
-  return render(
+  const view = render(
     <MemoryRouter>
       <JobsView />
     </MemoryRouter>,
   );
+  fireEvent.click(screen.getByRole('button', { name: 'Legacy Jobs / 旧 Job' }));
+  return view;
 }
 
 describe('JobsView schedule payload compatibility', () => {
@@ -128,6 +132,9 @@ describe('JobsView schedule payload compatibility', () => {
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
     expect(api.patchJob).not.toHaveBeenCalled();
     expect(screen.getByText(/weekly/)).toBeTruthy();
+    expect(screen.getByText('Legacy execution history')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Edit$/ }));
+    expect(screen.queryByLabelText('Job user authorization')).toBeNull();
   });
 
   it('renders scheduled-task entry arrays and keeps their controls available', async () => {

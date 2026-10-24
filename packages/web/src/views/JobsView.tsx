@@ -37,12 +37,14 @@ import {
   pinJob,
   runJobNow,
   createActionJob,
+  createJob,
   updateActionJob,
   fetchActionRegistry,
   mutateActionJob,
 } from '@/services/api';
 import type {
   Job,
+  JobCreateInput,
   JobKind,
   JobKindMeta,
   JobPatchInput,
@@ -60,7 +62,7 @@ function timestampMs(value: unknown): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type Tab = 'list' | 'create' | 'settings';
+type Tab = 'list' | 'legacy' | 'create' | 'settings';
 
 type StatusFilter =
   'all' | 'active' | 'scheduled' | 'completed' | 'failed' | 'timed_out' | 'undeliverable';
@@ -99,6 +101,8 @@ function statusColor(status: string): string {
     case 'scheduled':
     case 'restarting':
     case 'cleaning':
+    case 'cleanup_pending':
+    case 'deleting':
     case 'unknown':
     case 'uncertain':
       return 'border-warning/50 bg-warning/10 text-warning';
@@ -157,7 +161,8 @@ function lastResultSummary(job: Job): string {
   }
   if (job.lastError) return `last error: ${job.lastError}`;
   if (job.lastStatus) return `last ${job.lastStatus}`;
-  return `runs ${job.runCount}`;
+  return isUnifiedJob(job) ? `runs ${job.runCount ?? 0}`
+    : job.kind === 'background-process' ? `legacy ${job.status}` : `deliveries ${job.runCount ?? 0}`;
 }
 
 /** 活跃优先排序档位：running → starting → scheduled → pending → completed → failed → timed_out → cancelled。 */
@@ -167,6 +172,8 @@ function activeRank(status: JobStatus): number {
       return 0;
     case 'starting':
     case 'cleaning':
+    case 'cleanup_pending':
+    case 'deleting':
     case 'restarting':
       return 1;
     case 'scheduled':
@@ -460,18 +467,28 @@ export default function JobsView() {
   const cancelRequests = useRef(new Set<string>());
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('list');
+  const [legacyCreateOpen, setLegacyCreateOpen] = useState(false);
   const dirtyEditor = useRef(false);
   const editorDirtyChange = useCallback((dirty: boolean) => { dirtyEditor.current = dirty; }, []);
   const requestTab = (next: Tab) => {
     if (dirtyEditor.current && !window.confirm('Discard unsaved Job configuration?')) return;
     dirtyEditor.current = false; setTab(next);
   };
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [kindFilter, setKindFilter] = useState<'all' | JobKind>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [laneFilters, setLaneFilters] = useState<Record<'list' | 'legacy', {
+    status: StatusFilter; kind: 'all' | JobKind; query: string;
+  }>>({ list: { status: 'all', kind: 'all', query: '' }, legacy: { status: 'all', kind: 'all', query: '' } });
+  const lane = tab === 'legacy' ? 'legacy' : 'list';
+  const { status: statusFilter, kind: kindFilter, query: searchQuery } = laneFilters[lane];
+  const setStatusFilter = (status: StatusFilter) => setLaneFilters((previous) => ({ ...previous, [lane]: { ...previous[lane], status } }));
+  const setKindFilter = (kind: 'all' | JobKind) => setLaneFilters((previous) => ({ ...previous, [lane]: { ...previous[lane], kind } }));
+  const setSearchQuery = (query: string) => setLaneFilters((previous) => ({ ...previous, [lane]: { ...previous[lane], query } }));
   // The unified job store owns the list (shared with the nav running badge);
   // this page only owns view state on top of it.
-  const jobs = useJobStore((s) => s.jobs);
+  const allJobs = useJobStore((s) => s.jobs);
+  // /api/jobs is a mixed read facade. Compatibility projections never confer
+  // Action execution ownership on a legacy record.
+  const jobs = useMemo(() => allJobs.filter((job) =>
+    tab === 'legacy' ? !isUnifiedJob(job) : isUnifiedJob(job)), [allJobs, tab]);
   const loading = useJobStore((s) => s.loading);
   const error = useJobStore((s) => s.error);
   const pinMetadataUnavailable = useJobStore((s) => s.pinMetadataUnavailable);
@@ -481,11 +498,11 @@ export default function JobsView() {
   useEffect(() => {
     let changed = false;
     for (const id of cancelRequests.current) {
-      const current = jobs.find((job) => job.jobId === id);
+      const current = allJobs.find((job) => job.jobId === id);
       if (!current || !canCancelJob(current)) { cancelRequests.current.delete(id); changed = true; }
     }
     if (changed) setCancellingIds(new Set(cancelRequests.current));
-  }, [jobs]);
+  }, [allJobs]);
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -569,7 +586,7 @@ export default function JobsView() {
   const knownJobIdsRef = useRef<Set<string> | null>(null);
   useEffect(() => {
     const previous = knownJobIdsRef.current;
-    const current = new Set(jobs.map((job) => job.jobId));
+    const current = new Set(allJobs.map((job) => job.jobId));
     knownJobIdsRef.current = current;
     if (!previous) return;
     for (const jobId of previous) {
@@ -594,7 +611,7 @@ export default function JobsView() {
         return { ...prev, failed };
       });
     }
-  }, [jobs]);
+  }, [allJobs]);
 
   // 详情 runs：随选中 job / limit 拉取。
   useEffect(() => {
@@ -836,6 +853,16 @@ export default function JobsView() {
     finally { setSubmitting(false); }
   };
 
+  const handleLegacyCreate = async (input: JobCreateInput) => {
+    setSubmitting(true);
+    try {
+      const job = await createJob(input);
+      upsertJob(job); setLegacyCreateOpen(false); setTab('legacy');
+      showToast(`Created legacy Job "${job.name}"`);
+    } catch (e) { showToast(errMsg(e), 'error'); }
+    finally { setSubmitting(false); }
+  };
+
   const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
     setSubmitting(true);
     try {
@@ -974,6 +1001,9 @@ export default function JobsView() {
       showToast(`Deleted job "${deleteJob.name}"`);
     } catch (e) {
       showToast(errMsg(e), 'error');
+      // Production DELETE may durably enter cleanup_pending before refusing.
+      // Reload its facts without retrying the destructive operation.
+      try { upsertJob(await fetchJob(deleteJob.jobId)); } catch { /* retain current record */ }
     }
   };
 
@@ -1011,7 +1041,12 @@ export default function JobsView() {
           }`}
         >
           <ListChecks size={12} />
-          Jobs
+          Unified Jobs
+        </button>
+        <button type="button" aria-pressed={tab === 'legacy'} disabled={bulkAction !== null}
+          onClick={() => { requestTab('legacy'); setSelectionMode(false); clearSelectionForViewChange(); setSelectedJobId(null); }}
+          className={`rounded border px-2.5 py-1 text-xs ${tab === 'legacy' ? 'border-accent/50 text-accent' : 'border-border-default text-text-secondary'}`}>
+          Legacy Jobs / 旧 Job
         </button>
         <button
           type="button"
@@ -1051,7 +1086,15 @@ export default function JobsView() {
         </button>
       </div>
 
-      {tab === 'list' ? (
+      {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
+        {tab === 'legacy'
+          ? '旧 Job · background_jobs registry / legacy scheduler · 旧 runner 与原始 Job 状态。与新 Job 可共用存储目录；不迁移、不自动转换。删除走原安全取消/清理路径；退出未确认时保留 cleanup_pending，须显式再次核对。'
+          : '统一新 Job · Action-reference registry records / Action runtime · Run / Attempt 状态。存储目录可与旧 Job 共用；此处仅展示新执行语义。'}
+      </p>}
+      {tab === 'legacy' && <div className="shrink-0 px-4 pb-2">
+        <Button size="sm" onClick={() => setLegacyCreateOpen(true)} disabled={bulkAction !== null}>New legacy Job</Button>
+      </div>}
+      {tab === 'list' || tab === 'legacy' ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Keep filters, search, selection actions, and counts visible while rows scroll. */}
           <div className="shrink-0 border-b border-border-muted bg-bg-primary">
@@ -1373,6 +1416,11 @@ export default function JobsView() {
         </div>
       </Modal>
 
+      <Modal open={legacyCreateOpen} onClose={() => { if (!submitting) setLegacyCreateOpen(false); }} title="New legacy Job" size="lg">
+        <p className="mb-3 text-xs text-text-secondary">创建旧 registry 记录，使用旧 runner / scheduler；不会转换为新 Action Job。</p>
+        {legacyCreateOpen && <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleLegacyCreate(input)} />}
+      </Modal>
+
       {/* Delete confirmation dialog */}
       <Modal
         open={deleteJobId !== null}
@@ -1441,7 +1489,7 @@ export default function JobsView() {
         title="Edit job"
         size="lg"
       >
-        <JobUserAuthorization />
+        {editJob && isUnifiedJob(editJob) && <JobUserAuthorization />}
         {editJob && (editJob.unified && !editJob.unified.compatibility ? <UnifiedJobForm
           key={editJob.jobId}
           initial={editJob.unified.config}

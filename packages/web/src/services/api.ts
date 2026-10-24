@@ -244,9 +244,13 @@ export async function invokePluginPanel<T>(plugin: string, panel: string, action
 }
 
 async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+  // Authorization adds headers to formerly headerless JSON requests. Merge
+  // defaults after spreading options so authentication cannot erase JSON type.
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  new Headers(options?.headers).forEach((value, key) => headers.set(key, value));
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: Object.fromEntries(headers),
   });
   if (!res.ok) {
     let detail = '';
@@ -2696,5 +2700,18 @@ export async function wakeSessions(sessionIds: string[], clientMessageId: string
 /** Request cancellation through the existing process/message lifecycle, never DELETE. */
 export async function cancelJob(jobId: string): Promise<void> {
   const data = await request<{ error?: { code: string; message: string } }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+  if (data.error) throwSchedulerError(data.error);
+}
+
+/** Original background registry records, without unified compatibility projections. */
+export async function fetchLegacyJob(jobId: string): Promise<Record<string, unknown>> {
+  const data = await request<Record<string, unknown> & { error?: SchedulerApiError }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}`);
+  if (data.error) throwSchedulerError(data.error);
+  return data;
+}
+
+/** Legacy retry creates another background-process Job; it is not an Attempt. */
+export async function retryLegacyJob(jobId: string): Promise<void> {
+  const data = await request<{ error?: SchedulerApiError }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' });
   if (data.error) throwSchedulerError(data.error);
 }

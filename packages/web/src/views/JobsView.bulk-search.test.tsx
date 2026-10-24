@@ -23,6 +23,8 @@ const api = vi.hoisted(() => ({
 const wsHandlers = vi.hoisted(() => new Map<string, (event: unknown) => void>());
 
 vi.mock('@/services/api', () => ({
+  fetchLegacyJob: async () => ({ jobId: 'legacy' }),
+  retryLegacyJob: vi.fn(),
   updateActionJob: api.updateActionJob,
   fetchActionRegistry: api.fetchActionRegistry,
   fetchCompleteJobTemplates: api.fetchCompleteJobTemplates,
@@ -90,11 +92,13 @@ const scheduledJob = (overrides: Partial<Job> = {}): Job =>
   });
 
 function renderView() {
-  return render(
+  const view = render(
     <MemoryRouter>
       <JobsView />
     </MemoryRouter>,
   );
+  fireEvent.click(screen.getByRole('button', { name: 'Legacy Jobs / 旧 Job' }));
+  return view;
 }
 
 function enterSelectionMode() {
@@ -152,12 +156,42 @@ function retentionResponse(
 }
 
 describe('JobsView search, status filters, and bulk actions', () => {
+  it('keeps legacy records and their projections out of the new Job tab', async () => {
+    const old = job({ name: 'Old process', kind: 'background-process', status: 'failed' });
+    const fresh = scheduledJob({ jobId: 'job_new', name: 'New Action Job', unified: {
+      action: { api: 'action_reference', actionId: 'a', arguments: {} },
+      config: { name: 'New Action Job', actionId: 'a', arguments: {}, schedule: [], enabled: true },
+    } });
+    const projection = { ...old, jobId: 'job_projection', name: 'Compatibility only', unified: {
+      ...fresh.unified!, compatibility: { legacyKind: 'background-process', migration: 'projection-only' as const },
+    } };
+    api.fetchJobs.mockResolvedValue([old, projection, fresh]);
+    api.fetchJob.mockResolvedValue(projection);
+    renderView();
+    expect(await screen.findByText('Old process')).toBeTruthy();
+    expect(screen.getByText('Compatibility only')).toBeTruthy();
+    expect(screen.queryByText('New Action Job')).toBeNull();
+    fireEvent.click(screen.getByText('Compatibility only'));
+    expect(await screen.findByLabelText('Legacy execution details')).toBeTruthy();
+    expect(screen.queryByText('Unified execution')).toBeNull();
+    expect(screen.queryByText('Action reference')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Close$/ }));
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Compatibility' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Unified Jobs$/ }));
+    expect(await screen.findByText('New Action Job')).toBeTruthy();
+    expect(screen.queryByText('Old process')).toBeNull();
+    expect(screen.queryByText('Compatibility only')).toBeNull();
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Legacy Jobs / 旧 Job' }));
+    expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('Compatibility');
+  });
   it('keeps the opened config revision when WS replaces a dirty unified Job', async () => {
     const initial = scheduledJob({ name: 'Unified revision draft', enabled: true, configRevision: 7,
       unified: { action: { api: 'action_reference', actionId: 'a', arguments: {} }, config: {
         name: 'Unified revision draft', actionId: 'a', arguments: {}, schedule: [], trigger: { kind: 'immediate' }, enabled: true } } });
     api.fetchJobs.mockResolvedValue([initial]); api.updateActionJob.mockResolvedValue(initial);
     renderView();
+    fireEvent.click(screen.getByRole('button', { name: /^Unified Jobs$/ }));
     fireEvent.click(await screen.findByText('Unified revision draft'));
     fireEvent.click(await screen.findByRole('button', { name: /^Edit$/ }));
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Kept user draft' } });

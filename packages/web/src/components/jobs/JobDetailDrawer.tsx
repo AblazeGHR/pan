@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
+import { LegacyJobDetails } from './LegacyJobDetails';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -31,6 +32,8 @@ function statusColor(status: string): string {
     case 'scheduled':
     case 'restarting':
     case 'cleaning':
+    case 'cleanup_pending':
+    case 'deleting':
     case 'unknown':
     case 'uncertain':
     case 'partial':
@@ -345,8 +348,8 @@ export function JobDetailDrawer({
               )}
             </div>
 
-            {job.unified && <Section title="Unified execution">
-              {job.unified.compatibility && <p className="text-xs text-warning">Legacy compatibility record: existing execution and editor are retained. The unified projection is disabled and requires explicit review before creating a separate Job. {job.unified.compatibility.migrationIssues?.join('; ')}</p>}
+            {(!job.unified || job.unified.compatibility) && <LegacyJobDetails job={job} />}
+            {job.unified && !job.unified.compatibility && <Section title="Unified execution">
               <KV label="Action reference">{job.unified.config.actionId}</KV>
               <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
               <KV label="Snapshot cleanup">{job.snapshotCleanup ?? 'none'}</KV>
@@ -379,7 +382,7 @@ export function JobDetailDrawer({
                       : job.target.sessionId ?? 'no target'}
                   </span>
                 </KV>
-                <KV label="Run count">{job.runCount}</KV>
+                <KV label={job.unified && !job.unified.compatibility ? 'Run count' : 'Legacy execution count'}>{job.runCount ?? 0}</KV>
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
@@ -579,7 +582,7 @@ export function JobDetailDrawer({
             </Section>
 
             {/* 4. Runs history */}
-            <Section title="Runs">
+            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Legacy execution history'}>
               {runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
                   {runsLoading ? 'Loading…' : '—'}
