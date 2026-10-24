@@ -1,6 +1,6 @@
 {
-  "port": 50952,
-  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4308\\test_report_prompt_reference_r0\\owned-prompt-reference",
+  "port": 61286,
+  "runtime": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4323\\test_report_prompt_reference_r0\\owned-prompt-reference",
   "browser": {
     "summaryDefaultsOff": true,
     "pluginSummaryNoInherit": true,
@@ -9,19 +9,19 @@
     "pageErrors": []
   },
   "sessions": [
-    "ses_f160a2c91a0dc4cd",
-    "ses_a99e917c8f11035e",
-    "ses_941481c64ddc18c2"
+    "ses_211e204727caae3a",
+    "ses_018dc64f1c3f972a",
+    "ses_5f0720d8f7ce302f"
   ],
   "pidIdentities": [
     [
-      41052,
-      1792859961.0556617,
-      "E:\\software\\miniforge\\python.exe D:\\project\\pan-worktrees\\report-prompt-reference-20261025\\tests\\support\\isolated_http_server.py --port 50952 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4308\\test_report_prompt_reference_r0\\owned-prompt-reference"
+      29064,
+      1792860312.0427516,
+      "E:\\software\\miniforge\\python.exe D:\\project\\pan-worktrees\\report-prompt-reference-20261025\\tests\\support\\isolated_http_server.py --port 61286 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4323\\test_report_prompt_reference_r0\\owned-prompt-reference"
     ],
     [
-      26880,
-      1792859961.0669556,
+      14028,
+      1792860312.0519187,
       "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
     ]
   ],
@@ -33,12 +33,12 @@
   "wsEvents": 19,
   "fakeCliIdentitiesCleaned": [
     [
-      3716,
-      1792859966.832055
+      54784,
+      1792860318.6740713
     ],
     [
-      15124,
-      1792859967.1765428
+      46988,
+      1792860318.2674284
     ]
   ],
   "ownedPortReleased": true

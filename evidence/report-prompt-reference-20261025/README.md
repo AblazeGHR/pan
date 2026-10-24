@@ -12,7 +12,9 @@ and user processes were not touched.
 - Branch: `feature/report-prompt-reference-20261025`.
 - Worktree: `D:/project/pan-worktrees/report-prompt-reference-20261025`.
 - Fixed baseline: `be46c1448a0a0e157d21fc0a9b0722c3411e6ec1` (main/practical unchanged; not moved).
-- Product/test/docs commit: `55fb6c0cc1d2d8691dbd81db0e37d63b2c0df24f`.
+- Product/test/docs commits: `55fb6c0cc1d2d8691dbd81db0e37d63b2c0df24f` (feature)
+  and `dc53933291944ab29011b17754952bd43a1d2857` (MA-review batch-summary
+  correction).
 - This evidence-only commit is the deliverable tip; confirm it with `git rev-parse HEAD`.
 
 ## Behavior delivered
@@ -28,8 +30,9 @@ and user processes were not touched.
   record before terminal awaits. Queued-but-unexecuted rows, late HTTP
   enqueues, later history appends and provider frames cannot retarget it.
 - Merged report/channel batches are one provider-visible message: members share
-  the row's `messageId`, and the last admitted member in actual order is the
-  single reference that supplies the summary.
+  the row's `messageId`. The summary is that same row's canonical content
+  prefix, attached only when **every** contributor's frozen decision enabled
+  summaries; any disabled/unknown/Report contributor makes it `null`.
 - An accepted Steer replaces this turn's reference with the Steer input row.
   Rejected/unknown receipts and late receipts for another Worker,
   generation/execution leave it unchanged.
@@ -54,6 +57,42 @@ and user processes were not touched.
 
 Contract details are in `docs/source-aware-auto-report.md` ("Prompt reference on
 reports") and `docs/skills/pan/references/http-api.md`.
+
+## 2026-10-25 batch-summary correction (MA review)
+
+MA review found that a merged batch reported the canonical row ID while taking
+the summary from `items[-1]`, so the summary was not a prefix of the body that
+ID resolves to, and one enabled source could preview a disabled source's body.
+
+`dc539332` corrects this without changing batching, the single canonical ID, or
+any hand-off/Steer gate:
+
+- `promptSummary` is now exactly `history_row.content[:100]` for both single and
+  merged inputs (task body, or the formatted notice/report batch text).
+- A merged batch attaches that summary only when every contributing item's
+  frozen `autoReportAdmission.summary` is explicitly `true`; any off/unknown/
+  Report contributor yields `null`.
+- Recovery (`_delivered_prompt_row`) reuses a history row only when that one row
+  carries every member's delivery key; a partial-key row yields no reference.
+
+| Command / selection | Result | Evidence |
+| --- | --- | --- |
+| Directed file against the pre-fix candidate (`packages/core/worker.py` stashed) | Exit 1; 6 failed (mixed batch, all-on prefix, formatted notice, recovery proof, automation hand-off, batch race) | `red-batch-summary.txt` |
+| Directed file after the fix | Exit 0; 18 passed | `green-batch-summary.txt` |
+| `tests/test_report_prompt_reference.py tests/test_source_aware_auto_report.py tests/test_delivery_semantics.py tests/test_steer_history_consistency.py tests/test_manual_task_report.py tests/test_report_subscription.py` | Exit 0; 189 passed | `batch-fix-regression.xml`, `batch-fix-regression.txt` |
+| Real chain re-run | Exit 0; 1 passed in 8.22s; owned port 61286, `pageErrors: []`, port released | `real-chain-batch-fix.xml`, `real-chain-batch-fix.txt`, refreshed `real-chain.json` |
+
+New deterministic assertions: a mixed batch with the first source off and the
+last on carries `promptMessageId` but `promptSummary: null` and does not leak the
+disabled body; an all-on batch summary equals `canonical content[:100]`; a single
+formatted notice summary equals its canonical row prefix and the ID lookup
+returns that prefix; disabled and Report-only inputs stay null; a partial
+delivery-key row is never accepted while a row with all keys is.
+
+The 331-test focused selection and the frontend build were intentionally not
+re-run for this delta: no frontend file changed and the fix is confined to
+`_freeze_prompt_ref`/`_delivered_prompt_row` plus its directed tests. The
+earlier measurements above remain valid for the unchanged frontend.
 
 ## Reproducible validation
 
@@ -83,7 +122,8 @@ terminal evidence, and "summary off attaches no input body".
 
 ## Real chain and browser evidence
 
-`real-chain.json` records: owned dynamic port 50952, the three owned Sessions,
+`real-chain.json` records: the owned dynamic port (the file now reflects the
+batch-fix re-run, 61286; the first run used 50952), the three owned Sessions,
 owned Pan/conhost PID identities, `pageErrors: []`, and fakeCLI PID identities
 cleaned to exit. It proves:
 

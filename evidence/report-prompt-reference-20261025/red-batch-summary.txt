@@ -1,0 +1,9 @@
+....F..FFFF.F.....                                                       [100%]
+=========================== short test summary info ===========================
+FAILED tests/test_report_prompt_reference.py::test_handoff_freezes_real_input_identity_per_origin[automation-\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5\u7cfb\u7edf\u901a\u77e5-extra2-system]
+FAILED tests/test_report_prompt_reference.py::test_batch_uses_last_admitted_input_and_queued_newcomers_do_not_cross_turns
+FAILED tests/test_report_prompt_reference.py::test_mixed_batch_summary_requires_every_contributing_source
+FAILED tests/test_report_prompt_reference.py::test_all_enabled_batch_summary_is_the_canonical_row_prefix
+FAILED tests/test_report_prompt_reference.py::test_single_formatted_notice_reference_resolves_to_summary_prefix
+FAILED tests/test_report_prompt_reference.py::test_delivery_recovery_requires_every_key_on_the_same_row
+6 failed, 12 passed in 1.51s

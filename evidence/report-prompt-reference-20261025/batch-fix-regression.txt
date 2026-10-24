@@ -1,0 +1,11 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\report-prompt-reference-20261025
+........................................................................ [ 38%]
+........................................................................ [ 76%]
+.............................................                            [100%]
+============================== warnings summary ===============================
+tests/test_source_aware_auto_report.py::test_mcp_identity_reaches_same_http_classification[agent_assign]
+  C:\Users\14709\AppData\Roaming\Python\Python312\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+189 passed, 1 warning in 6.21s
