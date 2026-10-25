@@ -347,6 +347,16 @@ class Templates:
     def snapshot(self, job, execution):
         def change(state):
             config=job['config'];aid=config['actionId']
+            if execution.get('canonicalPlan'):
+                status=integrity(state,config,job['referenceGeneration'])
+                if status['status']!='complete' or status['approvalRequired']:
+                    raise Conflict('Action reference incomplete or requires user repair: '+aid)
+                snapshot=copy.deepcopy(execution['canonicalPlan'])
+                snapshots=state.setdefault('jobExecutions',{})
+                if len(snapshots)>=MAX_SNAPSHOTS:raise ValueError('Temporary snapshot capacity reached')
+                strict(snapshot,set(snapshot),'execution snapshot')
+                snapshots[execution['id']]=snapshot
+                return copy.deepcopy(snapshot)
             if execution.get('chainSnapshot'):
                 snapshot=execution['chainSnapshot']
                 first=snapshot['steps'][0]
