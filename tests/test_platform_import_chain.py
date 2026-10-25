@@ -2,10 +2,10 @@
 
 三层证据（严格区分，不互相冒充）：
 
-1. **模拟 POSIX**（子进程）：把 ``sys.platform`` 钉成 ``linux`` 后导入 P0 链与
-   ``packages.web.server``，并用 import hook 断言没有任何 ``packages.*`` 模块在
-   导入期拉 Windows-only 模块（``ctypes.wintypes`` / ``msvcrt`` / ``winreg`` /
-   ``pywinpty`` / ``win32*``）。
+1. **模拟 POSIX**（子进程）：Windows 宿主把 ``sys.platform`` 翻成 ``linux``
+   （真实 macOS/Linux 保持宿主平台），随后导入 P0 链与 ``packages.web.server``，
+   并用 import hook 断言没有任何 ``packages.*`` 模块在导入期拉 Windows-only 模块
+   （``ctypes.wintypes`` / ``msvcrt`` / ``winreg`` / ``pywinpty`` / ``win32*``）。
 2. **非 Windows 行为**：``JobObjectGuard`` / ``kernel32()`` 明确抛
    ``WindowsApiUnavailable``，不是 ``AttributeError``/``NameError``。
 3. **静态 AST 门禁**：共享模块的模块级导入（平台 ``if`` 门之外的）不得包含
@@ -39,7 +39,8 @@ for name in ("psutil", "fastapi", "uvicorn", "websockets", "httpx", "mcp",
     except Exception:
         pass
 
-sys.platform = "linux"
+# Windows 宿主模拟 POSIX；真实 macOS/Linux 保持宿主平台（darwin/linux）。
+sys.platform = "linux" if sys.platform == "win32" else sys.platform
 
 WIN_ONLY = {"msvcrt", "winreg", "_winreg", "winpty", "pywinpty"}
 
@@ -83,7 +84,7 @@ if violations:
     )
 from packages.core import platform as platform_layer
 from packages.core.terminal import guard
-assert platform_layer.platform_name() == "linux", platform_layer.platform_name()
+assert platform_layer.platform_name() != "windows", platform_layer.platform_name()
 assert guard._WINDOWS is False
 print("ok")
 """
@@ -91,7 +92,7 @@ print("ok")
 _GUARD_ON_POSIX = r"""
 import sys
 
-sys.platform = "linux"
+sys.platform = "linux" if sys.platform == "win32" else sys.platform
 assert "ctypes.wintypes" not in sys.modules
 
 import packages.core.terminal.guard as guard
