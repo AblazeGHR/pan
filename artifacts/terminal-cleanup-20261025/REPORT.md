@@ -121,6 +121,9 @@ packages.core.terminal.launcher`）：
   记录；重试 200）。未捕获到确切异常，**未定位**根因（怀疑与 Windows 并发读下的
   `unlink` 共享冲突有关，但未验证），也未在本次修改 registry。记录重试后可删除是
   已验证事实。
+- **历史记录未迁移**：本次只修正"以后发生的启动失败"的分类；现场已有的两条
+  `cleanup-failed` 旧记录（`pid=null`）不会被自动改写，仍可归档但 `remove()` 仍会
+  拒绝。迁移它们需要单独的证据化 reconcile（本次未做）。
 - 未验证真实 8768 现场、未重启现场服务、未做跨机/跨用户/durable detach；未跑
   远端 CI。
 - 未覆盖 runner 已 bootstrap 后、attach/四门阶段的启动失败（本次现场故障不在这条
