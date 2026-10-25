@@ -203,7 +203,9 @@ def public(value):
     if isinstance(value, dict):
         private = set()
         if 'stepExecutions' in value:private.add('chainSnapshot')
-        if 'jobId' in value and 'config' in value:private.add('chainRecovery')
+        if 'canonicalPlan' in value:private.add('canonicalPlan')
+        if 'jobId' in value and 'config' in value:private.update(('chainRecovery','runRecoveries'))
+        if 'runs' in value and 'operations' in value:private.update(('plans','effectAdmissions'))
         return {k: public(v) for k, v in value.items() if k not in private}
     if isinstance(value, list):
         return [public(v) for v in value]

@@ -53,11 +53,13 @@ async def execute_job_chain(runtime, job):
             if not await io(recovery_ready, definition['definition'], args):
                 raise AuthorizationRevoked('Recovery paused by current business gates')
         context = copy.deepcopy(execution['context'])
+        current = next(s for s in steps if s['stepId'] == definition['stepId'])
         context.update(id=execution['runId'] + ':' + definition['stepId'], admittedExecution=eid,
-                       dispatchKey=execution['runId'] + ':' + definition['stepId'])
+                       dispatchKey=execution['runId'] + ':' + definition['stepId'],
+                       attemptId=current['attempts'][-1]['id'],
+                       effectKey=copy.deepcopy(current['attempts'][-1].get('effectKey')))
         # The old shell adapter checks this persisted Step identity and arguments
         # under its parent Job lock before creating an owned child.
-        current = next(s for s in steps if s['stepId'] == definition['stepId'])
         current['arguments'] = copy.deepcopy(args)
         await save(steps, 'step_running')
         query = snapshot.get('trigger', {}).get('query')
