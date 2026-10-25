@@ -84,6 +84,19 @@ class InteractionStore:
         finally:
             db.close()
 
+    def unread_summary(self, recipient='user'):
+        """Cheap aggregate for the local read-only navigation indicator."""
+        with self.db() as db:
+            row = db.execute('''
+                SELECT
+                  (SELECT COUNT(*) FROM cards WHERE recipient=? AND is_read=0)
+                + (SELECT COUNT(*) FROM locker_messages WHERE recipient=? AND is_read=0)
+                + (SELECT COUNT(*) FROM user_cards
+                     WHERE recipient=? AND answered_at IS NOT NULL AND is_read=0)
+                AS unread
+            ''', (recipient, recipient, recipient)).fetchone()
+        return int(row['unread'])
+
     def _view(self, row, db):
         definition=json.loads(row['definition'])
         definition.setdefault('summaryBody',definition.get('notification',{}).get('summary',definition['body']))
