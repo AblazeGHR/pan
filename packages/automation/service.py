@@ -155,6 +155,9 @@ class Service:
             targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] or t.get('paused') else
                        'unavailable' if not self.engine.available(t) else 'eligible'}
                        for t in state['triggers'].values() if event['type'] in t['eventTypes']]
+            final_jobs = getattr(self, 'final_jobs', None)
+            if final_jobs is not None:
+                targets.extend(await self.engine.io(final_jobs.targets, event))
             for target in targets:
                 if target.get('ownerJobId') and any(op.get('jobId')==target['ownerJobId'] and op['status'] not in {'complete','cancelled'} for op in state.get('linkOperations',{}).values()):target['_admissionStatus']='disabled'
             try:
@@ -188,6 +191,14 @@ class Service:
                 admission=target.get('_admissionStatus','eligible')
                 if admission!='eligible':
                     await self.engine.io(self.events.subscription,eid,key,admission,revision=target.get('revision'))
+                    continue
+                if target.get('_final'):
+                    final_jobs = getattr(self, 'final_jobs', None)
+                    if final_jobs is None:
+                        raise ValueError('Canonical admission service unavailable')
+                    result = await final_jobs.admission.admit(copy.deepcopy(event), target)
+                    await self.engine.io(self.events.subscription,eid,key,'admitted',
+                        admissionResult=result.get('status'),runId=result.get('runId'),revision=target['revision'])
                     continue
                 if target.get('_job'):
                     # Retained pre-cutover inbox rows enter the same Trigger path.

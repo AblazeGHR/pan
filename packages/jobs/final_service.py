@@ -1,0 +1,880 @@
+"""Canonical definition/admission service over the WP02/WP04 ledgers.
+
+The Creator database is the transaction boundary for definitions, Job
+aggregates and HTTP operation receipts. FinalRuntime's store port reads those
+same aggregates: dispatch never creates an independent Job or a second Run.
+Legacy registries are neither imported nor upgraded on startup.
+"""
+from __future__ import annotations
+
+import asyncio
+import copy
+import json
+from contextlib import contextmanager
+from pathlib import Path
+
+import jsonschema
+
+from packages.jobs import final_contracts as fc
+from packages.jobs.chains import resolve as resolve_bindings
+from packages.jobs.final_runtime import FinalRuntime
+from packages.jobs.final_runtime.executor import TypedExecutor, WorkerSessionProvider
+from packages.jobs.final_runtime.ledger import aggregate, new_id, now, principal
+from packages.scheduler.creators import CreatorStore, CanonicalEventStore, CreatorRuntime, EventBus
+from packages.scheduler.composition import CompositionCoordinator
+
+
+PREFIX = "/api/final"
+GRANTS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator", "template": "jobTemplate"}
+ACTIVE = {"queued", "running", "retry_wait", "paused_at_boundary", "cancelling", "settling", "uncertain"}
+
+
+def error(code, message):
+    raise fc.ContractError(code, message)
+
+
+def definition(kind, item):
+    names = fc.schema_artifacts()[kind + "_definition.schema.json"]["properties"]
+    return {key: copy.deepcopy(value) for key, value in item.items() if key in names}
+
+
+def object_ref(kind, item):
+    return {"id": item["id"], "revision": item[fc.VERSION_FIELD[kind]],
+            "digest": fc.digest(definition(kind, item))}
+
+
+class AggregateStore:
+    """FinalRuntime's store port; mutations join the definition transaction."""
+    def __init__(self, service):
+        self.service = service
+
+    def get(self, job_id):
+        with self.service.transaction() as db:
+            return copy.deepcopy(self.service._get(db, "job", job_id))
+
+    def mutate(self, job_id, change):
+        with self.service.transaction() as db:
+            job = self.service._get(db, "job", job_id)
+            result = change(job)
+            self.service._save(db, "job", job_id, job)
+            return copy.deepcopy(result)
+
+
+class TriggerAdmission:
+    """WP02 TriggerAdmissionPort implemented by the WP03 admission service."""
+    def __init__(self, service):
+        self.service = service
+
+    async def admit(self, event, target):
+        return await self.service.admit_event_async(event, target)
+
+
+class FinalService:
+    def __init__(self, root, auth, *, automation_ledger=None, executor=None):
+        self.root = Path(root).resolve()
+        self.auth = auth
+        self.automation_ledger = automation_ledger
+        self.creators = CreatorStore(self.root)
+        self.profile_id = self.creators.profile_id
+        self.final = FinalRuntime(self.root, store=AggregateStore(self))
+        self.events = CanonicalEventStore(self.root)
+        self.bus = EventBus(self.events, self.creators.get)
+        self.creator_runtime = CreatorRuntime(self.creators, self.bus, authorize=self._guard_creator)
+        self.compositions = CompositionCoordinator(self.creators, self)
+        self.admission = TriggerAdmission(self)
+        self.executor = executor or TypedExecutor(session_provider=WorkerSessionProvider())
+        self.task = None
+        self.closed = False
+        self.diagnostics = []
+        self._dispatch_lock = asyncio.Lock()
+        self.state_reader = None
+        with self.transaction() as db:
+            db.execute("CREATE TABLE IF NOT EXISTS final_documents(kind TEXT,id TEXT,document TEXT NOT NULL,PRIMARY KEY(kind,id))")
+            db.execute("CREATE TABLE IF NOT EXISTS final_operations(id TEXT PRIMARY KEY,scope TEXT,requestKey TEXT,document TEXT NOT NULL,UNIQUE(scope,requestKey))")
+            db.execute("CREATE TABLE IF NOT EXISTS final_authorities(kind TEXT,id TEXT,document TEXT NOT NULL,PRIMARY KEY(kind,id))")
+            db.execute("CREATE TABLE IF NOT EXISTS final_event_receipts(eventId TEXT,triggerId TEXT,status TEXT,PRIMARY KEY(eventId,triggerId))")
+            db.execute("CREATE TABLE IF NOT EXISTS final_event_operations(eventId TEXT,triggerId TEXT,operationId TEXT,factDigest TEXT,PRIMARY KEY(eventId,triggerId))")
+        self._install_product_actions()
+
+    @contextmanager
+    def transaction(self):
+        with self.creators.transaction() as db:
+            yield db
+
+    @staticmethod
+    def _get(db, kind, object_id):
+        row = db.execute("SELECT document FROM final_documents WHERE kind=? AND id=?", (kind, object_id)).fetchone()
+        if row is None:
+            raise KeyError(object_id)
+        return json.loads(row[0])
+
+    @staticmethod
+    def _save(db, kind, object_id, value):
+        db.execute("INSERT OR REPLACE INTO final_documents VALUES(?,?,?)", (kind, object_id, fc.canonical_json(value)))
+
+    @staticmethod
+    def _all(db, kind):
+        return [json.loads(row[0]) for row in db.execute("SELECT document FROM final_documents WHERE kind=? ORDER BY id", (kind,))]
+
+    def _permit(self, actor, kind, capability, *, execution=False):
+        if actor.get("type") == "user":
+            return self.auth.permissions_status()["revision"]
+        if actor.get("type") != "agent":
+            error("authorization_denied", "Untrusted principal")
+        allowed, revision = self.auth.permission_allowed(GRANTS.get(kind, kind), capability)
+        if not allowed or (execution and actor.get("revision") != revision):
+            error("authorization_denied", "Authorization revoked or capability denied")
+        return revision
+
+    def _envelope(self, kind, value, actor, *, object_id=None, state="draft"):
+        item = {**copy.deepcopy(value), "schemaVersion": 2, "id": object_id or new_id(kind + "_"),
+                "profileId": self.profile_id, "createdBy": principal(actor), "owner": principal(actor),
+                "createdAt": now(), "updatedAt": now(), "state": state, "stateRevision": 0,
+                fc.VERSION_FIELD[kind]: 1}
+        if kind == "action":
+            item["enabled"] = True
+        return fc.validate_object(kind, item)
+
+    def _public(self, kind, item):
+        if kind == "job":
+            item = item["canonical"]
+        if kind == "event_creator":
+            names = fc.schema_artifacts()["event_creator.schema.json"]["properties"]
+            item = {key: value for key, value in item.items() if key in names}
+        return fc.validate_object(kind, copy.deepcopy(item))
+
+    def _object(self, db, kind, object_id):
+        item = self.creators.get(object_id) if kind == "event_creator" else self._get(db, kind, object_id)
+        if item is None:
+            raise KeyError(object_id)
+        return self._public(kind, item)
+
+    def _resolver(self, db):
+        def resolve(kind, object_id):
+            try:
+                if kind == "action":
+                    item = self._get(db, kind, object_id)
+                    return {**item, "definition": definition(kind, item), "digest": fc.digest(definition(kind, item))}
+                return self._object(db, kind, object_id)
+            except KeyError:
+                return None
+        return resolve
+
+    def _references(self, db, kind, value, *, object_id=None, enabled=False):
+        if kind == "job" and value.get("recovery", {}).get("automatic"):
+            error("capability_unsupported", "Automatic recovery requires a separately bound recovery policy")
+        checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
+        if kind == "trigger":
+            selector = value["creatorSelector"]
+            if selector["mode"] == "ids":
+                for cid in selector["ids"]:
+                    item = self.creators.get(cid)
+                    if item is None or item["state"] == "retired":
+                        error("reference_conflict", "Creator unavailable")
+        return checked
+
+    def _scope(self, actor, operation):
+        return fc.idempotency_scope(principal(actor), self.profile_id, "create" if operation == "run-again" else operation)
+
+    def _operation(self, db, actor, operation, key, payload, kind, mutate):
+        fc.check_request_key(key)
+        scope = self._scope(actor, operation)
+        fingerprint = fc.request_digest(operation, payload)
+        row = db.execute("SELECT document FROM final_operations WHERE scope=? AND requestKey=?", (scope, key)).fetchone()
+        if row:
+            prior = json.loads(row[0])
+            fc.idempotency_outcome({"scope": scope, "requestDigest": prior["requestDigest"]},
+                                   scope=scope, request_digest=fingerprint)
+            return {**copy.deepcopy(prior["response"]), "replayed": True}
+        operation_id = new_id("op_")
+        result, refs, pending = mutate(operation_id)
+        response = {"operationId": operation_id, "requestKey": key, "status": "accepted" if pending else "completed",
+                    "objectRefs": refs, "result": result, "links": {"self": PREFIX + "/operations/" + operation_id}}
+        for name in ("runId", "admissionId"):
+            if name in result:
+                response[name] = result[name]
+        fc.validate_operation_result(response)
+        record = {"principal": principal(actor), "kind": kind, "operation": operation,
+                  "requestDigest": fingerprint, "response": response, "createdAt": now()}
+        db.execute("INSERT INTO final_operations VALUES(?,?,?,?)", (operation_id, scope, key, fc.canonical_json(record)))
+        return response
+
+    def _page(self, values, kind, cursor, limit, actor):
+        # Cursor is opaque and bound to the visible principal/profile/kind.
+        scope = fc.digest({"principal": principal(actor), "profile": self.profile_id, "kind": kind})
+        offset = 0
+        if cursor:
+            import base64
+            try:
+                token = json.loads(base64.urlsafe_b64decode(cursor))
+                if set(token) != {"scope", "offset"} or token["scope"] != scope or type(token["offset"]) is not int or token["offset"] < 0:
+                    raise ValueError()
+                offset = token["offset"]
+            except (ValueError, KeyError, TypeError):
+                error("invalid_schema", "Invalid page cursor")
+        items = values[offset:offset + limit]
+        next_cursor = None
+        if offset + limit < len(values):
+            import base64
+            next_cursor = base64.urlsafe_b64encode(fc.canonical_json({"scope": scope, "offset": offset + limit}).encode()).decode()
+        return {"items": items, "nextCursor": next_cursor}
+
+    def list(self, kind, *, actor, cursor=None, limit=100):
+        self._permit(actor, kind, "read")
+        with self.transaction() as db:
+            items = self.creators.list() if kind == "event_creator" else self._all(db, kind)
+            return self._page([self._public(kind, item) for item in items], kind, cursor, limit, actor)
+
+    def get(self, kind, object_id, *, actor):
+        self._permit(actor, kind, "read")
+        with self.transaction() as db:
+            return self._object(db, kind, object_id)
+
+    def write(self, kind, object_id, body, *, actor):
+        self._permit(actor, kind, "create" if object_id is None else "updateConfig")
+        if set(body) - {"definition", "expectedRevision", "requestKey", "requestDigest"}:
+            error("invalid_schema", "Unknown write fields")
+        value = fc.validate_write(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+        with self.transaction() as db:
+            def mutate(operation_id):
+                old = self._object(db, kind, object_id) if object_id is not None else None
+                if old:
+                    fc.check_revision(old[fc.VERSION_FIELD[kind]], value["expectedRevision"])
+                    if old["state"] == "retired" or (kind == "template" and old["state"] == "published"):
+                        error("reference_conflict", "Immutable or retired definition")
+                self._references(db, kind, value["definition"], object_id=object_id)
+                if kind == "event_creator":
+                    if old is None:
+                        item = self.creators.create(value["definition"], request_key=operation_id,
+                                                    created_by=principal(actor), owner=principal(actor))
+                    else:
+                        item = self.creators.update(object_id, value["definition"], expected_revision=value["expectedRevision"], request_key=operation_id)
+                    item = self._public(kind, item)
+                else:
+                    item = self._envelope(kind, value["definition"], actor) if old is None else {
+                        **value["definition"], **{key: old[key] for key in fc.SERVER_FIELDS if key in old},
+                        fc.VERSION_FIELD[kind]: old[fc.VERSION_FIELD[kind]] + 1, "updatedAt": now()}
+                    item = fc.validate_object(kind, item)
+                    stored = item
+                    if kind == "job":
+                        stored = self._get(db, kind, object_id) if old else {"jobId": item["id"]}
+                        stored.update(canonical=item, config=copy.deepcopy(value["definition"]), configRevision=item["configRevision"])
+                        aggregate(stored, self.root)["profileId"] = self.profile_id
+                    self._save(db, kind, item["id"], stored)
+                if kind == "trigger":
+                    db.execute("DELETE FROM creator_links WHERE triggerId=?", (item["id"],))
+                    if item["creatorSelector"]["mode"] == "ids":
+                        for cid in item["creatorSelector"]["ids"]:
+                            self.creators.bind_link(cid, item["id"], item["targetJobId"])
+                db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, item["id"], fc.canonical_json(actor)))
+                return {"object": item}, [object_ref(kind, item)], False
+            return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+                                   {"kind": kind, "objectId": object_id, **value}, kind, mutate)
+
+    def control(self, kind, object_id, body, *, actor, capability=None):
+        self._permit(actor, kind, capability or ("updateConfig" if kind == "template" else "lifecycle"))
+        op = body["operation"]
+        with self.transaction() as db:
+            def mutate(operation_id):
+                item = self._object(db, kind, object_id)
+                fc.check_revision(item[fc.VERSION_FIELD[kind]], body["expectedRevision"])
+                fc.check_revision(item["stateRevision"], body["expectedStateRevision"])
+                transition = fc.check_definition_operation(kind, item["state"], op)
+                if body["parameters"]:
+                    error("invalid_schema", "Operation has no supported parameters")
+                if op == "transfer-owner":
+                    error("unsupported_operation", "Owner transfer needs its explicit composition contract")
+                if transition["state"] == "enabled":
+                    self._references(db, kind, definition(kind, item), object_id=object_id, enabled=True)
+                    db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, object_id, fc.canonical_json(actor)))
+                if kind == "event_creator":
+                    self.creators.set_state(object_id, transition["state"], expected_state_revision=body["expectedStateRevision"])
+                    item = self._object(db, kind, object_id)
+                else:
+                    item.update(state=transition["state"], stateRevision=item["stateRevision"] + transition["stateRevisionDelta"],
+                                updatedAt=now())
+                    item[fc.VERSION_FIELD[kind]] += transition["versionDelta"]
+                    item = fc.validate_object(kind, item)
+                    if kind == "job":
+                        stored = self._get(db, kind, object_id)
+                        stored.update(canonical=item, configRevision=item["configRevision"])
+                    else:
+                        stored = item
+                    self._save(db, kind, object_id, stored)
+                return {"object": item}, [object_ref(kind, item)], False
+            return self._operation(db, actor, op, body["requestKey"], {"kind": kind, "id": object_id, **body}, kind, mutate)
+
+    def retire(self, kind, object_id, body, *, actor):
+        return self.control(kind, object_id, body, actor=actor, capability="delete")
+
+    def _admit(self, db, job, value, actor, operation_id, *, cause=None):
+        item = job["canonical"]
+        fc.check_revision(item["configRevision"], value["expectedRevision"])
+        if item["state"] != "enabled":
+            error("reference_conflict", "Job is not enabled")
+        self._permit(actor, "job", "execute", execution=True)
+        cfg = definition("job", item)
+        actions = self._references(db, "job", cfg, object_id=item["id"], enabled=True)
+        input_value = copy.deepcopy(value["input"])
+        if not jsonschema.Draft202012Validator(cfg["inputSchema"]).is_valid(input_value):
+            error("invalid_schema", "Input does not match Job schema")
+        state = aggregate(job, self.root)
+        active = [run for run in state["runs"].values() if run["state"] in ACTIVE]
+        overlap = cfg["overlap"]
+        if overlap["mode"] == "forbid" and active:
+            admission = self.final.ledger.admit(job, self.root, plan={}, cause=cause or {"type": "manual"},
+                authority=actor, state="skipped", reason="overlap", operation_id=operation_id)
+            self._save(db, "job", item["id"], job)
+            return {"admissionId": admission["admissionId"], "configRevision": item["configRevision"], "skipped": True}
+        if len(active) >= overlap["maxActive"] + overlap["maxPending"]:
+            error("capacity_exceeded", "Job pending capacity reached")
+        if cfg.get("runLimit") and len(state["runs"]) >= cfg["runLimit"]["maxRuns"]:
+            error("capacity_exceeded", "Job Run limit reached")
+        rerun = value.get("rerunOf")
+        if rerun:
+            self.final.ledger.run(job, self.root, rerun)
+        frozen = {"steps": copy.deepcopy(cfg["steps"]), "actions": {a["id"]: a for a in actions if a.get("definition")},
+                  "input": input_value, "event": copy.deepcopy(value.get("event", {})),
+                  "authority": copy.deepcopy(actor), "configRevision": item["configRevision"]}
+        for step in cfg["steps"]:
+            if any(binding["from"] == "step" for binding in step["arguments"].values()):
+                continue  # Dynamic output mapping is checked at its Step boundary.
+            try:
+                arguments = resolve_bindings(step["arguments"], input_value, frozen["event"], {})
+            except ValueError:
+                error("invalid_schema", "Step input mapping cannot be resolved")
+            action = frozen["actions"][step["actionRef"]["id"]]
+            if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(arguments):
+                error("invalid_schema", "Step input does not match Action schema")
+        admission = self.final.ledger.admit(job, self.root, plan=frozen, cause=cause or {"type": "manual"},
+                                          authority=actor, operation_id=operation_id, rerun_of=rerun,
+                                          authorization_revision=max(1, self.auth.permissions_status()["revision"]))
+        run = next(r for r in state["runs"].values() if r["admissionId"] == admission["admissionId"])
+        self._save(db, "job", item["id"], job)
+        return {"runId": run["runId"], "admissionId": admission["admissionId"], "configRevision": run["configRevision"]}
+
+    def create_run(self, job_id, body, *, actor):
+        self._permit(actor, "job", "execute")
+        if set(body) - {"expectedRevision", "requestKey", "input", "cause", "rerunOf"} or not {"expectedRevision", "requestKey", "input", "cause"} <= set(body) or body["cause"] != {"type": "manual"}:
+            error("invalid_schema", "Invalid manual Run request")
+        with self.transaction() as db:
+            def mutate(operation_id):
+                job = self._get(db, "job", job_id)
+                result = self._admit(db, job, body, actor, operation_id)
+                return result, [object_ref("job", job["canonical"])], not result.get("skipped", False)
+            return self._operation(db, actor, "create", body["requestKey"], {"jobId": job_id, **body}, "job", mutate)
+
+    def _find_run(self, db, run_id):
+        for job in self._all(db, "job"):
+            if run_id in aggregate(job, self.root)["runs"]:
+                return job, job["finalRuntime"]["runs"][run_id]
+        raise KeyError(run_id)
+
+    def get_run(self, run_id, *, actor):
+        self._permit(actor, "job", "read")
+        with self.transaction() as db:
+            return copy.deepcopy(self._find_run(db, run_id)[1])
+
+    def runs(self, job_id, *, actor, cursor=None, limit=100):
+        self._permit(actor, "job", "read")
+        return self._page(self.final.runs(job_id), "runs:" + job_id, cursor, limit, actor)
+
+    def control_run(self, run_id, body, *, actor):
+        self._permit(actor, "job", "execute")
+        operation = body["operation"]
+        if operation == "clone-and-run":
+            self._permit(actor, "job", "create")
+        with self.transaction() as db:
+            def mutate(operation_id):
+                job, run = self._find_run(db, run_id)
+                fc.check_revision(run["stateRevision"], body["expectedStateRevision"])
+                state = aggregate(job, self.root)
+                result = {"runId": run_id}
+                pending = False
+                if operation in {"run-again", "clone-and-run"}:
+                    result = {}
+                    fc.check_revision(job["configRevision"], body["expectedRevision"])
+                    params = body.get("parameters", {})
+                    if set(params) - {"input", "overrides"} or (operation == "run-again" and "overrides" in params):
+                        error("invalid_schema", "Invalid execution parameters")
+                    input_value = params.get("input", definition("job", job["canonical"])["arguments"])
+                    if operation == "clone-and-run":
+                        overrides = params.get("overrides", {})
+                        if not isinstance(overrides, dict) or set(overrides) - {"name", "description"}:
+                            error("invalid_schema", "Clone overrides only accept metadata")
+                        graph = {"job": {**definition("job", job["canonical"]), **overrides, "triggerLinks": []}, "creators": [], "triggers": []}
+                        composed = self.compositions.compose(request_key=operation_id, desired_graph=graph,
+                            authorization_evidence={"principal": principal(actor)}, activate=True, operation="clone-and-run")
+                        job = self._get(db, "job", composed["objectIds"]["job"])
+                        result["jobId"] = job["jobId"]
+                    request = {"expectedRevision": job["configRevision"], "input": input_value}
+                    if operation == "run-again":
+                        request["rerunOf"] = run_id
+                    result.update(self._admit(db, job, request, actor, operation_id))
+                    pending = not result.get("skipped", False)
+                elif operation == "retry":
+                    if run["state"] == "uncertain":
+                        error("reconciliation_required", "Unknown effect must be reconciled")
+                    if run["state"] != "failed":
+                        error("not_retryable", "Run is not failed")
+                    failed = [step for step in state["steps"][run_id].values() if step["state"] == "failed"]
+                    if body.get("stepId") and (not failed or body["stepId"] != failed[0]["stepId"]):
+                        error("not_retryable", "Retry must resume the failed boundary")
+                    if not failed or run_id not in state["plans"]:
+                        error("not_retryable", "Frozen snapshot unavailable")
+                    if any(e["outcome"] in {"unknown", "partial"} for e in state["effects"] if e["effectKey"]["runId"] == run_id):
+                        error("reconciliation_required", "Unknown Effect cannot be retried")
+                    frozen = state["plans"][run_id]["frozen"]
+                    failed_id = failed[0]["stepId"]
+                    step = next(s for s in frozen["steps"] if s["stepId"] == failed_id)
+                    policy = frozen["actions"][step["actionRef"]["id"]]["retry"]
+                    prior = [e for e in state["effects"] if e["effectKey"]["runId"] == run_id and e["effectKey"]["stepId"] == failed_id]
+                    if any(e["outcome"] == "succeeded" for e in prior):
+                        error("not_retryable", "Successful effect cannot be repeated")
+                    if prior and (not (policy["idempotent"] or policy["sameKeySupported"]) or
+                                  (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed"))):
+                        error("not_retryable", "Effect lacks retry/cleanup proof")
+                    self.final.ledger.transition_run(job, self.root, run_id, "retry_wait", operation="retry")
+                    result["attemptId"] = None
+                    pending = True
+                elif operation == "cancel":
+                    if run["state"] == "uncertain":
+                        error("reconciliation_required", "Uncertain cancellation needs reconciliation")
+                    if run["state"] not in ACTIVE:
+                        error("cancellation_window_closed", "Run already settled")
+                    if run["state"] != "cancelling":
+                        self.final.ledger.transition_run(job, self.root, run_id, "cancelling", operation="cancel")
+                    pending = True
+                elif operation == "pause":
+                    if run["state"] not in {"queued", "retry_wait", "running"}:
+                        error("unsupported_operation", "Run cannot pause")
+                    state["plans"][run_id]["pauseRequested"] = True
+                    run["stateRevision"] += 1
+                    run["transitionSeq"] += 1
+                    pending = True
+                elif operation == "resume":
+                    if not state["plans"][run_id].get("pauseRequested") and run["state"] != "paused_at_boundary":
+                        error("unsupported_operation", "Run is not paused")
+                    state["plans"][run_id]["pauseRequested"] = False
+                    run["stateRevision"] += 1
+                    run["transitionSeq"] += 1
+                    pending = True
+                else:
+                    error("unsupported_operation", "Unknown Run operation")
+                if operation not in {"run-again", "clone-and-run"}:
+                    self._save(db, "job", job["jobId"], job)
+                return result, [object_ref("job", job["canonical"])], pending
+            return self._operation(db, actor, operation, body["requestKey"], {"runId": run_id, **body}, "job", mutate)
+
+    def operation(self, operation_id, *, actor):
+        with self.transaction() as db:
+            row = db.execute("SELECT document FROM final_operations WHERE id=?", (operation_id,)).fetchone()
+            if row is None:
+                raise KeyError(operation_id)
+            record = json.loads(row[0])
+            if record["principal"] != principal(actor):
+                raise KeyError(operation_id)
+            self._permit(actor, record["kind"], "read")
+            return copy.deepcopy(record["response"])
+
+    def operation_for_key(self, operation, request_key, *, actor):
+        with self.transaction() as db:
+            row = db.execute("SELECT id FROM final_operations WHERE scope=? AND requestKey=?", (self._scope(actor, operation), request_key)).fetchone()
+            if row is None:
+                raise KeyError(request_key)
+            return self.operation(row[0], actor=actor)
+
+    # WP04 CompositionPort. All callbacks share the outer Creator transaction.
+    def create_disabled(self, operation):
+        with self.transaction() as db:
+            ids, graph = operation["objectIds"], operation["desiredGraph"]
+            who = operation["authorizationEvidence"]["principal"]
+            item = self._envelope("job", fc.validate_definition("job", graph["job"]), who,
+                                  object_id=ids["job"], state="disabled")
+            self._save(db, "job", item["id"], {"jobId": item["id"], "canonical": item,
+                "config": definition("job", item), "configRevision": 1})
+            for spec in graph["triggers"]:
+                trigger = self._envelope("trigger", fc.validate_definition("trigger", spec["definition"]), who,
+                                         object_id=ids["triggers"][spec["key"]], state="disabled")
+                self._save(db, "trigger", trigger["id"], trigger)
+
+    def verify_links(self, operation):
+        with self.transaction() as db:
+            job = self._object(db, "job", operation["objectIds"]["job"])
+            self._references(db, "job", definition("job", job), object_id=job["id"])
+            for spec in operation["desiredGraph"]["triggers"]:
+                self._references(db, "trigger", spec["definition"])
+
+    def commit_activation(self, operation, token):
+        with self.transaction() as db:
+            job = self._get(db, "job", operation["objectIds"]["job"])
+            job["activationToken"] = token
+            self._save(db, "job", job["jobId"], job)
+
+    def activate(self, operation, token, enabled):
+        with self.transaction() as db:
+            job = self._get(db, "job", operation["objectIds"]["job"])
+            if job.get("activationToken") != token:
+                error("reference_conflict", "Activation token missing")
+            job["canonical"]["state"] = "enabled" if enabled else "disabled"
+            self._save(db, "job", job["jobId"], job)
+            for tid in operation["objectIds"]["triggers"].values():
+                trigger = self._get(db, "trigger", tid)
+                trigger["state"] = "enabled" if enabled else "disabled"
+                self._save(db, "trigger", tid, trigger)
+
+    def complete(self, operation):
+        pass  # WP04 persists the terminal composition receipt in this transaction.
+
+    def cancel(self, operation):
+        self.activate(operation, operation.get("activationToken"), False)
+
+    def publish_action(self, action_id, value):
+        """Trusted product/provider publication; deliberately not a public route."""
+        value = fc.validate_definition("action", value)
+        with self.transaction() as db:
+            try:
+                old = self._get(db, "action", action_id)
+            except KeyError:
+                old = None
+            if old is not None:
+                if definition("action", old) != value:
+                    error("reference_conflict", "Published Action content is immutable")
+                return old
+            item = self._envelope("action", value, {"type": "user", "id": "local"}, object_id=action_id, state="published")
+            item["enabled"] = True
+            self._save(db, "action", action_id, fc.validate_object("action", item))
+            return item
+
+    def _install_product_actions(self):
+        products = [("process", "write_local", "process-exit"),
+                                     ("session-message", "write_local", "durable-queue-accepted"),
+                                     ("session-broadcast", "write_local", "durable-queue-accepted")]
+        if getattr(self.executor, "channel_provider", None) is not None:
+            products.append(("channel", "write_external", "provider-receipt"))
+        string = {"type": "string", "minLength": 1}
+        schemas = {
+            "process": {"argv": {"type": "array", "minItems": 1, "items": string}, "cwd": string, "hideWindow": {"type": "boolean"}},
+            "session-message": {"sessionId": string, "text": string},
+            "session-broadcast": {"sessionIds": {"type": "array", "minItems": 1, "uniqueItems": True, "items": string}, "text": string},
+            "channel": {"targetType": {"enum": ["user", "group"]}, "targetId": {"type": "string", "pattern": "^[0-9]+$"},
+                        "botUin": {"type": "string", "pattern": "^[0-9]+$"}, "text": string},
+        }
+        for op, effect, contract in products:
+            required = [key for key in schemas[op] if key not in {"hideWindow", "botUin"}]
+            self.publish_action("product_" + op.replace("-", "_"), {
+                "name": op, "inputSchema": {"type": "object", "properties": schemas[op], "required": required, "additionalProperties": False}, "outputSchema": {"type": "object"},
+                "providerRef": {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1},
+                "execution": {"operation": op, "config": {}}, "effectClass": effect,
+                "requiredCapabilities": [], "completionContracts": [{"id": contract, "schema": {"type": "object"}, "terminalProofSchema": {"type": "object"}}],
+                "defaultCompletion": contract, "cancel": {"supported": False}, "reconcile": {"supported": False},
+                "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
+
+    def actions(self, *, actor):
+        self._permit(actor, "action", "read")
+        with self.transaction() as db:
+            return {"items": self._all(db, "action"), "nextCursor": None}
+
+    def _guard_effect(self, db, job, run_id, frozen, action):
+        self._permit(frozen["authority"], "job", "execute", execution=True)
+        if action.get("system"):
+            self._permit(frozen["authority"], "action", "manageSystemActions", execution=True)
+        # Definition retirement/disable blocks new admission. Already frozen
+        # Runs remain valid; pause is checked at each boundary by the driver.
+        current = self._get(db, "action", action["id"])
+        if not current["enabled"] or current["state"] != "published":
+            error("authorization_denied", "Action unavailable before effect")
+        if action.get("effectClass") == "high_risk":
+            error("authorization_denied", "Arbitrary high-risk effects are forbidden")
+
+    async def dispatch_once(self):
+        """Drive WP02 records through WP05, one serial boundary per Run."""
+        async with self._dispatch_lock:
+            with self.transaction() as db:
+                candidates = []
+                for job in self._all(db, "job"):
+                    runs = list(aggregate(job, self.root)["runs"].values())
+                    # Unknown effects still occupy concurrency capacity.
+                    # Queued cancellation, however, needs no effect slot.
+                    candidates.extend((job["jobId"], run["runId"]) for run in runs if run["state"] == "cancelling")
+                    occupied = sum(run["state"] in {"running", "uncertain", "settling"} for run in runs)
+                    ready = [r for r in runs if r["state"] in {"queued", "retry_wait", "paused_at_boundary"}]
+                    # Canonical JSON sorts map keys, so dictionary iteration
+                    # after reload is not admission order.
+                    ready.sort(key=lambda run: (run["createdAt"], run["runId"]))
+                    slots = max(0, job["config"]["overlap"]["maxActive"] - occupied)
+                    candidates.extend((job["jobId"], run["runId"]) for run in ready[:slots])
+            await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+
+    async def _drive_run(self, job_id, run_id):
+        with self.transaction() as db:
+            job = self._get(db, "job", job_id)
+            state = aggregate(job, self.root)
+            run = state["runs"][run_id]
+            plan = state["plans"][run_id]
+            if run["state"] == "cancelling":
+                self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
+                self._settle(db, job, run_id)
+                return
+            if plan.get("pauseRequested"):
+                if run["state"] != "paused_at_boundary":
+                    self.final.ledger.start(job, self.root, run_id)
+                    self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
+                self._save(db, "job", job_id, job)
+                self._complete_boundary_controls(db, run_id, {"pause"})
+                return
+            if job["canonical"]["state"] == "paused":
+                return
+            self.final.ledger.start(job, self.root, run_id)
+            self._save(db, "job", job_id, job)
+            self._complete_boundary_controls(db, run_id, {"resume"})
+        while True:
+            with self.transaction() as db:
+                job = self._get(db, "job", job_id)
+                state = aggregate(job, self.root)
+                plan = state["plans"][run_id]
+                run = state["runs"][run_id]
+                if run["state"] == "cancelling":
+                    self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
+                    self._settle(db, job, run_id)
+                    return
+                if plan.get("pauseRequested") or job["canonical"]["state"] == "paused":
+                    self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
+                    self._save(db, "job", job_id, job)
+                    self._complete_boundary_controls(db, run_id, {"pause"})
+                    return
+                frozen = plan["frozen"]
+                step = next((s for s in frozen["steps"] if state["steps"][run_id][s["stepId"]]["state"] != "completed"), None)
+                if step is None:
+                    self.final.ledger.transition_run(job, self.root, run_id, "completed")
+                    self._settle(db, job, run_id)
+                    return
+                action = frozen["actions"][step["actionRef"]["id"]]
+                try:
+                    self._guard_effect(db, job, run_id, frozen, action)
+                    args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
+                    if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):
+                        error("invalid_schema", "Action input schema rejected mapping")
+                except (fc.ContractError, ValueError) as exc:
+                    self.final.ledger.fail_step_without_attempt(job, self.root, run_id, step["stepId"])
+                    self.final.ledger.transition_run(job, self.root, run_id, "failed")
+                    self._settle(db, job, run_id, failure=getattr(exc, "code", "invalid_schema"))
+                    return
+                attempt = self.final.ledger.begin_attempt(job, self.root, run_id, step["stepId"])
+                for row in db.execute("SELECT id,document FROM final_operations").fetchall():
+                    op = json.loads(row[1])
+                    if op["operation"] == "retry" and op["response"].get("runId") == run_id and op["response"]["status"] == "accepted":
+                        op["response"]["result"]["attemptId"] = attempt["attemptId"]
+                        db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
+                effect_key = self.final.ledger.admit_effect(job, self.root, attempt["attemptId"], action["id"])
+                executable = {**copy.deepcopy(action["execution"]["config"]),
+                              "operation": action["execution"]["operation"], "effect": action["effectClass"], "arguments": args}
+                if executable["operation"] == "channel":
+                    executable["action"] = {"api": "send_qq", "args": {key: args[key] for key in ("targetType", "targetId", "botUin") if key in args}}
+                self._save(db, "job", job_id, job)
+            try:
+                receipt = await self.executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
+                                                      retry=attempt["generation"] > 1)
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                receipt = {"outcome": "unknown", "receipt": {"code": "executor_interrupted"}}
+            outcome = receipt.get("outcome", "unknown")
+            mapped = {"succeeded": "completed", "rejected": "failed", "unknown": "uncertain", "partial": "uncertain"}.get(outcome, "uncertain")
+            with self.transaction() as db:
+                job = self._get(db, "job", job_id)
+                self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+                    expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
+                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
+                state = aggregate(job, self.root)
+                if mapped == "completed":
+                    state["plans"][run_id].setdefault("outputs", {})[step["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
+                    self._save(db, "job", job_id, job)
+                else:
+                    if state["runs"][run_id]["state"] == "cancelling" and mapped == "failed":
+                        self.final.ledger.transition_run(job, self.root, run_id, "settling")
+                    self.final.ledger.transition_run(job, self.root, run_id, mapped)
+                    self._settle(db, job, run_id)
+                    return
+
+    @staticmethod
+    def _complete_boundary_controls(db, run_id, operations):
+        for row in db.execute("SELECT id,document FROM final_operations").fetchall():
+            op = json.loads(row[1])
+            if op["operation"] in operations and op["response"].get("runId") == run_id and op["response"]["status"] == "accepted":
+                op["response"]["status"] = "completed"
+                db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
+
+    def _settle(self, db, job, run_id, *, failure=None):
+        run = aggregate(job, self.root)["runs"][run_id]
+        self.final.ledger.ensure_outbox(job, self.root, run_id, "canonical:" + run_id,
+                                      {"runId": run_id, "status": run["state"]})
+        self._save(db, "job", job["jobId"], job)
+        for row in db.execute("SELECT id,document FROM final_operations").fetchall():
+            op = json.loads(row[1])
+            if op["response"].get("runId") == run_id and op["response"]["status"] in {"accepted", "pending"}:
+                op["response"]["status"] = "unknown" if run["state"] == "uncertain" else "completed"
+                op["response"]["result"]["runState"] = run["state"]
+                if run["state"] in {"failed", "uncertain"}:
+                    code = failure or ("reconciliation_required" if run["state"] == "uncertain" else "provider_unavailable")
+                    op["response"]["error"] = {"code": code, "message": "Run requires inspection of its original receipt"}
+                    if run["state"] == "failed":
+                        op["response"]["status"] = "rejected"
+                else:
+                    op["response"].pop("error", None)
+                db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
+
+    def recover(self):
+        """Never replay an effect whose host/receipt outcome was lost."""
+        with self.transaction() as db:
+            for job in self._all(db, "job"):
+                state = aggregate(job, self.root)
+                for run in state["runs"].values():
+                    active_attempts = [attempt for attempt in state["attempts"].values()
+                                       if attempt["runId"] == run["runId"] and attempt["state"] == "running"]
+                    if run["state"] != "running" and not active_attempts:
+                        continue
+                    # A cancelling Run can still own an in-flight effect. A
+                    # lost host is not proof that cancellation stopped it.
+                    for attempt in active_attempts:
+                        self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], "uncertain")
+                        self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "uncertain", {"code": "host_restarted"})
+                    self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
+                    self._settle(db, job, run["runId"])
+
+    def targets(self, event):
+        with self.transaction() as db:
+            return [{**item, "_final": True, "enabled": item["state"] == "enabled"}
+                    for item in self._all(db, "trigger") if event["type"] in item["eventTypes"]]
+
+    def admit_event(self, event, target, *, condition_result=None):
+        """WP03 admission only: no Action or provider effect is invoked here."""
+        result = self._admit_event(event, target, condition_result=condition_result)
+        if self.automation_ledger is not None and "operationId" in result:
+            self.automation_ledger.record_final_admission(event.get("eventId", event.get("id")), target["id"], result)
+        return result
+
+    def _admit_event(self, event, target, *, condition_result=None):
+        with self.transaction() as db:
+            eid = event.get("eventId", event.get("id"))
+            fact_digest = fc.digest(event)
+            prior = db.execute("SELECT operationId,factDigest FROM final_event_operations WHERE eventId=? AND triggerId=?",
+                               (eid, target["id"])).fetchone()
+            if prior:
+                if prior["factDigest"] != fact_digest:
+                    error("idempotency_conflict", "Event fact changed")
+                record = json.loads(db.execute("SELECT document FROM final_operations WHERE id=?", (prior["operationId"],)).fetchone()[0])
+                result = {**record["response"], "replayed": True}
+                return result
+            trigger = self._get(db, "trigger", target["id"])
+            if trigger["revision"] != target["revision"]:
+                return {"status": "skipped"}
+            key = "event:" + fc.digest({"eventId": eid, "triggerId": trigger["id"]})
+            basis = db.execute("SELECT document FROM final_authorities WHERE kind='trigger' AND id=?", (trigger["id"],)).fetchone()
+            if basis is None:
+                error("authorization_denied", "Trigger authority missing")
+            actor = json.loads(basis[0])
+            selector = trigger["creatorSelector"]
+            creator_id = event.get("creatorId")
+            if selector["mode"] == "ids" and creator_id not in selector["ids"]:
+                return {"status": "skipped"}
+            if selector["mode"] == "registeredType":
+                provider_type = event.get("creatorType", event.get("providerType"))
+                if creator_id:
+                    source = self.creators.get(creator_id)
+                    provider_type = source["providerRef"]["type"] if source else None
+                elif isinstance(event.get("source"), dict):
+                    provider_type = event["source"].get("type")
+                if provider_type != selector["providerType"]:
+                    return {"status": "skipped"}
+            if trigger["state"] != "enabled":
+                return {"status": "skipped"}
+            # Reuse the existing condition/filter evaluator, never an effect host.
+            from packages.automation.engine import matches_event
+            legacy_event = {**event, "type": event.get("eventType", event.get("type"))}
+            if not matches_event(trigger.get("eventFilter", {}), legacy_event):
+                return {"status": "skipped"}
+            if trigger.get("condition") is not None and condition_result is None:
+                error("provider_unavailable", "State condition requires the host State reader")
+            if condition_result is False:
+                return {"status": "skipped"}
+            job = self._get(db, "job", trigger["targetJobId"])
+            args = resolve_bindings(trigger.get("arguments", {}), {}, legacy_event, {}) if trigger.get("arguments") else definition("job", job["canonical"])["arguments"]
+            def mutate(operation_id):
+                result = self._admit(db, job, {"input": args, "event": legacy_event,
+                    "expectedRevision": job["configRevision"]}, actor, operation_id,
+                    cause={"type": "event", "eventId": eid, "triggerId": trigger["id"]})
+                return result, [object_ref("job", job["canonical"])], not result.get("skipped", False)
+            result = self._operation(db, actor, "create", key,
+                {"eventId": eid, "triggerId": trigger["id"], "factDigest": fact_digest}, "job", mutate)
+            db.execute("INSERT INTO final_event_operations VALUES(?,?,?,?)",
+                       (eid, trigger["id"], result["operationId"], fact_digest))
+        return result
+
+    async def admit_event_async(self, event, target):
+        from packages.automation.engine import evaluate
+        if target.get("condition") is not None and self.state_reader is None:
+            error("provider_unavailable", "State reader unavailable")
+        result = await evaluate(target.get("condition"), self.state_reader, {})
+        return await asyncio.to_thread(self.admit_event, event, target, condition_result=result)
+
+    async def tick(self):
+        with self.transaction() as db:
+            self.bus.subscriptions = {item["id"]: {**item, "subscriptionId": item["id"],
+                "creatorIds": item["creatorSelector"].get("ids", [])} for item in self._all(db, "trigger")}
+        await self.creator_runtime.tick()
+        for event in await asyncio.to_thread(self.events.page):
+            snapshot = await asyncio.to_thread(self.events.get, event["eventId"])
+            for target in snapshot["targets"]:
+                with self.transaction() as db:
+                    if db.execute("SELECT 1 FROM final_event_receipts WHERE eventId=? AND triggerId=?", (event["eventId"], target["id"])).fetchone():
+                        continue
+                try:
+                    result = await self.admit_event_async(event, target)
+                except (fc.ContractError, KeyError):
+                    self.diagnostics.append({"at": now(), "code": "event_admission_blocked"})
+                    continue
+                with self.transaction() as db:
+                    db.execute("INSERT OR IGNORE INTO final_event_receipts VALUES(?,?,?)", (event["eventId"], target["id"], result["status"]))
+        await self.dispatch_once()
+
+    def _guard_creator(self, item):
+        with self.transaction() as db:
+            row = db.execute("SELECT document FROM final_authorities WHERE kind='event_creator' AND id=?", (item["id"],)).fetchone()
+            if row is None:
+                error("authorization_denied", "Creator authority unavailable")
+            self._permit(json.loads(row[0]), "event_creator", "lifecycle", execution=True)
+
+    async def start(self):
+        await asyncio.to_thread(self.recover)
+        self.closed = False
+        async def loop():
+            while not self.closed:
+                try:
+                    await self.tick()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    self.diagnostics.append({"at": now(), "code": "dispatch_failed"})
+                    del self.diagnostics[:-100]
+                await asyncio.sleep(0.25)
+        self.task = asyncio.create_task(loop())
+
+    async def close(self):
+        self.closed = True
+        if self.task is not None:
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+            self.task = None
+
+
+def bind(app, automation, root):
+    """Production and isolated HTTP tests use the same host binding."""
+    service = FinalService(root, automation.auth, automation_ledger=automation.ledger)
+    service.state_reader = automation.engine.state_reader
+    automation.final_jobs = service
+    app.state.job_final_service = service
+    return service
