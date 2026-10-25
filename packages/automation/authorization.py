@@ -17,6 +17,8 @@ def object_path(path):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
+    if re.fullmatch(r'/api/(?:background-jobs(?:/[^/]+(?:/(?:cancel|retry))?)?|session-message-jobs)', parsed.path):
+        return True
     return bool(re.fullmatch(
         r'/api/(?:actions(?:/actions(?:/[a-z0-9_]+)?|/session-operation-template)?'
         r'|actions/actions/[a-z0-9_]+/lifecycle'
@@ -62,7 +64,7 @@ def bind_objects(runtime, app):
     """Only called by the host; reused routes retain their normal business gates."""
     import httpx
     async def call(method, path, body):
-        if method not in {'GET','POST','PUT','DELETE'} or not object_path(path):
+        if method not in {'GET','POST','PUT','DELETE','PATCH'} or not object_path(path):
             return {'ok': False, 'error': {'code': 403, 'message': 'Outside four-object MCP boundary'}}
         async def transport(scope, receive, send):
             scope[_SCOPE_KEY] = _MARKER

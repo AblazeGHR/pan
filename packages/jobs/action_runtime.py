@@ -56,6 +56,10 @@ def config_job(root, intent):
                referenceGeneration=intent['referenceGeneration'],creationFingerprint=intent['fingerprint'],
                status='scheduled' if cfg['enabled'] else 'pending',creationEventPending=True,
                templateId=intent.get('templateId'), authorization=copy.deepcopy(intent.get('authorization', {'type':'user'})))
+    legacy=intent.get('legacy')
+    if isinstance(legacy,dict):
+        job.update(copy.deepcopy(legacy.get('fields',{})), legacyCompat=legacy.get('kind'))
+        job['kind']=legacy['kind']
     if intent.get('templateId'):
         job.update(templateId=intent['templateId'],templateRevision=intent['templateRevision'])
     return job
@@ -172,7 +176,7 @@ class Runtime:
         if intent['phase']=='reserved':self.templates.complete_intent(intent['key'])
         return self.view(old)
 
-    def create(self,raw,authorized=False,authority=None,*,creation_key=None):
+    def create(self,raw,authorized=False,authority=None,*,creation_key=None,legacy=None):
         def change(state):
             cfg=config_value(raw,state)
             if any(not state['actions'][aid]['enabled'] or state.get('actionLifecycle',{}).get(aid) is False for aid in chains.action_ids(cfg)):
@@ -183,7 +187,8 @@ class Runtime:
             if prior:return copy.deepcopy(prior)
             intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=reference_generation(state,cfg),
                         fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root),
-                        authorization=copy.deepcopy(authority or {'type':'user'}))
+                        authorization=copy.deepcopy(authority or {'type':'user'}),
+                        legacy=copy.deepcopy(legacy) if legacy else None)
             if len(state.setdefault('jobInstantiations',{}))>=10000:raise ValueError('Instantiation capacity reached')
             state['jobInstantiations'][key]=intent
             state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'actionIds':chains.action_ids(cfg),'position':'/config/actionId','jobRoot':str(self.root)}
@@ -191,6 +196,14 @@ class Runtime:
         intent=self.templates.transaction(change)
         if intent['phase']=='created':return self.view(self.get(intent['jobId']))
         return self.publish_intent(intent)
+
+    def create_legacy(self, kind, fields, authority=None, *, creation_key=None):
+        """Create a legacy-shaped record whose only executor is a system Action."""
+        from .legacy_compat import config_for
+        config, storage = config_for(kind, fields)
+        return self.create(config, True, authority or {'type': 'user'},
+                           creation_key=creation_key,
+                           legacy={'kind': kind, 'fields': storage})
 
     def instantiate(self,tid,expected,key,overrides=None,admitted_template=None,authority=None):
         scoped=digest({'root':str(self.root),'key':key})
@@ -246,6 +259,17 @@ class Runtime:
                 replacement['nextFireAt']=old.get('nextFireAt')
             if old['status'] in {'running','cleaning'}:replacement['status']=old['status']
             if old['status']=='restarting' and old.get('chainRecovery'):replacement['status']='restarting'
+            if old.get('legacyCompat'):
+                replacement['kind']=old['kind']
+                replacement['legacyCompat']=old['legacyCompat']
+                args=cfg.get('arguments',{})
+                if old['legacyCompat']== 'background-process':
+                    replacement.update(targetSessionId=args.get('sessionId'),argv=copy.deepcopy(args.get('argv',[])),
+                                       cwd=args.get('cwd'),hideWindow=args.get('hideWindow',True))
+                elif old['legacyCompat']=='session-message':
+                    replacement.update(targetSessionId=args.get('sessionId'),targetSessionIds=None,text=args.get('text',''))
+                elif old['legacyCompat']=='session-broadcast':
+                    replacement.update(targetSessionId=None,targetSessionIds=copy.deepcopy(args.get('sessionIds',[])),text=args.get('text',''))
             if authority is not None and not self.active(old):
                 replacement['runAuthorization']=copy.deepcopy(authority)
             replacement['configRevision']=expected+1

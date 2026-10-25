@@ -145,7 +145,7 @@ async def list_jobs(kind: str | None = None, status: str | None = None,
                 jobs.append(background_jobs.job_public_view(job))
     from packages.jobs.action_runtime import for_root, is_action_job
     if not await may_read_jobs(request):
-        jobs=[j for j in jobs if not is_action_job(j)]
+        jobs=[j for j in jobs if not is_action_job(j) or j.get('legacyCompat')]
     runtime=for_root(_job_root())
     if runtime:
         jobs=[await asyncio.to_thread(runtime.view,j) if is_action_job(j) else j for j in jobs]
@@ -809,7 +809,8 @@ async def get_job(job_id: str, request: Request = None):
     job = _find_job(job_id)
     if job is None:
         return _err("not_found", f"job {job_id} not found")
-    await require_job(request, job)
+    if not job.get('legacyCompat'):
+        await require_job(request, job)
     return _ok(job=await asyncio.to_thread(_view,job))
 
 
@@ -1091,6 +1092,17 @@ async def patch_job(job_id: str, data: dict):
 async def delete_job(job_id: str):
     job = _find_job(job_id)
     from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job) and job.get('legacyCompat'):
+        from packages.jobs.action_runtime import for_root
+        runtime = for_root(_job_root())
+        if runtime is None:
+            return _err('not_found', f"job {job_id} not found")
+        try:
+            result = await asyncio.to_thread(runtime.delete, job_id, job['configRevision'])
+        except ValueError as exc:
+            return _err('job_busy', str(exc))
+        _emit({'type': 'job.deleted', 'jobId': job_id})
+        return _ok(**result)
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
@@ -1122,7 +1134,8 @@ async def job_runs(job_id: str, limit: int = 100, request: Request = None):
     if not isinstance(limit, int) or limit < 1 or limit > 500:
         return _err("invalid_argument", "limit must be between 1 and 500")
     task_key = job.get("taskId") or job["jobId"]
-    await require_job(request, job)
+    if not job.get('legacyCompat'):
+        await require_job(request, job)
     runs = background_jobs.list_run_records(
         task_id=task_key, limit=limit, registry_root=_job_root())
     return _ok(runs=runs)
