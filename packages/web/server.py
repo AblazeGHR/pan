@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 
@@ -130,6 +130,7 @@ from packages.core import main_lifecycle
 from packages.core import launcher
 from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
+from packages.core import platform as platform_layer
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
 from packages.scheduler import engine as scheduler_engine
@@ -809,7 +810,7 @@ def _main_restart_job_view(job: dict | None) -> dict:
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = os.name == "nt" and launcher_module.is_file()
+    available = platform_layer.is_windows() and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -844,9 +845,11 @@ def _main_restart_status() -> dict:
     if not available:
         result["reason"] = (
             "main service restart is available only on Windows"
-            if os.name != "nt"
+            if not platform_layer.is_windows()
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
     return result
 
 
@@ -952,7 +955,7 @@ def _main_exit_paths() -> dict[str, Path]:
 def _main_exit_status() -> dict:
     paths = _main_exit_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = os.name == "nt" and launcher_module.is_file()
+    available = platform_layer.is_windows() and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -999,9 +1002,11 @@ def _main_exit_status() -> dict:
     if not available:
         result["reason"] = (
             "main service exit is available only on Windows"
-            if os.name != "nt"
+            if not platform_layer.is_windows()
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
     return result
 
 
@@ -3877,6 +3882,38 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
+def _unsupported_platform(feature: str) -> JSONResponse:
+    """Stable "unsupported on this platform" contract: 501 + static code.
+
+    Carries no path, account, host or exception text: clients decide from the
+    capability matrix (``GET /api/platform``), this is the server-side fence.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={
+            "ok": False,
+            "error": {
+                "code": "unsupported_platform",
+                "message": f"{feature} is available on Windows only",
+            },
+        },
+    )
+
+
+@app.get("/api/platform")
+async def api_platform():
+    """Read-only platform + capability probe.
+
+    No user key, instance identity or config file is consulted, exactly like the
+    other read-only summaries; only the platform name and capability booleans
+    are returned (never paths, accounts, host names or versions).
+    """
+    return {
+        "platform": platform_layer.platform_name(),
+        "capabilities": platform_layer.capabilities(),
+    }
+
+
 @app.post("/api/internal/main/shutdown")
 async def api_internal_main_shutdown():
     """Ask the owning Uvicorn server to perform its normal lifespan shutdown.
@@ -3980,6 +4017,8 @@ async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
     an HTTP failure in the browser. The detached Python lifecycle supervisor
     owns the subsequent launcher stop/start chain.
     """
+    if not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service restart")
     options = _parse_main_lifecycle_options(payload, "restart")
     async with _lifecycle_operation_lock:
         return await _schedule_main_restart(options)
@@ -4311,6 +4350,8 @@ async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
     health-recovery wait follows: this operation intentionally makes the
     service unavailable.
     """
+    if not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service exit")
     options = _parse_main_lifecycle_options(payload, "exit")
     async with _lifecycle_operation_lock:
         return await _schedule_main_exit(options)
@@ -8211,6 +8252,8 @@ def _resolve_history_message(session_id: str, message_id: str):
 @app.post('/api/sessions/{session_id}/history/{message_id}/rewind')
 async def api_rewind_session_history(session_id: str, message_id: str,
                                      payload: Annotated[dict | None, Body()] = None):
+    if not platform_layer.supports('rewind'):
+        return _unsupported_platform('Rewind')
     active_worker = worker.find_alive_worker_by_session(session_id)
     if active_worker and active_worker.status in {'running', 'queued'}:
         return {'ok': False, 'error': {

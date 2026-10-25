@@ -84,3 +84,29 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 - 不做长期平台分支；不为跨平台重写业务核心；
 - 不在本阶段承诺 macOS 全部终端/回滚能力；
 - 不以“能 import”冒充“功能可用”。
+
+## 能力矩阵（Phase A 初版，2026-10-25）
+
+唯一事实来源是 `packages/core/platform/__init__.py` 的 `CAPABILITIES`；本表是它的
+可读投影。`GET /api/platform` 返回同样的键与布尔值（只含平台名与能力，不含路径/账号）。
+
+| 能力 | Windows | macOS | Linux | 说明 |
+|---|---|---|---|---|
+| `terminal.native` | 可用 | 不可用 | 不可用 | Windows ConPTY + Job Object；POSIX PTY 属 Phase D |
+| `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
+| `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |
+| `service.lifecycle` | 可用 | 不可用 | 不可用 | UI Exit/Restart 依赖 main_lifecycle supervisor |
+| `processOwner` | 可用 | 不可用 | 不可用 | POSIX `ProcessOwner` 由 Phase B/C 实现后改表 |
+| `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
+
+不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
+
+- 能力查询：`GET /api/platform` → `{"platform": "...", "capabilities": {...}}`；
+- Terminal REST/WS：`501` + `{"ok": false, "error": {"code": "unsupported_platform"}}`
+  （绑定形态/配置禁用仍是 `503 terminal-disabled`）；
+- Rewind：`POST /api/sessions/{id}/history/{message_id}/rewind` → `501 unsupported_platform`；
+- main lifecycle：`POST /api/main/exit`、`POST /api/main/restart` → `501 unsupported_platform`；
+  `GET .../status` 保持 `200` 但 `available=false` 且带 `code: unsupported_platform`。
+
+“可用”只表示**已声明**且 Windows 有实现；macOS/Linux 的**运行**证据来自
+`posix-fast` CI（import + collect + 平台单元子集），在 CI 实际跑绿前不得当作已验证。
