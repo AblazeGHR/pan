@@ -14,13 +14,8 @@ async function refreshLockerUnread() {
   if (lockerLoading || document.visibilityState === 'hidden' || !useAutomationAuth.getState().token) return;
   lockerLoading = true;
   try {
-    const [inbox, messages, cards] = await Promise.all([
-      lockerRequest<{ cards: Array<{ read: boolean }> }>('/api/user-inbox?limit=500'),
-      lockerRequest<{ messages: Array<{ read: boolean }> }>('/api/user-locker-messages?limit=500'),
-      lockerRequest<{ cards: Array<{ read: boolean }> }>('/api/reminding-cards'),
-    ]);
-    lockerUnread = [...(inbox.cards ?? []), ...(messages.messages ?? []), ...(cards.cards ?? [])]
-      .filter((item) => item.read === false).length;
+    const result = await lockerRequest<{ lockers: Array<{ unread?: number }> }>('/api/user-lockers');
+    lockerUnread = (result.lockers ?? []).reduce((sum, locker) => sum + Math.max(0, Math.floor(locker.unread ?? 0)), 0);
     emit();
   } catch { /* auth unavailable or Locker offline: keep last known count */ }
   finally {
@@ -53,9 +48,9 @@ export function ViewEntryBadge({ kind = 'jobs' }: { kind?: 'jobs' | 'chat' | 'lo
     : locker;
   if (value <= 0) return null;
   const label = kind === 'jobs' ? `${value} job(s) running` : `${value} unread ${kind === 'chat' ? 'session result' : 'Locker item'}${value === 1 ? '' : 's'}`;
-  return <span className={`session-queue-badge absolute bottom-0 right-0 ${kind === 'jobs' ? '' : 'bg-warning text-bg-primary'}`} data-testid={kind === 'jobs' ? 'jobs-running-badge' : `${kind}-unread-badge`} {...(kind === 'jobs' ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label })} title={label}>{value > 99 ? '99+' : value}</span>;
+  return <span className={`${kind === 'jobs' ? 'session-queue-badge' : 'session-unread-entry-badge'} absolute bottom-0 right-0`} data-testid={kind === 'jobs' ? 'jobs-running-badge' : `${kind}-unread-badge`} {...(kind === 'jobs' ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label })} title={label}>{value > 99 ? '99+' : value}</span>;
 }
 
 export function ViewEntryDirectionDot({ direction }: { direction: 'left' | 'right' }) {
-  return <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-warning" role="img" aria-label={`更${direction === 'left' ? '前' : '后'}的导航组有未读`} title={`更${direction === 'left' ? '前' : '后'}的导航组有未读`} />;
+  return <span className={`absolute top-0 h-1.5 w-1.5 rounded-full bg-warning ${direction === 'left' ? 'left-0' : 'right-0'}`} role="img" aria-label={`更${direction === 'left' ? '前' : '后'}的导航组有未读`} title={`更${direction === 'left' ? '前' : '后'}的导航组有未读`} />;
 }

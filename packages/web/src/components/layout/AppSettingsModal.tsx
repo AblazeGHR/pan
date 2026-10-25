@@ -67,7 +67,7 @@ import { LocalPluginPanelsSettings } from './LocalPluginPanelsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
 import { useCurrentSession } from '@/stores/sessionStore';
-import { useViewEntries } from './viewEntries';
+import { reorderViewEntryIds, useViewEntries } from './viewEntries';
 import { resolveDropZone } from '@/components/session/sessionDrag';
 
 interface AppSettingsModalProps {
@@ -510,14 +510,14 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     const ids = orderedEntries.map((entry) => entry.id);
     const index = ids.indexOf(id); const target = index + delta;
     if (index < 0 || target < 0 || target >= ids.length) return;
-    [ids[index], ids[target]] = [ids[target], ids[index]];
+    const current = ids[index]!;
+    ids[index] = ids[target]!;
+    ids[target] = current;
     setViewEntryOrder(ids);
   };
   const dropOrder = (targetId: string, zone: 'before' | 'after') => {
     if (!dragEntry || dragEntry === targetId) return;
-    const ids = orderedEntries.map((entry) => entry.id).filter((id) => id !== dragEntry);
-    const index = ids.indexOf(targetId);
-    ids.splice(index + (zone === 'after' ? 1 : 0), 0, dragEntry);
+    const ids = reorderViewEntryIds(orderedEntries.map((entry) => entry.id), dragEntry, targetId, zone);
     setViewEntryOrder(ids); setDragEntry(null); setDropEntry(null);
   };
 

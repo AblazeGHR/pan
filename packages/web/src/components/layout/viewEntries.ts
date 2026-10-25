@@ -97,3 +97,17 @@ export function applyViewEntryOrder(all: ViewEntry[], saved: unknown): ViewEntry
   for (const entry of all) if (!seen.has(entry.id)) result.push(entry);
   return result;
 }
+
+export function reorderViewEntryIds(ids: readonly string[], draggedId: string, targetId: string, zone: 'before' | 'after'): string[] {
+  if (draggedId === targetId || !ids.includes(draggedId) || !ids.includes(targetId)) return [...ids];
+  const next = ids.filter((id) => id !== draggedId);
+  const index = next.indexOf(targetId);
+  next.splice(index + (zone === 'after' ? 1 : 0), 0, draggedId);
+  return next;
+}
+
+export function paginateViewEntries<T>(items: readonly T[], size = 3): T[][] {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, group) =>
+    Array.from({ length: size }, (_, slot) => items[group * size + slot]).filter((item): item is T => item !== undefined),
+  );
+}
