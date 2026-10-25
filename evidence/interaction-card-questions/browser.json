@@ -1,0 +1,36 @@
+{
+  "checks": [
+    "required validation next to each question, no premature request",
+    "1440: scroll to submit, no horizontal overflow",
+    "390: scroll to submit, no horizontal overflow",
+    "single submission with stable question IDs, mixed answer/rejection read-only"
+  ],
+  "errors": [],
+  "chromium": "153.0.8010.12",
+  "transport": "all requests intercepted; no HTTP server or listener",
+  "submissions": [
+    {
+      "path": "/api/user-inbox/questions/submit",
+      "method": "POST",
+      "body": {
+        "requestId": "1088dd2b-4f35-4153-b88c-ba8995d16c81",
+        "expectedRevision": 0,
+        "answers": {
+          "mode": {
+            "choiceId": "preview"
+          },
+          "targets": {
+            "choiceIds": [
+              "desktop",
+              "mobile"
+            ]
+          },
+          "note": {
+            "rejected": true,
+            "reason": "此题需要更多上下文，其他问题已完成确认。"
+          }
+        }
+      }
+    }
+  ]
+}

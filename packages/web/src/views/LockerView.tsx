@@ -1,3 +1,5 @@
+import { TrustedChoice } from './TrustedChoice';
+import { CardQuestions, questionErrors } from './CardQuestions';
 import { UserCardRow, type UserCardRowState } from './UserCardRow';
 import { RelatedContextButton } from './RelatedContextButton';
 import { LockerMessageRow } from './LockerMessageRow';
@@ -25,7 +27,6 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  ShieldCheck,
   WifiOff,
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
@@ -39,6 +40,8 @@ import { useAutomationAuth } from '@/stores/automationStore';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 import {
+  cardChoiceBinding,
+  type QuestionAnswer,
   lockerProjection,
   lockerTimeline,
   isUserCard,
@@ -75,6 +78,9 @@ function Card({
   const [answer, setAnswer] = useState(
     card.response && card.response.outcome !== 'reject' ? (card.response.answer ?? '') : '',
   );
+  const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
+  const [questionProblems, setQuestionProblems] = useState<Record<string, string>>({});
+  const questions = card.definition.questions;
   const [choiceId, setChoiceId] = useState(card.response?.choiceId ?? '');
   const [reason, setReason] = useState(
     card.response?.outcome === 'reject' ? (card.response.answer ?? '') : '',
@@ -99,6 +105,11 @@ function Card({
   }, [card.response, open]);
   const act = async (operation: 'submit' | 'reject' | 'delete') => {
     if (busy) return;
+    if (operation === 'submit' && questions && !intent.current) {
+      const problems = questionErrors(questions, answers);
+      setQuestionProblems(problems);
+      if (Object.keys(problems).length) return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -116,9 +127,27 @@ function Card({
         expectedRevision: card.revision,
       };
       if (operation === 'submit') {
-        if (answer.trim()) payload.answer = answer;
-        if (choiceId) payload.choiceId = choiceId;
-      } else if (reason.trim()) payload.answer = reason.trim();
+        if (!intent.current) {
+          if (questions)
+            payload.answers = structuredClone(
+              Object.fromEntries(
+                Object.entries(answers).filter(
+                  ([, a]) =>
+                    'rejected' in a ||
+                    ('text' in a
+                      ? a.text.trim()
+                      : 'choiceId' in a
+                        ? a.choiceId
+                        : a.choiceIds.length),
+                ),
+              ),
+            );
+          else {
+            if (answer.trim()) payload.answer = answer;
+            if (choiceId) payload.choiceId = choiceId;
+          }
+        }
+      } else if (!intent.current && reason.trim()) payload.answer = reason.trim();
       intent.current = { operation, payload };
       const result = await lockerRequest<{
         card: InteractionCard;
@@ -138,7 +167,7 @@ function Card({
             `/api/user-inbox/${card.id}`,
           );
           update(current.card);
-          if (current.card.status === 'no_answer_needed') intent.current = null;
+          if (current.card.status !== 'open') intent.current = null;
         } catch {
           /* Preserve the original action error if refresh is unavailable. */
         }
@@ -207,7 +236,12 @@ function Card({
           {card.read ? <Circle size={12} /> : <Check size={13} />}
         </button>
       </header>
-      <RelatedContextButton ownerSessionId={card.ownerSessionId} relatedMessageId={card.relatedMessageId} source={source} hidden={hidden} />
+      <RelatedContextButton
+        ownerSessionId={card.ownerSessionId}
+        relatedMessageId={card.relatedMessageId}
+        source={source}
+        hidden={hidden}
+      />
       <h2 className="locker-card-title">{card.definition.title}</h2>
       <MarkdownRenderer
         sourceSessionId={card.ownerSessionId}
@@ -216,6 +250,18 @@ function Card({
       />
       {open ? (
         <section className="locker-response" aria-label="Interaction response">
+          {questions && (
+            <CardQuestions
+              card={card}
+              answers={answers}
+              errors={questionProblems}
+              disabled={busy || !!intent.current}
+              onChange={(id, value) => {
+                setAnswers((current) => ({ ...current, [id]: value }));
+                setQuestionProblems((current) => ({ ...current, [id]: '' }));
+              }}
+            />
+          )}
           {!!card.definition.choices?.length && (
             <fieldset className="locker-choices">
               <legend>Choose an option</legend>
@@ -231,14 +277,14 @@ function Card({
                     disabled={
                       busy ||
                       !!intent.current ||
-                      (!!choice.triggerRef && !card.trustedChoices?.[choice.id])
+                      (!!choice.triggerRef && !cardChoiceBinding(card, choice.id))
                     }
                   />
                   <span>
                     <strong>{choice.label}</strong>
                     {choice.triggerRef && (
                       <small>
-                        {card.trustedChoices?.[choice.id]?.summary ??
+                        {cardChoiceBinding(card, choice.id)?.summary ??
                           'Execution meaning is unavailable; this choice cannot run.'}
                       </small>
                     )}
@@ -251,10 +297,10 @@ function Card({
           {responseChoice?.triggerRef && (
             <TrustedChoice
               choice={responseChoice}
-              binding={card.trustedChoices?.[responseChoice.id]}
+              binding={cardChoiceBinding(card, responseChoice.id)}
             />
           )}
-          {
+          {!questions && (
             <label className="locker-answer-label" htmlFor={`answer-${card.id}`}>
               {card.definition.answerInput?.label ?? 'Answer or BTW'} <span>(optional)</span>
               <textarea
@@ -267,12 +313,12 @@ function Card({
                 rows={3}
               />
             </label>
-          }
+          )}
           <div className="locker-card-actions">
             <Button
               variant="primary"
               size="sm"
-              disabled={busy || (!!card.definition.choices?.length && !choiceId)}
+              disabled={busy || (!questions && !!card.definition.choices?.length && !choiceId)}
               onClick={() => void act('submit')}
             >
               Submit
@@ -305,9 +351,11 @@ function Card({
                 />
               </label>
               <p>
-                {reason.trim()
-                  ? 'Your reason will be sent only to the source agent.'
-                  : 'Without a reason, no notification is sent.'}
+                {questions
+                  ? 'A rejection notification will be sent only to the source agent.'
+                  : reason.trim()
+                    ? 'Your reason will be sent only to the source agent.'
+                    : 'Without a reason, no notification is sent.'}
               </p>
               <Button variant="danger" size="sm" disabled={busy} onClick={() => void act('reject')}>
                 Confirm rejection
@@ -329,6 +377,9 @@ function Card({
           {noAnswer && (
             <p>This question no longer requires an answer. Only deletion is available.</p>
           )}
+          {questions && (
+            <CardQuestions card={card} answers={card.response?.answers ?? {}} readOnly />
+          )}
           {responseChoice && (
             <p className="locker-saved-choice">
               <Check size={13} />
@@ -344,7 +395,7 @@ function Card({
           {responseChoice?.triggerRef && (
             <TrustedChoice
               choice={responseChoice}
-              binding={card.trustedChoices?.[responseChoice.id]}
+              binding={cardChoiceBinding(card, responseChoice.id)}
             />
           )}
           {card.status !== 'open' && (
@@ -385,36 +436,6 @@ function Card({
     </article>
   );
 }
-function TrustedChoice({
-  choice,
-  binding,
-}: {
-  choice: NonNullable<InteractionCard['definition']['choices']>[number];
-  binding?: NonNullable<InteractionCard['trustedChoices']>[string];
-}) {
-  return (
-    <section className="locker-trusted-choice" aria-label={`Trusted execution ${choice.id}`}>
-      <ShieldCheck size={15} />
-      <div>
-        <strong>{binding ? 'On submit' : 'Execution unavailable'}</strong>
-        {binding ? (
-          <>
-            <p>{binding.summary}</p>
-            <p>Target: {binding.targetIds.join(', ')}</p>
-            <details>
-              <summary>Operation details</summary>
-              <p>Action: {binding.actionId}</p>
-              <code>{binding.actionDigest}</code>
-            </details>
-          </>
-        ) : (
-          <p>This choice is preserved for context but cannot execute without a trusted binding.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export default function LockerView() {
   const sidebarPanel = useContext(SidebarPanelContext);
   const token = useAutomationAuth((state) => state.token);
@@ -468,7 +489,12 @@ export default function LockerView() {
           controller.signal,
         ),
         loadLockerMessages(controller.signal),
-        lockerRequest<{cards: UserCard[]}>('/api/reminding-cards', 'GET', undefined, controller.signal),
+        lockerRequest<{ cards: UserCard[] }>(
+          '/api/reminding-cards',
+          'GET',
+          undefined,
+          controller.signal,
+        ),
       ]);
       const allCards: LockerItem[] = [...firstPage.cards, ...messages, ...userCards.cards];
       let after = firstPage.nextAfter;
@@ -616,7 +642,11 @@ export default function LockerView() {
         : (workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ?? 'Workspace');
   const markSourceRead = async (locker: Locker) => {
     const unread = sourceCards(cards, locker.id).filter(
-      (card) => !card.read && (isUserCard(card) ? card.status === 'answered' : 'message' in card || card.status !== 'no_answer_needed'),
+      (card) =>
+        !card.read &&
+        (isUserCard(card)
+          ? card.status === 'answered'
+          : 'message' in card || card.status !== 'no_answer_needed'),
     );
     await Promise.all(
       unread.map((card) =>
@@ -909,34 +939,43 @@ export default function LockerView() {
               <span>Messages from this Workspace appear here after a source sends them.</span>
             </div>
           )}
-          {lockerTimeline(cards)
-            .map(({ item: card, key: positionKey }) =>
-              isUserCard(card) ? (
-                <UserCardRow key={`${token}:${positionKey}`} card={card} hidden={!windowIds.has(positionKey)}
-                  source={lockers.find((locker) => locker.id === card.lockerId)} update={update} remove={remove}
-                  state={userCardRowStates[card.id] ?? {busy: false, error: ''}}
-                  setState={(patch) => setUserCardRowStates((previous) => ({...previous,
-                    [card.id]: {...(previous[card.id] ?? {busy: false, error: ''}), ...patch}}))} />
-              ) : 'message' in card ? (
-                <LockerMessageRow
-                  key={`${token}:${positionKey}`}
-                  item={card}
-                  hidden={!windowIds.has(positionKey)}
-                  source={lockers.find((locker) => locker.id === card.lockerId)}
-                  update={update}
-                  remove={remove}
-                />
-              ) : (
-                <Card
-                  key={`${token}:${positionKey}`}
-                  hidden={!windowIds.has(positionKey)}
-                  card={card}
-                  source={lockers.find((locker) => locker.id === card.lockerId)}
-                  update={update}
-                  remove={remove}
-                />
-              ),
-            )}
+          {lockerTimeline(cards).map(({ item: card, key: positionKey }) =>
+            isUserCard(card) ? (
+              <UserCardRow
+                key={`${token}:${positionKey}`}
+                card={card}
+                hidden={!windowIds.has(positionKey)}
+                source={lockers.find((locker) => locker.id === card.lockerId)}
+                update={update}
+                remove={remove}
+                state={userCardRowStates[card.id] ?? { busy: false, error: '' }}
+                setState={(patch) =>
+                  setUserCardRowStates((previous) => ({
+                    ...previous,
+                    [card.id]: { ...(previous[card.id] ?? { busy: false, error: '' }), ...patch },
+                  }))
+                }
+              />
+            ) : 'message' in card ? (
+              <LockerMessageRow
+                key={`${token}:${positionKey}`}
+                item={card}
+                hidden={!windowIds.has(positionKey)}
+                source={lockers.find((locker) => locker.id === card.lockerId)}
+                update={update}
+                remove={remove}
+              />
+            ) : (
+              <Card
+                key={`${token}:${positionKey}`}
+                hidden={!windowIds.has(positionKey)}
+                card={card}
+                source={lockers.find((locker) => locker.id === card.lockerId)}
+                update={update}
+                remove={remove}
+              />
+            ),
+          )}
         </section>
       </div>
     </main>

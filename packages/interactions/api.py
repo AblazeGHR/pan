@@ -299,19 +299,25 @@ def register(app):
         store=get_store()
         try:
             current=store.get_for_user(principal,card_id)
-            choice=next((c for c in current['definition'].get('choices',[]) if c['id']==data.get('choiceId')),None)
-            if current['status'] == 'open' and choice and choice.get('triggerRef'):
-                from .trusted import verify
-                import asyncio
-                await asyncio.to_thread(verify,getattr(app.state,'automation',None),{
-                    'payload':{'ownerSessionId':current['ownerSessionId'],
-                               'executionBinding':current.get('trustedChoices',{}).get(choice['id'])}})
+            from .contracts import validate, selected_choices, choice_binding, validate_answers
+            validate('Respond', data)
+            if current['schemaVersion'] == 2:
+                validate_answers(current['definition'], data.get('answers', {}))
+            for question_id, choice in selected_choices(current['definition'], data):
+                if current['status'] == 'open' and choice.get('triggerRef'):
+                    from .trusted import verify
+                    import asyncio
+                    await asyncio.to_thread(verify, getattr(app.state, 'automation', None), {
+                        'payload': {'ownerSessionId': current['ownerSessionId'],
+                                    'executionBinding': choice_binding(current.get('trustedChoices', {}), question_id, choice['id'])}})
             card=store.respond(principal,card_id,data,allow_empty=request.url.path.endswith('/submit'))
         except InteractionError as exc:
             raise failure(exc) from exc
         # Response persistence and Trigger acceptance are distinct results.
         from packages.core.inbox_service import SessionQueue
         await store.deliver_responses(SessionQueue())
+        if card['schemaVersion'] == 2 and card['status'] == 'rejected':
+            await store.deliver_rejections(SessionQueue())
         try:
             card=await store.dispatch(principal,card_id,getattr(app.state,'interaction_trigger_adapter',None))
             return {'card':card}

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="35" failures="0" errors="0" time="5.599">
+    <testsuite name="views/lockerModel.auth.test.ts" timestamp="2026-10-25T12:17:04.497Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.003086">
+        <testcase classname="views/lockerModel.auth.test.ts" name="uses the shared memory Bearer for GET and clears it after 401" time="0.0022168">
+        </testcase>
+        <testcase classname="views/lockerModel.auth.test.ts" name="discards a late old-user response and never clears a successor token" time="0.0003278">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-25T12:17:04.502Z" hostname="ablaze" tests="33" failures="0" errors="0" skipped="0" time="3.1163926">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.1123797">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0007132">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0348671">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0309825">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.089688">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0639361">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0227307">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.0754997">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0269492">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.0904313">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.067642">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0342289">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0264812">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.1330805">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1287846">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1207688">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1423597">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1417071">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1713408">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.2059263">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.0926455">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.095051">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0269263">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.0336643">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.5009441">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="reminding card positions share one record &gt; renders pending once without read controls and keeps answered projections ordered deterministically" time="0.0401694">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="reminding card positions share one record &gt; read and delete from position 0 update/remove both identical rows" time="0.1189492">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="reminding card positions share one record &gt; read and delete from position 1 update/remove both identical rows" time="0.1107323">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="validates each required question, submits mixed rejection and answers once, and renders all results read-only" time="0.1121477">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="keeps scoped trusted choices separate and never enables an unbound question choice" time="0.0332276">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="allows undoing question rejection before submission and shows text length errors inline" time="0.0692044">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="retries v2 with the exact frozen answers after an uncertain result" time="0.0988678">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="handles arbitrary stable question and choice IDs without inherited object fields" time="0.0618802">
+        </testcase>
+    </testsuite>
+</testsuites>
