@@ -159,8 +159,11 @@ def test_provider_functions_accept_kimi_home(tmp_path):
 
 def test_fork_session_with_kimi_home_uses_copy_fallback(tmp_path, monkeypatch):
     """Native fork unavailable (monkeypatched to None) → copy fallback must
-    register the fork in the SAME home's index (not the real ~/.kimi-code)."""
+    register the fork in the SAME home's index (not the default home)."""
     home = tmp_path / "home"
+    default_home = tmp_path / "default_kimi_home"   # stands in for ~/.kimi-code
+    default_home.mkdir()
+    monkeypatch.setattr(ks, "_KIMI_DIR", default_home)
     _make_session(home, "wd_a", "session_a", r"C:\work\a", title="orig")
     _scan_index(home, {"session_a": {"ws": "wd_a", "cwd": r"C:\work\a"}})
     monkeypatch.setattr(ks, "_native_fork_session", lambda *a, **k: None)
@@ -168,11 +171,12 @@ def test_fork_session_with_kimi_home_uses_copy_fallback(tmp_path, monkeypatch):
     new_id = ks.fork_session("session_a", "pan-branch", None, kimi_home=str(home))
     assert new_id.startswith("session_") and new_id != "session_a"
 
-    # registered in the isolated home's index, not the real one
+    # registered in the isolated home's index, not in the default home
     index = ks._load_session_index(str(home))
     assert new_id in [e["sessionId"] for e in index]
-    assert not (Path.home() / ".kimi-code" / "session_index.jsonl").read_text(
-        encoding="utf-8").count(new_id)
+    default_index = default_home / "session_index.jsonl"
+    assert not default_index.exists() or new_id not in default_index.read_text(
+        encoding="utf-8")
 
     # title + history carried over
     assert ks.get_session_title(new_id, None, kimi_home=str(home)) == "pan-branch"
@@ -201,33 +205,47 @@ def _fake_run(monkeypatch, stdout: str, returncode: int = 0):
     return calls
 
 
+def _fake_kimi_exe(monkeypatch, tmp_path) -> str:
+    """Point ``_kimi_executable`` at an existing file.
+
+    ``_native_fork_session`` checks that the resolved entry is installed before
+    spawning, so a bare name only reaches the parse path on hosts that happen
+    to have kimi on PATH. Use an owned file: the spawn itself is faked, only
+    the install gate is satisfied.
+    """
+    exe = tmp_path / "kimi.exe"
+    exe.write_text("", encoding="utf-8")
+    monkeypatch.setattr(ks, "_kimi_executable", lambda: str(exe))
+    return str(exe)
+
+
 def test_native_fork_parses_new_session_id(tmp_path, monkeypatch):
     calls = _fake_run(monkeypatch, 'Forked to session_6981e692-ad3f-4437-b257-41a4d09d2ece ("Fork: x") in 445ms\n')
-    monkeypatch.setattr(ks, "_kimi_executable", lambda: "kimi.exe")
+    exe = _fake_kimi_exe(monkeypatch, tmp_path)
     new_id = ks._native_fork_session(
         "session_parent", "pan-branch", r"C:\work\a", None)
     assert new_id == "session_6981e692-ad3f-4437-b257-41a4d09d2ece"
-    assert calls["cmd"][:3] == ["kimi.exe", "fork", "session_parent"]
+    assert calls["cmd"][:3] == [exe, "fork", "session_parent"]
     assert "-y" in calls["cmd"]
     assert calls["cmd"][calls["cmd"].index("--cwd") + 1] == str(Path(r"C:\work\a"))
 
 
 def test_native_fork_injects_kimi_code_home(tmp_path, monkeypatch):
     calls = _fake_run(monkeypatch, "Forked to session_6981e692-ad3f-4437-b257-41a4d09d2ece (x)\n")
-    monkeypatch.setattr(ks, "_kimi_executable", lambda: "kimi.exe")
+    _fake_kimi_exe(monkeypatch, tmp_path)
     ks._native_fork_session("session_parent", None, r"C:\work\a", "D:/data/kimi-homes/ses_x")
     assert calls["env"]["KIMI_CODE_HOME"] == "D:/data/kimi-homes/ses_x"
 
 
 def test_native_fork_failure_returns_none(tmp_path, monkeypatch):
     _fake_run(monkeypatch, "error: unknown command 'fork'\n", returncode=1)
-    monkeypatch.setattr(ks, "_kimi_executable", lambda: "kimi.exe")
+    _fake_kimi_exe(monkeypatch, tmp_path)
     assert ks._native_fork_session("session_parent", None, r"C:\work\a", None) is None
 
 
 def test_native_fork_unparseable_output_returns_none(tmp_path, monkeypatch):
     _fake_run(monkeypatch, "some unexpected output\n")
-    monkeypatch.setattr(ks, "_kimi_executable", lambda: "kimi.exe")
+    _fake_kimi_exe(monkeypatch, tmp_path)
     assert ks._native_fork_session("session_parent", None, r"C:\work\a", None) is None
 
 
