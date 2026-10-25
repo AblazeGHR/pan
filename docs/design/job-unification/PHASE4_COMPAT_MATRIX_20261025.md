@@ -27,3 +27,11 @@
 | 旧 Schedule records、时间计算、Scheduler Event、Trigger 注册和真实数据迁移 | 未迁移 | Phase 4b；本阶段不创建第二 scheduler、不迁移既有 schedule、不切换旧 owner |
 
 真实代码锚点：`packages/jobs/legacy_compat.py`（参数/结果适配）、`packages/jobs/action_runtime.py`（统一 Job 生命周期）、`packages/jobs/system_actions.py`（产品维护的 system Actions）、`packages/web/server.py`（legacy route 的 trusted-MCP 分流）、`packages/mcp/server.py`（原 tool names/parameters）。
+
+## Phase 4b Scheduler owner switch
+
+| legacy entry | switch expression | owner/evidence | remaining gap |
+|---|---|---|---|
+| MCP `scheduler_create/update/run_now/list/get/delete/pause/resume/runs`, HTTP `/api/scheduler/tasks*`, Jobs schedule editor | `packages/scheduler/legacy_bridge.py::LegacySchedulerBridge` keeps `taskId`/`jobId`, creates one `Sources` row, one managed Ledger Trigger filtered by `payload.scheduleId`, and converts the Job to `system_scheduled_task` Action config | `tests/test_scheduler_legacy_bridge.py` proves stable identities, one source link, Event→Trigger→Job audit, run-now, explicit switch and idempotent repeat; `background_jobs.run_due_scheduled_tasks` skips `is_action_job` records | Real production MCP/GUI transport and deployment acceptance remain untested |
+| Existing legacy schedule records | `POST /api/scheduler/tasks/{task_id}/owner-switch` is explicit/idempotent; unmappable Action/schedule records remain legacy | unknown Action, multi-entry and unknown schedule fields raise `legacy_unmappable` and leave the old record untouched | Bulk real-data migration and operator review are Phase 4b deployment work |
+| Scheduled shell, QQ text, `resume_legal_running` | `system_scheduled_task` preserves the old `action` payload and delegates to the existing `_execute_job_action` effect path | system Action schema validation occurs before switch; old error/receipt fields remain on the compatibility record | Provider-specific QQ and shell process recovery need live acceptance |

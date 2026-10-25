@@ -58,6 +58,22 @@ _RUN_RENAMES = {
     "worker_id": "workerId",
 }
 
+
+def _compat(request):
+    return getattr(getattr(getattr(request, 'app', None), 'state', None), 'automation', None) if request is not None else None
+
+
+async def _switch(request, task_id):
+    svc = _compat(request)
+    bridge = getattr(svc, 'scheduler_compat', None) if svc else None
+    return await bridge.switch(task_id) if bridge else None
+
+
+async def _legacy_update(request, task_id, patch):
+    svc = _compat(request)
+    bridge = getattr(svc, 'scheduler_compat', None) if svc else None
+    return await bridge.update(task_id, patch) if bridge else None
+
 # 注入的 WS 广播函数（server.py → bind(broadcast=broadcast)）
 _state: dict = {"broadcast": None}
 
@@ -283,12 +299,13 @@ async def list_tasks(includeDisabled: bool = True, request: Request = None):
     tasks = scheduler_store.list_tasks(include_disabled=includeDisabled)
     if not await may_read_jobs(request):
         from packages.jobs.action_runtime import is_action_job
-        tasks=[t for t in tasks if not is_action_job(scheduler_store._job_for_task(t['id']))]
+        tasks=[t for t in tasks if (not is_action_job(scheduler_store._job_for_task(t['id']))
+                                    or scheduler_store._job_for_task(t['id']).get('legacySchedulerCompat'))]
     return _ok(tasks=[_public(t) for t in tasks])
 
 
 @router.post("/tasks")
-async def create_task(data: dict):
+async def create_task(data: dict, request: Request = None):
     """创建定时任务。Body: {name?, targetSessionId, text, schedule, enabled?, maxRuns?, misfirePolicy?}"""
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
@@ -331,6 +348,9 @@ async def create_task(data: dict):
     }
     try:
         task = scheduler_store.create_task(payload)
+        switched = await _switch(request, task['id'])
+        if switched:
+            task = scheduler_store.get_task(task['id']) or task
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     _emit_task("scheduler.task.created", task)
@@ -343,12 +363,26 @@ async def get_task(task_id: str, request: Request = None):
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
-    await require_job(request, scheduler_store._job_for_task(task_id))
+    job = scheduler_store._job_for_task(task_id)
+    if not job or not job.get('legacySchedulerCompat'):
+        await require_job(request, job)
     return _ok(task=_public(task))
 
 
+@router.post("/tasks/{task_id}/owner-switch")
+async def switch_owner(task_id: str, request: Request = None):
+    """Explicit idempotent legacy Schedule -> Event owner switch."""
+    try:
+        task = await _switch(request, task_id)
+    except (ValueError, KeyError) as exc:
+        return _err('legacy_unmappable', str(exc))
+    if task is None:
+        return _err('legacy_unmappable', 'Scheduler compatibility runtime unavailable or record is not losslessly mapped')
+    return _ok(task=_public(scheduler_store.get_task(task_id) or task), switched=True)
+
+
 @router.patch("/tasks/{task_id}")
-async def update_task(task_id: str, data: dict):
+async def update_task(task_id: str, data: dict, request: Request = None):
     """局部更新：name / text / targetSessionId / schedule / enabled / paused / maxRuns / misfirePolicy。"""
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
@@ -397,7 +431,9 @@ async def update_task(task_id: str, data: dict):
         patch["misfire_policy"] = policy
 
     try:
-        task = scheduler_store.update_task(task_id, patch)
+        task = await _legacy_update(request, task_id, patch)
+        if task is None:
+            task = scheduler_store.update_task(task_id, patch)
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     if task is None:
@@ -407,13 +443,21 @@ async def update_task(task_id: str, data: dict):
 
 
 @router.delete("/tasks/{task_id}")
-async def delete_task(task_id: str):
+async def delete_task(task_id: str, request: Request = None):
     """删除定时任务。"""
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
     try:
-        scheduler_store.delete_task(task_id)
+        job = scheduler_store._job_for_task(task_id)
+        if job and job.get('legacySchedulerCompat'):
+            svc = _compat(request); bridge = getattr(svc, 'scheduler_compat', None) if svc else None
+            if bridge:
+                await bridge.delete(task_id)
+            else:
+                raise ValueError('Scheduler compatibility runtime unavailable')
+        else:
+            scheduler_store.delete_task(task_id)
     except ValueError as exc:
         return _err("job_busy", str(exc))
     _emit({"type": "scheduler.task.deleted", "taskId": task_id,
@@ -422,12 +466,14 @@ async def delete_task(task_id: str):
 
 
 @router.post("/tasks/{task_id}/pause")
-async def pause_task(task_id: str):
+async def pause_task(task_id: str, request: Request = None):
     """暂停（跳过触发，但 next_fire_at 仍按锚点推进，恢复后不爆发补跑）。"""
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
-    updated = scheduler_store.update_task(task_id, {"paused": True})
+    updated = await _legacy_update(request, task_id, {"paused": True})
+    if updated is None:
+        updated = scheduler_store.update_task(task_id, {"paused": True})
     if updated is None:
         return _err("not_found", f"task {task_id} not found")
     _emit_task("scheduler.task.updated", updated)
@@ -435,12 +481,14 @@ async def pause_task(task_id: str):
 
 
 @router.post("/tasks/{task_id}/resume")
-async def resume_task(task_id: str):
+async def resume_task(task_id: str, request: Request = None):
     """恢复暂停的任务。"""
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
-    updated = scheduler_store.update_task(task_id, {"paused": False})
+    updated = await _legacy_update(request, task_id, {"paused": False})
+    if updated is None:
+        updated = scheduler_store.update_task(task_id, {"paused": False})
     if updated is None:
         return _err("not_found", f"task {task_id} not found")
     _emit_task("scheduler.task.updated", updated)
@@ -448,13 +496,15 @@ async def resume_task(task_id: str):
 
 
 @router.post("/tasks/{task_id}/run-now")
-async def run_task_now(task_id: str):
+async def run_task_now(task_id: str, request: Request = None):
     """立即触发一次（不影响 next_fire_at 的正常推进）。"""
     task = scheduler_store.get_task(task_id)
     if task is None:
         return _err("not_found", f"task {task_id} not found")
     try:
-        result = await scheduler_engine.run_now(task_id)
+        job = scheduler_store._job_for_task(task_id)
+        svc = _compat(request); bridge = getattr(svc, 'scheduler_compat', None) if svc else None
+        result = await bridge.run_now(task_id) if job and job.get('legacySchedulerCompat') and bridge else await scheduler_engine.run_now(task_id)
     except RuntimeError as exc:
         return _err("engine_not_running", str(exc))
     except ValueError as exc:
@@ -477,7 +527,9 @@ async def task_runs(task_id: str, limit: int = 100, request: Request = None):
         return _err("not_found", f"task {task_id} not found")
     if not isinstance(limit, int) or limit < 1 or limit > 500:
         return _err("invalid_argument", "limit must be between 1 and 500")
-    await require_job(request, scheduler_store._job_for_task(task_id))
+    job = scheduler_store._job_for_task(task_id)
+    if not job or not job.get('legacySchedulerCompat'):
+        await require_job(request, job)
     runs = scheduler_store.list_runs(task_id=task_id, limit=limit)
     return _ok(runs=[_public_run(r) for r in runs])
 

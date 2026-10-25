@@ -51,6 +51,11 @@ class Sources:
         with self.connection() as db:
             return [json.loads(row[0]) for row in db.execute('SELECT document FROM sources ORDER BY id')]
 
+    def get(self, sid):
+        with self.connection() as db:
+            row = db.execute('SELECT document FROM sources WHERE id=?', (sid,)).fetchone()
+            return json.loads(row[0]) if row else None
+
     @staticmethod
     def public(item):
         return {k: copy.deepcopy(v) for k, v in item.items() if k != 'pending'}
@@ -157,6 +162,14 @@ class Sources:
             if not row:raise Conflict('Source missing during setup')
             item=json.loads(row[0]);item['setupOperation']=key
             self.write(db,item)
+
+    def set_next_fire(self, sid, next_fire):
+        """Adopt a legacy next-fire fact during an owner switch."""
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT document FROM sources WHERE id=?',(sid,)).fetchone()
+            if not row: raise KeyError(sid)
+            item=json.loads(row[0]); item['nextFireAt']=next_fire; self.write(db,item)
 
     def reserve(self, sid, at):
         from packages.core.background_jobs import _entry_next_fire

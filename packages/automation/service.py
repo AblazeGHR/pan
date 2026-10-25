@@ -347,6 +347,8 @@ class Service:
         self.time_sources=Sources(data_root())
         from .job_links import Links
         self.links=Links(self.job_runtime,self.ledger,self.time_sources)
+        from packages.scheduler.legacy_bridge import LegacySchedulerBridge
+        self.scheduler_compat=LegacySchedulerBridge(self)
         await self.links.recover()
         async def acknowledged(event_id):await self.engine.io(self.events.release_pin,event_id)
         self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged,self.links.source_ready)

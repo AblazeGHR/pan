@@ -492,7 +492,7 @@ def _validate_message_schedule(schedule: object) -> str | None:
 
 @router.post("")
 @router.post("/")
-async def create_job(data: dict):
+async def create_job(data: dict, request: Request = None):
     """Create a user-creatable Job using a strict schema selected by kind."""
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
@@ -616,6 +616,12 @@ async def create_job(data: dict):
                 "paused": paused,
                 "action": action,
             })
+            svc = getattr(getattr(request, 'app', None), 'state', None)
+            automation = getattr(svc, 'automation', None) if svc else None
+            bridge = getattr(automation, 'scheduler_compat', None) if automation else None
+            if bridge:
+                await bridge.switch(task['id'])
+                task = scheduler_store.get_task(task['id']) or task
         except ValueError as exc:
             return _err("invalid_schedule", str(exc))
         job = _find_job(task["id"]) or {}
@@ -839,12 +845,35 @@ async def pin_job(job_id: str, data: dict, request: Request = None):
 
 
 @router.patch("/{job_id}")
-async def patch_job(job_id: str, data: dict):
+async def patch_job(job_id: str, data: dict, request: Request = None):
     """Update fields supported by the immutable kind of an existing Job."""
     if not isinstance(data, dict):
         return _err("invalid_argument", "request body must be a JSON object")
     job = _find_job(job_id)
     from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job) and job.get('legacySchedulerCompat'):
+        svc = getattr(getattr(request, 'app', None), 'state', None) if request is not None else None
+        bridge = getattr(getattr(svc, 'automation', None), 'scheduler_compat', None) if svc else None
+        if bridge is None:
+            return _err('unavailable', 'Scheduler compatibility runtime unavailable')
+        patch = {}
+        for source, target in (('name','name'), ('description','description'), ('text','text'),
+                               ('target', 'target_session_id'), ('enabled','enabled'), ('paused','paused'),
+                               ('maxRuns','max_runs'), ('misfirePolicy','misfire_policy')):
+            if source in data:
+                value = data[source]
+                if source == 'target' and isinstance(value, dict): value = value.get('sessionId')
+                patch[target] = value
+        if 'schedule' in data:
+            specs = data.get('schedule')
+            if not isinstance(specs, list) or len(specs) != 1:
+                return _err('legacy_unmappable', 'Multiple schedule entries require explicit legacy owner review')
+            patch['schedule'] = specs[0]
+        try:
+            await bridge.update(job.get('taskId') or job_id, patch)
+            return _ok(job=_view(_find_job(job_id)))
+        except (ValueError, KeyError) as exc:
+            return _err('invalid_argument', str(exc))
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
@@ -1142,10 +1171,16 @@ async def job_runs(job_id: str, limit: int = 100, request: Request = None):
 
 
 @router.post("/{job_id}/run-now")
-async def run_job_now(job_id: str):
+async def run_job_now(job_id: str, request: Request = None):
     """手动触发一次：scheduled-task 走兼容层 run_now；message 类到点重投。"""
     job = _find_job(job_id)
     from packages.jobs.action_runtime import is_protected_job as is_action_job
+    if is_action_job(job) and job.get('legacySchedulerCompat'):
+        svc = getattr(getattr(request, 'app', None), 'state', None) if request is not None else None
+        bridge = getattr(getattr(svc, 'automation', None), 'scheduler_compat', None) if svc else None
+        if bridge is None: return _err('unavailable', 'Scheduler compatibility runtime unavailable')
+        try: return _ok(run=await bridge.run_now(job.get('taskId') or job_id), job=_view(_find_job(job_id)))
+        except (ValueError, KeyError) as exc: return _err('invalid_argument', str(exc))
     if is_action_job(job):
         return _err('user_confirmation_required','Use protected /api/jobs/action-jobs endpoints')
     if job is None:
