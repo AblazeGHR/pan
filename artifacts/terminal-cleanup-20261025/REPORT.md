@@ -3,7 +3,8 @@
 - 工作树：`D:/project/pan-worktrees/terminal-cleanup-20261025`
 - 分支：`fix/terminal-cleanup-20261025`
 - 基线：`3bf174b1`
-- 修复提交：`f3e1b3f8`（未移动 main/practical、未 push、未跑远端 CI、未启停 8767/8768）；本报告与截图在其后的证据提交中
+- 根因修复：`f3e1b3f8`；复核补充（close/宿主进程等待）：见 `git log` 中紧随证据提交之后的 `fix(terminal): wait bounded...`
+- 未移动 main/practical、未 push、未跑远端 CI、未启停 8767/8768
 - 证据目录：`artifacts/terminal-cleanup-20261025/`
 - 环境：Windows 11；Python `E:/software/miniforge/python.exe`；node `v24.22.1`；sidecar `npm ci` 安装 2 个 exact-pin 包
 
@@ -52,6 +53,7 @@ adapter 或 native bridge 改动引入的代码回归。
 | `packages/core/terminal/service.py:1121` | `_wait_for_bootstrap`：等自证的同时每 50ms 看一眼**自己派生的句柄**；有终态文件或非零退出即停止空等（零退出无状态文件的 shim 场景仍保持等待） |
 | `packages/core/terminal/service.py:1208` | `_classify_launcher_exit`：只有「`phase=engine-startup-failed` + `engine.created=false` + `startup.converged=true`」才判为"启动失败且无遗留资源"；其它一律维持 `cleanup-failed`（**不降级、不吞错**） |
 | `packages/core/terminal/service.py:1241` | `_mark_startup_failed`：写 `exited` + 静态 `exit.reason` + `exit.code=8`、`cleanup_pending=false`，删除未使用的 bootstrap 自证文件；记录可删除 |
+| `packages/core/terminal/service.py:2230` | 复核补充：`_spawn_wrapper_exit_evidence` / `_spawn_exit_settled`；close 在 `stop_confirm` 预算内等待**我们自己 Popen 的宿主进程**退出，超时显式 `process-still-running`（保持 `cleanup-failed`）；`_refresh_finished_owner` / `_reconcile_live` 在包装仍存活时不记 `exited` |
 | `packages/web/src/views/TerminalPanel.tsx:15` | 按静态 reason 显示启动失败原因（不再是"clean up failed"）；创建失败的 502 `startup-failed` 也有明确文案 |
 | `packages/web/src/views/TerminalPanel.test.tsx` | 新增该 UI 文案回归 |
 | `tests/test_terminal_startup_failure_ma.py` | 新增 9 条回归（预检/launcher 状态/4 条 service 分支/真实引擎 3 次开关） |
@@ -99,13 +101,37 @@ packages.core.terminal.launcher`）：
 
 | 套件 | 结果 |
 | --- | --- |
-| `tests/test_terminal_startup_failure_ma.py`（新增） | 9 passed |
+| `tests/test_terminal_startup_failure_ma.py`（新增） | 11 passed（含 5×E2E 单跑 5/5） |
 | `tests/test_terminal_launcher.py` | 84 passed |
 | `tests/test_terminal_service.py` + `_rework` + `_ma` + `test_terminal_api.py` + `test_terminal_ws.py` | 164 passed |
 | `tests/test_terminal_emulator.py` + `test_terminal_composition.py` + `test_terminal_deployment.py` | 69 passed |
-| `tests/ -k terminal`（全量 terminal 相关） | 1006 passed, 6 skipped, 4830 deselected（17m10s） |
+| `tests/ -k terminal`（全量 terminal 相关） | 1011 passed, 3 skipped, 4830 deselected（17m29s） |
 | `packages/web` `npx vitest run src/views/TerminalPanel.test.tsx` | 11 passed |
 | `packages/web` `pnpm build`（tsc -b + vite） | 通过 |
+
+## 3.4 MA 复核（70632f7b）后的补充：close 与自有宿主进程
+
+MA 在 `test_real_terminal_start_echo_close_three_times` 的第一轮看到
+`launcher/runner 应已退出` 失败（close 返回时 pid 仍可见，稍后消失）。复核结论：
+
+- **close 的③号证明**用 **retained runner handle** 的 same-handle `Wait`，因此
+  runner 身份死亡在 `exited` 返回时确实已被证明；单次新建句柄探测在句柄释放后
+  可能得到 `UNKNOWN`（进程对象已回收）——旧断言把 UNKNOWN 当"还活着"，属于
+  **断言过严**。测试已改为有界轮询：DEAD / 不可见（probe UNKNOWN 且 psutil 也
+  不可见）/ PID 复用才算无残留；ALIVE 且 FILETIME 相同仍判失败（保留 pid+filetime）。
+- **但发现一个真实产品缺口**：close 只要求 retained runner 死亡，没有要求
+  **我们自己 Popen 的宿主进程**退出。shim/uv 下包装与 runner 不是同一 PID，包装
+  晚于 runner 退出时，close 可以先返回 `exited`（`_refresh_finished_owner` /
+  `_reconcile_live` 也会提前记 `exited`）。这不会泄漏 shell，但违反"我们自己派生
+  的 launcher 已消失"的清理语义。
+- 修复：`_spawn_wrapper_exit_evidence` + `_spawn_exit_settled`，close 在既有
+  `stop_confirm` 预算内等待自有 Popen 退出；超时显式失败为
+  `process-still-running`（记录保持 `cleanup-failed`，可重试）；`_refresh_finished_owner`
+  与 `_reconcile_live` 在包装仍存活时不再记 `exited`。无新增词表、无无界 sleep。
+- 复跑：E2E 用例 **5/5 通过**；新增 shim 回归
+  `test_close_waits_bounded_for_own_spawn_wrapper_then_exits`（先
+  `process-still-running`，包装退出后重试才 `exited`）。本机 5 次均未复现
+  MA 的即时失败，故无法断言其具体 probe 状态；上述两个窗口均已覆盖。
 
 ## 4. 未测边界 / 已知限制
 

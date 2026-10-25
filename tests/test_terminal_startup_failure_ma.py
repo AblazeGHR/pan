@@ -39,7 +39,7 @@ from packages.core.terminal.emulator import (
     _sidecar_dependencies,
 )
 from packages.core.terminal.launcher import TerminalLauncher
-from packages.core.terminal.service import StartupFailed, TerminalService
+from packages.core.terminal.service import CleanupUnconfirmed, StartupFailed, TerminalService
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -244,6 +244,19 @@ def test_service_keeps_cleanup_failed_when_engine_cleanup_unproven(tmp_path):
     assert record.exit_reason == "bootstrap-unverified"
 
 
+def test_missing_proof_distinguishes_wrapper_from_runner():
+    """自有宿主进程未退出时，缺证明分类必须是 process-still-running。"""
+    evidence = {
+        "engine_converged": True,
+        "process_exit": {"exited": True},
+        "spawn_exit": {"present": True, "exited": False},
+    }
+    assert TerminalService._missing_proof(evidence, True) == "process-still-running"
+    assert TerminalService._spawn_exit_settled(evidence) is False
+    assert TerminalService._spawn_exit_settled(
+        {"spawn_exit": {"present": False, "exited": None}}) is True
+
+
 def test_service_keeps_cleanup_failed_when_launcher_dies_without_status(tmp_path):
     """句柄非零退出但没有状态文件 → 无法证明"没有资源"，保持 cleanup-failed。"""
     service = TerminalService(
@@ -298,13 +311,48 @@ def _read_until(service: TerminalService, terminal_id: str, needle: bytes, *, ti
     return False
 
 
-def _process_dead(pid: int, filetime: int | None) -> bool:
+def _pid_visible(pid: int) -> bool:
+    """独立可见性复核（用于区分 probe UNKNOWN 的两种含义）。"""
+    try:
+        import psutil
+    except ImportError:  # pragma: no cover
+        return True  # 无法复核 → 保守视为仍可见
+    try:
+        return bool(psutil.pid_exists(int(pid)))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _residue_state(pid: int, filetime: int | None) -> tuple[bool, str]:
+    """(gone, detail)：只把**可归因**的存活当残留。
+
+    ``probe_process`` 的 UNKNOWN 有两种含义：进程对象已释放（OpenProcess 打不开，
+    即已消失）或权限不足。对同用户、自己派生的进程，后者不成立；再用 psutil
+    独立复核一次，只有"两只眼都看不到"才判 gone。ALIVE 且 FILETIME 相同 = 真残留；
+    FILETIME 不同 = PID 复用，不算残留。
+    """
     probe = win_pipe.probe_process(int(pid))
     if probe.status is ProcessStatus.DEAD:
-        return True
-    if probe.status is ProcessStatus.ALIVE and filetime is not None and probe.identity is not None:
-        return int(probe.identity.created_at_filetime or -1) != int(filetime)
-    return False
+        return True, "dead"
+    if probe.status is ProcessStatus.ALIVE:
+        identity = probe.identity
+        if filetime is not None and identity is not None:
+            if int(identity.created_at_filetime or -1) != int(filetime):
+                return True, "pid-reused"
+        return False, "alive"
+    if not _pid_visible(pid):
+        return True, "gone"
+    return False, "unattributable"
+
+
+def _wait_residue_gone(pid: int, filetime: int | None, timeout: float = 10.0) -> tuple[bool, str]:
+    """有界等待"无残留"；退出即成即返回，不叠加固定 sleep。"""
+    deadline = time.monotonic() + float(timeout)
+    gone, detail = _residue_state(pid, filetime)
+    while not gone and time.monotonic() < deadline:
+        time.sleep(0.05)
+        gone, detail = _residue_state(pid, filetime)
+    return gone, detail
 
 
 def _node_children(pid: int) -> dict[int, float]:
@@ -337,6 +385,58 @@ def _same_process_alive(pid: int, created: float) -> bool:
 
 
 @requires_sidecar
+def test_close_waits_bounded_for_own_spawn_wrapper_then_exits(tmp_path):
+    """shim 包装进程晚于 runner 退出：close 必须有界等待并显式失败，重试才收敛。
+
+    先失败再成功是本用例的核心：若 close 在包装进程仍存活时就返回 ``exited``，
+    等于把"我们自己派生的 launcher 还在退出"当成已清理。
+    """
+    shim = tmp_path / "linger-launcher.cmd"
+    shim.write_text(
+        "@echo off\r\n"
+        f'"{sys.executable}" %*\r\n'
+        "ping -n 12 127.0.0.1 >nul\r\n",  # ~11s，明显长于 stop_confirm
+        encoding="ascii",
+    )
+    service = TerminalService(
+        tmp_path / "terminals",
+        python_argv=[os.environ.get("COMSPEC", "cmd.exe"), "/c", str(shim)],
+        stop_confirm=5.0,
+        log_stderr=False,
+    )
+    try:
+        view = service.create(rows=24, cols=80)
+        terminal_id = view["terminal_id"]
+        runner_pid = int(view["pid"])
+        runner_filetime = int(view["process_created_at_filetime"])
+        wrapper = service._states[terminal_id].process
+        assert wrapper is not None and int(wrapper.pid) != runner_pid, (
+            "shim 场景下 Popen 包装进程应与 bootstrap runner 不是同一 PID"
+        )
+
+        started = time.monotonic()
+        with pytest.raises(CleanupUnconfirmed) as info:
+            service.close(terminal_id)
+        elapsed = time.monotonic() - started
+        assert info.value.reason == "process-still-running", info.value
+        assert 4.0 <= elapsed <= 9.0, f"close 应按 stop_confirm 有界失败：{elapsed:.2f}s"
+        assert wrapper.poll() is None, "包装进程此时应仍在退出（不是无限等待到它结束）"
+        record = service.get(terminal_id)
+        assert record["status"] == RuntimeState.CLEANUP_FAILED.value, record
+        assert record["exit"]["reason"] == "process-still-running", record
+
+        deadline = time.monotonic() + 25.0
+        while wrapper.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert wrapper.poll() is not None, "包装进程应在有界窗口内退出"
+        assert service.close(terminal_id)["status"] == RuntimeState.EXITED.value
+        gone, detail = _wait_residue_gone(runner_pid, runner_filetime, timeout=10.0)
+        assert gone, f"runner 仍有残留（{detail}）"
+    finally:
+        service.shutdown(budget=20.0)
+
+
+@requires_sidecar
 def test_real_terminal_start_echo_close_three_times(tmp_path):
     """真实生产路径：create → echo 看到输出 → close 收敛；重复 3 次无残留。"""
     service = TerminalService(tmp_path / "terminals", log_stderr=False)
@@ -361,7 +461,14 @@ def test_real_terminal_start_echo_close_three_times(tmp_path):
             record = service.get(terminal_id)
             assert record["status"] == RuntimeState.EXITED.value, record
             assert service._store().exists(terminal_id) is False, "已证明终止后应删秘密"
-            assert _process_dead(pid, filetime), "launcher/runner 应已退出"
+            # close 已证明 retained-handle（runner 身份）死亡；自有 Popen 宿主也必须在
+            # 返回前退出。这里的 pid 探测只作二次核对：句柄释放后进程对象可能已被
+            # 系统回收，UNKNOWN 需用独立可见性复核，不能把"看不见"当"还活着"。
+            assert service._states[terminal_id].process.poll() is not None, (
+                f"第 {round_index + 1} 次：自有 launcher 宿主进程应已退出"
+            )
+            gone, detail = _wait_residue_gone(pid, filetime, timeout=10.0)
+            assert gone, f"第 {round_index + 1} 次：launcher/runner 仍有残留（{detail}）"
             deadline = time.monotonic() + 12.0
             alive = {pid: created for pid, created in sidecars.items()
                      if _same_process_alive(pid, created)}

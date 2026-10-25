@@ -786,8 +786,10 @@ class TerminalService:
                 return
             evidence = self._launcher_status_evidence(state)
             evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
+            evidence["spawn_exit"] = self._spawn_wrapper_exit_evidence(state)
             if (evidence.get("engine_converged") is not True
-                    or evidence["process_exit"].get("exited") is not True):
+                    or evidence["process_exit"].get("exited") is not True
+                    or not self._spawn_exit_settled(evidence)):
                 return
             facts = self._finished_runtime_exit(state)
             if (facts is None or facts.get("seen") is not True
@@ -1716,7 +1718,8 @@ class TerminalService:
         三项证明齐备才记 ``exited`` 并删除秘密：
         ① runner 侧收尾确认（stop 响应 ``exited``）；② launcher 引擎收尾
         （launcher-status ``engine.cleanup.converged`` 为真 bool）；③ **经身份核验的
-        进程退出**（我们**自己派生**的 launcher 句柄）。
+        进程退出**（我们**自己派生**的 launcher 句柄）+ 我们自己 Popen 的那个宿主
+        进程也已退出（Python shim/uv 包装与 runner 不是同一 PID 时必须分开等）。
 
         任一项缺失 → 停在 ``EXITING``/``CLEANUP_FAILED`` + **静态分类** reason
         （``F10``：区分缺哪一项证明），**保留** owner/record/secret 可重试；
@@ -1884,22 +1887,28 @@ class TerminalService:
         # 每轮重新评估外部证据（stop 已确认则不重复发）。
         evidence.update(self._launcher_status_evidence(state))
         evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
+        # 我们 Popen 的宿主进程（shim/uv 下可能与 runner 不同 PID）也必须退出：
+        # “runner 身份死亡”不覆盖包装进程；不能把还在退出的包装当成已清理。
+        evidence["spawn_exit"] = self._spawn_wrapper_exit_evidence(state)
         # Runner's stop response precedes launcher engine finalization. Spend
         # the remaining existing budget observing those independent proofs;
         # do not resend stop or treat root death as engine cleanup.
         while (stop_confirmed and
                (evidence.get("engine_converged") is not True or
-                evidence["process_exit"].get("exited") is not True)):
+                evidence["process_exit"].get("exited") is not True or
+                not self._spawn_exit_settled(evidence))):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
             time.sleep(min(0.02, remaining))
             evidence.update(self._launcher_status_evidence(state))
             evidence["process_exit"] = self._spawn_handle_exit_evidence(state)
+            evidence["spawn_exit"] = self._spawn_wrapper_exit_evidence(state)
         proven = bool(
             stop_confirmed
             and evidence.get("engine_converged")
             and (evidence.get("process_exit") or {}).get("exited")
+            and self._spawn_exit_settled(evidence)
         )
         if proven and not self._release_runner_identity_handle(state):
             # A failed CloseHandle keeps the exact same object for retry.
@@ -1958,6 +1967,9 @@ class TerminalService:
         if not evidence.get("engine_converged"):
             # launcher 引擎收尾未确证（含exit 6 / status 缺失或损坏）
             return "engine-cleanup-unproven"
+        if not TerminalService._spawn_exit_settled(evidence):
+            # 我们 Popen 的宿主进程仍在退出（shim/uv 包装与 runner 不同 PID）。
+            return "process-still-running"
         process_exit = evidence.get("process_exit")
         if not isinstance(process_exit, Mapping) or not process_exit.get("exited"):
             return "process-still-running"
@@ -2215,6 +2227,45 @@ class TerminalService:
             "source": "self-spawn-handle",
         }
 
+    def _spawn_wrapper_exit_evidence(self, state: _TerminalState) -> dict[str, Any]:
+        """**我们 Popen 的宿主进程**（launcher/shim）是否已退出。
+
+        与 :meth:`_spawn_handle_exit_evidence` 的区别：后者回答"bootstrap 自证的
+        runner 是否死亡"（shim 下 runner 是包装进程的子进程，权威证明在 retained
+        handle 上）；本方法回答"我们自己派生的那个 Popen 进程是否已退出"。两者都
+        是清理事实：包装进程若还在退出，不能声称 launcher 已消失。
+
+        无自有 Popen（跨进程遗留记录）→ ``present=False``（不造结论、不阻塞）。
+        """
+        process = state.process
+        if process is None:
+            return {"present": False, "exited": None, "source": "none"}
+        poll = getattr(process, "poll", None)
+        if not callable(poll):
+            return {"present": True, "exited": False, "detail": "handle-not-pollable",
+                    "source": "self-spawn-handle"}
+        try:
+            returncode = poll()
+        except Exception as exc:  # noqa: BLE001 - 无法判定按未退出处理（fail-closed）
+            self._note_error("spawn-handle-poll-failed", exc)
+            return {"present": True, "exited": False, "detail": "poll-failed",
+                    "source": "self-spawn-handle"}
+        return {
+            "present": True,
+            "exited": returncode is not None,
+            "returncode": int(returncode) if isinstance(returncode, int) else None,
+            "spawn_pid": state.spawn_pid,
+            "source": "self-spawn-handle",
+        }
+
+    @staticmethod
+    def _spawn_exit_settled(evidence: Mapping[str, Any]) -> bool:
+        """自有 Popen 已退出（或根本没有自有 Popen）才算收尾完成。"""
+        spawn_exit = evidence.get("spawn_exit")
+        if not isinstance(spawn_exit, Mapping) or spawn_exit.get("present") is not True:
+            return True
+        return spawn_exit.get("exited") is True
+
     def _finalize_exited(self, state: _TerminalState, *, reason: str, evidence: Mapping[str, Any]) -> None:
         """已证明终止：才更新记录、删秘密、回收 lease 资料。"""
         terminal_id = state.terminal_id
@@ -2385,11 +2436,20 @@ class TerminalService:
                 (handle_exit.get("source") == "runner-retained-handle"
                  or identity_status == "dead-confirmed")):
             engine = self._launcher_status_evidence(state)
+            spawn_exit = self._spawn_wrapper_exit_evidence(state)
+            spawn_settled = self._spawn_exit_settled({"spawn_exit": spawn_exit})
             proven = (self._runner_cleanup_record_confirmed(state)
-                      and engine.get("engine_converged") is True)
+                      and engine.get("engine_converged") is True
+                      and spawn_settled)
             if proven and self._release_runner_identity_handle(state):
                 self._finalize_exited(state, reason="observed-exit", evidence={
                     "process_exit": handle_exit, "runner_exit": self._finished_runtime_exit(state)})
+            elif not spawn_settled:
+                # runner 证据已齐，只有**我们 Popen 的宿主进程**仍在退出（shim/uv
+                # 包装与 runner 不同 PID）。这不是"外部终止"，也不能记 exited；
+                # 保持 close 留下的 cleanup-failed，等它退出后下一轮再收敛。
+                self._note("reconcile-spawn-wrapper-still-exiting", terminal_id)
+                return "cleanup-unconfirmed"
             else:
                 def observed(record: TerminalRecord) -> TerminalRecord:
                     record.status = RuntimeState.EXITED
