@@ -17,6 +17,7 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDetailStore } from './stores/detailStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePluginPanelStore } from './stores/pluginPanelStore';
+import { usePlatformStore } from './stores/platformStore';
 import { useGlobalShortcuts } from './shortcuts/useGlobalShortcuts';
 import { Outlet, useNavigate } from 'react-router-dom';
 
@@ -29,6 +30,9 @@ const DetailPanel = lazy(() => import('./components/detail/DetailPanel').then(
 export function Layout() {
   const sidebarPanel = useState<HTMLElement | null>(null);
   useEffect(() => { void usePluginPanelStore.getState().load(); }, []);
+  // One capability probe for the whole shell. It never blocks rendering:
+  // entries stay available until the server explicitly reports otherwise.
+  useEffect(() => { void usePlatformStore.getState().load(); }, []);
   // Event-driven catalog refresh: a plugin may be installed/removed while Pan
   // is in the background. Returning focus re-reads the real registry so new
   // panel actions appear and removed ones stop matching, without polling.

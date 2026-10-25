@@ -7,10 +7,41 @@ import type { TerminalView } from '@/services/terminal';
 import { TerminalStream } from '@/services/terminalWs';
 import { terminalKeyHandler } from '@/services/terminalKeyboard';
 import type { TerminalState } from '@/services/terminalWs';
+import { useCapability, usePlatformStore } from '@/stores/platformStore';
+import { platformLabel } from '@/utils/platformCapabilities';
 
 const initial: TerminalState = { connected: false, control: false, recovering: true, message: '请选择终端' };
 
+/**
+ * Route guard: the POSIX backends do not implement the native PTY terminal
+ * yet, so the server advertises `terminal.native: false`. Navigating here
+ * directly must explain that instead of polling an API that answers
+ * "unsupported" and showing an empty shell that looks broken.
+ */
 export default function TerminalPanel() {
+  const supported = useCapability('terminal.native');
+  const platform = usePlatformStore((state) => state.platform);
+  if (!supported) {
+    return (
+      <section className="flex flex-1 items-center justify-center p-6" aria-label="全局终端">
+        <div
+          role="status"
+          data-testid="terminal-unsupported"
+          className="max-w-md rounded-xl border border-border-default bg-bg-secondary p-5 text-sm"
+        >
+          <h1 className="mb-2 font-semibold">当前平台暂不支持终端</h1>
+          <p className="text-text-secondary">
+            服务端运行在 {platformLabel(platform)} 上，尚未提供原生 PTY 终端（terminal.native）。
+            Session、Worker、编辑器与自动化不受影响；本入口不会创建任何进程。
+          </p>
+        </div>
+      </section>
+    );
+  }
+  return <TerminalWorkspace />;
+}
+
+function TerminalWorkspace() {
   const [records, setRecords] = useState<TerminalView[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [selected, setSelected] = useState('');

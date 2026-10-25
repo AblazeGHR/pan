@@ -2005,6 +2005,23 @@ export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
   return data;
 }
 
+// ── Platform capabilities ──
+
+/**
+ * Platform descriptor exposed by the server that owns the filesystem and the
+ * processes. Capability keys are the contract; the UI must treat a missing
+ * endpoint or a missing key as "available" so a Windows dashboard keeps
+ * working against a server that predates the endpoint.
+ */
+export interface PlatformInfoResponse {
+  platform: string;
+  capabilities: Record<string, boolean>;
+}
+
+export async function fetchPlatformInfo(): Promise<PlatformInfoResponse> {
+  return request<PlatformInfoResponse>(`${BASE}/platform`);
+}
+
 // ── Main Pan service restart ──
 
 export async function fetchMainRestartStatus(): Promise<ApiMainRestartStatusResponse> {

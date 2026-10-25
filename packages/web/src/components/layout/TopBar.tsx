@@ -15,6 +15,8 @@ import { normalizeCodexQuotaProjection, type CodexQuotaWindow } from '@/utils/co
 import type { CodexQuotaProjection } from '@/types';
 import { copyText } from '@/utils/clipboard';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { usePlatformStore } from '@/stores/platformStore';
+import { platformLabel } from '@/utils/platformCapabilities';
 import {
   MessageSquare,
   Monitor,
@@ -120,6 +122,7 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
   // was scheduled from the Session Settings entry — see useTerminalTuiEntry).
   const terminalEntry = useTerminalTuiEntry(currentSession, { poll: true });
   const nativeActive = terminalEntry.active;
+  const platform = usePlatformStore((s) => s.platform);
   const [codexQuota, setCodexQuota] = useState<CodexQuotaProjection | null>(null);
   // 细粒度订阅：toast/审批/交互队列只在 UI store 的分片里；Worker store 只取
   // 稳定的 action 引用。整体订阅（useUIStore()/useWorkerStore()）会让每次 toast、
@@ -361,7 +364,9 @@ export function TopBar({ rightAction }: { rightAction?: ReactNode }) {
             className="terminal-tui-entry ml-1 flex shrink-0 items-center justify-center gap-1 rounded border px-2 py-1 text-xs transition-colors md:min-h-0"
             data-terminal-status={terminalEntry.status}
             aria-label="Terminal TUI" aria-pressed={terminalEntry.active} disabled={terminalEntry.busy}
-            title={terminalTuiTitle(terminalEntry.status)}
+            title={terminalEntry.status === 'unsupported'
+              ? `Terminal TUI is not available on this platform (${platformLabel(platform)})`
+              : terminalTuiTitle(terminalEntry.status)}
             onClick={() => void terminalEntry.enterNative()}>
             <span className="relative inline-flex shrink-0" aria-hidden="true">
               <TerminalSquare size={16} />
