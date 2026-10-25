@@ -9,7 +9,7 @@ from .final_client import CanonicalClient, HTTPTransport, RESOURCES, RUN_OPERATI
 
 
 def add_parser(sub):
-    final = sub.add_parser("final", help="Canonical Job clients (/api/final); no service lifecycle actions")
+    final = sub.add_parser("final", help="Canonical Job clients (/api); no service lifecycle actions")
     final.add_argument("--api-url", help="HTTP(S) origin; default PAN_API_URL or checkout port")
     groups = final.add_subparsers(dest="resource", required=True)
     for resource in (*RESOURCES, "job-runs", "operations", "actions"):

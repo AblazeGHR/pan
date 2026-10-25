@@ -23,7 +23,8 @@ from packages.plugins.lifecycle import io
 from . import final_contracts as contracts
 
 
-API_PREFIX = "/api/final"
+API_PREFIX = "/api"
+DEPRECATED_PREFIX = "/api/final"
 COOKIE_NAME = "pan_user"
 KINDS = {"jobs": "job", "triggers": "trigger", "event-creators": "event_creator",
          "job-templates": "template"}
@@ -288,17 +289,17 @@ def definition_routes(base, kind):
         router.add_api_route(base + suffix, function, methods=[method], name=f"canonical_{kind}_{function.__name__}")
 
 
-for _path, _kind in KINDS.items():
-    definition_routes(API_PREFIX + "/" + _path, _kind)
-
-
-@router.get("/api/final/actions")
+@router.get("/jobs/actions")
 async def action_catalog(request: Request):
     who = await actor(request)
     return await invoke(request, "actions", actor=who)
 
 
-@router.get("/api/final/jobs/{job_id}/runs")
+for _path, _kind in KINDS.items():
+    definition_routes("/" + _path, _kind)
+
+
+@router.get("/jobs/{job_id}/runs")
 async def runs(job_id: str, request: Request):
     who = await actor(request, "job", "read")
     return page_result("run", await invoke(request, "runs", job_id, actor=who, **page(request)), runtime=True)
@@ -316,20 +317,20 @@ def run_body(value):
     return value
 
 
-@router.post("/api/final/jobs/{job_id}/runs")
+@router.post("/jobs/{job_id}/runs")
 async def create_run(job_id: str, request: Request):
     who = await actor(request, "job", "execute")
     value = run_body(await body(request))
     return write_result(await invoke(request, "create_run", job_id, value, actor=who))
 
 
-@router.get("/api/final/job-runs/{run_id}")
+@router.get("/job-runs/{run_id}")
 async def run_detail(run_id: str, request: Request):
     who = await actor(request, "job", "read")
     return contracts.validate_record("run", await invoke(request, "get_run", run_id, actor=who))
 
 
-@router.post("/api/final/job-runs/{run_id}/operations")
+@router.post("/job-runs/{run_id}/operations")
 async def run_control(run_id: str, request: Request):
     who = await actor(request, "job", "execute")
     value = await body(request)
@@ -359,7 +360,7 @@ async def run_control(run_id: str, request: Request):
     return write_result(await invoke(request, "control_run", run_id, value, actor=who))
 
 
-@router.get("/api/final/operations")
+@router.get("/operations")
 async def operation_lookup(request: Request):
     who = await actor(request)
     query = dict(request.query_params)
@@ -372,7 +373,7 @@ async def operation_lookup(request: Request):
     return value
 
 
-@router.get("/api/final/operations/{operation_id}")
+@router.get("/operations/{operation_id}")
 async def operation_detail(operation_id: str, request: Request):
     who = await actor(request)
     value = await invoke(request, "operation", operation_id, actor=who)
@@ -380,8 +381,47 @@ async def operation_detail(operation_id: str, request: Request):
     return value
 
 
+def _facade_route(target, route, path):
+    """Remount the legacy facade without wrapping or changing its handler."""
+    target.router.add_api_route(
+        path, route.endpoint, methods=route.methods, name=route.name,
+        response_model=route.response_model, status_code=route.status_code,
+        tags=["legacy-jobs"], dependencies=route.dependencies, responses=route.responses,
+        summary=route.summary, description=route.description,
+        response_description=route.response_description, response_class=route.response_class,
+        response_model_include=route.response_model_include,
+        response_model_exclude=route.response_model_exclude,
+        response_model_by_alias=route.response_model_by_alias,
+        response_model_exclude_unset=route.response_model_exclude_unset,
+        response_model_exclude_defaults=route.response_model_exclude_defaults,
+        response_model_exclude_none=route.response_model_exclude_none,
+        callbacks=route.callbacks, openapi_extra=route.openapi_extra,
+        include_in_schema=route.include_in_schema, deprecated=True, route_class_override=type(route),
+    )
+
+
 def install(app, *legacy_routers):
-    """WP07 bridge: old URLs/handlers stay intact; canonical uses /api/final/*."""
+    """Specific legacy paths precede canonical IDs; aliases share endpoints."""
     for old in legacy_routers:
-        app.include_router(old, tags=["legacy-jobs"], deprecated=True)
-    app.include_router(router)
+        if old.prefix != "/api/jobs" or "jobs" not in old.tags:
+            app.include_router(old, tags=["legacy-jobs"], deprecated=True)
+            continue
+        for route in old.routes:
+            suffix = route.path.removeprefix("/api/jobs")
+            _facade_route(app, route, "/api/legacy/jobs" + suffix)
+            # Root, detail and runs now belong to canonical. Keep every other
+            # old entry, including PATCH/pin/run-now and static facade paths.
+            overlaps = (suffix in {"", "/"} or
+                        (suffix == "/{job_id}" and route.methods & {"GET", "DELETE"}) or
+                        suffix == "/{job_id}/runs")
+            if not overlaps:
+                _facade_route(app, route, "/api/jobs" + suffix)
+    app.include_router(router, prefix=API_PREFIX)
+    # The catalog cannot replace the existing /api/actions legacy registry.
+    # Keep its original URL while sharing the new /api/jobs/actions handler.
+    aliases = APIRouter(route_class=ContractRoute)
+    aliases.add_api_route("/actions", action_catalog, methods=["GET"])
+    for route in router.routes:
+        if route.path != "/jobs/actions":
+            aliases.routes.append(route)
+    app.include_router(aliases, prefix=DEPRECATED_PREFIX, deprecated=True)

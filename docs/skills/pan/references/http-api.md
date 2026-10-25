@@ -653,3 +653,16 @@ Reminder admission persists the queue row and invokes normal queue wake/auto-spa
 Illegal or bypasses Pause/locks/leases. A process-owned scheduler waits without polling
 when no pending cards remain; persisted last reminder and stable outbox IDs coalesce missed periods
 after restart. Neither reminder nor answer authorizes or invokes an interaction response or Trigger.
+
+
+## R3 canonical Job paths (WP06c)
+
+Canonical clients now use `/api/jobs`, `/api/triggers`, `/api/event-creators`,
+`/api/job-templates`, `/api/job-runs/{id}` and `/api/operations`.
+`/api/final/*` remains a deprecated alias bound to the same handler. The canonical
+published Action Ref catalog uses `/api/jobs/actions`; `/api/actions` retains its
+legacy registry contract. The general legacy Jobs facade is `/api/legacy/jobs`;
+concrete `/api/jobs/action-jobs` and `/api/jobs/job-templates` clients keep their
+existing paths. Cookie/Bearer and trusted IPC grants remain unchanged.
+See [WP06c](../../../design/job-unification/WP06C_PATH_FLIP_20261026.md) for the
+route snapshot, exact overlap boundary and validation limits.

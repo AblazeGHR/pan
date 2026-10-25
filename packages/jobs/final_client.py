@@ -13,7 +13,7 @@ RESOURCES = {"jobs": "job", "triggers": "trigger", "event-creators": "event_crea
 TOOL_PREFIXES = {"jobs": "job", "triggers": "trigger", "event-creators": "event_creator",
                  "job-templates": "job_template"}
 RUN_OPERATIONS = (*contracts.RUN_OPERATIONS, "run-again", "clone-and-run")
-BASE = "/api/final"
+BASE = "/api"
 
 
 def failure(code, message):
@@ -91,7 +91,7 @@ class CanonicalClient:
     def _call(self, resource, operation, object_id, body, cursor, limit):
         if resource not in {*RESOURCES, "job-runs", "operations", "actions"}:
             raise contracts.ContractError("unsupported_operation", "Unknown resource")
-        path = BASE + "/" + resource
+        path = BASE + ("/jobs/actions" if resource == "actions" else "/" + resource)
         if object_id is not None:
             path += "/" + identifier(object_id)
         if operation in {"list", "runs"}:

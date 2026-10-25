@@ -43,7 +43,7 @@ def register_final_tools(mcp, transport):
         for operation, fn in (("list", listing), ("get", get), ("create", create), ("update", update),
                               ("retire", retire), ("control", control)):
             register(prefix + "_" + operation, fn,
-                     f"Canonical {resource}: {operation} via /api/final. Writes return operation receipts; "
+                     f"Canonical {resource}: {operation} via /api. Writes return operation receipts; "
                      "accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.")
 
     for resource in RESOURCES:

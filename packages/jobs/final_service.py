@@ -24,7 +24,7 @@ from packages.scheduler.creators import CreatorStore, CanonicalEventStore, Creat
 from packages.scheduler.composition import CompositionCoordinator
 
 
-PREFIX = "/api/final"
+PREFIX = "/api"
 GRANTS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator", "template": "jobTemplate"}
 ACTIVE = {"queued", "running", "retry_wait", "paused_at_boundary", "cancelling", "settling", "uncertain"}
 

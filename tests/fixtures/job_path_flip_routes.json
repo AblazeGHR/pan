@@ -1,0 +1,869 @@
+{
+  "methodPathConflicts": [],
+  "routes": [
+    {
+      "path": "/api/jobs/action-jobs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.action_api.list_jobs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.action_api.runs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/schema",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.action_api.schema",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-references/{action_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.action_api.reference_list",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.create_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.action_api.put_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/run-now",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.run_now",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.cancel",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/lifecycle",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.job_lifecycle",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/resume",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.pause_resume",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/pause",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.pause_resume",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.action_api.delete_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/retry",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.confirm_recovery",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/action-jobs/{job_id}/confirm-recovery",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.confirm_recovery",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/job-templates",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.action_api.list_templates",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/job-templates",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.create_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/job-templates/{template_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.action_api.update_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/job-templates/{template_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.action_api.delete_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/job-templates/{template_id}/instantiate",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.action_api.instantiate",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.list_jobs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.list_jobs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/settings/completed-retention",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.get_completed_retention_settings",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/settings/completed-retention",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.get_completed_retention_settings",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/settings/completed-retention",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.api.put_completed_retention_settings",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/settings/completed-retention",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.api.put_completed_retention_settings",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.create_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.create_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/kinds",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.job_kinds",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/kinds",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.job_kinds",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/templates",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.list_templates",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/templates",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.list_templates",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/templates",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.create_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/templates",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.create_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/templates/{template_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.api.delete_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/templates/{template_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.api.delete_template",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/next",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.next_preview",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/next",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.next_preview",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.get_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}/pin",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.api.pin_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/{job_id}/pin",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.api.pin_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "handler": "packages.jobs.api.patch_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/{job_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "handler": "packages.jobs.api.patch_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.api.delete_job",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.api.job_runs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/legacy/jobs/{job_id}/run-now",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.run_job_now",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/{job_id}/run-now",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.api.run_job_now",
+      "deprecated": true
+    },
+    {
+      "path": "/api/jobs/actions",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.action_catalog",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": false
+    },
+    {
+      "path": "/api/triggers/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-templates/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{job_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.runs",
+      "deprecated": false
+    },
+    {
+      "path": "/api/jobs/{job_id}/runs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create_run",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.run_detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-runs/{run_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.run_control",
+      "deprecated": false
+    },
+    {
+      "path": "/api/operations",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.operation_lookup",
+      "deprecated": false
+    },
+    {
+      "path": "/api/operations/{operation_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.operation_detail",
+      "deprecated": false
+    },
+    {
+      "path": "/api/final/actions",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.action_catalog",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/triggers/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.listing",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates/{object_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates/{object_id}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.jobs.final_api.update",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates/{object_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.jobs.final_api.delete",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-templates/{object_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.control",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{job_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.runs",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/jobs/{job_id}/runs",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.create_run",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-runs/{run_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.run_detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-runs/{run_id}/operations",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.run_control",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/operations",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.operation_lookup",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/operations/{operation_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.operation_detail",
+      "deprecated": true
+    }
+  ]
+}
