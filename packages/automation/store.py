@@ -12,7 +12,7 @@ from packages.core.system_fields import validate_argument_bindings
 from .events import now
 from packages.jobs import chains
 from .event_store import CapacityError, RETENTION_SECONDS
-from .policy import concurrency, retry_policy, backoff
+from .policy import concurrency, retry_policy
 
 
 class Conflict(ValueError):
@@ -36,9 +36,6 @@ class Ledger:
             state = self.read()
             previous_size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
             result = change(state)
-            for run in state['runs'].values():
-                if run.get('stepExecutions') and run['status'] not in {'queued','running','retry_wait'}:
-                    run.pop('chainSnapshot',None)
             state['revision'] += 1
             size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
             if size > self.max_bytes and size > previous_size:
@@ -49,7 +46,7 @@ class Ledger:
     def put(self, raw, expected, authorized=False, creator=None, authority=None, *, managed=False):
         def change(state):
             item = copy.deepcopy(raw)
-            allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'targetJobId', 'ownerJobId', 'ownerLinkId', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
+            allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'targetJobId', 'ownerJobId', 'ownerLinkId', 'executionMode', 'maxConcurrency', 'retry', 'enabled', 'paused'}
             if set(item) - allowed:
                 raise ValueError('Unknown Trigger fields')
             tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
@@ -64,6 +61,12 @@ class Ledger:
             # Older clients omit additive scheduler fields. Preserve an existing
             # explicit policy rather than silently reverting it on a name edit.
             if old:
+                if old.get('targetJobId'):
+                    item.setdefault('targetJobId', old['targetJobId'])
+                    if 'steps' in item:
+                        raise Conflict('Edit executable steps from the target Job')
+                if old.get('managedJob'):
+                    item['managedJob'] = copy.deepcopy(old['managedJob'])
                 if 'eventFilter' in old:item.setdefault('eventFilter',copy.deepcopy(old['eventFilter']))
                 item.setdefault('executionMode', old.get('executionMode', 'serial'))
                 if item['executionMode'] == old.get('executionMode', 'serial'):
@@ -96,6 +99,9 @@ class Ledger:
                 raise ValueError('arguments must be an object')
             validate_argument_bindings(item.get('arguments', {}))
             enabled = item.setdefault('enabled', False)
+            item.setdefault('paused', False)
+            if type(item['paused']) is not bool:
+                raise ValueError('paused must be boolean')
             if type(enabled) is not bool:
                 raise ValueError('enabled must be boolean')
             if not authorized and (enabled or (old and old['enabled'])):
@@ -107,20 +113,13 @@ class Ledger:
             item.update(revision=expected + 1, createdBy=old['createdBy'] if old else (creator or {'type': 'agent'}), createdAt=old['createdAt'] if old else now(), updatedAt=now())
             item['authorization'] = copy.deepcopy(authority or {'type': 'user'})
             state['triggers'][tid] = item
-            if not enabled:
-                for run in state['runs'].values():
-                    if run['triggerId'] == tid and run['status'] in {'queued', 'retry_wait'}:
-                        run.update(status='cancelled', finishedAt=now(), revision=run['revision'] + 1)
-                        run.pop('nextAttemptAt', None)
-                        run.pop('retryAuthorized', None)
-                        self.sync_attempt(run)
             return item
         return self.mutate(change)
 
     def set_enabled(self, tid, enabled, expected, authority):
         with self.lock:
             old=self.read()['triggers'][tid]
-            raw={k:v for k,v in old.items() if k not in {'revision','createdBy','createdAt','updatedAt','authorization'}}
+            raw={k:v for k,v in old.items() if k not in {'revision','createdBy','createdAt','updatedAt','authorization','managedJob'}}
             raw['enabled']=enabled
             return self.put(raw,expected,True,authority=authority)
 
@@ -143,12 +142,9 @@ class Ledger:
             if len(state['runs']) >= self.max_runs:
                 raise CapacityError('Run ledger count capacity reached; admission refused')
             current = state['triggers'].get(run['triggerId'])
-            if not current or not current['enabled'] or current['revision'] != run['triggerRevision']:
+            if not current or current['revision'] != run['triggerRevision'] or (run['status'] == 'queued' and (not current['enabled'] or current.get('paused'))):
                 run.update(status='cancelled', finishedAt=now(), error='Trigger changed during matching')
             run['revision'] = 1
-            run.setdefault('attempts', [])
-            run.setdefault('attemptCount', 0)
-            run.setdefault('retryPolicy', retry_policy(current.get('retry') if current else None))
             state['runs'][run['id']] = run
             return run
         return self.mutate(change)
@@ -159,14 +155,13 @@ class Ledger:
             if expected_revision is not None and run['revision'] != expected_revision:
                 raise Conflict('Run revision changed')
             state['runs'][rid].update(fields, revision=run['revision'] + 1)
-            self.sync_attempt(run)
             return state['runs'][rid]
         return self.mutate(change)
 
     def release_event(self, event_id):
         def change(state):
             for run in state['runs'].values():
-                if run['event']['id'] == event_id:
+                if run['event']['id'] == event_id and run.get('recordType') == 'triggerAdmission' and not run.get('admitted'):
                     run['admitted'] = True
                     run['revision'] += 1
         # A retained fact with an unavailable dependency may have no Run yet.
@@ -178,227 +173,61 @@ class Ledger:
                 return
             self.mutate(change)
 
-    def claim(self, rid, authorization_revision=None):
+    def bind_job(self, tid, expected, job_id, provenance):
         def change(state):
-            run = state['runs'][rid]
-            if run['status'] not in {'queued', 'retry_wait'} or not run.get('admitted', True):
-                return None
-            trigger = state['triggers'].get(run['triggerId'])
-            if not trigger or not trigger['enabled']:
-                run.update(status='cancelled', finishedAt=now(), revision=run['revision'] + 1)
-                self.sync_attempt(run)
-                return None
-            if run['status'] == 'retry_wait':
-                if not self.auto_retry_allowed(run, trigger):
-                    run.update(status='failed', error='Retry policy no longer permits another attempt', revision=run['revision']+1)
-                    run.pop('nextAttemptAt', None)
-                    run.pop('retryAuthorized', None)
-                    return None
-                if datetime.fromisoformat(run['nextAttemptAt']).timestamp() > self.clock():
-                    return None
-            running = sum(r['triggerId'] == run['triggerId'] and r['status'] == 'running' for r in state['runs'].values())
-            if running >= concurrency(trigger):
-                return None
-            started_at = now()
-            attempts = run.setdefault('attempts', [])
-            # A dependency deferral is pre-effect waiting, not a new retry.
-            if not attempts:
-                attempts.append(dict(id='att_' + uuid.uuid4().hex, number=1, status='running', startedAt=started_at))
-            elif run.pop('chainContinuation',False):
-                pass  # Same host Attempt, no new effect attempt at a safe boundary.
-            elif attempts[-1]['status'] != 'queued':
-                limit = min(retry_policy(run.get('retryPolicy'))['maxAttempts'], retry_policy(trigger.get('retry'))['maxAttempts'])
-                if not run.get('retryAuthorized') or len(attempts) >= limit:
-                    run.update(status='cancelled', finishedAt=now(), revision=run['revision']+1, error='Another attempt was not authorized or attempt limit reached')
-                    run.pop('retryAuthorized', None)
-                    return None
-                attempts.append(dict(id='att_' + uuid.uuid4().hex, number=len(attempts)+1, status='running', startedAt=started_at, reason=run['retryAuthorized']))
-            run.update(status='running', startedAt=started_at, revision=run['revision'] + 1,
-                       authorizationRevision=authorization_revision)
-            for key in ('finishedAt', 'error', 'result', 'nextAttemptAt', 'retryAuthorized', 'waitingReason'):
-                run.pop(key, None)
-            run['attemptCount'] = len(attempts)
-            run['activeAttemptId'] = attempts[-1]['id']
-            self.sync_attempt(run)
-            return run
+            trigger = state['triggers'][tid]
+            if trigger['revision'] != expected:
+                raise Conflict('Trigger changed during managed Job creation')
+            if trigger.get('targetJobId') not in (None, job_id):
+                raise Conflict('Trigger already has a different Job target')
+            trigger['targetJobId'] = job_id
+            trigger['managedJob'] = copy.deepcopy(provenance)
+            trigger.pop('steps', None)
+            # Linking does not change the executable revision observed by Event.
+            return trigger
         return self.mutate(change)
 
-    def save_chain(self,rid,attempt_id,steps,phase,retry_eligible=False):
+    def import_subscription(self, job):
+        tid = 'trigger:' + job['jobId']
         def change(state):
-            run=state['runs'][rid]
-            if run['status']!='running' or run.get('activeAttemptId')!=attempt_id:
-                raise Conflict('Chain Attempt no longer running')
-            run.update(stepExecutions=copy.deepcopy(steps),chainPhase=phase,retryEligible=retry_eligible,
-                       revision=run['revision']+1)
-            return run
-        return self.mutate(change)
-
-    def block_pending(self, rid, expected, reason, status='failed'):
-        def change(state):
-            run=state['runs'][rid]
-            if run['revision']!=expected or run['status'] not in {'queued','retry_wait'}:
-                return None
-            run.update(status=status,error=reason,finishedAt=now(),revision=expected+1)
-            run.pop('nextAttemptAt',None);run.pop('retryAuthorized',None)
-            self.sync_attempt(run)
-            return run
-        return self.mutate(change)
-
-    @staticmethod
-    def auto_retry_allowed(run, trigger):
-        frozen = retry_policy(run.get('retryPolicy'))
-        current = retry_policy(trigger.get('retry'))
-        return (trigger['enabled'] and frozen['enabled'] and current['enabled']
-                and run.get('retryEligible') is True
-                and len(run.get('attempts', [])) < min(frozen['maxAttempts'], current['maxAttempts']))
-
-    def finish(self, rid, status, *, retryable=True, **fields):
-        def change(state):
-            run = state['runs'][rid]
-            if run['status'] != 'running':
-                raise Conflict('Attempt no longer running')
-            run.update(fields, status=status, finishedAt=now(), revision=run['revision']+1)
-            self.sync_attempt(run)  # Finish history before changing logical Run to waiting.
-            run.pop('action', None)
-            trigger = state['triggers'].get(run['triggerId'])
-            if status == 'failed' and retryable and trigger and self.auto_retry_allowed(run, trigger):
-                run.update(status='retry_wait', retryAuthorized='automatic',
-                           nextAttemptAt=datetime.fromtimestamp(self.clock()+backoff(len(run['attempts'])), timezone.utc).isoformat())
-            return run
-        return self.mutate(change)
-
-    def prepare_action(self, rid, action, digest):
-        def change(state):
-            run = state['runs'][rid]
-            if run['status'] != 'running':
-                raise Conflict('Attempt no longer running')
-            # Only the original start can establish retry eligibility. A newer
-            # declaration never upgrades an already-started logical Run.
-            if 'retryEligible' not in run:
-                run['retryEligible'] = (len(run.get('attempts', [])) == 1
-                                        and action.get('idempotent') is True
-                                        and retry_policy(run.get('retryPolicy'))['enabled'])
-            if run.get('actionDigest') and run['actionDigest'] != digest:
-                raise Conflict('Action changed since first attempt; retry refused')
-            run.update(action=copy.deepcopy(action), actionDigest=digest, revision=run['revision']+1)
-            return run
-        return self.mutate(change)
-
-    def interrupt(self, rid, attempt_id, error):
-        def change(state):
-            run = state['runs'][rid]
-            # Cancellation can arrive after a shielded final commit. Preserve
-            # that durable outcome and never rewrite a different attempt.
-            if run['status'] == 'running' and run.get('activeAttemptId') == attempt_id:
-                run.update(status='uncertain', error=error, finishedAt=now(), revision=run['revision']+1)
-                self.sync_attempt(run)
-                run.pop('action', None)
-            return run
-        return self.mutate(change)
-
-    def confirm_uncertain(self, rid, expected, max_pending=1024, authority=None):
-        def change(state):
-            run = state['runs'][rid]
-            if type(expected) is not int or run['revision'] != expected or run['status'] != 'uncertain':
-                raise Conflict('Expected current uncertain Run revision')
-            if run.get('stepExecutions'):
-                raise Conflict('Uncertain chain step requires reconciliation; replay refused')
-            trigger = state['triggers'].get(run['triggerId'])
-            if not trigger or not trigger['enabled']:
-                raise Conflict('Enable current Trigger before confirming recovery')
-            limit = min(retry_policy(run.get('retryPolicy'))['maxAttempts'], retry_policy(trigger.get('retry'))['maxAttempts'])
-            if len(run.get('attempts', [])) >= limit:
-                raise Conflict('Total attempt limit reached')
-            if sum(r['status'] in {'queued','running','retry_wait'} for r in state['runs'].values()) >= max_pending:
-                raise Conflict('Trigger backlog full')
-            run.update(status='queued', admitted=True, retryAuthorized='user-confirmed', revision=run['revision']+1,
-                       authorization=copy.deepcopy(authority or {'type':'user'}))
-            run.pop('nextAttemptAt', None)
-            return run
-        return self.mutate(change)
-
-    def defer_unavailable(self, rid, expected):
-        """Return a pre-effect claim to waiting without resurrecting cancellation.
-
-        The same transaction rechecks Run ownership/revision and current Trigger
-        enablement. Disable before or after this transaction therefore converges
-        to cancelled; a stale deferral never overwrites a newer Run transition.
-        """
-        def change(state):
-            run = state['runs'][rid]
-            if run['status'] != 'running' or run['revision'] != expected:
-                return run
-            trigger = state['triggers'].get(run['triggerId'])
-            if trigger and trigger['enabled']:
-                run.update(status='queued', waitingReason='Event dependency unavailable', revision=expected + 1)
-            else:
-                run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
-            self.sync_attempt(run)
-            return run
-        return self.mutate(change)
+            old = state['triggers'].get(tid)
+            if old:
+                return old  # Explicit Trigger lifecycle is now authoritative.
+            trigger = dict(id=tid, name=job['name'], enabled=True, paused=False,
+                eventTypes=copy.deepcopy(job['config']['trigger']['eventTypes']),
+                actionId=job['config']['actionId'], targetJobId=job['jobId'], arguments={},
+                revision=1, createdBy=copy.deepcopy(job.get('authorization', {'type':'user'})),
+                authorization=copy.deepcopy(job.get('authorization', {'type':'user'})),
+                createdAt=now(), updatedAt=now(), managedJob={'source':'embedded-event', 'jobRevision':job['configRevision']})
+            if len(state['triggers']) >= self.max_triggers:
+                raise CapacityError('Trigger capacity reached')
+            state['triggers'][tid] = trigger
+            return trigger
+        with self.lock:
+            if tid in self.read()['triggers']:
+                return self.read()['triggers'][tid]
+            return self.mutate(change)
 
     def cancel(self, rid, expected):
         def change(state):
             run = state['runs'][rid]
-            if type(expected) is not int or run['revision'] != expected:
+            if run['revision'] != expected:
                 raise Conflict('Run revision changed')
-            if run['status']=='running' and run.get('chainSnapshot'):
-                run.update(cancellationRequested=True,revision=expected+1)
-                return run
-            if run['status'] not in {'queued', 'retry_wait'}:
-                raise Conflict('Only queued or retry-wait Runs can be cancelled; started effects require reconciliation')
+            if run.get('recordType') != 'triggerAdmission' or run['status'] != 'queued':
+                raise Conflict('Control execution through the target Job; historical Runs are read only')
             run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
-            run.pop('nextAttemptAt', None)
-            run.pop('retryAuthorized', None)
-            self.sync_attempt(run)
             return run
         return self.mutate(change)
 
-    def recover(self):
-        def change(state):
-            for run in state['runs'].values():
-                if run['status'] in {'queued', 'retry_wait'}:
-                    trigger = state['triggers'].get(run['triggerId'])
-                    if not trigger or not trigger['enabled']:
-                        run.update(status='cancelled', finishedAt=now())
-                        run.pop('nextAttemptAt', None)
-                        run.pop('retryAuthorized', None)
-                    run['admitted'] = True
-                    run['revision'] += 1
-                if run['status']=='running' and run.get('chainSnapshot'):
-                    safe=chains.interrupted(run['stepExecutions'])
-                    if safe and not run.get('cancellationRequested'):
-                        run.update(status='queued',admitted=True,chainContinuation=True,revision=run['revision']+1)
-                        continue
-                    if run.get('cancellationRequested'):
-                        run.update(status='cancelled',finishedAt=now(),revision=run['revision']+1)
-                        self.sync_attempt(run)
-                        continue
-                if run['status'] == 'running':
-                    run.update(status='uncertain', error='Service interrupted; no automatic replay', finishedAt=now(), revision=run['revision'] + 1)
-                    if not run.get('attempts'):
-                        run['attempts'] = [dict(id='att_' + uuid.uuid4().hex, number=1, status='uncertain', legacy=True)]
-                        run['attemptCount'] = 1
-                        run['activeAttemptId'] = run['attempts'][0]['id']
-                self.sync_attempt(run)
-                if run['status'] not in {'queued', 'running'}:
-                    run.pop('action', None)
-        self.mutate(change)
-
-
-    @staticmethod
-    def sync_attempt(run):
-        if run.get('attempts') and run['attempts'][-1]['status'] in {'queued', 'running'}:
-            attempt = run['attempts'][-1]
-            for key in ('status', 'startedAt', 'finishedAt', 'error', 'result', 'targetIds', 'targetResults', 'selection'):
-                if key in run:
-                    attempt[key] = copy.deepcopy(run[key])
+    def confirm_uncertain(self, rid, expected, max_pending=1024, authority=None):
+        self.read()['runs'][rid]
+        raise Conflict('Reconcile the original Job admission; Trigger cannot retry effects')
 
     def maintenance(self, retained_event_ids, *, clock=time.time, retention=RETENTION_SECONDS):
         def change(state):
             deleted = []
             for rid, run in list(state['runs'].items()):
-                if run['status'] not in {'succeeded', 'failed', 'cancelled', 'skipped'} or run['event']['id'] in retained_event_ids:
+                if run.get('recordType') != 'triggerAdmission' or run['status'] not in {'admitted', 'failed', 'cancelled', 'skipped'} or run['event']['id'] in retained_event_ids:
                     continue
                 try:
                     finished_at = datetime.fromisoformat(run.get('finishedAt', ''))

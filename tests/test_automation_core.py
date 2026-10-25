@@ -49,7 +49,13 @@ async def until(predicate):
 async def settled(engine, count):
     async def done():
         runs = (await engine.io(engine.ledger.read))['runs']
-        return len(runs) == count and all(r['status'] not in {'running', 'queued'} for r in runs.values())
+        runtime = getattr(engine, 'job_runtime', None)
+        if runtime:
+            await runtime.tick({'enabled': True})
+            busy = any(runtime.active(j) or j.get('pendingRuns') for j in runtime.list())
+        else:
+            busy = False
+        return len(runs) == count and not busy and all(r['status'] not in {'admitting', 'queued'} for r in runs.values())
     await until(done)
     return list((await engine.io(engine.ledger.read))['runs'].values())
 
@@ -67,6 +73,23 @@ async def setup(tmp_path, execute=None):
     async def read_state(key):
         return 0
     engine = Engine(ledger, bus, store, execute or partial(execute_dynamic, pause=pause), read_state)
+    from packages.jobs.action_runtime import Runtime
+    from unittest.mock import patch
+    runtime = Runtime(tmp_path / 'jobs', store, pause)
+    await runtime.start()
+    engine.job_runtime = runtime
+    patched = None
+    if execute:
+        async def invoke(a, args, ev, progress, unused_pause):
+            return await execute(a, args, {**ev, 'id':ev.get('eventId', ev['id'])}, progress)
+        patched = patch('packages.actions.executor.execute_dynamic', invoke)
+        patched.start()
+    close_engine = engine.close
+    async def close():
+        await close_engine()
+        await runtime.close()
+        if patched:patched.stop()
+    engine.close = close
     await engine.start()
     return engine, calls, handle
 
@@ -79,6 +102,8 @@ async def test_running_edge_durable_pause_and_dedupe(tmp_path, monkeypatch):
     svc = Service(tmp_path / 'service', worker, None)
     svc.engine, svc.ledger = engine, ledger
     engine.bus = svc.bus
+    await engine.job_runtime.close()
+    svc.pause = engine.job_runtime.pause
     await svc.start()
     monkeypatch.setattr(worker, 'workers', {})
     worker.set_running_observer(svc.observe)
@@ -90,8 +115,9 @@ async def test_running_edge_durable_pause_and_dedupe(tmp_path, monkeypatch):
         w.status = 'idle'
         rows = await settled(engine, 1)
         assert calls == ['selected']
-        assert rows[0]['status'] == 'succeeded'
-        assert rows[0]['targetIds'] == ['selected']
+        assert rows[0]['status'] == 'admitted'
+        job = engine.job_runtime.get(rows[0]['targetJobId'])
+        assert job['lastExecution']['stepExecutions'][0]['checkpoint']['targetIds'] == ['selected']
         await engine.match(rows[0]['event'])
         await settled(engine, 1)
         assert calls == ['selected']
@@ -129,14 +155,15 @@ async def test_serial_cross_trigger_dynamic_and_disable(tmp_path):
         engine.ledger.put(trigger('other'), 0, True)
         await engine.match(event('three'))
         async def other_done():
-            return any(r['triggerId'] == 'other' and r['status'] == 'succeeded' for r in engine.ledger.read()['runs'].values())
+            return ('three', 'Latest') in calls
         await until(other_done)
         assert ('three', 'Latest') in calls
         assert not any(e == 'two' for e, _ in calls)
         release.set()
         rows = await settled(engine, 4)
-        assert [n for e, n in calls if e == 'two'] == ['Latest']
-        assert all(r['actionDigest'] for r in rows)
+        assert [n for e, n in calls if e == 'two'] == ['Pause selected']  # Definitions freeze at Job admission.
+        assert all(r['result']['admissionId'] for r in rows)
+        assert all(engine.job_runtime.get(j['jobId'])['finalRuntime']['plans'] for j in engine.job_runtime.list())
     finally:
         release.set()
         await engine.close()
@@ -157,7 +184,8 @@ async def test_disable_cancels_queued_running_continues(tmp_path):
         await engine.match(event('two'))
         engine.ledger.put({**trigger(), 'enabled': False}, 1, True)
         release.set()
-        assert {r['status'] for r in await settled(engine, 2)} == {'cancelled', 'succeeded'}
+        assert {r['status'] for r in await settled(engine, 2)} == {'admitted'}  # Pause/disable gates future admissions only.
+        assert engine.job_runtime.list()[0]['runCount'] == 2
     finally:
         await engine.close()
 
@@ -177,7 +205,7 @@ async def test_state_cache_mapping_errors_and_skip(tmp_path):
     try:
         await engine.match(event())
         rows = await settled(engine, 3)
-        assert [r['status'] for r in rows] == ['succeeded', 'skipped', 'failed']
+        assert [r['status'] for r in rows] == ['admitted', 'skipped', 'failed']
         assert reads == ['count', 'count']
         assert calls == ['selected']
     finally:
@@ -206,17 +234,20 @@ async def test_recover_queued_uncertain_and_unavailable(tmp_path):
     base = dict(triggerId='t', triggerRevision=1, actionId='pause', event=event(), arguments={})
     engine.ledger.append(dict(base, id='running', status='running'))
     engine.ledger.append(dict(base, id='queued', event=event('next'), status='queued'))
+    before = engine.ledger.read()['runs']
     await engine.bus.deactivate(handle)
     await engine.start()
-    assert engine.ledger.read()['runs']['running']['status'] == 'uncertain'
-    assert engine.ledger.read()['runs']['queued']['status'] == 'queued'
     handle = engine.bus.activate('core', 'workers')
-    engine.bus.register(handle, 'workers.all_idle', {'type': 'object'})
+    engine.bus.register(handle, 'workers.all_idle', {'type':'object'})
     try:
         await engine.kick()
-        rows = await settled(engine, 2)
-        assert calls == ['selected']
-        assert {r['status'] for r in rows} == {'uncertain', 'succeeded'}
+        assert engine.ledger.read()['runs'] == before
+        await engine.match(event('new'))
+        rows = engine.ledger.read()['runs']
+        assert rows['running'] == before['running'] and rows['queued'] == before['queued']
+        assert list(rows.values())[-1]['status'] == 'failed'
+        assert 'handoff/reconciliation' in list(rows.values())[-1]['error']
+        assert not calls and not engine.job_runtime.list()
     finally:
         await engine.close()
 
@@ -309,7 +340,9 @@ async def test_shutdown_interrupted_is_uncertain(tmp_path):
     await engine.match(event())
     await entered.wait()
     await engine.close()
-    assert next(iter(engine.ledger.read()['runs'].values()))['status'] == 'uncertain'
+    row = next(iter(engine.ledger.read()['runs'].values()))
+    assert row['status'] == 'admitted'
+    assert engine.job_runtime.get(row['targetJobId'])['lastStatus'] == 'uncertain'
 
 @async_test
 async def test_admission_fence_partial_persist_and_slow_disk(tmp_path, monkeypatch):
@@ -349,19 +382,23 @@ async def test_target_checkpoint_failure_stops_and_marks_uncertain(tmp_path, mon
     engine, calls, _ = await setup(tmp_path)
     engine.actions.put('actions', action(['first', 'second']))
     engine.ledger.put(trigger(), 0, True)
-    original = engine.ledger.update
-    def update(rid, **fields):
-        if fields.get('targetResults'):
+    runtime = engine.job_runtime
+    original = runtime.chain_save
+    def update(jid, eid, steps, phase):
+        if steps[0]['checkpoint'].get('targetResults'):
             raise OSError('checkpoint disk failure')
-        return original(rid, **fields)
-    monkeypatch.setattr(engine.ledger, 'update', update)
+        return original(jid, eid, steps, phase)
+    monkeypatch.setattr(runtime, 'chain_save', update)
     try:
         await engine.match(event())
         rows = await settled(engine, 1)
         assert calls == ['first']
-        assert rows[0]['status'] == 'uncertain'
-        assert rows[0]['targetIds'] == ['first', 'second']
-        assert rows[0]['targetResults'] == []
+        assert rows[0]['status'] == 'admitted'
+        job = runtime.get(rows[0]['targetJobId'])
+        assert job['lastStatus'] == 'uncertain'
+        checkpoint = job['lastExecution']['stepExecutions'][0]['checkpoint']
+        assert checkpoint['targetIds'] == ['first', 'second']
+        assert checkpoint['targetResults'] == []
     finally:
         await engine.close()
 
@@ -450,7 +487,7 @@ async def test_run_cancel_api_revision_and_business_state(tmp_path):
     app.state.automation = svc
     install(SimpleNamespace(app=app))
     svc.ledger.put(trigger(), 0, True)
-    svc.ledger.append(dict(id='queued', event=event(), status='queued', triggerId='t', triggerRevision=1))
+    svc.ledger.append(dict(id='queued', recordType='triggerAdmission', event=event(), status='queued', triggerId='t', triggerRevision=1))
     token = svc.auth.login(svc.auth.key())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
         path = '/api/automation/runs/queued/cancel'
@@ -511,26 +548,18 @@ async def test_redelivery_does_not_spend_backlog_capacity(tmp_path):
 async def test_dependency_revocation_during_durable_claim_waits(tmp_path, monkeypatch):
     engine, calls, _ = await setup(tmp_path)
     engine.ledger.put(trigger(), 0, True)
-    original_io = engine.io
-    revoked = asyncio.Event()
-    async def io(fn, *args, **kw):
-        result = await original_io(fn, *args, **kw)
-        if fn == engine.ledger.claim:
-            engine.bus.definitions['workers.all_idle']['available'] = False
-            revoked.set()
-        return result
-    monkeypatch.setattr(engine, 'io', io)
+    original = engine.ledger.release_event
+    def release(eid):
+        engine.bus.definitions['workers.all_idle']['available'] = False
+        return original(eid)
+    monkeypatch.setattr(engine.ledger, 'release_event', release)
     try:
         await engine.match(event())
-        await revoked.wait()
-        async def waiting():
-            return next(iter(engine.ledger.read()['runs'].values()))['status'] == 'queued'
-        await until(waiting)
-        assert not calls
-        monkeypatch.setattr(engine, 'io', original_io)
+        row = next(iter(engine.ledger.read()['runs'].values()))
+        assert row['status'] == 'queued' and not calls
         engine.bus.definitions['workers.all_idle']['available'] = True
-        await until(lambda: asyncio.sleep(0, result=all(t.done() for t in engine.tasks.values())))
         await engine.kick()
-        assert (await settled(engine, 1))[0]['status'] == 'succeeded'
+        assert (await settled(engine, 1))[0]['status'] == 'admitted'
+        assert calls == ['selected']
     finally:
         await engine.close()

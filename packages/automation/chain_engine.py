@@ -1,95 +1,89 @@
-"""Trigger host adapter; legacy no-steps Runs retain their original executor."""
-import asyncio
+"""Trigger-to-Job admission adapter. No Action or chain execution host."""
 import copy
 
-from packages.jobs import chains
-from packages.jobs.process_wait import CleanupUnconfirmed
+from packages.jobs.final_runtime.coordinator import TriggerAdmissionPort
+from packages.jobs.final_runtime.ledger import admission_for_cause, cause
 
 
-async def run_chain(engine, run):
-    from .engine import PersistenceError, DependencyUnavailable
-    from .policy import retry_policy
-    rid = run['id']
-    steps = copy.deepcopy(run['stepExecutions'])
-    snapshot = run['chainSnapshot']
-    eligible = False
-    effect_started = False
-    tasks = getattr(engine, 'chain_tasks', None)
-    if tasks is None:
-        tasks = engine.chain_tasks = {}
-    tasks[rid] = asyncio.current_task()
+class JobAdmission(TriggerAdmissionPort):
+    def __init__(self, engine):
+        self.engine = engine
 
-    async def save(records, phase):
-        try:
-            await engine.io(engine.ledger.save_chain, rid, run['activeAttemptId'], records, phase, eligible)
-        except Exception as exc:
-            raise chains.ChainPersistenceError(str(exc)) from exc
-
-    async def guard(definition):
-        current_run = (await engine.io(engine.ledger.read))['runs'][rid]
-        if current_run.get('cancellationRequested'):
-            raise asyncio.CancelledError()
-        state = await engine.io(engine.actions.read)
-        current = state['actions'].get(definition['actionId'])
-        if (not current or not current.get('enabled')
-                or state.get('actionGenerations', {}).get(definition['actionId'], 0) != definition['generation']):
-            raise PermissionError('Action disabled, deleted or replaced before effect admission')
-        await engine._check_authorization(run.get('authorization', {'type': 'user'}),
-                                           definition['definition'], run.get('authorizationRevision'))
-        trigger = (await engine.io(engine.ledger.read))['triggers'].get(run['triggerId'])
-        if engine.closed or not trigger or not engine.available(trigger):
-            raise DependencyUnavailable('Event dependency unavailable before effect')
-
-    async def progress_factory(definition, step):
-        async def progress(**fields):
-            step['checkpoint'].update(copy.deepcopy(fields))
-            await save(steps, 'step_running')
-        progress.checkpoint = {'id': rid + ':' + step['stepId'], **copy.deepcopy(step['checkpoint'])}
-        progress.before_effect = lambda: guard(definition)
-        if getattr(engine, 'job_runtime', None):
-            progress.instantiate_template = lambda action, key: engine.job_runtime.instantiate_action(
-                action, key, definition.get('fixedTemplate'), run.get('authorization', {'type': 'user'}),
-                run.get('authorizationRevision'))
-        return progress
-
-    async def invoke(definition, args, event, progress):
-        nonlocal effect_started, eligible
-        # Eligibility is frozen from the current step definition; completed
-        # steps never participate in its retry and are never replayed.
-        eligible = definition['definition'].get('idempotent') is True and retry_policy(run.get('retryPolicy'))['enabled']
-        await guard(definition)
-        await save(steps, 'step_running')
-        effect_started = True
-        return await engine.execute(definition['definition'], args, event, progress)
-
-    try:
-        outcome, result = await chains.execute(snapshot, steps, invoke=invoke, save=save, guard=guard,
-                                               progress_factory=progress_factory)
-        await engine.io(engine.ledger.finish, rid, 'succeeded' if outcome == 'completed' else outcome,
-                        result=result, retryable=eligible)
-    except asyncio.CancelledError:
-        current = (await engine.io(engine.ledger.read))['runs'][rid]
-        outcome = 'cancelled' if current.get('cancellationRequested') else 'uncertain'
-        steps = copy.deepcopy(current['stepExecutions'])
-        for step in steps:
-            if step['status'] == 'running':
-                chains.finish_step(step, outcome, error='Execution interrupted; no automatic replay')
-        await save(steps, 'terminal')
-        await engine.io(engine.ledger.finish, rid, outcome, retryable=False)
-    except Exception as exc:
-        current = (await engine.io(engine.ledger.read))['runs'][rid]
-        steps = copy.deepcopy(current['stepExecutions'])
-        uncertain = isinstance(exc, (chains.ChainPersistenceError, PersistenceError, CleanupUnconfirmed, TimeoutError)) or (
-            isinstance(exc, DependencyUnavailable) and effect_started)
-        outcome = 'uncertain' if uncertain else 'cancelled' if isinstance(exc, PermissionError) else 'failed'
-        for step in steps:
-            if step['status'] == 'running':
-                chains.finish_step(step, outcome, error=str(exc)[:1000])
-        await save(steps, 'terminal')
-        if isinstance(exc, DependencyUnavailable) and not effect_started:
-            await engine.io(engine.ledger.defer_unavailable, rid,
-                            (await engine.io(engine.ledger.read))['runs'][rid]['revision'])
+    async def target(self, trigger, run):
+        engine = self.engine
+        runtime = engine.job_runtime
+        if trigger.get('targetJobId'):
+            job_id = trigger['targetJobId']
         else:
-            await engine.io(engine.ledger.finish, rid, outcome, retryable=eligible and outcome == 'failed', error=str(exc)[:1000])
-    finally:
-        tasks.pop(rid, None)
+            # Only simple declarative Actions/chains can migrate. Existing
+            # active/unknown legacy work is retained and blocks automatic handoff.
+            state = await engine.io(engine.ledger.read)
+            legacy = [r for r in state['runs'].values() if r['triggerId'] == trigger['id']
+                      and r.get('recordType') != 'triggerAdmission'
+                      and r['status'] in {'queued', 'running', 'retry_wait', 'unknown', 'uncertain'}]
+            if legacy:
+                raise ValueError('Legacy Trigger execution requires explicit handoff/reconciliation')
+            steps = copy.deepcopy(trigger.get('steps'))
+            if steps is None:
+                steps = [{'stepId':'main', 'actionId':trigger['actionId'], 'arguments':{
+                    key:{'from':'input','path':key} for key in run['arguments']}}]
+            config = dict(name=trigger['name'], description='Managed by Trigger ' + trigger['id'],
+                enabled=True, actionId=trigger['actionId'], arguments={}, steps=steps,
+                trigger={'kind':'manual'}, schedule=[],
+                overlap={'mode':'parallel' if trigger.get('executionMode') == 'parallel' else 'queue',
+                         'parallelLimit':trigger.get('maxConcurrency', 1)})
+            # Runtime's durable creation intent reuses this identity even when a
+            # crash occurs between Job creation and Trigger link publication.
+            job = await engine.io(runtime.create, config, True, run['authorization'],
+                                  creation_key='trigger-managed:' + trigger['id'])
+            job_id = job['jobId']
+            provenance = {'triggerId':trigger['id'], 'triggerRevision':trigger['revision'],
+                          'trigger':copy.deepcopy(trigger), 'source':'direct-trigger'}
+            await engine.io(runtime.final.store.mutate, job_id,
+                            lambda stored: stored.setdefault('triggerProvenance', copy.deepcopy(provenance)))
+            await engine.io(engine.ledger.bind_job, trigger['id'], trigger['revision'], job_id, provenance)
+        job = await engine.io(runtime.view, await engine.io(runtime.get, job_id))
+        return dict(jobId=job_id, configRevision=job['configRevision'], triggerId=trigger['id'],
+            triggerRevision=trigger['revision'], arguments=copy.deepcopy(run['arguments']),
+            authorization=copy.deepcopy(run['authorization']), authorizationRevision=run.get('authorizationRevision'),
+            provenance={'triggerRunId':run['id'], 'triggerRevision':trigger['revision'], 'state':copy.deepcopy(run['state'])})
+
+    async def lookup(self, run):
+        runtime = self.engine.job_runtime
+        if not runtime or not run.get('targetJobId'):
+            return None
+        try:
+            job = await self.engine.io(runtime.get, run['targetJobId'])
+        except KeyError:
+            return None
+        return copy.deepcopy(admission_for_cause(job.get('finalRuntime', {}),
+            cause(run['event'], {'triggerId':run['triggerId']})))
+
+    async def admit(self, event, target):
+        engine, runtime = self.engine, self.engine.job_runtime
+        def commit():
+            from packages.core import background_jobs as registry
+            # Freeze Trigger and Job lifecycle during the admission transaction.
+            # queue_event reenters the same Job lock and commits canonical intent.
+            with engine.ledger.lock, registry._lock, registry._job_lock(target['jobId'], runtime.root):
+                trigger = engine.ledger.read()['triggers'].get(target['triggerId'])
+                if (not trigger or not trigger['enabled'] or trigger.get('paused')
+                        or trigger['revision'] != target['triggerRevision'] or not engine.available(trigger)):
+                    return {'jobId':target['jobId'], 'status':'skipped', 'reason':'Trigger no longer eligible'}
+                job = runtime.view(runtime.get(target['jobId']))
+                if not job['enabled'] or job.get('paused'):
+                    return {'jobId':target['jobId'], 'status':'skipped', 'reason':'Job disabled or paused'}
+                runtime.queue_event(event, target)
+                job = runtime.get(target['jobId'])
+                state = job.get('finalRuntime', {})
+                receipt = copy.deepcopy(admission_for_cause(state, cause(event, target)))
+                if receipt is None:
+                    raise RuntimeError('Job admission outcome unavailable; query original identity')
+                admission_id = receipt['admissionId']
+                run_id = next((rid for rid, run in state['runs'].items() if run['admissionId'] == admission_id), None)
+                if run_id:
+                    state['plans'][run_id]['triggerProvenance'] = copy.deepcopy(target['provenance'])
+                    registry._write_job(registry._job_path(target['jobId'], runtime.root), job)
+                    receipt['runId'] = run_id
+                return receipt
+        return await engine.io(commit)
