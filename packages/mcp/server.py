@@ -1076,6 +1076,8 @@ def session_handoff(
         adapter: 只支持新建模式；copy_settings=false 时必填。
         model: 显式覆盖模型，已有模式要求无活/native Worker。
         permission_mode: 显式覆盖权限模式，已有模式要求无活/native Worker。
+
+    完整编排流程见 /pan skill。
     """
     # Validate before access checks: claim=True may establish managed relationships.
     if type(override_original_prompt) is not bool or (
@@ -1981,6 +1983,8 @@ def reminding_card(operation: str, card_id: str = "", body: str = "", expected_r
     expected_revision. Questions require nonblank answers; tasks allow empty.
     First answer is terminal; retries conflict, never overwrite. No reject,
     managed-owner override, user authorization, Trigger or interaction response.
+
+    完整编排流程见 /pan skill。
     """
     if operation == "list_pending":
         if card_id or body or expected_revision is not None:
