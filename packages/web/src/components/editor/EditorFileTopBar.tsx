@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Copy, Download, MessageSquare, Save as SaveIcon } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, MessageSquare, Save as SaveIcon } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { useUIStore } from '@/stores/uiStore';
 import { copyText } from '@/utils/clipboard';
+import { openFileExternally } from '@/services/api';
 
 interface EditorFileTopBarProps {
   /** Session-relative path used by backend operations and attachment queue. */
@@ -80,6 +81,7 @@ export function EditorFileTopBar({
   const showToast = useUIStore((s) => s.showToast);
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [openingExternal, setOpeningExternal] = useState(false);
   const resetCopiedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayPath = imageDisplayName || getDisplayPath(currentSession?.workdir, operationPath);
   const copyKey = `${currentSession?.id ?? ''}\u0000${currentSession?.workdir ?? ''}\u0000${operationPath}`;
@@ -157,6 +159,34 @@ export function EditorFileTopBar({
     link.remove();
   };
 
+  // Attachment previews use a virtual tab key ("attachment:<session>:<id>")
+  // with no server filesystem path; dirty buffers no longer match the file on
+  // disk. Neither can be handed to the operating system.
+  const hasRealPath = Boolean(operationPath) && !operationPath.startsWith('attachment:');
+  const externalOpenDisabledReason = !currentSession?.id
+    ? '当前没有可用的 session'
+    : !hasRealPath
+      ? '该文件没有可用的本地路径'
+      : isDirty
+        ? '请先保存修改后再用系统默认方式打开'
+        : null;
+
+  const handleOpenExternal = async () => {
+    const sessionId = currentSession?.id;
+    if (!sessionId || externalOpenDisabledReason) return;
+    setOpeningExternal(true);
+    try {
+      await openFileExternally(sessionId, operationPath);
+    } catch (error) {
+      showToast(
+        `打开失败：${error instanceof Error ? error.message : '未知错误'}`,
+        'error',
+      );
+    } finally {
+      setOpeningExternal(false);
+    }
+  };
+
   return (
     <div
       data-testid="editor-file-topbar"
@@ -187,6 +217,16 @@ export function EditorFileTopBar({
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"
       >
         {copied ? <Check size={14} /> : <Copy size={14} />}
+      </button>
+      <button
+        type="button"
+        aria-label="用系统默认方式打开"
+        title={externalOpenDisabledReason ?? '用系统默认方式打开'}
+        disabled={Boolean(externalOpenDisabledReason) || openingExternal}
+        onClick={() => void handleOpenExternal()}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ExternalLink size={14} />
       </button>
       {(isMobile || imagePreview) && (
         <>

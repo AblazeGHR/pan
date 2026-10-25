@@ -17,6 +17,7 @@ vi.mock('@/services/api', () => ({
   writeFile: vi.fn(async () => undefined),
   renameFs: vi.fn(async () => undefined),
   deleteFs: vi.fn(async () => undefined),
+  openFileExternally: vi.fn(async () => undefined),
 }));
 
 // Load the real dependency graph during setup; UI assertions keep their budget.
