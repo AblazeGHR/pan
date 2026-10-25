@@ -16,7 +16,7 @@ from tests.test_automation_core import async_test,settled,until
 
 
 async def setup(tmp_path):
-    svc=await service(tmp_path)
+    svc=await service(tmp_path, with_runtime=False)
     for aid in ('one','two'):svc.engine.actions.put('actions',_action(aid))
     async def pause(*args):return {'ok':True}
     jobs=Jobs(tmp_path/'jobs',svc.engine.actions,pause);await jobs.start()
