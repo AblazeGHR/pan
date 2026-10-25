@@ -1,0 +1,968 @@
+{
+  "contractVersion": 2,
+  "generatedBy": "packages/jobs/final_contracts.py",
+  "objects": {
+    "action": {
+      "path": "/api/actions",
+      "versionField": "revision",
+      "states": [
+        "draft",
+        "published",
+        "retired"
+      ],
+      "operations": [
+        "publish",
+        "enable",
+        "disable",
+        "retire",
+        "transfer-owner"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "published"
+        ],
+        [
+          "published",
+          "retired"
+        ]
+      ],
+      "definitionSchema": "action_definition.schema.json",
+      "objectSchema": "action.schema.json"
+    },
+    "event": {
+      "path": null,
+      "versionField": null,
+      "states": [],
+      "operations": [],
+      "transitions": [],
+      "definitionSchema": null,
+      "objectSchema": "event_record.schema.json"
+    },
+    "event_creator": {
+      "path": "/api/event-creators",
+      "versionField": "revision",
+      "states": [
+        "draft",
+        "enabled",
+        "paused",
+        "disabled",
+        "retired"
+      ],
+      "operations": [
+        "enable",
+        "disable",
+        "pause",
+        "resume",
+        "retire",
+        "transfer-owner"
+      ],
+      "transitions": [
+        [
+          "disabled",
+          "enabled"
+        ],
+        [
+          "disabled",
+          "retired"
+        ],
+        [
+          "draft",
+          "enabled"
+        ],
+        [
+          "draft",
+          "retired"
+        ],
+        [
+          "enabled",
+          "disabled"
+        ],
+        [
+          "enabled",
+          "paused"
+        ],
+        [
+          "enabled",
+          "retired"
+        ],
+        [
+          "paused",
+          "disabled"
+        ],
+        [
+          "paused",
+          "enabled"
+        ],
+        [
+          "paused",
+          "retired"
+        ]
+      ],
+      "definitionSchema": "event_creator_definition.schema.json",
+      "objectSchema": "event_creator.schema.json"
+    },
+    "job": {
+      "path": "/api/jobs",
+      "versionField": "configRevision",
+      "states": [
+        "draft",
+        "enabled",
+        "paused",
+        "disabled",
+        "retired"
+      ],
+      "operations": [
+        "enable",
+        "disable",
+        "pause",
+        "resume",
+        "retire",
+        "transfer-owner"
+      ],
+      "transitions": [
+        [
+          "disabled",
+          "enabled"
+        ],
+        [
+          "disabled",
+          "retired"
+        ],
+        [
+          "draft",
+          "enabled"
+        ],
+        [
+          "draft",
+          "retired"
+        ],
+        [
+          "enabled",
+          "disabled"
+        ],
+        [
+          "enabled",
+          "paused"
+        ],
+        [
+          "enabled",
+          "retired"
+        ],
+        [
+          "paused",
+          "disabled"
+        ],
+        [
+          "paused",
+          "enabled"
+        ],
+        [
+          "paused",
+          "retired"
+        ]
+      ],
+      "definitionSchema": "job_definition.schema.json",
+      "objectSchema": "job.schema.json"
+    },
+    "template": {
+      "path": "/api/job-templates",
+      "versionField": "revision",
+      "states": [
+        "draft",
+        "published",
+        "retired"
+      ],
+      "operations": [
+        "publish",
+        "retire",
+        "transfer-owner"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "published"
+        ],
+        [
+          "draft",
+          "retired"
+        ],
+        [
+          "published",
+          "retired"
+        ]
+      ],
+      "definitionSchema": "template_definition.schema.json",
+      "objectSchema": "template.schema.json"
+    },
+    "trigger": {
+      "path": "/api/triggers",
+      "versionField": "revision",
+      "states": [
+        "draft",
+        "enabled",
+        "paused",
+        "disabled",
+        "retired"
+      ],
+      "operations": [
+        "enable",
+        "disable",
+        "pause",
+        "resume",
+        "retire",
+        "transfer-owner"
+      ],
+      "transitions": [
+        [
+          "disabled",
+          "enabled"
+        ],
+        [
+          "disabled",
+          "retired"
+        ],
+        [
+          "draft",
+          "enabled"
+        ],
+        [
+          "draft",
+          "retired"
+        ],
+        [
+          "enabled",
+          "disabled"
+        ],
+        [
+          "enabled",
+          "paused"
+        ],
+        [
+          "enabled",
+          "retired"
+        ],
+        [
+          "paused",
+          "disabled"
+        ],
+        [
+          "paused",
+          "enabled"
+        ],
+        [
+          "paused",
+          "retired"
+        ]
+      ],
+      "definitionSchema": "trigger_definition.schema.json",
+      "objectSchema": "trigger.schema.json"
+    }
+  },
+  "runtimeLayers": {
+    "admission": {
+      "states": [
+        "admitted",
+        "skipped",
+        "rejected",
+        "blocked"
+      ],
+      "transitions": [],
+      "guardedTransitions": []
+    },
+    "run": {
+      "states": [
+        "queued",
+        "running",
+        "retry_wait",
+        "paused_at_boundary",
+        "cancelling",
+        "settling",
+        "uncertain",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "transitions": [
+        [
+          "cancelling",
+          "cancelled"
+        ],
+        [
+          "cancelling",
+          "settling"
+        ],
+        [
+          "cancelling",
+          "uncertain"
+        ],
+        [
+          "failed",
+          "queued"
+        ],
+        [
+          "failed",
+          "retry_wait"
+        ],
+        [
+          "paused_at_boundary",
+          "cancelling"
+        ],
+        [
+          "paused_at_boundary",
+          "running"
+        ],
+        [
+          "queued",
+          "cancelling"
+        ],
+        [
+          "queued",
+          "failed"
+        ],
+        [
+          "queued",
+          "running"
+        ],
+        [
+          "retry_wait",
+          "cancelling"
+        ],
+        [
+          "retry_wait",
+          "queued"
+        ],
+        [
+          "retry_wait",
+          "running"
+        ],
+        [
+          "running",
+          "cancelling"
+        ],
+        [
+          "running",
+          "completed"
+        ],
+        [
+          "running",
+          "failed"
+        ],
+        [
+          "running",
+          "paused_at_boundary"
+        ],
+        [
+          "running",
+          "retry_wait"
+        ],
+        [
+          "running",
+          "settling"
+        ],
+        [
+          "running",
+          "uncertain"
+        ],
+        [
+          "settling",
+          "cancelled"
+        ],
+        [
+          "settling",
+          "completed"
+        ],
+        [
+          "settling",
+          "failed"
+        ],
+        [
+          "settling",
+          "uncertain"
+        ],
+        [
+          "uncertain",
+          "cancelled"
+        ],
+        [
+          "uncertain",
+          "completed"
+        ],
+        [
+          "uncertain",
+          "failed"
+        ],
+        [
+          "uncertain",
+          "retry_wait"
+        ]
+      ],
+      "guardedTransitions": [
+        {
+          "from": "failed",
+          "to": "queued",
+          "operation": "retry"
+        },
+        {
+          "from": "failed",
+          "to": "retry_wait",
+          "operation": "retry"
+        },
+        {
+          "from": "uncertain",
+          "to": "cancelled",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "completed",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "failed",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "retry_wait",
+          "operation": "reconcile"
+        }
+      ]
+    },
+    "step": {
+      "states": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "uncertain",
+        "cancelled"
+      ],
+      "transitions": [
+        [
+          "failed",
+          "running"
+        ],
+        [
+          "pending",
+          "cancelled"
+        ],
+        [
+          "pending",
+          "running"
+        ],
+        [
+          "running",
+          "cancelled"
+        ],
+        [
+          "running",
+          "completed"
+        ],
+        [
+          "running",
+          "failed"
+        ],
+        [
+          "running",
+          "uncertain"
+        ],
+        [
+          "uncertain",
+          "cancelled"
+        ],
+        [
+          "uncertain",
+          "completed"
+        ],
+        [
+          "uncertain",
+          "failed"
+        ],
+        [
+          "uncertain",
+          "running"
+        ]
+      ],
+      "guardedTransitions": [
+        {
+          "from": "failed",
+          "to": "running",
+          "operation": "retry"
+        },
+        {
+          "from": "uncertain",
+          "to": "cancelled",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "completed",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "failed",
+          "operation": "reconcile"
+        },
+        {
+          "from": "uncertain",
+          "to": "running",
+          "operation": "reconcile"
+        }
+      ]
+    },
+    "attempt": {
+      "states": [
+        "preparing",
+        "running",
+        "succeeded",
+        "failed",
+        "uncertain",
+        "cancelled"
+      ],
+      "transitions": [
+        [
+          "preparing",
+          "cancelled"
+        ],
+        [
+          "preparing",
+          "failed"
+        ],
+        [
+          "preparing",
+          "running"
+        ],
+        [
+          "running",
+          "cancelled"
+        ],
+        [
+          "running",
+          "failed"
+        ],
+        [
+          "running",
+          "succeeded"
+        ],
+        [
+          "running",
+          "uncertain"
+        ]
+      ],
+      "guardedTransitions": []
+    },
+    "effect": {
+      "states": [
+        "succeeded",
+        "rejected",
+        "unknown",
+        "partial"
+      ],
+      "transitions": [
+        [
+          "unknown",
+          "partial"
+        ],
+        [
+          "unknown",
+          "rejected"
+        ],
+        [
+          "unknown",
+          "succeeded"
+        ]
+      ],
+      "guardedTransitions": [
+        {
+          "from": "unknown",
+          "to": "partial",
+          "operation": "reconcile"
+        },
+        {
+          "from": "unknown",
+          "to": "rejected",
+          "operation": "reconcile"
+        },
+        {
+          "from": "unknown",
+          "to": "succeeded",
+          "operation": "reconcile"
+        }
+      ]
+    },
+    "operation": {
+      "states": [
+        "accepted",
+        "pending",
+        "completed",
+        "rejected",
+        "unknown"
+      ],
+      "transitions": [
+        [
+          "accepted",
+          "completed"
+        ],
+        [
+          "accepted",
+          "pending"
+        ],
+        [
+          "accepted",
+          "rejected"
+        ],
+        [
+          "accepted",
+          "unknown"
+        ],
+        [
+          "pending",
+          "completed"
+        ],
+        [
+          "pending",
+          "rejected"
+        ],
+        [
+          "pending",
+          "unknown"
+        ],
+        [
+          "unknown",
+          "completed"
+        ],
+        [
+          "unknown",
+          "rejected"
+        ]
+      ],
+      "guardedTransitions": []
+    }
+  },
+  "enums": {
+    "effectClasses": [
+      "read",
+      "write_local",
+      "write_external",
+      "high_risk"
+    ],
+    "completionContracts": [
+      "process-exit",
+      "durable-queue-accepted",
+      "provider-receipt",
+      "monitoring",
+      "supervisor-phase"
+    ],
+    "bindingSources": [
+      "literal",
+      "input",
+      "event",
+      "step",
+      "system"
+    ],
+    "conditionOps": [
+      "eq",
+      "ne",
+      "gt",
+      "gte",
+      "lt",
+      "lte"
+    ],
+    "overlapModes": [
+      "forbid",
+      "queue",
+      "parallel"
+    ],
+    "creatorSelectorModes": [
+      "ids",
+      "registeredType"
+    ],
+    "creatorProviderTypes": [
+      "time",
+      "core",
+      "plugin"
+    ],
+    "misfirePolicies": [
+      "skip",
+      "fire_now"
+    ],
+    "advanceModes": [
+      "grid",
+      "afterPublication"
+    ],
+    "scheduleRuleTypes": [
+      "once",
+      "interval",
+      "weekly",
+      "cron"
+    ],
+    "counterDomains": [
+      "run-admission"
+    ],
+    "operations": [
+      "create",
+      "update",
+      "publish",
+      "enable",
+      "disable",
+      "pause",
+      "resume",
+      "retire",
+      "transfer-owner",
+      "retry",
+      "cancel",
+      "clone-and-run",
+      "instantiate-template"
+    ],
+    "runOperations": [
+      "retry",
+      "cancel",
+      "pause",
+      "resume"
+    ],
+    "compositionOperations": [
+      "create",
+      "update",
+      "retire",
+      "clone-and-run",
+      "instantiate-template"
+    ],
+    "admissionSkipReasons": [
+      "overlap",
+      "paused",
+      "condition",
+      "capacity",
+      "retired",
+      "provider_unavailable"
+    ],
+    "effectOutcomes": [
+      "succeeded",
+      "rejected",
+      "unknown",
+      "partial"
+    ]
+  },
+  "errorCodes": {
+    "invalid_schema": {
+      "http": 400,
+      "detailsRequired": false
+    },
+    "invalid_condition": {
+      "http": 400,
+      "detailsRequired": false
+    },
+    "unsupported_operation": {
+      "http": 400,
+      "detailsRequired": false
+    },
+    "unauthenticated": {
+      "http": 401,
+      "detailsRequired": false
+    },
+    "authorization_denied": {
+      "http": 403,
+      "detailsRequired": false
+    },
+    "not_found": {
+      "http": 404,
+      "detailsRequired": false
+    },
+    "revision_conflict": {
+      "http": 409,
+      "detailsRequired": true
+    },
+    "idempotency_conflict": {
+      "http": 409,
+      "detailsRequired": true
+    },
+    "reference_conflict": {
+      "http": 409,
+      "detailsRequired": true
+    },
+    "pending_publication": {
+      "http": 409,
+      "detailsRequired": false
+    },
+    "reconciliation_required": {
+      "http": 409,
+      "detailsRequired": false
+    },
+    "not_retryable": {
+      "http": 409,
+      "detailsRequired": false
+    },
+    "cancellation_window_closed": {
+      "http": 409,
+      "detailsRequired": false
+    },
+    "capability_unsupported": {
+      "http": 422,
+      "detailsRequired": false
+    },
+    "unsupported_schema_version": {
+      "http": 422,
+      "detailsRequired": false
+    },
+    "capacity_exceeded": {
+      "http": 429,
+      "detailsRequired": false
+    },
+    "provider_unavailable": {
+      "http": 503,
+      "detailsRequired": false
+    },
+    "storage_unavailable": {
+      "http": 503,
+      "detailsRequired": false
+    }
+  },
+  "limits": {
+    "maxIdLength": 128,
+    "maxNameLength": 200,
+    "maxRequestKeyLength": 200,
+    "maxDefinitionBytes": 1048576,
+    "maxJobSteps": 64,
+    "maxCompositionObjects": 256,
+    "maxEventFilterFields": 16,
+    "maxConditionDepth": 8,
+    "maxConditionNodes": 64,
+    "maxBackoffSteps": 10,
+    "maxOverlapParallel": 32,
+    "maxMaxPending": 10000,
+    "maxSchedulerRules": 64
+  },
+  "legacyFieldsRejected": {
+    "job": [
+      "config",
+      "enabled",
+      "kind",
+      "legacyCompat",
+      "legacySchedulerCompat",
+      "maxRuns",
+      "paused",
+      "runCount",
+      "schedule",
+      "trigger"
+    ],
+    "trigger": [
+      "actionId",
+      "kind",
+      "maxConcurrency",
+      "name_legacy",
+      "retry",
+      "schedule",
+      "steps"
+    ],
+    "action": [
+      "actionId",
+      "effect",
+      "executionKind",
+      "input_schema",
+      "output_schema"
+    ],
+    "event_creator": [
+      "cursor",
+      "kind",
+      "pendingPublication",
+      "producedCount",
+      "schedule"
+    ],
+    "template": [
+      "enabled",
+      "kind",
+      "paused",
+      "schedule"
+    ],
+    "event": [
+      "factDigest",
+      "id",
+      "receivedAt",
+      "schemaRevision",
+      "trustedSystem",
+      "type"
+    ]
+  },
+  "serverFields": [
+    "authorization",
+    "authorizationRevision",
+    "configRevision",
+    "createdAt",
+    "createdBy",
+    "enabled",
+    "generation",
+    "id",
+    "owner",
+    "ownerEpoch",
+    "profileId",
+    "providerGeneration",
+    "revision",
+    "runCount",
+    "schemaVersion",
+    "state",
+    "stateRevision",
+    "updatedAt"
+  ],
+  "idempotency": {
+    "scope": [
+      "principal",
+      "profileId",
+      "operation"
+    ],
+    "sameKeySameContent": "replay original operation",
+    "sameKeyDifferentContent": "idempotency_conflict",
+    "purgeOnlyWhenSettled": true,
+    "unsettledRetention": "must not be shorter than the recoverable window"
+  },
+  "templates": {
+    "jobLocalKey": "job"
+  },
+  "authorizationProposal": {
+    "status": "proposal",
+    "note": "Reuses the existing profile-wide Agent matrix; Event Creator needs an explicit object entry and schema upcaster. Existing grants keep their values and missing new keys deny.",
+    "keys": {
+      "action": [
+        "read",
+        "create",
+        "updateConfig",
+        "lifecycle",
+        "delete"
+      ],
+      "trigger": [
+        "read",
+        "create",
+        "updateConfig",
+        "lifecycle",
+        "delete"
+      ],
+      "eventCreator": [
+        "read",
+        "create",
+        "updateConfig",
+        "lifecycle",
+        "delete"
+      ],
+      "job": [
+        "read",
+        "create",
+        "updateConfig",
+        "lifecycle",
+        "execute",
+        "delete"
+      ],
+      "template": [
+        "read",
+        "create",
+        "updateConfig",
+        "use",
+        "delete"
+      ],
+      "systemAction": [
+        "manageSystemActions"
+      ]
+    },
+    "newObjectKey": "eventCreator"
+  }
+}

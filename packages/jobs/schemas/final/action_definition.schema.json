@@ -1,0 +1,167 @@
+{
+  "title": "Action definition",
+  "description": "Product/provider Action. Content publishing forms an immutable revision.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string"
+    },
+    "inputSchema": {
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "providerRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "releaseDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "releaseDigest",
+        "generation"
+      ]
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "config": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "operation",
+        "config"
+      ]
+    },
+    "effectClass": {
+      "enum": [
+        "read",
+        "write_local",
+        "write_external",
+        "high_risk"
+      ]
+    },
+    "requiredCapabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "completionContracts": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Contract"
+      },
+      "minItems": 1
+    },
+    "defaultCompletion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
+    },
+    "cancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supported": {
+          "type": "boolean"
+        },
+        "proofSchema": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "supported"
+      ]
+    },
+    "reconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supported": {
+          "type": "boolean"
+        },
+        "querySchema": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "supported"
+      ]
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "idempotent": {
+          "type": "boolean"
+        },
+        "sameKeySupported": {
+          "type": "boolean"
+        },
+        "requiresProof": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "idempotent",
+        "sameKeySupported",
+        "requiresProof"
+      ]
+    },
+    "system": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "inputSchema",
+    "outputSchema",
+    "providerRef",
+    "execution",
+    "effectClass",
+    "requiredCapabilities",
+    "completionContracts",
+    "defaultCompletion",
+    "cancel",
+    "reconcile",
+    "retry",
+    "system"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/action_definition.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

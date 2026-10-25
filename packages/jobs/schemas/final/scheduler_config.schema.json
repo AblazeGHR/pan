@@ -1,0 +1,197 @@
+{
+  "title": "Scheduler provider config",
+  "description": "Time provider config consumed by Event Creator instances (design §10.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "once"
+              },
+              "at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "at"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "interval"
+              },
+              "seconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+              },
+              "anchor": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+              },
+              "advanceMode": {
+                "enum": [
+                  "grid",
+                  "afterPublication"
+                ]
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "seconds",
+              "anchor",
+              "advanceMode"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "weekly"
+              },
+              "weekday": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "dstPolicy": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "weekday",
+              "time",
+              "timezone",
+              "dstPolicy"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "cron"
+              },
+              "expression": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "dstPolicy": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "expression",
+              "timezone",
+              "dstPolicy"
+            ]
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "misfirePolicy": {
+      "enum": [
+        "skip",
+        "fire_now"
+      ]
+    },
+    "graceSeconds": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+    },
+    "pausePolicy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "driveLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxEvents": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "initialProducedCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "maxEvents",
+        "initialProducedCount"
+      ]
+    }
+  },
+  "required": [
+    "rules",
+    "misfirePolicy",
+    "graceSeconds",
+    "pausePolicy"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/scheduler_config.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

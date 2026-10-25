@@ -1,0 +1,156 @@
+{
+  "title": "Template definition",
+  "description": "Passive complete configuration. Instantiating creates a new graph idempotently.",
+  "$defs": {
+    "CreatorSpec": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "create"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            "definition": {
+              "$ref": "event_creator_definition.schema.json"
+            }
+          },
+          "required": [
+            "mode",
+            "key",
+            "definition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "reference"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            "ref": {
+              "$ref": "common.schema.json#/$defs/Ref"
+            }
+          },
+          "required": [
+            "mode",
+            "key",
+            "ref"
+          ]
+        }
+      ]
+    },
+    "TriggerSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "definition": {
+          "$ref": "trigger_definition.schema.json"
+        },
+        "targetJobKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "creatorKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "key",
+        "definition",
+        "targetJobKey",
+        "creatorKeys"
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string"
+    },
+    "jobDefinition": {
+      "$ref": "job_definition.schema.json"
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "creators": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CreatorSpec"
+          },
+          "maxItems": 256
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TriggerSpec"
+          },
+          "maxItems": 256
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceObjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "sourceRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  },
+  "required": [
+    "name",
+    "jobDefinition",
+    "composition"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/template_definition.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}
