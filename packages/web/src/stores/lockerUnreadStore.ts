@@ -66,7 +66,7 @@ function start() {
   bound = true;
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
   unsubscribeAuth = useAutomationAuth.subscribe((state, previous) => {
-    if (state.token === previous.token) return;
+    if (state.token === previous.token && state.authenticated === previous.authenticated) return;
     if (timer) clearTimeout(timer);
     timer = null;
     backoff = REFRESH_MS;

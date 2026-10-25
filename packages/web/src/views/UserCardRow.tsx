@@ -61,7 +61,8 @@ export function UserCardRow({
       const attachment = card.attachments.find((a) => a.id === id);
       if (!attachment || url.searchParams.get('session_id') !== card.ownerSessionId)
         throw new Error('Attachment is not part of this reminding card.');
-      const token = useAutomationAuth.getState().token;
+      const auth = useAutomationAuth.getState();
+      const token = auth.token;
       const response = await fetch(
         `/api/reminding-cards/${card.id}/attachments/${encodeURIComponent(id)}`,
         {
@@ -69,11 +70,11 @@ export function UserCardRow({
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         },
       );
-      if (response.status === 401 && useAutomationAuth.getState().token === token)
+      if (response.status === 401 && useAutomationAuth.getState() === auth)
         useAutomationAuth.getState().clear();
       if (!response.ok) throw new Error(`Attachment download failed (HTTP ${response.status}).`);
       const blob = await response.blob();
-      if (!token || useAutomationAuth.getState().token !== token) return;
+      if (!(token || auth.authenticated) || useAutomationAuth.getState() !== auth) return;
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = objectUrl;

@@ -80,16 +80,17 @@ export function LockerMessageRow({
         url.searchParams.get('session_id') !== item.ownerSessionId
       )
         throw new Error('Attachment is not part of this Locker message.');
-      const token = useAutomationAuth.getState().token;
+      const auth = useAutomationAuth.getState();
+      const token = auth.token;
       const response = await fetch(
         `/api/user-locker-messages/${item.id}/attachments/${encodeURIComponent(attachmentId)}`,
         { credentials: 'same-origin', headers: token ? { Authorization: `Bearer ${token}` } : {} },
       );
-      if (response.status === 401 && useAutomationAuth.getState().token === token)
+      if (response.status === 401 && useAutomationAuth.getState() === auth)
         useAutomationAuth.getState().clear();
       if (!response.ok) throw new Error(`Attachment download failed (HTTP ${response.status}).`);
       const blob = await response.blob();
-      if (!token || useAutomationAuth.getState().token !== token) return;
+      if (!(token || auth.authenticated) || useAutomationAuth.getState() !== auth) return;
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = objectUrl;

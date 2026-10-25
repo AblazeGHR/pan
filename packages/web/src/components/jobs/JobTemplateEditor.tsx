@@ -14,7 +14,7 @@ export function JobTemplateEditor({ actions, submitting, onCreate, onInstantiate
   onInstantiated: (job: Job) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const authorizationToken = useAutomationAuth((state) => state.token);
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const [templates, setTemplates] = useState<CompleteJobTemplate[]>([]);
   const [selected, setSelected] = useState('');
   const [mode, setMode] = useState<'job' | 'template'>('job');
