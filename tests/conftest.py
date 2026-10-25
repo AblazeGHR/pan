@@ -8,6 +8,7 @@ the global watchdog may then treat a test's ``queue_pending`` as real work.
 """
 
 import os
+import sys
 
 import pytest
 
@@ -54,6 +55,22 @@ def isolate_session_storage(tmp_path, monkeypatch):
     _sess._cache.clear()
     yield
     _sess._cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolate_websocket_clients(monkeypatch):
+    """Fake dashboards and their loop-bound senders belong to one test only.
+
+    Broadcast/performance tests populate these collections directly; a later
+    lifecycle Job must not fan out to a fake socket from a closed event loop.
+    Avoid importing the server in tests that do not otherwise use it.
+    """
+    server = sys.modules.get('packages.web.server')
+    if server is not None:
+        monkeypatch.setattr(server, 'ws_clients', set())
+        monkeypatch.setattr(server, 'agent_clients', set())
+        monkeypatch.setattr(server, 'agent_subscriptions', {})
+        monkeypatch.setattr(server, '_ws_outbound', {})
 
 
 @pytest.fixture(autouse=True)

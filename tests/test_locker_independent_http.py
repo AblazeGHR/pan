@@ -151,6 +151,11 @@ def test_owned_notification_consumption_and_restart(tmp_path, monkeypatch):
             deliveryLedger=delivered_state['queue_delivery_ledger'])
         stop()
         rt.start()
+        # Restart restores the persisted session; anonymous and revoked clients
+        # still have no authority. Each top-level HTTP probe owns its Cookie jar.
+        assert httpx.get(rt.base_url+'/api/user-lockers', headers=auth, trust_env=False).status_code == 200
+        assert httpx.get(rt.base_url+'/api/user-lockers', trust_env=False).status_code == 401
+        assert httpx.post(rt.base_url+'/api/automation/logout', headers=auth, trust_env=False).json() == {'ok': True}
         assert httpx.get(rt.base_url+'/api/user-lockers', headers=auth, trust_env=False).status_code == 401
         auth = {'Authorization': 'Bearer '+rt.request('POST', '/api/automation/login', json={'key': key})['token']}
         assert rt.request('GET', '/api/user-inbox/'+submitted['id'], headers=auth)['card']['delivery']['state'] == 'accepted'

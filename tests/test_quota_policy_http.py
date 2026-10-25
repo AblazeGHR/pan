@@ -60,6 +60,10 @@ def test_quota_policy_owned_http_default_unavailable_is_unknown(tmp_path,monkeyp
             rt.stop();rt.start();evidence['restartedServerPid']=rt.process.pid
             recovered=client.get(url).json()
             assert recovered['disabledAccountIds']==['disabled-account-three'] and recovered['mode']=='manual'
+            assert client.get(rt.base_url+'/api/automation/session',headers=headers).json()['authenticated'] is True
+            with httpx.Client(timeout=10,trust_env=False) as anonymous:
+                assert anonymous.put(disabled_url,json={'disabledAccountIds':[],'expectedRevision':recovered['revision']}).status_code==401
+            assert client.post(rt.base_url+'/api/automation/logout',headers=headers).json()=={'ok':True}
             assert client.put(disabled_url,json={'disabledAccountIds':[],'expectedRevision':recovered['revision']},headers=headers).status_code==401
             evidence['recovered']=recovered
     finally:
