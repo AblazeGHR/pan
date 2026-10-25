@@ -221,6 +221,8 @@ def parser():
     p.add_argument("--version", action="version", version=f"Pan {__version__}")
     p.add_argument("--root", type=Path, default=launcher.checkout_root(), help="installation root (independent of cwd)")
     sub = p.add_subparsers(dest="command", required=True)
+    from packages.jobs.final_cli import add_parser
+    add_parser(sub)
     for name, help_text in (("start", "Start independently, honor startup.console_hidden, wait for ready"),
                             ("debug", "Run main.py in the foreground; terminal stays occupied; no config changes"),
                             ("exit", "Explicit legal Exit API; wait for durable offline + old PID gone"),
@@ -242,6 +244,9 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "final":
+        from packages.jobs.final_cli import run
+        return run(args, args.root.expanduser().resolve())
     # Registered CLI is independent of the invoking Pan Worker/Job profile.
     for key in list(os.environ):
         if key.upper().startswith("PAN_"):

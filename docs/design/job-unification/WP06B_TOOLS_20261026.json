@@ -1,0 +1,1118 @@
+{
+  "baseline": "be3e06720e1092f01f3dcbe32ba4c126fc4710ad",
+  "canonicalToolCount": 36,
+  "legacyToolCount": 92,
+  "totalToolCount": 128,
+  "prefix": "/api/final",
+  "tools": [
+    {
+      "name": "job_list",
+      "description": "Canonical jobs: list via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "listingArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_get",
+      "description": "Canonical jobs: get via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id"
+        ],
+        "title": "getArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_create",
+      "description": "Canonical jobs: create via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "expected_revision": {
+            "default": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition",
+          "request_key"
+        ],
+        "title": "createArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_update",
+      "description": "Canonical jobs: update via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "definition",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "updateArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_retire",
+      "description": "Canonical jobs: retire via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "retireArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_control",
+      "description": "Canonical jobs: control via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "object_id",
+          "operation",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "controlArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_list",
+      "description": "Canonical triggers: list via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "listingArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_get",
+      "description": "Canonical triggers: get via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id"
+        ],
+        "title": "getArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_create",
+      "description": "Canonical triggers: create via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "expected_revision": {
+            "default": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition",
+          "request_key"
+        ],
+        "title": "createArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_update",
+      "description": "Canonical triggers: update via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "definition",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "updateArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_retire",
+      "description": "Canonical triggers: retire via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "retireArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trigger_control",
+      "description": "Canonical triggers: control via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "object_id",
+          "operation",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "controlArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_list",
+      "description": "Canonical event-creators: list via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "listingArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_get",
+      "description": "Canonical event-creators: get via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id"
+        ],
+        "title": "getArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_create",
+      "description": "Canonical event-creators: create via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "expected_revision": {
+            "default": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition",
+          "request_key"
+        ],
+        "title": "createArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_update",
+      "description": "Canonical event-creators: update via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "definition",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "updateArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_retire",
+      "description": "Canonical event-creators: retire via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "retireArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "event_creator_control",
+      "description": "Canonical event-creators: control via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "object_id",
+          "operation",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "controlArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_list",
+      "description": "Canonical job-templates: list via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "listingArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_get",
+      "description": "Canonical job-templates: get via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id"
+        ],
+        "title": "getArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_create",
+      "description": "Canonical job-templates: create via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "expected_revision": {
+            "default": 0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition",
+          "request_key"
+        ],
+        "title": "createArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_update",
+      "description": "Canonical job-templates: update via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "definition": {
+            "additionalProperties": true,
+            "title": "Definition",
+            "type": "object"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "definition",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "updateArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_retire",
+      "description": "Canonical job-templates: retire via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_id",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "retireArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_template_control",
+      "description": "Canonical job-templates: control via /api/final. Writes return operation receipts; accepted is not completed. Keep requestKey and query unknown outcomes; never auto-replay.",
+      "inputSchema": {
+        "properties": {
+          "object_id": {
+            "title": "Object Id",
+            "type": "string"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "object_id",
+          "operation",
+          "expected_revision",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "controlArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_runs",
+      "description": "Canonical Job Run page; cursor/limit, no admission.",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "runsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run",
+      "description": "Canonical manual admission. accepted is not effect success; query the original receipt.",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input"
+          },
+          "rerun_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rerun Of"
+          }
+        },
+        "required": [
+          "job_id",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "runArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_get",
+      "description": "Read canonical Run state by original Run identity.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "get_runArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_retry",
+      "description": "Canonical retry. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Step Id"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_cancel",
+      "description": "Canonical cancel. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_pause",
+      "description": "Canonical pause. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_resume",
+      "description": "Canonical resume. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_again",
+      "description": "Canonical run-again. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_run_clone_and_run",
+      "description": "Canonical clone-and-run. Explicit scope and CAS; query receipts, never infer completion from acceptance.",
+      "inputSchema": {
+        "properties": {
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "expected_state_revision": {
+            "title": "Expected State Revision",
+            "type": "integer"
+          },
+          "expected_revision": {
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parameters"
+          }
+        },
+        "required": [
+          "run_id",
+          "expected_state_revision",
+          "expected_revision",
+          "request_key"
+        ],
+        "title": "invokeArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_operation_get",
+      "description": "Query an original canonical operation; no replay.",
+      "inputSchema": {
+        "properties": {
+          "operation_id": {
+            "title": "Operation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id"
+        ],
+        "title": "operation_getArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_operation_find",
+      "description": "Recover original operation by operation + requestKey in the same principal/profile.",
+      "inputSchema": {
+        "properties": {
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "request_key": {
+            "title": "Request Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "request_key"
+        ],
+        "title": "operation_findArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "job_action_list",
+      "description": "Read published canonical Actions and pinned Action refs for Job definitions.",
+      "inputSchema": {
+        "properties": {},
+        "title": "actionsArguments",
+        "type": "object"
+      }
+    }
+  ]
+}
