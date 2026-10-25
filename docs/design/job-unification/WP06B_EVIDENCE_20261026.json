@@ -1,0 +1,133 @@
+{
+  "baseline": "be3e06720e1092f01f3dcbe32ba4c126fc4710ad",
+  "branch": "r1/wp06b-mcp-cli-20261025",
+  "python": "Python 3.14.5",
+  "tests": {
+    "primaryFinal": {
+      "tests": 336,
+      "passed": 336,
+      "failed": 0,
+      "skipped": 0,
+      "failedNodes": [],
+      "exitCode": 0,
+      "newClientTests": 47
+    },
+    "legacyAdditionalWith8OverlappingTests": {
+      "tests": 38,
+      "passed": 36,
+      "failed": 2,
+      "skipped": 0,
+      "failedNodes": [
+        "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]",
+        "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]"
+      ],
+      "exitCode": 1
+    },
+    "baselineArchiveOnlyKnownFailures": {
+      "tests": 2,
+      "passed": 0,
+      "failed": 2,
+      "skipped": 0,
+      "failedNodes": [
+        "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]",
+        "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]"
+      ],
+      "exitCode": 1
+    },
+    "completedDistinctCandidateTotal": {
+      "tests": 366,
+      "passed": 364,
+      "failed": 2,
+      "skipped": 0,
+      "explanation": "primary336 plus authorization_mcp30; manifest/runtime8 overlap removed"
+    }
+  },
+  "unchangedLegacyToolFunctions": 84,
+  "unchangedTerminalTools": 8,
+  "tools": {
+    "canonical": 36,
+    "legacy": 92,
+    "total": 128,
+    "duplicateNames": 0
+  },
+  "sourceSha256": {
+    "packages/mcp/server.py": "73862aac59eba2d72f800b2137acf7fe755efc7e32a7627199207cdf2c21a0fe",
+    "packages/mcp/final_tools.py": "d635dd4de80f2e7092ec823362fb958b1d99a5d98857540a3cabc237e1baf6c6",
+    "packages/mcp/manifest.json": "f09fa63d7278c219af47ecaae7bb3e9fb5004b518de9bff4850c1fca7a089317",
+    "packages/automation/authorization.py": "58358186fab6086cd4b782c285b1144ea4e37406624fabd5d46d45a5a2f1b9cb",
+    "packages/core/cli.py": "2516ca78ce3f8d18e8ed13c785fb4931d356655fa1247522621fa47eb3edf8d1",
+    "packages/jobs/final_client.py": "95c19d2939d33358d924b72e89e362b9057f502db93f824096b3d3d7143a4485",
+    "packages/jobs/final_cli.py": "3c60b1bf7b7679b81171e1ee275d4ac6b769f94090c08d31734b5e38e7be8d58",
+    "tests/test_job_final_clients.py": "421997c04291ecb36ddd342bb51b35b95fef66e75a5cd4aa1dfcd784133a510f",
+    "tests/fixtures/job_final_legacy_tools.json": "467cf8d429cbdfe438a4d63bb4cd2f2c35fd5f8d78dbe4de0961f542b07539eb"
+  },
+  "unverified": [
+    "full backend suite",
+    "production lifespan",
+    "real Session/QQ/provider effects",
+    "remote gateway parity batch did not finish",
+    "POSIX machines and remote three-platform CI",
+    "real-data migration",
+    "deployment and human acceptance"
+  ],
+  "boundaries": {
+    "push": false,
+    "existingServiceStartStop": false,
+    "protectedPorts8767And8768": false,
+    "reactOrRoutesChanged": false
+  },
+  "commands": {
+    "primaryFinal": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_clients.py tests/test_job_final_contracts.py tests/test_job_final_transports.py tests/test_job_final_http_service.py tests/test_scheduler_mcp.py tests/test_job_mcp_config.py tests/test_legacy_mcp_compat.py tests/test_pan_cli.py tests/test_cli_diagnostics.py tests/test_manifest_loader.py tests/test_mcp_remote_runtime.py -q -o addopts= --junitxml=.artifacts/wp06b-final-context.xml",
+    "legacyAdditional": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_authorization_mcp.py tests/test_manifest_loader.py tests/test_mcp_remote_runtime.py -q -o addopts= --junitxml=.artifacts/wp06b-legacy-completed.xml",
+    "baselineArchive": "git archive be3e0672 packages tests scripts docs manifest.json pytest.ini config.example.json; extract into an owned temporary root, then isolated pytest tests/test_authorization_mcp.py::test_real_stdio_grants_no_user_bearer_and_four_object_operations -q -o addopts="
+  },
+  "rawEvidenceDirectory": "C:/Users/14709/AppData/Local/Temp/pan-wp06b-evidence-20261026-aab85d6c",
+  "rawEvidenceFiles": [
+    "wp06b-aborted-owned-gateway.json",
+    "wp06b-baseline.log",
+    "wp06b-baseline.xml",
+    "wp06b-context.log",
+    "wp06b-context.xml",
+    "wp06b-fifth.log",
+    "wp06b-fifth.xml",
+    "wp06b-final-context.log",
+    "wp06b-final-context.xml",
+    "wp06b-final.log",
+    "wp06b-final.xml",
+    "wp06b-first.xml",
+    "wp06b-fourth.log",
+    "wp06b-fourth.xml",
+    "wp06b-http-context.xml",
+    "wp06b-legacy-completed.log",
+    "wp06b-legacy-completed.xml",
+    "wp06b-legacy-probe.log",
+    "wp06b-projection-completed.log",
+    "wp06b-projections.log",
+    "wp06b-regression.log",
+    "wp06b-regression.xml",
+    "wp06b-second.xml",
+    "wp06b-third.log"
+  ],
+  "abortedBatches": [
+    {
+      "entry": "authorization_mcp + remote parity + runtime + manifest + client",
+      "completed": false,
+      "counted": false
+    },
+    {
+      "entry": "remote parity + runtime + manifest + client",
+      "completed": false,
+      "counted": false,
+      "ownedPytestPid": 42608,
+      "confirmedExited": true
+    }
+  ],
+  "baselineFailure": "Both candidate and independently archived be3e0672 fail KeyError(deleted) in core/native old MCP tests; assertions unchanged.",
+  "staticChecks": {
+    "pythonAST": true,
+    "gitDiffCheck": true,
+    "legacyToolASTIdentical": 84,
+    "terminalToolSourceIdenticalAfterNewlineNormalization": true,
+    "newPlatformBranches": false
+  }
+}

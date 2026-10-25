@@ -17,6 +17,11 @@ def object_path(path):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
+    if re.fullmatch(
+        r'/api/final/(?:jobs(?:/[A-Za-z0-9_-]+(?:/(?:runs|operations))?)?'
+        r'|(?:triggers|event-creators|job-templates)(?:/[A-Za-z0-9_-]+(?:/operations)?)?'
+        r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?|actions)', parsed.path):
+        return True
     if re.fullmatch(r'/api/(?:background-jobs(?:/[^/]+(?:/(?:cancel|retry))?)?|session-message-jobs)', parsed.path):
         return True
     return bool(re.fullmatch(
@@ -73,6 +78,8 @@ def bind_objects(runtime, app):
             response = await client.request(method, path, json=body if body is not None else None)
         result = response.json()
         if response.status_code >= 400:
+            if path.startswith('/api/final/'):
+                return result  # WP01 structured error code/path/details, unchanged
             # Static authorization/validation response, never credentials or body.
             return {'ok': False, 'error': {'code': response.status_code,
                     'message': result.get('detail', 'Object operation rejected')}}
