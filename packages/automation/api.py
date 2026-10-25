@@ -1,6 +1,7 @@
 """Trigger management only. Event registration/publishing has no public route."""
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from starlette.datastructures import MutableHeaders
 from urllib.parse import urlsplit
 from packages.core.system_fields import public_schema
 from .store import Conflict
@@ -31,43 +32,60 @@ def install(server):
         except ValueError:
             return False
 
-    @server.app.middleware('http')
-    async def cookie_auth(request, call_next):
-        # Normalize Cookie authentication at the shared HTTP boundary so every
-        # existing Bearer gate (Automation, Actions, Jobs and Locker) uses it.
-        svc = getattr(server.app.state, 'automation', None)
-        cookie = request.cookies.get(cookie_name, '')
-        cookie_token, separator, cookie_days = cookie.rpartition('.')
-        if not separator:
-            cookie_token, cookie_days = cookie, ''
-        token = cookie_token
-        bearer = request.headers.get('authorization', '').lower().startswith('bearer ')
-        state = None
-        if svc is not None and token and request.url.path.startswith('/api/'):
-            if bearer:
-                token = request.headers['authorization'].partition(' ')[2]
-            try:
-                state = await svc.engine.io(svc.auth.session, token, False)
-                if state['authenticated']:
-                    if not bearer and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and not same_origin(request):
-                        return JSONResponse({'detail': 'Cookie writes require a same-origin Origin'}, status_code=403)
-                    state = await svc.engine.io(svc.auth.session, token)
-                    request.scope['headers'][:] = [(k, v) for k, v in request.scope['headers'] if k != b'authorization'] + [
-                        (b'authorization', ('Bearer ' + token).encode())]
-            except (OSError, ValueError):
-                return JSONResponse({'detail': 'Session storage unavailable'}, status_code=503)
-        response = await call_next(request)
-        if request.url.path.startswith('/api/automation/'):
-            response.headers['Cache-Control'] = 'no-store'
-        # The duration marker also reapplies global policy on other browsers'
-        # next requests, including persistent -> session Cookie (0 days). It is
-        # only a refresh hint; server-side lifetime always comes from config.
-        # Explicit logout/revocation/setting responses own their Cookie header.
-        if (state and state['authenticated'] and token == cookie_token
-                and (state['renewed'] or cookie_days != str(state['sessionDays']))
-                and 'set-cookie' not in response.headers):
-            set_cookie(response, request, token, state['sessionDays'])
-        return response
+    class CookieAuthMiddleware:
+        """Normalize valid Cookie sessions without a task or body-stream relay."""
+
+        def __init__(self, app):
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope['type'] != 'http':
+                return await self.app(scope, receive, send)
+            request = Request(scope)
+            svc = getattr(server.app.state, 'automation', None)
+            cookie = request.cookies.get(cookie_name, '')
+            token, separator, cookie_days = cookie.rpartition('.')
+            if not separator:
+                token, cookie_days = cookie, ''
+            header = request.headers.get('authorization', '')
+            bearer = header.lower().startswith('bearer ')
+            state = None
+            # Explicit Bearer credentials retain their own authentication path.
+            # Only the matching browser Cookie needs policy refresh in that case.
+            if (svc is not None and token and request.url.path.startswith('/api/')
+                    and (not bearer or header.partition(' ')[2] == token)):
+                try:
+                    state = await svc.engine.io(svc.auth.session, token, False)
+                    if state['authenticated']:
+                        if not bearer and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and not same_origin(request):
+                            response = JSONResponse({'detail': 'Cookie writes require a same-origin Origin'}, status_code=403)
+                            return await response(scope, receive, send)
+                        state = await svc.engine.io(svc.auth.session, token)
+                        if not bearer:
+                            scope['headers'] = [(k, v) for k, v in scope['headers'] if k != b'authorization'] + [
+                                (b'authorization', ('Bearer ' + token).encode())]
+                except (OSError, ValueError):
+                    response = JSONResponse({'detail': 'Session storage unavailable'}, status_code=503)
+                    return await response(scope, receive, send)
+
+            async def send_headers(message):
+                if message['type'] == 'http.response.start':
+                    headers = MutableHeaders(scope=message)
+                    if request.url.path.startswith('/api/automation/'):
+                        headers['Cache-Control'] = 'no-store'
+                    # The duration marker is a refresh hint, never lifetime
+                    # authority. Explicit login/logout/settings own their header.
+                    if (state and state['authenticated']
+                            and (state['renewed'] or cookie_days != str(state['sessionDays']))
+                            and 'set-cookie' not in headers):
+                        response = Response()
+                        set_cookie(response, request, token, state['sessionDays'])
+                        headers.append('set-cookie', response.headers['set-cookie'])
+                await send(message)
+
+            await self.app(scope, receive, send_headers)
+
+    server.app.add_middleware(CookieAuthMiddleware)
 
     def service():
         value = getattr(server.app.state, 'automation', None)

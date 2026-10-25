@@ -15,6 +15,42 @@ from packages.automation.api import install
 from packages.automation.authorization import require
 
 
+@pytest.mark.parametrize('credential', ['anonymous', 'invalid-cookie', 'cookie', 'bearer', 'invalid-bearer'])
+@pytest.mark.parametrize('method', ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+def test_cookie_boundary_preserves_route_auth_and_method_contract(tmp_path, credential, method):
+    async def run():
+        auth = UserAuth(tmp_path)
+        token = auth.login(auth.key())
+        async def io(fn, *args):
+            return fn(*args)
+        app = FastAPI()
+        app.state.automation = SimpleNamespace(auth=auth, engine=SimpleNamespace(io=io))
+        install(SimpleNamespace(app=app))
+        @app.api_route('/api/protected', methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+        async def protected(request: Request):
+            return {'principal': await require(request, 'job', 'execute')}
+        @app.get('/api/read-only')
+        async def read_only():
+            return {'ok': True}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://example.test') as client:
+            if credential == 'invalid-cookie':
+                client.cookies.set('pan_automation_session', 'invalid.0')
+            elif credential in {'cookie', 'invalid-bearer'}:
+                client.cookies.set('pan_automation_session', token + '.0')
+            headers = {'Authorization': 'Bearer ' + token} if credential == 'bearer' else (
+                {'Authorization': 'Bearer wrong'} if credential == 'invalid-bearer' else {})
+            response = await client.request(method, '/api/protected', headers=headers)
+            expected = 200 if credential == 'bearer' or (credential == 'cookie' and method == 'GET') else (
+                403 if credential == 'cookie' else 401)
+            assert response.status_code == expected
+            # Anonymous/invalid credentials cannot turn routing 405 into CSRF 403.
+            absent = await client.request(method, '/api/read-only', headers=headers)
+            assert absent.status_code == (200 if method == 'GET' else 403 if credential == 'cookie' else 405)
+            same_origin = await client.request(method, '/api/protected', headers={**headers, 'Origin': 'http://example.test'})
+            assert same_origin.status_code == (200 if credential in {'cookie', 'bearer'} else 401)
+    asyncio.run(run())
+
+
 def test_restart_expiry_hashes_and_bounded_renewal(tmp_path, monkeypatch):
     clock = [1000000.0]
     monkeypatch.setattr('packages.automation.auth.time.time', lambda: clock[0])

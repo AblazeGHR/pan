@@ -1,5 +1,5 @@
 /* Real production UI against an owned HTTP/fakeCLI instance; no API routing mocks. */
-import { chromium, expect } from '@playwright/test';
+import { chromium, expect, request } from '@playwright/test';
 import fs from 'node:fs/promises';
 const [base, inputPath, out] = process.argv.slice(2);
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(base) || /:(8767|8768)$/.test(base)) throw Error('Owned isolated port required');
@@ -8,16 +8,22 @@ if (!process.env.PAN_TEST_JOB_KEY) throw Error('Owned fixture key required');
 const browser = await chromium.launch({headless:true});
 const errors = [];
 let page;
+let api;
 try {
   page = await browser.newPage({viewport:{width:1280,height:1000}});
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base + '/react/jobs');
   await page.getByRole('button',{name:'New Job',exact:true}).click();
   await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
+  const loginResponse=page.waitForResponse(r=>r.url()===base+'/api/automation/login' && r.request().method()==='POST');
   await page.getByRole('button',{name:'Log in',exact:true}).click();
   await expect(page.getByRole('button',{name:'Log out',exact:true})).toBeVisible();
-  const login=await (await page.request.post(base+'/api/automation/login',{data:{key:process.env.PAN_TEST_JOB_KEY}})).json();
+  const loggedIn=await loginResponse;
+  expect(loggedIn.status()).toBe(200);
+  const login=await loggedIn.json();
   const apiHeaders={Authorization:'Bearer '+login.token};
+  // Explicit Bearer probes own their Cookie jar, separate from the GUI session.
+  api=await request.newContext({extraHTTPHeaders:apiHeaders});
   const fill = async name => {
     await page.getByLabel('Name',{exact:true}).fill(name);
     await page.getByLabel('Action reference',{exact:true}).selectOption('system_session_message');
@@ -30,15 +36,15 @@ try {
   await page.getByRole('button',{name:'Save unified Job',exact:true}).click();
   await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true})).toBeVisible();
   await expect.poll(async () => {
-    const data=await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json();
+    const data=await (await api.get(base+'/api/jobs')).json();
     return data.jobs.find(job=>job.name==='Unified production UI message')?.status;
   },{timeout:15000}).toBe('completed');
   // A dirty editor must keep its opened CAS revision after a real WS update.
   await page.getByTestId('jobs-list-scroll').getByText('Unified production UI message',{exact:true}).click();
   await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByLabel('Name',{exact:true}).fill('Retained conflicting draft');
-  const existing=(await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json()).jobs.find(j=>j.name==='Unified production UI message');
-  const changed=await page.request.put(base+'/api/jobs/action-jobs/'+existing.jobId,{headers:{Authorization:'Bearer '+login.token},
+  const existing=(await (await api.get(base+'/api/jobs')).json()).jobs.find(j=>j.name==='Unified production UI message');
+  const changed=await api.put(base+'/api/jobs/action-jobs/'+existing.jobId,{
     data:{config:{...existing.unified.config,name:'Concurrent remote config'},expectedRevision:existing.configRevision}});
   if (!changed.ok()) throw Error('Owned concurrent update rejected: '+changed.status());
   await expect(page.getByText('Concurrent remote config',{exact:true}).first()).toBeVisible();
@@ -57,7 +63,7 @@ try {
   await page.getByRole('button',{name:'Instantiate fixed Template',exact:true}).click();
   await expect(page.getByTestId('jobs-list-scroll').getByText('Unified production complete Template',{exact:true})).toBeVisible();
   await expect.poll(async () => {
-    const data=await (await page.request.get(base+'/api/jobs',{headers:apiHeaders})).json();
+    const data=await (await api.get(base+'/api/jobs')).json();
     return data.jobs.find(job=>job.name==='Unified production complete Template')?.status;
   },{timeout:15000}).toBe('completed');
   await page.getByRole('button',{name:'New Job',exact:true}).click();
@@ -88,4 +94,4 @@ try {
     await fs.writeFile(out+'/browser-failure.txt',await page.locator('body').innerText(),'utf8');
   }
   throw error;
-} finally { await browser.close(); }
+} finally { await api?.dispose(); await browser.close(); }

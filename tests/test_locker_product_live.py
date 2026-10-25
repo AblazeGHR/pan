@@ -193,6 +193,9 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         rt.stop(); rt.start()
         cold_auth = {'Authorization': 'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         assert not rt.request('GET', f"/api/user-locker-messages/{archived['id']}",headers=cold_auth)['message']['read']
+        assert httpx.get(rt.base_url+'/api/user-locker-messages', headers=auth, trust_env=False).status_code == 200
+        assert httpx.get(rt.base_url+'/api/user-locker-messages', trust_env=False).status_code == 401
+        assert httpx.post(rt.base_url+'/api/automation/logout', headers=auth, trust_env=False).json() == {'ok': True}
         assert httpx.get(rt.base_url+'/api/user-locker-messages', headers=auth, trust_env=False).status_code == 401
         browser('cold', fixture, key)
         assert len(rt.request('GET', '/api/automation', headers=cold_auth)['runs']) == 1

@@ -65,6 +65,11 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
             rt.stop();rt.start();evidence['restartedServerPid']=rt.process.pid
             recovered=client.get(url).json()
             assert recovered['host']=={'enabled':False,'sessionRoles':{'explicit-target':'ta'}}
+            assert client.get(rt.base_url+'/api/automation/session',headers=headers).json()['authenticated'] is True
+            with httpx.Client(timeout=10,trust_env=False) as anonymous:
+                assert anonymous.put(url+'/host',json=body).status_code==401
+            assert client.put(url+'/host',json=body,headers=headers).status_code==409
+            assert client.post(rt.base_url+'/api/automation/logout',headers=headers).json()=={'ok':True}
             assert client.put(url+'/host',json=body,headers=headers).status_code==401
             assert trace.read_text(encoding='utf-8')==lines
             assert store.path.read_bytes()==before

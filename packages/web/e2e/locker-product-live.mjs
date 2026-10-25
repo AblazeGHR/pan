@@ -101,7 +101,7 @@ try {
     await card(f.silent).getByRole('button',{name:'Delete record'}).click();
     await expect(card(f.silent)).toHaveCount(0);
     checks.push('real choice submit, per-question answer/reject with exact persisted response, reason/no-reason card rejection and terminal deletion');
-    const deleted = await page.request.delete(base+`/api/sessions/${f.two}`);
+    const deleted = await page.request.delete(base+`/api/sessions/${f.two}`,{headers:{Origin:base}});
     expect(deleted.ok()).toBe(true);
     await refresh();
     await expect(msg(f.archived)).toBeVisible();

@@ -195,7 +195,7 @@ async def test_api_bounded_pages_replay_authorization_and_dedup(tmp_path):
     try:
         await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'api')
         await terminal(svc)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://test') as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://test') as client, httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://test') as anonymous:
             assert (await client.post('/api/automation/events/replay',json={'eventIds':['api']})).status_code==401
             token=(await client.post('/api/automation/login',json={'key':svc.auth.key()})).json()['token']
             auth={'Authorization':'Bearer '+token}
@@ -204,7 +204,7 @@ async def test_api_bounded_pages_replay_authorization_and_dedup(tmp_path):
             assert page['events'][0]['event']['id']=='api'
             assert (await client.post('/api/automation/events/replay',json={'eventIds':['api']},headers=auth)).status_code==200
             assert (await client.post('/api/automation/events/replay',json={'eventIds':['missing']},headers=auth)).status_code==409
-            assert (await client.post('/api/automation/events',json={'source':'core'})).status_code==405
+            assert (await anonymous.post('/api/automation/events',json={'source':'core'})).status_code==405
             storage=(await client.get('/api/automation',headers=auth)).json()['storage']
             assert storage['events']['events']==1
         await until(lambda:asyncio.sleep(0,result=svc.events.stats()['pending']==0))

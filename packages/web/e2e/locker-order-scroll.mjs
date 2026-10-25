@@ -90,15 +90,13 @@ try {
   await expect(newest.getByRole('button',{name:'Mark unread',exact:true})).toBeVisible();
   expect(writes).toHaveLength(f.ids.length+1);
   await page.reload();
-  await expect(page.getByRole('button',{name:'Log in',exact:true})).toBeVisible();
-  await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button',{name:'Log in',exact:true}).click();
   await expect(rows).toHaveCount(50);
+  await expect(page.getByRole('button',{name:'Log in',exact:true})).toHaveCount(0);
   await expect(divider).toHaveCount(0);
   await expect.poll(async()=>{const g=await geometry();return g.height-g.top-g.client;}).toBeLessThan(3);
   await expect(rows.last().getByRole('button',{name:'Mark unread',exact:true})).toBeVisible();
   expect(writes).toHaveLength(f.ids.length+1);
-  checks.push('explicit user read survives browser reload and login without further writes');
+  checks.push('explicit user read survives browser reload and automatic Cookie session restoration without further writes');
   expect(errors).toEqual([]);
 } catch(e) {await page.screenshot({path:out+'/scroll-failure.png'});throw e;}
 finally {await fs.writeFile(out+'/scroll-browser.json',JSON.stringify({checks,errors,writes},null,2));await browser.close();}
