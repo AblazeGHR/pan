@@ -1,9 +1,7 @@
 """Explicit automation lifetime, durable event admission and bounded dispatch."""
 import asyncio
-from functools import partial
 import threading
 
-from packages.actions.executor import execute_dynamic
 from packages.actions.store import Store
 from packages.core.runtime_issues import runtime_issue_event_schema
 from packages.core.system_fields import canonical_event
@@ -21,6 +19,7 @@ class Service:
         self.ledger = Ledger(root)
         self.auth = UserAuth(root)
         self.worker = worker
+        self.pause = pause
         self.core = self.bus.activate('core', 'workers')
         self.bus.register(self.core, 'workers.all_idle', {'type': 'object', 'properties': {'runningCount': {'const': 0}}, 'required': ['runningCount'], 'additionalProperties': False})
         self.issue_runtime = self.bus.activate('core', 'runtime')
@@ -32,7 +31,7 @@ class Service:
             if key == 'workers.runningCount':
                 return sum(w.status == 'running' for w in worker.workers.values())
             raise ValueError('Unknown State field: ' + str(key))
-        self.engine = Engine(self.ledger, self.bus, Store(), partial(execute_dynamic, pause=pause), state_reader)
+        self.engine = Engine(self.ledger, self.bus, Store(), state_reader=state_reader)
         self.engine.authorization = self.auth.permission_allowed
         self.previous = sum(w.status == 'running' for w in worker.workers.values())
         self.ingress = asyncio.Queue(128)
@@ -138,6 +137,7 @@ class Service:
         async with self.admission:
             if not self.started or self.stopping:
                 raise ValueError('Durable event admission is closed')
+            await self.engine.subscriptions()
             state = await self.engine.io(self.ledger.read)
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
@@ -152,13 +152,11 @@ class Service:
                 # Preserve its original envelope; do not reset any Run/Attempt.
                 event = retained[0]
             # Snapshot every subscription, including non-executing admissions.
-            targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] else
+            targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] or t.get('paused') else
                        'unavailable' if not self.engine.available(t) else 'eligible'}
                        for t in state['triggers'].values() if event['type'] in t['eventTypes']]
             for target in targets:
                 if target.get('ownerJobId') and any(op.get('jobId')==target['ownerJobId'] and op['status'] not in {'complete','cancelled'} for op in state.get('linkOperations',{}).values()):target['_admissionStatus']='disabled'
-            if self.job_runtime:
-                targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type'],True))
             try:
                 receipt = await self.engine.io(self.events.append, event, targets)
                 if retained:
@@ -192,18 +190,16 @@ class Service:
                     await self.engine.io(self.events.subscription,eid,key,admission,revision=target.get('revision'))
                     continue
                 if target.get('_job'):
-                    if not self.job_runtime:raise ValueError('Job Event runtime unavailable')
-                    await self.job_runtime.match_event(copy.deepcopy(event),[copy.deepcopy(target)])
-                    job=await self.engine.io(self.job_runtime.get,target['jobId'])
-                    result=job.get('eventReceipts',{}).get(eid,{'status':'cancelled'})
-                    await self.engine.io(self.events.subscription,eid,key,'admitted',result=result,revision=target['configRevision'])
-                else:
-                    if not self.engine.available(target):raise ValueError('Event dependency unavailable')
-                    await self.engine.match(copy.deepcopy(event),targets=[copy.deepcopy(target)],strict=True)
-                    state=await self.engine.io(self.ledger.read)
-                    run=next((r for r in state['runs'].values() if r['event']['id']==eid and r['triggerId']==target['id']),None)
-                    if not run:raise ValueError('Subscription has no durable admission result')
-                    await self.engine.io(self.events.subscription,eid,key,'admitted',runId=run['id'],admissionResult=run['status'],revision=target['revision'])
+                    # Retained pre-cutover inbox rows enter the same Trigger path.
+                    await self.engine.subscriptions()
+                    state = await self.engine.io(self.ledger.read)
+                    target = state['triggers']['trigger:' + target['jobId']]
+                if not self.engine.available(target):raise ValueError('Event dependency unavailable')
+                await self.engine.match(copy.deepcopy(event),targets=[copy.deepcopy(target)],strict=True)
+                state=await self.engine.io(self.ledger.read)
+                run=next((r for r in state['runs'].values() if r['event']['id']==eid and r['triggerId']==target['id']),None)
+                if not run:raise ValueError('Subscription has no durable admission result')
+                await self.engine.io(self.events.subscription,eid,key,'admitted',runId=run['id'],admissionResult=run['status'],revision=target['revision'])
             except Exception as exc:
                 errors.append(str(exc))
                 if errors_batch is not None:errors_batch.append((eid,key,str(exc)))
@@ -304,7 +300,7 @@ class Service:
             return
         from packages.jobs.action_runtime import Runtime
         from packages.scheduler.store import data_root
-        self.job_runtime = Runtime(data_root(), self.engine.actions, self.engine.execute.keywords.get('pause') if isinstance(self.engine.execute, partial) else None)
+        self.job_runtime = Runtime(data_root(), self.engine.actions, self.pause)
         # Runtime rechecks the same profile-wide capability and revision at
         # dispatch and immediately before the provider effect.
         self.job_runtime.authorization = self.auth.permission_allowed
