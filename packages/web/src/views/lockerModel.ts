@@ -94,7 +94,22 @@ export interface LockerMessage {
   read: boolean;
   message: Message;
 }
+export interface LockerParent {
+  type: 'locker_message' | 'interaction_card' | 'user_card';
+  id: string;
+}
+export function lockerParent(item: LockerItem): LockerParent {
+  return {
+    type: isUserCard(item)
+      ? 'user_card'
+      : 'message' in item
+        ? 'locker_message'
+        : 'interaction_card',
+    id: item.id,
+  };
+}
 export interface UserCard {
+  parent?: LockerParent | null;
   direction: 'user';
   kind: 'question' | 'task';
   id: string;
@@ -209,32 +224,65 @@ export function lockerProjection<T extends LockerItem>(
   return cards.filter((card) => ids.has(card.lockerId)).sort(compareLockerItems);
 }
 
-/** Positions are projections only; counts and actions always use the original item. */
+/** Iterative preorder: attachments never enter chronological sorting, even at arbitrary depth.
+ * Missing parents/corrupt cycles are displayed once, with their parent link retained.
+ */
 export function lockerTimeline(items: LockerItem[]) {
-  return items
-    .flatMap((item) => {
-      const original = {
+  const keyOf = (item: LockerItem) => `${lockerParent(item).type}:${item.id}`;
+  const keys = new Set(items.map(keyOf));
+  const children = new Map<string, LockerItem[]>();
+  const roots: LockerItem[] = [];
+  for (const item of [...items].sort(compareLockerItems)) {
+    const parent = isUserCard(item) ? item.parent : null;
+    const key = parent ? `${parent.type}:${parent.id}` : '';
+    if (key && keys.has(key)) {
+      const siblings = children.get(key) ?? [];
+      siblings.push(item);
+      children.set(key, siblings);
+    } else roots.push(item);
+  }
+  const result: {
+    item: LockerItem;
+    position: 'created';
+    displayedAt: string;
+    key: string;
+    rootId: string;
+    parent?: LockerParent | null;
+  }[] = [];
+  const visited = new Set<string>();
+  const append = (root: LockerItem) => {
+    const stack = [root];
+    while (stack.length) {
+      const item = stack.pop()!;
+      const key = keyOf(item);
+      if (visited.has(key)) continue;
+      visited.add(key);
+      result.push({
         item,
-        position: 'created' as const,
+        position: 'created',
         displayedAt: item.createdAt,
         key: `${item.id}:created`,
-      };
-      return isUserCard(item) && item.answeredAt
-        ? [
-            original,
-            {
-              item,
-              position: 'answered' as const,
-              displayedAt: item.answeredAt,
-              key: `${item.id}:answered`,
-            },
-          ]
-        : [original];
-    })
-    .sort(
-      (a, b) =>
-        Date.parse(a.displayedAt) - Date.parse(b.displayedAt) ||
-        (a.position === b.position ? 0 : a.position === 'created' ? -1 : 1) ||
-        a.item.id.localeCompare(b.item.id),
-    );
+        rootId: root.id,
+        parent: isUserCard(item) ? item.parent : null,
+      });
+      const descendants = children.get(key) ?? [];
+      for (let i = descendants.length - 1; i >= 0; i--) stack.push(descendants[i]!);
+    }
+  };
+  for (const root of roots) append(root);
+  for (const item of items) if (!visited.has(keyOf(item))) append(item);
+  return result;
+}
+
+/** One initial tail page plus at most five older pages. Attachments consume no slots. */
+export function lockerEntryWindow(roots: LockerItem[], pageSize = 50, maxOlderPages = 5) {
+  const firstUnread = roots.findIndex((item) => !item.read);
+  const needed = firstUnread < 0 ? pageSize : roots.length - firstUnread;
+  const pages = Math.min(maxOlderPages, Math.max(0, Math.ceil(needed / pageSize) - 1));
+  const size = pageSize * (1 + pages);
+  return {
+    size,
+    firstUnreadId: firstUnread < 0 ? null : roots[firstUnread]!.id,
+    limited: firstUnread >= 0 && firstUnread < Math.max(0, roots.length - size),
+  };
 }

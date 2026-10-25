@@ -224,6 +224,8 @@ class InteractionStore:
             import hashlib
             db.execute('INSERT INTO locker_message_tombstones VALUES(?,?,?)',
                        (mid,uid,hashlib.sha256(row['signature'].encode()).hexdigest()))
+            from .threads import delete_descendants
+            delete_descendants(db, 'locker_message', mid, uid)
             db.execute('DELETE FROM locker_messages WHERE id=?',(mid,))
             return {'deleted':True,'id':mid}
 
@@ -626,6 +628,8 @@ class InteractionStore:
                            (card_id,user_id,row['event'],row['delivery']))
             db.execute('INSERT INTO tombstones VALUES(?,?,?,?)',
                        (card_id,row['owner'],user_id,hashlib.sha256(row['signature'].encode()).hexdigest()))
+            from .threads import delete_descendants
+            delete_descendants(db, 'interaction_card', card_id, user_id)
             db.execute('DELETE FROM cards WHERE id=?',(card_id,))
             return {'deleted':True,'id':card_id}
 

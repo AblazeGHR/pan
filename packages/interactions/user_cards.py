@@ -22,6 +22,11 @@ class UserCardStore:
                 recipient TEXT NOT NULL,signature TEXT NOT NULL,kind TEXT NOT NULL,body TEXT NOT NULL,
                 attachments TEXT NOT NULL,created_at TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0,
                 answer TEXT,answered_at TEXT,is_read INTEGER NOT NULL DEFAULT 1)''')
+            columns = {r[1] for r in db.execute('PRAGMA table_info(user_cards)')}
+            if 'parent_type' not in columns:
+                db.execute('ALTER TABLE user_cards ADD COLUMN parent_type TEXT')
+                db.execute('ALTER TABLE user_cards ADD COLUMN parent_id TEXT')
+            db.execute('CREATE INDEX IF NOT EXISTS user_cards_parent ON user_cards(parent_type,parent_id)')
             db.execute('CREATE INDEX IF NOT EXISTS user_cards_pending ON user_cards(owner,answered_at)')
             db.execute('CREATE TABLE IF NOT EXISTS user_card_deleted(id TEXT PRIMARY KEY)')
             db.execute('CREATE TABLE IF NOT EXISTS user_card_reminders(owner TEXT PRIMARY KEY,last_at REAL NOT NULL)')
@@ -37,12 +42,13 @@ class UserCardStore:
     def view(row):
         return dict(id=row['id'],direction='user',kind=row['kind'],ownerSessionId=row['owner'],
                     lockerId=identity('ulocker_', [row['recipient'],row['owner']]),
+                    parent=({'type': row['parent_type'], 'id': row['parent_id']} if row['parent_id'] else None),
                     createdAt=row['created_at'],answeredAt=row['answered_at'],body=row['body'],
                     attachments=json.loads(row['attachments']),revision=row['revision'],
                     status='answered' if row['answered_at'] else 'pending',answer=row['answer'],read=bool(row['is_read']))
 
     def create(self, principal, data):
-        if set(data) != {'ownerSessionId','requestKey','kind','body','attachments'}:
+        if set(data)-{'parent'} != {'ownerSessionId','requestKey','kind','body','attachments'}:
             raise InteractionError('invalid','Invalid create fields')
         for key in ('ownerSessionId','requestKey'):
             validate('Id',data[key])
@@ -64,6 +70,8 @@ class UserCardStore:
             if 'size' in a and (type(a['size']) is not int or a['size']<0):
                 raise InteractionError('invalid','Invalid size')
         owner=data['ownerSessionId']; cid=identity('ucard_', [principal.id,owner,data['requestKey']])
+        parent = data.get('parent')
+        from .threads import validate_parent
         sig=canonical(data); at=self.clock()
         with self.db() as db:
             if db.execute('SELECT 1 FROM user_card_deleted WHERE id=?',(cid,)).fetchone():
@@ -73,10 +81,12 @@ class UserCardStore:
                 if old['signature']!=sig:
                     raise InteractionError('conflict','requestKey content conflict')
                 return self.view(old)
+            validate_parent(db, parent, cid, principal.id, owner)
             if db.execute('SELECT count(*) FROM user_cards WHERE recipient=?',(principal.id,)).fetchone()[0]>=1000:
                 raise InteractionError('capacity','User card capacity reached')
-            db.execute('INSERT INTO user_cards(id,owner,recipient,signature,kind,body,attachments,created_at) VALUES(?,?,?,?,?,?,?,?)',
-                       (cid,owner,principal.id,sig,data['kind'],data['body'],canonical(attachments),timestamp(at)))
+            db.execute('INSERT INTO user_cards(id,owner,recipient,signature,kind,body,attachments,created_at,parent_type,parent_id) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                       (cid,owner,principal.id,sig,data['kind'],data['body'],canonical(attachments),timestamp(at),
+                        parent['type'] if parent else None,parent['id'] if parent else None))
             db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(owner,principal.id))
             db.execute('INSERT OR REPLACE INTO user_card_reminders VALUES(?,?)',(owner,at))
             db.execute('INSERT INTO user_card_outbox VALUES(?,?,?)',(cid+':created',owner,f'{REMINDER}\n\n{data["body"]}\n\nCard id: {cid}'))
@@ -122,6 +132,8 @@ class UserCardStore:
     def delete(self, principal, cid):
         with self.db() as db:
             row=self.get(db,cid,principal=principal)
+            from .threads import delete_descendants
+            delete_descendants(db, 'user_card', cid, principal.id)
             db.execute('INSERT INTO user_card_deleted VALUES(?)',(cid,))
             db.execute('DELETE FROM user_cards WHERE id=?',(cid,))
             db.execute('DELETE FROM user_card_outbox WHERE id=?',(cid+':created',))
