@@ -43,12 +43,14 @@ def register(app):
 
     @app.get('/api/locker-unread-summary')
     async def locker_unread_summary():
-        """Return only the local profile's aggregate unread count.
+        """Return the local profile's aggregate and per-Session unread counts.
 
         This intentionally has no user/Bearer gate: same-origin local clients
         may show a number before the user-auth handshake completes.  It never
-        exposes content, identities, or per-locker data; authenticated Locker
-        APIs remain the authority for all reads and mutations.
+        exposes content, titles, card ids, owner names, or Locker names—only a
+        count keyed by the Session id that already appears in the Session list.
+        Authenticated Locker APIs remain the authority for all reads and
+        mutations.
         """
         from .runtime import LOCAL_RECIPIENT
         store = get_store()
@@ -56,7 +58,8 @@ def register(app):
         # the reminding-card store was first opened.
         from .user_cards import get_store as get_user_card_store
         get_user_card_store()
-        return {'unread': store.unread_summary(LOCAL_RECIPIENT)}
+        sessions = store.unread_by_owner(LOCAL_RECIPIENT)
+        return {'unread': sum(sessions.values()), 'sessions': sessions}
 
     def owner(owner_id):
         if not isinstance(owner_id,str) or not session.get(owner_id,load_history=False):

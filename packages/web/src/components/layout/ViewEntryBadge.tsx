@@ -1,55 +1,7 @@
-import { useEffect, useSyncExternalStore } from 'react';
 import { useJobStore, selectRunningJobCount } from '@/stores/jobStore';
 import { useSessionStore } from '@/stores/sessionStore';
-import { lockerRequest } from '@/views/lockerModel';
-import { useAutomationAuth } from '@/stores/automationStore';
+import { useLockerUnread } from '@/stores/lockerUnreadStore';
 import '@/components/session/sessionQuickActions.css';
-
-let lockerUnread = 0;
-let lockerTimer: ReturnType<typeof setTimeout> | null = null;
-let lockerLoading = false;
-let lockerBackoff = 30_000;
-const lockerListeners = new Set<() => void>();
-const emit = () => lockerListeners.forEach((listener) => listener());
-async function refreshLockerUnread() {
-  if (lockerLoading || document.visibilityState === 'hidden') return;
-  lockerLoading = true;
-  try {
-    const result = await lockerRequest<{ unread: number }>('/api/locker-unread-summary');
-    lockerUnread = Math.max(0, Math.floor(result.unread ?? 0));
-    emit();
-    lockerBackoff = 30_000;
-  } catch { /* keep last known count and retry with bounded backoff */
-    lockerBackoff = Math.min(lockerBackoff * 2, 120_000);
-  }
-  finally {
-    lockerLoading = false;
-    if (lockerTimer) clearTimeout(lockerTimer);
-    if (lockerListeners.size > 0) lockerTimer = setTimeout(() => void refreshLockerUnread(), lockerBackoff);
-  }
-}
-function subscribeLocker(listener: () => void) {
-  lockerListeners.add(listener);
-  if (lockerListeners.size === 1) void refreshLockerUnread();
-  return () => { lockerListeners.delete(listener); if (lockerListeners.size === 0 && lockerTimer) { clearTimeout(lockerTimer); lockerTimer = null; } };
-}
-function getLockerSnapshot() { return lockerUnread; }
-export function useLockerUnread() {
-  useEffect(() => {
-    const onVisibility = () => { if (document.visibilityState === 'visible') void refreshLockerUnread(); };
-    document.addEventListener('visibilitychange', onVisibility);
-    const unsubscribeAuth = useAutomationAuth.subscribe((state, previous) => {
-      if (state.token !== previous.token) {
-        if (lockerTimer) clearTimeout(lockerTimer);
-        lockerTimer = null;
-        lockerBackoff = 30_000;
-        void refreshLockerUnread();
-      }
-    });
-    return () => { document.removeEventListener('visibilitychange', onVisibility); unsubscribeAuth(); };
-  }, []);
-  return useSyncExternalStore(subscribeLocker, getLockerSnapshot, getLockerSnapshot);
-}
 
 export function ViewEntryBadge({ kind = 'jobs' }: { kind?: 'jobs' | 'chat' | 'locker' }) {
   const jobs = useJobStore(selectRunningJobCount);
