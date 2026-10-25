@@ -70,3 +70,45 @@ jobs:
           name: pytest-results-${{ matrix.python-version }}
           path: pytest-results.xml
           if-no-files-found: warn
+
+  posix-fast:
+    # Cross-platform Phase A fast layer (docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md):
+    # import the real server, collect, and run the platform unit subset on real
+    # macOS/Linux. The Windows job above stays the fidelity/full-suite gate.
+    name: posix-fast (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r minimal-requirements.txt
+          pip install pytest-timeout
+
+      - name: Import server on POSIX
+        run: python -c "import packages.web.server"
+
+      - name: Collect platform subset
+        run: >
+          python -m pytest --collect-only -q
+          tests/test_platform_layer.py
+          tests/test_platform_api.py
+          tests/test_platform_import_chain.py
+          tests/test_portability_paths.py
+
+      - name: Run platform subset
+        run: >
+          python -m pytest -q
+          tests/test_platform_layer.py
+          tests/test_platform_api.py
+          tests/test_platform_import_chain.py
+          tests/test_portability_paths.py

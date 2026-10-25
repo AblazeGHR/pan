@@ -34,7 +34,6 @@ from __future__ import annotations
 import ctypes
 import sys
 import time
-from ctypes import wintypes
 from typing import Any
 
 from .contracts import (
@@ -43,6 +42,26 @@ from .contracts import (
     ProcessProbe,
     ProcessStatus,
 )
+
+_WINDOWS = sys.platform == "win32"
+
+if _WINDOWS:  # pragma: no cover - Windows 导入路径
+    from ctypes import wintypes
+else:  # pragma: no cover - POSIX 导入路径：不得加载任何 win32 模块
+    class _UnavailableWintypes:
+        """非 Windows 的 fail-closed 占位（本模块其余部分在 POSIX 上仅需可导入）。
+
+        本模块的模块级代码不再读取 ``wintypes``（仅延迟调用的函数体使用），
+        因此 POSIX 导入期不会触发；运行期误用得到 ``WindowsApiUnavailable``。
+        """
+
+        def __getattr__(self, name: str) -> Any:
+            raise WindowsApiUnavailable(
+                f"ctypes.wintypes.{name} 不可用（sys.platform={sys.platform!r}）："
+                "Windows 进程身份探针仅支持 Windows"
+            )
+
+    wintypes = _UnavailableWintypes()  # type: ignore[assignment]
 
 __all__ = [
     "SYNCHRONIZE",
