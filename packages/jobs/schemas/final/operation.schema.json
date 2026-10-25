@@ -1,0 +1,144 @@
+{
+  "title": "Operation receipt",
+  "description": "Every write is an operation with a caller-scoped requestKey.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "operationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "requestKey": {
+      "$ref": "common.schema.json#/$defs/RequestKey"
+    },
+    "principal": {
+      "$ref": "common.schema.json#/$defs/Principal"
+    },
+    "profileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "operation": {
+      "enum": [
+        "create",
+        "update",
+        "publish",
+        "enable",
+        "disable",
+        "pause",
+        "resume",
+        "retire",
+        "transfer-owner",
+        "retry",
+        "cancel",
+        "clone-and-run",
+        "instantiate-template"
+      ]
+    },
+    "state": {
+      "enum": [
+        "accepted",
+        "pending",
+        "completed",
+        "rejected",
+        "unknown"
+      ]
+    },
+    "requestDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expectedRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedStateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "objectRefs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Ref"
+      }
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "admissionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "result": {
+      "type": "object"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_schema",
+            "invalid_condition",
+            "unsupported_operation",
+            "unauthenticated",
+            "authorization_denied",
+            "not_found",
+            "revision_conflict",
+            "idempotency_conflict",
+            "reference_conflict",
+            "pending_publication",
+            "reconciliation_required",
+            "not_retryable",
+            "cancellation_window_closed",
+            "capability_unsupported",
+            "unsupported_schema_version",
+            "capacity_exceeded",
+            "provider_unavailable",
+            "storage_unavailable"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    }
+  },
+  "required": [
+    "operationId",
+    "requestKey",
+    "principal",
+    "profileId",
+    "operation",
+    "state",
+    "requestDigest",
+    "expectedRevision",
+    "objectRefs",
+    "createdAt"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/operation.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

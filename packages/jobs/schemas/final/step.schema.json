@@ -1,0 +1,88 @@
+{
+  "title": "Step execution record",
+  "description": "Identity is (runId, stepId); a step never re-runs after completion.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "stepId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "state": {
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "uncertain",
+        "cancelled"
+      ]
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "attemptCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "startedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "finishedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_schema",
+            "invalid_condition",
+            "unsupported_operation",
+            "unauthenticated",
+            "authorization_denied",
+            "not_found",
+            "revision_conflict",
+            "idempotency_conflict",
+            "reference_conflict",
+            "pending_publication",
+            "reconciliation_required",
+            "not_retryable",
+            "cancellation_window_closed",
+            "capability_unsupported",
+            "unsupported_schema_version",
+            "capacity_exceeded",
+            "provider_unavailable",
+            "storage_unavailable"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    }
+  },
+  "required": [
+    "runId",
+    "stepId",
+    "state",
+    "stateRevision"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/step.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

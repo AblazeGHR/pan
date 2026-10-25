@@ -1,0 +1,284 @@
+{
+  "title": "Job definition",
+  "description": "Durable execution definition. A Run freezes the whole plan.",
+  "$defs": {
+    "Step": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "actionRef": {
+          "$ref": "common.schema.json#/$defs/Ref"
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "common.schema.json#/$defs/Binding"
+          }
+        },
+        "completion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z][A-Za-z0-9._:-]*$"
+            },
+            "parameters": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract"
+          ]
+        }
+      },
+      "required": [
+        "stepId",
+        "actionRef",
+        "arguments",
+        "completion"
+      ]
+    },
+    "TriggerLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "triggerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "creatorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        }
+      },
+      "required": [
+        "triggerId"
+      ]
+    },
+    "Overlap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "forbid",
+            "queue",
+            "parallel"
+          ]
+        },
+        "maxActive": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "maxPending": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "mode",
+        "maxActive",
+        "maxPending"
+      ]
+    },
+    "Recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "automatic": {
+          "type": "boolean",
+          "default": false
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "backoffSeconds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+          },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "stableResetSeconds": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+        }
+      }
+    },
+    "Recipient": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recipientId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "targetRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        }
+      },
+      "required": [
+        "recipientId",
+        "channelId",
+        "targetRef"
+      ]
+    },
+    "Notification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "on": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "queued",
+              "running",
+              "retry_wait",
+              "paused_at_boundary",
+              "cancelling",
+              "settling",
+              "uncertain",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "recipients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Recipient"
+          }
+        }
+      }
+    },
+    "Retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "pinned": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "policyRef"
+      ]
+    },
+    "RunLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxRuns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "counterDomain": {
+          "enum": [
+            "run-admission"
+          ]
+        }
+      },
+      "required": [
+        "maxRuns",
+        "counterDomain"
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "inputSchema": {
+      "$ref": "common.schema.json#/$defs/JsonSchema"
+    },
+    "arguments": {
+      "type": "object"
+    },
+    "triggerLinks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TriggerLink"
+      }
+    },
+    "overlap": {
+      "$ref": "#/$defs/Overlap"
+    },
+    "recovery": {
+      "$ref": "#/$defs/Recovery"
+    },
+    "notification": {
+      "$ref": "#/$defs/Notification"
+    },
+    "retention": {
+      "$ref": "#/$defs/Retention"
+    },
+    "runLimit": {
+      "$ref": "#/$defs/RunLimit"
+    },
+    "templateProvenance": {
+      "$ref": "common.schema.json#/$defs/Ref"
+    }
+  },
+  "required": [
+    "name",
+    "steps",
+    "retention"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/job_definition.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}
