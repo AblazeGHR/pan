@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { useCapability } from '@/stores/platformStore';
 import type { Session } from '@/types';
 
 /**
@@ -18,7 +19,7 @@ let pendingAutoEnter: string | null = null;
  */
 let autoEnterIntent = 0;
 
-export type TerminalTuiStatus = 'upgrade' | 'upgrading' | 'error' | 'enabled' | 'available';
+export type TerminalTuiStatus = 'upgrade' | 'upgrading' | 'error' | 'enabled' | 'available' | 'unsupported';
 
 export interface TerminalTuiEntry {
   status: TerminalTuiStatus;
@@ -44,6 +45,8 @@ export function terminalTuiTitle(status: TerminalTuiStatus): string {
       return 'Terminal TUI — control error; retry';
     case 'enabled':
       return 'Terminal TUI — enabled';
+    case 'unsupported':
+      return 'Terminal TUI — not supported on this platform';
     default:
       return 'Terminal TUI — available';
   }
@@ -91,9 +94,13 @@ export function useTerminalTuiEntry(
   const nativeActive =
     terminalView ?? (nativeState?.mode === 'native' || nativeState?.mode === 'switching');
   const showToast = useUIStore((s) => s.showToast);
+  // The backend advertises native PTY availability per platform; when it says
+  // no, the entry must be visible-but-disabled with a reason, never a control
+  // that only fails after a click.
+  const terminalSupported = useCapability('terminal.native');
 
   useEffect(() => {
-    if (!poll || !id || !supportsNativeTui) return;
+    if (!poll || !id || !supportsNativeTui || !terminalSupported) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
@@ -119,10 +126,14 @@ export function useTerminalTuiEntry(
       stopped = true;
       clearTimeout(timer);
     };
-  }, [poll, id, supportsNativeTui]);
+  }, [poll, id, supportsNativeTui, terminalSupported]);
 
   const enterNative = async () => {
     if (!session || !supportsNativeTui) return;
+    if (!terminalSupported) {
+      showToast('当前平台暂不支持 Terminal TUI（terminal.native）', 'error');
+      return;
+    }
     const intent = autoEnterIntent;
     try {
       if (!session.nativeControl) {
@@ -154,21 +165,25 @@ export function useTerminalTuiEntry(
     }
   };
 
-  const status: TerminalTuiStatus = nativeState?.error
-    ? 'error'
-    : nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean'
-      ? 'upgrading'
-      : (nativeState?.enabled ?? session?.nativeControl) === true
-        ? nativeActive
-          ? 'enabled'
-          : 'available'
-        : 'upgrade';
+  const status: TerminalTuiStatus = !terminalSupported
+    ? 'unsupported'
+    : nativeState?.error
+      ? 'error'
+      : nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean'
+        ? 'upgrading'
+        : (nativeState?.enabled ?? session?.nativeControl) === true
+          ? nativeActive
+            ? 'enabled'
+            : 'available'
+          : 'upgrade';
 
   return {
     status,
     label: status === 'upgrade' ? 'Upgrades' : 'Terminal TUI',
     active: nativeActive,
-    busy: nativeSwitching || typeof nativeState?.pendingEnabled === 'boolean',
+    busy: !terminalSupported
+      || nativeSwitching
+      || typeof nativeState?.pendingEnabled === 'boolean',
     pendingIdle: typeof nativeState?.pendingEnabled === 'boolean',
     enterNative,
     cancelAutoEnter: () => {

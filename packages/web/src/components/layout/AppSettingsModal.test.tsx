@@ -4,6 +4,7 @@ import { render, fireEvent, cleanup, waitFor, act, screen } from '@testing-libra
 import { AppSettingsModal } from './AppSettingsModal';
 import { SETTINGS_CATEGORY_ORDER, SETTINGS_TABS } from './settingsCategories';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
+import { usePlatformStore } from '@/stores/platformStore';
 
 const {
   fetchCodexModelsMock,
@@ -119,6 +120,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   document.body.innerHTML = '';
+  usePlatformStore.setState({ platform: null, capabilities: null, loaded: false });
 });
 
 function clickTab(tab: string) {
@@ -1844,5 +1846,24 @@ describe('AppSettingsModal', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('disables restart and exit when the platform denies service.lifecycle', async () => {
+    usePlatformStore.setState({ platform: 'darwin', capabilities: { 'service.lifecycle': false } });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    await waitFor(() => {
+      expect(Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Restart Pan main service'))?.disabled)
+        .toBe(true);
+    });
+    const restartButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Restart Pan main service'))!;
+    const exitButton = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.includes('Exit Pan main service'))!;
+    expect(restartButton.textContent).toContain('Not available on this platform (macOS)');
+    expect(exitButton.disabled).toBe(true);
+    expect(exitButton.textContent).toContain('Not available on this platform (macOS)');
+    expect(restartMainServiceMock).not.toHaveBeenCalled();
+    expect(exitMainServiceMock).not.toHaveBeenCalled();
   });
 });

@@ -148,6 +148,14 @@ class _FakeStore:
             written_at=time.time(),
         )
 
+    #: 生产服务在 bootstrap 等待期间直接调用这两个原语（逐轮自证读 + 失败路径清
+    #: 自证文件）；替身保持同一契约，不额外造值。
+    def read_bootstrap_identity(self, terminal_id: str, *, verify: bool = True, probe=None):
+        return self.wait_for_bootstrap_identity(terminal_id)
+
+    def delete_bootstrap_identity(self, terminal_id: str) -> bool:
+        return True
+
     def write_secret(self, payload: Any) -> Path:
         self.existing.add(payload.terminal_id)
         return self.secret_path(payload.terminal_id)

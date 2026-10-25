@@ -561,17 +561,17 @@ def test_handshake_falls_back_to_pre_accept_close_without_denial_extension():
 
 
 def test_ready_states_reject_with_503_and_disabled_constructs_nothing():
-    """disabled/starting/closing/unavailable → 503；容量耗尽 → 429。"""
+    """unsupported(501)/starting/closing/unavailable(503)/容量(429)。"""
 
     async def scenario() -> None:
-        # 非 Windows → disabled（零 service 构造）
+        # 非 Windows → disabled（零 service 构造）：平台不支持的稳定契约是 501。
         service = FakeService()
         runtime = make_runtime(service, platform="linux")
         app = await start_app(runtime)
         ws = make_ws(app)
         await terminal_ws.terminal_websocket(cast_ws(ws), "term_1")
-        assert ws.denial is not None and ws.denial[0] == 503, ws.denial
-        assert json.loads(ws.denial[1])["error"]["code"] == "terminal-disabled"
+        assert ws.denial is not None and ws.denial[0] == 501, ws.denial
+        assert json.loads(ws.denial[1])["error"]["code"] == "unsupported_platform"
         assert not ws.accepted
 
         # starting（未 reconcile 完）→ 503 not-ready

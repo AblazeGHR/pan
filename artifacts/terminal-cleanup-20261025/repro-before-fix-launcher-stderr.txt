@@ -1,0 +1,1 @@
+pan-terminal-launcher: exit code=8 reason=engine-startup-failed engine-cleanup=converged

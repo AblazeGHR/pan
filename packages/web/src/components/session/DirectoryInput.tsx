@@ -3,6 +3,8 @@ import { ChevronUp, File as FileIcon, Folder, Loader2 } from 'lucide-react';
 import { fetchDirectories, type DirectoryListResponse } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { parseDirectoryInput } from '@/utils/directoryInput';
+import { appendPathSeparator } from '@/utils/pathSeparator';
+import { usePlatformStore } from '@/stores/platformStore';
 
 export interface DirectoryInputStatus {
   directory: string;
@@ -22,11 +24,6 @@ interface DirectoryInputProps {
   showRootsWhenEmpty?: boolean;
   onStatusChange?: (status: DirectoryInputStatus) => void;
   inputTestId?: string;
-}
-
-function appendSeparator(path: string): string {
-  if (path.endsWith('\\') || path.endsWith('/')) return path;
-  return `${path}\\`;
 }
 
 function invalidDirectoryMessage(error: unknown): string {
@@ -58,6 +55,10 @@ export function DirectoryInput({
   const [error, setError] = useState<string | null>(null);
   const parts = useMemo(() => parseDirectoryInput(value), [value]);
   const hasInput = parts.input.length > 0;
+  // The server decides path syntax; until a platform probe answers, keep the
+  // Windows example that shipped with this input.
+  const platform = usePlatformStore((state) => state.platform);
+  const placeholder = platform && platform !== 'windows' ? '/home/user/project' : 'D:\\project\\app';
 
   useEffect(() => () => {
     if (directoryClickTimerRef.current) clearTimeout(directoryClickTimerRef.current);
@@ -110,7 +111,7 @@ export function DirectoryInput({
       onSelect?.(path);
       return;
     }
-    onChange(appendSeparator(path));
+    onChange(appendPathSeparator(path));
   };
 
   const handleDirectoryClick = (path: string) => {
@@ -131,7 +132,7 @@ export function DirectoryInput({
     }
     // Double-clicking always enters a directory, including when a consumer's
     // single-click semantics are to select it (New Session).
-    onChange(appendSeparator(path));
+    onChange(appendPathSeparator(path));
   };
 
   return (
@@ -142,7 +143,7 @@ export function DirectoryInput({
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="D:\\project\\app"
+          placeholder={placeholder}
           aria-label="Directory path"
           data-testid={inputTestId}
           className="rounded border border-border-muted bg-bg-primary px-3 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent"
@@ -193,7 +194,7 @@ export function DirectoryInput({
       )}
       {!error && data?.parent && !parts.search && !selectDirectories && (
         <div className="flex justify-start">
-          <Button type="button" size="sm" variant="secondary" onClick={() => onChange(appendSeparator(data.parent!))}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onChange(appendPathSeparator(data.parent!))}>
             <ChevronUp size={14} /> Up one level
           </Button>
         </div>

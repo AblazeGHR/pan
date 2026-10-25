@@ -46,7 +46,6 @@ import subprocess
 import sys
 import threading
 import time
-from ctypes import wintypes
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -67,6 +66,25 @@ from .identity import (
     win32_oserror,
 )
 
+_WINDOWS = sys.platform == "win32"
+
+if _WINDOWS:  # pragma: no cover - Windows 导入路径
+    from ctypes import wintypes
+else:  # pragma: no cover - POSIX 导入路径：不得加载任何 win32 模块
+    class _UnavailableWintypes:
+        """非 Windows 的 fail-closed 占位：任何属性访问都抛 ``WindowsApiUnavailable``。
+
+        Windows ABI 结构体只在 ``if _WINDOWS:`` 分支定义，POSIX 导入期不读取本对象。
+        """
+
+        def __getattr__(self, name: str) -> Any:
+            raise WindowsApiUnavailable(
+                f"ctypes.wintypes.{name} 不可用（sys.platform={sys.platform!r}）："
+                "ConPTY spawn 仅支持 Windows"
+            )
+
+    wintypes = _UnavailableWintypes()  # type: ignore[assignment]
+
 __all__ = [
     "SpawnDenied",
     "SpawnEvidence",
@@ -85,48 +103,50 @@ PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016
 
 WAIT_FAILED = 0xFFFFFFFF
 
-HPCON = wintypes.HANDLE
 MAX_DIMENSION = 32767
 
+# Windows ABI 结构体/句柄类型只在 Windows 定义（POSIX 导入必须零 Windows 依赖）。
+if _WINDOWS:
+    HPCON = wintypes.HANDLE
 
-class _COORD(ctypes.Structure):
-    _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
-
-
-class _STARTUPINFOW(ctypes.Structure):
-    _fields_ = [
-        ("cb", wintypes.DWORD),
-        ("lpReserved", wintypes.LPWSTR),
-        ("lpDesktop", wintypes.LPWSTR),
-        ("lpTitle", wintypes.LPWSTR),
-        ("dwX", wintypes.DWORD),
-        ("dwY", wintypes.DWORD),
-        ("dwXSize", wintypes.DWORD),
-        ("dwYSize", wintypes.DWORD),
-        ("dwXCountChars", wintypes.DWORD),
-        ("dwYCountChars", wintypes.DWORD),
-        ("dwFillAttribute", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("wShowWindow", wintypes.WORD),
-        ("cbReserved2", wintypes.WORD),
-        ("lpReserved2", ctypes.c_void_p),
-        ("hStdInput", wintypes.HANDLE),
-        ("hStdOutput", wintypes.HANDLE),
-        ("hStdError", wintypes.HANDLE),
-    ]
+    class _COORD(ctypes.Structure):
+        _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
 
 
-class _STARTUPINFOEXW(ctypes.Structure):
-    _fields_ = [("StartupInfo", _STARTUPINFOW), ("lpAttributeList", ctypes.c_void_p)]
+    class _STARTUPINFOW(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("lpReserved", wintypes.LPWSTR),
+            ("lpDesktop", wintypes.LPWSTR),
+            ("lpTitle", wintypes.LPWSTR),
+            ("dwX", wintypes.DWORD),
+            ("dwY", wintypes.DWORD),
+            ("dwXSize", wintypes.DWORD),
+            ("dwYSize", wintypes.DWORD),
+            ("dwXCountChars", wintypes.DWORD),
+            ("dwYCountChars", wintypes.DWORD),
+            ("dwFillAttribute", wintypes.DWORD),
+            ("dwFlags", wintypes.DWORD),
+            ("wShowWindow", wintypes.WORD),
+            ("cbReserved2", wintypes.WORD),
+            ("lpReserved2", ctypes.c_void_p),
+            ("hStdInput", wintypes.HANDLE),
+            ("hStdOutput", wintypes.HANDLE),
+            ("hStdError", wintypes.HANDLE),
+        ]
 
 
-class _PROCESS_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("hProcess", wintypes.HANDLE),
-        ("hThread", wintypes.HANDLE),
-        ("dwProcessId", wintypes.DWORD),
-        ("dwThreadId", wintypes.DWORD),
-    ]
+    class _STARTUPINFOEXW(ctypes.Structure):
+        _fields_ = [("StartupInfo", _STARTUPINFOW), ("lpAttributeList", ctypes.c_void_p)]
+
+
+    class _PROCESS_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("hProcess", wintypes.HANDLE),
+            ("hThread", wintypes.HANDLE),
+            ("dwProcessId", wintypes.DWORD),
+            ("dwThreadId", wintypes.DWORD),
+        ]
 
 
 _bound = False

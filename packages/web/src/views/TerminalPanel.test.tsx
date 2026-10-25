@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TerminalPanel from './TerminalPanel';
 
-const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, removeFails: false, removed: false, archived: false, pending: false, scope: {} as { workspace_id?: string | null; session_id?: string | null }, listStatus: 'running', binds: 0,
+const fixtures = vi.hoisted(() => ({ request: vi.fn(), closeFails: false, removeFails: false, removed: false, archived: false, pending: false, scope: {} as { workspace_id?: string | null; session_id?: string | null }, listStatus: 'running', listReason: undefined as string | undefined, binds: 0,
   changed: (_state: object) => {} }));
 vi.mock('@/services/terminal', () => ({ terminalRequest: fixtures.request }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
@@ -27,6 +27,7 @@ beforeEach(() => {
   fixtures.pending = false;
   fixtures.scope = {};
   fixtures.listStatus = 'running';
+  fixtures.listReason = undefined;
   fixtures.binds = 0;
   fixtures.request.mockReset().mockImplementation(async (suffix = '', body?: object) => {
     if (suffix.endsWith('/archive')) {
@@ -48,7 +49,7 @@ beforeEach(() => {
       return { terminal_id: 'term_test', status: 'exited' };
     }
     if (body) return { terminal_id: 'term_test', status: 'running' };
-    return fixtures.removed ? [] : [{ terminal_id: 'term_test', status: fixtures.listStatus, archived: fixtures.archived, cleanup_pending: fixtures.pending, scope: fixtures.scope }];
+    return fixtures.removed ? [] : [{ terminal_id: 'term_test', status: fixtures.listStatus, archived: fixtures.archived, cleanup_pending: fixtures.pending, scope: fixtures.scope, ...(fixtures.listReason ? { exit: { reason: fixtures.listReason } } : {}) }];
   });
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
   vi.stubGlobal('WebSocket', class {});
@@ -71,6 +72,16 @@ it('archives an unconfirmed externally exited record without stopping or deletin
   fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
   fireEvent.click(screen.getByText('恢复到列表'));
   await waitFor(() => expect(fixtures.archived).toBe(false));
+});
+
+it('explains a never-started terminal as an engine startup failure instead of cleanup failure', async () => {
+  fixtures.listStatus = 'exited';
+  fixtures.listReason = 'sidecar-dependency-missing';
+  render(<TerminalPanel />);
+  await screen.findByRole('option', { name: 'term_test · exited' });
+  fireEvent.change(screen.getByLabelText('选择终端'), { target: { value: 'term_test' } });
+  expect(await screen.findByText(/终端引擎依赖未安装/)).toBeTruthy();
+  expect(screen.queryByText(/剩余资源清理尚未确认/)).toBeNull();
 });
 
 it('inherits the Session workspace and manual workspace binding clears the Session', async () => {

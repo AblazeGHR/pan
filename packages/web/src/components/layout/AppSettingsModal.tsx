@@ -24,6 +24,8 @@ import { SETTINGS_TABS } from './settingsCategories';
 import type { SettingsTab } from './settingsCategories';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { AutoForceSendSettings } from '@/stores/appSettingsStore';
+import { useCapability, usePlatformStore } from '@/stores/platformStore';
+import { platformLabel } from '@/utils/platformCapabilities';
 import { useUIStore } from '@/stores/uiStore';
 import { JobRetentionSettings } from '@/components/jobs/JobRetentionSettings';
 import { AuthorizationSettings } from './AuthorizationSettings';
@@ -640,6 +642,12 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   const [mainRestartStatus, setMainRestartStatus] = useState<ApiMainRestartStatusResponse | null>(
     null,
   );
+  // Restart/exit need a supervisor that can stop and respawn this process.
+  // The platform probe states whether the server implements that at all; an
+  // unanswered probe leaves the existing status-driven behavior untouched.
+  const serviceLifecycle = useCapability('service.lifecycle');
+  const platform = usePlatformStore((state) => state.platform);
+  const lifecycleUnavailableLabel = `Not available on this platform (${platformLabel(platform)})`;
   const [mainRestartState, setMainRestartState] = useState<MainRestartState>('idle');
   const [mainRestartHealthCheckActive, setMainRestartHealthCheckActive] = useState(false);
   const [mainRestartError, setMainRestartError] = useState<string | null>(null);
@@ -1101,6 +1109,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
   const handleMainRestart = async () => {
     if (
+      !serviceLifecycle ||
       mainLifecycleActionInFlightRef.current ||
       mainLifecycleStatusLoading ||
       mainLifecycleStatusError ||
@@ -1144,6 +1153,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
 
   const handleMainExit = async () => {
     if (
+      !serviceLifecycle ||
       mainLifecycleActionInFlightRef.current ||
       mainLifecycleStatusLoading ||
       mainLifecycleStatusError ||
@@ -2120,6 +2130,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         type="button"
                         onClick={handleMainRestart}
                         disabled={
+                          !serviceLifecycle ||
                           (sessionLifecycle.exitStrategy === 'ask' &&
                             mainLifecycleMarkRunningOffline === null) ||
                           mainLifecycleStatusLoading ||
@@ -2142,6 +2153,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   <button
                     type="button"
                     disabled={
+                      !serviceLifecycle ||
                       mainLifecycleStatusLoading ||
                       Boolean(mainLifecycleStatusError) ||
                       !mainRestartStatus?.available ||
@@ -2173,9 +2185,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                             : mainRestartStatus?.pending
                               ? 'Pan restart is in progress'
                               : 'Scheduling Pan restart…'
-                          : mainRestartStatus?.available
-                            ? 'Applies startup-only config changes'
-                            : mainRestartStatus?.reason || 'Checking restart support…'}
+                          : !serviceLifecycle
+                            ? lifecycleUnavailableLabel
+                            : mainRestartStatus?.available
+                              ? 'Applies startup-only config changes'
+                              : mainRestartStatus?.reason || 'Checking restart support…'}
                       </span>
                     </span>
                     <span className="shrink-0 text-[11px] text-text-tertiary">
@@ -2294,6 +2308,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                         type="button"
                         onClick={handleMainExit}
                         disabled={
+                          !serviceLifecycle ||
                           (sessionLifecycle.exitStrategy === 'ask' &&
                             mainLifecycleMarkRunningOffline === null) ||
                           mainLifecycleStatusLoading ||
@@ -2316,6 +2331,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                   <button
                     type="button"
                     disabled={
+                      !serviceLifecycle ||
                       !mainExitStatus?.available ||
                       mainLifecycleStatusLoading ||
                       Boolean(mainLifecycleStatusError) ||
@@ -2343,9 +2359,11 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
                           ? 'Stopping Workers and Pan…'
                           : mainExitState === 'exited'
                             ? 'Exit scheduled; this service will go offline'
-                            : mainExitStatus?.available
-                              ? 'Stops this Pan instance without restarting it'
-                              : mainExitStatus?.reason || 'Checking exit support…'}
+                            : !serviceLifecycle
+                              ? lifecycleUnavailableLabel
+                              : mainExitStatus?.available
+                                ? 'Stops this Pan instance without restarting it'
+                                : mainExitStatus?.reason || 'Checking exit support…'}
                       </span>
                     </span>
                     <span className="shrink-0 text-[11px] text-text-tertiary">

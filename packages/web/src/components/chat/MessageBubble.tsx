@@ -18,6 +18,8 @@ import { isValidMessageTs } from '@/utils/messageTimestamp';
 import { getMessageSourceTag, type MessageSourceTag } from './messageFilter';
 import { MessageTimestamp } from './MessageTimestamp';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { useCapability, usePlatformStore } from '@/stores/platformStore';
+import { platformLabel } from '@/utils/platformCapabilities';
 import type { ManualReportTarget } from './manualTaskReport';
 export { formatMessageTs } from '@/utils/messageTimestamp';
 
@@ -177,13 +179,21 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
     s.sessions.find((session) => session.id === s.currentSessionId)?.workerStatus ?? '',
   ));
   // Rewind anchors are user-role only (worker report messages included, they
-  // land in history as role=user). Busy sessions grey the button out.
+  // land in history as role=user). Busy sessions grey the button out; a server
+  // without the rewind capability keeps the entry visible but disabled, so the
+  // limitation is stated instead of discovered by clicking.
   const currentAdapter = useSessionStore((s) => s.sessions.find((session) => session.id === s.currentSessionId)?.adapter);
+  const rewindSupported = useCapability('rewind');
+  const platform = usePlatformStore((s) => s.platform);
   const showRewind = currentAdapter === 'cbc' && role === 'user' && !message.streaming;
+  const rewindTitle = !rewindSupported
+    ? `当前平台（${platformLabel(platform)}）暂不支持撤回`
+    : sessionBusy ? '任务运行中，无法撤回' : '从此消息撤回并分叉';
   const actions = showRewind ? (
-      <button type="button" onClick={() => openRewind(message)} disabled={sessionBusy}
+      <button type="button" onClick={() => openRewind(message)} disabled={sessionBusy || !rewindSupported}
         className="inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-primary disabled:opacity-50"
-        title={sessionBusy ? '任务运行中，无法撤回' : '从此消息撤回并分叉'}>
+        data-rewind-supported={rewindSupported}
+        title={rewindTitle}>
         <Undo2 size={13} /> 撤回
       </button>
   ) : null;
