@@ -468,7 +468,7 @@ export default function LockerView() {
           controller.signal,
         ),
         loadLockerMessages(controller.signal),
-        lockerRequest<{cards: UserCard[]}>('/api/user-cards', 'GET', undefined, controller.signal),
+        lockerRequest<{cards: UserCard[]}>('/api/reminding-cards', 'GET', undefined, controller.signal),
       ]);
       const allCards: LockerItem[] = [...firstPage.cards, ...messages, ...userCards.cards];
       let after = firstPage.nextAfter;
@@ -621,7 +621,7 @@ export default function LockerView() {
     await Promise.all(
       unread.map((card) =>
         lockerRequest<{ card?: InteractionCard | UserCard; message?: LockerMessage }>(
-          `/api/${isUserCard(card) ? 'user-cards' : 'message' in card ? 'user-locker-messages' : 'user-inbox'}/${card.id}/read`,
+          `/api/${isUserCard(card) ? 'reminding-cards' : 'message' in card ? 'user-locker-messages' : 'user-inbox'}/${card.id}/read`,
           'PUT',
           { read: true },
         )

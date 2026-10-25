@@ -13,7 +13,7 @@ def scheduler(app):
 def register(app, user):
     from .api import failure
 
-    @app.post('/api/user-cards')
+    @app.post('/api/reminding-cards')
     async def create(data:dict,request:Request):
         principal=await user(request)
         from packages.core import session
@@ -48,16 +48,16 @@ def register(app, user):
         except InteractionError as exc:
             raise failure(exc) from exc
 
-    @app.get('/api/user-cards')
+    @app.get('/api/reminding-cards')
     async def cards(request:Request):
         return {'cards':get_store().list(principal=await user(request))}
 
-    @app.get('/api/user-cards/settings')
+    @app.get('/api/reminding-cards/settings')
     async def settings(request:Request):
         await user(request)
         return get_store().settings()
 
-    @app.put('/api/user-cards/settings')
+    @app.put('/api/reminding-cards/settings')
     async def save_settings(data:dict,request:Request):
         await user(request)
         try:
@@ -69,7 +69,7 @@ def register(app, user):
         except InteractionError as exc:
             raise failure(exc) from exc
 
-    @app.delete('/api/user-cards/{card_id}')
+    @app.delete('/api/reminding-cards/{card_id}')
     async def delete(card_id:str,request:Request):
         principal=await user(request)
         try:
@@ -81,7 +81,7 @@ def register(app, user):
         except InteractionError as exc:
             raise failure(exc) from exc
 
-    @app.put('/api/user-cards/{card_id}/read')
+    @app.put('/api/reminding-cards/{card_id}/read')
     async def read(card_id:str,data:dict,request:Request):
         principal=await user(request)
         try:
@@ -91,7 +91,7 @@ def register(app, user):
         except InteractionError as exc:
             raise failure(exc) from exc
 
-    @app.get('/api/user-cards/{card_id}/attachments/{attachment_id}')
+    @app.get('/api/reminding-cards/{card_id}/attachments/{attachment_id}')
     async def attachment(card_id:str,attachment_id:str,request:Request):
         principal=await user(request)
         try:
@@ -111,7 +111,7 @@ def register(app, user):
         except InteractionError as exc:
             raise failure(exc) from exc
 
-    @app.post('/api/user-card-tools/{operation}')
+    @app.post('/api/reminding-card-tools/{operation}')
     async def tool(operation:str,data:dict,request:Request):
         from packages.web.terminal_tools_api import _local, resolve_caller
         sid=request.headers.get('X-Pan-Queue-Caller')

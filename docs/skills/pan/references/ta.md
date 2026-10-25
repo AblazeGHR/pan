@@ -2,9 +2,9 @@
 
 ## 回答本 Session 的用户卡片
 
-使用 `user_card(operation="list_pending")` 查询用户在当前 Session chat 中创建的未答
+使用 `reminding_card(operation="list_pending")` 查询用户在当前 Session chat 中创建的未答
 question/task 卡片及附件、revision。准备好答案后调用
-`user_card(operation="answer", card_id=..., body=..., expected_revision=...)`。
+`reminding_card(operation="answer", card_id=..., body=..., expected_revision=...)`。
 question 必须非空白回答，task 可以空串；首次回答后为只读终态，重答/过期 revision 冲突。
 只能本 owner Session 回答，不能让 MA 或其它 TA 代答，也没有 reject 操作。
 重复或结果不明时先查询待答列表和原卡身份，不重建卡片、不覆盖回答。

@@ -623,16 +623,16 @@ User endpoints require the existing profile User Bearer.
 
 | Method / path | Body / result |
 |---|---|
-| POST `/api/user-cards` | `{ownerSessionId,requestKey,kind:"question"|"task",body,attachments:[{id,name,mimeType?,size?}]}` → `{card}`. Owner must exist; attachments/links use the existing Session registry ownership checks. Stable ID derives from user+owner+requestKey; identical retry returns original, changed content/deleted identity conflicts. Body or attachments required. |
-| GET `/api/user-cards` | `{cards:[...]}` for the authenticated profile, bounded to 1000 stored cards; one bulk request, no per-card reads. |
-| DELETE `/api/user-cards/{id}` | Delete unanswered or completed record; tombstone retained. Final pending deletion stops future reminders. |
-| PUT `/api/user-cards/{id}/read` | `{read:boolean}` → `{card}`; only answered cards. |
-| GET `/api/user-cards/{id}/attachments/{attachmentId}` | User-authorized registered attachment belonging to this card and owner. |
-| GET / PUT `/api/user-cards/settings` | `{minutes:integer}`; default 10, range 1–1440; persisted reminder setting exposed under Behavior. |
-| POST `/api/user-card-tools/list_pending` | `{}` → `{cards:[...]}`; trusted local stdio caller only, owner fixed to caller Session; no managed override. |
-| POST `/api/user-card-tools/answer` | `{cardId,body,expectedRevision}` → `{card}`; same own-only identity. Nonblank question / possibly empty task; revision CAS, first answer terminal, repeat 409. |
+| POST `/api/reminding-cards` | `{ownerSessionId,requestKey,kind:"question"|"task",body,attachments:[{id,name,mimeType?,size?}]}` → `{card}`. Owner must exist; attachments/links use the existing Session registry ownership checks. Stable ID derives from user+owner+requestKey; identical retry returns original, changed content/deleted identity conflicts. Body or attachments required. |
+| GET `/api/reminding-cards` | `{cards:[...]}` for the authenticated profile, bounded to 1000 stored cards; one bulk request, no per-card reads. |
+| DELETE `/api/reminding-cards/{id}` | Delete unanswered or completed record; tombstone retained. Final pending deletion stops future reminders. |
+| PUT `/api/reminding-cards/{id}/read` | `{read:boolean}` → `{card}`; only answered cards. |
+| GET `/api/reminding-cards/{id}/attachments/{attachmentId}` | User-authorized registered attachment belonging to this card and owner. |
+| GET / PUT `/api/reminding-cards/settings` | `{minutes:integer}`; default 10, range 1–1440; persisted reminder setting exposed under Behavior. |
+| POST `/api/reminding-card-tools/list_pending` | `{}` → `{cards:[...]}`; trusted local stdio caller only, owner fixed to caller Session; no managed override. |
+| POST `/api/reminding-card-tools/answer` | `{cardId,body,expectedRevision}` → `{card}`; same own-only identity. Nonblank question / possibly empty task; revision CAS, first answer terminal, repeat 409. |
 
-MCP exposes only `user_card(operation="list_pending"|"answer",card_id?,body?,expected_revision?)`.
+MCP exposes only `reminding_card(operation="list_pending"|"answer",card_id?,body?,expected_revision?)`.
 Card fields include `id,direction:"user",kind,ownerSessionId,lockerId,body,attachments,revision,
 status:"pending"|"answered",answer,read,createdAt,answeredAt`. `createdAt` never changes;
 `answeredAt` is null until first answer and then immutable. Pending cards have no user read control;

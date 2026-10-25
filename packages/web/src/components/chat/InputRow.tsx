@@ -68,7 +68,6 @@ import {
   File as FileIcon,
   Minimize2,
   Paperclip,
-  MessageSquarePlus,
   Settings,
   X,
 } from 'lucide-react';
@@ -505,6 +504,7 @@ export function InputRow() {
   const lockedComposerMode = useQueueStore((s) =>
     currentSessionId ? s.lockedComposerModes[currentSessionId] ?? false : false);
   const panelOpen = useQueueStore((s) => s.panelOpen);
+  const setPanelOpen = useQueueStore((s) => s.setPanelOpen);
   const togglePanel = useQueueStore((s) => s.togglePanel);
   // 计数只投影真正待发的队列项；编辑是同一项的状态，不是额外一条。
   const queueCount = useQueueStore((s) => {
@@ -1830,7 +1830,7 @@ export function InputRow() {
           }
           submitted = true;
           if (snapshot.cardKind) {
-            await lockerRequest('/api/user-cards', 'POST', {
+            await lockerRequest('/api/reminding-cards', 'POST', {
               ownerSessionId: snapshot.sessionId,
               requestKey: snapshot.clientMessageId,
               kind: snapshot.cardKind,
@@ -2067,14 +2067,12 @@ export function InputRow() {
           isMobile && mobileFullscreen && !queueEditActive ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
         }
       >
-        <button type="button" className={`inline-flex items-center gap-1.5 mx-3 my-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 ${cardMode ? 'border-accent bg-bg-tertiary text-accent' : 'border-border-default bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} aria-pressed={cardMode}
-          disabled={!currentSessionId || queueEditActive || !!pendingAction}
-          onClick={() => {
-            setCardMode((current) => !current);
-            cardDraftSessionRef.current = currentSessionId;
-            composerRef.current?.focus();
-          }}><MessageSquarePlus size={13} /> Create user card</button>
-        <SendQueuePanel />
+        <SendQueuePanel remindingCardMode={cardMode} onNewRemindingCard={() => {
+          setPanelOpen(false);
+          setCardMode((current) => !current);
+          cardDraftSessionRef.current = currentSessionId;
+          composerRef.current?.focus();
+        }} />
       </div>
 
       {queueEdit && (
@@ -2748,6 +2746,16 @@ export function InputRow() {
               }}
               onKeyDown={handleKeyDown}
             />
+            {cardMode && (
+              <div data-testid="reminding-card-kind-row" className="flex shrink-0 justify-end">
+                <div className="inline-flex gap-0.5 rounded-md border border-border-default bg-bg-secondary p-0.5" role="radiogroup" aria-label="Card type">
+                  {(['question', 'task'] as const).map((kind) => <button key={kind} type="button" role="radio"
+                    aria-checked={cardKind === kind} onClick={() => setCardKind(kind)} className={`rounded px-2 py-1 text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${cardKind === kind ? 'bg-bg-tertiary text-accent font-medium' : 'text-text-secondary hover:bg-bg-hover'}`}>
+                    {kind === 'question' ? 'Question' : 'Task'}
+                  </button>)}
+                </div>
+              </div>
+            )}
             <RichTextComposer
               placeholder={`Type a message... (${composerHint})`}
               key={currentSessionId || 'no-session'}
@@ -2782,12 +2790,6 @@ export function InputRow() {
               onKeyDown={handleKeyDown}
             />
             <div className="flex flex-col gap-1 items-end">
-              {cardMode && <div className="inline-flex gap-0.5 rounded-md border border-border-default bg-bg-secondary p-0.5" role="radiogroup" aria-label="Card type">
-                {(['question', 'task'] as const).map((kind) => <button key={kind} type="button" role="radio"
-                  aria-checked={cardKind === kind} onClick={() => setCardKind(kind)} className={`rounded px-2 py-1 text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${cardKind === kind ? 'bg-bg-tertiary text-accent font-medium' : 'text-text-secondary hover:bg-bg-hover'}`}>
-                  {kind === 'question' ? 'Question' : 'Task'}
-                </button>)}
-              </div>}
               {canSteer && !cardMode && !lockedComposerMode && (
                 <button
                   ref={steerButtonRef}
@@ -2801,7 +2803,7 @@ export function InputRow() {
                   Steer
                 </button>
               )}
-              <div className="flex items-center gap-1">
+              <div className={`flex flex-col items-end gap-1 ${cardMode ? 'min-w-[88px]' : ''}`}>
                 <button
                   ref={sendButtonRef}
                   type="button"
@@ -2812,14 +2814,20 @@ export function InputRow() {
                     ? '请先保存或取消队列消息编辑'
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
-                      : `${cardMode ? `Send ${cardKind} card` : lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
+                      : `${cardMode ? 'create' : lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
                   className={`${cardMode ? 'max-w-[142px] text-[11px] sm:max-w-none sm:text-sm' : ''} rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
                   {pendingAction === 'send' && <Loader2 size={13} className="inline-block animate-spin mr-1" />}
-                  {cardMode ? `Send ${cardKind} card` : lockedComposerMode ? 'put in queue' : 'Send'}
+                  {cardMode ? 'create' : lockedComposerMode ? 'put in queue' : 'Send'}
                 </button>
+                {cardMode && (
+                  <button type="button" onClick={() => setCardMode(false)}
+                    className="w-full rounded border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50">
+                    cancel
+                  </button>
+                )}
               </div>
             </div>
           </div>

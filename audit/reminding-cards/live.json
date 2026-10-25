@@ -1,0 +1,287 @@
+{
+  "port": 63788,
+  "dataRoot": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data",
+  "realProvider": false,
+  "identity": {
+    "pid": 42296,
+    "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data",
+    "sessions": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data\\sessions",
+    "config": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data\\config.json",
+    "inbox": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data\\agent_inbox\\inbox.sqlite",
+    "gatewayManifest": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4518\\test_real_http_stdio_locker_ro0\\data\\qq_plugins\\manifest.json",
+    "fakeCLI": "D:\\project\\pan-worktrees\\user-cards-20261025\\tests\\support\\fake_stream_cli.py"
+  },
+  "created": [
+    {
+      "id": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78",
+      "direction": "user",
+      "kind": "question",
+      "ownerSessionId": "ses_b598fffa3e5e5b8c",
+      "lockerId": "ulocker_50f6e879dd2c2d1250e6ed6f436d1ac06e031880eacf5efe832c28f84c527ee3",
+      "createdAt": "2026-10-25T04:56:29.180591+00:00",
+      "answeredAt": null,
+      "body": "Real user question q",
+      "attachments": [
+        {
+          "id": "upload_4c407a129fc74bdbbac6eec4199d183d.txt",
+          "name": "evidence.txt"
+        }
+      ],
+      "revision": 0,
+      "status": "pending",
+      "answer": null,
+      "read": true
+    },
+    {
+      "id": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12",
+      "direction": "user",
+      "kind": "task",
+      "ownerSessionId": "ses_b598fffa3e5e5b8c",
+      "lockerId": "ulocker_50f6e879dd2c2d1250e6ed6f436d1ac06e031880eacf5efe832c28f84c527ee3",
+      "createdAt": "2026-10-25T04:56:29.224587+00:00",
+      "answeredAt": null,
+      "body": "Real user question t",
+      "attachments": [],
+      "revision": 0,
+      "status": "pending",
+      "answer": null,
+      "read": true
+    }
+  ],
+  "cards": [
+    {
+      "id": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78",
+      "direction": "user",
+      "kind": "question",
+      "ownerSessionId": "ses_b598fffa3e5e5b8c",
+      "lockerId": "ulocker_50f6e879dd2c2d1250e6ed6f436d1ac06e031880eacf5efe832c28f84c527ee3",
+      "createdAt": "2026-10-25T04:56:29.180591+00:00",
+      "answeredAt": "2026-10-25T04:56:30.987620+00:00",
+      "body": "Real user question q",
+      "attachments": [
+        {
+          "id": "upload_4c407a129fc74bdbbac6eec4199d183d.txt",
+          "name": "evidence.txt"
+        }
+      ],
+      "revision": 1,
+      "status": "answered",
+      "answer": "Real MCP answer",
+      "read": false
+    },
+    {
+      "id": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12",
+      "direction": "user",
+      "kind": "task",
+      "ownerSessionId": "ses_b598fffa3e5e5b8c",
+      "lockerId": "ulocker_50f6e879dd2c2d1250e6ed6f436d1ac06e031880eacf5efe832c28f84c527ee3",
+      "createdAt": "2026-10-25T04:56:29.224587+00:00",
+      "answeredAt": "2026-10-25T04:56:31.069568+00:00",
+      "body": "Real user question t",
+      "attachments": [],
+      "revision": 1,
+      "status": "answered",
+      "answer": "",
+      "read": false
+    }
+  ],
+  "locker": {
+    "id": "ulocker_50f6e879dd2c2d1250e6ed6f436d1ac06e031880eacf5efe832c28f84c527ee3",
+    "sessionId": "ses_b598fffa3e5e5b8c",
+    "sourceName": "card-owner",
+    "workspaceIds": [],
+    "available": true,
+    "total": 2,
+    "unread": 1
+  },
+  "queueBeforeRestart": [
+    {
+      "id": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78:created",
+      "queueItemId": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question q\n\nCard id: ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78",
+      "createdAt": 1792904189.200726,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12:created",
+      "queueItemId": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question t\n\nCard id: ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12",
+      "createdAt": 1792904189.2349477,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a075848980f0d32b7b5fb0c37beaf42:created",
+      "queueItemId": "ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a075848980f0d32b7b5fb0c37beaf42:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\n## Review the implementation\n\nPlease explain how the reminder respects Illegal and Pause.\n\nCard id: ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a07584…",
+      "createdAt": 1792904196.3830774,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf:created",
+      "queueItemId": "ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question restart\n\nCard id: ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf",
+      "createdAt": 1792904196.6655865,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    }
+  ],
+  "queueAfterRestart": [
+    {
+      "id": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78:created",
+      "queueItemId": "ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question q\n\nCard id: ucard_9f235497e49cac92b241dc1d353b49b0696482b470e629c298a03c509374cc78",
+      "createdAt": 1792904189.200726,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12:created",
+      "queueItemId": "ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question t\n\nCard id: ucard_bbd9d8defeb7da6441cb3d54eccf7709542636550493439eacd9e6f38a036f12",
+      "createdAt": 1792904189.2349477,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a075848980f0d32b7b5fb0c37beaf42:created",
+      "queueItemId": "ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a075848980f0d32b7b5fb0c37beaf42:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\n## Review the implementation\n\nPlease explain how the reminder respects Illegal and Pause.\n\nCard id: ucard_7befb3d3a33726a5bcad525e4ab6cb7e9a07584…",
+      "createdAt": 1792904196.3830774,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    },
+    {
+      "id": "ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf:created",
+      "queueItemId": "ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf:created",
+      "kind": "report",
+      "text": "你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答\n\nReal user question restart\n\nCard id: ucard_5a927e48719001b566b455b4f8940cadafcebc37df01c9c222a6d60a666da3bf",
+      "createdAt": 1792904196.6655865,
+      "source": "system",
+      "meta": {
+        "status": "notice",
+        "taskId": null,
+        "workerId": null,
+        "revision": 1,
+        "dispatchState": "queued",
+        "locked": false,
+        "lockManual": false,
+        "lockSource": null,
+        "illegalBatchId": null,
+        "lockAutoReport": false,
+        "steerPending": false,
+        "steerError": null,
+        "noticeKind": "user_card_reminder"
+      }
+    }
+  ],
+  "providerRecords": [],
+  "portReleased": true
+}

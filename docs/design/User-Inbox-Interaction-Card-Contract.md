@@ -157,15 +157,17 @@ GUI 延续既有加载/手动 Refresh/窗口 focus 刷新机制；过期 UI 在 
 Locker 的两类条目在正文上方显示带图标、可访问名称和 tooltip 的“跳转到相关上下文”。列表渲染、悬停、重渲染均不发导航请求；每次点击才通过与导航栏相同的 compact navigation 页与 classifier 解析一次可达目标；最多 200 页/100000 canonical 行，Session 已知删除/不可用或目标已知被显示设置隐藏时禁用；其他缺口、epoch/total 变化、目标移除或非 user 在点击失败后留在 Locker 给出原因，按钮保持可重试。仅向临时 relatedMessageStore 交接本次解析的 owner/id/offset/total，选择 Session 后打开 Chat；native terminal 显示切回历史视图，不更改 native 控制权。Chat 消费已解析目标，不重复请求导航，再调用与 MessageNavigationRail 共用的 jumpToMessage：ensureMessageLoaded(total-1-offset,total) 按原分页加载、验证实际 messageId、等待挂载并调用原 scrollToMessage 进行滚动高亮；原引擎负责虚拟列表定位。切 Session/卸载取消旧跳转，身份失效或无法渲染时显示明确错误，绝不按旧 offset 跳到另一条消息。此临时桥仅在内存交接本次点击的 offset，不持久化；实际加载后仍核对 messageId，不引入第二套滚动引擎。
 # User → Session cards (2026-10-25)
 
-This reverse flow uses independent `user_cards` storage and `user_card_*` reminder/outbox/settings
+This reverse flow is product-named “reminding card”. Its public HTTP/MCP surfaces use
+`/api/reminding-cards` and `reminding_card`; the independent internal storage/module names
+remain `user_cards` and `user_card_*` for compatibility, with no table migration. This reverse flow uses independent
+`user_cards` storage and `user_card_*` reminder/outbox/settings
 tables. It does not reinterpret fields in `cards` or enter its open/responded/reject/no_answer_needed
 state machine. One `kind` (`question`/`task`) selects only whether an empty answer is allowed.
 The creation Session is immutable owner; trusted stdio identity must equal owner for list/answer,
 including when another Session is its MA. Stable create identity, attachment registry ownership,
 revision CAS and first-answer terminal semantics are enforced at admission. No reject or overwrite.
 
-Chat's button above SendQueuePanel changes the current composer into card mode, retaining the
-existing uploader. Esc/toggle keeps the draft; Session switch clears the card draft. User Bearer
+The expanded SendQueuePanel action row's `create reminding card` button changes the current composer into card mode and closes the panel, retaining the existing uploader. The right-aligned Question/Task selector sits above the textarea; the send row uses `create` and `cancel`. Esc/toggle keeps the draft; Session switch clears the card draft. User Bearer
 governs create/list/read/delete/download and Behavior's integer reminder interval (10, range 1–1440).
 
 Unanswered records display waiting and no read control. First answer sets `answeredAt` once and

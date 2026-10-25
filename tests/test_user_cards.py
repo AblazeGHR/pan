@@ -225,7 +225,7 @@ def test_http_auth_attachments_owner_counts_and_terminal(tmp_path,monkeypatch):
     app.state.user_inbox_principal=lambda request: USER if request.headers.get('Authorization')=='Bearer test' else None
     auth={'Authorization':'Bearer test'}; caller={'X-Pan-Queue-Caller':source.id}
     client=TestClient(app,client=('127.0.0.1',12345))
-    route='/api/user-cards'; data=payload(owner=source.id,attachments=[{'id':'att_one','name':'a.txt'}])
+    route='/api/reminding-cards'; data=payload(owner=source.id,attachments=[{'id':'att_one','name':'a.txt'}])
     assert client.post(route,json=data).status_code==401
     monkeypatch.setattr(server,'_attachment_id_error',lambda sid,aid: None if aid=='att_one' else {'code':'wrong_owner'})
     monkeypatch.setattr(server,'_validate_message_attachment_references',lambda *args:None)
@@ -233,7 +233,7 @@ def test_http_auth_attachments_owner_counts_and_terminal(tmp_path,monkeypatch):
     assert client.post(route,json=denied,headers=auth).status_code==403
     card=client.post(route,json=data,headers=auth).json()['card']
     assert client.get('/api/user-lockers',headers=auth).json()['lockers'][0]['unread']==0
-    tool='/api/user-card-tools/'
+    tool='/api/reminding-card-tools/'
     assert client.post(tool+'list_pending',json={},headers={'X-Pan-Queue-Caller':other.id}).json()['cards']==[]
     assert client.post(tool+'list_pending',json={'ownerSessionId':source.id},headers=caller).status_code==422
     for h in ({},{**caller,'Origin':'http://localhost'}):
