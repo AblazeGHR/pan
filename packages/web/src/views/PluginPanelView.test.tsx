@@ -18,7 +18,6 @@ const panel: PluginPanel = { id: 'accounts', pluginId: 'cc-switch-bridge', title
     quota: { capability: 'cc-switch-bridge.panel_quota', effect: 'read' },
     switch: { capability: 'cc-switch-bridge.panel_switch', effect: 'write_external' },
     config: { capability: 'cc-switch-bridge.panel_config', effect: 'write_external' },
-    auto_switch: { capability: 'cc-switch-bridge.auto_switch', effect: 'write_external' },
     default_account: { capability: 'cc-switch-bridge.default_account', effect: 'write_external' },
   } };
 

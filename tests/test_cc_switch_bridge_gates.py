@@ -180,6 +180,26 @@ def test_non_manual_switch_refuses_gate_without_fallback_and_never_replays(tmp_p
         'expectedCurrentId': 'p-c'})['currentProviderId'] == 'p-a'
 
 
+def test_gated_current_selection_is_not_disclosed_to_agents(tmp_path):
+    cli = FakeCli()
+    bridge = bridge_at(tmp_path, cli)
+    config(bridge, 'p-a', True, 0)
+
+    agent_list = bridge.invoke('list', {'app': 'codex'})
+    assert agent_list['currentProviderId'] is None
+    assert all(not provider['isCurrent'] for provider in agent_list['providers'])
+    dumped = json.dumps(agent_list, ensure_ascii=False)
+    for leaked in ('p-a', 'Main Profile', 'primary note', 'api.example.test'):
+        assert leaked not in dumped
+    # The id-less quota read is the same agent projection.
+    assert bridge.invoke('quota', {'app': 'codex'})['currentProviderId'] is None
+
+    panel = bridge.invoke('panel_list', {'app': 'codex'})
+    assert panel['currentProviderId'] == 'p-a'
+    current = next(provider for provider in panel['providers'] if provider['id'] == 'p-a')
+    assert current['isCurrent'] is True and current['nonManualDisabled'] is True
+
+
 def test_manual_panel_switch_may_target_a_gated_profile(tmp_path):
     cli = FakeCli()
     bridge = bridge_at(tmp_path, cli)
@@ -187,9 +207,10 @@ def test_manual_panel_switch_may_target_a_gated_profile(tmp_path):
     updated = bridge.invoke('panel_switch', {'app': 'codex', 'id': 'p-b', 'expectedCurrentId': 'p-a'})
     assert updated['currentProviderId'] == 'p-b'
     assert cli.current == 'p-b' and cli.switches == 1
-    # The agent view stays consistent and still hides the active profile's row.
+    # The agent view hides the active gated row and does not confirm its id.
     agent = bridge.invoke('list', {'app': 'codex'})
     assert [p['id'] for p in agent['providers']] == ['p-a', 'p-c']
+    assert agent['currentProviderId'] is None
 
 
 @pytest.fixture

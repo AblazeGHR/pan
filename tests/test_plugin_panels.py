@@ -36,7 +36,10 @@ def test_bridge_is_distinct_plugin_and_helper_is_hidden(manifest):
     assert plugin.agent_capabilities == ('cc-switch-bridge.list', 'cc-switch-bridge.switch',
                                          'cc-switch-bridge.quota', 'cc-switch-bridge.auto_switch')
     assert plugin.panels[0]['renderer'] == 'account-switcher/v1'
-    assert len(plugin.panels[0]['actions']) == 6
+    actions = plugin.panels[0]['actions']
+    assert set(actions) == {'list', 'quota', 'switch', 'config', 'default_account'}
+    # The Panel is the manual path; automatic switching is never a Panel action.
+    assert 'auto_switch' not in actions
 
 
 def test_owned_data_paths_reject_escape_and_owner_symlink(tmp_path):

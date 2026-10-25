@@ -222,8 +222,10 @@ class Bridge:
         """Read the CLI list. Agent views hide every non-manually gated profile.
 
         Hidden rows are absent, never placeholders: their name, origin, notes,
-        quota and category cannot leak through an agent-facing read. The Panel
-        view keeps every row and carries the gate plus the settings revision.
+        quota and category cannot leak through an agent-facing read, and a
+        gated current selection is reported as `currentProviderId: null`. The
+        Panel view keeps every row, the real current id, the gate and the
+        settings revision.
         """
         raw = self.runner(['--app', app, 'provider', 'list', '--json'])
         if not isinstance(raw, dict) or not isinstance(raw.get('providers'), list):
@@ -271,6 +273,11 @@ class Bridge:
             state = self.settings.app(app)
             result['revision'] = state['revision']
             result['updatedAt'] = state['updatedAt']
+        elif result['currentProviderId'] is not None and gates.get(str(result['currentProviderId']), False):
+            # A manual Panel switch may select a gated profile. The agent view
+            # must not confirm that id while its row is hidden, so the current
+            # selection is reported as unknown; the Panel view keeps the real id.
+            result['currentProviderId'] = None
         return result
 
     def invoke(self, operation, arguments):

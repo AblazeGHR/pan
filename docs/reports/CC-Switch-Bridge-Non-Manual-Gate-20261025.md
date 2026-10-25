@@ -24,7 +24,9 @@
 | `cc-switch-bridge.panel_config` | 面板 | 保存标记；携带 `expectedRevision`，冲突返回 `settings_conflict` |
 | `cc-switch-bridge.default_account` | 面板 | 原有托管账号默认切换，语义不变 |
 
-面板 action 为 `list/quota/switch/config/auto_switch/default_account`；`auto_switch` 保留给未来的自动换号机制，界面按钮不会调用它。Agent 只看到 `agent_capabilities` 中的四项，`panel_*` 不出现在任何 MCP 投影。
+面板 action 只有 `list/quota/switch/config/default_account`；`auto_switch` 只作为 Agent/自动化能力存在，不进入面板 action 列表，界面按钮也不调用它。Agent 只看到 `agent_capabilities` 中的四项，`panel_*` 不出现在任何 MCP 投影。
+
+当当前配置本身被标记时，Agent 的 `list`/`quota` 返回 `currentProviderId: null`，且没有可见行带 `isCurrent: true`，避免用当前值泄露被隐藏配置的 id；面板读取仍返回真实当前 id 和 `isCurrent`。
 
 ## 持久化
 
@@ -32,8 +34,8 @@
 
 ## 验证
 
-- 后端专项（`tests/test_plugin_panels.py`、`tests/test_cc_switch_bridge_gates.py`、`tests/test_plugin_panel_builds.py`）：**42 passed**。覆盖门禁往返、revision/updatedAt、两配置互不影响、并发写入无丢失且无残留临时文件、旧 revision 冲突不改文件、Agent 列表/按 id 额度完全隐藏且不泄露字段、面板可见全部、非手动 `switch`/`auto_switch` 拒绝且不切换、手动 `panel_switch` 允许被标记目标、面板配置写入驱动真实 runtime 的 Agent 投影。
-- 后端相关回归（`tests/test_plugin_*.py`、`tests/test_mcp_integration.py`、`tests/test_manifest_loader.py`、`tests/test_provider_launch_export.py`、`tests/test_quota_provider_source.py` 与本轮新文件）：**208 passed / 0 failed**，隔离运行（`scripts/run_tests_isolated.py`）。见 [backend.log](../../audit/cc-switch-non-manual-gate-20261025/backend.log) 与 [JUnit](../../audit/cc-switch-non-manual-gate-20261025/backend.xml)。
+- 后端专项（`tests/test_plugin_panels.py`、`tests/test_cc_switch_bridge_gates.py`、`tests/test_plugin_panel_builds.py`、`tests/test_plugin_developer_help.py`）：**45 passed**。覆盖门禁往返、revision/updatedAt、两配置互不影响、并发写入无丢失且无残留临时文件、旧 revision 冲突不改文件、Agent 列表/按 id 额度完全隐藏且不泄露字段、被标记的当前配置在 Agent 视图返回 `currentProviderId: null` 且面板仍显示真实当前值、面板可见全部、非手动 `switch`/`auto_switch` 拒绝且不切换、手动 `panel_switch` 允许被标记目标、面板 action 不含 `auto_switch`、面板配置写入驱动真实 runtime 的 Agent 投影。
+- 后端相关回归（上述文件加 `tests/test_plugin_platform.py`、`tests/test_mcp_integration.py`、`tests/test_manifest_loader.py` 等 12 个文件）：**209 passed / 0 failed**，隔离运行（`scripts/run_tests_isolated.py`）。见 [backend.log](../../audit/cc-switch-non-manual-gate-20261025/backend.log) 与 [JUnit](../../audit/cc-switch-non-manual-gate-20261025/backend.xml)。
 - 仓库全量后端为 **5714 项**，单轮耗时远超本任务预算，本轮未跑完；只运行上述相关回归。`tests/test_local_plugin_panels_http.py` 等浏览器型用例不在本轮范围。
 - 前端：`PluginPanelView.test.tsx` **39 passed**；全量 **2454 passed / 3 skipped / 2 failed**，两项失败为分支基线已有的 `demo/mockBackend.test.ts`（演示模式文案本地化漂移）与 `hooks/reaudit.orderedEvents.test.tsx`（E1b tool 事件字段），均不涉及本轮改动文件。
 - `tsc -b` 退出 0；`pnpm build` 退出 0，验证 90 个压缩资源。
@@ -44,6 +46,6 @@
 ## 边界
 
 - 原始 cc-switch 不参与 `.bridge.lock`，外部同时操作仍需以刷新结果为准。
-- Agent 的 `currentProviderId` 仍反映 CLI 当前选择；若用户手动切到被标记配置，该 id 会出现在 Agent 列表的当前值里，但被标记配置自身的行与字段仍然完全隐藏，按 id 的读取/非手动切换仍拒绝。
+- 用户手动切到被标记配置后，Agent 视图报告 `currentProviderId: null`（不确认该 id），但 CLI 的实际选择仍是该配置；恢复可见需要用户在面板中手动切走或取消标记。
 - `settings_invalid` 时 Agent 读取直接失败（显式），不会把损坏文件当成“无门禁”继续工作。
 - 真机 cc-switch 交互与真实自动换号机制不在本轮范围；`auto_switch` 目前只提供受同一门禁约束的 API。

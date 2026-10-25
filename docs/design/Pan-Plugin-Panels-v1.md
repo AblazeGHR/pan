@@ -24,7 +24,6 @@
       "quota": {"capability": "cc-switch-bridge.panel_quota", "effect": "read"},
       "switch": {"capability": "cc-switch-bridge.panel_switch", "effect": "write_external"},
       "config": {"capability": "cc-switch-bridge.panel_config", "effect": "write_external"},
-      "auto_switch": {"capability": "cc-switch-bridge.auto_switch", "effect": "write_external"},
       "default_account": {"capability": "cc-switch-bridge.default_account", "effect": "write_external"}
     }
   }]
@@ -48,7 +47,9 @@ CC Switch Bridge 区分两条切换路径：**手动切换**只属于面板（�
 - `cc-switch-bridge.list`：`app` 必填。返回配置与托管账号；标记了 `nonManualDisabled` 的配置整行不出现，不返回其名称、origin、quota、notes、category 等任何字段，也不用占位行代替。
 - `cc-switch-bridge.quota`：`app` 必填，`id` 选填；省略 id 返回可用配置/账号 ID、当前选择与已有缓存，不自动查询所有远程额度；指定 id 查询该配置额度。被标记配置同样不出现，按 id 查询按“配置已不存在”拒绝。
 - `cc-switch-bridge.switch`：非手动切换。`app`、`id`、`expectedCurrentId` 必填，`kind` 为 `provider`（默认）或 `default_account`。被标记配置拒绝切换，不回退到其它配置，未确认结果不重放。
-- `cc-switch-bridge.auto_switch`：`app`、`id`、`expectedCurrentId` 必填。未来自动换号机制只允许走这个 API；它与 `switch` 共用同一非手动门禁，不静默改用其它配置，也不重放不确定结果。Pan 原生工具名分别为 `pan_cc_switch_bridge_list`、`pan_cc_switch_bridge_quota`、`pan_cc_switch_bridge_switch`、`pan_cc_switch_bridge_auto_switch`。
+- `cc-switch-bridge.auto_switch`：`app`、`id`、`expectedCurrentId` 必填。未来自动换号机制只允许走这个 API；它与 `switch` 共用同一非手动门禁，不静默改用其它配置，也不重放不确定结果。它不是面板 action，面板只有手动路径。Pan 原生工具名分别为 `pan_cc_switch_bridge_list`、`pan_cc_switch_bridge_quota`、`pan_cc_switch_bridge_switch`、`pan_cc_switch_bridge_auto_switch`。
+
+面板 action 只有 `list/quota/switch/config/default_account`，均由上表的面板能力承载；自动切换不进入面板 action 列表。
 
 面板通过白名单之外的内部能力读取并管理全部配置：`panel_list`（含每个配置的 `nonManualDisabled` 与应用级 `revision`）、`panel_quota`、`panel_switch`（手动切换，允许目标为已标记配置）、`panel_config`（保存标记）、`default_account`。这些面板能力不暴露给 Agent；Agent 也不能绕过发现直接调用。
 
@@ -70,7 +71,7 @@ CC Switch Bridge 的目录包含可选 `settings.json`、`provider-flags.json`�
 
 ## account-switcher/v1 数据契约
 
-`list({app})` 返回 `AccountSnapshot`：`app/currentProviderId/observedAt/providers/accounts/accountError`。providers 有 `id/name/origin/isCurrent/quota`，accounts 有 `id/login/isDefault`。支持 Codex、Claude、Gemini；仅 Codex 展示 ChatGPT 托管账号。面板读取的 `panel_list` 额外返回应用级 `revision/updatedAt`，每个 provider 额外返回 `nonManualDisabled`，并包含被隐藏的配置。
+`list({app})` 返回 `AccountSnapshot`：`app/currentProviderId/observedAt/providers/accounts/accountError`。providers 有 `id/name/origin/isCurrent/quota`，accounts 有 `id/login/isDefault`。支持 Codex、Claude、Gemini；仅 Codex 展示 ChatGPT 托管账号。面板读取的 `panel_list` 额外返回应用级 `revision/updatedAt`，每个 provider 额外返回 `nonManualDisabled`，并包含被隐藏的配置。Agent 读取时，如果当前配置本身被标记，`currentProviderId` 返回 `null`，且任何可见行都不带 `isCurrent: true`；面板读取保留真实当前 id 与 `isCurrent`。
 
 `quota({app,id})` 返回 `{app,id,quota}`。额度使用 `status/available/queriedAt/message/tiers/balances`；tiers 包含 `name/usedPercent/resetsAt`，余额包含 `planName/remaining/used/total/unit`。百分比表示已用，未知字段不伪装成零；所有数据标明缓存时间，不后台轮询。`switch` 和 `default_account` 返回重新读取的完整快照。
 
