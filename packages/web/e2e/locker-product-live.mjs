@@ -40,7 +40,11 @@ try {
     const cards = (await (await page.request.get(base+'/api/user-inbox',{headers:auth})).json()).cards;
     const messages = (await (await page.request.get(base+'/api/user-locker-messages',{headers:auth})).json()).messages;
     const expected = [...cards,...messages].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt)||a.id.localeCompare(b.id)).map(item=>item.id);
-    expect(await page.locator('.locker-timeline > article').evaluateAll(rows=>rows.map(row=>row.dataset.cardId||row.dataset.lockerMessageId))).toEqual(expected);
+    const timeline=page.getByRole('region',{name:'Locker messages'});
+    await expect(timeline.locator('article:visible')).toHaveCount(expected.length);
+    expect(await timeline.locator('[data-locker-entry]:visible').evaluateAll(rows=>rows.map(row=>row.dataset.lockerEntry))).toEqual(expected);
+    expect(await timeline.getByRole('separator').evaluate(node=>node.parentElement.dataset.lockerEntry)).toBe(expected[0]);
+    await expect(card(f.approval).getByTestId('locker-card-id')).toHaveAttribute('data-card-id-value',f.approval);
     expect(new Set(messages.map(row=>row.lockerId)).size).toBe(2);
     expect(messages.find(row=>row.id===f.ordinary).lockerId).toBe(cards.find(row=>row.id===f.approval).lockerId);
     await expect(msg(f.ordinary).getByRole('button',{name:'Submit'})).toHaveCount(0);
@@ -81,9 +85,13 @@ try {
     await card(f.approval).getByRole('textbox').fill('Proceed with isolated Pause.');
     await card(f.approval).getByRole('button',{name:'Submit',exact:true}).click();
     await expect(card(f.approval).getByText('Read-only')).toBeVisible();
-    await card(f.reply).getByRole('textbox').fill('A standalone answer.');
+    await card(f.reply).getByRole('textbox',{name:'What should happen?',exact:true}).fill('A standalone answer.');
+    await card(f.reply).getByRole('group',{name:/Optional proposal/}).getByRole('button',{name:'拒绝此题',exact:true}).click();
+    await card(f.reply).getByRole('textbox',{name:'Optional proposal：拒绝原因',exact:true}).fill('Needs more context.');
     await card(f.reply).getByRole('button',{name:'Submit',exact:true}).click();
     await expect(card(f.reply).getByText('Read-only')).toBeVisible();
+    const savedReply=(await (await page.request.get(base+`/api/user-inbox/${f.reply}`,{headers:auth})).json()).card;
+    expect(savedReply.response.answers).toEqual({detail:{text:'A standalone answer.'},decline:{rejected:true,reason:'Needs more context.'}});
     for (const [id,reason] of [[f.reason,'Please narrow the proposal.'],[f.silent,'']]) {
       await card(id).getByRole('button',{name:'Reject',exact:true}).click();
       if (reason) await card(id).getByRole('textbox',{name:'Reason for rejection'}).fill(reason);
@@ -92,7 +100,7 @@ try {
     }
     await card(f.silent).getByRole('button',{name:'Delete record'}).click();
     await expect(card(f.silent)).toHaveCount(0);
-    checks.push('real choice submit, no-choice BTW submit, reason/no-reason rejection and terminal deletion');
+    checks.push('real choice submit, per-question answer/reject with exact persisted response, reason/no-reason card rejection and terminal deletion');
     const deleted = await page.request.delete(base+`/api/sessions/${f.two}`);
     expect(deleted.ok()).toBe(true);
     await refresh();
@@ -125,7 +133,7 @@ try {
     await expect.poll(async()=> (await (await page.request.post(base+'/__test/locker/gate/status',{headers:fixtureHeaders})).json()).captured).toBe(true);
     await page.locator('.locker-auth > summary').click();
     await page.getByRole('button',{name:'Log out',exact:true}).click();
-    await expect(page.locator('.locker-timeline > article')).toHaveCount(0);
+    await expect(page.locator('.locker-timeline article')).toHaveCount(0);
     await expect(page.locator('[data-testid^="locker-source-"]')).toHaveCount(0);
     await page.request.post(base+'/__test/locker/gate/release',{headers:fixtureHeaders});
     await expect(msg(f.ordinary)).toHaveCount(0);
@@ -135,7 +143,7 @@ try {
     expect((await page.request.post(base+'/api/automation/logout',{headers:auth})).ok()).toBe(true);
     await page.getByRole('button',{name:'Refresh Locker'}).click();
     await expect(page.getByRole('button',{name:'Log in',exact:true})).toBeVisible();
-    await expect(page.locator('.locker-timeline > article')).toHaveCount(0);
+    await expect(page.locator('.locker-timeline article')).toHaveCount(0);
     await expect(page.locator('[data-testid^="locker-source-"]')).toHaveCount(0);
     auth = await login();
     checks.push('logout, captured late GET, successor login and actual 401 leave no old-user rows or sources');
@@ -147,6 +155,7 @@ try {
     await expect(msg(f.archived).getByRole('button',{name:'Mark read',exact:true})).toBeVisible();
     await expect(card(f.approval).getByText('Read-only')).toBeVisible();
     await expect(card(f.reason).getByText('Please narrow the proposal.')).toBeVisible();
+    await expect(card(f.reply).getByText('已拒绝此题：Needs more context.',{exact:true})).toBeVisible();
     await expect(card(f.silent)).toHaveCount(0);
     await expect(page.getByText('Source unavailable',{exact:true})).toBeVisible();
     await msg(f.archived).getByRole('button',{name:'Delete record'}).click();

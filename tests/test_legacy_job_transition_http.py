@@ -36,7 +36,8 @@ def test_dual_job_tabs_and_old_lifecycle_over_real_http(tmp_path, monkeypatch):
         marker = tmp_path / 'child.json'
         child_code = 'import time; time.sleep(120)'
         parent_code = (f'import subprocess,sys,time,json,pathlib; p=subprocess.Popen([sys.executable,"-c",{child_code!r}]); '
-                       f'pathlib.Path({str(marker)!r}).write_text(json.dumps({{"pid":p.pid}})); time.sleep(120)')
+                       f'marker=pathlib.Path({str(marker)!r}); staging=marker.with_suffix(".tmp"); '
+                       'staging.write_text(json.dumps({"pid":p.pid})); staging.replace(marker); time.sleep(120)')
         old = rt.request('POST', '/api/background-jobs', json={'targetSessionId': sid, 'name': 'Legacy tree boundary',
                          'argv': [sys.executable, '-c', parent_code], 'cwd': str(tmp_path)})
         jid = old['jobId']

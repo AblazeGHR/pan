@@ -120,7 +120,10 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
             return rt.request('POST', '/api/interaction-cards', json={'ownerSessionId': one['id'], 'recipientId': 'user',
                 'requestKey': key_name, 'card': {'title': key_name, 'body': 'Full body retained only in Locker.', 'summaryBody': 'Summary '*60, **fields}})['card']
         approval = card('Approve real Pause', choices=[{'id': 'pause', 'label': 'Approve Pause', 'triggerRef': {'id': 'locker-live-pause', 'revision': 1}}, {'id': 'keep', 'label': 'Keep running'}])
-        reply = card('Answer without choices')
+        reply = card('Answer individual questions', schemaVersion=2, questions=[
+            {'id': 'detail', 'prompt': 'What should happen?', 'type': 'text'},
+            {'id': 'decline', 'prompt': 'Optional proposal', 'type': 'text'},
+        ])
         reason = card('Reject with reason')
         silent = card('Reject without reason')
         assert rt.request('GET', '/api/user-inbox', headers=auth)['cards'][0]['definition']['body'] == 'Full body retained only in Locker.'

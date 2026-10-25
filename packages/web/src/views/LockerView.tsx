@@ -1003,7 +1003,7 @@ export default function LockerView() {
               start > 0 &&
               !prepend.current &&
               !entryNotice &&
-              !entering
+              entryScope.current === scope
             ) {
               prepend.current = { height: node.scrollHeight, top: node.scrollTop };
               setWindowSize(windowItems.length + 50);
