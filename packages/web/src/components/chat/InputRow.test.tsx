@@ -1854,7 +1854,7 @@ describe('InputRow responsive composer controls', () => {
     const anchor = screen.getByTestId('send-queue-anchor');
     expect(anchor.className).toContain('absolute');
     expect(anchor.className).toContain('bottom-full');
-    expect(anchor.className).toContain('z-20');
+    expect(anchor.className).toContain('z-40');
     expect(root.getAttribute('style')).toContain('height: 120px');
     expect(screen.getByPlaceholderText(/Type a message/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
@@ -2305,20 +2305,21 @@ describe('InputRow PermissionPill', () => {
   });
 });
 
-describe('user card composer', () => {
+describe('reminding card composer', () => {
   it('toggles card mode, keeps draft on Escape/toggle, changes kind and clears on Session switch', async () => {
     setBusySession(); render(<InputRow />);
     const input = screen.getByPlaceholderText(/Type a message/);
     fireEvent.change(input, {target: {value: 'question draft'}});
-    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
-    expect(screen.getByRole('button', {name: 'Send question card'})).toBeTruthy();
+    fireEvent.click(screen.getAllByTestId('new-reminding-card')[0]!);
+    expect(screen.getByRole('button', {name: 'create'})).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', {name: 'Task'}));
-    expect(screen.getByRole('button', {name: 'Send task card'})).toBeTruthy();
-    fireEvent.keyDown(input, {key: 'Escape'});
+    expect(screen.getByRole('button', {name: 'create'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', {name: 'cancel'}));
     expect(screen.getByRole('button', {name: 'Send'})).toBeTruthy();
     expect((input as HTMLTextAreaElement).value).toBe('question draft');
-    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
-    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    fireEvent.click(screen.getAllByTestId('new-reminding-card')[0]!);
+    expect(screen.getByRole('button', {name: 'create'})).toBeTruthy();
+    fireEvent.click(screen.getAllByTestId('new-reminding-card')[0]!);
     expect((input as HTMLTextAreaElement).value).toBe('question draft');
     useSessionStore.setState({currentSessionId: 's2', inputDrafts: {s1: 'question draft', s2: 'ordinary s2'}});
     await waitFor(() => expect((screen.getByPlaceholderText(/Type a message/) as HTMLTextAreaElement).value).toBe('ordinary s2'));
@@ -2330,14 +2331,14 @@ describe('user card composer', () => {
     const fetcher = vi.fn(async (_path: string, _init?: RequestInit) => ({ok: true, json: async () => ({card: {id: 'uc'}})}));
     vi.stubGlobal('fetch', fetcher);
     render(<InputRow />);
-    fireEvent.click(screen.getByRole('button', {name: 'Create user card'}));
+    fireEvent.click(screen.getAllByTestId('new-reminding-card')[0]!);
     fireEvent.click(screen.getByRole('radio', {name: 'Task'}));
     fireEvent.change(screen.getByPlaceholderText(/Type a message/), {target: {value: 'task body'}});
     fireEvent.change(screen.getByTestId('client-attachment-input'), {target: {files: [new File(['evidence'], 'evidence.txt', {type:'text/plain'})]}});
     await waitFor(() => expect(screen.getByTestId('attachment-upload-progress').textContent).toContain('已完成'));
-    fireEvent.click(screen.getByRole('button', {name: 'Send task card'}));
-    await waitFor(() => expect(fetcher).toHaveBeenCalledWith('/api/user-cards', expect.anything()));
-    const request = fetcher.mock.calls.find((args) => String(args[0]) === '/api/user-cards')!;
+    fireEvent.click(screen.getByRole('button', {name: 'create'}));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledWith('/api/reminding-cards', expect.anything()));
+    const request = fetcher.mock.calls.find((args) => String(args[0]) === '/api/reminding-cards')!;
     const body = JSON.parse(String((request[1] as RequestInit).body));
     expect(body).toMatchObject({ownerSessionId:'s1', kind:'task', body:'task body', requestKey:expect.any(String),
       attachments:[{id:expect.any(String), name:'evidence.txt'}]});

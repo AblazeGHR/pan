@@ -1,4 +1,4 @@
-import { Check, Circle, Trash2, ArrowUpRight, MessageSquare, ClipboardList } from 'lucide-react';
+import { Check, Circle, Trash2, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
@@ -37,11 +37,11 @@ export function UserCardRow({
     setError('');
     try {
       if (operation === 'delete') {
-        await lockerRequest(`/api/user-cards/${card.id}`, 'DELETE');
+        await lockerRequest(`/api/reminding-cards/${card.id}`, 'DELETE');
         remove(card.id);
       } else {
         const result = await lockerRequest<{ card: UserCard }>(
-          `/api/user-cards/${card.id}/read`,
+          `/api/reminding-cards/${card.id}/read`,
           'PUT',
           { read: !card.read },
         );
@@ -59,10 +59,10 @@ export function UserCardRow({
       const id = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
       const attachment = card.attachments.find((a) => a.id === id);
       if (!attachment || url.searchParams.get('session_id') !== card.ownerSessionId)
-        throw new Error('Attachment is not part of this user card.');
+        throw new Error('Attachment is not part of this reminding card.');
       const token = useAutomationAuth.getState().token;
       const response = await fetch(
-        `/api/user-cards/${card.id}/attachments/${encodeURIComponent(id)}`,
+        `/api/reminding-cards/${card.id}/attachments/${encodeURIComponent(id)}`,
         {
           credentials: 'same-origin',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -95,8 +95,8 @@ export function UserCardRow({
   return (
     <article
       hidden={hidden}
-      data-user-card-id={card.id}
-      className="locker-card user-card-row message-row message-row-user relative px-3 sm:px-6 lg:px-8"
+      data-reminding-card-id={card.id}
+      className="locker-card reminding-card-row message-row message-row-user relative px-3 sm:px-6 lg:px-8"
     >
       <header className="locker-card-origin">
         <span className="source-dot" /><span className="truncate">{source?.sourceName ?? card.ownerSessionId}</span>
@@ -109,11 +109,11 @@ export function UserCardRow({
             Answered <MessageTimestamp ts={card.answeredAt} />
           </span>
         )}
-        <span className="locker-status user-card-direction"><ArrowUpRight size={11} />
-          {card.kind === 'question' ? 'User question' : 'User task'}
+        <span className="locker-status reminding-card-direction"><ArrowUpRight size={11} />
+          {card.kind === 'question' ? 'Reminding · Question' : 'Reminding · Task'}
         </span>
         <span className={`locker-status ${answered ? 'responded' : ''}`}>
-          {answered ? '已回答 · Answered' : '等待回答 · Awaiting answer'}
+          {answered ? 'Answered' : 'Awaiting answer'}
         </span>
         {answered && (
           <button
@@ -122,13 +122,12 @@ export function UserCardRow({
             type="button"
             disabled={busy}
             onClick={() => void act('read')}
-            aria-label={card.read ? 'Mark user card as unread' : 'Mark user card as read'}
+            aria-label={card.read ? 'Mark reminding card as unread' : 'Mark reminding card as read'}
           >
             {card.read ? <Circle size={12} /> : <Check size={13} />}
           </button>
         )}
       </header>
-      <h2 className="locker-card-title user-card-heading">{card.kind === 'question' ? <MessageSquare size={15} /> : <ClipboardList size={15} />}{card.kind === 'question' ? 'User question' : 'User task'}</h2>
       <MarkdownRenderer
         sourceSessionId={card.ownerSessionId}
         content={card.body + (attachments ? `\n\n${attachments}` : '')}
@@ -137,7 +136,7 @@ export function UserCardRow({
       />
       {answered && (
         <section aria-label="Agent answer" className="locker-response completed">
-          <span className="user-card-answer-label">Agent answer</span>
+          <span className="reminding-card-answer-label">Agent answer</span>
           <MarkdownRenderer
             sourceSessionId={card.ownerSessionId}
             content={card.answer || '(Empty task answer)'}
@@ -146,7 +145,7 @@ export function UserCardRow({
       )}
       <div className="locker-delete-row">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act('delete')}>
-          <Trash2 size={12} /> Delete user card
+          <Trash2 size={12} /> Delete reminding card
         </Button>
       </div>
       {error && (

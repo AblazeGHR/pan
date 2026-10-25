@@ -7,13 +7,13 @@ description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 M
 
 ## 用户创建的提问卡 / 任务卡
 
-Chat 输入区的 `Create user card` 位于 SendQueuePanel 上方；进入后选择 Question / Task，
-使用当前输入区的正文和附件，按钮为 `Send question card` / `Send task card`。
+SendQueuePanel 展开后的动作行提供 `create reminding card`；移动端入口位于展开的“队列操作”网格。
+点击后收起队列面板并进入卡片态，选择 Question / Task，使用当前输入区的正文和附件；发送行按钮为 `create`，旁边有 `cancel`。
 Esc / 再点入口退出并保留草稿；切换 Session 清空卡片态草稿。卡片归创建时的 Session。
 
-Agent 仅使用一个本地可信 stdio 工具 `user_card`：
-`user_card(operation="list_pending")` 返回自己 Session 的所有未答卡（id、kind、body、
-attachments、createdAt、revision）；`user_card(operation="answer", card_id=..., body=...,
+Agent 仅使用一个本地可信 stdio 工具 `reminding_card`：
+`reminding_card(operation="list_pending")` 返回自己 Session 的所有未答卡（id、kind、body、
+attachments、createdAt、revision）；`reminding_card(operation="answer", card_id=..., body=...,
 expected_revision=...)` 首答即终态。question 要求非空白答案，task 允许空串；重复回答或
 revision 竞争返回冲突，不覆盖答案。MA / managed 关系不能跨 Session 代答。不提供 reject。
 
@@ -22,11 +22,13 @@ revision 竞争返回冲突，不覆盖答案。MA / managed 关系不能跨 Ses
 提醒入队不解除 Illegal，不绕过 Pause、锁或 lease；后续积压 wake / Worker 恢复沿用正常队列机制。
 提醒不是用户答复或授权。重启按持久化的提醒时间恢复，错过的周期合并为一条。
 
-Locker 与现有卡片同列表，用 User question / User task 标方向。未答只展示创建位置且无
+Locker 与现有卡片同列表，用 Reminding · Question / Reminding · Task 标方向。未答只展示创建位置且无
 已读状态；已答只读，首次标未读，用户可切换。底层始终一张卡，返回不变的 `createdAt`
 和首次设置的 `answeredAt`；已答卡在创建时间和回答时间各投影一行，两行内容与状态相同，
 操作共用 card id，任一行已读/删除同步作用两行。计数按卡片去重；每个位置按自己的时间排序，
-同时间原位置先于投影，React key 区分位置。此流程独立存储，不进入 interaction_card 的
+同时间原位置先于投影，React key 区分位置。产品层称为 reminding card；HTTP/MCP 对外使用
+reminding-cards/reminding_card，代码模块、表和内部字段仍保留 user_cards/user_card_*，不迁移数据。
+此流程独立存储，不进入 interaction_card 的
 open/responded、回应/拒绝通知或 Trigger 路径，原 agent→user 契约保持不变。
 
 Pan 是 Supervisor/Worker 架构的 CLI Agent 编排器。本入口只维护各角色共用的概念、工具契约和操作说明；角色行为由专门文档维护。

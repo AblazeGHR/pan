@@ -115,8 +115,8 @@ beforeEach(() => {
     vi.fn(async (path: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
       calls.push({ path, body, method: init?.method });
-      if (path === '/api/user-cards') return { ok: true, json: async () => ({ cards: userCards }) };
-      if (path.startsWith('/api/user-cards/')) {
+      if (path === '/api/reminding-cards') return { ok: true, json: async () => ({ cards: userCards }) };
+      if (path.startsWith('/api/reminding-cards/')) {
         const id = path.split('/')[3];
         if (init?.method === 'DELETE') {
           userCards = userCards.filter((item) => item.id !== id);
@@ -636,17 +636,17 @@ it('renders twenty related entries with zero navigation requests on mount, hover
 
 function reverseCard(answered = true): UserCard {
   return {id: 'uc', direction: 'user', kind: 'question', ownerSessionId: 'ses_one', lockerId: 'l1',
-    body: '**User question body**', attachments: [{id: 'att_one', name: 'evidence.txt'}],
+    body: '**Reminding · Question body**', attachments: [{id: 'att_one', name: 'evidence.txt'}],
     createdAt: '2026-10-23T01:00:00Z', answeredAt: answered ? '2026-10-24T03:00:00Z' : null,
     status: answered ? 'answered' : 'pending', answer: answered ? 'Agent answer body' : null,
     read: !answered, revision: answered ? 1 : 0};
 }
-describe('user card positions share one record', () => {
+describe('reminding card positions share one record', () => {
   it('renders pending once without read controls and keeps answered projections ordered deterministically', async () => {
     cards = []; userCards = [reverseCard(false)]; mount();
-    await screen.findByText('等待回答 · Awaiting answer');
-    expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(1);
-    expect(screen.queryByRole('button', {name: /Mark user card/})).toBeNull();
+    await screen.findByText('Awaiting answer');
+    expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1);
+    expect(screen.queryByRole('button', {name: /Mark reminding card/})).toBeNull();
     const sameTime = {...reverseCard(), answeredAt: reverseCard().createdAt};
     expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created', 'answered']);
     expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(2);
@@ -655,21 +655,21 @@ describe('user card positions share one record', () => {
   });
   it.each([0, 1])('read and delete from position %i update/remove both identical rows', async (position) => {
     cards = []; userCards = [reverseCard()]; mount();
-    await waitFor(() => expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(2));
-    let rows = [...document.querySelectorAll<HTMLElement>('[data-user-card-id="uc"]')];
+    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(2));
+    let rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
     expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
     expect(screen.getAllByText('Agent answer body')).toHaveLength(2);
     expect(rows.every((row) => row.querySelector('textarea,input') === null)).toBe(true);
-    const reads = screen.getAllByRole('button', {name: 'Mark user card as read'});
+    const reads = screen.getAllByRole('button', {name: 'Mark reminding card as read'});
     fireEvent.click(reads[position]!);
-    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark user card as unread'})).toHaveLength(2));
-    rows = [...document.querySelectorAll<HTMLElement>('[data-user-card-id="uc"]')];
+    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark reminding card as unread'})).toHaveLength(2));
+    rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
     expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
-    expect(calls.filter((call) => call.path === '/api/user-cards/uc/read')).toHaveLength(1);
+    expect(calls.filter((call) => call.path === '/api/reminding-cards/uc/read')).toHaveLength(1);
     expect(userCards).toHaveLength(1);
     expect(calls.filter((call) => /attachments/.test(call.path))).toHaveLength(0);
-    fireEvent.click(screen.getAllByRole('button', {name: 'Delete user card'})[position]!);
-    await waitFor(() => expect(document.querySelectorAll('[data-user-card-id="uc"]')).toHaveLength(0));
+    fireEvent.click(screen.getAllByRole('button', {name: 'Delete reminding card'})[position]!);
+    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(0));
     expect(userCards).toHaveLength(0);
   });
 });

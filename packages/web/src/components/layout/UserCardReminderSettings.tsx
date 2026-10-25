@@ -8,7 +8,7 @@ export function UserCardReminderSettings() {
   useEffect(() => {
     const controller = new AbortController();
     void lockerRequest<{ minutes: number }>(
-      '/api/user-cards/settings',
+      '/api/reminding-cards/settings',
       'GET',
       undefined,
       controller.signal,
@@ -22,10 +22,10 @@ export function UserCardReminderSettings() {
   return (
     <section className="rounded-md border border-border-muted bg-bg-primary p-3 space-y-2">
       <label className="flex items-center justify-between gap-3 text-xs text-text-secondary">
-        User card reminder interval (minutes)
+        Reminding-card reminder interval (minutes)
         <input
           className="w-20 shrink-0 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-xs text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-          aria-label="User card reminder interval (minutes)"
+          aria-label="Reminding-card reminder interval (minutes)"
           type="number"
           min={1}
           max={1440}
@@ -43,7 +43,7 @@ export function UserCardReminderSettings() {
             if (next === minutes) return;
             setBusy(true);
             setError('');
-            void lockerRequest<{ minutes: number }>('/api/user-cards/settings', 'PUT', {
+            void lockerRequest<{ minutes: number }>('/api/reminding-cards/settings', 'PUT', {
               minutes: next,
             })
               .then((result) => setMinutes(result.minutes))
@@ -52,7 +52,7 @@ export function UserCardReminderSettings() {
           }}
         />
       </label>
-      <p className="text-[11px] leading-relaxed text-text-tertiary">Default: 10 minutes. Notifications enter the owning Session queue.</p>
+      <p className="text-[11px] leading-relaxed text-text-tertiary">Default: 10 minutes. Reminding-card notifications enter the owning Session queue.</p>
       {error && <p role="alert">{error}</p>}
     </section>
   );

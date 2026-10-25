@@ -13,7 +13,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
     from tests import test_real_queue_http_e2e as h
     from tests.support.authorization import authenticate_user_requests
     root=Path(__file__).resolve().parents[1]
-    out=root/'audit/user-cards'; out.mkdir(parents=True,exist_ok=True)
+    out=root/'audit/reminding-cards'; out.mkdir(parents=True,exist_ok=True)
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
     assert port not in {8767,8768}
@@ -39,7 +39,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
         upload=rt.request('POST',f'/api/sessions/{sid}/attachments?filename=evidence.txt',content=b'owned evidence')
         aid=upload.get('attachmentId') or upload['storageFilename']
         def create(key,kind='question',attachments=None):
-            return rt.request('POST','/api/user-cards',headers=auth,json=dict(ownerSessionId=sid,requestKey=key,
+            return rt.request('POST','/api/reminding-cards',headers=auth,json=dict(ownerSessionId=sid,requestKey=key,
                 kind=kind,body='Real user question '+key,attachments=attachments or []))['card']
         question=create('q',attachments=[{'id':aid,'name':'evidence.txt'}])
         task=create('t','task')
@@ -53,7 +53,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
                 async with ClientSession(read,write) as client:
                     await client.initialize()
                     async def call(**args):
-                        result=await client.call_tool('user_card',args)
+                        result=await client.call_tool('reminding_card',args)
                         assert not result.isError,result
                         return json.loads(result.content[0].text)
                     pending=await call(operation='list_pending')
@@ -74,15 +74,15 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
                     assert (await call(operation='list_pending'))['cards']==[]
         asyncio.run(mcp(other['id']))
         asyncio.run(mcp(sid,True))
-        cards=rt.request('GET','/api/user-cards',headers=auth)['cards']
+        cards=rt.request('GET','/api/reminding-cards',headers=auth)['cards']
         assert len(cards)==2 and all(c['status']=='answered' and not c['read'] for c in cards)
         locker=next(l for l in rt.request('GET','/api/user-lockers',headers=auth)['lockers'] if l['sessionId']==sid)
         assert locker['total']==2 and locker['unread']==2
         with httpx.Client(base_url=rt.base_url,trust_env=False) as client:
-            path=f"/api/user-cards/{question['id']}/attachments/{aid}"
+            path=f"/api/reminding-cards/{question['id']}/attachments/{aid}"
             assert client.get(path).status_code==401
             assert client.get(path,headers=auth).content==b'owned evidence'
-            assert client.get(f"/api/user-cards/{task['id']}/attachments/{aid}",headers=auth).status_code==404
+            assert client.get(f"/api/reminding-cards/{task['id']}/attachments/{aid}",headers=auth).status_code==404
         browser=subprocess.run(['node','packages/web/e2e/user-cards.mjs',rt.base_url,str(out),question['id']],
             cwd=root,env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)
         (out/'visual.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
@@ -95,8 +95,8 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
         after=rt.request('GET',f'/api/sessions/{sid}/queue')['items']
         assert len(after)==len(before), 'Restart must not duplicate immediate notices'
         assert not rt.fake_records()
-        rt.request('DELETE','/api/user-cards/'+pending['id'],headers=auth)
-        rt.request('PUT','/api/user-cards/'+question['id']+'/read',headers=auth,json={'read':True})
+        rt.request('DELETE','/api/reminding-cards/'+pending['id'],headers=auth)
+        rt.request('PUT','/api/reminding-cards/'+question['id']+'/read',headers=auth,json={'read':True})
         locker=next(l for l in rt.request('GET','/api/user-lockers',headers=auth)['lockers'] if l['sessionId']==sid)
         assert locker['total']==2 and locker['unread']==1
         evidence.update(cards=cards,locker=locker,queueBeforeRestart=before,queueAfterRestart=after,providerRecords=rt.fake_records())

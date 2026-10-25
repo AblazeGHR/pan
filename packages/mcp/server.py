@@ -1973,7 +1973,7 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 
 @mcp.tool()
-def user_card(operation: str, card_id: str = "", body: str = "", expected_revision: int | None = None) -> dict:
+def reminding_card(operation: str, card_id: str = "", body: str = "", expected_revision: int | None = None) -> dict:
     """Read/answer user-created cards owned ONLY by this bound stdio Session.
 
     list_pending returns id, kind (question/task), body, attachments, createdAt,
@@ -1990,7 +1990,7 @@ def user_card(operation: str, card_id: str = "", body: str = "", expected_revisi
         payload = {"cardId": card_id, "body": body, "expectedRevision": expected_revision}
     else:
         return {"ok": False, "error": "invalid_operation"}
-    return _local_producer_api(f"/api/user-card-tools/{operation}", payload)
+    return _local_producer_api(f"/api/reminding-card-tools/{operation}", payload)
 
 
 @mcp.tool()

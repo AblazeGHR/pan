@@ -89,7 +89,11 @@ function QueueMessagePreview({ item, canEdit, onEdit, onClose }: {
   );
 }
 
-export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean }) {
+export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindingCardMode = false }: {
+  nativeMode?: boolean;
+  onNewRemindingCard?: () => void;
+  remindingCardMode?: boolean;
+}) {
   const sessionId = useSessionStore((state) => state.currentSessionId);
   const readonlySession = useSessionStore((state) => state.sessions.find((session) => session.id === state.currentSessionId)?.readonlySession === true);
   const panelOpen = useQueueStore((state) => state.panelOpen);
@@ -193,6 +197,16 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
               title={lockedComposerMode ? 'Cancel locked message mode' : 'New locked message'}>
               <Plus size={12} aria-hidden="true" /> {lockedComposerMode ? 'cancel locked msg' : 'new locked msg'}
             </button>
+            {onNewRemindingCard && (
+              <button type="button" data-testid="new-reminding-card" className={`${REPORT_PAUSE_BUTTON} ${remindingCardMode
+                ? 'border-accent bg-accent/10 text-accent hover:bg-accent/15'
+                : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+                disabled={!sessionId} onClick={onNewRemindingCard} aria-pressed={remindingCardMode}
+                aria-label="create reminding card"
+                title="create reminding card">
+                <Plus size={12} aria-hidden="true" /> create reminding card
+              </button>
+            )}
             <button type="button" className={REPORT_PAUSE_BUTTON + ' border-border-default text-text-secondary hover:bg-bg-hover'}
               disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
               onClick={() => { if (sessionId) void setItemsLocked(sessionId, true); }}
@@ -279,6 +293,15 @@ export function SendQueuePanel({ nativeMode = false }: { nativeMode?: boolean })
                   aria-pressed={lockedComposerMode}>
                   <Plus size={12} aria-hidden="true" /> {lockedComposerMode ? 'cancel locked msg' : 'new locked msg'}
                 </button>
+                {onNewRemindingCard && (
+                  <button type="button" data-testid="new-reminding-card" className={`${MOBILE_ACTION_BUTTON} ${remindingCardMode
+                    ? 'border-accent bg-accent/10 text-accent hover:bg-accent/15'
+                    : 'border-border-default text-text-secondary hover:bg-bg-hover'}`}
+                    disabled={!sessionId} onClick={onNewRemindingCard} aria-pressed={remindingCardMode}
+                    aria-label="create reminding card">
+                    <Plus size={12} aria-hidden="true" /> create reminding card
+                  </button>
+                )}
                 <button type="button" className={`${MOBILE_ACTION_BUTTON} border-border-default text-text-secondary hover:bg-bg-hover`}
                   disabled={!sessionId || items.length === 0 || lockUpdating || reportPauseUpdating}
                   onClick={() => { if (sessionId) void setItemsLocked(sessionId, true); }}
