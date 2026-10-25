@@ -285,6 +285,7 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
         assert created.json()['item']['authorization'] == {'type': 'user'}
         login = await client.post('/api/automation/login', json={'key': key})
         assert login.json()['expiresIn'] == 43200
+        client.cookies.clear()  # Keep the anonymous/Bearer boundary independent of Cookie login.
         headers = {'Authorization': 'Bearer ' + login.json()['token']}
         assert (await client.post('/api/automation/triggers', json={'item': trigger(), 'expectedRevision': 1}, headers=headers)).status_code == 200
         assert (await client.post('/api/automation/triggers', json={'item': draft, 'expectedRevision': 2})).status_code == 401
@@ -436,10 +437,10 @@ def test_auth_expiry_and_restart(tmp_path, monkeypatch):
     import packages.automation.auth as module
     auth = UserAuth(tmp_path)
     clock = [100.0]
-    monkeypatch.setattr(module.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(module.time, 'time', lambda: clock[0])
     token = auth.login(auth.key())
     assert auth.authorized('Bearer ' + token)
-    assert not UserAuth(tmp_path).authorized('Bearer ' + token)
+    assert UserAuth(tmp_path).authorized('Bearer ' + token)
     clock[0] += 43201
     assert not auth.authorized('Bearer ' + token)
 

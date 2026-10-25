@@ -1,5 +1,7 @@
 """Trigger management only. Event registration/publishing has no public route."""
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from urllib.parse import urlsplit
 from packages.core.system_fields import public_schema
 from .store import Conflict
 from .authorization import require as object_require, require_write, authority
@@ -8,6 +10,64 @@ from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SE
 
 def install(server):
     router = APIRouter()
+    cookie_name = 'pan_automation_session'
+
+    def set_cookie(response, request, token, days):
+        response.set_cookie(cookie_name, f'{token}.{days}', httponly=True, samesite='lax', path='/',
+                            secure=request.url.scheme == 'https', max_age=days * 86400 if days else None)
+
+    def clear_cookie(response, request):
+        response.delete_cookie(cookie_name, path='/', httponly=True, samesite='lax',
+                               secure=request.url.scheme == 'https')
+
+    def same_origin(request):
+        try:
+            origin = urlsplit(request.headers.get('origin', ''))
+            target = request.url
+            return (origin.scheme in ('http', 'https') and origin.username is None and origin.password is None
+                    and not origin.path and not origin.query and not origin.fragment
+                    and (origin.scheme, origin.hostname, origin.port if origin.port is not None else (443 if origin.scheme == 'https' else 80))
+                    == (target.scheme, target.hostname, target.port if target.port is not None else (443 if target.scheme == 'https' else 80)))
+        except ValueError:
+            return False
+
+    @server.app.middleware('http')
+    async def cookie_auth(request, call_next):
+        # Normalize Cookie authentication at the shared HTTP boundary so every
+        # existing Bearer gate (Automation, Actions, Jobs and Locker) uses it.
+        svc = getattr(server.app.state, 'automation', None)
+        cookie = request.cookies.get(cookie_name, '')
+        cookie_token, separator, cookie_days = cookie.rpartition('.')
+        if not separator:
+            cookie_token, cookie_days = cookie, ''
+        token = cookie_token
+        bearer = request.headers.get('authorization', '').lower().startswith('bearer ')
+        state = None
+        if svc is not None and token and request.url.path.startswith('/api/'):
+            if bearer:
+                token = request.headers['authorization'].partition(' ')[2]
+            try:
+                state = await svc.engine.io(svc.auth.session, token, False)
+                if state['authenticated']:
+                    if not bearer and request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and not same_origin(request):
+                        return JSONResponse({'detail': 'Cookie writes require a same-origin Origin'}, status_code=403)
+                    state = await svc.engine.io(svc.auth.session, token)
+                    request.scope['headers'][:] = [(k, v) for k, v in request.scope['headers'] if k != b'authorization'] + [
+                        (b'authorization', ('Bearer ' + token).encode())]
+            except (OSError, ValueError):
+                return JSONResponse({'detail': 'Session storage unavailable'}, status_code=503)
+        response = await call_next(request)
+        if request.url.path.startswith('/api/automation/'):
+            response.headers['Cache-Control'] = 'no-store'
+        # The duration marker also reapplies global policy on other browsers'
+        # next requests, including persistent -> session Cookie (0 days). It is
+        # only a refresh hint; server-side lifetime always comes from config.
+        # Explicit logout/revocation/setting responses own their Cookie header.
+        if (state and state['authenticated'] and token == cookie_token
+                and (state['renewed'] or cookie_days != str(state['sessionDays']))
+                and 'set-cookie' not in response.headers):
+            set_cookie(response, request, token, state['sessionDays'])
+        return response
 
     def service():
         value = getattr(server.app.state, 'automation', None)
@@ -31,14 +91,16 @@ def install(server):
         return await service().engine.io(service().auth.authorization_status)
 
     @router.put('/api/automation/authorization')
-    async def authorization_change(data: dict, request: Request):
+    async def authorization_change(data: dict, request: Request, response: Response):
         await require(request)
         if set(data) != {'currentPassword', 'newPassword', 'confirmNewPassword', 'expectedRevision'}:
             raise HTTPException(400, 'Expected currentPassword, newPassword, confirmNewPassword, and expectedRevision')
         try:
-            return await service().engine.io(
+            result = await service().engine.io(
                 service().auth.change_password,
                 data['currentPassword'], data['newPassword'], data['confirmNewPassword'], data['expectedRevision'])
+            clear_cookie(response, request)
+            return result
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
         except RuntimeError as exc:
@@ -63,19 +125,63 @@ def install(server):
         except OSError as exc:
             raise HTTPException(503, str(exc)) from exc
 
+    @router.get('/api/automation/session')
+    async def session_status(request: Request):
+        header = request.headers.get('authorization', '')
+        scheme, _, token = header.partition(' ')
+        state = await service().engine.io(service().auth.session, token if scheme.lower() == 'bearer' else '')
+        return {k: state[k] for k in ('authenticated', 'expiresAt', 'sessionDays')}
+
+    @router.get('/api/automation/settings')
+    async def session_settings(request: Request):
+        await require(request)
+        return {'sessionDays': service().auth.session_days}
+
+    @router.put('/api/automation/settings')
+    async def update_session_settings(data: dict, request: Request, response: Response):
+        await require(request)
+        if set(data) != {'sessionDays'}:
+            raise HTTPException(400, 'Expected sessionDays')
+        try:
+            result = await service().engine.io(service().auth.change_session_days, data['sessionDays'])
+            token = request.headers.get('authorization', '').partition(' ')[2]
+            set_cookie(response, request, token, result['sessionDays'])
+            return result
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, 'Session settings persistence failed') from exc
+
     @router.post('/api/automation/login')
-    async def login(data: dict):
+    async def login(data: dict, request: Request, response: Response):
         try:
             token = await service().engine.io(service().auth.login, data.get('key'))
-            return {'token': token, 'expiresIn': service().auth.lifetime}
+            set_cookie(response, request, token, service().auth.session_days)
+            return {'token': token, 'expiresIn': service().auth.session_lifetime}
         except PermissionError as exc:
             raise HTTPException(401, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, 'Session storage unavailable') from exc
 
     @router.post('/api/automation/logout')
-    async def logout(request: Request):
-        await service().engine.io(service().auth.logout, request.headers.get('authorization', ''))
+    async def logout(request: Request, response: Response):
+        try:
+            await service().engine.io(service().auth.logout, request.headers.get('authorization', ''))
+        except OSError as exc:
+            raise HTTPException(503, 'Session revocation persistence failed') from exc
+        clear_cookie(response, request)
+        return {'ok': True}
+
+    @router.post('/api/automation/revoke')
+    async def revoke(request: Request, response: Response):
+        await require(request)
+        try:
+            await service().engine.io(service().auth.revoke)
+        except OSError as exc:
+            raise HTTPException(503, 'Session revocation persistence failed') from exc
+        clear_cookie(response, request)
         return {'ok': True}
 
     @router.get('/api/automation')

@@ -174,7 +174,8 @@ export async function lockerRequest<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const token = useAutomationAuth.getState().token;
+  const auth = useAutomationAuth.getState();
+  const token = auth.token;
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',
@@ -186,14 +187,14 @@ export async function lockerRequest<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const result = await response.json();
-  if (useAutomationAuth.getState().token !== token)
+  if (useAutomationAuth.getState() !== auth)
     throw new LockerRequestError(
       401,
       'Authorization changed. Discarding the previous response.',
       'obsolete_auth',
     );
   if (!response.ok) {
-    if (response.status === 401 && useAutomationAuth.getState().token === token)
+    if (response.status === 401 && useAutomationAuth.getState() === auth)
       useAutomationAuth.getState().clear();
     throw new LockerRequestError(
       response.status,

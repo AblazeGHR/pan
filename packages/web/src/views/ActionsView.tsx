@@ -71,7 +71,7 @@ type ActionRegistryWithItem = import('@/types/actions').ActionRegistry & {
 };
 
 export default function ActionsView() {
-  const authorizationToken = useAutomationAuth((state) => state.token);
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const registry = useActionRegistryStore((state) => state.registry);
   const hasLoaded = useActionRegistryStore((state) => state.hasLoaded);
   const status = useActionRegistryStore((state) => state.status);

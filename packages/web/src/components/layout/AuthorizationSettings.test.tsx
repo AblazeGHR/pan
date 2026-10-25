@@ -34,7 +34,7 @@ it('preserves draft after CAS conflict and never treats conflict as save', async
   vi.stubGlobal('fetch', fetch);render(<AuthorizationSettings />);
   fireEvent.click(await screen.findByLabelText('trigger.create'));
   fireEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('revision conflict');
+  expect((await screen.findByRole('alert')).textContent).toContain('Revision conflict');
   expect((screen.getByLabelText('trigger.create') as HTMLInputElement).checked).toBe(true);
   expect(screen.queryByText('Permission matrix saved and active for new operations.')).toBeNull();
 });

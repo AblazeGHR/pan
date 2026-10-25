@@ -450,7 +450,7 @@ function JobRow({
  * 契约；WS 订阅 5 类 job 事件驱动列表与 toast。客户端做排序与筛选。
  */
 export default function JobsView() {
-  const authorizationToken = useAutomationAuth((state) => state.token);
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
   const toastRef = useRef(showToast); toastRef.current = showToast;
