@@ -82,6 +82,12 @@ class JobStore:
         self.instance_id = secrets.token_hex(16)
         self._init_db()
 
+    @property
+    def execution_host(self):
+        # Lazy imports preserve the standalone legacy startup/import contract.
+        from packages.jobs.independent_executor import ExecutionHost, ExecutionStore
+        return ExecutionHost(ExecutionStore(self.root))
+
     def connect(self):
         db = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
@@ -268,6 +274,9 @@ class JobStore:
 
     def recover(self):
         """Active registrations without a verified live runner become explicit UNKNOWN."""
+        if (self.root / "executions.sqlite3").exists():
+            from packages.core.platform.execution_host import supervisor_alive
+            self.execution_host.store.recover(supervisor_alive)
         with self.connect() as db:
             rows = db.execute("SELECT id,runner_pid,runner_filetime FROM jobs WHERE status IN ('starting','running')").fetchall()
         for row in rows:
@@ -358,6 +367,36 @@ class Handler(BaseHTTPRequestHandler):
                 raise ServiceError(415, "application/json required")
             path = unquote(urlsplit(self.path).path)
             if path == "/health" and method == "GET": return self._json(200, {"ok": True, "instanceId": self.store.instance_id})
+            if path == "/executions" and method == "POST":
+                from packages.jobs.independent_executor import ExecutionConflict
+                try:
+                    doc = self.store.execution_host.submit_execution(self._body())
+                except ExecutionConflict as exc:
+                    raise ServiceError(409, str(exc)) from exc
+                except (KeyError, ValueError, TypeError) as exc:
+                    raise ServiceError(400, "invalid canonical execution") from exc
+                return self._json(202, doc)
+            if path == "/execution-events" and method == "GET":
+                return self._json(200, self.store.execution_host.store.events())
+            if path.startswith("/execution-events/") and path.endswith("/ack") and method == "POST":
+                try:
+                    result = self.store.execution_host.store.ack(path[len("/execution-events/"):-4])
+                except KeyError as exc:
+                    raise ServiceError(404, "execution event not found") from exc
+                return self._json(200, result)
+            if path.startswith("/executions/"):
+                parts = path.strip("/").split("/")
+                if len(parts) in (2, 3) and re.fullmatch(r"effect_[0-9a-f]{64}", parts[1]):
+                    from packages.jobs.independent_executor import ExecutionConflict
+                    try:
+                        if len(parts) == 2 and method == "GET":
+                            return self._json(200, self.store.execution_host.store.get(parts[1]))
+                        if len(parts) == 3 and parts[2] == "cancel" and method == "POST":
+                            return self._json(200, self.store.execution_host.store.cancel(parts[1], self._body()["attempt"]))
+                    except KeyError as exc:
+                        raise ServiceError(404, "execution not found") from exc
+                    except (ExecutionConflict, ValueError) as exc:
+                        raise ServiceError(409, "execution fence/cancellation conflict") from exc
             if path == "/jobs" and method == "POST": return self._json(201, self.store.create(self._body()))
             if path == "/jobs" and method == "GET": return self._json(200, self.store.list())
             if path == "/events" and method == "GET": return self._json(200, self.store.events())

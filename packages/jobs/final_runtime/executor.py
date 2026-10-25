@@ -1,5 +1,7 @@
 """Canonical final-runtime import path for the WP05 typed executor."""
 
+from packages.jobs.independent_executor import IndependentExecutor
+
 from packages.actions.typed_executor import (
     ChannelProvider,
     EffectExecutor,
@@ -17,6 +19,7 @@ __all__ = [
     "EffectExecutor",
     "EffectReceipt",
     "InMemoryReceiptStore",
+    "IndependentExecutor",
     "ReceiptStore",
     "SessionProvider",
     "SystemExecutor",
