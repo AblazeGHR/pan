@@ -100,6 +100,8 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
   const [uncertain, setUncertain] = useState(false);
   const [refreshing, setRefreshing] = useState<string[]>([]);
   const [quotaErrors, setQuotaErrors] = useState<Record<string, PanelFailure>>({});
+  const [gateErrors, setGateErrors] = useState<Record<string, PanelFailure | null>>({});
+  const [gateSaving, setGateSaving] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState('');
 
   const admitted = useRef(false);
@@ -305,6 +307,41 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
     } finally { admitted.current = false; setBusy(false); }
   };
 
+  /** Save the single non-manual gate for one profile.
+   *
+   *  The Panel is the manual path, so the row stays switchable; only the agent
+   *  and automation projections lose the profile. The observed settings
+   *  revision travels with the write so a stale window cannot overwrite a
+   *  newer decision made elsewhere. */
+  const saveGate = async (providerId: string, disabled: boolean) => {
+    const key = `${app}:${providerId}`;
+    if (busy || gateSaving[key]) return;
+    const targetApp = app;
+    const current = readCachedSnapshot(scope, targetApp) ?? snapshotsRef.current[targetApp] ?? null;
+    if (!current || typeof current.revision !== 'number') {
+      setGateErrors((errors) => ({ ...errors, [key]: { message: '当前列表缺少设置版本，请刷新列表后重试' } }));
+      return;
+    }
+    setGateErrors((errors) => ({ ...errors, [key]: null }));
+    setGateSaving((saving) => ({ ...saving, [key]: true }));
+    const startVersion = currentSnapshotVersion(scope, targetApp);
+    try {
+      const value = await invokePluginPanel<AccountSnapshot>(panel.pluginId, panel.id, 'config',
+        { app: targetApp, id: providerId, nonManualDisabled: disabled, expectedRevision: current.revision },
+        crypto.randomUUID());
+      if (!mounted.current || currentSnapshotVersion(scope, targetApp) !== startVersion) return;
+      bumpSnapshotVersion(scope, targetApp);
+      mergeInto(value);
+    } catch (reason) {
+      if (!mounted.current) return;
+      const failure = failureOf(reason, '保存设置失败');
+      setGateErrors((errors) => ({ ...errors, [key]: failure }));
+      if (failure.code === 'settings_conflict') void loadSnapshot(targetApp, false);
+    } finally {
+      if (mounted.current) setGateSaving((saving) => ({ ...saving, [key]: false }));
+    }
+  };
+
   const listError = listErrors[app] ?? null;
   const actionError = actionErrors[app] ?? null;
   const listCliIssue = listError && hasCliCode(listError) ? listError : null;
@@ -356,6 +393,28 @@ export function AccountSwitcher({ panel }: { panel: PluginPanel }) {
                 <button className={button + ' text-accent'} disabled={busy || uncertain} onClick={() => void act('switch', provider.id)}><Play size={14} />启用配置</button>}
               <button className={button} aria-label={`刷新 ${provider.name} 额度`} disabled={busy || refreshing.includes(`${app}:${provider.id}`)} onClick={() => void act('quota', provider.id)}><RefreshCw size={14} />额度</button>
             </div>
+            {panel.actions.config && <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border-default pt-3">
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+                <p className="text-sm">禁止非手动切换</p>
+                <p className="text-xs text-text-tertiary">开启后 Agent 列表、额度与自动切换都不再包含此配置；在上方面板中手动启用仍然允许。</p>
+              </div>
+              <div className="ml-auto flex items-center gap-3">
+                {provider.nonManualDisabled === true && <span className="rounded bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500">已对 Agent 隐藏</span>}
+                <button role="switch" aria-checked={provider.nonManualDisabled === true}
+                  aria-label={`${provider.name}：禁止非手动切换`}
+                  disabled={busy || gateSaving[`${app}:${provider.id}`] === true}
+                  onClick={() => void saveGate(provider.id, provider.nonManualDisabled !== true)}
+                  className={'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 '
+                    + (provider.nonManualDisabled === true ? 'bg-accent' : 'border border-border-default bg-bg-primary')}>
+                  <span aria-hidden="true" className={'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform '
+                    + (provider.nonManualDisabled === true ? 'translate-x-5' : 'translate-x-0.5')} />
+                </button>
+              </div>
+            </div>}
+            {gateErrors[`${app}:${provider.id}`] && <p role="alert" className="mt-2 text-sm text-amber-500">
+              保存设置失败：{gateErrors[`${app}:${provider.id}`]?.message}
+              {gateErrors[`${app}:${provider.id}`]?.code === 'settings_conflict' ? '（已重新读取列表，请核对后再试）' : '（可重试）'}
+            </p>}
             <QuotaError failure={quotaErrors[`${app}:${provider.id}`]} />
             <Quota quota={provider.quota} now={now} />
           </article>)}

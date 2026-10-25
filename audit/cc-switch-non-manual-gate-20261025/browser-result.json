@@ -1,0 +1,90 @@
+{
+  "passed": true,
+  "desktop": 1440,
+  "mobile": 390,
+  "singleGate": true,
+  "configRequests": 1,
+  "conflictShown": true,
+  "hiddenBadge": true,
+  "manualSwitchEnabled": true,
+  "realCliExecuted": false,
+  "backend": "stateful intercepted API fixture",
+  "actions": [
+    {
+      "action": "list",
+      "request": {
+        "arguments": {
+          "app": "codex"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "quota",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-a"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "quota",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-b"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "quota",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-c"
+        }
+      },
+      "fake": true
+    },
+    {
+      "action": "config",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-b",
+          "nonManualDisabled": true,
+          "expectedRevision": 1
+        },
+        "requestId": "55f7fe8f-5527-4bb0-9ae8-5ce26eee6fbb"
+      },
+      "fake": true
+    },
+    {
+      "action": "config",
+      "request": {
+        "arguments": {
+          "app": "codex",
+          "id": "p-c",
+          "nonManualDisabled": true,
+          "expectedRevision": 2
+        },
+        "requestId": "c337157e-7ec5-488a-8427-80fe681e034d"
+      },
+      "fake": true
+    },
+    {
+      "action": "list",
+      "request": {
+        "arguments": {
+          "app": "codex"
+        }
+      },
+      "fake": true
+    }
+  ],
+  "errors": [],
+  "port": 5173
+}

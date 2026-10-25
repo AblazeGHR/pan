@@ -33,9 +33,13 @@ def test_bridge_is_distinct_plugin_and_helper_is_hidden(manifest):
     assert 'cc-switch-bridge' in catalog.plugins
     assert 'cc-switch-bridge-helper' not in catalog.plugins
     plugin = catalog.get('cc-switch-bridge')
-    assert plugin.agent_capabilities == ('cc-switch-bridge.switch', 'cc-switch-bridge.quota')
+    assert plugin.agent_capabilities == ('cc-switch-bridge.list', 'cc-switch-bridge.switch',
+                                         'cc-switch-bridge.quota', 'cc-switch-bridge.auto_switch')
     assert plugin.panels[0]['renderer'] == 'account-switcher/v1'
-    assert len(plugin.panels[0]['actions']) == 4
+    actions = plugin.panels[0]['actions']
+    assert set(actions) == {'list', 'quota', 'switch', 'config', 'default_account'}
+    # The Panel is the manual path; automatic switching is never a Panel action.
+    assert 'auto_switch' not in actions
 
 
 def test_owned_data_paths_reject_escape_and_owner_symlink(tmp_path):
@@ -64,15 +68,16 @@ def test_invalid_panel_declarations_fail_before_execution(manifest):
 
 
 @pytest.mark.parametrize('mode,view', [('standalone', 'standalone'), ('pan_native', 'native'), ('gateway', 'gateway')])
-def test_real_stdio_bridge_exports_two_agent_tools_and_keeps_panel_internal(manifest, tmp_path, mode, view):
+def test_real_stdio_bridge_exports_four_agent_tools_and_keeps_panel_internal(manifest, tmp_path, mode, view):
     async def run():
         session = SimpleNamespace(id='ses_fixture', name='fixture', adapter_config={'plugin_bindings': [
             {'plugin_id': 'cc-switch-bridge', 'enabled': True, 'mode': mode}]})
         runtime = Runtime(lambda: manifest, lambda _: session, data_root=tmp_path)
         try:
             names = {d['name'] for d in await runtime.directory(session.id, view)}
-            assert names == {'cc-switch-bridge.switch', 'cc-switch-bridge.quota'}
-            missing = await runtime.invoke(session.id, view, 'cc-switch-bridge.list', {}, plugin_id='cc-switch-bridge')
+            assert names == {'cc-switch-bridge.list', 'cc-switch-bridge.switch',
+                             'cc-switch-bridge.quota', 'cc-switch-bridge.auto_switch'}
+            missing = await runtime.invoke(session.id, view, 'cc-switch-bridge.panel_list', {}, plugin_id='cc-switch-bridge')
             assert missing['isError']
             name = 'pan_cc_switch_bridge_quota' if view == 'native' else 'cc-switch-bridge.quota'
             listed = await runtime.invoke(session.id, view, name, {'app': 'codex'}, plugin_id='cc-switch-bridge')
@@ -303,7 +308,7 @@ def test_native_agent_visibility_change_requests_restart(manifest, tmp_path):
             {'plugin_id': 'cc-switch-bridge', 'enabled': True, 'mode': 'pan_native'}]})
         runtime = Runtime(lambda: manifest, lambda _: session, notify, data_root=tmp_path)
         try:
-            assert len(await runtime.directory(session.id, 'native')) == 2
+            assert len(await runtime.directory(session.id, 'native')) == 4
             plugin = next(p for p in manifest.plugins if p['id'] == 'cc-switch-bridge')
             plugin['agent_capabilities'] = ['cc-switch-bridge.quota']
             assert len(await runtime.directory(session.id, 'native')) == 1
