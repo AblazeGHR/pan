@@ -46,6 +46,8 @@ class InteractionStore:
                 db.execute('ALTER TABLE cards ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0')
             if 'bindings' not in columns:
                 db.execute("ALTER TABLE cards ADD COLUMN bindings TEXT NOT NULL DEFAULT '{}'")
+            # No-answer Cards are terminal: backfill read once, never re-scan per query.
+            db.execute('UPDATE cards SET is_read=1 WHERE no_answer_at IS NOT NULL AND is_read=0')
             db.execute('CREATE TABLE IF NOT EXISTS user_lockers(owner TEXT NOT NULL,recipient TEXT NOT NULL,PRIMARY KEY(owner,recipient))')
             locker_columns={r[1] for r in db.execute('PRAGMA table_info(user_lockers)')}
             if 'source_name' not in locker_columns:
@@ -310,7 +312,8 @@ class InteractionStore:
             if row['revision'] != expected_revision:
                 raise InteractionError('conflict', 'Stale Card revision')
             # The immediate transaction serializes this CAS with submit/reject.
-            changed = db.execute('''UPDATE cards SET no_answer_at=?,revision=revision+1
+            # Closing the card also reads it: no answer is ever expected of the user.
+            changed = db.execute('''UPDATE cards SET no_answer_at=?,is_read=1,revision=revision+1
                 WHERE id=? AND producer=? AND revision=? AND response IS NULL AND no_answer_at IS NULL''',
                 (now(), card_id, producer, expected_revision)).rowcount
             if changed != 1:
