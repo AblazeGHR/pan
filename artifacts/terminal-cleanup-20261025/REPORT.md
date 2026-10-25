@@ -117,9 +117,10 @@ packages.core.terminal.launcher`）：
 - **mac/linux**：`HeadlessEmulator` 在平台门前即拒绝（`unsupported-platform`，终端
   设计上仅 Windows 生产宿主），本次变更不改变该行为；service 的快速失败逻辑是平台
   中立的，非 Windows 上会更快得到明确原因而不是 30s + cleanup-failed。
-- 首次删除该失败记录时观察到一次 `POST /remove` 500（与 5s 列表轮询并发；重试
-  200）。未在本次范围内定位/修改 registry 的 Windows `unlink` 共享冲突；记录在
-  重试后可删除是已验证事实。
+- 首次删除该失败记录时观察到一次 `POST /remove` 500（当时 5s 列表轮询刚并发读过同一
+  记录；重试 200）。未捕获到确切异常，**未定位**根因（怀疑与 Windows 并发读下的
+  `unlink` 共享冲突有关，但未验证），也未在本次修改 registry。记录重试后可删除是
+  已验证事实。
 - 未验证真实 8768 现场、未重启现场服务、未做跨机/跨用户/durable detach；未跑
   远端 CI。
 - 未覆盖 runner 已 bootstrap 后、attach/四门阶段的启动失败（本次现场故障不在这条
