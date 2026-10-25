@@ -123,6 +123,7 @@ STATUS_FORBIDDEN = 403
 STATUS_BAD_REQUEST = 400
 STATUS_NOT_FOUND = 404
 STATUS_UNAVAILABLE = 503
+STATUS_UNSUPPORTED_PLATFORM = 501
 STATUS_CAPACITY = 429
 
 #: 终态（可发 terminal-state 并正常关连接；**不**假 output_complete）。
@@ -137,6 +138,7 @@ _HANDSHAKE_STATUS: dict[str, int] = {
     "invalid-cursor": STATUS_BAD_REQUEST,
     "unknown-terminal": STATUS_NOT_FOUND,
     "terminal-disabled": STATUS_UNAVAILABLE,
+    "unsupported_platform": STATUS_UNSUPPORTED_PLATFORM,
     "not-ready": STATUS_UNAVAILABLE,
     "terminal-unavailable": STATUS_UNAVAILABLE,
     "closing": STATUS_UNAVAILABLE,

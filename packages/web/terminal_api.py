@@ -41,6 +41,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from packages.core import platform as platform_layer
 from packages.core.terminal.contracts import UnknownTerminalError
 from packages.core.terminal.service import (
     CapacityExceeded,
@@ -548,6 +549,10 @@ class TerminalRuntime:
 
     def _check_ready(self) -> None:
         if self.state == STATE_DISABLED:
+            # 平台不支持是稳定契约（501），与“绑定形态/配置禁用”（503）区分：
+            # 客户端按 capability 隐藏入口，服务端也必须给出可判定的 unsupported。
+            if self.disabled_reason == "platform-not-windows":
+                raise GateRejected(501, "unsupported_platform")
             raise GateRejected(503, "terminal-disabled")
         if self.state in (STATE_CLOSING, STATE_STOPPED):
             raise GateRejected(503, "closing")
@@ -1362,7 +1367,8 @@ def build_runtime(
     resolved_platform = sys.platform if platform is None else str(platform)
     allow_remote = str(env.get("PAN_TERMINAL_ALLOW_REMOTE") or "").strip() == "1"
 
-    is_windows = resolved_platform.lower().startswith("win")
+    # 平台判定统一走平台层（不在这里复制 sys.platform 规则）。
+    is_windows = platform_layer.is_windows(resolved_platform)
     loopback = is_loopback_host(resolved_host)
     enabled = is_windows and (loopback or allow_remote)
     if not is_windows:

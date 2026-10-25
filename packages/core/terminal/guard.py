@@ -39,7 +39,6 @@ import struct
 import sys
 import threading
 import time
-from ctypes import wintypes
 from typing import Any, Iterable
 
 from .identity import (
@@ -47,6 +46,27 @@ from .identity import (
     close_handle_checked,
     kernel32,
 )
+
+_WINDOWS = sys.platform == "win32"
+
+if _WINDOWS:  # pragma: no cover - Windows 导入路径
+    from ctypes import wintypes
+else:  # pragma: no cover - POSIX 导入路径：不得加载任何 win32 模块
+    class _UnavailableWintypes:
+        """非 Windows 的 fail-closed 占位：任何属性访问都抛 ``WindowsApiUnavailable``。
+
+        结构体定义只在 Windows 分支执行（见下方 ``if _WINDOWS:``），所以 POSIX 导入期
+        不会读取本对象；运行期误用得到的是明确的平台异常，而不是 ``AttributeError``。
+        """
+
+        def __getattr__(self, name: str) -> Any:
+            raise WindowsApiUnavailable(
+                f"ctypes.wintypes.{name} 不可用（sys.platform={sys.platform!r}）："
+                "Job Object guard 仅支持 Windows"
+            )
+
+    wintypes = _UnavailableWintypes()  # type: ignore[assignment]
+
 
 __all__ = ["GuardQueryError", "JobObjectGuard", "MAX_TERMINATE_TREE_TIMEOUT"]
 
@@ -72,66 +92,69 @@ class GuardQueryError(RuntimeError):
 
 
 # --------------------------------------------------------------------------- structs
-class _LARGE_INTEGER_UNION(ctypes.Union):
-    _fields_ = [
-        ("LowPart", wintypes.DWORD),
-        ("HighPart", wintypes.LONG),
-        ("QuadPart", ctypes.c_longlong),
-    ]
+# Windows ABI 结构体只在 Windows 上定义：非 Windows 导入本模块必须零副作用
+# （P0：顶层 ``from ctypes import wintypes`` 会让 macOS/Linux 在导入期崩溃）。
+if _WINDOWS:
+    class _LARGE_INTEGER_UNION(ctypes.Union):
+        _fields_ = [
+            ("LowPart", wintypes.DWORD),
+            ("HighPart", wintypes.LONG),
+            ("QuadPart", ctypes.c_longlong),
+        ]
 
 
-class _LARGE_INTEGER(ctypes.Structure):
-    _anonymous_ = ("u",)
-    _fields_ = [("u", _LARGE_INTEGER_UNION)]
+    class _LARGE_INTEGER(ctypes.Structure):
+        _anonymous_ = ("u",)
+        _fields_ = [("u", _LARGE_INTEGER_UNION)]
 
 
-class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("PerProcessUserTimeLimit", _LARGE_INTEGER),
-        ("PerJobUserTimeLimit", _LARGE_INTEGER),
-        ("LimitFlags", wintypes.DWORD),
-        ("MinimumWorkingSetSize", ctypes.c_size_t),
-        ("MaximumWorkingSetSize", ctypes.c_size_t),
-        ("ActiveProcessLimit", wintypes.DWORD),
-        ("Affinity", ctypes.c_void_p),
-        ("PriorityClass", wintypes.DWORD),
-        ("SchedulingClass", wintypes.DWORD),
-    ]
+    class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", _LARGE_INTEGER),
+            ("PerJobUserTimeLimit", _LARGE_INTEGER),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_void_p),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
 
 
-class _IO_COUNTERS(ctypes.Structure):
-    _fields_ = [
-        ("ReadOperationCount", ctypes.c_ulonglong),
-        ("WriteOperationCount", ctypes.c_ulonglong),
-        ("OtherOperationCount", ctypes.c_ulonglong),
-        ("ReadTransferCount", ctypes.c_ulonglong),
-        ("WriteTransferCount", ctypes.c_ulonglong),
-        ("OtherTransferCount", ctypes.c_ulonglong),
-    ]
+    class _IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
 
 
-class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
-        ("IoInfo", _IO_COUNTERS),
-        ("ProcessMemoryLimit", ctypes.c_size_t),
-        ("JobMemoryLimit", ctypes.c_size_t),
-        ("PeakProcessMemoryUsed", ctypes.c_size_t),
-        ("PeakJobMemoryUsed", ctypes.c_size_t),
-    ]
+    class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", _IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
 
 
-class _JOBOBJECT_BASIC_ACCOUNTING_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("TotalUserTime", _LARGE_INTEGER),
-        ("TotalKernelTime", _LARGE_INTEGER),
-        ("ThisPeriodTotalUserTime", _LARGE_INTEGER),
-        ("ThisPeriodTotalKernelTime", _LARGE_INTEGER),
-        ("TotalPageFaultCount", wintypes.DWORD),
-        ("TotalProcesses", wintypes.DWORD),
-        ("ActiveProcesses", wintypes.DWORD),
-        ("TotalTerminatedProcesses", wintypes.DWORD),
-    ]
+    class _JOBOBJECT_BASIC_ACCOUNTING_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("TotalUserTime", _LARGE_INTEGER),
+            ("TotalKernelTime", _LARGE_INTEGER),
+            ("ThisPeriodTotalUserTime", _LARGE_INTEGER),
+            ("ThisPeriodTotalKernelTime", _LARGE_INTEGER),
+            ("TotalPageFaultCount", wintypes.DWORD),
+            ("TotalProcesses", wintypes.DWORD),
+            ("ActiveProcesses", wintypes.DWORD),
+            ("TotalTerminatedProcesses", wintypes.DWORD),
+        ]
 
 
 _bound = False

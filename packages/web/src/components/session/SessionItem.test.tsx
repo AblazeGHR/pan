@@ -494,3 +494,48 @@ describe('SessionItem model multiplier suffix', () => {
     expect(screen.getByText('step-5-preview')).toBeTruthy();
   });
 });
+
+describe('SessionItem workdir display', () => {
+  afterEach(() => cleanup());
+
+  const workdir = 'D:/project/pan-worktrees/session-card-workdir-20261025';
+
+  it('does not render the workdir on the card', () => {
+    const { container } = render(
+      <SessionItem
+        session={session('preview', 'idle', { workdir })}
+        isActive={false}
+      />,
+    );
+
+    // Neither the full path nor any shortened segment may appear in the card.
+    expect(container.textContent).not.toContain(workdir);
+    expect(container.textContent).not.toContain('session-card-workdir-20261025');
+    // The old folder span also exposed the full path as a title tooltip.
+    const titles = Array.from(container.querySelectorAll('[title]'))
+      .map((el) => el.getAttribute('title') ?? '');
+    expect(titles.some((title) => title.includes(workdir))).toBe(false);
+  });
+
+  it('keeps title, preview, message count, model, and credit without the workdir', () => {
+    useAdapterStore.setState({ currentAdapter: 'codex', adapterConfigs: {} });
+    render(
+      <SessionItem
+        session={session('## Answer\n\n**body**', 'idle', {
+          workdir,
+          model: 'step-5-preview',
+          totalUsage: { credit: 1.5 },
+        })}
+        isActive={false}
+      />,
+    );
+
+    expect(screen.getByText('Codex')).toBeTruthy();
+    expect(screen.getByText('Answer body')).toBeTruthy();
+    expect(screen.getByText('1')).toBeTruthy(); // historyTotal
+    expect(screen.getByText('step-5-preview')).toBeTruthy();
+    expect(screen.getByText('1.50 cr')).toBeTruthy();
+    // Sanity: the workdir is gone while every other field above still renders.
+    expect(screen.queryByText(/workdir-20261025/)).toBeNull();
+  });
+});
