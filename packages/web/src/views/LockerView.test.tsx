@@ -33,7 +33,13 @@ vi.mock('@/stores/workspaceStore', () => {
   );
   return { useWorkspaceStore };
 });
-const uiState = { activeWorkspaceId: 'all', setMobileSidebarOpen: vi.fn() };
+const uiState = {
+  activeWorkspaceId: 'all',
+  setMobileSidebarOpen: vi.fn(),
+  setActiveWorkspace: vi.fn((id: string) => {
+    uiState.activeWorkspaceId = id;
+  }),
+};
 vi.mock('@/stores/uiStore', () => {
   const useUIStore = Object.assign(
     (select: (value: typeof uiState) => unknown) => select(uiState),
@@ -99,6 +105,7 @@ beforeEach(() => {
   vi.mocked(resolveRelatedMessageTarget).mockReset();
   useAutomationAuth.setState({ token: 'unit-only', expiresAt: Date.now() + 60000 });
   uiState.activeWorkspaceId = 'all';
+  uiState.setActiveWorkspace.mockClear();
   userCards = [];
   cards = [card(), card('b', 'l2')];
   messages = [];
@@ -175,9 +182,9 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-function mount() {
+function mount(entry = '/locker') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <LockerView />
     </MemoryRouter>,
   );
@@ -771,4 +778,43 @@ it('handles arbitrary stable question and choice IDs without inherited object fi
   const answers = calls.find((c) => c.path.endsWith('/submit'))!.body.answers as Record<string, unknown>;
   expect(Object.hasOwn(answers, '__proto__')).toBe(true);
   expect(answers.__proto__).toEqual({ rejected: true });
+});
+
+describe('Session deep link and card ids', () => {
+  it('opens the Locker of ?session=<sessionId> instead of the aggregate view', async () => {
+    mount('/locker?session=ses_two');
+    await screen.findByRole('heading', { name: 'Card b' });
+    // The aggregate projection still mounts every row, but only the linked
+    // Locker's row is visible.
+    await waitFor(() =>
+      expect(document.querySelector('article[data-card-id="a"]')?.hasAttribute('hidden')).toBe(
+        true,
+      ),
+    );
+    expect(document.querySelector('article[data-card-id="b"]')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(screen.getByTestId('locker-source-l2').getAttribute('aria-current')).toBe('true');
+  });
+
+  it('widens the Workspace scope when the linked Locker is outside it', async () => {
+    uiState.activeWorkspaceId = 'w';
+    mount('/locker?session=ses_two');
+    await screen.findByRole('heading', { name: 'Card b' });
+    expect(uiState.setActiveWorkspace).toHaveBeenCalledWith('all');
+  });
+
+  it('shows a readable copyable id on interactive and reminding cards', async () => {
+    userCards = [reverseCard()];
+    mount();
+    const interactive = await screen.findByRole('heading', { name: 'Card a' });
+    const interactionChip = within(interactive.closest('article')!).getByTestId('locker-card-id');
+    expect(interactionChip.getAttribute('data-card-id-value')).toBe('a');
+    expect(interactionChip.getAttribute('title')).toContain('a');
+    // An answered reminding card is projected twice (created + answered); both
+    // rows carry the same record id.
+    const reminding = screen.getAllByTestId('reminding-card-id')[0]!;
+    expect(reminding.getAttribute('data-card-id-value')).toBe('uc');
+    expect(reminding.getAttribute('aria-label')).toContain('uc');
+  });
 });

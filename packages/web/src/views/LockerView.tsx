@@ -3,6 +3,7 @@ import { CardQuestions, questionErrors } from './CardQuestions';
 import { UserCardRow, type UserCardRowState } from './UserCardRow';
 import { RelatedContextButton } from './RelatedContextButton';
 import { LockerMessageRow } from './LockerMessageRow';
+import { CardIdChip } from './CardIdChip';
 import { SessionDragGutter } from '@/components/session/SessionDragGutter';
 import { createPortal } from 'react-dom';
 import { SidebarPanelContext } from '@/components/layout/SidebarPanelContext';
@@ -15,7 +16,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
   PanelLeft,
@@ -433,6 +434,7 @@ function Card({
           {error}
         </p>
       )}
+      <CardIdChip id={card.id} testId="locker-card-id" kind="interaction" />
     </article>
   );
 }
@@ -581,6 +583,22 @@ export default function LockerView() {
         order.indexOf(a.id) - order.indexOf(b.id) || a.sourceName.localeCompare(b.sourceName),
     );
   }, [lockers, cards, activeWorkspaceId, order]);
+  // Deep link from a Session row: /locker?session=<sessionId> opens that
+  // Session's Locker. Applied once the authenticated data is actually loaded
+  // (the query is consumed afterwards so a second click for the same Session
+  // still jumps back). If the Locker exists but the current workspace scope
+  // hides it, widen the scope instead of silently falling back to aggregate.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSession = searchParams.get('session') ?? '';
+  useEffect(() => {
+    if (!requestedSession || !dataVisible) return;
+    const target = lockers.find((locker) => locker.sessionId === requestedSession);
+    if (!target) return;
+    if (!scopeLockers.some((locker) => locker.id === target.id))
+      useUIStore.getState().setActiveWorkspace(ALL_WORKSPACES);
+    setSelected(target.id);
+    setSearchParams({}, { replace: true });
+  }, [requestedSession, dataVisible, lockers, scopeLockers, setSearchParams]);
   useEffect(() => {
     if (selected !== 'aggregate' && !scopeLockers.some((locker) => locker.id === selected))
       setSelected('aggregate');

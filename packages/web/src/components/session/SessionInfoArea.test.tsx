@@ -27,6 +27,7 @@ interface AreaProps {
   queuePendingCount?: number;
   unreadDoneCount?: number;
   adapter?: string;
+  lockerUnreadCount?: number;
 }
 
 function renderArea(props: AreaProps = {}) {
@@ -35,11 +36,14 @@ function renderArea(props: AreaProps = {}) {
     queuePendingCount = 0,
     unreadDoneCount = 0,
     adapter = 'cbc',
+    lockerUnreadCount = 0,
   } = props;
   return render(
     <div className="session-quick-action-rail">
       <SessionInfoArea
         sessionId="session-1"
+        sessionName="Session One"
+        lockerUnreadCount={lockerUnreadCount}
         indicator={indicator}
         queuePendingCount={queuePendingCount}
         queueAllLocked={false}
@@ -130,6 +134,8 @@ describe('SessionInfoArea Job badge width-driven visibility', () => {
       <div className="session-quick-action-rail">
         <SessionInfoArea
           sessionId="session-1"
+          sessionName="Session One"
+          lockerUnreadCount={0}
           indicator="running"
           queuePendingCount={0}
           queueAllLocked={false}

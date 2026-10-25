@@ -85,18 +85,29 @@ class InteractionStore:
         finally:
             db.close()
 
+    def unread_by_owner(self, recipient='user'):
+        """Unread counts per source Session for the local navigation indicator.
+
+        Counts only, never content: no titles, card ids, owner names, or Locker
+        names leave this method. Only sources that actually carry unread items
+        are present, so a Session without unread is absent rather than zero.
+        """
+        with self.db() as db:
+            rows = db.execute('''
+                SELECT owner, COUNT(*) AS unread FROM (
+                  SELECT owner FROM cards WHERE recipient=? AND is_read=0
+                  UNION ALL
+                  SELECT owner FROM locker_messages WHERE recipient=? AND is_read=0
+                  UNION ALL
+                  SELECT owner FROM user_cards
+                    WHERE recipient=? AND answered_at IS NOT NULL AND is_read=0
+                ) GROUP BY owner
+            ''', (recipient, recipient, recipient)).fetchall()
+        return {row['owner']: int(row['unread']) for row in rows if int(row['unread']) > 0}
+
     def unread_summary(self, recipient='user'):
         """Cheap aggregate for the local read-only navigation indicator."""
-        with self.db() as db:
-            row = db.execute('''
-                SELECT
-                  (SELECT COUNT(*) FROM cards WHERE recipient=? AND is_read=0)
-                + (SELECT COUNT(*) FROM locker_messages WHERE recipient=? AND is_read=0)
-                + (SELECT COUNT(*) FROM user_cards
-                     WHERE recipient=? AND answered_at IS NOT NULL AND is_read=0)
-                AS unread
-            ''', (recipient, recipient, recipient)).fetchone()
-        return int(row['unread'])
+        return sum(self.unread_by_owner(recipient).values())
 
     def _view(self, row, db):
         definition=json.loads(row['definition'])

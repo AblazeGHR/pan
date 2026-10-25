@@ -1,11 +1,16 @@
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
+import { LockerJumpButton } from './LockerJumpButton';
 import { jobBadgeFits, measureInfoArea, JOB_METRIC_ATTR } from './sessionInfoAreaFit';
 
 export type SessionJobIndicator = 'running' | 'scheduled';
 
 interface SessionInfoAreaProps {
   sessionId: string;
+  /** 本 Session 的名称：跳转按钮的 aria-label 需要它。 */
+  sessionName: string;
+  /** 本 Session 的 Locker 未读计数；0 时按钮完全不渲染（不占位）。 */
+  lockerUnreadCount: number;
   /** target 为本 Session 的 Job 聚合值；null 表示无 J 标识。 */
   indicator: SessionJobIndicator | null;
   /** 队列数徽标：按 queue_pending 公开投影的待处理数。 */
@@ -37,6 +42,8 @@ interface SessionInfoAreaProps {
  */
 export const SessionInfoArea = memo(function SessionInfoArea({
   sessionId,
+  sessionName,
+  lockerUnreadCount,
   indicator,
   queuePendingCount,
   queueAllLocked,
@@ -69,7 +76,7 @@ export const SessionInfoArea = memo(function SessionInfoArea({
       }).catch(() => {});
     }
     return () => { cancelled = true; };
-  }, [indicator, queuePendingCount, unreadDoneCount, adapter]);
+  }, [indicator, queuePendingCount, unreadDoneCount, lockerUnreadCount, adapter]);
 
   return (
     <span className="session-quick-action-adapter-row" ref={rowRef}>
@@ -152,6 +159,15 @@ export const SessionInfoArea = memo(function SessionInfoArea({
         >
           {unreadDoneCount > 99 ? '99+' : unreadDoneCount}
         </span>
+      )}
+      {lockerUnreadCount > 0 && (
+        // 黄色跳转按钮：紧贴 adapter 标签左侧；无未读时调用方整枚卸载，
+        // 不占位。固定尺寸的 rail 内元素，不影响标题/模型行的宽度。
+        <LockerJumpButton
+          sessionId={sessionId}
+          sessionName={sessionName}
+          count={lockerUnreadCount}
+        />
       )}
       {adapter && (
         <span
