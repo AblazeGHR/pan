@@ -14,9 +14,11 @@ import type { AccountQuota, AccountSnapshot, PluginPanel } from '@/types/pluginP
 vi.mock('@/services/api', () => ({ invokePluginPanel: vi.fn(), fetchPluginPanels: vi.fn() }));
 const panel: PluginPanel = { id: 'accounts', pluginId: 'cc-switch-bridge', title: 'CC Switch',
   renderer: 'account-switcher/v1', path: '/plugins/cc-switch-bridge/accounts', actions: {
-    list: { capability: 'cc-switch-bridge.list', effect: 'read' },
-    quota: { capability: 'cc-switch-bridge.quota', effect: 'read' },
-    switch: { capability: 'cc-switch-bridge.switch', effect: 'write_external' },
+    list: { capability: 'cc-switch-bridge.panel_list', effect: 'read' },
+    quota: { capability: 'cc-switch-bridge.panel_quota', effect: 'read' },
+    switch: { capability: 'cc-switch-bridge.panel_switch', effect: 'write_external' },
+    config: { capability: 'cc-switch-bridge.panel_config', effect: 'write_external' },
+    auto_switch: { capability: 'cc-switch-bridge.auto_switch', effect: 'write_external' },
     default_account: { capability: 'cc-switch-bridge.default_account', effect: 'write_external' },
   } };
 
@@ -30,9 +32,9 @@ const quotaAt = (queriedAt: number | null, usedPercent = 50, resetIn = 90 * 60_0
 
 function snapshot(app: string, providers: string[], quotas: Record<string, AccountQuota | null>,
   current: string | null = providers[0] ?? null): AccountSnapshot {
-  return { app, currentProviderId: current, observedAt: NOW,
+  return { app, currentProviderId: current, observedAt: NOW, revision: 1, updatedAt: NOW,
     providers: providers.map((id) => ({ id, name: NAMES[id] ?? id, origin: 'https://api.example.test',
-      isCurrent: id === current, quota: quotas[id] ?? null })),
+      isCurrent: id === current, quota: quotas[id] ?? null, nonManualDisabled: false })),
     accounts: app === 'codex'
       ? [{ id: 'acc-a', login: 'alice@example.test', isDefault: true },
         { id: 'acc-b', login: 'bob@example.test', isDefault: false }]
@@ -66,7 +68,12 @@ beforeEach(() => {
       return { id, app: targetApp, quota: value };
     }
     if (!target) throw new Error('missing app state');
-    if (action === 'switch') {
+    if (action === 'config') {
+      const id = String(args.id);
+      states[targetApp] = { ...target, revision: (target.revision ?? 0) + 1, updatedAt: Date.now(),
+        providers: target.providers.map((provider) => provider.id === id
+          ? { ...provider, nonManualDisabled: Boolean(args.nonManualDisabled) } : provider) };
+    } else if (action === 'switch') {
       const id = String(args.id);
       states[targetApp] = { ...target, currentProviderId: id,
         providers: target.providers.map((provider) => ({ ...provider, isCurrent: provider.id === id })) };
@@ -185,6 +192,57 @@ describe('plugin account panel', () => {
     act(() => usePluginPanelStore.setState({ panels: [] }));
     expect(screen.getByRole('link', { name: 'Chat' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '上一组界面入口' }).hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('non-manual gate', () => {
+  const gate = (name: string) => screen.getByRole('switch', { name: `${name}：禁止非手动切换` });
+
+  it('shows one gate per profile and marks a gated row as hidden from agents', async () => {
+    states.codex.providers = states.codex.providers.map((provider) => provider.id === 'p-b'
+      ? { ...provider, nonManualDisabled: true } : provider);
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    expect(gate('Secondary').getAttribute('aria-checked')).toBe('true');
+    expect(gate('Main').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByText('已对 Agent 隐藏')).toBeTruthy();
+    // Manual switching is the explicit user path: the gated row stays enabled.
+    expect(screen.getByRole('button', { name: '启用配置' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('saves the gate with the observed revision, both flags absent, and a request id', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    fireEvent.click(gate('Main'));
+    await flushAll();
+    expect(invokePluginPanel).toHaveBeenLastCalledWith('cc-switch-bridge', 'accounts', 'config',
+      { app: 'codex', id: 'p-a', nonManualDisabled: true, expectedRevision: 1 }, expect.any(String));
+    expect(gate('Main').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('reports a revision conflict, reloads, and never pretends the save worked', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(Object.assign(
+      new Error('设置已被其他窗口修改；请刷新后再操作'), { code: 'settings_conflict' }));
+    fireEvent.click(gate('Main'));
+    await flushAll();
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('设置已被其他窗口修改');
+    expect(alert.textContent).toContain('已重新读取列表');
+    expect(gate('Main').getAttribute('aria-checked')).toBe('false');
+    expect(callsOf('list')).toHaveLength(2);
+  });
+
+  it('keeps an ordinary save failure explicit and retryable', async () => {
+    render(<AccountSwitcher panel={panel} />);
+    await screen.findByText('Secondary');
+    vi.mocked(invokePluginPanel).mockRejectedValueOnce(new Error('无法写入插件设置'));
+    fireEvent.click(gate('Main'));
+    await flushAll();
+    expect(screen.getByRole('alert').textContent).toContain('保存设置失败：无法写入插件设置（可重试）');
+    expect(gate('Main').getAttribute('aria-checked')).toBe('false');
+    expect(callsOf('list')).toHaveLength(1);
   });
 });
 

@@ -9,8 +9,8 @@
     {
       "id": "cc-switch-bridge.list",
       "export_key": "list",
-      "description": "List cc-switch providers and managed ChatGPT accounts; does not query remote quota.",
-      "contract_version": "1.0.0",
+      "description": "List cc-switch providers and managed ChatGPT accounts; does not query remote quota. Profiles whose non-manual switching is disabled are omitted entirely, and no field of theirs is returned.",
+      "contract_version": "1.1.0",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -36,8 +36,8 @@
     {
       "id": "cc-switch-bridge.quota",
       "export_key": "quota",
-      "description": "Explicitly query quota through the installed cc-switch CLI. Omit id to list available IDs, current selection and cached quota without remote queries.",
-      "contract_version": "1.0.0",
+      "description": "Explicitly query quota through the installed cc-switch CLI. Omit id to list available IDs, current selection and cached quota without remote queries. Profiles whose non-manual switching is disabled are omitted, and a by-id read of one is refused exactly like a missing profile.",
+      "contract_version": "1.1.0",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -68,8 +68,8 @@
     {
       "id": "cc-switch-bridge.switch",
       "export_key": "switch",
-      "description": "Change the global cc-switch provider for an app; never replay an uncertain outcome.",
-      "contract_version": "1.0.0",
+      "description": "Non-manual provider switch for agents and automation; never replayed after an uncertain outcome and never falls back to another provider. A profile whose non-manual switching is disabled is refused. User-initiated switching belongs to the Panel-only panel_switch capability.",
+      "contract_version": "1.1.0",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -114,9 +114,49 @@
       }
     },
     {
+      "id": "cc-switch-bridge.auto_switch",
+      "export_key": "auto_switch",
+      "description": "Automatic-rotation switch API; the only provider switch a future automatic account-rotation mechanism may call. Same non-manual gate as cc-switch-bridge.switch: a disabled profile is refused, there is no fallback to another profile, and an uncertain result is never replayed.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedCurrentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "app",
+          "id",
+          "expectedCurrentId"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "auto_switch",
+        "result_format": "mcp"
+      }
+    },
+    {
       "id": "cc-switch-bridge.default_account",
       "export_key": "default_account",
-      "description": "Set the managed ChatGPT default account; does not override provider-specific account bindings.",
+      "description": "Set the managed ChatGPT default account; does not override provider-specific account bindings. Panel-only.",
       "contract_version": "1.0.0",
       "input_schema": {
         "type": "object",
@@ -150,6 +190,148 @@
       },
       "execution": {
         "operation": "default_account",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.panel_list",
+      "export_key": "panel_list",
+      "description": "Panel-only listing: every profile including non-manually disabled ones, each carrying the nonManualDisabled gate, plus the settings revision of the app. Not exported to agents.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "panel_list",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.panel_quota",
+      "export_key": "panel_quota",
+      "description": "Panel-only quota read for any profile, including a non-manually disabled one. Not exported to agents.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "app",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "panel_quota",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.panel_switch",
+      "export_key": "panel_switch",
+      "description": "Panel-only manual provider switch. The explicit user choice may target any profile, including one whose non-manual switching is disabled. Not exported to agents.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expectedCurrentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "app",
+          "id",
+          "expectedCurrentId"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "panel_switch",
+        "result_format": "mcp"
+      }
+    },
+    {
+      "id": "cc-switch-bridge.panel_config",
+      "export_key": "panel_config",
+      "description": "Panel-only settings write: set the single nonManualDisabled gate of one profile. Requires the app revision observed by the Panel; a stale revision is rejected instead of overwriting another window.",
+      "contract_version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude",
+              "gemini"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "nonManualDisabled": {
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "app",
+          "id",
+          "nonManualDisabled",
+          "expectedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "execution": {
+        "operation": "panel_config",
         "result_format": "mcp"
       }
     }

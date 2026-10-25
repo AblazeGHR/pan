@@ -20,7 +20,7 @@ def test_static_examples_and_default_catalog_without_subprocess(monkeypatch):
     default = validator.inspect(['manifest.json', 'packages/mcp/manifest.json'])
     bridge = next(p for p in default['plugins'] if p['id'] == 'cc-switch-bridge')
     assert bridge['panels'] == ['accounts']
-    assert len(bridge['agentCapabilities']) == 2
+    assert len(bridge['agentCapabilities']) == 4
     launch.assert_not_called()
 
 

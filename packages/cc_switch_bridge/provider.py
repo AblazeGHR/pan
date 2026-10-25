@@ -12,24 +12,114 @@ from urllib.parse import urlsplit
 from contextlib import contextmanager
 
 APPS = {'codex', 'claude', 'gemini'}
+SETTINGS_FILE = 'provider-flags.json'
 
 
-class CliError(ValueError):
-    """A bridge failure with a stable code the Panel can act on.
-
-    The Panel only offers installation guidance for the CLI-availability codes
-    below; ordinary execution or quota failures must not be mistaken for a
-    missing CLI.
-    """
+class BridgeError(ValueError):
+    """A bridge failure with a stable code the Panel can act on."""
 
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
 
 
+class CliError(BridgeError):
+    """A CLI failure with a stable code the Panel can act on.
+
+    The Panel only offers installation guidance for the CLI-availability codes
+    below; ordinary execution or quota failures must not be mistaken for a
+    missing CLI.
+    """
+
+
+class ProviderSettings:
+    """Per-app, per-provider gates owned by the bridge plugin only.
+
+    Nothing here is written to the cc-switch CLI database or understood by the
+    CLI; the file lives in the plugin data directory so the gate survives Pan
+    restarts without changing the installed cc-switch.
+    """
+
+    def __init__(self, data_dir):
+        self.path = Path(data_dir) / SETTINGS_FILE
+
+    def read(self):
+        if not self.path.exists():
+            return {'version': 1, 'apps': {}}
+        try:
+            value = json.loads(self.path.read_text(encoding='utf-8'))
+        except (ValueError, OSError) as exc:
+            raise BridgeError('settings_invalid', '插件设置文件无法读取；请检查 provider-flags.json') from exc
+        if not isinstance(value, dict) or not isinstance(value.get('apps', {}), dict):
+            raise BridgeError('settings_invalid', '插件设置文件格式无效；请检查 provider-flags.json')
+        return {'version': 1, 'apps': value.get('apps') or {}}
+
+    def app(self, app):
+        state = self.read()['apps'].get(app) or {}
+        if not isinstance(state, dict):
+            raise BridgeError('settings_invalid', '插件设置文件格式无效；请检查 provider-flags.json')
+        revision = state.get('revision', 0)
+        updated = state.get('updatedAt', 0)
+        providers = state.get('providers') or {}
+        if (not isinstance(revision, int) or isinstance(revision, bool) or revision < 0
+                or not isinstance(updated, int) or isinstance(updated, bool)
+                or not isinstance(providers, dict)):
+            raise BridgeError('settings_invalid', '插件设置文件格式无效；请检查 provider-flags.json')
+        clean = {}
+        for provider_id, entry in providers.items():
+            if not isinstance(provider_id, str) or not provider_id or len(provider_id) > 256:
+                raise BridgeError('settings_invalid', '插件设置文件格式无效；请检查 provider-flags.json')
+            disabled = (entry or {}).get('nonManualDisabled', False) if isinstance(entry, dict) else None
+            if not isinstance(disabled, bool):
+                raise BridgeError('settings_invalid', '插件设置文件格式无效；请检查 provider-flags.json')
+            clean[provider_id] = {'nonManualDisabled': disabled}
+        return {'revision': revision, 'updatedAt': updated, 'providers': clean}
+
+    def gates(self, app):
+        """Map provider id to its single non-manual gate."""
+        return {provider_id: entry['nonManualDisabled']
+                for provider_id, entry in self.app(app)['providers'].items()}
+
+    def gated(self, app, provider_id):
+        return self.gates(app).get(provider_id, False)
+
+    def update(self, app, provider_id, disabled, expected_revision):
+        """Replace one gate and return the new per-app revision.
+
+        Callers hold the bridge lock, so two helpers cannot interleave the
+        read-modify-write even though each one is a separate process.
+        """
+        if not isinstance(expected_revision, int) or isinstance(expected_revision, bool) or expected_revision < 0:
+            raise ValueError('无效的设置版本号')
+        state = self.read()
+        current = self.app(app)
+        if current['revision'] != expected_revision:
+            raise BridgeError('settings_conflict', '设置已被其他窗口修改；请刷新后再操作')
+        providers = dict(state['apps'].get(app, {}).get('providers') or {})
+        if len(providers) >= 512 and provider_id not in providers:
+            raise ValueError('配置数量超出设置容量')
+        providers[provider_id] = {'nonManualDisabled': bool(disabled)}
+        state['apps'][app] = {'revision': current['revision'] + 1,
+                              'updatedAt': int(time.time() * 1000), 'providers': providers}
+        self._write(state)
+        return self.app(app)['revision']
+
+    def _write(self, value):
+        # Same atomic pattern as the quota cache: a reader never observes a
+        # partially written gate file.
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix('.' + uuid.uuid4().hex + '.tmp')
+        with temporary.open('w', encoding='utf-8') as stream:
+            json.dump(value, stream, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, self.path)
+
+
 class Bridge:
     def __init__(self, data_dir, runner=None):
         self.data_dir = Path(data_dir)
+        self.settings = ProviderSettings(self.data_dir)
         self.runner = runner or self._run
 
     def private_launch_supported(self):
@@ -128,10 +218,17 @@ class Bridge:
         except ValueError as exc:
             raise CliError('cli_incompatible', 'CLI 未返回兼容的 JSON；请使用 cc-switch GUI Fork 的控制台入口') from exc
 
-    def listing(self, app):
+    def listing(self, app, panel=False):
+        """Read the CLI list. Agent views hide every non-manually gated profile.
+
+        Hidden rows are absent, never placeholders: their name, origin, notes,
+        quota and category cannot leak through an agent-facing read. The Panel
+        view keeps every row and carries the gate plus the settings revision.
+        """
         raw = self.runner(['--app', app, 'provider', 'list', '--json'])
         if not isinstance(raw, dict) or not isinstance(raw.get('providers'), list):
             raise ValueError('不兼容的 provider list JSON')
+        gates = self.settings.gates(app)
         cache_file = self.data_dir / f'quota-{app}.json'
         try:
             cache = json.loads(cache_file.read_text(encoding='utf-8')) if cache_file.exists() else {}
@@ -139,6 +236,10 @@ class Bridge:
             cache = {}
         providers = []
         for row in raw['providers']:
+            provider_id = str(row['id'])
+            disabled = gates.get(provider_id, False)
+            if disabled and not panel:
+                continue
             origin = None
             try:
                 url = urlsplit(row.get('apiUrl') or '')
@@ -146,10 +247,13 @@ class Bridge:
                     origin = f'{url.scheme}://{url.hostname}' + (f':{url.port}' if url.port else '')
             except ValueError:
                 pass
-            providers.append({'id': str(row['id']), 'name': str(row.get('name') or row['id']),
+            entry = {'id': provider_id, 'name': str(row.get('name') or row['id']),
                 'origin': origin, 'isCurrent': row['id'] == raw.get('currentProviderId'),
                 'notes': str(row.get('notes') or ''), 'category': str(row.get('category') or ''),
-                'quota': cache.get(str(row['id']))})
+                'quota': cache.get(provider_id)}
+            if panel:
+                entry['nonManualDisabled'] = disabled
+            providers.append(entry)
         accounts, account_error = [], None
         if app == 'codex':
             try:
@@ -160,9 +264,14 @@ class Bridge:
                     for a in status.get('accounts', [])]
             except ValueError as exc:
                 account_error = str(exc)
-        return {'app': app, 'providers': providers, 'accounts': accounts,
+        result = {'app': app, 'providers': providers, 'accounts': accounts,
             'currentProviderId': raw.get('currentProviderId'), 'accountError': account_error,
             'observedAt': int(time.time() * 1000)}
+        if panel:
+            state = self.settings.app(app)
+            result['revision'] = state['revision']
+            result['updatedAt'] = state['updatedAt']
+        return result
 
     def invoke(self, operation, arguments):
         # Several CLI reads surround a write. Keep their combined deadline below
@@ -212,12 +321,14 @@ class Bridge:
             raise ValueError('不支持的应用')
         if operation == 'list':
             return self.listing(app)
+        if operation == 'panel_list':
+            return self.listing(app, panel=True)
         provider_id = arguments.get('id')
         if operation == 'quota' and provider_id is None:
             return self.listing(app)
         if not isinstance(provider_id, str) or not provider_id or provider_id.startswith('-') or len(provider_id) > 256:
             raise ValueError('无效的账号或配置 ID')
-        state = self.listing(app)
+        state = self.listing(app, panel=True)
         if operation == 'default_account':
             if provider_id.isdecimal():
                 raise ValueError('此 CLI 把纯数字解析为账号序号；不能按此 ID 安全切换')
@@ -231,36 +342,73 @@ class Bridge:
                 cache = self.data_dir / 'quota-codex.json'
                 if cache.exists():
                     cache.unlink()
-            updated = self.listing(app)
+            updated = self.listing(app, panel=True)
             if not any(a['id'] == provider_id and a['isDefault'] for a in updated['accounts']):
                 raise ValueError('CLI 返回后未确认默认账号；请刷新状态，勿自动重试')
             return updated
         if provider_id not in {p['id'] for p in state['providers']}:
             raise ValueError('配置已不存在，请刷新列表')
+        disabled = self.settings.gated(app, provider_id)
+        if operation == 'panel_config':
+            if 'nonManualDisabled' not in arguments or 'expectedRevision' not in arguments:
+                raise ValueError('缺少设置参数')
+            if set(arguments) - {'app', 'id', 'nonManualDisabled', 'expectedRevision'}:
+                raise ValueError('未知设置参数')
+            if not isinstance(arguments['nonManualDisabled'], bool):
+                raise ValueError('无效的开关取值')
+            self.settings.update(app, provider_id, arguments['nonManualDisabled'],
+                                 arguments['expectedRevision'])
+            return self.listing(app, panel=True)
+        if operation == 'panel_switch':
+            # The Panel is the manual path: an explicit user choice may target a
+            # gated profile; only the non-manual paths below are refused.
+            return self._switch(app, provider_id, arguments, True)
         if operation == 'switch':
-            if state['currentProviderId'] != arguments.get('expectedCurrentId'):
-                raise ValueError('当前配置已变化，请刷新后再操作')
-            if state['currentProviderId'] != provider_id:
-                self.runner(['--app', app, 'provider', 'switch', provider_id], False)
-            updated = self.listing(app)
-            if updated['currentProviderId'] != provider_id:
-                raise ValueError('CLI 返回后未确认启用配置；请刷新状态，勿自动重试')
-            return updated
-        if operation == 'quota':
-            raw = self.runner(['--app', app, 'provider', 'quota', provider_id, '--json'])
-            quota = normalize_quota(raw)
-            self.data_dir.mkdir(parents=True, exist_ok=True)
-            path = self.data_dir / f'quota-{app}.json'
-            try:
-                cache = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
-            except (ValueError, OSError):
-                cache = {}
-            cache[provider_id] = quota
-            temporary = path.with_suffix('.' + uuid.uuid4().hex + '.tmp')
-            temporary.write_text(json.dumps(cache, ensure_ascii=False), encoding='utf-8')
-            os.replace(temporary, path)
-            return {'id': provider_id, 'app': app, 'quota': quota}
+            self._require_ungated(disabled, '该配置已禁止非手动切换；请在 CC Switch 面板中手动启用或刷新列表')
+            return self._switch(app, provider_id, arguments, False)
+        if operation == 'auto_switch':
+            self._require_ungated(disabled, '该配置已禁止非手动切换；自动切换不会改用其它配置')
+            return self._switch(app, provider_id, arguments, False)
+        if operation in {'quota', 'panel_quota'}:
+            if operation == 'quota' and disabled:
+                # Same refusal as a missing profile: a gated row must not be
+                # confirmable by ID through an agent-facing read.
+                raise ValueError('配置已不存在，请刷新列表')
+            return self._quota(app, provider_id)
         raise ValueError('未知 bridge 操作')
+
+    @staticmethod
+    def _require_ungated(disabled, message):
+        if disabled:
+            raise BridgeError('non_manual_disabled', message)
+
+    def _switch(self, app, provider_id, arguments, panel):
+        state = self.listing(app, panel=True)
+        if state['currentProviderId'] != arguments.get('expectedCurrentId'):
+            raise ValueError('当前配置已变化，请刷新后再操作')
+        if state['currentProviderId'] != provider_id:
+            self.runner(['--app', app, 'provider', 'switch', provider_id], False)
+        # Verification reads the full view: a Panel switch may legitimately
+        # select a gated profile that the agent view hides.
+        updated = self.listing(app, panel=True)
+        if updated['currentProviderId'] != provider_id:
+            raise ValueError('CLI 返回后未确认启用配置；请刷新状态，勿自动重试')
+        return updated if panel else self.listing(app)
+
+    def _quota(self, app, provider_id):
+        raw = self.runner(['--app', app, 'provider', 'quota', provider_id, '--json'])
+        quota = normalize_quota(raw)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        path = self.data_dir / f'quota-{app}.json'
+        try:
+            cache = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+        except (ValueError, OSError):
+            cache = {}
+        cache[provider_id] = quota
+        temporary = path.with_suffix('.' + uuid.uuid4().hex + '.tmp')
+        temporary.write_text(json.dumps(cache, ensure_ascii=False), encoding='utf-8')
+        os.replace(temporary, path)
+        return {'id': provider_id, 'app': app, 'quota': quota}
 
 
 def normalize_quota(raw, strict=False):
@@ -293,7 +441,7 @@ def normalize_quota(raw, strict=False):
 
 def error_text(exc):
     """Return the Panel-visible error text, preserving a stable code."""
-    if isinstance(exc, CliError):
+    if isinstance(exc, ValueError) and isinstance(getattr(exc, 'code', None), str):
         return json.dumps({'ok': False, 'error': {'code': exc.code, 'message': str(exc)}}, ensure_ascii=False)
     return str(exc) if isinstance(exc, ValueError) else 'Bridge 操作失败，请检查插件配置'
 

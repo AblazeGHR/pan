@@ -13,15 +13,18 @@
   "display_name": "CC Switch Bridge",
   "source": {"kind": "pan_api", "capabilities_file": "capabilities.json"},
   "data": {"version": 1},
-  "agent_capabilities": ["cc-switch-bridge.switch", "cc-switch-bridge.quota"],
+  "agent_capabilities": ["cc-switch-bridge.list", "cc-switch-bridge.switch",
+                         "cc-switch-bridge.quota", "cc-switch-bridge.auto_switch"],
   "panels": [{
     "id": "accounts",
     "title": "CC Switch",
     "renderer": "account-switcher/v1",
     "actions": {
-      "list": {"capability": "cc-switch-bridge.list", "effect": "read"},
-      "quota": {"capability": "cc-switch-bridge.quota", "effect": "read"},
-      "switch": {"capability": "cc-switch-bridge.switch", "effect": "write_external"},
+      "list": {"capability": "cc-switch-bridge.panel_list", "effect": "read"},
+      "quota": {"capability": "cc-switch-bridge.panel_quota", "effect": "read"},
+      "switch": {"capability": "cc-switch-bridge.panel_switch", "effect": "write_external"},
+      "config": {"capability": "cc-switch-bridge.panel_config", "effect": "write_external"},
+      "auto_switch": {"capability": "cc-switch-bridge.auto_switch", "effect": "write_external"},
       "default_account": {"capability": "cc-switch-bridge.default_account", "effect": "write_external"}
     }
   }]
@@ -38,12 +41,16 @@ v1 提供宿主维护的 `account-switcher/v1` renderer。插件提供声明和�
 
 `agent_capabilities` 是可选白名单，v1 适用于 API 来源，在独立 API MCP shim、Pan 原生投影和 gateway 中一致过滤。省略时保持已有全部暴露行为。标准 MCP 的独立模式是直连，不能承诺宿主替它过滤，因此不接受此字段；希望过滤时应提供 API 适配。面板通过自身声明可使用白名单之外的内部能力，但 Agent 不能绕过发现直接调用这些能力。
 
-CC Switch Bridge 对 Agent 只暴露两个工具：
+CC Switch Bridge 区分两条切换路径：**手动切换**只属于面板（用户显式点击），**非手动切换**属于所有 Agent/自动化路径。存储上只有一个按配置的标记 `nonManualDisabled`，不区分 MCP 与自动换号两种禁用。
 
-- `cc-switch-bridge.quota`：`app` 必填，`id` 选填；省略 id 返回可用配置/账号 ID、当前选择与已有缓存，不自动查询所有远程额度；指定 id 查询该配置额度。
-- `cc-switch-bridge.switch`：`app`、`id`、`expectedCurrentId` 必填，`kind` 为 `provider`（默认）或 `default_account`。后者仅支持 Codex 的托管 ChatGPT 默认账号。Pan 原生工具名分别为 `pan_cc_switch_bridge_quota`、`pan_cc_switch_bridge_switch`。
+对 Agent 暴露四个工具：
 
-`list` 和独立 `default_account` 能力供面板调用，保留实现但不作为单独 Agent 工具暴露。新插件的 MCP 默认不勾选，声明面板不会擅自给所有 Session 增加工具。
+- `cc-switch-bridge.list`：`app` 必填。返回配置与托管账号；标记了 `nonManualDisabled` 的配置整行不出现，不返回其名称、origin、quota、notes、category 等任何字段，也不用占位行代替。
+- `cc-switch-bridge.quota`：`app` 必填，`id` 选填；省略 id 返回可用配置/账号 ID、当前选择与已有缓存，不自动查询所有远程额度；指定 id 查询该配置额度。被标记配置同样不出现，按 id 查询按“配置已不存在”拒绝。
+- `cc-switch-bridge.switch`：非手动切换。`app`、`id`、`expectedCurrentId` 必填，`kind` 为 `provider`（默认）或 `default_account`。被标记配置拒绝切换，不回退到其它配置，未确认结果不重放。
+- `cc-switch-bridge.auto_switch`：`app`、`id`、`expectedCurrentId` 必填。未来自动换号机制只允许走这个 API；它与 `switch` 共用同一非手动门禁，不静默改用其它配置，也不重放不确定结果。Pan 原生工具名分别为 `pan_cc_switch_bridge_list`、`pan_cc_switch_bridge_quota`、`pan_cc_switch_bridge_switch`、`pan_cc_switch_bridge_auto_switch`。
+
+面板通过白名单之外的内部能力读取并管理全部配置：`panel_list`（含每个配置的 `nonManualDisabled` 与应用级 `revision`）、`panel_quota`、`panel_switch`（手动切换，允许目标为已标记配置）、`panel_config`（保存标记）、`default_account`。这些面板能力不暴露给 Agent；Agent 也不能绕过发现直接调用。
 
 ## 数据目录规则
 
@@ -51,7 +58,7 @@ CC Switch Bridge 对 Agent 只暴露两个工具：
 
 插件数据与外部产品数据分开管理。插件可以保存设置、展示缓存、运行状态；不得把“允许有 Pan data 目录”解释为应复制原产品数据库或凭据。卸载不自动删数据。清理、迁移和格式升级以后单独提供明确流程。该路径约束不限制可信本机程序的 OS 权限，也不声称完整隔离任意第三方代码。
 
-CC Switch Bridge 的目录包含可选 `settings.json`、`quota-<app>.json` 和宿主持有的 `panel-requests.json`。`settings.json` 可设 `{"executable":"D:/path/to/cc-switch.exe"}`；否则优先 `PAN_CC_SWITCH_CLI`，再查 PATH 的 `cc-switch`。配置值只能是可执行文件，不是 shell 命令片段。不复制 cc-switch 数据库、auth 文件或 token；展示使用字段白名单，CLI 的原始错误输出不回传页面。
+CC Switch Bridge 的目录包含可选 `settings.json`、`provider-flags.json`、`quota-<app>.json` 和宿主持有的 `panel-requests.json`。`settings.json` 可设 `{"executable":"D:/path/to/cc-switch.exe"}`；否则优先 `PAN_CC_SWITCH_CLI`，再查 PATH 的 `cc-switch`。配置值只能是可执行文件，不是 shell 命令片段。`provider-flags.json` 只由本插件读写，按 `app` 分应用保存 `revision/updatedAt` 与各配置的 `nonManualDisabled`，原子替换写入，并复用 `.bridge.lock` 串行化读改写；它不影响 cc-switch CLI 的数据库或行为。不复制 cc-switch 数据库、auth 文件或 token；展示使用字段白名单，CLI 的原始错误输出不回传页面。
 
 ## 操作接口与结果不确定
 
@@ -63,8 +70,10 @@ CC Switch Bridge 的目录包含可选 `settings.json`、`quota-<app>.json` 和�
 
 ## account-switcher/v1 数据契约
 
-`list({app})` 返回 `AccountSnapshot`：`app/currentProviderId/observedAt/providers/accounts/accountError`。providers 有 `id/name/origin/isCurrent/quota`，accounts 有 `id/login/isDefault`。支持 Codex、Claude、Gemini；仅 Codex 展示 ChatGPT 托管账号。
+`list({app})` 返回 `AccountSnapshot`：`app/currentProviderId/observedAt/providers/accounts/accountError`。providers 有 `id/name/origin/isCurrent/quota`，accounts 有 `id/login/isDefault`。支持 Codex、Claude、Gemini；仅 Codex 展示 ChatGPT 托管账号。面板读取的 `panel_list` 额外返回应用级 `revision/updatedAt`，每个 provider 额外返回 `nonManualDisabled`，并包含被隐藏的配置。
 
 `quota({app,id})` 返回 `{app,id,quota}`。额度使用 `status/available/queriedAt/message/tiers/balances`；tiers 包含 `name/usedPercent/resetsAt`，余额包含 `planName/remaining/used/total/unit`。百分比表示已用，未知字段不伪装成零；所有数据标明缓存时间，不后台轮询。`switch` 和 `default_account` 返回重新读取的完整快照。
 
-初期面板支持应用切换、搜索配置/账号、当前状态、额度手动查询、缓存与重置时间、配置启用确认、设置默认账号、错误和未知结果处理。新增/编辑/删除账号、登录、兑换重置额度、启动/停止 cc-switch 代理及重启 Pan Worker 不在此桥接实现内。
+`config({app,id,nonManualDisabled,expectedRevision})` 保存单个配置的非手动门禁，返回重新读取的面板快照。`expectedRevision` 来自最近一次面板读取；版本已变化时返回 `settings_conflict`，界面显式提示并重新读取，不覆盖其它窗口的写入。`nonManualDisabled` 只影响 Agent 的 list/quota 可见性与非手动切换；面板 `panel_switch` 仍是手动路径，允许用户显式切换到已标记配置。
+
+初期面板支持应用切换、搜索配置/账号、当前状态、额度手动查询、缓存与重置时间、配置启用确认、非手动门禁开关、设置默认账号、错误和未知结果处理。新增/编辑/删除账号、登录、兑换重置额度、启动/停止 cc-switch 代理及重启 Pan Worker 不在此桥接实现内。

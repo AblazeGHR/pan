@@ -134,15 +134,23 @@
           "renderer": "account-switcher/v1",
           "actions": {
             "list": {
-              "capability": "cc-switch-bridge.list",
+              "capability": "cc-switch-bridge.panel_list",
               "effect": "read"
             },
             "quota": {
-              "capability": "cc-switch-bridge.quota",
+              "capability": "cc-switch-bridge.panel_quota",
               "effect": "read"
             },
             "switch": {
-              "capability": "cc-switch-bridge.switch",
+              "capability": "cc-switch-bridge.panel_switch",
+              "effect": "write_external"
+            },
+            "config": {
+              "capability": "cc-switch-bridge.panel_config",
+              "effect": "write_external"
+            },
+            "auto_switch": {
+              "capability": "cc-switch-bridge.auto_switch",
               "effect": "write_external"
             },
             "default_account": {
@@ -153,8 +161,10 @@
         }
       ],
       "agent_capabilities": [
+        "cc-switch-bridge.list",
         "cc-switch-bridge.switch",
-        "cc-switch-bridge.quota"
+        "cc-switch-bridge.quota",
+        "cc-switch-bridge.auto_switch"
       ]
     }
   ],
