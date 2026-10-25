@@ -1,4 +1,4 @@
-"""CLI for the read-only Job final-model migration inventory."""
+"""Read-only inventory and explicit transactional offline apply CLI."""
 
 from __future__ import annotations
 
@@ -22,9 +22,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.job_final_migration",
         description=(
-            "Read-only inventory and dry-run plan for old Job/Scheduler "
-            "records. This command never migrates, writes to the scanned root, "
-            "starts a service, or touches a real profile by default."
+            "Inventory/dry-run by default; --apply publishes a disabled canonical "
+            "bundle outside --root. Never starts services or writes source data."
         ),
     )
     parser.add_argument(
@@ -46,6 +45,14 @@ def _parser() -> argparse.ArgumentParser:
             "read-only and output is still refused inside the root"
         ),
     )
+    parser.add_argument("--target", type=Path, help="offline canonical bundle JSON, outside root")
+    parser.add_argument("--context", type=Path, help="explicit pinned references and operator attestations JSON")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--apply", action="store_true", help="atomically publish the entire offline bundle")
+    mode.add_argument("--rollback", action="store_true", help="roll back offline publication; never restore/run legacy")
+    mode.add_argument("--dry-run", action="store_true", help="explicit default: validate without target writes")
+    parser.add_argument("--expected-digest", help="reviewed planDigest (apply) or bundleDigest (rollback)")
+    parser.add_argument("--mark-read-only", action="store_true", help="record old-record read-only intent in committed bundle")
     return parser
 
 
@@ -76,9 +83,14 @@ def _write_output(report: dict, out: str, fmt: str, root: Path) -> int:
         return 2
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(content, encoding="utf-8", newline="\n")
-    except OSError as exc:
+        from scripts.job_final_migration.apply import _atomic_write, outside_root
+        destination = outside_root(root, destination)
+        _atomic_write(destination, content.encode("utf-8"))
+    except (OSError, ValueError) as exc:
         print(f"error: cannot write output: {exc}", file=sys.stderr)
+        if report.get("migrationExecuted") or report.get("state") == "rolled-back-offline":
+            print(f"offline operation already committed: {report['operationId']}; inspect the original target",
+                  file=sys.stderr)
         return 2
     return 0
 
@@ -94,9 +106,52 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         print(f"error: root is not a directory: {root}", file=sys.stderr)
         return 2
+    # Validate every destination before any migration side effect.
+    try:
+        from scripts.job_final_migration.apply import outside_root
+        destination = outside_root(root, args.out) if args.out != "-" else None
+        target = outside_root(root, args.target) if args.target else None
+        for path in (destination, target):
+            if path and path.exists() and not path.is_file():
+                raise ValueError("output/target must be a file path")
+            if path:
+                ancestor = next(p for p in path.parents if p.exists())
+                if not ancestor.is_dir():
+                    raise ValueError("output/target parent is not a directory")
+        if destination and target and destination in {
+                target, target.with_name(target.name + ".bak"), target.with_name(target.name + ".lock")}:
+            raise ValueError("report output collides with migration target/backup/lock")
+        if destination and destination.exists() and destination.stat().st_nlink > 1:
+            raise ValueError("report output has multiple hard links")
+        if (args.apply or args.rollback or args.context or args.mark_read_only) and not target:
+            raise ValueError("--target required for apply/context/rollback/read-only marker")
+        if args.mark_read_only and not args.apply:
+            raise ValueError("--mark-read-only requires --apply")
+        if target and not args.rollback and not args.context:
+            raise ValueError("--context required with --target")
+        if args.rollback and (args.context or args.mark_read_only):
+            raise ValueError("rollback does not accept context/read-only marker")
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     try:
         report = build_inventory(
             root, allow_real_profile=args.allow_real_profile)
+        if target:
+            from scripts.job_final_migration.apply import migrate, rollback
+            from packages.jobs.final_contracts import loads
+            if args.rollback:
+                report = rollback(root, target, expected_digest=args.expected_digest,
+                                  allow_real_profile=args.allow_real_profile)
+            else:
+                context = loads(args.context.read_text(encoding="utf-8-sig"))
+                report = migrate(root, target, context, apply=args.apply,
+                                 mark_read_only=args.mark_read_only,
+                                 expected_digest=args.expected_digest,
+                                 allow_real_profile=args.allow_real_profile)
+        else:
+            from packages.jobs.final_contracts import digest
+            report["inventoryDigest"] = digest(report)
     except RealProfileError as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(
@@ -105,9 +160,14 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"error: inventory failed: {exc}", file=sys.stderr)
         return 1
+    if args.rollback:
+        if args.format != "json":
+            print("rollback: offline publication rolled back", file=sys.stderr)
+            args.format = "json"
+        return _write_output(report, args.out, args.format, root)
     summary = report["summary"]
     print(
         "inventory: "
@@ -118,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if report["root"]["realProfile"]:
         print(
-            "warning: real-profile marker accepted; this scan is still read-only",
+            "warning: real-profile marker accepted; source root remains read-only",
             file=sys.stderr,
         )
     return _write_output(report, args.out, args.format, root)
