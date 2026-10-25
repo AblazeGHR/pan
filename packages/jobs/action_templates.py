@@ -118,7 +118,7 @@ def config_value(raw, state):
     if value['misfirePolicy'] not in ('fire_now','skip'):
         raise ValueError('Invalid misfirePolicy')
     trigger=value['trigger']
-    if not isinstance(trigger,dict) or set(trigger)-{'kind','query','eventTypes'} or trigger.get('kind') not in ('immediate','once','interval','cron','event','schedule'):
+    if not isinstance(trigger,dict) or set(trigger)-{'kind','query','eventTypes'} or trigger.get('kind') not in ('manual','immediate','once','interval','cron','event','schedule'):
         raise ValueError('Invalid Job trigger')
     if trigger['kind']=='event':
         types=trigger.get('eventTypes')
@@ -189,7 +189,7 @@ def config_value(raw, state):
         value['arguments'] = filled_arguments(action, value['arguments'])
         check_action_graph(state, action)
     from packages.jobs.api import _validate_scheduled_specs
-    if trigger['kind'] in ('immediate','event') and value.get('schedule') == []:
+    if trigger['kind'] in ('manual','immediate','event') and value.get('schedule') == []:
         return value
     if not isinstance(value.get('schedule'), list) or not 1 <= len(value['schedule']) <= 32:
         raise ValueError('schedule requires 1..32 complete specs')
@@ -368,7 +368,7 @@ class Templates:
                 raise ValueError('Action disabled or requires approval policy')
             snapshots=state.setdefault('jobExecutions',{})
             if len(snapshots)>=MAX_SNAPSHOTS:raise ValueError('Temporary snapshot capacity reached')
-            args=filled_arguments(action,config['arguments'])
+            args=filled_arguments(action,execution.get('inputArguments',config['arguments']))
             snap=dict(definition=action,arguments=args,context=copy.deepcopy(execution['context']),
                       actionId=aid,actionRevision=state.get('actionRevisions',{}).get(aid,0),
                       registryRevision=state['revision'],contextDigest=digest(execution['context']),

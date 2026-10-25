@@ -143,6 +143,7 @@ class Engine:
                         errors.append('Event dependency unavailable')
                     continue
                 run = dict(id='run_' + uuid.uuid4().hex, triggerId=trigger['id'], triggerRevision=trigger['revision'], actionId=trigger['actionId'], event=copy.deepcopy(event), createdAt=now(), status='queued', admitted=False, arguments={}, state={})
+                if trigger.get('targetJobId'):run['targetJobId']=trigger['targetJobId']
                 try:
                     run['authorization'] = copy.deepcopy(trigger.get('authorization', {'type':'user'}))
                     await self._check_authorization(run['authorization'])
@@ -273,7 +274,7 @@ class Engine:
                             delay = remaining if delay is None else min(delay, remaining)
                             continue
                     current_action = (await self.io(self.actions.read))['actions'].get(run['actionId'])
-                    if not run.get('chainSnapshot') and (not current_action or not current_action.get('enabled')):
+                    if not run.get('chainSnapshot') and not run.get('targetJobId') and (not current_action or not current_action.get('enabled')):
                         await self.io(self.ledger.block_pending, run['id'], run['revision'], 'Action changed: disabled or missing')
                         continue
                     try:
@@ -328,6 +329,27 @@ class Engine:
 
     async def run_attempt(self, run):
         rid = run['id']
+        if run.get('targetJobId'):
+            try:
+                await self._check_authorization(run.get('authorization',{'type':'user'}),expected_revision=run.get('authorizationRevision'))
+                runtime=getattr(self,'job_runtime',None)
+                if not runtime:raise DependencyUnavailable('Job runtime unavailable')
+                current_trigger=(await self.io(self.ledger.read))['triggers'].get(run['triggerId'])
+                if self.closed or not current_trigger or not current_trigger['enabled'] or not self.available(current_trigger):
+                    raise DependencyUnavailable('Job Trigger dependency unavailable')
+                job=await self.io(runtime.view,await self.io(runtime.get,run['targetJobId']))
+                if not job['enabled'] or job.get('paused'):
+                    return await self.io(self.ledger.finish,rid,'skipped',result={'jobId':job['jobId'],'reason':'Job disabled or paused'})
+                await self.io(runtime.queue_event,run['event'],{'jobId':job['jobId'],'configRevision':job['configRevision'],
+                    'arguments':run['arguments'],'authorization':run.get('authorization',{'type':'user'}),'authorizationRevision':run.get('authorizationRevision')})
+                await self.io(self.ledger.finish,rid,'succeeded',result={'jobId':job['jobId'],'phase':'admitted'})
+                await runtime.tick({'enabled':True})
+            except Exception as exc:
+                current=(await self.io(self.ledger.read))['runs'][rid]
+                if current['status']=='running':
+                    if isinstance(exc,DependencyUnavailable):await self.io(self.ledger.defer_unavailable,rid,current['revision'])
+                    else:await self.io(self.ledger.finish,rid,'uncertain' if isinstance(exc,(OSError,PersistenceError)) else 'failed',retryable=False,error=str(exc)[:1000])
+            return
         if run.get('chainSnapshot'):
             from .chain_engine import run_chain
             return await run_chain(self,run)

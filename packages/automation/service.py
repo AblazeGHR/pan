@@ -155,6 +155,8 @@ class Service:
             targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] else
                        'unavailable' if not self.engine.available(t) else 'eligible'}
                        for t in state['triggers'].values() if event['type'] in t['eventTypes']]
+            for target in targets:
+                if target.get('ownerJobId') and any(op.get('jobId')==target['ownerJobId'] and op['status'] not in {'complete','cancelled'} for op in state.get('linkOperations',{}).values()):target['_admissionStatus']='disabled'
             if self.job_runtime:
                 targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type'],True))
             try:
@@ -343,8 +345,11 @@ class Service:
         self.started = True
         from packages.scheduler.time_events import Sources, Runtime as TimeEvents
         self.time_sources=Sources(data_root())
+        from .job_links import Links
+        self.links=Links(self.job_runtime,self.ledger,self.time_sources)
+        await self.links.recover()
         async def acknowledged(event_id):await self.engine.io(self.events.release_pin,event_id)
-        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged)
+        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged,self.links.source_ready)
         self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
         self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
         self.worker.set_running_observer(self.observe)

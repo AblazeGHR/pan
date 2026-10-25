@@ -1,0 +1,1201 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="26" failures="3" errors="0" time="5.549">
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-25T07:38:07.134Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="2.0134826">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs" time="0.259825">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.1411675">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.172111">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.1742849">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0009235">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0011934">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.1999368">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0925996">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0007428">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="shares Action loads, adopts template mutation without extra reads, and fences late registry replies" time="0.0019841">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.2393662">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards accepted switching, but blocks departure and duplicate submits while saving" time="0.2093508">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.3000177">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.2190092">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationWorkspace.test.tsx" timestamp="2026-10-25T07:38:07.141Z" hostname="ablaze" tests="7" failures="3" errors="0" skipped="0" time="2.9385295">
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="navigates exactly three accessible tabs by keyboard and follows Job/Trigger/Scheduler links" time="0.119977">
+            <failure message="expected &apos;false&apos; to be &apos;true&apos; // Object.is equality" type="AssertionError">
+AssertionError: expected &apos;false&apos; to be &apos;true&apos; // Object.is equality
+
+Expected: &quot;true&quot;
+Received: &quot;false&quot;
+
+ ❯ views/AutomationWorkspace.test.tsx:74:137
+            </failure>
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="adds, reorders and removes steps without changing stable IDs and rejects forward output references" time="0.2114634">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="keeps literal JSON typed and maps Job input or Event fields" time="0.1082548">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="selects an existing Scheduler by search and submits its revision with the Job" time="0.1218879">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="creates a new Scheduler through one recoverable operation and retries with the same key" time="0.3189728">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="shows source impact, requires review, and preserves a conflicting draft" time="1.0251494">
+            <failure message="Unable to find role=&quot;button&quot; and name &quot;Edit Shared timer&quot;
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Automation management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto max-w-6xl space-y-5&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0mJobs, event subscriptions and reusable time sources[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mclass[39m=[32m&quot;rounded border border-border-default p-2 text-sm&quot;[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/actions&quot;[39m
+            [36m&gt;[39m
+              [0mManage Actions[0m
+            [36m&lt;/a&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [36m&gt;[39m
+              [0mRefresh[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;p[39m
+          [33mclass[39m=[32m&quot;text-xs text-text-secondary&quot;[39m
+          [33mrole[39m=[32m&quot;status&quot;[39m
+        [36m&gt;[39m
+          [0mSnapshot fetched 2026/10/25 15:38:04. Manual refresh; no live updates.[0m
+        [36m&lt;/p&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Automation login&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;mb-2 font-medium&quot;[39m
+          [36m&gt;[39m
+            [0mUser authorization[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mb-3 text-sm text-text-secondary&quot;[39m
+          [36m&gt;[39m
+            [0mLocal key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;div[39m
+          [33maria-label[39m=[32m&quot;Automation subpages&quot;[39m
+          [33mclass[39m=[32m&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;[39m
+          [33mrole[39m=[32m&quot;tablist&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-job&quot;[39m
+            [33maria-selected[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-job&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;0&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJob[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-trigger&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-trigger&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTrigger[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-events&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-events&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEvent Register[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;section[39m
+          [33maria-labelledby[39m=[32m&quot;automation-tab-job&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [33mid[39m=[32m&quot;automation-panel-job&quot;[39m
+          [33mrole[39m=[32m&quot;tabpanel&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;fieldset[39m
+            [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;div[39m
+              [33mclass[39m=[32m&quot;min-w-0 space-y-5&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;header[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap items-end justify-between gap-3&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;div&gt;[39m
+                  [36m&lt;h2[39m
+                    [33mclass[39m=[32m&quot;text-lg font-semibold&quot;[39m
+                  [36m&gt;[39m
+                    [0mJobs[0m
+                  [36m&lt;/h2&gt;[39m
+                  [36m&lt;p[39m
+                    [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+                  [36m&gt;[39m
+                    [0mReusable Action chains, with manual runs or shared time events.[0m
+                  [36m&lt;/p&gt;[39m
+                [36m&lt;/div&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mNew Job[0m
+                [36m&lt;/bu...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Automation management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto max-w-6xl space-y-5&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0mJobs, event subscriptions and reusable time sources[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mclass[39m=[32m&quot;rounded border border-border-default p-2 text-sm&quot;[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/actions&quot;[39m
+            [36m&gt;[39m
+              [0mManage Actions[0m
+            [36m&lt;/a&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [36m&gt;[39m
+              [0mRefresh[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;p[39m
+          [33mclass[39m=[32m&quot;text-xs text-text-secondary&quot;[39m
+          [33mrole[39m=[32m&quot;status&quot;[39m
+        [36m&gt;[39m
+          [0mSnapshot fetched 2026/10/25 15:38:04. Manual refresh; no live updates.[0m
+        [36m&lt;/p&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Automation login&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;mb-2 font-medium&quot;[39m
+          [36m&gt;[39m
+            [0mUser authorization[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mb-3 text-sm text-text-secondary&quot;[39m
+          [36m&gt;[39m
+            [0mLocal key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;div[39m
+          [33maria-label[39m=[32m&quot;Automation subpages&quot;[39m
+          [33mclass[39m=[32m&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;[39m
+          [33mrole[39m=[32m&quot;tablist&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-job&quot;[39m
+            [33maria-selected[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-job&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;0&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJob[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-trigger&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-trigger&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTrigger[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-events&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-events&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEvent Register[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;section[39m
+          [33maria-labelledby[39m=[32m&quot;automation-tab-job&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [33mid[39m=[32m&quot;automation-panel-job&quot;[39m
+          [33mrole[39m=[32m&quot;tabpanel&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;fieldset[39m
+            [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;div[39m
+              [33mclass[39m=[32m&quot;min-w-0 space-y-5&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;header[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap items-end justify-between gap-3&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;div&gt;[39m
+                  [36m&lt;h2[39m
+                    [33mclass[39m=[32m&quot;text-lg font-semibold&quot;[39m
+                  [36m&gt;[39m
+                    [0mJobs[0m
+                  [36m&lt;/h2&gt;[39m
+                  [36m&lt;p[39m
+                    [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+                  [36m&gt;[39m
+                    [0mReusable Action chains, with manual runs or shared time events.[0m
+                  [36m&lt;/p&gt;[39m
+                [36m&lt;/div&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mNew Job[0m
+                [36m&lt;/bu..." type="TestingLibraryElementError">
+TestingLibraryElementError: Unable to find role=&quot;button&quot; and name &quot;Edit Shared timer&quot;
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Automation management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto max-w-6xl space-y-5&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Automation
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;mt-1 text-sm text-text-secondary&quot;
+            &gt;
+              Jobs, event subscriptions and reusable time sources
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;flex flex-wrap gap-2&quot;
+          &gt;
+            &lt;a
+              class=&quot;rounded border border-border-default p-2 text-sm&quot;
+              data-discover=&quot;true&quot;
+              href=&quot;/actions&quot;
+            &gt;
+              Manage Actions
+            &lt;/a&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            &gt;
+              Refresh
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/header&gt;
+        &lt;p
+          class=&quot;text-xs text-text-secondary&quot;
+          role=&quot;status&quot;
+        &gt;
+          Snapshot fetched 2026/10/25 15:38:04. Manual refresh; no live updates.
+        &lt;/p&gt;
+        &lt;section
+          aria-label=&quot;Automation login&quot;
+          class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+        &gt;
+          &lt;h2
+            class=&quot;mb-2 font-medium&quot;
+          &gt;
+            User authorization
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mb-3 text-sm text-text-secondary&quot;
+          &gt;
+            Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;div
+          aria-label=&quot;Automation subpages&quot;
+          class=&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;
+          role=&quot;tablist&quot;
+        &gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-job&quot;
+            aria-selected=&quot;true&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;
+            id=&quot;automation-tab-job&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;0&quot;
+            type=&quot;button&quot;
+          &gt;
+            Job
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-trigger&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-trigger&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Trigger
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-events&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-events&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Event Register
+          &lt;/button&gt;
+        &lt;/div&gt;
+        &lt;section
+          aria-labelledby=&quot;automation-tab-job&quot;
+          class=&quot;min-w-0&quot;
+          id=&quot;automation-panel-job&quot;
+          role=&quot;tabpanel&quot;
+        &gt;
+          &lt;fieldset
+            class=&quot;min-w-0&quot;
+          &gt;
+            &lt;div
+              class=&quot;min-w-0 space-y-5&quot;
+            &gt;
+              &lt;header
+                class=&quot;flex flex-wrap items-end justify-between gap-3&quot;
+              &gt;
+                &lt;div&gt;
+                  &lt;h2
+                    class=&quot;text-lg font-semibold&quot;
+                  &gt;
+                    Jobs
+                  &lt;/h2&gt;
+                  &lt;p
+                    class=&quot;mt-1 text-sm text-text-secondary&quot;
+                  &gt;
+                    Reusable Action chains, with manual runs or shared time events.
+                  &lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+                &gt;
+                  New Job
+                &lt;/bu...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Automation management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto max-w-6xl space-y-5&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Automation
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;mt-1 text-sm text-text-secondary&quot;
+            &gt;
+              Jobs, event subscriptions and reusable time sources
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;flex flex-wrap gap-2&quot;
+          &gt;
+            &lt;a
+              class=&quot;rounded border border-border-default p-2 text-sm&quot;
+              data-discover=&quot;true&quot;
+              href=&quot;/actions&quot;
+            &gt;
+              Manage Actions
+            &lt;/a&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            &gt;
+              Refresh
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/header&gt;
+        &lt;p
+          class=&quot;text-xs text-text-secondary&quot;
+          role=&quot;status&quot;
+        &gt;
+          Snapshot fetched 2026/10/25 15:38:04. Manual refresh; no live updates.
+        &lt;/p&gt;
+        &lt;section
+          aria-label=&quot;Automation login&quot;
+          class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+        &gt;
+          &lt;h2
+            class=&quot;mb-2 font-medium&quot;
+          &gt;
+            User authorization
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mb-3 text-sm text-text-secondary&quot;
+          &gt;
+            Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;div
+          aria-label=&quot;Automation subpages&quot;
+          class=&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;
+          role=&quot;tablist&quot;
+        &gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-job&quot;
+            aria-selected=&quot;true&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;
+            id=&quot;automation-tab-job&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;0&quot;
+            type=&quot;button&quot;
+          &gt;
+            Job
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-trigger&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-trigger&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Trigger
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-events&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-events&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Event Register
+          &lt;/button&gt;
+        &lt;/div&gt;
+        &lt;section
+          aria-labelledby=&quot;automation-tab-job&quot;
+          class=&quot;min-w-0&quot;
+          id=&quot;automation-panel-job&quot;
+          role=&quot;tabpanel&quot;
+        &gt;
+          &lt;fieldset
+            class=&quot;min-w-0&quot;
+          &gt;
+            &lt;div
+              class=&quot;min-w-0 space-y-5&quot;
+            &gt;
+              &lt;header
+                class=&quot;flex flex-wrap items-end justify-between gap-3&quot;
+              &gt;
+                &lt;div&gt;
+                  &lt;h2
+                    class=&quot;text-lg font-semibold&quot;
+                  &gt;
+                    Jobs
+                  &lt;/h2&gt;
+                  &lt;p
+                    class=&quot;mt-1 text-sm text-text-secondary&quot;
+                  &gt;
+                    Reusable Action chains, with manual runs or shared time events.
+                  &lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+                &gt;
+                  New Job
+                &lt;/bu...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ views/AutomationWorkspace.test.tsx:139:32
+            </failure>
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="disables a source without touching Job lifecycle and deletes only unreferenced disabled sources" time="1.0319877">
+            <failure message="Unable to find role=&quot;button&quot; and name &quot;Edit Shared timer&quot;
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Automation management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto max-w-6xl space-y-5&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0mJobs, event subscriptions and reusable time sources[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mclass[39m=[32m&quot;rounded border border-border-default p-2 text-sm&quot;[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/actions&quot;[39m
+            [36m&gt;[39m
+              [0mManage Actions[0m
+            [36m&lt;/a&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [36m&gt;[39m
+              [0mRefresh[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;p[39m
+          [33mclass[39m=[32m&quot;text-xs text-text-secondary&quot;[39m
+          [33mrole[39m=[32m&quot;status&quot;[39m
+        [36m&gt;[39m
+          [0mSnapshot fetched 2026/10/25 15:38:06. Manual refresh; no live updates.[0m
+        [36m&lt;/p&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Automation login&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;mb-2 font-medium&quot;[39m
+          [36m&gt;[39m
+            [0mUser authorization[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mb-3 text-sm text-text-secondary&quot;[39m
+          [36m&gt;[39m
+            [0mLocal key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;div[39m
+          [33maria-label[39m=[32m&quot;Automation subpages&quot;[39m
+          [33mclass[39m=[32m&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;[39m
+          [33mrole[39m=[32m&quot;tablist&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-job&quot;[39m
+            [33maria-selected[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-job&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;0&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJob[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-trigger&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-trigger&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTrigger[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-events&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-events&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEvent Register[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;section[39m
+          [33maria-labelledby[39m=[32m&quot;automation-tab-job&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [33mid[39m=[32m&quot;automation-panel-job&quot;[39m
+          [33mrole[39m=[32m&quot;tabpanel&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;fieldset[39m
+            [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;div[39m
+              [33mclass[39m=[32m&quot;min-w-0 space-y-5&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;header[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap items-end justify-between gap-3&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;div&gt;[39m
+                  [36m&lt;h2[39m
+                    [33mclass[39m=[32m&quot;text-lg font-semibold&quot;[39m
+                  [36m&gt;[39m
+                    [0mJobs[0m
+                  [36m&lt;/h2&gt;[39m
+                  [36m&lt;p[39m
+                    [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+                  [36m&gt;[39m
+                    [0mReusable Action chains, with manual runs or shared time events.[0m
+                  [36m&lt;/p&gt;[39m
+                [36m&lt;/div&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mNew Job[0m
+                [36m&lt;/bu...
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Automation management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto max-w-6xl space-y-5&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0mJobs, event subscriptions and reusable time sources[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mclass[39m=[32m&quot;rounded border border-border-default p-2 text-sm&quot;[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/actions&quot;[39m
+            [36m&gt;[39m
+              [0mManage Actions[0m
+            [36m&lt;/a&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [36m&gt;[39m
+              [0mRefresh[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;p[39m
+          [33mclass[39m=[32m&quot;text-xs text-text-secondary&quot;[39m
+          [33mrole[39m=[32m&quot;status&quot;[39m
+        [36m&gt;[39m
+          [0mSnapshot fetched 2026/10/25 15:38:06. Manual refresh; no live updates.[0m
+        [36m&lt;/p&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Automation login&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;mb-2 font-medium&quot;[39m
+          [36m&gt;[39m
+            [0mUser authorization[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p[39m
+            [33mclass[39m=[32m&quot;mb-3 text-sm text-text-secondary&quot;[39m
+          [36m&gt;[39m
+            [0mLocal key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;div[39m
+          [33maria-label[39m=[32m&quot;Automation subpages&quot;[39m
+          [33mclass[39m=[32m&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;[39m
+          [33mrole[39m=[32m&quot;tablist&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-job&quot;[39m
+            [33maria-selected[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-job&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;0&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJob[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-trigger&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-trigger&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTrigger[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-controls[39m=[32m&quot;automation-panel-events&quot;[39m
+            [33maria-selected[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;[39m
+            [33mid[39m=[32m&quot;automation-tab-events&quot;[39m
+            [33mrole[39m=[32m&quot;tab&quot;[39m
+            [33mtabindex[39m=[32m&quot;-1&quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEvent Register[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/div&gt;[39m
+        [36m&lt;section[39m
+          [33maria-labelledby[39m=[32m&quot;automation-tab-job&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [33mid[39m=[32m&quot;automation-panel-job&quot;[39m
+          [33mrole[39m=[32m&quot;tabpanel&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;fieldset[39m
+            [33mclass[39m=[32m&quot;min-w-0&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;div[39m
+              [33mclass[39m=[32m&quot;min-w-0 space-y-5&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;header[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap items-end justify-between gap-3&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;div&gt;[39m
+                  [36m&lt;h2[39m
+                    [33mclass[39m=[32m&quot;text-lg font-semibold&quot;[39m
+                  [36m&gt;[39m
+                    [0mJobs[0m
+                  [36m&lt;/h2&gt;[39m
+                  [36m&lt;p[39m
+                    [33mclass[39m=[32m&quot;mt-1 text-sm text-text-secondary&quot;[39m
+                  [36m&gt;[39m
+                    [0mReusable Action chains, with manual runs or shared time events.[0m
+                  [36m&lt;/p&gt;[39m
+                [36m&lt;/div&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mNew Job[0m
+                [36m&lt;/bu..." type="TestingLibraryElementError">
+TestingLibraryElementError: Unable to find role=&quot;button&quot; and name &quot;Edit Shared timer&quot;
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Automation management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto max-w-6xl space-y-5&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Automation
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;mt-1 text-sm text-text-secondary&quot;
+            &gt;
+              Jobs, event subscriptions and reusable time sources
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;flex flex-wrap gap-2&quot;
+          &gt;
+            &lt;a
+              class=&quot;rounded border border-border-default p-2 text-sm&quot;
+              data-discover=&quot;true&quot;
+              href=&quot;/actions&quot;
+            &gt;
+              Manage Actions
+            &lt;/a&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            &gt;
+              Refresh
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/header&gt;
+        &lt;p
+          class=&quot;text-xs text-text-secondary&quot;
+          role=&quot;status&quot;
+        &gt;
+          Snapshot fetched 2026/10/25 15:38:06. Manual refresh; no live updates.
+        &lt;/p&gt;
+        &lt;section
+          aria-label=&quot;Automation login&quot;
+          class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+        &gt;
+          &lt;h2
+            class=&quot;mb-2 font-medium&quot;
+          &gt;
+            User authorization
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mb-3 text-sm text-text-secondary&quot;
+          &gt;
+            Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;div
+          aria-label=&quot;Automation subpages&quot;
+          class=&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;
+          role=&quot;tablist&quot;
+        &gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-job&quot;
+            aria-selected=&quot;true&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;
+            id=&quot;automation-tab-job&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;0&quot;
+            type=&quot;button&quot;
+          &gt;
+            Job
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-trigger&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-trigger&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Trigger
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-events&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-events&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Event Register
+          &lt;/button&gt;
+        &lt;/div&gt;
+        &lt;section
+          aria-labelledby=&quot;automation-tab-job&quot;
+          class=&quot;min-w-0&quot;
+          id=&quot;automation-panel-job&quot;
+          role=&quot;tabpanel&quot;
+        &gt;
+          &lt;fieldset
+            class=&quot;min-w-0&quot;
+          &gt;
+            &lt;div
+              class=&quot;min-w-0 space-y-5&quot;
+            &gt;
+              &lt;header
+                class=&quot;flex flex-wrap items-end justify-between gap-3&quot;
+              &gt;
+                &lt;div&gt;
+                  &lt;h2
+                    class=&quot;text-lg font-semibold&quot;
+                  &gt;
+                    Jobs
+                  &lt;/h2&gt;
+                  &lt;p
+                    class=&quot;mt-1 text-sm text-text-secondary&quot;
+                  &gt;
+                    Reusable Action chains, with manual runs or shared time events.
+                  &lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+                &gt;
+                  New Job
+                &lt;/bu...
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Automation management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto max-w-6xl space-y-5&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Automation
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;mt-1 text-sm text-text-secondary&quot;
+            &gt;
+              Jobs, event subscriptions and reusable time sources
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;flex flex-wrap gap-2&quot;
+          &gt;
+            &lt;a
+              class=&quot;rounded border border-border-default p-2 text-sm&quot;
+              data-discover=&quot;true&quot;
+              href=&quot;/actions&quot;
+            &gt;
+              Manage Actions
+            &lt;/a&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            &gt;
+              Refresh
+            &lt;/button&gt;
+          &lt;/div&gt;
+        &lt;/header&gt;
+        &lt;p
+          class=&quot;text-xs text-text-secondary&quot;
+          role=&quot;status&quot;
+        &gt;
+          Snapshot fetched 2026/10/25 15:38:06. Manual refresh; no live updates.
+        &lt;/p&gt;
+        &lt;section
+          aria-label=&quot;Automation login&quot;
+          class=&quot;min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4&quot;
+        &gt;
+          &lt;h2
+            class=&quot;mb-2 font-medium&quot;
+          &gt;
+            User authorization
+          &lt;/h2&gt;
+          &lt;p
+            class=&quot;mb-3 text-sm text-text-secondary&quot;
+          &gt;
+            Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;div
+          aria-label=&quot;Automation subpages&quot;
+          class=&quot;grid grid-cols-3 gap-1 rounded-xl border border-border-default bg-bg-secondary p-1&quot;
+          role=&quot;tablist&quot;
+        &gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-job&quot;
+            aria-selected=&quot;true&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent bg-accent/15 text-accent&quot;
+            id=&quot;automation-tab-job&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;0&quot;
+            type=&quot;button&quot;
+          &gt;
+            Job
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-trigger&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-trigger&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Trigger
+          &lt;/button&gt;
+          &lt;button
+            aria-controls=&quot;automation-panel-events&quot;
+            aria-selected=&quot;false&quot;
+            class=&quot;min-w-0 rounded-lg px-2 py-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary&quot;
+            id=&quot;automation-tab-events&quot;
+            role=&quot;tab&quot;
+            tabindex=&quot;-1&quot;
+            type=&quot;button&quot;
+          &gt;
+            Event Register
+          &lt;/button&gt;
+        &lt;/div&gt;
+        &lt;section
+          aria-labelledby=&quot;automation-tab-job&quot;
+          class=&quot;min-w-0&quot;
+          id=&quot;automation-panel-job&quot;
+          role=&quot;tabpanel&quot;
+        &gt;
+          &lt;fieldset
+            class=&quot;min-w-0&quot;
+          &gt;
+            &lt;div
+              class=&quot;min-w-0 space-y-5&quot;
+            &gt;
+              &lt;header
+                class=&quot;flex flex-wrap items-end justify-between gap-3&quot;
+              &gt;
+                &lt;div&gt;
+                  &lt;h2
+                    class=&quot;text-lg font-semibold&quot;
+                  &gt;
+                    Jobs
+                  &lt;/h2&gt;
+                  &lt;p
+                    class=&quot;mt-1 text-sm text-text-secondary&quot;
+                  &gt;
+                    Reusable Action chains, with manual runs or shared time events.
+                  &lt;/p&gt;
+                &lt;/div&gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-3 py-1.5 text-sm &quot;
+                &gt;
+                  New Job
+                &lt;/bu...
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ views/AutomationWorkspace.test.tsx:154:32
+            </failure>
+        </testcase>
+    </testsuite>
+    <testsuite name="components/automation/fields.test.tsx" timestamp="2026-10-25T07:38:07.147Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1145467">
+        <testcase classname="components/automation/fields.test.tsx" name="keeps the surviving literal display equal to the condition after deleting its predecessor" time="0.0671112">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="syncs an external literal and clears obsolete custom validity" time="0.0068087">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="retains unfinished invalid text on the surviving condition and on unrelated rerenders" time="0.0141654">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="preserves a valid unnormalized lexeme through its own edit and a sibling edit" time="0.014908">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="replacing the condition structure resets obsolete literal buffers and validity" time="0.0108541">
+        </testcase>
+    </testsuite>
+</testsuites>

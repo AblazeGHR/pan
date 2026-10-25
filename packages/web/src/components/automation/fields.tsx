@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import type { Argument, Condition } from '@/types/automation';
 import { comparison } from '@/types/automation';
 
-export const fieldClass = 'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm';
+export const fieldClass = 'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
 export const cardClass = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4';
 // UI identity never enters the persisted condition. Immutable edits retain the
 // edited row's key; deletion retains the surviving node's key, not its index.
@@ -15,7 +15,7 @@ function conditionKey(value: Condition) {
   return key;
 }
 export function JsonDetail({ label, value }: { label: string; value: unknown }) {
-  return <details className="min-w-0 text-sm"><summary className="cursor-pointer">{label}</summary><pre className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{JSON.stringify(value ?? null, null, 2)}</pre></details>;
+  return <details className="min-w-0 text-sm"><summary className="cursor-pointer break-all">{label}</summary><pre className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{JSON.stringify(value ?? null, null, 2)}</pre></details>;
 }
 export function ConditionEditor({ value, onChange, depth = 0 }: { value: Condition; onChange: (value: Condition) => void; depth?: number }) {
   const kind = 'and' in value ? 'and' : 'or' in value ? 'or' : 'not' in value ? 'not' : 'comparison';
@@ -34,7 +34,7 @@ export function ConditionEditor({ value, onChange, depth = 0 }: { value: Conditi
   </div>;
 }
 
-function LiteralInput({ label, value, onChange }: { label: string; value: unknown; onChange: (value: unknown) => void }) {
+export function LiteralInput({ label, value, onChange }: { label: string; value: unknown; onChange: (value: unknown) => void }) {
   const source = JSON.stringify(value);
   const [buffer, setBuffer] = useState(() => ({ source, text: source, error: '' }));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,8 +53,8 @@ export function ArgumentsEditor({ value, onChange, names }: { value: Record<stri
   const [name, setName] = useState('');
   return <div className="min-w-0 space-y-3"><p className="text-xs text-text-secondary">Literal values use JSON (for example: "hello", 0, true, ["id"]). Event paths use dictionary keys, for example payload.sessionId. No scripts.</p>
     {Object.entries(value).map(([key, arg]) => <div key={key} className="min-w-0 space-y-2 rounded border border-border-default p-3">
-      <p className="break-all text-sm font-medium">{key}</p><label className="block text-sm">Parameter source<select className={fieldClass} value={arg.from} onChange={(e) => onChange({ ...value, [key]: e.target.value === 'event' ? { from: 'event', path: 'payload.' } : { from: 'literal', value: '' } })}><option value="literal">Literal</option><option value="event">Event field</option></select></label>
-      {arg.from === 'event' ? <label className="block text-sm">Event path<input required pattern="[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*" className={fieldClass} value={arg.path} onChange={(e) => onChange({ ...value, [key]: { from: 'event', path: e.target.value } })} /></label> : <LiteralInput key={`${key}-literal`} label="Literal value (JSON)" value={arg.value} onChange={(next) => onChange({ ...value, [key]: { from: 'literal', value: next } })} />}
+      <p className="break-all text-sm font-medium">{key}</p><label className="block text-sm">Parameter source<select className={fieldClass} value={arg.from} onChange={(e) => onChange({ ...value, [key]: e.target.value === 'event' ? { from: 'event', path: 'payload.' } : e.target.value === 'system' ? { from: 'system', path: 'system.sessionId' } : { from: 'literal', value: '' } })}><option value="literal">Literal</option><option value="event">Event field</option>{arg.from === 'system' && <option value="system">Trusted system field</option>}</select></label>
+      {arg.from !== 'literal' ? <label className="block text-sm">{arg.from === 'system' ? 'Trusted system path' : 'Event path'}<input required pattern="[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*" className={fieldClass} value={arg.path} onChange={(e) => onChange({ ...value, [key]: { ...arg, path: e.target.value } })} /></label> : <LiteralInput key={`${key}-literal`} label="Literal value (JSON)" value={arg.value} onChange={(next) => onChange({ ...value, [key]: { from: 'literal', value: next } })} />}
       <Button type="button" size="sm" onClick={() => onChange(Object.fromEntries(Object.entries(value).filter(([k]) => k !== key)))}>Remove parameter</Button>
     </div>)}
     <label className="block text-sm">Parameter name<input className={fieldClass} list="automation-parameters" value={name} onChange={(e) => setName(e.target.value)} /></label><datalist id="automation-parameters">{names.map((n) => <option key={n}>{n}</option>)}</datalist>

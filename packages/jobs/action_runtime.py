@@ -50,7 +50,7 @@ def config_job(root, intent):
     job=_job_from_payload(dict(name=cfg['name'],description=cfg['description'],enabled=cfg['enabled'],
         action={'api':'action_reference','actionId':cfg['actionId'],'arguments':copy.deepcopy(cfg['arguments'])},
         _schedule_specs=cfg['schedule'] or [{'kind':'interval','intervalSec':3600}],_misfire=cfg['misfirePolicy'],_max_runs=cfg['maxRuns']))
-    if cfg.get('trigger',{}).get('kind') in ('immediate','event'):
+    if cfg.get('trigger',{}).get('kind') in ('manual','immediate','event'):
         job.update(schedule=[],nextFireAt=None)
     job.update(jobId=intent['jobId'],config=copy.deepcopy(cfg),configRevision=1,
                referenceGeneration=intent['referenceGeneration'],creationFingerprint=intent['fingerprint'],
@@ -134,6 +134,7 @@ class Runtime:
         result=jobs.job_public_view(copy.deepcopy(job))
         result['integrity']=integrity(state,job['config'],job['referenceGeneration'])
         result['enabled']=(job['enabled'] and result['integrity']['status']=='complete' and not result['integrity']['approvalRequired'])
+        if getattr(self,'setup_pending',None) and self.setup_pending(job['jobId']):result['enabled']=False
         result['config']['enabled']=result['enabled']
         from .unified import project
         result.pop('unified',None)
@@ -171,13 +172,15 @@ class Runtime:
         if intent['phase']=='reserved':self.templates.complete_intent(intent['key'])
         return self.view(old)
 
-    def create(self,raw,authorized=False,authority=None):
+    def create(self,raw,authorized=False,authority=None,*,creation_key=None):
         def change(state):
             cfg=config_value(raw,state)
             if any(not state['actions'][aid]['enabled'] or state.get('actionLifecycle',{}).get(aid) is False for aid in chains.action_ids(cfg)):
                 raise Conflict('Action disabled; new Job refused')
             if cfg['enabled'] and not authorized:raise PermissionError('Agent may create disabled Job draft only')
-            jid='job_'+uuid.uuid4().hex[:24];key=digest(jid)
+            jid='job_'+(digest('automation:'+str(self.root)+':'+creation_key)[:24] if creation_key else uuid.uuid4().hex[:24]);key=digest(jid)
+            prior=state.get('jobInstantiations',{}).get(key)
+            if prior:return copy.deepcopy(prior)
             intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=reference_generation(state,cfg),
                         fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root),
                         authorization=copy.deepcopy(authority or {'type':'user'}))
@@ -185,7 +188,9 @@ class Runtime:
             state['jobInstantiations'][key]=intent
             state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'actionIds':chains.action_ids(cfg),'position':'/config/actionId','jobRoot':str(self.root)}
             return copy.deepcopy(intent)
-        return self.publish_intent(self.templates.transaction(change))
+        intent=self.templates.transaction(change)
+        if intent['phase']=='created':return self.view(self.get(intent['jobId']))
+        return self.publish_intent(intent)
 
     def instantiate(self,tid,expected,key,overrides=None,admitted_template=None,authority=None):
         scoped=digest({'root':str(self.root),'key':key})
@@ -289,7 +294,7 @@ class Runtime:
                 state=self.actions.read()
                 checked=integrity(state,config,job['referenceGeneration'])
                 if checked['status']!='complete' or checked['approvalRequired']:raise Conflict('Action chain requires reference repair')
-                chain_snapshot=chains.freeze(config['steps'],state,config['arguments'],context,
+                chain_snapshot=chains.freeze(config['steps'],state,waiting.get('jobInput',config['arguments']) if queued is not None else config['arguments'],context,
                     completion=config['completion'],config_revision=job['configRevision'])
                 chain_snapshot['trigger']=copy.deepcopy(config['trigger'])
                 chain_snapshot['digest']=digest({k:v for k,v in chain_snapshot.items() if k!='digest'})
@@ -310,6 +315,7 @@ class Runtime:
                        'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
                        'templateRevision':job.get('templateRevision'),'backoffSec':0,
                        'receipt':None,'sideEffectUncertainty':False}
+            if queued is not None and 'jobInput' in waiting:execution['inputArguments']=copy.deepcopy(waiting['jobInput'])
             if chain_snapshot:
                 execution.update(chainSnapshot=chain_snapshot,configRevision=chain_snapshot['configRevision'],
                     stepExecutions=copy.deepcopy(chain_recovery['steps']) if chain_recovery else chains.records(chain_snapshot,run_id))
@@ -402,7 +408,7 @@ class Runtime:
             # The claimed entry is consumed at dispatch admission, not recovery.
             exhausted=not any(e.get('enabled',True) and e.get('nextFireAt') for e in job['schedule'])
             if outcome['status'] in {'uncertain','cancelled'} or (not job.get('pendingRuns') and outcome['status']!='restarting' and
-                    ((exhausted and cfg['trigger']['kind']!='event') or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']))):
+                    ((exhausted and cfg['trigger']['kind'] not in ('event','manual')) or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']))):
                 job['enabled']=False;job['config']['enabled']=False
             job['status']=('restarting' if outcome['status']=='restarting' else ('scheduled' if job['enabled'] else outcome['status']))
             if active:
@@ -601,7 +607,9 @@ class Runtime:
                 pending=job.setdefault('pendingRuns',[])
                 if len(pending)>=128:raise Conflict('Job queued Run capacity reached (128)')
                 pending.append({'id':'queued_'+uuid.uuid4().hex[:24],'configRevision':job['configRevision'],
-                                'entryId':None,'createdAt':time.time(),'event':copy.deepcopy(event)})
+                                'entryId':None,'createdAt':time.time(),'event':copy.deepcopy(event),
+                                **({'jobInput':{**job['config']['arguments'],**copy.deepcopy(target['arguments'])}} if 'arguments' in target else {}),
+                                **({'authorization':copy.deepcopy(target['authorization']),'authorizationRevision':target.get('authorizationRevision')} if 'authorization' in target else {})})
                 receipts[event['id']]={'status':'queued'}
             jobs._write_job(jobs._job_path(jid,self.root),job)
 
@@ -610,7 +618,8 @@ class Runtime:
             await io(self.queue_event,event,target)
         await self.tick(await io(jobs._scheduled_task_config))
 
-    async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False,authority=None):
+    async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False,authority=None,expected_authorization=None):
+        if getattr(self,'setup_pending',None) and await io(self.setup_pending,jid):raise Conflict('Job setup incomplete; resume the saved edit')
         if self.closed:raise Conflict('Job runtime closed')
         if len(self.admissions)+sum(not t.done() for t in self.tasks.values())>=self.limit:
             raise Conflict('Shared scheduler dispatch capacity reached')
@@ -623,7 +632,7 @@ class Runtime:
             action = (await io(self.actions.read))['actions'].get(before['config']['actionId']) if not continuation else None
             if not continuation and (not action or not action.get('enabled')):
                 raise Conflict('Action disabled or missing')
-            authorization_revision = await self._check_authorization(source, action)
+            authorization_revision = await self._check_authorization(source, action,expected_authorization)
             view=await io(self.view,before)
             if continuation:
                 if not before['enabled'] and not confirmed:raise Conflict('Job disabled')
@@ -694,7 +703,7 @@ class Runtime:
                     await io(jobs._update,job['jobId'],{'pendingRuns':[]},registry_root=self.root)
                     self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':'Queued Run configuration changed; cancelled'})
                     continue
-                try:await self.launch(job['jobId'],expected=job['configRevision'],queued=pending['id'])
+                try:await self.launch(job['jobId'],expected=job['configRevision'],queued=pending['id'],authority=pending.get('authorization'),expected_authorization=pending.get('authorizationRevision'))
                 except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'queue','error':str(exc)})
                 continue
             recovery=job.get('runPolicy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
@@ -802,6 +811,8 @@ class Runtime:
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid);revision(job['configRevision'],expected)
             if self.active(job) or self.admitting(jid):raise Conflict('Job running or cleaning')
+            if getattr(self,'setup_pending',None) and self.setup_pending(jid):raise Conflict('Close the pending setup before deleting this Job')
+            if getattr(self,'managed_cleanup',None):self.managed_cleanup(jid)
             jobs._job_path(jid,self.root).unlink()
         def detach(state):state.setdefault('jobReferences',{}).pop(jid,None)
         self.templates.transaction(detach)

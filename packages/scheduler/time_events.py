@@ -41,6 +41,8 @@ class Sources:
                 db.execute('PRAGMA synchronous=FULL')
                 with db:
                     db.execute('CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY, document TEXT NOT NULL)')
+                    db.execute('CREATE TABLE IF NOT EXISTS source_requests(key TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,id TEXT NOT NULL)')
+                    db.execute('CREATE TABLE IF NOT EXISTS source_links(trigger_id TEXT PRIMARY KEY,source_id TEXT NOT NULL,job_id TEXT NOT NULL)')
                     yield db
             finally:
                 db.close()
@@ -57,7 +59,7 @@ class Sources:
     def write(db, item):
         db.execute('INSERT OR REPLACE INTO sources VALUES(?,?)', (item['id'], json.dumps(item, allow_nan=False)))
 
-    def put(self, raw, expected, sid=None, *, at=None):
+    def put(self, raw, expected, sid=None, *, at=None,creation_key=None):
         from packages.core.background_jobs import _entry_next_fire
         at = at or datetime.now().replace(microsecond=0)
         if not isinstance(raw, dict) or set(raw) - {'name', 'schedule', 'enabled', 'misfirePolicy', 'graceSec'}:
@@ -82,6 +84,14 @@ class Sources:
             raise ValueError('graceSec requires 0..86400 seconds')
         with self.connection() as db:
             db.execute('BEGIN IMMEDIATE')
+            fingerprint=hashlib.sha256(json.dumps(raw,sort_keys=True,allow_nan=False).encode()).hexdigest()
+            if creation_key:
+                prior=db.execute('SELECT fingerprint,id FROM source_requests WHERE key=?',(creation_key,)).fetchone()
+                if prior:
+                    if prior[0]!=fingerprint:raise Conflict('Source creation key belongs to another request')
+                    row=db.execute('SELECT document FROM sources WHERE id=?',(prior[1],)).fetchone()
+                    if not row:raise Conflict('Previously created source was deleted')
+                    return self.public(json.loads(row[0]))
             old_row = db.execute('SELECT document FROM sources WHERE id=?', (sid,)).fetchone() if sid else None
             if sid and not old_row:raise KeyError(sid)
             old = json.loads(old_row[0]) if old_row else None
@@ -99,6 +109,7 @@ class Sources:
                         publishCursor=copy.deepcopy(old.get('publishCursor')) if old else None,
                         createdAt=old['createdAt'] if old else store.iso(at), updatedAt=store.iso(at))
             self.write(db, item)
+            if creation_key:db.execute('INSERT INTO source_requests VALUES(?,?,?)',(creation_key,fingerprint,item['id']))
             return self.public(item)
 
     def delete(self, sid, expected):
@@ -110,7 +121,42 @@ class Sources:
             if type(expected) is not int or item['revision'] != expected:raise Conflict('Source revision changed')
             if item['enabled'] or item.get('pending') or (item.get('publishCursor') and not item['publishCursor'].get('eventStoreReleased')):
                 raise Conflict('Disable and settle source before deletion')
+            if db.execute('SELECT 1 FROM source_links WHERE source_id=?',(sid,)).fetchone():raise Conflict('Detach referencing Jobs before deleting this source')
             db.execute('DELETE FROM sources WHERE id=?', (sid,))
+
+    def bind_link(self,sid,tid,jid):
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if not db.execute('SELECT 1 FROM sources WHERE id=?',(sid,)).fetchone():raise Conflict('Selected Scheduler was deleted')
+            db.execute('INSERT OR REPLACE INTO source_links VALUES(?,?,?)',(tid,sid,jid))
+
+    def detach_links(self,jid,keep=()):
+        with self.connection() as db:
+            rows=db.execute('SELECT trigger_id FROM source_links WHERE job_id=?',(jid,)).fetchall()
+            db.executemany('DELETE FROM source_links WHERE trigger_id=?',[(r[0],) for r in rows if r[0] not in keep])
+
+    def references(self,sid):
+        with self.connection() as db:
+            return [{'triggerId':r[0],'jobId':r[1]} for r in db.execute('SELECT trigger_id,job_id FROM source_links WHERE source_id=?',(sid,))]
+
+    def composition_enabled(self,sid,enabled):
+        """Trusted saga recovery only: fence a new source, retaining its fact."""
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT document FROM sources WHERE id=?',(sid,)).fetchone()
+            if not row:return
+            item=json.loads(row[0])
+            if item['enabled']!=enabled or item.get('compositionBlocked',False)==enabled:
+                item.update(enabled=enabled,compositionBlocked=not enabled,revision=item['revision']+1)
+                self.write(db,item)
+
+    def bind_operation(self,sid,key):
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT document FROM sources WHERE id=?',(sid,)).fetchone()
+            if not row:raise Conflict('Source missing during setup')
+            item=json.loads(row[0]);item['setupOperation']=key
+            self.write(db,item)
 
     def reserve(self, sid, at):
         from packages.core.background_jobs import _entry_next_fire
@@ -121,6 +167,7 @@ class Sources:
             if not row:return None
             item = json.loads(row[0])
             if item.get('owner') != OWNER:raise ValueError('Unknown source owner; refused')
+            if item.get('compositionBlocked'):return None
             if item.get('pending'):return item['pending']
             fire = parse_datetime(item.get('nextFireAt'))
             if not item['enabled'] or fire is None or fire > at:return None
@@ -168,9 +215,10 @@ class Sources:
 
 
 class Runtime:
-    def __init__(self, sources, admit, diagnostics, acknowledge=None):
+    def __init__(self, sources, admit, diagnostics, acknowledge=None,source_ready=None):
         self.sources, self.admit, self.diagnostics = sources, admit, diagnostics
         self.acknowledge=acknowledge
+        self.source_ready=source_ready
         self.lock = asyncio.Lock()
 
     async def tick(self, cfg, *, at=None):
@@ -182,6 +230,7 @@ class Runtime:
                 return
             for item in items:
                 try:
+                    if item.get('setupOperation') and (not self.source_ready or not await io(self.source_ready,item['setupOperation'])):continue
                     if self.acknowledge and item.get('publishCursor') and not item['publishCursor'].get('eventStoreReleased'):
                         await self.acknowledge(item['publishCursor']['eventId'])
                         await io(self.sources.acknowledged,item['id'],item['publishCursor']['eventId'])

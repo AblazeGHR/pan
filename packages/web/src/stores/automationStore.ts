@@ -16,7 +16,7 @@ let expiry: ReturnType<typeof setTimeout> | undefined;
 export async function automationRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const auth = useAutomationAuth.getState();
   if (auth.expiresAt <= Date.now()) auth.clear();
-  const protectedPath = path.startsWith('automation') || path.startsWith('jobs/action-jobs') || path.startsWith('jobs/job-templates') || path.startsWith('actions');
+  const protectedPath = path.startsWith('automation') || path.startsWith('jobs/action-jobs') || path.startsWith('jobs/job-templates') || path.startsWith('actions') || path.startsWith('scheduler/event-sources');
   const token = protectedPath ? useAutomationAuth.getState().token : null;
   const response = await fetch(`/api/${path}`, { method, headers: {
     ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),

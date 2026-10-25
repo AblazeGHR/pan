@@ -46,16 +46,21 @@ class Ledger:
             atomic(self.path, state)
             return copy.deepcopy(result)
 
-    def put(self, raw, expected, authorized=False, creator=None, authority=None):
+    def put(self, raw, expected, authorized=False, creator=None, authority=None, *, managed=False):
         def change(state):
             item = copy.deepcopy(raw)
-            allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
+            allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'targetJobId', 'ownerJobId', 'ownerLinkId', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
             if set(item) - allowed:
                 raise ValueError('Unknown Trigger fields')
             tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
             if not isinstance(tid, str) or not tid or len(tid) > 100:
                 raise ValueError('Invalid Trigger ID')
             old = state['triggers'].get(tid)
+            if (item.get('ownerJobId') or (old and old.get('ownerJobId'))) and not managed:
+                raise Conflict('Managed Trigger must be edited from its owning Job')
+            if item.get('targetJobId') is not None and (not isinstance(item['targetJobId'],str) or not item['targetJobId'].startswith('job_')):
+                raise ValueError('Invalid Job target')
+            if item.get('targetJobId') and 'steps' in item:raise ValueError('Choose a Job target or a direct Action chain')
             # Older clients omit additive scheduler fields. Preserve an existing
             # explicit policy rather than silently reverting it on a name edit.
             if old:
@@ -122,6 +127,7 @@ class Ledger:
     def delete(self, tid, expected):
         def change(state):
             old = state['triggers'][tid]
+            if old.get('ownerJobId'):raise Conflict('Managed Trigger must be deleted from its owning Job')
             if old['revision'] != expected:
                 raise Conflict('Trigger revision changed')
             if old['enabled']:

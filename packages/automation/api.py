@@ -8,6 +8,8 @@ from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SE
 
 
 def install(server):
+    from .job_link_api import router as job_link_router
+    server.app.include_router(job_link_router)
     router = APIRouter()
 
     def service():
@@ -84,6 +86,10 @@ def install(server):
         await require_permission(request, 'trigger', 'read')
         svc = service()
         state = chains.public(await svc.engine.io(svc.ledger.read))
+        pending_jobs={op['jobId'] for op in state.get('linkOperations',{}).values() if op.get('jobId') and op['status'] not in {'complete','cancelled'}}
+        for trigger in state['triggers'].values():
+            if trigger.get('ownerJobId') in pending_jobs:trigger.update(enabled=False,setupPending=True)
+        state.pop('linkOperations',None)
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
 
     @router.get('/api/automation/system-fields')

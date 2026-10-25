@@ -1,5 +1,6 @@
 """User-controlled complete Job Templates and Action Job configuration endpoints."""
 from fastapi import APIRouter, Request, HTTPException
+import sqlite3
 from packages.plugins.lifecycle import io
 from .action_runtime import AuthorizationRevoked
 from . import chains
@@ -42,7 +43,7 @@ async def invoke(fn,*args,_emit=False,**kwargs):
         return value
     except PermissionError as exc:raise HTTPException(401,str(exc)) from exc
     except CreationPending as exc:raise HTTPException(503,{'message':str(exc),'jobId':exc.job_id,'pending':True}) from exc
-    except OSError as exc:raise HTTPException(503,'Persistence failed; reload state before retrying: '+str(exc)) from exc
+    except (OSError,sqlite3.Error) as exc:raise HTTPException(503,'Persistence failed; reload state before retrying: '+str(exc)) from exc
     except AuthorizationRevoked as exc:raise HTTPException(403,str(exc)) from exc
     except Conflict as exc:raise HTTPException(409,str(exc)) from exc
     except KeyError as exc:raise HTTPException(404,str(exc)) from exc
@@ -89,7 +90,7 @@ async def schema(request:Request,actionId:str|None=None):
     config_schema={'type':'object','additionalProperties':False,'required':['name','actionId','schedule'],
         'properties':{**metadata,'actionId':{'type':'string'},'arguments':arguments,
         'schedule':{'type':'array','minItems':0,'maxItems':32,'items':{'oneOf':schedules}},
-        'trigger':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['immediate','once','interval','cron','event','schedule']},'query':{'type':'object'},'eventTypes':{'type':'array','minItems':1,'maxItems':32,'uniqueItems':True,'items':{'type':'string','minLength':1,'maxLength':200}}},'required':['kind']},
+        'trigger':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['manual','immediate','once','interval','cron','event','schedule']},'query':{'type':'object'},'eventTypes':{'type':'array','minItems':1,'maxItems':32,'uniqueItems':True,'items':{'type':'string','minLength':1,'maxLength':200}}},'required':['kind']},
         'recovery':{'type':'object','additionalProperties':False,'properties':{'enabled':{'type':'boolean'},'monitoring':{'type':'boolean'},'maxAttempts':{'type':'integer','minimum':1,'maximum':10},'backoffSec':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'integer','minimum':0,'maximum':86400}},'stableResetSec':{'type':'integer','minimum':0,'maximum':86400}}},
         'overlap':{'type':'object','additionalProperties':False,'properties':{'mode':{'enum':['forbid','queue','parallel']},'parallelLimit':{'type':'integer','minimum':1,'maximum':32}}},
         'notification':{'type':'object','additionalProperties':False,'properties':{'on':{'type':'array','items':{'enum':['completed','failed','cancelled','unknown','uncertain','cleaning']}},'target':{'const':'job'},'sessionIds':{'type':'array','maxItems':128,'uniqueItems':True,'items':{'type':'string','minLength':1}}}},

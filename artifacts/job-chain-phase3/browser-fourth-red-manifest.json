@@ -1,0 +1,339 @@
+{
+  "origin": "http://pan-phase3.test",
+  "transport": "Playwright route.fulfill / routeWebSocket; no TCP listener",
+  "screenshots": [
+    "job-1440.png",
+    "trigger-1440.png",
+    "event-register-1440.png",
+    "source-impact-1440.png",
+    "chain-editor-1440.png",
+    "existing-scheduler-flow-1440.png",
+    "new-scheduler-flow-1440.png"
+  ],
+  "overflows": [
+    {
+      "width": 1440,
+      "name": "job",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "trigger",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "event-register",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "source-impact",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "chain-editor",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "existing-scheduler-flow",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "new-scheduler-flow",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    }
+  ],
+  "keyboard": [
+    {
+      "width": 1440,
+      "arrows": true,
+      "homeEnd": true,
+      "focusOutline": "2px"
+    }
+  ],
+  "pageErrors": [],
+  "requests": [
+    {
+      "width": 1440,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    }
+  ],
+  "legacyEntry": true,
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'false' !== 'true'\n"
+}

@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 function TestRouter({ children }: { children: ReactNode }) {
-  const [router] = useState(() => createMemoryRouter([{ path: '/', element: children }, { path: '/actions', element: <div>Actions destination</div> }]));
+  const [router] = useState(() => createMemoryRouter([{ path: '/', element: children }, { path: '/actions', element: <div>Actions destination</div> }], { initialEntries: ['/?tab=trigger'] }));
   return <RouterProvider router={router} />;
 }
 import AutomationView from './AutomationView';
