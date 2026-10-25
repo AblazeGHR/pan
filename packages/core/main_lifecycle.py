@@ -89,8 +89,12 @@ def run_canonical_supervisor(store, doc):
     original receipt/evidence; an interrupted effect stays uncertain.
     """
     from packages.actions.typed_executor import EffectReceipt
+    from packages.core.platform import supports
     identity, attempt, claim = doc["effectId"], doc["attempt"], doc["claim"]
     plan, key = doc["frozenPlan"], doc["effectKey"]
+    if not supports("service.lifecycle"):
+        return EffectReceipt(key, "rejected", {"code": "capability_unsupported"},
+                             {"confirmed": True, "effectStarted": False}).as_dict()
     args = plan["arguments"]
     root, port = str(Path(args["root"]).resolve()), args["port"]
     old_pid, birth = args["oldPid"], args["oldPidCreatedAt"]

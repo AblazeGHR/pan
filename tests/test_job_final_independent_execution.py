@@ -277,6 +277,23 @@ def test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent(tmp_path):
     assert marker.read_text() == "x" and len(reader.events()["events"]) == 1
 
 
+def test_fe02_spawn_bound_wait_proves_exit_after_pid_reaped(tmp_path, monkeypatch):
+    from packages.core.platform import process
+    from tests.test_job_final_executors import FakeOwner
+    class ReapedOwner(FakeOwner):
+        def verify(self, record):
+            return process.IdentityCheck(process.ProcessStatus.DEAD, None, detail="PID already reaped")
+        def kill_tree(self, handle, *, timeout):
+            return process.TreeTerminationResult((7,), (), True)
+    owner = ReapedOwner()
+    monkeypatch.setattr(process, "default_process_owner", lambda: owner)
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, process_plan(tmp_path))
+    final = run(execute_claimed(store, doc))
+    assert len(owner.calls) == 1 and final["result"]["outcome"] == "succeeded"
+    assert final["result"]["cleanupProof"]["ownedTree"]["confirmed"] is True
+
+
 def test_fe02_real_worker_survives_the_admitting_host_process_exit(tmp_path):
     from packages.jobs.window import command_window_options
     root = tmp_path / "standalone-host"
@@ -350,6 +367,9 @@ def life_plan(tmp_path, operation="service.restart"):
 
 
 def life_setup(tmp_path, monkeypatch, operation="service.restart"):
+    from packages.core import platform
+    # The launcher below is a mock backend, including on POSIX test hosts.
+    monkeypatch.setattr(platform, "supports", lambda capability: True)
     store = ExecutionStore(tmp_path / "executor")
     plan = life_plan(tmp_path, operation)
     doc = claim(store, plan)
@@ -463,6 +483,14 @@ def test_fe05_protected_admission_and_capability_guard(tmp_path, monkeypatch):
     assert len(launches) == 1
     denied = run(TypedExecutor().execute(attempt=attempt(), effect_key=key(), frozen_plan=life_plan(tmp_path)))
     assert denied["receipt"]["code"] == "authorization_denied"
+
+
+def test_fe05_supervisor_rechecks_capability_before_effect(tmp_path, monkeypatch):
+    from packages.core import platform
+    store, doc, plan, calls = life_setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(platform, "supports", lambda capability: False)
+    final = run(execute_claimed(store, doc))
+    assert final["result"]["receipt"]["code"] == "capability_unsupported" and not calls
 
 
 @pytest.mark.parametrize("probe_error", ["listener", "birth"])

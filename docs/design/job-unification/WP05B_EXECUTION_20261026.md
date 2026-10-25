@@ -84,8 +84,8 @@ FE01/FE03/FE04 沿用 `test_job_final_executors.py` 与 ProcessOwner 契约测�
 不降低断言、不更改既有删除保护以变绿；该项不作为本包已通过的证据。
 
 全 `tests/ --collect-only` 在候选/基线均因当前 Python 缺少 playwright 出现相同 4 个
-导入错误；不宣称全量收集或全量后端回归通过。受影响回归 369 passed / 20 skipped，
-其中新增契约 48 passed；平台导入链（含模拟 POSIX，非实机证据）另 4 passed。
+导入错误；不宣称全量收集或全量后端回归通过。受影响回归与平台导入链门禁合计
+375 passed / 20 skipped，其中新增契约 50 passed。导入链含模拟 POSIX，非实机证据。
 
 本包未执行真实 main restart/exit、外部 Task Scheduler host 停机验收、真实 Session/QQ
 发送、真实数据迁移/全 profile 盘点、React 构建/浏览器、POSIX 实机或远端三平台 CI、部署、

@@ -25,6 +25,10 @@ async def execute_claimed(store, doc, *, executor=None):
                 owner = default_process_owner()
 
                 class RecordingOwner:
+                    def __init__(self):
+                        self.record = None
+                        self.exited_with_tree_proof = False
+
                     def __getattr__(self, name):
                         return getattr(owner, name)
 
@@ -36,6 +40,7 @@ async def execute_claimed(store, doc, *, executor=None):
                     def recoverable_identity(self, handle):
                         record = owner.recoverable_identity(handle)
                         store.phase(identity, attempt, claim, "running", processIdentity=record)
+                        self.record = record
                         return record
 
                     def wait(self, handle, *, timeout):
@@ -49,7 +54,18 @@ async def execute_claimed(store, doc, *, executor=None):
                             store.phase(identity, attempt, claim, "cleaning", treeCleanupProof=proof)
                             if not tree.confirmed:
                                 raise RuntimeError("owned process tree cleanup unconfirmed")
+                            self.exited_with_tree_proof = True
                         return waited
+
+                    def verify(self, record):
+                        # POSIX wait reaps the PID, so a fresh PID lookup cannot
+                        # re-prove ownership. Use the SAME spawn-bound wait and
+                        # owned-tree proof, rather than turning absence into ours.
+                        if self.exited_with_tree_proof and record == self.record:
+                            from packages.core.platform.process import IdentityCheck, ProcessStatus
+                            return IdentityCheck(ProcessStatus.DEAD, True,
+                                detail="retained spawn wait and owned-tree cleanup confirmed")
+                        return owner.verify(record)
 
                 executor = TypedExecutor(process_owner=RecordingOwner(), process_timeout=86400)
             result = await executor.execute(attempt=attempt, effect_key=doc["effectKey"], frozen_plan=doc["frozenPlan"])
