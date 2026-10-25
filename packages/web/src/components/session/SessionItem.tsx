@@ -109,17 +109,6 @@ interface SessionItemProps {
   insertZone?: DropZone | null;
 }
 
-function shortWorkdir(workdir?: string): string {
-  if (!workdir) return '';
-  const parts = workdir.replace(/\\/g, '/').split('/');
-  parts.pop();
-  const lastTwo = parts.slice(-2);
-  if (lastTwo.length < parts.length) {
-    return `…/${lastTwo.join('/')}`;
-  }
-  return `/${lastTwo.join('/')}`;
-}
-
 /** 徽标计数（未读 done / 队列）统一收敛为非负整数；0 表示不渲染徽标。 */
 function normalizedBadgeCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -415,12 +404,6 @@ export const SessionItem = memo(function SessionItem({
             <span className="flex items-center gap-0.5 truncate">
               <Monitor size={10} />
               {formatModelLabel(session.model, multipliers)}
-            </span>
-          )}
-          {session.workdir && (
-            <span className="flex items-center gap-0.5 truncate text-text-tertiary" title={session.workdir}>
-              <Folder size={10} />
-              {shortWorkdir(session.workdir)}
             </span>
           )}
           {credit !== null && (
