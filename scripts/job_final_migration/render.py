@@ -27,8 +27,11 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines = [
         "# Job final migration inventory",
         "",
-        "Read-only inventory: no migration was executed, no target store was "
-        "written, and no service or process was started.",
+        ("Offline apply committed; canonical objects remain disabled. Source root "
+         "unchanged; runtime fencing and activation are not verified."
+         if report["migrationExecuted"] else
+         "Read-only inventory: no migration was executed, no target store was "
+         "written, and no service or process was started."),
         "",
         f"- Root: `{root['path']}`",
         f"- Real profile: {_yes_no(root['realProfile'])}"
@@ -36,6 +39,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- `--allow-real-profile`: {_yes_no(root['allowRealProfile'])}",
         f"- Mapping version: {report['mappingVersion']}",
         f"- Schema whitelist: {report['schemaWhitelist']}",
+        f"- Inventory digest: `{report.get('inventoryDigest', '-')}`",
+        f"- Plan digest: `{report.get('planDigest', '-')}`",
+        f"- Target writes: {report['targetWrites']}",
         "",
         "## Summary",
         "",
@@ -94,7 +100,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("")
 
     lines.extend([
-        "## Plan (not executed)",
+        "## Plan (offline apply committed)" if report["migrationExecuted"] else "## Plan (not executed)",
         "",
         f"- Executable: {_yes_no(report['plan']['executable'])}",
         f"- Target ID allocation: {report['plan']['targetIdAllocation']}",

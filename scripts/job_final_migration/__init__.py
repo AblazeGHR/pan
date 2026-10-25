@@ -1,7 +1,8 @@
-"""Read-only inventory and dry-run planning for the Job final-model migration.
+"""Offline inventory, dry-run planning and explicit migration apply.
 
-This package deliberately imports only the Python standard library. It must not
-be used by the running Pan service, and it never writes to the scanned root.
+Inventory uses the standard library; apply validates via WP01 contracts.
+This package must not be used by the running Pan service. The scanned root is
+always read-only; apply publishes an offline bundle outside it.
 """
 
 from .inventory import (

@@ -1,0 +1,11 @@
+{
+  "moduleCli": {
+    "dryRun": true,
+    "apply": true,
+    "idempotentReplay": true,
+    "rollback": true,
+    "rootSnapshotUnchanged": true,
+    "simpleTypes": 6,
+    "canonicalRecords": 11
+  }
+}
