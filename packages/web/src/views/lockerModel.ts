@@ -11,7 +11,45 @@ export interface Locker {
   total: number;
   unread: number;
 }
+export interface TrustedBinding {
+  summary: string;
+  actionId: string;
+  actionDigest: string;
+  triggerRevision: number;
+  targetIds: string[];
+  arguments: Record<string, unknown>;
+  authorization?: { producerSessionId: string; basis: string };
+}
+export type QuestionAnswer =
+  | { rejected: true; reason?: string }
+  | { text: string }
+  | { choiceId: string }
+  | { choiceIds: string[] };
+export interface CardQuestion {
+  id: string;
+  prompt: string;
+  type: 'single_choice' | 'multi_choice' | 'text';
+  required?: boolean;
+  choices?: { id: string; label: string; triggerRef?: { id: string; revision?: number } }[];
+}
+export function cardChoiceBinding(
+  card: InteractionCard,
+  choiceId: string,
+  questionId?: string,
+): TrustedBinding | undefined {
+  const all = card.trustedChoices;
+  const bindings =
+    questionId === undefined
+      ? all
+      : all && Object.hasOwn(all, questionId)
+        ? (all[questionId] as Record<string, TrustedBinding>)
+        : undefined;
+  return bindings && Object.hasOwn(bindings, choiceId)
+    ? (bindings[choiceId] as TrustedBinding)
+    : undefined;
+}
 export interface InteractionCard {
+  schemaVersion?: 1 | 2;
   id: string;
   lockerId: string;
   ownerSessionId: string;
@@ -22,6 +60,8 @@ export interface InteractionCard {
   revision: number;
   status: 'open' | 'responded' | 'rejected' | 'no_answer_needed';
   definition: {
+    schemaVersion?: 1 | 2;
+    questions?: CardQuestion[];
     title: string;
     body: string;
     summaryBody: string;
@@ -32,6 +72,7 @@ export interface InteractionCard {
   response: null | {
     id?: string;
     requestId?: string;
+    answers?: Record<string, QuestionAnswer>;
     answer?: string;
     choiceId?: string;
     outcome?: 'submit' | 'reject';
@@ -39,18 +80,7 @@ export interface InteractionCard {
   };
   delivery: { state: string; receiptId?: string };
   rejectionDelivery?: { state: string; receiptId?: string };
-  trustedChoices?: Record<
-    string,
-    {
-      summary: string;
-      actionId: string;
-      actionDigest: string;
-      triggerRevision: number;
-      targetIds: string[];
-      arguments: Record<string, unknown>;
-      authorization?: { producerSessionId: string; basis: string };
-    }
-  >;
+  trustedChoices?: Record<string, TrustedBinding | Record<string, TrustedBinding>>;
 }
 export interface LockerMessage {
   kind: 'message';
@@ -84,7 +114,13 @@ export function isUserCard(item: LockerItem): item is UserCard {
 }
 export type LockerItem = InteractionCard | LockerMessage | UserCard;
 export function lockerItemPreview(item: LockerItem | undefined): string {
-  return item ? (isUserCard(item) ? item.body : 'message' in item ? item.message.content : item.definition.title) : 'No messages';
+  return item
+    ? isUserCard(item)
+      ? item.body
+      : 'message' in item
+        ? item.message.content
+        : item.definition.title
+    : 'No messages';
 }
 export function compareLockerItems(a: LockerItem, b: LockerItem): number {
   return Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id);
@@ -175,12 +211,30 @@ export function lockerProjection<T extends LockerItem>(
 
 /** Positions are projections only; counts and actions always use the original item. */
 export function lockerTimeline(items: LockerItem[]) {
-  return items.flatMap((item) => {
-    const original = { item, position: 'created' as const, displayedAt: item.createdAt, key: `${item.id}:created` };
-    return isUserCard(item) && item.answeredAt
-      ? [original, { item, position: 'answered' as const, displayedAt: item.answeredAt, key: `${item.id}:answered` }]
-      : [original];
-  }).sort((a, b) => Date.parse(a.displayedAt) - Date.parse(b.displayedAt)
-    || (a.position === b.position ? 0 : a.position === 'created' ? -1 : 1)
-    || a.item.id.localeCompare(b.item.id));
+  return items
+    .flatMap((item) => {
+      const original = {
+        item,
+        position: 'created' as const,
+        displayedAt: item.createdAt,
+        key: `${item.id}:created`,
+      };
+      return isUserCard(item) && item.answeredAt
+        ? [
+            original,
+            {
+              item,
+              position: 'answered' as const,
+              displayedAt: item.answeredAt,
+              key: `${item.id}:answered`,
+            },
+          ]
+        : [original];
+    })
+    .sort(
+      (a, b) =>
+        Date.parse(a.displayedAt) - Date.parse(b.displayedAt) ||
+        (a.position === b.position ? 0 : a.position === 'created' ? -1 : 1) ||
+        a.item.id.localeCompare(b.item.id),
+    );
 }

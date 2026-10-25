@@ -49,7 +49,8 @@ def bind(service):
                 return inline(SCHEMA['$defs'][value['$ref'].removeprefix('#/$defs/')])
             return {k: inline(v) for k, v in value.items()}
         return value
-    service.bus.register(handle, 'pan.interaction.responded', inline(SCHEMA['$defs']['Event']['properties']['payload']))
+    service.bus.register(handle, 'pan.interaction.responded', inline(SCHEMA['$defs']['Event']['properties']['payload']),
+                         max_payload_bytes=2_000_000)
 
     async def get_trigger(tid):
         return (await service.engine.io(service.ledger.read))['triggers'].get(tid)
@@ -84,7 +85,10 @@ def bind(service):
                 old = service.events.lookup(event['id'])
                 if old and [t['id'] for t in old['targets']] != [tid]:
                     raise ValueError('Directed Event identity conflict')
-                service.events.append(prepared, [trigger])
+                if 'answers' in event['payload']['response']:
+                    service.events.append(prepared, [trigger], max_payload_bytes=2_000_000)
+                else:
+                    service.events.append(prepared, [trigger])
                 return {'status': 'accepted', 'receiptId': event['id']}
             result = await service.engine.io(admit)
             service.wake.set()

@@ -160,6 +160,7 @@ beforeEach(() => {
           revision: 1,
           status: path.endsWith('/reject') ? 'rejected' : 'responded',
           response: {
+            answers: body.answers as NonNullable<InteractionCard['response']>['answers'],
             outcome: path.endsWith('/reject') ? 'reject' : 'submit',
             answer: body.answer as string | undefined,
             choiceId: body.choiceId as string | undefined,
@@ -672,4 +673,102 @@ describe('reminding card positions share one record', () => {
     await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(0));
     expect(userCards).toHaveLength(0);
   });
+});
+
+function multiCard(): InteractionCard {
+  return { ...card(), schemaVersion: 2, definition: {
+    schemaVersion: 2, title: 'Multiple questions', body: 'One final submission', summaryBody: '',
+    questions: [
+      { id: 'one', prompt: '部署模式', type: 'single_choice', choices: [{ id: 'a', label: '预览' }, { id: 'b', label: '发布' }] },
+      { id: 'two', prompt: '目标环境', type: 'multi_choice', choices: [{ id: 'a', label: '测试' }, { id: 'b', label: '演练' }] },
+      { id: 'three', prompt: '执行说明', type: 'text' },
+      { id: 'optional', prompt: '可选说明', type: 'text', required: false },
+    ],
+  }, trustedChoices: {} };
+}
+it('validates each required question, submits mixed rejection and answers once, and renders all results read-only', async () => {
+  cards = [multiCard()]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getAllByRole('alert')).toHaveLength(3);
+  expect(calls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(0);
+  fireEvent.click(row.getByRole('radio', { name: '预览' }));
+  fireEvent.click(row.getByRole('checkbox', { name: '测试' }));
+  fireEvent.click(row.getByRole('checkbox', { name: '演练' }));
+  fireEvent.click(row.getAllByRole('button', { name: '拒绝此题' })[2]!);
+  fireEvent.change(row.getByRole('textbox', { name: '执行说明：拒绝原因' }), { target: { value: '需要更多上下文' } });
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await waitFor(() => expect(row.getByText('Read-only')).toBeTruthy());
+  const sent = calls.filter((c) => c.path.endsWith('/submit'));
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.body.answers).toEqual({ one: { choiceId: 'a' }, two: { choiceIds: ['a', 'b'] }, three: { rejected: true, reason: '需要更多上下文' } });
+  expect(row.getByText('已拒绝此题：需要更多上下文')).toBeTruthy();
+  expect(row.getByText('预览')).toBeTruthy();
+  expect(row.getByText('测试')).toBeTruthy();
+  expect(row.getByText('演练')).toBeTruthy();
+  expect(row.queryByRole('textbox')).toBeNull();
+  expect(row.queryByRole('button', { name: '拒绝此题' })).toBeNull();
+});
+it('keeps scoped trusted choices separate and never enables an unbound question choice', async () => {
+  const multi = multiCard();
+  multi.definition.questions = ['one', 'two'].map((id) => ({ id, prompt: id, type: 'single_choice', choices: [{ id: 'go', label: 'Go', triggerRef: { id: 'trigger' } }] }));
+  multi.trustedChoices = { one: { go: cardChoiceBindingForTest() } };
+  cards = [multi]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  const radios = row.getAllByRole('radio');
+  expect((radios[0] as HTMLInputElement).disabled).toBe(false);
+  expect((radios[1] as HTMLInputElement).disabled).toBe(true);
+});
+function cardChoiceBindingForTest() {
+  return { summary: 'Only first question', targetIds: ['ses_target'], actionId: 'pause', actionDigest: 'a'.repeat(64), triggerRevision: 1, arguments: {} };
+}
+it('allows undoing question rejection before submission and shows text length errors inline', async () => {
+  cards = [multiCard()]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  fireEvent.click(row.getAllByRole('button', { name: '拒绝此题' })[2]!);
+  fireEvent.click(row.getByRole('button', { name: '撤销此题拒绝' }));
+  fireEvent.change(row.getByRole('textbox', { name: '执行说明' }), { target: { value: 'x'.repeat(10001) } });
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getByText('文本答案不能超过 10000 字')).toBeTruthy();
+  expect(calls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(0);
+});
+
+it('retries v2 with the exact frozen answers after an uncertain result', async () => {
+  cards = [multiCard()];
+  const original = globalThis.fetch;
+  const payloads: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {
+    if (String(args[0]).endsWith('/submit')) {
+      payloads.push(String(args[1]?.body));
+      if (payloads.length === 1) throw new Error('connection lost');
+    }
+    return original(...args);
+  }));
+  mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  for (const button of row.getAllByRole('button', { name: '拒绝此题' })) fireEvent.click(button);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await waitFor(() => expect(row.getByRole('alert').textContent).toContain('connection lost'));
+  expect(row.getAllByRole('textbox').every((input) => input.matches(':disabled'))).toBe(true);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await row.findByText('Read-only');
+  expect(payloads).toHaveLength(2);
+  expect(payloads[0]).toBe(payloads[1]);
+  expect(row.getAllByText('已拒绝此题')).toHaveLength(4);
+});
+
+it('handles arbitrary stable question and choice IDs without inherited object fields', async () => {
+  const multi = multiCard();
+  multi.definition.questions = [{ id: '__proto__', prompt: '特殊 ID', type: 'single_choice', choices: [{ id: 'constructor', label: 'Unbound', triggerRef: { id: 't' } }] }];
+  cards = [multi]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  expect((row.getByRole('radio') as HTMLInputElement).disabled).toBe(true);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getByRole('alert').textContent).toBe('请作答或拒绝此题');
+  fireEvent.click(row.getByRole('button', { name: '拒绝此题' }));
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await row.findByText('Read-only');
+  const answers = calls.find((c) => c.path.endsWith('/submit'))!.body.answers as Record<string, unknown>;
+  expect(Object.hasOwn(answers, '__proto__')).toBe(true);
+  expect(answers.__proto__).toEqual({ rejected: true });
 });
