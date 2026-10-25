@@ -223,8 +223,25 @@ describe('appSettingsStore', () => {
     expect(mockedUpdate).toHaveBeenCalledWith({ notifications: { confirmCrossWorkspaceManagement: false } });
   });
 
-  it('sanitizes reportWorkerKillErrors and defaults old settings to off', () => {
-    expect(sanitizeSettings({}).reportWorkerKillErrors).toBe(false);
+  it('persists the Locker desktop notification switch, off by default, and reloads it', async () => {
+    expect(DEFAULT_SETTINGS.notifications.lockerDesktop).toBe(false);
+    expect(sanitizeSettings({}).notifications.lockerDesktop).toBe(false);
+    expect(sanitizeSettings({ notifications: { lockerDesktop: 'yes' } }).notifications.lockerDesktop)
+      .toBe(false);
+    expect(sanitizeSettings({ notifications: { lockerDesktop: true } }).notifications.lockerDesktop)
+      .toBe(true);
+
+    useAppSettingsStore.getState().setLockerDesktop(true);
+    expect(useAppSettingsStore.getState().notifications.lockerDesktop).toBe(true);
+    expect(mockedUpdate).toHaveBeenLastCalledWith({ notifications: { lockerDesktop: true } });
+
+    // The saved value survives a reload (config.json is the source of truth).
+    mockedFetch.mockResolvedValueOnce({ notifications: { lockerDesktop: true } });
+    await useAppSettingsStore.getState().loadSettings();
+    expect(useAppSettingsStore.getState().notifications.lockerDesktop).toBe(true);
+  });
+
+  it('sanitizes reportWorkerKillErrors and defaults old settings to off', () => {    expect(sanitizeSettings({}).reportWorkerKillErrors).toBe(false);
     expect(sanitizeSettings({ reportWorkerKillErrors: 'yes' }).reportWorkerKillErrors).toBe(false);
     expect(sanitizeSettings({ reportWorkerKillErrors: true }).reportWorkerKillErrors).toBe(true);
   });
