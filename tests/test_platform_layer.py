@@ -52,13 +52,14 @@ def test_capability_matrix_shape_and_order():
     assert tuple(plat.CAPABILITIES) == EXPECTED_CAPABILITIES
 
 
-def test_capabilities_are_declared_windows_only_today():
-    # Phase A 的声明：POSIX 实现落地前，这些能力在 macOS/Linux 上必须为 False。
-    # 若某项 POSIX 实现上线，必须同时改这里与能力矩阵文档，不允许偷偷放开。
+def test_capabilities_match_implemented_platform_backends():
+    # ProcessOwner now has both Windows Job Object and POSIX process-group
+    # implementations. Other Phase A capabilities remain Windows-only.
     for name in EXPECTED_CAPABILITIES:
         assert plat.supports(name, "win32") is True, name
-        assert plat.supports(name, "darwin") is False, name
-        assert plat.supports(name, "linux") is False, name
+        expected = name == "processOwner"
+        assert plat.supports(name, "darwin") is expected, name
+        assert plat.supports(name, "linux") is expected, name
 
 
 def test_unknown_platform_declares_nothing():

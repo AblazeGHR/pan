@@ -125,11 +125,12 @@ CAPABILITIES: Mapping[str, Capability] = {
         frozenset({WINDOWS}),
         "main lifecycle supervisor 依赖 Windows 脱离父进程树的启动方式",
     ),
-    # 进程所有权：Windows 已有 Job Object；POSIX 实现由 Phase B/C 补齐后改表。
+    # 进程所有权：Windows Job Object 与 POSIX setsid/进程组实现均可由
+    # typed executor 复用；各平台仍需通过契约测试证明实际运行语义。
     "processOwner": Capability(
         "processOwner",
-        frozenset({WINDOWS}),
-        "POSIX ProcessOwner 由 Phase B/C 实现，落地前不得声明可用",
+        frozenset({WINDOWS, DARWIN, LINUX}),
+        "Windows 使用 Job Object；POSIX 使用 setsid/进程组与持久身份核验",
     ),
     # DPAPI。
     "secretStore": Capability(

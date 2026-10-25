@@ -16,6 +16,21 @@ _waiters = {}
 KINDS = ('background-process', 'session-message', 'session-broadcast', 'scheduled-task', 'main-lifecycle')
 
 
+async def execute_typed(*, attempt, effect_key, frozen_plan, **executor_options):
+    """Execute a canonical WP05 effect through the typed executor.
+
+    The historical ``execute`` dispatcher below remains available to R4
+    compatibility callers.  New final-runtime callers should pass their
+    already-admitted Attempt and effect key here; this helper never creates a
+    second Job or Run.
+    """
+    from packages.actions.typed_executor import TypedExecutor
+
+    return await TypedExecutor(**executor_options).execute(
+        attempt=attempt, effect_key=effect_key, frozen_plan=frozen_plan
+    )
+
+
 def definition(kind):
     if kind not in KINDS:
         raise ValueError('Unknown system executor')
@@ -284,7 +299,10 @@ async def execute(action, params, context, progress):
                 continue  # A known or uncertain receipt is never sent again.
             guard=getattr(progress,'before_effect',None)
             if guard:await guard()
-            parent = await io(jobs.get, context['jobId'], root)
+            # Standalone compatibility callers (and typed provider contract
+            # tests) may not have a parent Job id.  Their source is the fixed
+            # automation identity; never infer a trusted source from payload.
+            parent = await io(jobs.get, context['jobId'], root) if context.get('jobId') else None
             metadata = ({'source': parent.get('source', 'agent'), 'source_session_id': parent.get('sourceSessionId')}
                         if parent and parent.get('legacyCompat') == kind else {'source': 'automation'})
             try:result = await jobs._worker.send_session(sid, params['text'], **metadata)
