@@ -2282,6 +2282,15 @@ export async function readFile(sessionId: string, path: string): Promise<string>
   return data.content;
 }
 
+/** Ask the Pan server to open one Editor file with the OS default handler. */
+export async function openFileExternally(sessionId: string, path: string): Promise<void> {
+  const data = await request<ApiFsGenericResponse>(`${BASE}/editor/open-external`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, path }),
+  });
+  if (data.error) throw new Error(data.error);
+}
+
 export async function writeFile(
   sessionId: string,
   path: string,

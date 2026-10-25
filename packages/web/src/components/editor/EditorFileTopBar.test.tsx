@@ -7,7 +7,7 @@ import { EditorConfirmationModal } from './EditorConfirmationModal';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
-import { writeFile } from '@/services/api';
+import { writeFile, openFileExternally } from '@/services/api';
 
 vi.mock('@/services/api', () => ({
   listFiles: vi.fn(async () => []),
@@ -15,6 +15,7 @@ vi.mock('@/services/api', () => ({
   writeFile: vi.fn(async () => undefined),
   renameFs: vi.fn(async () => undefined),
   deleteFs: vi.fn(async () => undefined),
+  openFileExternally: vi.fn(async () => undefined),
 }));
 
 function mockMatchMedia(matches: boolean) {
@@ -282,6 +283,82 @@ describe('EditorFileTopBar', () => {
 
     expect(useUIStore.getState().toastQueue).toEqual([]);
     expect(screen.queryByRole('button', { name: '完整路径已复制' })).toBeNull();
+  });
+});
+
+describe('EditorFileTopBar external open', () => {
+  const renderBar = (path = 'src/one.ts') =>
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <EditorFileTopBar operationPath={path} />
+      </MemoryRouter>,
+    );
+
+  beforeEach(() => {
+    vi.mocked(openFileExternally).mockReset();
+    vi.mocked(openFileExternally).mockResolvedValue(undefined);
+  });
+
+  it('opens the current file with the system default handler', async () => {
+    renderBar();
+
+    fireEvent.click(screen.getByRole('button', { name: '用系统默认方式打开' }));
+
+    await waitFor(() => expect(openFileExternally).toHaveBeenCalledWith('s1', 'src/one.ts'));
+  });
+
+  it('disables the action for an unsaved buffer', () => {
+    useEditorStore.setState({ dirty: new Set(['src/one.ts']) });
+    renderBar();
+
+    const button = screen.getByRole('button', {
+      name: '用系统默认方式打开',
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('请先保存修改后再用系统默认方式打开');
+    fireEvent.click(button);
+    expect(openFileExternally).not.toHaveBeenCalled();
+  });
+
+  it('disables the action for attachment previews without a real path', () => {
+    renderBar('attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+    const button = screen.getByRole('button', {
+      name: '用系统默认方式打开',
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('该文件没有可用的本地路径');
+    fireEvent.click(button);
+    expect(openFileExternally).not.toHaveBeenCalled();
+  });
+
+  it('shows the server error in place when opening fails', async () => {
+    vi.mocked(openFileExternally).mockRejectedValueOnce(
+      new Error('no system file opener is available'),
+    );
+    renderBar();
+
+    fireEvent.click(screen.getByRole('button', { name: '用系统默认方式打开' }));
+
+    await waitFor(() =>
+      expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
+        message: '打开失败：no system file opener is available',
+        type: 'error',
+      }),
+    );
+  });
+
+  it('keeps the path truncatable so the extra action fits a 390px bar', () => {
+    renderBar();
+    const bar = screen.getByTestId('editor-file-topbar');
+    const path = bar.firstElementChild as HTMLElement;
+
+    expect(path.className).toContain('min-w-0');
+    expect(path.className).toContain('flex-1');
+    expect(path.className).toContain('truncate');
+    for (const button of bar.querySelectorAll('button')) {
+      expect(button.className).toContain('shrink-0');
+    }
   });
 });
 
