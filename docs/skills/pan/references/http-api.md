@@ -573,6 +573,11 @@ triggerRef、通知元数据、幂等与Job/Trigger接纳边界见
 
 User Inbox 是独立 `/react/locker` panel，页面只称 Locker；不与 Session Chat History 或 Agent Inbox 的消费语义混用。
 `GET /api/user-lockers` 返回 recipient 的真实来源容器和当前 Workspace IDs；聚合 Locker 只是前端按 Workspace 合并原消息的视图。
+`GET /api/locker-unread-summary` 是同源、只读、无需 Bearer 的轻量导航提示接口，仅返回
+`{"unread": integer}`。服务端用 SQLite `COUNT(*)` 汇总 cards、locker messages 和已回答且未读的
+user reminding cards；未回答的 reminding card 不计入。它不返回正文、ID、Locker 名称、owner 或分 Locker
+明细。这个有意的 tradeoff 是：同机同源页面可以在登录握手前显示一个聚合数字，但所有 Locker 内容、
+read/delete 和逐项读取仍必须经过现有 User Bearer 认证接口。
 `PUT /api/user-inbox/{id}/read {read:boolean}` 修改原消息 read/unread；没有消费游标。
 `POST .../submit`（Respond 请求）与 `POST .../reject`（仅 requestId/expectedRevision）原子竞争一次性 response，之后只读。
 拒收保留卡片，内部 outbox 使用稳定 QueueID 向来源 Session 发 summaryBody 前 200 字符；返回 Card.rejectionDelivery 显示通知接纳状态，unknown 不盲目重投。

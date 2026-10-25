@@ -41,6 +41,23 @@ def register(app):
     from .user_cards_api import register as register_user_cards
     register_user_cards(app, user)
 
+    @app.get('/api/locker-unread-summary')
+    async def locker_unread_summary():
+        """Return only the local profile's aggregate unread count.
+
+        This intentionally has no user/Bearer gate: same-origin local clients
+        may show a number before the user-auth handshake completes.  It never
+        exposes content, identities, or per-locker data; authenticated Locker
+        APIs remain the authority for all reads and mutations.
+        """
+        from .runtime import LOCAL_RECIPIENT
+        store = get_store()
+        # Ensure the user_cards schema exists for installations upgraded before
+        # the reminding-card store was first opened.
+        from .user_cards import get_store as get_user_card_store
+        get_user_card_store()
+        return {'unread': store.unread_summary(LOCAL_RECIPIENT)}
+
     def owner(owner_id):
         if not isinstance(owner_id,str) or not session.get(owner_id,load_history=False):
             raise HTTPException(404,detail={'code':'owner_not_found'})

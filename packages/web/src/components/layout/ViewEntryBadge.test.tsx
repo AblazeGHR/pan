@@ -26,12 +26,25 @@ describe('navigation unread badges', () => {
     expect(screen.getByTestId('chat-unread-badge').textContent).toBe('99+');
   });
   it('uses one user-lockers request and sums only returned unread totals', async () => {
-    useAutomationAuth.setState({ token: 'test-token' });
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ lockers: [{ unread: 2 }, { unread: 0 }, { unread: 4 }] }), { status: 200 }));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ unread: 6 }), { status: 200 }));
     render(<ViewEntryBadge kind="locker" />);
     await waitFor(() => expect(screen.getByTestId('locker-unread-badge').textContent).toBe('6'));
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/user-lockers');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/locker-unread-summary');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'GET' });
+  });
+  it('keeps the last value after a transient failure and refreshes when auth changes', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ unread: 3 }), { status: 200 }))
+      .mockRejectedValueOnce(new Error('temporary'))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ unread: 4 }), { status: 200 }));
+    render(<ViewEntryBadge kind="locker" />);
+    await waitFor(() => expect(screen.getByTestId('locker-unread-badge').textContent).toBe('3'));
+    useAutomationAuth.setState({ token: 'new-token' });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    useAutomationAuth.setState({ token: 'newer-token' });
+    await waitFor(() => expect(screen.getByTestId('locker-unread-badge').textContent).toBe('4'));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
   it('places directional dots on the outer side of each arrow', () => {
     const { container } = render(<><ViewEntryDirectionDot direction="left" /><ViewEntryDirectionDot direction="right" /></>);
