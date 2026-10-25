@@ -31,6 +31,26 @@ class Ledger:
         with self.lock:
             return json.loads(self.path.read_text(encoding='utf-8')) if self.path.exists() else {'revision': 0, 'triggers': {}, 'runs': {}}
 
+    def record_final_admission(self, event_id, trigger_id, receipt):
+        """WP03 projection of an already durable canonical admission.
+
+        This is not an execution queue. If the projection write fails, inbox
+        delivery retries by the same Event/Trigger identity in FinalService.
+        """
+        key = event_id + ':' + trigger_id
+        receipt = {key: copy.deepcopy(receipt[key]) for key in
+                   ('operationId', 'requestKey', 'runId', 'admissionId') if key in receipt}
+        def change(state):
+            admissions = state.setdefault('finalAdmissions', {})
+            old = admissions.get(key)
+            if old is not None:
+                if old != receipt:
+                    raise Conflict('Canonical admission identity changed')
+                return old
+            admissions[key] = copy.deepcopy(receipt)
+            return receipt
+        return self.mutate(change)
+
     def mutate(self, change):
         with self.lock:
             state = self.read()

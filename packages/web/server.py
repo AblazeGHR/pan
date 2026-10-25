@@ -317,11 +317,18 @@ async def lifespan(app: FastAPI):
                     await lan.operation("startup")
                     from packages.automation.service import Service as AutomationService
                     automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
+                    from packages.jobs.final_api import CanonicalUserAuth
+                    automation.auth = CanonicalUserAuth(automation.auth.path.parent)
+                    automation.engine.authorization = automation.auth.permission_allowed
                     app.state.automation = automation
+                    from packages.jobs.final_service import bind as bind_final_jobs
+                    final_jobs = None
                     from packages.automation.authorization import bind_objects
                     bind_objects(plugin_runtime, app)
                     try:
+                        final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final')
                         await automation.start()
+                        await final_jobs.start()
                         from packages.interactions.runtime import bind as bind_interactions
                         if getattr(app.state, 'interaction_trigger_adapter', None) is None:
                             app.state.interaction_trigger_adapter = bind_interactions(automation)
@@ -348,7 +355,13 @@ async def lifespan(app: FastAPI):
                             try:
                                 await plugin_runtime.unbind_events()
                             finally:
-                                await automation.close()
+                                try:
+                                    if final_jobs is not None:
+                                        await final_jobs.close()
+                                finally:
+                                    app.state.job_final_service = None
+                                    automation.final_jobs = None
+                                    await automation.close()
                         finally:
                             app.state.automation = None
                             from packages.web.native_file_picker import native_file_picker
@@ -11150,8 +11163,8 @@ from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启�
 
 jobs_api.bind(broadcast=broadcast)
 from packages.jobs.action_api import router as action_jobs_router
-app.include_router(action_jobs_router)
-app.include_router(jobs_api.router)
+from packages.jobs.final_api import install as install_canonical_jobs
+install_canonical_jobs(app, action_jobs_router, jobs_api.router)
 
 # ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
 from packages.web import terminal_api  # noqa: E402  延迟导入避免启动期循环

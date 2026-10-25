@@ -172,10 +172,15 @@ class CreatorStore:
         self.registry = registry or ProviderRegistry.standard()
         self.clock = clock
         self.lock = threading.RLock()
+        self._joined = threading.local()
         self.profile_id = "profile_" + contracts.digest(str(self.root))[:24]
 
     @contextmanager
     def connection(self):
+        borrowed = getattr(self._joined, "db", None)
+        if borrowed is not None:
+            yield borrowed
+            return
         with self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             db = sqlite3.connect(self.path, timeout=5)
@@ -195,6 +200,24 @@ class CreatorStore:
                     yield db
             finally:
                 db.close()
+
+    @contextmanager
+    def transaction(self):
+        """Join Creator, composition and canonical control writes atomically.
+
+        Borrowing is thread-local and scoped; nested provider/store calls use
+        the caller's transaction without committing an intermediate phase.
+        """
+        with self.connection() as db:
+            if getattr(self._joined, "db", None) is not None:
+                yield db
+                return
+            db.execute("BEGIN IMMEDIATE")
+            self._joined.db = db
+            try:
+                yield db
+            finally:
+                del self._joined.db
 
     @staticmethod
     def _read(db, creator_id):
@@ -237,7 +260,8 @@ class CreatorStore:
             raise ValueError("Invalid initial Creator state")
         fingerprint = contracts.request_digest("event-creator.create", value)
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             prior = self._request(db, request_key, fingerprint)
             if prior:
                 return copy.deepcopy(self._read(db, prior))
@@ -270,7 +294,8 @@ class CreatorStore:
         at = timestamp(at or self.clock())
         fingerprint = contracts.request_digest("event-creator.update", {"id": creator_id, "definition": value})
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             prior = self._request(db, request_key, fingerprint)
             if prior:
                 item = copy.deepcopy(self._read(db, prior))
@@ -298,7 +323,8 @@ class CreatorStore:
         if state not in {"enabled", "paused", "disabled", "retired"}:
             raise ValueError("Unsupported Creator state")
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             if item is None:
                 raise KeyError(creator_id)
@@ -315,7 +341,8 @@ class CreatorStore:
 
     def commit_activation(self, creator_id, operation_id, token):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             activation = item.get("activation") or {}
             if activation.get("operationId") not in (None, operation_id):
@@ -325,7 +352,8 @@ class CreatorStore:
 
     def activate_composition(self, creator_id, operation_id, token, enabled):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             activation = item.get("activation") or {}
             if activation.get("operationId") != operation_id or activation.get("token") != token:
@@ -339,7 +367,8 @@ class CreatorStore:
     def deactivate_composition(self, creator_id, operation_id):
         """Fence partial activation before a failed setup can be resumed/cancelled."""
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             activation = item.get("activation") or {}
             if activation.get("operationId") != operation_id:
@@ -364,7 +393,8 @@ class CreatorStore:
 
     def bind_link(self, creator_id, trigger_id, job_id, operation_id=None):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             if item is None or item["state"] == "retired":
                 raise contracts.ContractError("reference_conflict", "Creator cannot be referenced")
@@ -380,7 +410,8 @@ class CreatorStore:
 
     def delete(self, creator_id, *, expected_revision: int):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             if item is None:
                 raise KeyError(creator_id)
@@ -400,7 +431,8 @@ class CreatorStore:
         """Persist one actual drive and its immutable envelope before publication."""
         at = timestamp(at or self.clock())
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read(db, creator_id)
             if item is None:
                 return None
@@ -472,7 +504,8 @@ class CreatorStore:
     def advance_paused(self, creator_id, epoch, occurrence_key, at=None):
         at = timestamp(at or self.clock())
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
             if item["state"] != "paused" or item["ownerEpoch"] != epoch or item["config"].get("pausePolicy") != "advance":
                 return None
@@ -487,7 +520,8 @@ class CreatorStore:
         if receipt.get("persisted") is not True:
             raise ValueError("Creator advance requires a persisted Event receipt")
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
             pending = item.get("pendingPublication")
             if not pending or pending["envelope"]["eventId"] != event_id:
@@ -530,7 +564,8 @@ class CreatorStore:
 
     def acknowledged(self, creator_id, event_id, epoch):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
             cursor = item.get("lastPublication")
             if cursor and cursor["eventId"] == event_id and cursor["epoch"] == epoch:
@@ -541,7 +576,8 @@ class CreatorStore:
 
     def accept_settlement(self, creator_id, event):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
             provider = self.registry.get(item["providerRef"])
             if not hasattr(provider, "accept_settlement"):
@@ -578,7 +614,8 @@ class CreatorStore:
 
     def save_composition(self, operation):
         with self.connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
             old = db.execute("SELECT document FROM compositions WHERE requestKey=?", (operation["requestKey"],)).fetchone()
             if old:
                 existing = json.loads(old[0])
@@ -593,10 +630,11 @@ class CreatorStore:
 class CreatorRuntime:
     """One unified wake/tick surface for all providers; no per-Creator watchdog."""
 
-    def __init__(self, creators: CreatorStore, bus: EventBus, diagnostics=None):
+    def __init__(self, creators: CreatorStore, bus: EventBus, diagnostics=None, authorize=None):
         self.creators = creators
         self.bus = bus
         self.diagnostics = diagnostics if diagnostics is not None else []
+        self.authorize = authorize
 
     async def _ack(self, item):
         cursor = item.get("lastPublication")
@@ -605,6 +643,8 @@ class CreatorRuntime:
             await asyncio.to_thread(self.creators.acknowledged, item["id"], cursor["eventId"], cursor["epoch"])
 
     async def _publish(self, creator_id, pending):
+        if self.authorize is not None:
+            await asyncio.to_thread(self.authorize, await asyncio.to_thread(self.creators.get, creator_id))
         fence = pending["fence"]
         receipt = await self.bus.publish(copy.deepcopy(pending["envelope"]), fence)
         await asyncio.to_thread(self.creators.advance, creator_id, pending["envelope"]["eventId"], fence["epoch"], receipt)
@@ -628,6 +668,8 @@ class CreatorRuntime:
                     continue
                 if item["state"] not in {"enabled", "paused"} or not item.get("activation", {}).get("committed"):
                     continue
+                if self.authorize is not None:
+                    await asyncio.to_thread(self.authorize, item)
                 provider = self.creators.registry.get(item["providerRef"])
                 occurrence_keys = provider.due_occurrences(item, at)
                 for occurrence_key in occurrence_keys:
