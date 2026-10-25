@@ -1974,7 +1974,9 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
 
 @mcp.tool()
 def reminding_card(operation: str, card_id: str = "", body: str = "", expected_revision: int | None = None) -> dict:
-    """Read/answer user-created cards owned ONLY by this bound stdio Session.
+    """User→Session cards (created by the user, answered by you). To ask the user, use `interaction_card`.
+
+    Read/answer user-created cards owned ONLY by this bound stdio Session.
 
     list_pending returns id, kind (question/task), body, attachments, createdAt,
     revision for every unanswered own card. answer requires card_id, body and
@@ -2051,7 +2053,9 @@ def _local_producer_api(path, body):
 def interaction_card(operation: str, owner_session_id: str | None = None, card_id: str = "",
                      recipient_id: str = "", request_key: str = "", card: dict | None = None,
                      expected_revision: int | None = None, limit: int = 100, after: str | None = None) -> dict:
-    """Create/get/receipt/list_pending/no_answer_needed for user questions.
+    """Session→User cards (you create, the user answers). To answer user-created cards, use `reminding_card`.
+
+    Create/get/receipt/list_pending/no_answer_needed for user questions.
 
     list_pending lists ONLY cards created by this bound stdio Session, with
     card id/revision/status and nextAfter pagination (limit 1..500).

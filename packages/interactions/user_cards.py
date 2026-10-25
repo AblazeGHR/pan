@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from .contracts import InteractionError, canonical, identity, validate
 
-REMINDER = '你还有未回答的用户卡片，如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答'
+REMINDER = '你还有未回答的用户卡片，请用 `reminding_card(operation="list_pending")` 查询；会话创建的卡片走 `interaction_card`。如果目前仍无法回答，请忽略这条消息并朝着能回答的方向工作，但不要为了回答而随意回答'
 
 
 def timestamp(value):
