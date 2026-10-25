@@ -12,6 +12,7 @@ const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
 const LockerView = lazy(() => import('./views/LockerView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
+const CanonicalJobsView = lazy(() => import('./views/CanonicalJobsView'));
 const AutomationView = lazy(() => import('./views/AutomationView'));
 
 function deferredRoute(view: React.ReactNode) {
@@ -29,6 +30,7 @@ export const router = createBrowserRouter(
       children: [
         { path: 'locker', element: deferredRoute(<LockerView />) },
         { path: 'actions', element: deferredRoute(<ActionsView />) },
+        { path: 'automation/canonical', element: deferredRoute(<CanonicalJobsView />) },
         { path: 'automation', element: deferredRoute(<AutomationView />) },
         {
           index: true,

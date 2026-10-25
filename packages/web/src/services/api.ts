@@ -122,6 +122,8 @@ const BASE = '/api';
 
 export class ApiRequestError extends Error {
   readonly status: number;
+  code?: string;
+  response?: unknown;
 
   constructor(status: number, message: string) {
     super(message);
@@ -197,6 +199,22 @@ async function request<T>(url: string, options?: RequestInit, background = false
 
 export function actionRequest<T>(path = '', method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>('/api/' + path, { method, signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+
+/** Canonical transport shares JSON/error handling, never legacy endpoints. */
+export async function canonicalRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const { useAutomationAuth } = await import('@/stores/automationStore');
+  const auth = useAutomationAuth.getState();
+  if (auth.token && auth.expiresAt <= Date.now()) auth.clear();
+  const token = useAutomationAuth.getState().token;
+  try {
+    return await request<T>(`/api/final/${path}`, { method, signal,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 401 && useAutomationAuth.getState().token === token) useAutomationAuth.getState().clear();
+    throw error;
+  }
 }
 
 export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels').PluginPanel[]> {
@@ -278,6 +296,13 @@ async function requestBody<T>(url: string, options?: RequestInit, background = f
     headers: Object.fromEntries(headers),
   });
   if (!res.ok) {
+    if (url.startsWith('/api/final/')) {
+      const payload = await res.json().catch(() => null) as { error?: { code?: string } } | null;
+      const error = new ApiRequestError(res.status, `HTTP ${res.status}`);
+      error.code = payload?.error?.code;
+      error.response = payload;
+      throw error;
+    }
     let detail = '';
     try {
       const body = (await res.json()) as { detail?: unknown; error?: unknown };
