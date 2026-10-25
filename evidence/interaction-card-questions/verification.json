@@ -1,0 +1,71 @@
+{
+  "baseline": "0bb3971ef2a1c334b83d8eb172f3518607a4cfab",
+  "branch": "feature/interaction-card-questions-20261025",
+  "protectedRefs": {
+    "main": "0bb3971ef2a1c334b83d8eb172f3518607a4cfab",
+    "practical": "3c6b11df8635885fc413562a59ba82c6b0823682"
+  },
+  "checks": [
+    {
+      "cwd": "D:\\project\\pan-worktrees\\interaction-card-questions-20261025",
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_interaction_questions.py tests/test_interaction_cards.py tests/test_interaction_card_api.py tests/test_interaction_no_answer.py tests/test_locker_trusted_binding.py tests/test_interaction_runtime.py tests/test_event_store.py tests/test_automation_core.py tests/test_locker_messages.py tests/test_locker_message_producer.py tests/test_user_locker_lifecycle.py tests/test_locker_unread_summary.py tests/test_locker_related_context.py -q --junitxml=evidence/interaction-card-questions/backend.xml",
+      "exitCode": 0,
+      "tests": 148,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\interaction-card-questions-20261025\\packages\\web",
+      "command": "pnpm exec vitest run src/views/LockerView.test.tsx src/views/lockerModel.auth.test.ts --reporter=default --reporter=junit --outputFile=D:\\project\\pan-worktrees\\interaction-card-questions-20261025\\evidence\\interaction-card-questions\\frontend.xml",
+      "exitCode": 0,
+      "tests": 35,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\interaction-card-questions-20261025\\packages\\web",
+      "command": "pnpm exec tsc -b",
+      "exitCode": 0
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\interaction-card-questions-20261025\\packages\\web",
+      "command": "pnpm build",
+      "exitCode": 0,
+      "compressedAssets": 90
+    },
+    {
+      "cwd": "D:\\project\\pan-worktrees\\interaction-card-questions-20261025",
+      "command": "node packages/web/e2e/interaction-questions.mjs",
+      "exitCode": 0,
+      "transport": "Chromium, all HTTP requests intercepted, no server/listener"
+    }
+  ],
+  "sha256": {
+    "packages/automation/event_store.py": "8207e8c6d30d5ddc4b245c7433f29bc0d5f54994f12222876c68a30259f3fb26",
+    "packages/automation/events.py": "e79226cf26af18b2bd91fd234d01455d3c0b8109b86e4a76dd64d2ec2236b1ff",
+    "packages/interactions/api.py": "44c43bb8c4ce0761e767c887d204f941028604345668aeef6e510691347fe98c",
+    "packages/interactions/contracts.py": "e6ac4b47e8ece298af24f5be0df5eaabb8d740bf15e7be202fe35afe2cdecbed",
+    "packages/interactions/runtime.py": "18d4628b9cb4650d72e2ed0a7e46adef92ad650b352ef19a7ae6b1db584530b9",
+    "packages/interactions/schema.json": "0f23218aa9face286c0a775221f69ac5ca28ed5a5d9cdc8ebe79bf364d3b9ef3",
+    "packages/interactions/store.py": "a12da42dda2eab2eff15758fb8b41406227d6c18c096108f4687f3e57f175c24",
+    "packages/interactions/trusted.py": "33a2fbf5778f5c626f6653e4fa7cd881d385c366104d04c06ea9ed8d2cd51142",
+    "packages/mcp/server.py": "5d97fee7d69a7c2a9b6476722020d9507b57a85cd49ca7c12d2ed2a77ca72293",
+    "packages/web/src/views/CardQuestions.tsx": "2a4b7c086fe3d093d20a090d40f1df79bcb3e20939464ed665cc0833d1cbd420",
+    "packages/web/src/views/TrustedChoice.tsx": "64e6b836515db490083c8ab1103a09a8a859670eb10f644f80d82d30305dda90",
+    "packages/web/src/views/LockerView.tsx": "c7b8e9c4366303d14a89f42f278bab836c8a6a4ffe54041d53608d9fb6b2f4bd",
+    "packages/web/src/views/LockerView.test.tsx": "617cb7d06c2e3d557fb91ef82396c74ff6a86bdbe55044e847ddd97d76d6c76d",
+    "packages/web/src/views/lockerModel.ts": "b9e5936aaea825cc6b35ba179256d4125282aa5c4b98dba2f58b49e1f227e398",
+    "packages/web/src/views/lockerView.css": "400bf001501785789b2e637178484076328d0ca74d9f9305bfabf65efe1c3f2b",
+    "packages/web/e2e/interaction-questions.mjs": "5c42d383a8534077daf920abad600f53aab462853ebbde415629ae78bfcfb86a",
+    "tests/test_interaction_questions.py": "bfc5c2b3b2476c868e77bb3b7f980f69fa11c889d7c78dc76f82cba83bba3894",
+    "packages/web/dist/index.html": "892bda2cd9f2a37f1eb774256bb6e5eacd9a6de0c663a74d01fb7d4e359ac3bb"
+  },
+  "unverified": [
+    "real HTTP server/browser integration",
+    "remote CI",
+    "Linux/macOS execution",
+    "real profile migration",
+    "deployment",
+    "human acceptance"
+  ]
+}

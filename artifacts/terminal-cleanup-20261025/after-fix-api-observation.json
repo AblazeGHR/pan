@@ -1,0 +1,21 @@
+{
+  "source": "isolated instance http://127.0.0.1:56039 (random port, temp PAN data root); GET /api/terminals after one UI create with the sidecar dependency directory temporarily renamed away",
+  "observed_at": "2026-10-25T10:27:06Z",
+  "create_http": {"status": 502, "error": {"code": "startup-failed"}},
+  "create_elapsed_seconds": 0.2,
+  "record": {
+    "terminal_id": "term_68bf48b83815445a",
+    "status": "exited",
+    "cleanup_pending": false,
+    "pid": null,
+    "exit": {"code": 8, "reason": "sidecar-dependency-missing"}
+  },
+  "ui_status_line": "终端引擎依赖未安装（emulator sidecar 的 npm 包缺失），本次没有启动任何 shell。",
+  "remove_after_failure": {"http": 200, "removed": true},
+  "before_fix_comparison": {
+    "create_elapsed_seconds": 30.08,
+    "record_status": "cleanup-failed",
+    "record_exit_reason": "bootstrap-unverified",
+    "remove_blocked": "remove requires confirmed exit (status is cleanup-failed)"
+  }
+}

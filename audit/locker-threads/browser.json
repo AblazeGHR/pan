@@ -1,0 +1,12 @@
+{
+  "checks": [
+    "1440: divider at m30, sorted flat chains, one answered row, smooth bottom button, no horizontal overflow",
+    "1440: nested creation inserts below parent; terminal parent offers creation; invalid parent error stays in form",
+    "390: divider at m30, sorted flat chains, one answered row, smooth bottom button, no horizontal overflow",
+    "390: nested creation inserts below parent; terminal parent offers creation; invalid parent error stays in form",
+    "5 older pages maximum, earliest loaded row shown with visible fallback notice",
+    "no chronological unread: bottom and no divider, attached unread remains independent"
+  ],
+  "errors": [],
+  "mode": "production dist, synthetic routed API, no listener/service"
+}

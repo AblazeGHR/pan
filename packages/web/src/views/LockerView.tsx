@@ -1,6 +1,10 @@
+import { AttachedReminder } from './AttachedReminder';
+import { TrustedChoice } from './TrustedChoice';
+import { CardQuestions, questionErrors } from './CardQuestions';
 import { UserCardRow, type UserCardRowState } from './UserCardRow';
 import { RelatedContextButton } from './RelatedContextButton';
 import { LockerMessageRow } from './LockerMessageRow';
+import { CardIdChip } from './CardIdChip';
 import { SessionDragGutter } from '@/components/session/SessionDragGutter';
 import { createPortal } from 'react-dom';
 import { SidebarPanelContext } from '@/components/layout/SidebarPanelContext';
@@ -13,9 +17,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
+  ArrowDown,
+  Link2,
   PanelLeft,
   Check,
   CheckCheck,
@@ -25,7 +31,6 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  ShieldCheck,
   WifiOff,
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
@@ -39,8 +44,11 @@ import { useAutomationAuth } from '@/stores/automationStore';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
 import { ALL_WORKSPACES, UNGROUPED_WORKSPACES } from '@/utils/sessionFilters';
 import {
+  cardChoiceBinding,
+  type QuestionAnswer,
   lockerProjection,
   lockerTimeline,
+  lockerEntryWindow,
   isUserCard,
   type UserCard,
   loadLockerMessages,
@@ -75,6 +83,9 @@ function Card({
   const [answer, setAnswer] = useState(
     card.response && card.response.outcome !== 'reject' ? (card.response.answer ?? '') : '',
   );
+  const [answers, setAnswers] = useState<Record<string, QuestionAnswer>>({});
+  const [questionProblems, setQuestionProblems] = useState<Record<string, string>>({});
+  const questions = card.definition.questions;
   const [choiceId, setChoiceId] = useState(card.response?.choiceId ?? '');
   const [reason, setReason] = useState(
     card.response?.outcome === 'reject' ? (card.response.answer ?? '') : '',
@@ -99,6 +110,11 @@ function Card({
   }, [card.response, open]);
   const act = async (operation: 'submit' | 'reject' | 'delete') => {
     if (busy) return;
+    if (operation === 'submit' && questions && !intent.current) {
+      const problems = questionErrors(questions, answers);
+      setQuestionProblems(problems);
+      if (Object.keys(problems).length) return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -116,9 +132,27 @@ function Card({
         expectedRevision: card.revision,
       };
       if (operation === 'submit') {
-        if (answer.trim()) payload.answer = answer;
-        if (choiceId) payload.choiceId = choiceId;
-      } else if (reason.trim()) payload.answer = reason.trim();
+        if (!intent.current) {
+          if (questions)
+            payload.answers = structuredClone(
+              Object.fromEntries(
+                Object.entries(answers).filter(
+                  ([, a]) =>
+                    'rejected' in a ||
+                    ('text' in a
+                      ? a.text.trim()
+                      : 'choiceId' in a
+                        ? a.choiceId
+                        : a.choiceIds.length),
+                ),
+              ),
+            );
+          else {
+            if (answer.trim()) payload.answer = answer;
+            if (choiceId) payload.choiceId = choiceId;
+          }
+        }
+      } else if (!intent.current && reason.trim()) payload.answer = reason.trim();
       intent.current = { operation, payload };
       const result = await lockerRequest<{
         card: InteractionCard;
@@ -138,7 +172,7 @@ function Card({
             `/api/user-inbox/${card.id}`,
           );
           update(current.card);
-          if (current.card.status === 'no_answer_needed') intent.current = null;
+          if (current.card.status !== 'open') intent.current = null;
         } catch {
           /* Preserve the original action error if refresh is unavailable. */
         }
@@ -207,7 +241,12 @@ function Card({
           {card.read ? <Circle size={12} /> : <Check size={13} />}
         </button>
       </header>
-      <RelatedContextButton ownerSessionId={card.ownerSessionId} relatedMessageId={card.relatedMessageId} source={source} hidden={hidden} />
+      <RelatedContextButton
+        ownerSessionId={card.ownerSessionId}
+        relatedMessageId={card.relatedMessageId}
+        source={source}
+        hidden={hidden}
+      />
       <h2 className="locker-card-title">{card.definition.title}</h2>
       <MarkdownRenderer
         sourceSessionId={card.ownerSessionId}
@@ -216,6 +255,18 @@ function Card({
       />
       {open ? (
         <section className="locker-response" aria-label="Interaction response">
+          {questions && (
+            <CardQuestions
+              card={card}
+              answers={answers}
+              errors={questionProblems}
+              disabled={busy || !!intent.current}
+              onChange={(id, value) => {
+                setAnswers((current) => ({ ...current, [id]: value }));
+                setQuestionProblems((current) => ({ ...current, [id]: '' }));
+              }}
+            />
+          )}
           {!!card.definition.choices?.length && (
             <fieldset className="locker-choices">
               <legend>Choose an option</legend>
@@ -231,14 +282,14 @@ function Card({
                     disabled={
                       busy ||
                       !!intent.current ||
-                      (!!choice.triggerRef && !card.trustedChoices?.[choice.id])
+                      (!!choice.triggerRef && !cardChoiceBinding(card, choice.id))
                     }
                   />
                   <span>
                     <strong>{choice.label}</strong>
                     {choice.triggerRef && (
                       <small>
-                        {card.trustedChoices?.[choice.id]?.summary ??
+                        {cardChoiceBinding(card, choice.id)?.summary ??
                           'Execution meaning is unavailable; this choice cannot run.'}
                       </small>
                     )}
@@ -251,10 +302,10 @@ function Card({
           {responseChoice?.triggerRef && (
             <TrustedChoice
               choice={responseChoice}
-              binding={card.trustedChoices?.[responseChoice.id]}
+              binding={cardChoiceBinding(card, responseChoice.id)}
             />
           )}
-          {
+          {!questions && (
             <label className="locker-answer-label" htmlFor={`answer-${card.id}`}>
               {card.definition.answerInput?.label ?? 'Answer or BTW'} <span>(optional)</span>
               <textarea
@@ -267,12 +318,12 @@ function Card({
                 rows={3}
               />
             </label>
-          }
+          )}
           <div className="locker-card-actions">
             <Button
               variant="primary"
               size="sm"
-              disabled={busy || (!!card.definition.choices?.length && !choiceId)}
+              disabled={busy || (!questions && !!card.definition.choices?.length && !choiceId)}
               onClick={() => void act('submit')}
             >
               Submit
@@ -305,9 +356,11 @@ function Card({
                 />
               </label>
               <p>
-                {reason.trim()
-                  ? 'Your reason will be sent only to the source agent.'
-                  : 'Without a reason, no notification is sent.'}
+                {questions
+                  ? 'A rejection notification will be sent only to the source agent.'
+                  : reason.trim()
+                    ? 'Your reason will be sent only to the source agent.'
+                    : 'Without a reason, no notification is sent.'}
               </p>
               <Button variant="danger" size="sm" disabled={busy} onClick={() => void act('reject')}>
                 Confirm rejection
@@ -329,6 +382,9 @@ function Card({
           {noAnswer && (
             <p>This question no longer requires an answer. Only deletion is available.</p>
           )}
+          {questions && (
+            <CardQuestions card={card} answers={card.response?.answers ?? {}} readOnly />
+          )}
           {responseChoice && (
             <p className="locker-saved-choice">
               <Check size={13} />
@@ -344,7 +400,7 @@ function Card({
           {responseChoice?.triggerRef && (
             <TrustedChoice
               choice={responseChoice}
-              binding={card.trustedChoices?.[responseChoice.id]}
+              binding={cardChoiceBinding(card, responseChoice.id)}
             />
           )}
           {card.status !== 'open' && (
@@ -382,39 +438,10 @@ function Card({
           {error}
         </p>
       )}
+      <CardIdChip id={card.id} testId="locker-card-id" kind="interaction" />
     </article>
   );
 }
-function TrustedChoice({
-  choice,
-  binding,
-}: {
-  choice: NonNullable<InteractionCard['definition']['choices']>[number];
-  binding?: NonNullable<InteractionCard['trustedChoices']>[string];
-}) {
-  return (
-    <section className="locker-trusted-choice" aria-label={`Trusted execution ${choice.id}`}>
-      <ShieldCheck size={15} />
-      <div>
-        <strong>{binding ? 'On submit' : 'Execution unavailable'}</strong>
-        {binding ? (
-          <>
-            <p>{binding.summary}</p>
-            <p>Target: {binding.targetIds.join(', ')}</p>
-            <details>
-              <summary>Operation details</summary>
-              <p>Action: {binding.actionId}</p>
-              <code>{binding.actionDigest}</code>
-            </details>
-          </>
-        ) : (
-          <p>This choice is preserved for context but cannot execute without a trusted binding.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export default function LockerView() {
   const sidebarPanel = useContext(SidebarPanelContext);
   const token = useAutomationAuth((state) => state.token);
@@ -468,7 +495,12 @@ export default function LockerView() {
           controller.signal,
         ),
         loadLockerMessages(controller.signal),
-        lockerRequest<{cards: UserCard[]}>('/api/reminding-cards', 'GET', undefined, controller.signal),
+        lockerRequest<{ cards: UserCard[] }>(
+          '/api/reminding-cards',
+          'GET',
+          undefined,
+          controller.signal,
+        ),
       ]);
       const allCards: LockerItem[] = [...firstPage.cards, ...messages, ...userCards.cards];
       let after = firstPage.nextAfter;
@@ -534,7 +566,25 @@ export default function LockerView() {
     request.current?.abort();
     ++generation.current;
     setLoading(false);
-    setCards((previous) => previous.filter((card) => card.id !== id));
+    setCards((previous) => {
+      const removed = new Set([id]);
+      const children = new Map<string, string[]>();
+      for (const item of previous)
+        if (isUserCard(item) && item.parent) {
+          const siblings = children.get(item.parent.id) ?? [];
+          siblings.push(item.id);
+          children.set(item.parent.id, siblings);
+        }
+      const stack = [id];
+      while (stack.length)
+        for (const child of children.get(stack.pop()!) ?? []) {
+          if (!removed.has(child)) {
+            removed.add(child);
+            stack.push(child);
+          }
+        }
+      return previous.filter((card) => !removed.has(card.id));
+    });
   }, []);
   const workspaceCards = useMemo(
     () => lockerProjection(lockers, cards, activeWorkspaceId, selected),
@@ -555,6 +605,22 @@ export default function LockerView() {
         order.indexOf(a.id) - order.indexOf(b.id) || a.sourceName.localeCompare(b.sourceName),
     );
   }, [lockers, cards, activeWorkspaceId, order]);
+  // Deep link from a Session row: /locker?session=<sessionId> opens that
+  // Session's Locker. Applied once the authenticated data is actually loaded
+  // (the query is consumed afterwards so a second click for the same Session
+  // still jumps back). If the Locker exists but the current workspace scope
+  // hides it, widen the scope instead of silently falling back to aggregate.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSession = searchParams.get('session') ?? '';
+  useEffect(() => {
+    if (!requestedSession || !dataVisible) return;
+    const target = lockers.find((locker) => locker.sessionId === requestedSession);
+    if (!target) return;
+    if (!scopeLockers.some((locker) => locker.id === target.id))
+      useUIStore.getState().setActiveWorkspace(ALL_WORKSPACES);
+    setSelected(target.id);
+    setSearchParams({}, { replace: true });
+  }, [requestedSession, dataVisible, lockers, scopeLockers, setSearchParams]);
   useEffect(() => {
     if (selected !== 'aggregate' && !scopeLockers.some((locker) => locker.id === selected))
       setSelected('aggregate');
@@ -575,35 +641,80 @@ export default function LockerView() {
   const previousScope = useRef('');
   const [windowSize, setWindowSize] = useState(50);
   const prepend = useRef<{ height: number; top: number } | null>(null);
-  const ordered = lockerTimeline(visible);
+  const [nearBottom, setNearBottom] = useState(true);
+  const [entryNotice, setEntryNotice] = useState('');
+  const entryScope = useRef('');
+  const visibleIds = new Set(visible.map((item) => item.id));
+  const arranged = lockerTimeline(workspaceCards);
+  const relevantRoots = new Set(
+    arranged.filter((entry) => visibleIds.has(entry.item.id)).map((entry) => entry.rootId),
+  );
+  const ordered = arranged.filter(
+    (entry) => entry.item.id === entry.rootId && relevantRoots.has(entry.rootId),
+  );
+  const entryWindow = lockerEntryWindow(
+    ordered.filter((entry) => !entry.parent).map((entry) => entry.item),
+  );
+  const entering = entryScope.current !== scope;
+  const effectiveWindowSize = entering ? entryWindow.size : windowSize;
   const firstVisible = useRef<string | undefined>(undefined);
   const oldStart = ordered.findIndex((entry) => entry.key === firstVisible.current);
   const start =
     !follow.current && previousScope.current === scope && oldStart >= 0
-      ? Math.min(oldStart, Math.max(0, ordered.length - windowSize))
-      : Math.max(0, ordered.length - windowSize);
+      ? Math.min(oldStart, Math.max(0, ordered.length - effectiveWindowSize))
+      : Math.max(0, ordered.length - effectiveWindowSize);
   const windowItems = ordered.slice(start);
   firstVisible.current = windowItems[0]?.key;
-  const windowIds = new Set(windowItems.map((entry) => entry.key));
+  const rootIds = new Set(windowItems.map((entry) => entry.item.id));
+  const windowIds = new Set(
+    arranged
+      .filter(
+        (entry) =>
+          rootIds.has(entry.rootId) &&
+          (visibleIds.has(entry.item.id) || relevantRoots.has(entry.item.id)),
+      )
+      .map((entry) => entry.key),
+  );
   useLayoutEffect(() => {
     const node = timeline.current;
     if (!node) return;
     if (previousScope.current !== scope) {
       previousScope.current = scope;
-      follow.current = true;
       prepend.current = null;
-      setWindowSize(50);
+    }
+    if (entering && dataVisible && !loading) {
+      entryScope.current = scope;
+      setWindowSize(entryWindow.size);
+      setEntryNotice(
+        entryWindow.limited
+          ? '已向前加载 5 页，仍未找到第一条未读。当前停在最早已加载项，可继续加载更早消息。'
+          : '',
+      );
+      const target = entryWindow.limited ? windowItems[0]?.item.id : entryWindow.firstUnreadId;
+      follow.current = !target;
+      if (target) {
+        const row = Array.from(node.querySelectorAll<HTMLElement>('[data-locker-entry]')).find(
+          (element) => element.dataset.lockerEntry === target,
+        );
+        if (row)
+          node.scrollTop =
+            row.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop;
+      } else node.scrollTop = node.scrollHeight;
+      setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
+      return;
     }
     if (prepend.current) {
       node.scrollTop = prepend.current.top + node.scrollHeight - prepend.current.height;
       prepend.current = null;
     } else if (follow.current) node.scrollTop = node.scrollHeight;
+    setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
   });
   useEffect(() => {
     const node = timeline.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
       if (follow.current) node.scrollTop = node.scrollHeight;
+      setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
     });
     for (const child of node.children) observer.observe(child);
     return () => observer.disconnect();
@@ -616,7 +727,11 @@ export default function LockerView() {
         : (workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.name ?? 'Workspace');
   const markSourceRead = async (locker: Locker) => {
     const unread = sourceCards(cards, locker.id).filter(
-      (card) => !card.read && (isUserCard(card) ? card.status === 'answered' : 'message' in card || card.status !== 'no_answer_needed'),
+      (card) =>
+        !card.read &&
+        (isUserCard(card)
+          ? card.status === 'answered'
+          : 'message' in card || card.status !== 'no_answer_needed'),
     );
     await Promise.all(
       unread.map((card) =>
@@ -867,8 +982,13 @@ export default function LockerView() {
           {visible.length} messages{unreadOnly ? ' · Unread only' : ''}
         </span>
       </div>
-      <div className="locker-workspace-layout">
+      <div className="locker-workspace-layout relative">
         {sidebarPanel ? sidebarPanel[0] && createPortal(sourceList, sidebarPanel[0]) : sourceList}
+        {entryNotice && (
+          <p role="status" className="locker-entry-notice">
+            {entryNotice}
+          </p>
+        )}
         <section
           ref={timeline}
           aria-label="Locker messages"
@@ -877,7 +997,14 @@ export default function LockerView() {
             const node = timeline.current;
             if (!node) return;
             follow.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 48;
-            if (node.scrollTop <= 48 && start > 0 && !prepend.current) {
+            setNearBottom(follow.current);
+            if (
+              node.scrollTop <= 48 &&
+              start > 0 &&
+              !prepend.current &&
+              !entryNotice &&
+              !entering
+            ) {
               prepend.current = { height: node.scrollHeight, top: node.scrollTop };
               setWindowSize(windowItems.length + 50);
             }
@@ -909,14 +1036,44 @@ export default function LockerView() {
               <span>Messages from this Workspace appear here after a source sends them.</span>
             </div>
           )}
-          {lockerTimeline(cards)
-            .map(({ item: card, key: positionKey }) =>
-              isUserCard(card) ? (
-                <UserCardRow key={`${token}:${positionKey}`} card={card} hidden={!windowIds.has(positionKey)}
-                  source={lockers.find((locker) => locker.id === card.lockerId)} update={update} remove={remove}
-                  state={userCardRowStates[card.id] ?? {busy: false, error: ''}}
-                  setState={(patch) => setUserCardRowStates((previous) => ({...previous,
-                    [card.id]: {...(previous[card.id] ?? {busy: false, error: ''}), ...patch}}))} />
+          {lockerTimeline(cards).map(({ item: card, key: positionKey, parent }) => (
+            <div
+              key={`${token}:${positionKey}`}
+              data-locker-entry={card.id}
+              data-parent-id={parent?.id}
+              hidden={!windowIds.has(positionKey)}
+              className={parent ? 'locker-attached-entry' : 'locker-root-entry'}
+            >
+              {card.id === entryWindow.firstUnreadId && !parent && (
+                <div role="separator" className="locker-unread-divider">
+                  以下为未读 · Unread messages
+                </div>
+              )}
+              {parent && (
+                <div
+                  className="locker-parent-chain"
+                  aria-label={`Attached to ${parent.type} ${parent.id}`}
+                >
+                  <Link2 size={14} />
+                  <span>{parent.id}</span>
+                </div>
+              )}
+              {isUserCard(card) ? (
+                <UserCardRow
+                  key={`${token}:${positionKey}`}
+                  card={card}
+                  hidden={!windowIds.has(positionKey)}
+                  source={lockers.find((locker) => locker.id === card.lockerId)}
+                  update={update}
+                  remove={remove}
+                  state={userCardRowStates[card.id] ?? { busy: false, error: '' }}
+                  setState={(patch) =>
+                    setUserCardRowStates((previous) => ({
+                      ...previous,
+                      [card.id]: { ...(previous[card.id] ?? { busy: false, error: '' }), ...patch },
+                    }))
+                  }
+                />
               ) : 'message' in card ? (
                 <LockerMessageRow
                   key={`${token}:${positionKey}`}
@@ -935,9 +1092,34 @@ export default function LockerView() {
                   update={update}
                   remove={remove}
                 />
-              ),
-            )}
+              )}
+              <AttachedReminder
+                item={card}
+                created={(created) =>
+                  setCards((previous) =>
+                    previous.some((item) => item.id === created.id)
+                      ? previous
+                      : [...previous, created],
+                  )
+                }
+              />
+            </div>
+          ))}
         </section>
+        {!nearBottom && (
+          <button
+            type="button"
+            title="Scroll to bottom"
+            aria-label="Scroll to bottom"
+            className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"
+            onClick={() => {
+              const node = timeline.current;
+              if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+            }}
+          >
+            <ArrowDown size={16} />
+          </button>
+        )}
       </div>
     </main>
   );

@@ -39,6 +39,48 @@ def test_terminal_retained_idempotent_no_response_or_notice_and_delete(tmp_path)
         create(store)
 
 
+def test_no_answer_auto_reads_and_leaves_other_cards_unread(tmp_path):
+    from packages.interactions.user_cards import UserCardStore
+    store = InteractionStore(tmp_path / 'cards.sqlite')
+    UserCardStore(store)
+    first, second = create(store, '1'), create(store, '2')
+    foreign = create(store, '3', owner='foreign-owner')
+    answered = create(store, '4')
+    rejected = create(store, '5')
+    store.respond(UserPrincipal('user'), answered['id'], {'requestId': 'r', 'expectedRevision': 0, 'answer': 'a'})
+    store.reject(UserPrincipal('user'), rejected['id'], {'requestId': 'j', 'expectedRevision': 0})
+    assert store.unread_summary() == 3
+    assert store.unread_by_owner() == {'owner': 2, 'foreign-owner': 1}
+    done = store.no_answer_needed('producer', first['id'], 0)
+    assert done['read'] is True and done['status'] == 'no_answer_needed'
+    assert store.unread_summary() == 2
+    assert store.unread_by_owner() == {'owner': 1, 'foreign-owner': 1}
+    again = store.no_answer_needed('producer', first['id'], 0)
+    assert again == done and again['revision'] == 1 and again['read'] is True
+    assert store.unread_summary() == 2
+    assert store.get_for_user(UserPrincipal('user'), answered['id'])['status'] == 'responded'
+    assert store.get_for_user(UserPrincipal('user'), answered['id'])['read'] is True
+    assert store.get_for_user(UserPrincipal('user'), rejected['id'])['status'] == 'rejected'
+    assert store.get_for_user(UserPrincipal('user'), second['id'])['read'] is False
+    assert store.get_for_user(UserPrincipal('user'), foreign['id'])['read'] is False
+
+
+def test_historical_no_answer_rows_backfilled_read_once(tmp_path):
+    from packages.interactions.user_cards import UserCardStore
+    store = InteractionStore(tmp_path / 'cards.sqlite')
+    UserCardStore(store)
+    card = create(store)
+    with store.db() as db:
+        db.execute("UPDATE cards SET no_answer_at='2026-10-01T00:00:00Z',is_read=0 WHERE id=?", (card['id'],))
+    assert store.unread_summary() == 1
+    store = InteractionStore(store.path)
+    assert store.get_for_user(UserPrincipal('user'), card['id'])['read'] is True
+    assert store.unread_summary() == 0
+    store = InteractionStore(store.path)
+    assert store.get_for_user(UserPrincipal('user'), card['id'])['read'] is True
+    assert store.unread_summary() == 0
+
+
 def test_creator_not_owner_or_manager_and_pagination(tmp_path):
     store = InteractionStore(tmp_path / 'cards.sqlite')
     cards = [create(store, str(i)) for i in range(3)]

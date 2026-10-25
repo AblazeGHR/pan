@@ -67,13 +67,15 @@ class EventStore:
             db.execute('CREATE TABLE IF NOT EXISTS event_pins(event_id TEXT PRIMARY KEY)')
             db.execute('PRAGMA user_version=1')
 
-    def append(self, event, targets):
+    def append(self, event, targets, *, max_payload_bytes=PAYLOAD_BYTES):
         # Admission is the canonicalization boundary: aliases are accepted from
         # trusted input, but only canonical camelCase keys reach durable storage.
         event = canonical_event(event)
         event_json = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         payload = json.dumps(event['payload'], ensure_ascii=False, allow_nan=False).encode('utf-8')
-        if len(payload) > PAYLOAD_BYTES:
+        if type(max_payload_bytes) is not int or not 1 <= max_payload_bytes <= 2_000_000:
+            raise ValueError('Invalid Event payload capacity')
+        if len(payload) > max_payload_bytes:
             raise ValueError('Event payload exceeds 64 KiB')
         # occurredAt is assigned anew by a redelivering producer. Keep the first
         # envelope, but reject ID reuse with a different source/type/payload.

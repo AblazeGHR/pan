@@ -41,6 +41,26 @@ def register(app):
     from .user_cards_api import register as register_user_cards
     register_user_cards(app, user)
 
+    @app.get('/api/locker-unread-summary')
+    async def locker_unread_summary():
+        """Return the local profile's aggregate and per-Session unread counts.
+
+        This intentionally has no user/Bearer gate: same-origin local clients
+        may show a number before the user-auth handshake completes.  It never
+        exposes content, titles, card ids, owner names, or Locker names—only a
+        count keyed by the Session id that already appears in the Session list.
+        Authenticated Locker APIs remain the authority for all reads and
+        mutations.
+        """
+        from .runtime import LOCAL_RECIPIENT
+        store = get_store()
+        # Ensure the user_cards schema exists for installations upgraded before
+        # the reminding-card store was first opened.
+        from .user_cards import get_store as get_user_card_store
+        get_user_card_store()
+        sessions = store.unread_by_owner(LOCAL_RECIPIENT)
+        return {'unread': sum(sessions.values()), 'sessions': sessions}
+
     def owner(owner_id):
         if not isinstance(owner_id,str) or not session.get(owner_id,load_history=False):
             raise HTTPException(404,detail={'code':'owner_not_found'})
@@ -282,19 +302,25 @@ def register(app):
         store=get_store()
         try:
             current=store.get_for_user(principal,card_id)
-            choice=next((c for c in current['definition'].get('choices',[]) if c['id']==data.get('choiceId')),None)
-            if current['status'] == 'open' and choice and choice.get('triggerRef'):
-                from .trusted import verify
-                import asyncio
-                await asyncio.to_thread(verify,getattr(app.state,'automation',None),{
-                    'payload':{'ownerSessionId':current['ownerSessionId'],
-                               'executionBinding':current.get('trustedChoices',{}).get(choice['id'])}})
+            from .contracts import validate, selected_choices, choice_binding, validate_answers
+            validate('Respond', data)
+            if current['schemaVersion'] == 2:
+                validate_answers(current['definition'], data.get('answers', {}))
+            for question_id, choice in selected_choices(current['definition'], data):
+                if current['status'] == 'open' and choice.get('triggerRef'):
+                    from .trusted import verify
+                    import asyncio
+                    await asyncio.to_thread(verify, getattr(app.state, 'automation', None), {
+                        'payload': {'ownerSessionId': current['ownerSessionId'],
+                                    'executionBinding': choice_binding(current.get('trustedChoices', {}), question_id, choice['id'])}})
             card=store.respond(principal,card_id,data,allow_empty=request.url.path.endswith('/submit'))
         except InteractionError as exc:
             raise failure(exc) from exc
         # Response persistence and Trigger acceptance are distinct results.
         from packages.core.inbox_service import SessionQueue
         await store.deliver_responses(SessionQueue())
+        if card['schemaVersion'] == 2 and card['status'] == 'rejected':
+            await store.deliver_rejections(SessionQueue())
         try:
             card=await store.dispatch(principal,card_id,getattr(app.state,'interaction_trigger_adapter',None))
             return {'card':card}

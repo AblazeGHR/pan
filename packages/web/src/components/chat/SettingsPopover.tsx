@@ -14,6 +14,8 @@ import { fetchSession } from '@/services/api';
 import type { AdapterConfig, PermissionMode, Session } from '@/types';
 import { FreshnessStatus } from '@/components/session/FreshnessStatus';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
+import { usePlatformStore } from '@/stores/platformStore';
+import { platformLabel } from '@/utils/platformCapabilities';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTakeoverReadiness } from '@/hooks/useTakeoverReadiness';
 import { useTerminalTuiEntry, terminalTuiTitle } from '@/hooks/useTerminalTuiEntry';
@@ -66,6 +68,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // poll:false — the always-mounted TopBar drives the shared refresh/auto-enter
   // loop; this consumer only renders state and dispatches actions.
   const terminalEntry = useTerminalTuiEntry(session, { poll: false });
+  const platform = usePlatformStore((s) => s.platform);
   const currentWorker = useWorkerStore((s) => s.currentWorker);
   const showToast = useUIStore((s) => s.showToast);
   const { restart, killCurrent, interrupt, takeover } = useWorkerStore();
@@ -351,8 +354,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // The mobile top bar no longer hosts the Terminal TUI / Upgrades entry; the
   // same contract (upgrade confirm, pending idle, enter TUI, error retry) is
   // reachable here inside the More disclosure. Desktop keeps its top-bar entry.
-  const mobileTerminalEntry = isMobile && (s.adapter === 'codex' || s.adapter === 'cbc');
-  const terminalAdapterLabel = s.adapter === 'cbc' ? 'CBC' : 'Codex';
+  const nativeTuiCapable =
+    s.nativeControlCapable ?? (s.adapter === 'codex' || s.adapter === 'cbc');
+  const mobileTerminalEntry = isMobile && nativeTuiCapable;
+  const terminalAdapterLabel = s.adapter === 'cbc' ? 'CBC' : s.adapter === 'kimi' ? 'Kimi' : 'Codex';
   const hasCodexOverrides = s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
@@ -455,13 +460,15 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
                     </span>
                   </Button>
                   <p className="text-[11px] leading-4 text-text-muted">
-                    {terminalEntry.status === 'error'
-                      ? 'Control ownership unconfirmed — click to retry the switch.'
-                      : terminalEntry.pendingIdle
-                        ? 'Upgrade scheduled: control switches at the next idle boundary.'
-                        : terminalEntry.status === 'upgrade'
-                          ? `Upgrade this ${terminalAdapterLabel} Session to Terminal TUI control; the switch happens at the next idle boundary.`
-                          : 'Opens the native Terminal TUI control view.'}
+                    {terminalEntry.status === 'unsupported'
+                      ? `当前平台（${platformLabel(platform)}）暂不支持 Terminal TUI（terminal.native）；Session 的其它功能不受影响。`
+                      : terminalEntry.status === 'error'
+                        ? 'Control ownership unconfirmed — click to retry the switch.'
+                        : terminalEntry.pendingIdle
+                          ? 'Upgrade scheduled: control switches at the next idle boundary.'
+                          : terminalEntry.status === 'upgrade'
+                            ? `Upgrade this ${terminalAdapterLabel} Session to Terminal TUI control; the switch happens at the next idle boundary.`
+                            : 'Opens the native Terminal TUI control view.'}
                   </p>
                 </div>
               )}
@@ -597,7 +604,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
 
       <div className="border-t border-border-muted" />
 
-      {(session.adapter === 'codex' || session.adapter === 'cbc') && session.nativeControl && (
+      {nativeTuiCapable && session.nativeControl && (
         <div>
           <h4 className="text-xs font-semibold text-text-secondary mb-2">Session control mode</h4>
           <Button variant="secondary" size="sm" disabled={converting || typeof nativeState?.pendingEnabled === 'boolean'}

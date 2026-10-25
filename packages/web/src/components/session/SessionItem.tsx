@@ -7,6 +7,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useJobStore, selectSessionJobIndicator } from '@/stores/jobStore';
 import { useAdapterStore } from '@/stores/adapterStore';
+import { useLockerSessionUnread } from '@/stores/lockerUnreadStore';
 import { setReportsToManager, setSessionMsgBridge, setSessionReadonly } from '@/services/api';
 import { formatModelLabel } from '@/utils/modelLabel';
 import { SessionInfoArea } from './SessionInfoArea';
@@ -107,17 +108,6 @@ interface SessionItemProps {
   isCenterTarget?: boolean;
   /** Drag feedback: pointer is over this card's edge band (→ insert here). */
   insertZone?: DropZone | null;
-}
-
-function shortWorkdir(workdir?: string): string {
-  if (!workdir) return '';
-  const parts = workdir.replace(/\\/g, '/').split('/');
-  parts.pop();
-  const lastTwo = parts.slice(-2);
-  if (lastTwo.length < parts.length) {
-    return `…/${lastTwo.join('/')}`;
-  }
-  return `/${lastTwo.join('/')}`;
 }
 
 /** 徽标计数（未读 done / 队列）统一收敛为非负整数；0 表示不渲染徽标。 */
@@ -222,6 +212,9 @@ export const SessionItem = memo(function SessionItem({
   // 复用全局 jobStore 的权威 WS/REST 数据，无自有订阅与轮询；返回原语，
   // 仅本 Session 的指示值真实变化时才重渲染。
   const jobIndicator = useJobStore((s) => selectSessionJobIndicator(s, session.id));
+  // 本 Session 的 Locker 未读计数：共享 30s 轮询的按 Session 计数，返回原语，
+  // 只有该 Session 的计数变化才重渲染。0 时跳转按钮整枚卸载，不占位。
+  const lockerUnreadCount = useLockerSessionUnread(session.id);
 
   const handleClick = () => {
     if (isPending) return;
@@ -417,12 +410,6 @@ export const SessionItem = memo(function SessionItem({
               {formatModelLabel(session.model, multipliers)}
             </span>
           )}
-          {session.workdir && (
-            <span className="flex items-center gap-0.5 truncate text-text-tertiary" title={session.workdir}>
-              <Folder size={10} />
-              {shortWorkdir(session.workdir)}
-            </span>
-          )}
           {credit !== null && (
             <span className="shrink-0 text-text-tertiary">
               {credit.toFixed(2)} cr
@@ -486,9 +473,11 @@ export const SessionItem = memo(function SessionItem({
             })}
           </div>
 
-          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0 || jobIndicator) && (
+          {(session.adapter || unreadDoneCount > 0 || queuePendingCount > 0 || jobIndicator || lockerUnreadCount > 0) && (
             <SessionInfoArea
               sessionId={session.id}
+              sessionName={session.name}
+              lockerUnreadCount={lockerUnreadCount}
               indicator={jobIndicator}
               queuePendingCount={queuePendingCount}
               queueAllLocked={queueAllLocked}

@@ -50,6 +50,8 @@ READONLY_SESSION_ERROR = (
 from .adapters import (
     get_adapter,
     get_sessions_provider,
+    provider_kwargs,
+    adapter_supports_native_control,
     CliAdapter,
     resolve_execution_mode,
 )
@@ -3121,11 +3123,13 @@ async def _read_stdout(w: Worker):
                 del w.native_output[:len(w.native_output) - 4 * 1024 * 1024]
             continue
         if (event.get("type") == "pan.native_input_state"
-                and adapter.name == "cbc" and w.native_control_enabled):
+                and w.native_control_enabled):
             w.native_input_uncertain = event.get("uncertain") is not False
             continue
         if (event.get("type") == "pan.native_ready"
-                and adapter.name == "cbc" and w.native_control_enabled):
+                and w.native_control_enabled):
+            # PTY bridges (cbc, kimi) announce transport readiness; the codex
+            # app-server bridge reports readiness through its own init event.
             w.native_kernel_ready = True
             continue
         if (event.get("type") in {"pan.native_operation_bind", "pan.native_operation_terminal",
@@ -3197,7 +3201,14 @@ async def _read_stdout(w: Worker):
         if event.get("type") == "pan.native_user":
             s = _session(w)
             text = event.get("text")
-            if s is not None and w._native_external_turn_active and isinstance(text, str) and (text or event.get("nativeContent")):
+            # cbc/codex admit native turns durably before they run; bridges
+            # without an admission channel (kimi) are observed from the
+            # provider journal instead, so they are recorded while the user
+            # owns the terminal. Identity (nativeItemId + turnId) still gates
+            # replay duplicates below.
+            observed_native = (w.native_control_mode == "native"
+                               and not getattr(adapter, "supports_native_admission", False))
+            if s is not None and (w._native_external_turn_active or observed_native) and isinstance(text, str) and (text or event.get("nativeContent")):
                 run = s.offline_run or {}
                 if adapter.name == "codex" and (
                         not event.get("requestId") or run.get("nativeAdmissionId") != event["requestId"]
@@ -8211,7 +8222,7 @@ async def _apply_pending_native_configuration(s) -> None:
     mutate the running adapter's transport configuration mid-turn.
     """
     desired = s.adapter_config.get("native_control_next")
-    if s.adapter not in {"codex", "cbc"} or type(desired) is not bool:
+    if not adapter_supports_native_control(s.adapter) or type(desired) is not bool:
         return
     before = dict(s.adapter_config)
     if desired:
@@ -8227,6 +8238,25 @@ async def _apply_pending_native_configuration(s) -> None:
         s.adapter_config.update(before)
         raise
     await _bcast({"type": "session.updated", "sessionId": s.id})
+
+
+def _native_transport_adapter(adapter):
+    """Native-mode adapter wrapper for adapters whose TUI needs another transport.
+
+    cbc/kimi swap in a PTY bridge adapter; codex uses its own app-server adapter
+    unchanged. Keyed by adapter name only here (transport selection), while the
+    gate itself is the capability bit ``supports_native_control``.
+    """
+    name = getattr(adapter, "name", "")
+    if name == "cbc":
+        from .adapters.cbc.native_adapter import CbcNativeAdapter
+
+        return CbcNativeAdapter()
+    if name == "kimi":
+        from .adapters.kimi.native_adapter import KimiNativeAdapter
+
+        return KimiNativeAdapter()
+    return None
 
 
 @_admit_plugin_startup
@@ -8263,9 +8293,8 @@ async def _create_worker(session_id: str) -> Worker | str:
     await _apply_pending_native_configuration(s)
     try:
         adapter = get_adapter(s.adapter)
-        if s.adapter == "cbc" and s.adapter_config.get("native_control") is True:
-            from .adapters.cbc.native_adapter import CbcNativeAdapter
-            adapter = CbcNativeAdapter()
+        if s.adapter_config.get("native_control") is True:
+            adapter = _native_transport_adapter(adapter) or adapter
     except KeyError:
         # A legacy/corrupt session may outlive the adapter that created it.
         # Surface an actionable worker error instead of allowing a raw
@@ -8308,7 +8337,8 @@ async def _create_worker(session_id: str) -> Worker | str:
     worker_id = _next_worker_id()
     w = Worker(worker_id=worker_id, session_id=session_id,
                adapter=adapter,
-               native_control_enabled=s.adapter in {"codex", "cbc"} and s.adapter_config.get("native_control") is True,
+               native_control_enabled=adapter_supports_native_control(s.adapter)
+               and s.adapter_config.get("native_control") is True,
                status="idle", process=proc, pending_signal=asyncio.Queue(),
                system_prompt_file=prompt_files[0] if prompt_files else None,
                _task_done=asyncio.Event(),
@@ -9495,8 +9525,11 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
         s.adapter_config["always_thinking_enabled"] = s.adapter_config.get("always_thinking_enabled") or orig.adapter_config.get("always_thinking_enabled")
         if not s.adapter_config.get("max_thinking_tokens"):
             s.adapter_config["max_thinking_tokens"] = orig.adapter_config.get("max_thinking_tokens")
-        # For adapters that fork via file copy (e.g. kimi), pass the parent's
-        # cli_session_id so fork_args can create the branched session.
+        # For adapters whose fork lives in the SessionsProvider (kimi/claude/
+        # opencode/codex), pass the parent's cli_session_id so the provider
+        # fork below can locate the native session. Adapters with a native
+        # fork flag (cbc --fork-session) instead return non-empty extra_args
+        # from fork_args and skip the provider path entirely.
         if orig.cli_session_id and not s.cli_session_id:
             s.cli_session_id = orig.cli_session_id
         if not s.system_prompt:
@@ -9526,22 +9559,33 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     if not extra_args and provider is not None:
         if not orig or not orig.cli_session_id:
             return "Session has no native CLI session ID — cannot fork"
+        # kimi 的方案 C 隔离 HOME：MCP 会话的原生状态只在隔离 HOME 内，
+        # provider_kwargs 按签名过滤（仅 kimi 的 fork_session/parse_history/
+        # get_raw_usage 接受 kimi_home），其余 adapter 不受影响。
+        home_kwargs = provider_kwargs(
+            provider.fork_session,
+            kimi_home=orig.adapter_config.get("kimi_home_dir"))
         try:
             new_cli_id = await asyncio.to_thread(
                 provider.fork_session,
                 orig.cli_session_id,
                 s.name,
                 s.workdir or None,
+                **home_kwargs,
             )
             s.cli_session_id = new_cli_id
             parsed_history = await asyncio.to_thread(
-                provider.parse_history, new_cli_id, s.workdir or None
+                provider.parse_history, new_cli_id, s.workdir or None,
+                **provider_kwargs(provider.parse_history,
+                                  kimi_home=orig.adapter_config.get("kimi_home_dir")),
             )
             _sess.replace_history(
                 s, _sess.assign_pan_message_ids(parsed_history),
             )
             raw_usage_entries = await asyncio.to_thread(
-                provider.get_raw_usage, new_cli_id, s.workdir or None
+                provider.get_raw_usage, new_cli_id, s.workdir or None,
+                **provider_kwargs(provider.get_raw_usage,
+                                  kimi_home=orig.adapter_config.get("kimi_home_dir")),
             )
             # New branch Session has no Worker or pending enrichment yet.
             _sess.replace_usage_totals(
@@ -9624,7 +9668,8 @@ async def switch_native_control(worker_id: str, mode: str, *, timeout: float = 1
     kernel's authoritative generation. Never guess ownership after timeout.
     """
     w = workers.get(worker_id)
-    if w is None or w.adapter.name not in {"codex", "cbc"} or mode not in {"pan", "native"}:
+    if (w is None or not getattr(w.adapter, "supports_native_control", False)
+            or mode not in {"pan", "native"}):
         return {"ok": False, "error": "Unsupported native control"}
     s = _session(w)
     if s is None or s.adapter_config.get("native_control") is not True:
@@ -9673,12 +9718,16 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     """Private native input/resize seam; receipt is emitted after the PTY write."""
     w = workers.get(worker_id)
     policy = control.get("type") == "native_passthrough"
-    cbc_interrupt = bool(w and w.adapter.name == "cbc" and w.native_control_enabled
-                         and control.get("type") == "interrupt")
-    if (w is None or w.adapter.name not in {"codex", "cbc"} or
+    # Interrupt via the control channel with a receipt is a declared capability
+    # (cbc: ESC + hook FinalStop; kimi: Ctrl+C + wire turn.ended). Codex keeps
+    # its own stdin interrupt path in _interrupt_worker_unlocked.
+    native_interrupt = bool(w and w.native_control_enabled
+                            and control.get("type") == "interrupt"
+                            and getattr(w.adapter, "interrupt_via_native_control", False))
+    if (w is None or not getattr(w.adapter, "supports_native_control", False) or
             (policy and (not w.native_control_enabled or not w.native_kernel_ready)) or
-            (cbc_interrupt and w.native_control_mode != "pan") or
-            (not policy and not cbc_interrupt and w.native_control_mode != "native")):
+            (native_interrupt and w.native_control_mode != "pan") or
+            (not policy and not native_interrupt and w.native_control_mode != "native")):
         return {"ok": False, "error": "Native control is not active"}
     if policy and (set(control) != {"type", "enabled"} or type(control.get("enabled")) is not bool):
         return {"ok": False, "error": "Invalid native policy"}
@@ -9686,7 +9735,7 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
         return {"ok": False, "error": "Unsupported native policy"}
     if not policy and (type(control.get("generation")) is not int or control.get("generation") != w.native_control_generation):
         return {"ok": False, "error": "Stale control generation"}
-    if not cbc_interrupt and control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
+    if not native_interrupt and control.get("type") not in {"native_input", "native_resize", "native_passthrough"}:
         return {"ok": False, "error": "Unsupported native operation"}
     if len(w._native_mode_receipts) >= 32:
         return {"ok": False, "error": "Native input busy"}
@@ -9697,8 +9746,8 @@ async def write_native_control(worker_id: str, control: dict, *, timeout: float 
     async def send():
         async with queue_lock(w.session_id):
             if (w.generation != runtime_generation or w.status == "restarting"
-                    or (cbc_interrupt and w.native_control_mode != "pan")
-                    or (not policy and not cbc_interrupt and w.native_control_mode != "native") or w.process is None
+                    or (native_interrupt and w.native_control_mode != "pan")
+                    or (not policy and not native_interrupt and w.native_control_mode != "native") or w.process is None
                     or w.process.returncode is not None or w.process.stdin is None):
                 raise RuntimeError("Native worker is unavailable")
             w.process.stdin.write(w.adapter.encode_control_message({**control, "requestId": request_id}) + b"\n")
@@ -10895,12 +10944,13 @@ async def _interrupt_worker_unlocked(worker_id: str) -> str | None:
         return "Worker not found"
     if w.status != "running":
         return "Worker is not running"
-    if w.adapter.name == "cbc" and w.native_control_enabled:
+    if getattr(w.adapter, "interrupt_via_native_control", False) and w.native_control_enabled:
         receipt = await write_native_control(worker_id, {
             "type": "interrupt", "generation": w.native_control_generation})
-        # Cancellation uncertainty must not secretly become kill/resume of
-        # the resident CBC kernel. FinalStop will establish its actual result.
-        return None if receipt.get("ok") is True else "CBC interruption was not confirmed"
+        # Cancellation uncertainty must not secretly become kill/resume of the
+        # resident native kernel; the provider's terminal reason establishes
+        # the actual result (cbc FinalStop, kimi wire turn.ended).
+        return None if receipt.get("ok") is True else "Native interruption was not confirmed"
     # Codex app-server can interrupt the active turn while preserving the
     # long-lived native thread and app-server process.  Fall back to the
     # established kill+resume path for adapters without this optional

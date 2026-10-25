@@ -35,12 +35,15 @@ class Bus:
         self.handles[handle] = {'type': kind, 'id': owner}
         return handle
 
-    def register(self, handle, event_type, schema, version=1):
+    def register(self, handle, event_type, schema, version=1, *, max_payload_bytes=65536):
         if event_type not in self.definitions and len(self.definitions) >= 128:
             raise ValueError('Event definition capacity reached')
         if type(version) is not int or version < 1:
             raise ValueError('Invalid schema version')
         source = self.handles[handle]
+        if (type(max_payload_bytes) is not int or not 1 <= max_payload_bytes <= 2_000_000
+                or (max_payload_bytes > 65536 and source['type'] != 'core')):
+            raise ValueError('Invalid Event payload capacity')
         if not isinstance(event_type, str) or not event_type.startswith(source['id'] + '.'):
             raise ValueError('Event type must use owner namespace')
         jsonschema.Draft202012Validator.check_schema(schema)
@@ -57,7 +60,8 @@ class Bus:
         old = self.definitions.get(event_type)
         if old and old['source'] != source:
             raise ValueError('Event already owned')
-        self.definitions[event_type] = dict(type=event_type, source=source.copy(), schema=copy.deepcopy(schema), schemaVersion=version, available=True)
+        self.definitions[event_type] = dict(type=event_type, source=source.copy(), schema=copy.deepcopy(schema), schemaVersion=version, available=True,
+                                            maxPayloadBytes=max_payload_bytes)
 
     def available(self, event_type):
         return self.definitions.get(event_type, {}).get('available', False)
@@ -80,8 +84,9 @@ class Bus:
         self.subscribers[name] = (handle, queue, asyncio.create_task(consume()))
 
     def prepare(self, handle, event_type, payload, event_id=None, *, system=None):
-        if len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')) > 65536:
-            raise ValueError('Event payload exceeds 64 KiB')
+        limit = self.definitions.get(event_type, {}).get('maxPayloadBytes', 65536)
+        if len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')) > limit:
+            raise ValueError('Event payload exceeds capacity')
         if event_id is not None and (not isinstance(event_id, str) or not event_id or len(event_id) > 128):
             raise ValueError('Invalid Event ID')
         source = self.handles.get(handle)

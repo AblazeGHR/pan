@@ -202,3 +202,164 @@ kimi 无 cbc 式的 `--input-format stream-json` 长驻模式，wrapper 已在�
 - 不碰运行中服务（8768/8080/NapCat），测试用独立端口。
 - 依赖 kimi CLI 的验证在 worktree 内进行；kimi -p 会消耗 token，测试用最短 prompt 控制成本。
 - commit 可自行提交（本分支），push 等用户指示。
+
+## 8. kimi 2.3.1 复核与加固（2026-10-24，T-KIMI-001）
+
+> 环境：kimi 2.3.1（`C:/Users/14709/.kimi-code/bin/kimi.exe`），provider
+> `moonshot-cn`（`https://api.moonshot.cn/v1`），模型 k2.6 / k2.7-code 均在
+> `~/.kimi-code/config.toml` 中。复核方式：真实 CLI 进程 + 本地
+> OpenAI 兼容端点驱动脚本化模型（Moonshot 账户余额不足，429
+> `insufficient balance`，真实 token 消费被阻塞——见 §8.5）。
+
+### 8.1 实测成立（真实 kimi 进程、真实 argv、真实事件流）
+
+| 项 | 证据 |
+|---|---|
+| `-p/--prompt` + `--output-format stream-json` | 首轮输出 `meta/system.version(2.3.1)` → `assistant` → `meta/session.resume_hint(session_id)` |
+| `-S <id>` resume | 二轮请求体中携带一轮的 user prompt 与 assistant 回复；中文回答正确；`resume_hint` 另广告 `kimi -r <id>`（等价入口，`--help` 未列出） |
+| `-m <model>` / `--agent-file <md>` | wrapper 首轮 argv 全部被 2.3.1 接受；`--agent-file` 与 `-S` 互斥（wrapper 只在无 session_id 时传，正确） |
+| wrapper 全链路 | 真实 spawn → stdin `{"text":...}` → `-p/-m/--agent-file` → `-S` 二轮 → 合成 result；session_id 从 resume_hint 捕获 |
+| tool 事件 | `role:"assistant"` + `tool_calls`（Bash）；**2.3.1 新增 `role:"tool"` 结果事件**（`tool_call_id` + `content`，MCP 结果附 `<mcp-result-extras>`）；两者均被现有解析正确处理（tool 结果事件为瞬态，不入历史） |
+| MCP（方案 C） | 隔离 home 的 `mcp.json` 被识别（wire 出现 `mcp.tools_discovered`；请求 tools 列表出现 `mcp__pan-probe__pan_probe`），工具被真实调用并写 marker |
+| 原生 fork | `kimi fork <id> --cwd <wd> -y` → `Forked to session_xxx`；新会话自带 `title:"Fork: <parent>"`、`forkedFrom`、`titleKind`，并进入 `sessions/.index-cache/scan.json` |
+| 权限 | `-p` 与 `-y/--auto/--plan` 互斥（仍报 `Cannot combine --prompt with ...`）；`-p` 进程内部固定 `permission.set_mode mode=auto` |
+| sessions provider | 真实 home：list 653 条 / workspaces 31；parse/usage/title 正常；enrich 游标（`usage.record.time`）增量为空时返回 None |
+| CLI status | `resolved_cli_argv()` → `C:\Users\14709\.kimi-code\bin\kimi.exe`，`available=true` |
+
+### 8.2 2.3.1 布局变化（已适配）
+
+1. **会话索引双源**：`session_index.jsonl` 仍在真实 home 追加（653 条，含
+   Pan 探针），但**新建隔离 home（方案 C）只有 `sessions/.index-cache/scan.json`**
+   （每次 turn/fork 同步更新，含 ws/cwd/时间戳）。此前 `_load_session_index`
+   只读 jsonl → 隔离 home 的 MCP 会话 list/parse/usage/fork 全部为空。
+   **修复**：合并 jsonl + scan.json + `wd_*/session_*/state.json` 目录扫描
+   （按 sessionId 去重，jsonl 优先）。
+2. **state.json 时间戳类型**：2.3.1 写 epoch ms 整数（真实 home 26 条），旧版
+   是 ISO 字符串（629 条）。**修复**：`list_kimi_sessions` 输出统一转 ISO。
+3. **state.json 标题**：新会话无 `title` 字段（kimi 惰性生成，`titleKind`
+   可替换）；只有 fork/自定义标题后才有。`get_session_title` 返回 ""，与
+   `kimi session list` 不展示标题一致；`write_custom_title` 写
+   `title`+`isCustomTitle` 仍有效。
+4. **wire.jsonl 事件扩展**：新增 `agent.message.appended` / `llm.request` /
+   `token_counting.turn_recorded` / `prompt.completed` / `agent.turn.started` /
+   `agent.turn.ended` / `runtime.set_binding` / `profile.bind` /
+   `plugin.session_start` / `mcp.tools_discovered` / `changeNotifier.snapshot`；
+   `usage.record` 增 `usageScope`。历史解析只依赖 `context.append_message`、
+   `context.append_loop_event(content.part/tool.call)`、`usage.record`，均未变。
+
+### 8.3 本轮修复的缺陷
+
+| # | 缺陷 | 影响 | 修复 |
+|---|---|---|---|
+| F1 | 隔离 home 无 `session_index.jsonl` 时索引为空 | MCP 会话 list/parse/usage/fork 全断 | `_load_session_index` 三源合并 |
+| F2 | `fork_kimi_session` 恒写**真实 home** 的 jsonl（即使 `kimi_home` 已设） | 隔离 home 的 fork 在真实 home 留脏条目、且 kimi 侧不可见 | 原生 `kimi fork` 优先；回退写同一 home 的 jsonl |
+| F3 | `fork_args` 自行 fork 且返回 `[]`，worker branch 路径随后再经 provider fork | **双重 fork**，每次 branch 留孤儿 kimi 会话 | `fork_args` 改为纯返回 `[]`（对齐 claude/opencode/codex） |
+| F4 | branch 端点不向 provider 传 `kimi_home` | MCP 会话 branch 直接失败（父会话不在真实 home） | `provider_kwargs` 按签名透传 `kimi_home`（server branch + worker branch） |
+| F5 | branch 不继承 `kimi_home_dir` | 分支会话首轮建空 HOME，`-S` 找不到 fork 出的会话 | branch 复制 `kimi_home_dir`；`_cleanup_kimi_home` 对共享 HOME 跳过清理 |
+| F6 | rename 对**所有** provider 传 `kimi_home=` | cbc/codex/claude/opencode 重命名抛 TypeError，原生标题静默不写 | 同样按签名过滤 |
+| F7 | state.json 时间戳混合类型（int/ISO） | 前端/排序面对混合类型 | 输出统一 ISO |
+| F8 | `default_permission_mode` property 被同名类属性覆盖（死代码） | config 的 kimi.permission_mode 被静默忽略 | 删除死 property，保留恒 "" 的类属性并注释原因 |
+
+### 8.4 能力对照（cbc/codex vs kimi，2026-10-24）
+
+| 能力 | cbc | codex | kimi（本轮后） | 结论 |
+|---|---|---|---|---|
+| Terminal TUI / native control | ✅ PTY + 结构化 hook（`cbc/native_bridge.py`） | ✅ app-server native control | ❌ | **需 native 控制**（阶段 2）：kimi 无 hook，但 wire.jsonl 有 `agent.turn.started/ended`、`turn.ended`、`prompt.completed`、`turn.prompt` 可作生命周期来源；`kimi -S` 可拉起交互 TUI 但无结构化控制通道 |
+| steer（mid-turn） | ✅ 原生 | ✅ native steer + receipt | ❌ | **需 native 控制**（阶段 2）：候选通道 `kimi acp`（JSON-RPC stdio）或 `kimi web`（REST/WS）；`-p` 一次性进程天然无 mid-turn 注入 |
+| interrupt（中断回合） | ✅ | ✅ 原生 interrupt | △ 仅杀进程 | **受 kimi CLI 限制**：`-p` 无取消信号；现在只能 kill kimi 子进程（wrapper 随之结束）。要做优雅中断需 ACP/web 通道 |
+| takeover（接管交互） | ✅ `--resume` 拉起 | ✅ `codex resume` | ✅ `kimi -S <id>`（隔离 HOME 时经 `KIMI_CODE_HOME` execv） | 已支持 |
+| fork / branch | ✅ `--fork-session` | ✅ DB 行复制 | ✅ 原生 `kimi fork`（2.3.1+）/ 旧版目录复制 | 已支持（本轮修 F2/F3/F5） |
+| import | ✅ | ✅ | ✅ `/api/kimi/*` + 通用 provider 端点（真实 home） | 已支持；隔离 home 的 MCP 会话不经 import（由 Pan 自管） |
+| usage/enrich | ✅ rawUsage 游标 | ✅ token_count 增量 | ✅ `usage.record` time 游标 | 已支持（值依赖 provider 返回） |
+| MCP | ✅ `--mcp-config` | ✅ `-c` 内联 | ✅ KIMI_CODE_HOME 隔离 home + mcp.json（2.3.1 实测调用成功） | 已支持 |
+| 模型列表 | config>help>兜底 | models_cache + catalog | config.json > config.toml `[models."..."]` > 兜底（k2.6/k2.7-code） | 已支持；2.3.1 config.toml 中两模型仍有效 |
+| 权限模式 | `--permission-mode` | sandbox/-c 覆盖 | ❌ 不可用（`-p` 与 `-y/--auto/--plan` 互斥，进程内固定 auto） | **受 kimi CLI 限制**；声明与实际一致（`permission_mode_args` 返回 []） |
+| CLI status | ✅ | ✅ | ✅ `resolved_cli_argv` 解析到 exe | 已支持 |
+| 队列行为 | 通用 worker 队列 | 通用 | 通用（stream 长驻，无 oneshot） | 已支持（无 kimi 专属分支） |
+
+### 8.5 限制与凭据要求
+- **凭据**：kimi 依赖 `~/.kimi-code/config.toml` 的 provider + api_key
+  （Pan 只读拷贝进隔离 home，不写回、不打印）。模型调用会消耗账户余额；
+  2026-10-24 复核时该账户返回 429 `insufficient balance`，**真实 token 消费
+  被阻塞**——因此真实模型回答的 E2E 以本地 OpenAI 兼容端点驱动真实 kimi
+  进程完成（进程/argv/事件/MCP 全部真实，仅模型脚本化）。
+- **thinking 事件形态未在真实模型上复现**：脚本端点返回 `reasoning_content`
+  时 2.3.1 未输出 `role:"thinking"` 事件（可能因 kimi 只对特定模型字段映射
+  思考流）。adapter 对 `role:"thinking"`（扁平 content 或结构化块）的解析
+  保持不变并有单测覆盖。
+- **子代理 wire**：会话下 `agents/` 可能有非 main 代理目录；Pan 只读
+  `agents/main/wire.jsonl`（与既有行为一致）。
+- **`kimi -r`**：resume_hint 广告的别名，未在 `--help` 文档中列出；Pan 统一用
+  `-S`（文档化入口）。
+- **隔离 home 清理**：branch 出的会话共享父会话 home；删除父会话时
+  `_cleanup_kimi_home` 检测共享引用并跳过删除。
+
+## 9. Terminal TUI（native control）与 steer（2026-10-24，T-KIMI-002）
+
+> 前提：kimi 2.3.1；Moonshot 账户余额不足，模型侧用本地 OpenAI 兼容端点脚本化，
+> **进程、PTY、argv、MCP、wire.jsonl 全部真实**。验证脚本与原始输出保留在
+> `%TEMP%/pan-kimi-e2e/`（repo 外）。
+
+### 9.1 三条通道的真实能力（先验证后实现）
+
+| 通道 | 能做什么 | 关键实测证据 | 结论 |
+|---|---|---|---|
+| **PTY TUI**（`kimi -S <id>`） | 渲染完整 TUI；括号粘贴 + 回车提交多行 prompt；Ctrl+C 取消运行中的回合 | 回合中键入的文本**在 `turn.ended` 之后才出现 `turn.prompt`**（排队成下一轮，不是 steer、不是忽略）；Ctrl+C → wire `turn.cancel` → `turn.step.interrupted` → `turn.ended{reason:"cancelled"}` | **作为 Terminal TUI 传输**；无 steer；中断=Ctrl+C + wire 回执 |
+| **`kimi acp`**（JSON-RPC stdio） | `initialize`（capabilities: loadSession / session{list,resume,close,delete,fork} / mcp{http,sse}）、`session/new|prompt|cancel|list|resume|set_model`、`session/request_permission`；`session/prompt` 收到 `session/update`（agent_message_chunk / tool_call / usage_update） | TUI 持有会话时 `session/resume` 返回 **"This session is in use by another Kimi Code CLI instance"** | 结构化通道完整，但**不能与 TUI 共驱同一会话**（单写者）；保留为未来「无 TUI 的 headless native」候选 |
+| **`kimi web`**（127.0.0.1:58627，bearer token） | OpenAPI 暴露 `POST /sessions/{id}/prompts`、**`prompts:steer`**（把排队 prompt 注入运行中回合）、`prompts/{id}:abort`、approvals、snapshot/transcript/WS | 对 TUI 占用的会话 `POST /prompts` → `code 40931 "This session is in use by another Kimi Code CLI instance"` | 有真实 steer API，但**同样被单写者锁拒绝**；不能作为 TUI 的旁路 |
+
+**架构结论**：kimi 对同一 session 强制单写者（TUI 进程持有租约/锁，web 与 ACP 均被拒），
+所以「TUI 视图 + 结构化 steer」无法共存。Pan 选择 **PTY TUI 独占 + wire.jsonl 事实**：
+
+- **Terminal TUI**：`native_bridge.py` 用 `ConPtyBackend` 独占 `kimi -S`，PTY 字节只做展示
+  （`pan.native_output` → 终端视图），**不回读屏幕推断回合**；
+- **回合生命周期**：只认 wire.jsonl —— `turn.prompt{origin}` → `agent.turn.started` →
+  `context.append_loop_event{content.part|tool.call}` → `turn.ended{reason}`（`completed`
+  /`cancelled`），中断额外有 `turn.cancel`/`turn.step.interrupted`；
+- **steer**：**不支持**。`supports_native_steer=False`、`supports_steer_receipt=False`；
+  UI 不显示 steer；文档与错误信息明确写「终端输入 = 排队为下一轮」；
+- **interrupt**：控制通道 `{"type":"interrupt"}` → PTY 写 Ctrl+C → bridge 回执
+  `pan.native_write{ok:true}`，最终结果由 wire `turn.ended.reason=cancelled` 确认
+  （不是 kill 进程）；在工作进程僵死时仍由既有 watchdog 兜底重启；
+- **输入确认**：Pan 发起的 prompt 用括号粘贴 + 回车，**以 wire `turn.prompt` 文本回显为
+  回执**（不是「写入成功即认为执行」）；一次回车丢失时只重试回车、不重贴文本；
+- **就绪判据**：PTY 输出静止（传输层，不推断回合）+ 工作区信任标记存在；
+  未信任时 bridge 发 `pan.native_trust_required`，pan 模式提交明确拒绝，用户在终端视图
+  里按一次回车信任即可（kimi 把信任写在 `<home>/workspace-trust/<opaque>`，按 root 匹配）。
+
+### 9.2 能力位与门禁
+
+| 能力位 | codex | cbc（native） | kimi（native） |
+|---|---|---|---|
+| `supports_native_control` | ✅ | ✅ | ✅ |
+| `supports_native_interrupt` | ✅ | ✅ | ✅ |
+| `interrupt_via_native_control` | — | ✅（ESC + FinalStop） | ✅（Ctrl+C + wire） |
+| `supports_native_steer` | ✅ | ❌ | ❌ |
+| `supports_steer_receipt` | ✅ | ❌ | ❌ |
+| `supports_native_admission` | ✅ | ✅ | ❌（观察式：wire 即事实） |
+
+门禁已从硬编码集合改为能力位：`worker.py`（`_apply_pending_native_configuration` /
+`_create_worker` / `switch_native_control` / `write_native_control` / interrupt 分支 /
+`pan.native_ready` 路由）、`native_control_api._target`、`server._build_session_params`，
+前端 `useTerminalTuiEntry` / `SettingsPopover` / `TopBar` 读会话字段
+`nativeControlCapable`（后端按 `adapter_supports_native_control(name)` 生成；旧载荷
+回退到 codex/cbc，避免局部更新把入口闪没）。
+
+### 9.3 已知限制（不伪装）
+
+- **无 steer**：kimi 2.3.1 的 TUI 把回合中提交排队成下一轮；web/ACP 的结构化 steer
+  被单写者锁挡住。故 `supports_native_steer=False`，Pan 的 steer 按钮/队列 steer 对
+  kimi 关闭。
+- **首次在未信任目录**开 Terminal TUI：需要用户在终端视图里接受一次信任提示
+  （bridge 不代答；代答会改变项目级 MCP/hook 的安全边界）。信任后不再询问。
+- **native 模式的历史**：用户在 TUI 里键入的 prompt 由 wire `turn.prompt` 观察记录
+  （`source: native-tui`，按 `turnId`+`promptId` 去重）；没有 cbc 式的「运行前持久化
+  admission」——回合已经开始，Pan 只做观察记录，不声称能拒绝它。
+- **Pan 的 system prompt**：native 模式下仅在**新建会话**（无 `cli_session_id`）通过
+  `--agent-file` 注入；`-S` 恢复的会话沿用创建时的人设（kimi 禁止 `--agent-file` 与
+  `-S` 组合），bridge 不伪造。
+- **单写者**：TUI 持有会话时，`kimi -p`/`kimi web`/`kimi acp` 对同一会话都会被拒；
+  因此 Pan 在 native 模式下不会再对同一 session 起 stream worker（同一 worker 进程切换）。
+- **ACP / web 未接入**：两者都能结构化 prompt/cancel/steer，但无法与 TUI 共存；
+  若未来要「无 TUI 的 native」，ACP 是更好的传输（已实测方法集），需要单独设计
+  Pan 事件映射与 MCP（ACP 只支持 http/sse MCP，stdio 需转换）。

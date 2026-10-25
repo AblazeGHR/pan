@@ -40,7 +40,12 @@ export interface AccountSnapshot {
   app: string;
   currentProviderId: string | null;
   observedAt: number;
-  providers: { id: string; name: string; origin: string | null; isCurrent: boolean; quota: AccountQuota | null; notes?: string; category?: string }[];
+  /** Panel-only settings revision; absent in pre-gate snapshots. */
+  revision?: number;
+  updatedAt?: number;
+  providers: { id: string; name: string; origin: string | null; isCurrent: boolean; quota: AccountQuota | null; notes?: string; category?: string;
+    /** Single gate: manual (Panel) switching stays allowed; every non-manual path refuses it. */
+    nonManualDisabled?: boolean }[];
   accounts: { id: string; login: string; isDefault: boolean; reauthRequired?: boolean }[];
   accountError: string | null;
 }

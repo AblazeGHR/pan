@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, Response, FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 
@@ -70,7 +70,13 @@ from packages.core.data_retention import (
     normalize_policies as normalize_data_retention_policies,
     validate_policy_update as validate_data_retention_update,
 )
-from packages.core.adapters import get_adapter, list_adapters, get_sessions_provider
+from packages.core.adapters import (
+    get_adapter,
+    list_adapters,
+    get_sessions_provider,
+    provider_kwargs,
+    adapter_supports_native_control,
+)
 from packages.core.adapters.validation import (
     AdapterCapabilityError,
     is_valid_model,
@@ -124,6 +130,7 @@ from packages.core import main_lifecycle
 from packages.core import launcher
 from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
+from packages.core import platform as platform_layer
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
 from packages.scheduler import engine as scheduler_engine
@@ -803,7 +810,7 @@ def _main_restart_job_view(job: dict | None) -> dict:
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = os.name == "nt" and launcher_module.is_file()
+    available = platform_layer.is_windows() and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -838,9 +845,11 @@ def _main_restart_status() -> dict:
     if not available:
         result["reason"] = (
             "main service restart is available only on Windows"
-            if os.name != "nt"
+            if not platform_layer.is_windows()
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
     return result
 
 
@@ -946,7 +955,7 @@ def _main_exit_paths() -> dict[str, Path]:
 def _main_exit_status() -> dict:
     paths = _main_exit_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = os.name == "nt" and launcher_module.is_file()
+    available = platform_layer.is_windows() and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -993,9 +1002,11 @@ def _main_exit_status() -> dict:
     if not available:
         result["reason"] = (
             "main service exit is available only on Windows"
-            if os.name != "nt"
+            if not platform_layer.is_windows()
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
     return result
 
 
@@ -2273,6 +2284,7 @@ def _session_to_api(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
+        "nativeControlCapable": adapter_supports_native_control(s.adapter),
         "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
@@ -2653,6 +2665,7 @@ def _session_summary(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
+        "nativeControlCapable": adapter_supports_native_control(s.adapter),
         "workerStatus": worker_status,
         "workerId": worker_id,
         "workerGeneration": worker_generation,
@@ -3205,8 +3218,9 @@ def _build_session_params(
             raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
     if "nativeControl" in data:
-        if type(data["nativeControl"]) is not bool or adapter_name not in {"codex", "cbc"}:
-            raise ValueError("nativeControl requires a Codex or CBC Session and a boolean")
+        if (type(data["nativeControl"]) is not bool
+                or not adapter_supports_native_control(adapter_name)):
+            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
         if data["nativeControl"]:
             params["adapter_config"]["native_control"] = True
     # These are deliberately added only when explicitly supplied.  In
@@ -3868,6 +3882,38 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
+def _unsupported_platform(feature: str) -> JSONResponse:
+    """Stable "unsupported on this platform" contract: 501 + static code.
+
+    Carries no path, account, host or exception text: clients decide from the
+    capability matrix (``GET /api/platform``), this is the server-side fence.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={
+            "ok": False,
+            "error": {
+                "code": "unsupported_platform",
+                "message": f"{feature} is available on Windows only",
+            },
+        },
+    )
+
+
+@app.get("/api/platform")
+async def api_platform():
+    """Read-only platform + capability probe.
+
+    No user key, instance identity or config file is consulted, exactly like the
+    other read-only summaries; only the platform name and capability booleans
+    are returned (never paths, accounts, host names or versions).
+    """
+    return {
+        "platform": platform_layer.platform_name(),
+        "capabilities": platform_layer.capabilities(),
+    }
+
+
 @app.post("/api/internal/main/shutdown")
 async def api_internal_main_shutdown():
     """Ask the owning Uvicorn server to perform its normal lifespan shutdown.
@@ -3971,6 +4017,8 @@ async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
     an HTTP failure in the browser. The detached Python lifecycle supervisor
     owns the subsequent launcher stop/start chain.
     """
+    if not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service restart")
     options = _parse_main_lifecycle_options(payload, "restart")
     async with _lifecycle_operation_lock:
         return await _schedule_main_restart(options)
@@ -4302,6 +4350,8 @@ async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
     health-recovery wait follows: this operation intentionally makes the
     service unavailable.
     """
+    if not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service exit")
     options = _parse_main_lifecycle_options(payload, "exit")
     async with _lifecycle_operation_lock:
         return await _schedule_main_exit(options)
@@ -8202,6 +8252,8 @@ def _resolve_history_message(session_id: str, message_id: str):
 @app.post('/api/sessions/{session_id}/history/{message_id}/rewind')
 async def api_rewind_session_history(session_id: str, message_id: str,
                                      payload: Annotated[dict | None, Body()] = None):
+    if not platform_layer.supports('rewind'):
+        return _unsupported_platform('Rewind')
     active_worker = worker.find_alive_worker_by_session(session_id)
     if active_worker and active_worker.status in {'running', 'queued'}:
         return {'ok': False, 'error': {
@@ -9703,13 +9755,19 @@ async def api_rename_session(session_id: str, data: dict):
     # G7: 把重命名持久化进 adapter 原生存储（按 provider 统一调用，P0-2）。
     # kimi/opencode 显式回写 state.json / SQLite；cbc 追加 custom-title 事件
     # （与 fork 时的写标题路径一致），三者均幂等安全。
+    # kimi_home 仅对支持该 kwarg 的 provider（kimi：方案 C 隔离 HOME）传递——
+    # 按签名过滤，避免 cbc/codex/claude/opencode 收到多余 kwarg 报 TypeError
+    # （2026-10-24 修复：此前每次非 kimi 重命名都会打印 write_custom_title
+    # failed，原生标题静默不落盘）。
     if s.cli_session_id:
         provider = _sessions_provider(s.adapter)
         if provider is not None:
             try:
                 provider.write_custom_title(
                     s.cli_session_id, new_name, s.workdir or None,
-                    kimi_home=s.adapter_config.get("kimi_home_dir"),
+                    **provider_kwargs(
+                        provider.write_custom_title,
+                        kimi_home=s.adapter_config.get("kimi_home_dir")),
                 )
             except Exception as e:
                 print(f"[rename] {s.adapter} write_custom_title failed: {e}")
@@ -9777,22 +9835,33 @@ async def api_branch_session(session_id: str, data: dict):
         return {"error": err}
 
     # Fork via pure file operations — no CLI process spawned.
-    # 按 provider 统一调用（P0-2）：cbc=复制 JSONL、kimi=目录复制、
-    # opencode=SQLite 行复制，各自 fork_session 内部实现。
+    # 按 provider 统一调用（P0-2）：cbc=复制 JSONL、kimi=原生 `kimi fork`
+    # （2.3.1+，旧版目录复制）、opencode=SQLite 行复制，各自 fork_session 内部实现。
+    # kimi_home 仅对支持该 kwarg 的 provider（kimi）传递：MCP 会话的父会话状态
+    # 在隔离 HOME 里，真实 home 索引找不到，不传会导致 branch 直接失败。
     cwd = s.workdir or ""
     provider = _sessions_provider(s.adapter)
     if provider is None:
         return {"error": f"Unknown adapter: {s.adapter}"}
+    home_kwargs = provider_kwargs(
+        provider.fork_session,
+        kimi_home=s.adapter_config.get("kimi_home_dir"))
     try:
-        new_cli_id = provider.fork_session(s.cli_session_id, name, cwd or None)
+        new_cli_id = provider.fork_session(s.cli_session_id, name, cwd or None, **home_kwargs)
     except FileNotFoundError as e:
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"Fork failed: {e}"}
 
     try:
-        history = provider.parse_history(new_cli_id, cwd or None)
-        raw_usage_entries = provider.get_raw_usage(new_cli_id, cwd or None)
+        history = provider.parse_history(
+            new_cli_id, cwd or None,
+            **provider_kwargs(provider.parse_history,
+                              kimi_home=s.adapter_config.get("kimi_home_dir")))
+        raw_usage_entries = provider.get_raw_usage(
+            new_cli_id, cwd or None,
+            **provider_kwargs(provider.get_raw_usage,
+                              kimi_home=s.adapter_config.get("kimi_home_dir")))
     except Exception as e:
         return {"error": f"Failed to parse forked session: {e}"}
 
@@ -9817,6 +9886,13 @@ async def api_branch_session(session_id: str, data: dict):
             new_adapter_config[_native_key] = s.adapter_config[_native_key]
     if s.adapter_config.get("mcp_servers"):
         new_adapter_config["mcp_servers"] = copy.deepcopy(s.adapter_config["mcp_servers"])
+    # 方案 C 隔离 HOME 随 branch 传递：fork 出的 kimi 会话物理上位于父会话的
+    # 隔离 HOME 内，新 Pan session 必须复用同一 HOME 才能 -S 续接它；若不复用，
+    # 首轮 spawn 会建一个空 HOME，resume 找不到会话（上下文丢失）。
+    # mcp.json 里的 PAN_AGENT_SESSION_ID/TITLE 在每次 spawn 时按当前 session
+    # 重写（_prepare_kimi_home 幂等），父子并发运行时的身份以各自 spawn 为准。
+    if s.adapter_config.get("kimi_home_dir"):
+        new_adapter_config["kimi_home_dir"] = s.adapter_config["kimi_home_dir"]
     for key in ("plugin_config_version", "plugin_bindings", "plugin_selection_revision"):
         if key in s.adapter_config:
             new_adapter_config[key] = copy.deepcopy(s.adapter_config[key])
@@ -10078,11 +10154,25 @@ def _cleanup_kimi_home(session_id: str) -> None:
     kimi MCP 会话的整个用户目录（config.toml + mcp.json + kimi 自身写入的
     sessions/、session_index.jsonl 等）都在该隔离目录内，删除 session 时一并
     清理，避免 data/ 残留。目录不存在时静默跳过。
+
+    Branch 出的 kimi MCP 会话会共享父会话的隔离 HOME（fork 出的 kimi 会话
+    物理上在那里，见 api_branch_session）。此时若仍有其他 Session 引用同一
+    HOME，跳过清理——否则父删子留会把子的 -S resume 打断。
     """
     p = DATA_DIR / "kimi-homes" / session_id
+    if not p.exists():
+        return
+    shared_by = [
+        other.id for other in sess.list_all(load_history=False)
+        if other.id != session_id
+        and other.adapter == "kimi"
+        and other.adapter_config.get("kimi_home_dir") == str(p)
+    ]
+    if shared_by:
+        _log(f"[kimi-home] {p} 仍被 {len(shared_by)} 个 session 引用，跳过清理")
+        return
     try:
-        if p.exists():
-            shutil.rmtree(p)
+        shutil.rmtree(p)
     except OSError as e:
         _log(f"[kimi-home] 清理失败 {p}: {e}")
 

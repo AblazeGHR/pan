@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useViewEntries } from './viewEntries';
-import { ViewEntryBadge } from './ViewEntryBadge';
+import { ViewEntryBadge, ViewEntryDirectionDot } from './ViewEntryBadge';
+import { useLockerUnread } from '@/stores/lockerUnreadStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   const entries = useViewEntries();
+  const sessions = useSessionStore((state) => state.sessions);
+  const lockerUnread = useLockerUnread();
+  const chatUnread = sessions.reduce((sum, session) => sum + Math.max(0, Math.floor(session.unreadDoneCount ?? 0)), 0);
   const groups = Array.from({ length: Math.ceil(entries.length / 3) }, (_, group) =>
     Array.from({ length: 3 }, (_, slot) => entries[group * 3 + slot]));
   const { pathname } = useLocation();
@@ -15,6 +20,9 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   // Reveal a changed route once; browsing pages never navigates or reasserts the route.
   if (selection.pathname !== pathname || selection.routeGroup !== routeGroup) setSelection({ pathname, routeGroup, group: routeGroup });
   const group = Math.min(groups.length - 1, selection.pathname === pathname ? selection.group : routeGroup);
+  const unreadGroup = (page: typeof groups[number]) => page.some((entry) => (entry?.to === '/' && chatUnread > 0) || (entry?.to === '/locker' && lockerUnread > 0));
+  const leftUnread = groups.slice(0, group).some(unreadGroup);
+  const rightUnread = groups.slice(group + 1).some(unreadGroup);
   const gesture = useRef<{ id: number; x: number; y: number; axis: 'pending' | 'horizontal' | 'vertical' } | null>(null);
   const suppressClickUntil = useRef(0);
   const navRef = useRef<HTMLElement>(null);
@@ -45,7 +53,7 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
   return <nav ref={navRef} aria-label="界面入口" className="flex min-w-0 items-center gap-1">
     {!isMobile && <button type="button" aria-label="上一组界面入口" disabled={group === 0}
       className="shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30" onClick={() => step(-1)}>
-      <ChevronLeft size={14} />
+      <span className="relative"><ChevronLeft size={14} />{leftUnread && <ViewEntryDirectionDot direction="left" />}</span>
     </button>}
     <div className="min-w-0 flex-1 overflow-hidden" style={{ touchAction: 'pan-y pinch-zoom' }}
       tabIndex={0} aria-label={`界面入口，第 ${group + 1} 组，共 ${groups.length} 组`}
@@ -104,18 +112,17 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
             <span className="flex min-w-0 items-center justify-center gap-1">
               <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
             </span>
-            {/* Running Job 数徽标：absolute 浮层挂在入口右下角，浮在原有组件
-                之上，不占布局空间、不改变入口尺寸与宽度（0 时不渲染同样零
-                位移）。复用 Session 队列数徽标样式（accent 蓝、99+ 封顶），
-                无自身指针处理，点击穿透到入口，分组滑动不受影响。 */}
-            {entry.to === '/jobs' && <ViewEntryBadge />}
+            {/* Entry badges are absolute overlays: they do not affect layout or intercept clicks. */}
+            {entry.to === '/jobs' && <ViewEntryBadge kind="jobs" />}
+            {entry.to === '/' && <ViewEntryBadge kind="chat" />}
+            {entry.to === '/locker' && <ViewEntryBadge kind="locker" />}
           </NavLink> : <div key={slot} aria-hidden="true" />)}
         </div>)}
       </div>
     </div>
     {!isMobile && <button type="button" aria-label="下一组界面入口" disabled={group === groups.length - 1}
       className="shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30" onClick={() => step(1)}>
-      <ChevronRight size={14} />
+      <span className="relative"><ChevronRight size={14} />{rightUnread && <ViewEntryDirectionDot direction="right" />}</span>
     </button>}
   </nav>;
 }

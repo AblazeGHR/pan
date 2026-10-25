@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "terminal_id": "term_75811d3fa2004d6e",
+  "owner": "service",
+  "status": "cleanup-failed",
+  "created_at": 1792921969.87136,
+  "updated_at": 1792921999.9472563,
+  "rows": 24,
+  "cols": 80,
+  "pid": null,
+  "process_created_at_filetime": null,
+  "pipe": null,
+  "detached": false,
+  "detached_at": null,
+  "scope": {
+    "workspace_id": null,
+    "session_id": null
+  },
+  "exit": {
+    "code": null,
+    "reason": "bootstrap-unverified"
+  },
+  "lease_grace_seconds": 2.0,
+  "created_by": "service",
+  "archived": false,
+  "cleanup_pending": false
+}

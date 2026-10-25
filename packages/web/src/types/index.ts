@@ -114,6 +114,8 @@ export interface TerminalIdentity {
 
 export interface Session {
   nativeControl?: boolean;
+  /** Adapter declares a Terminal TUI transport (capability bit from the API). */
+  nativeControlCapable?: boolean;
   id: string;
   name: string;
   adapter?: string;

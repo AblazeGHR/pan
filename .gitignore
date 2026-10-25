@@ -141,3 +141,5 @@ packages/web/test-results/
 /audit/cc-switch-panel-direct-20261018/tmp/
 /audit/cc-switch-panel-cache-20261019/vite-cache/
 /audit/cc-switch-panel-cache-20261019/tmp/
+/audit/cc-switch-non-manual-gate-20261025/vite-cache/
+/audit/cc-switch-non-manual-gate-20261025/tmp/

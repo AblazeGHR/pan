@@ -334,6 +334,42 @@ def _default_sidecar_path() -> Path:
     return Path(__file__).resolve().parent / "emulator_sidecar" / "sidecar.mjs"
 
 
+def _sidecar_dependencies(sidecar_dir: Path) -> tuple[str, ...]:
+    """sidecar 声明的运行时依赖名；没有 manifest 就**不声称**有依赖（交给 node 判定）。
+
+    只有随仓库发布的 sidecar 目录才带 ``package.json``；测试用的临时 sidecar 脚本
+    通常只有一个 .mjs/.cjs，不能因为"没有 manifest"就被判成依赖缺失。
+    """
+    try:
+        manifest = json.loads((sidecar_dir / "package.json").read_text(encoding="utf-8"))
+        dependencies = manifest.get("dependencies")
+        if isinstance(dependencies, dict):
+            return tuple(sorted(str(name) for name in dependencies))
+    except (OSError, ValueError, TypeError):
+        pass
+    return ()
+
+
+def _missing_sidecar_dependencies(sidecar_dir: Path) -> tuple[str, ...]:
+    """按 Node 的 node_modules 查找顺序判断依赖是否可解析（不启动子进程）。
+
+    Node 对 bare specifier 从**导入文件所在目录**逐级向上查找
+    ``node_modules/<pkg>/package.json``；这里只做同一顺序的存在性检查，因此：
+    - 依赖缺失时在 spawn 之前就能给出静态分类，而不是等 node 以
+      ``ERR_MODULE_NOT_FOUND`` 退出后再从 stderr 摘要猜；
+    - 副作用仅是只读 stat，不装包、不联网、不改 lockfile。
+    """
+    missing: list[str] = []
+    for name in _sidecar_dependencies(sidecar_dir):
+        package = Path(*name.split("/"))
+        for directory in (sidecar_dir, *sidecar_dir.parents):
+            if (directory / "node_modules" / package / "package.json").is_file():
+                break
+        else:
+            missing.append(name)
+    return tuple(missing)
+
+
 def _resolve_node_binary(explicit: str | None) -> str | None:
     if explicit:
         candidate = Path(explicit)
@@ -740,6 +776,18 @@ class HeadlessEmulator:
                 f"sidecar 脚本不存在：{sidecar}",
                 owner=None,
                 residual={"reason": "sidecar-script-missing", "sidecar_path": str(sidecar)},
+            )
+        # 依赖预检必须在 spawn 之前：未安装依赖时 node 只会以
+        # ERR_MODULE_NOT_FOUND 退出，free-text 原因会被状态文件投影成泛化的
+        # engine-startup-failed。这里给出**静态**分类，且不产生任何进程/Job。
+        missing = _missing_sidecar_dependencies(sidecar.parent)
+        if missing:
+            raise EmulatorStartupError(
+                "sidecar 依赖未安装：" + ", ".join(missing)
+                + f"；请在 {sidecar.parent} 执行 npm ci（exact pin），"
+                "不要在仓库根安装",
+                owner=None,
+                residual={"reason": "sidecar-dependency-missing"},
             )
 
         self._node_binary = node

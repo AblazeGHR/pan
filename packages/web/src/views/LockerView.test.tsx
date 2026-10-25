@@ -14,6 +14,7 @@ import LockerView from './LockerView';
 import {
   lockerProjection,
   lockerTimeline,
+  lockerEntryWindow,
   type UserCard,
   type InteractionCard,
   type LockerMessage,
@@ -33,7 +34,13 @@ vi.mock('@/stores/workspaceStore', () => {
   );
   return { useWorkspaceStore };
 });
-const uiState = { activeWorkspaceId: 'all', setMobileSidebarOpen: vi.fn() };
+const uiState = {
+  activeWorkspaceId: 'all',
+  setMobileSidebarOpen: vi.fn(),
+  setActiveWorkspace: vi.fn((id: string) => {
+    uiState.activeWorkspaceId = id;
+  }),
+};
 vi.mock('@/stores/uiStore', () => {
   const useUIStore = Object.assign(
     (select: (value: typeof uiState) => unknown) => select(uiState),
@@ -99,6 +106,7 @@ beforeEach(() => {
   vi.mocked(resolveRelatedMessageTarget).mockReset();
   useAutomationAuth.setState({ token: 'unit-only', expiresAt: Date.now() + 60000 });
   uiState.activeWorkspaceId = 'all';
+  uiState.setActiveWorkspace.mockClear();
   userCards = [];
   cards = [card(), card('b', 'l2')];
   messages = [];
@@ -160,6 +168,7 @@ beforeEach(() => {
           revision: 1,
           status: path.endsWith('/reject') ? 'rejected' : 'responded',
           response: {
+            answers: body.answers as NonNullable<InteractionCard['response']>['answers'],
             outcome: path.endsWith('/reject') ? 'reject' : 'submit',
             answer: body.answer as string | undefined,
             choiceId: body.choiceId as string | undefined,
@@ -174,9 +183,9 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-function mount() {
+function mount(entry = '/locker') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <LockerView />
     </MemoryRouter>,
   );
@@ -642,34 +651,213 @@ function reverseCard(answered = true): UserCard {
     read: !answered, revision: answered ? 1 : 0};
 }
 describe('reminding card positions share one record', () => {
-  it('renders pending once without read controls and keeps answered projections ordered deterministically', async () => {
+  it('renders pending once without read controls and keeps a single answered record at createdAt', async () => {
     cards = []; userCards = [reverseCard(false)]; mount();
     await screen.findByText('Awaiting answer');
     expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1);
     expect(screen.queryByRole('button', {name: /Mark reminding card/})).toBeNull();
     const sameTime = {...reverseCard(), answeredAt: reverseCard().createdAt};
-    expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created', 'answered']);
-    expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(2);
+    expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created']);
+    expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(1);
     const positions = lockerTimeline([reverseCard(), card('b')]);
-    expect(positions.map((entry) => entry.item.id)).toEqual(['uc', 'b', 'uc']);
+    expect(positions.map((entry) => entry.item.id)).toEqual(['uc', 'b']);
   });
-  it.each([0, 1])('read and delete from position %i update/remove both identical rows', async (position) => {
+  it('read and delete operate on the single original row', async () => {
     cards = []; userCards = [reverseCard()]; mount();
-    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(2));
+    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1));
     let rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
-    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
-    expect(screen.getAllByText('Agent answer body')).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('Agent answer body');
+    expect(screen.getAllByText('Agent answer body')).toHaveLength(1);
     expect(rows.every((row) => row.querySelector('textarea,input') === null)).toBe(true);
     const reads = screen.getAllByRole('button', {name: 'Mark reminding card as read'});
-    fireEvent.click(reads[position]!);
-    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark reminding card as unread'})).toHaveLength(2));
+    fireEvent.click(reads[0]!);
+    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark reminding card as unread'})).toHaveLength(1));
     rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
-    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
+    expect(rows[0]!.textContent).toContain('Agent answer body');
     expect(calls.filter((call) => call.path === '/api/reminding-cards/uc/read')).toHaveLength(1);
     expect(userCards).toHaveLength(1);
     expect(calls.filter((call) => /attachments/.test(call.path))).toHaveLength(0);
-    fireEvent.click(screen.getAllByRole('button', {name: 'Delete reminding card'})[position]!);
+    fireEvent.click(screen.getAllByRole('button', {name: 'Delete reminding card'})[0]!);
     await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(0));
     expect(userCards).toHaveLength(0);
+  });
+});
+
+function multiCard(): InteractionCard {
+  return { ...card(), schemaVersion: 2, definition: {
+    schemaVersion: 2, title: 'Multiple questions', body: 'One final submission', summaryBody: '',
+    questions: [
+      { id: 'one', prompt: '部署模式', type: 'single_choice', choices: [{ id: 'a', label: '预览' }, { id: 'b', label: '发布' }] },
+      { id: 'two', prompt: '目标环境', type: 'multi_choice', choices: [{ id: 'a', label: '测试' }, { id: 'b', label: '演练' }] },
+      { id: 'three', prompt: '执行说明', type: 'text' },
+      { id: 'optional', prompt: '可选说明', type: 'text', required: false },
+    ],
+  }, trustedChoices: {} };
+}
+it('validates each required question, submits mixed rejection and answers once, and renders all results read-only', async () => {
+  cards = [multiCard()]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getAllByRole('alert')).toHaveLength(3);
+  expect(calls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(0);
+  fireEvent.click(row.getByRole('radio', { name: '预览' }));
+  fireEvent.click(row.getByRole('checkbox', { name: '测试' }));
+  fireEvent.click(row.getByRole('checkbox', { name: '演练' }));
+  fireEvent.click(row.getAllByRole('button', { name: '拒绝此题' })[2]!);
+  fireEvent.change(row.getByRole('textbox', { name: '执行说明：拒绝原因' }), { target: { value: '需要更多上下文' } });
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await waitFor(() => expect(row.getByText('Read-only')).toBeTruthy());
+  const sent = calls.filter((c) => c.path.endsWith('/submit'));
+  expect(sent).toHaveLength(1);
+  expect(sent[0]!.body.answers).toEqual({ one: { choiceId: 'a' }, two: { choiceIds: ['a', 'b'] }, three: { rejected: true, reason: '需要更多上下文' } });
+  expect(row.getByText('已拒绝此题：需要更多上下文')).toBeTruthy();
+  expect(row.getByText('预览')).toBeTruthy();
+  expect(row.getByText('测试')).toBeTruthy();
+  expect(row.getByText('演练')).toBeTruthy();
+  expect(row.queryByRole('textbox')).toBeNull();
+  expect(row.queryByRole('button', { name: '拒绝此题' })).toBeNull();
+});
+it('keeps scoped trusted choices separate and never enables an unbound question choice', async () => {
+  const multi = multiCard();
+  multi.definition.questions = ['one', 'two'].map((id) => ({ id, prompt: id, type: 'single_choice', choices: [{ id: 'go', label: 'Go', triggerRef: { id: 'trigger' } }] }));
+  multi.trustedChoices = { one: { go: cardChoiceBindingForTest() } };
+  cards = [multi]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  const radios = row.getAllByRole('radio');
+  expect((radios[0] as HTMLInputElement).disabled).toBe(false);
+  expect((radios[1] as HTMLInputElement).disabled).toBe(true);
+});
+function cardChoiceBindingForTest() {
+  return { summary: 'Only first question', targetIds: ['ses_target'], actionId: 'pause', actionDigest: 'a'.repeat(64), triggerRevision: 1, arguments: {} };
+}
+it('allows undoing question rejection before submission and shows text length errors inline', async () => {
+  cards = [multiCard()]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  fireEvent.click(row.getAllByRole('button', { name: '拒绝此题' })[2]!);
+  fireEvent.click(row.getByRole('button', { name: '撤销此题拒绝' }));
+  fireEvent.change(row.getByRole('textbox', { name: '执行说明' }), { target: { value: 'x'.repeat(10001) } });
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getByText('文本答案不能超过 10000 字')).toBeTruthy();
+  expect(calls.filter((c) => c.path.endsWith('/submit'))).toHaveLength(0);
+});
+
+it('retries v2 with the exact frozen answers after an uncertain result', async () => {
+  cards = [multiCard()];
+  const original = globalThis.fetch;
+  const payloads: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (...args: Parameters<typeof fetch>) => {
+    if (String(args[0]).endsWith('/submit')) {
+      payloads.push(String(args[1]?.body));
+      if (payloads.length === 1) throw new Error('connection lost');
+    }
+    return original(...args);
+  }));
+  mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  for (const button of row.getAllByRole('button', { name: '拒绝此题' })) fireEvent.click(button);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await waitFor(() => expect(row.getByRole('alert').textContent).toContain('connection lost'));
+  expect(row.getAllByRole('textbox').every((input) => input.matches(':disabled'))).toBe(true);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await row.findByText('Read-only');
+  expect(payloads).toHaveLength(2);
+  expect(payloads[0]).toBe(payloads[1]);
+  expect(row.getAllByText('已拒绝此题')).toHaveLength(4);
+});
+
+it('handles arbitrary stable question and choice IDs without inherited object fields', async () => {
+  const multi = multiCard();
+  multi.definition.questions = [{ id: '__proto__', prompt: '特殊 ID', type: 'single_choice', choices: [{ id: 'constructor', label: 'Unbound', triggerRef: { id: 't' } }] }];
+  cards = [multi]; mount();
+  const row = within((await screen.findByRole('heading', { name: 'Multiple questions' })).closest('article')!);
+  expect((row.getByRole('radio') as HTMLInputElement).disabled).toBe(true);
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  expect(row.getByRole('alert').textContent).toBe('请作答或拒绝此题');
+  fireEvent.click(row.getByRole('button', { name: '拒绝此题' }));
+  fireEvent.click(row.getByRole('button', { name: 'Submit' }));
+  await row.findByText('Read-only');
+  const answers = calls.find((c) => c.path.endsWith('/submit'))!.body.answers as Record<string, unknown>;
+  expect(Object.hasOwn(answers, '__proto__')).toBe(true);
+  expect(answers.__proto__).toEqual({ rejected: true });
+});
+
+describe('Session deep link and card ids', () => {
+  it('opens the Locker of ?session=<sessionId> instead of the aggregate view', async () => {
+    mount('/locker?session=ses_two');
+    await screen.findByRole('heading', { name: 'Card b' });
+    // The aggregate projection still mounts every row, but only the linked
+    // Locker's row is visible.
+    await waitFor(() =>
+      expect(document.querySelector('article[data-card-id="a"]')?.hasAttribute('hidden')).toBe(
+        true,
+      ),
+    );
+    expect(document.querySelector('article[data-card-id="b"]')?.hasAttribute('hidden')).toBe(
+      false,
+    );
+    expect(screen.getByTestId('locker-source-l2').getAttribute('aria-current')).toBe('true');
+  });
+
+  it('widens the Workspace scope when the linked Locker is outside it', async () => {
+    uiState.activeWorkspaceId = 'w';
+    mount('/locker?session=ses_two');
+    await screen.findByRole('heading', { name: 'Card b' });
+    expect(uiState.setActiveWorkspace).toHaveBeenCalledWith('all');
+  });
+
+  it('shows a readable copyable id on interactive and reminding cards', async () => {
+    userCards = [reverseCard()];
+    mount();
+    const interactive = await screen.findByRole('heading', { name: 'Card a' });
+    const interactionChip = within(interactive.closest('article')!).getByTestId('locker-card-id');
+    expect(interactionChip.getAttribute('data-card-id-value')).toBe('a');
+    expect(interactionChip.getAttribute('title')).toContain('a');
+    // Answered reminding cards keep a single row at their creation position.
+    const reminding = screen.getAllByTestId('reminding-card-id')[0]!;
+    expect(reminding.getAttribute('data-card-id-value')).toBe('uc');
+    expect(reminding.getAttribute('aria-label')).toContain('uc');
+  });
+});
+
+describe('attached reminders and entry window', () => {
+  it('preorders children by creation, leaves root order and unread anchor independent', () => {
+    const first = {...card('a'), read: true};
+    const last = card('b');
+    const child = {...reverseCard(), id: 'child', parent: {type: 'interaction_card' as const, id: first.id}, createdAt: '2099-01-01T00:00:00Z'};
+    const sibling = {...child, id: 'sibling', createdAt: '2098-01-01T00:00:00Z'};
+    const nested = {...child, id: 'nested', parent: {type: 'user_card' as const, id: sibling.id}};
+    const result = lockerTimeline([last, child, nested, first, sibling]);
+    expect(result.map((entry) => entry.item.id)).toEqual(['a', 'sibling', 'nested', 'child', 'b']);
+    expect(lockerEntryWindow(result.filter((entry) => !entry.parent).map((entry) => entry.item)).firstUnreadId).toBe('b');
+    expect(child.read).toBe(false); expect(first.read).toBe(true);
+  });
+  it('handles 20000 levels and corrupt cycles without recursion or loss', () => {
+    const items: UserCard[] = Array.from({length: 20000}, (_, i) => ({...reverseCard(), id: `deep${i}`,
+      parent: i ? {type: 'user_card', id: `deep${i-1}`} : null}));
+    expect(lockerTimeline(items)).toHaveLength(20000);
+    items[0]!.parent = {type: 'user_card', id: 'deep19999'};
+    expect(lockerTimeline(items)).toHaveLength(20000);
+  });
+  it('loads at most five older pages and reports a missing first unread', () => {
+    const roots = Array.from({length: 400}, (_, i) => ({...card(`c${i}`), read: i !== 0}));
+    expect(lockerEntryWindow(roots)).toEqual({size: 300, firstUnreadId: 'c0', limited: true});
+    roots[0]!.read = true; roots[120]!.read = false;
+    expect(lockerEntryWindow(roots)).toEqual({size: 300, firstUnreadId: 'c120', limited: false});
+    expect(lockerEntryWindow(roots.map((item) => ({...item, read: true})))).toEqual({size: 50, firstUnreadId: null, limited: false});
+  });
+  it('puts the divider before the chronological unread, not an unread attachment of a read root', async () => {
+    cards = [{...card('a'), read: true}, card('b')];
+    userCards = [{...reverseCard(), parent: {type: 'interaction_card', id: 'a'}}];
+    mount(); await screen.findByText('Agent answer body');
+    const divider = screen.getByRole('separator');
+    expect(divider.parentElement?.dataset.lockerEntry).toBe('b');
+    const ids = [...document.querySelectorAll('[data-locker-entry]')].map((element) => (element as HTMLElement).dataset.lockerEntry);
+    expect(ids).toEqual(['a', 'uc', 'b']);
+    expect(document.querySelector('[data-parent-id="a"]')).not.toBeNull();
+    expect(screen.getAllByRole('button', {name: '创建提醒卡'})).toHaveLength(3);
+    fireEvent.click(within(document.querySelector('[data-card-id="b"]') as HTMLElement).getByRole('button', {name: 'Mark card as read'}));
+    await waitFor(() => expect(screen.queryByRole('separator')).toBeNull());
+    // Only the chronological parent was marked; attached unread retains its own state.
+    expect(userCards[0]!.read).toBe(false);
   });
 });

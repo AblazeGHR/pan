@@ -45,6 +45,7 @@ __all__ = [
     "LAUNCHER_EXIT_INTERNAL",
     "LAUNCHER_EXIT_CLEANUP_UNPROVEN",
     "LAUNCHER_EXIT_ENGINE_STARTUP_FAILED",
+    "STATIC_RESIDUAL_REASONS",
     "ENGINE_TOTAL_BUDGET_SECONDS",
     "ENGINE_CLOSE_ATTEMPT_BUDGET_SECONDS",
     "ENGINE_CLEANUP_RETRY_INTERVAL_SECONDS",
@@ -104,10 +105,11 @@ def _reported_closed(result: Any) -> bool:
 
 
 #: emulator ``_fail_startup`` residual 中**纯静态**的 reason 值（可安全落盘）。
-_STATIC_RESIDUAL_REASONS: frozenset[str] = frozenset({
+STATIC_RESIDUAL_REASONS: frozenset[str] = frozenset({
     "unsupported-platform",
     "node-missing",
     "sidecar-script-missing",
+    "sidecar-dependency-missing",
     "guard-create-failed",
 })
 #: residual 中的可信 bool 结构化事实。
@@ -152,7 +154,7 @@ def _classify_residual_reason(raw: Any) -> tuple[str, bool]:
         return ("absent", False)
     if not isinstance(raw, str):
         return ("unclassified", True)
-    if raw in _STATIC_RESIDUAL_REASONS:
+    if raw in STATIC_RESIDUAL_REASONS:
         return (raw, True)
     return ("engine-startup-failed", True)
 

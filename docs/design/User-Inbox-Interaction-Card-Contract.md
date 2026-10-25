@@ -187,3 +187,42 @@ the scheduler sleeps on an event rather than polling. Notification admission use
 queue locking and Illegal staging, then invokes the normal queue wake/auto-spawn path. It never
 force-clears Illegal or bypasses Pause/locks/leases. Illegal, Pause, message locks, readonly and lease gates remain unchanged;
 reminders do not supply a user response or approval. No detached helper or new lifecycle owner.
+
+
+## 多问题卡 v2（2026-10-25）
+
+新卡可使用 `card.schemaVersion: 2`、`title`、可选 `body` 和 `questions[]`。
+返回 Card 的 `schemaVersion` 同为 2。v1 的 choices/body/answerInput 卡保持原结构、原行为，
+不迁移历史卡；分页包络和 Event 包络版本仍为 1，读取端逐卡识别版本。
+
+每题为 `{id,prompt,type,required?,choices?}`：id 在卡内稳定唯一，prompt 最多 500 字；
+type 为 single_choice / multi_choice / text；required 默认 true。choice 为 `{id,label,triggerRef?}`，
+其 id 在题内唯一，可以在不同题复用。最多 20 题、每题 20 选项、文本答案最多 10000 个 Unicode 字符。
+题目 ID 与选项 ID 区分大小写。题型和答案字段必须一致，拒绝未知问题/选项、重复多选和混合字段。
+
+用户通过原 `/submit` 或 `/respond` 一次提交 `{requestId,expectedRevision,answers}`，
+其中 `answers[questionId]` 为 `{choiceId}`、`{choiceIds}`、`{text}` 或 `{rejected:true,reason?}`。
+必填题必须作答或拒绝；可选题可以省略。拒绝原因可选，上限 10000 字。
+不存草稿、不局部写入；全部题目的校验与 response、交付意图在同一 SQLite 事务完成。
+同 requestId、同 answers 的重试幂等；改内容、换 requestId 或跨入口覆盖原终态都冲突。
+
+整卡 `/reject` 仍为 rejected 终态。所有题目都逐题拒绝时也为 rejected；
+其余提交为 responded，可同时含正常答案、逐题拒绝与省略的可选题。
+逐题拒绝不产生卡级 rejectionDelivery；全拒绝或整卡拒绝只创建一份卡级拒绝通知，
+v2 无原因的整卡拒绝也发送通知。v1 保持原有无原因不发拒绝通知的行为。
+生产者通过 get / receipt 和来源 Queue 通知读取完整 answers。
+
+执行授权仍在整卡提交入口：创建时冻结 `trustedChoices[questionId][choiceId]`，
+提交时对全部选中的执行选项复检，然后才记录整份答案。拒绝的题目没有执行选项。
+每个选中 Trigger 有独立、稳定且含 questionId/choiceId 的 Event 身份和持久交付状态；
+其中 response 保留完整 answers，单题选择不构成独立用户授权。
+unknown/in_flight 只按原 Event ID 查回执，重启和删除后也不自动重发。
+卡级 delivery 汇总各事件状态，accepted 只代表全部已接纳，仍不代表 Action 执行完成。
+
+v2 完整 payload 有界为 2000000 UTF-8 bytes，以容纳 20 题完整 Unicode 答案。
+Automation Bus 只为受信 core 交互事件显式扩大容量，EventStore 在该内部入口使用同一上限；
+其他事件、插件及 v1 卡的默认 64 KiB 边界保持。全局 EventStore 总容量限制继续生效。
+
+Locker 在卡内纵向展示每题控件、逐题拒绝/撤销和可选原因，所有必填错误就地提示；
+仅一个提交按钮。提交后显示全部题目的答案/拒绝原因/可选未答状态，并隐藏编辑控件。
+未读和容器统计仍按卡计数。浏览器截图验证使用请求拦截的构建产物，不能替代真实 HTTP 验收。

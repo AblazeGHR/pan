@@ -2005,6 +2005,23 @@ export async function restartRemoteTunnel(): Promise<ApiRemoteRestartResponse> {
   return data;
 }
 
+// ── Platform capabilities ──
+
+/**
+ * Platform descriptor exposed by the server that owns the filesystem and the
+ * processes. Capability keys are the contract; the UI must treat a missing
+ * endpoint or a missing key as "available" so a Windows dashboard keeps
+ * working against a server that predates the endpoint.
+ */
+export interface PlatformInfoResponse {
+  platform: string;
+  capabilities: Record<string, boolean>;
+}
+
+export async function fetchPlatformInfo(): Promise<PlatformInfoResponse> {
+  return request<PlatformInfoResponse>(`${BASE}/platform`);
+}
+
 // ── Main Pan service restart ──
 
 export async function fetchMainRestartStatus(): Promise<ApiMainRestartStatusResponse> {
@@ -2160,6 +2177,34 @@ export async function fetchCodexSessions(cwd: string): Promise<CodexSessionItem[
 
 export async function importCodexSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
   const data = await request<ApiSessionResponse>(`${BASE}/adapters/codex/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      ...(cwd ? { cwd } : {}),
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── Import: dsh (generic adapter sessions endpoints) ──
+
+/**
+ * DSH 的 sessions provider 与 codex 返回同形列表（session_id/title/workDir/…），
+ * 因此复用 CodexSessionItem。空 cwd = 全部项目。
+ */
+export async function fetchDshSessions(cwd: string): Promise<CodexSessionItem[]> {
+  const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
+  const data = await request<{ sessions: CodexSessionItem[] }>(
+    `${BASE}/adapters/dsh/sessions${query}`,
+    { cache: 'no-store' },
+  );
+  return data.sessions || [];
+}
+
+export async function importDshSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/adapters/dsh/sessions/import`, {
     method: 'POST',
     body: JSON.stringify({
       session_id: sessionId,

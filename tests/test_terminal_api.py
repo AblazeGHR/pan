@@ -429,10 +429,10 @@ def test_remote_binding_and_non_windows_disable_without_construction():
             built.append(1)
             return FakeService()
 
-        for kwargs, expect_disabled in (
-            ({"platform": "linux", "host": "127.0.0.1"}, True),
-            ({"platform": "win32", "host": "0.0.0.0"}, True),
-            ({"platform": "win32", "host": "127.0.0.1"}, False),
+        for kwargs, expect_disabled, expected_code, expected_status in (
+            ({"platform": "linux", "host": "127.0.0.1"}, True, "unsupported_platform", 501),
+            ({"platform": "win32", "host": "0.0.0.0"}, True, "terminal-disabled", 503),
+            ({"platform": "win32", "host": "127.0.0.1"}, False, None, 200),
         ):
             runtime = terminal_api.build_runtime(env={}, service_factory=factory, **kwargs)
             app = await start_app(runtime)
@@ -444,8 +444,8 @@ def test_remote_binding_and_non_windows_disable_without_construction():
             async with make_client(app, origin=ORIGIN) as client:
                 response = await client.get("/api/terminals")
                 if expect_disabled:
-                    assert response.status_code == 503
-                    assert response.json()["error"]["code"] == "terminal-disabled"
+                    assert response.status_code == expected_status
+                    assert response.json()["error"]["code"] == expected_code
                 else:
                     assert response.status_code == 200
         # 显式开关解除 loopback 禁用

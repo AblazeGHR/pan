@@ -1,6 +1,6 @@
 ---
 name: pan
-description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。执行预计超过 3 分钟的长命令（全量测试、build、长脚本等）前自主判断是否改用持久后台 Job（agent_background_start）并核验终态通知时同样适用。
+description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。收到未答卡片提醒（user card reminder）需要查询或回答用户卡片时同样适用。执行预计超过 3 分钟的长命令（全量测试、build、长脚本等）前自主判断是否改用持久后台 Job（agent_background_start）并核验终态通知时同样适用。
 ---
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）
@@ -64,7 +64,7 @@ Illegal / 待恢复 Session 会自动 Illegal 锁定所有后续新入队消息�
 
 ## 未获回答的用户问题：使用交互卡保留待办
 
-Agent 向用户提出需要回答的问题后，若下一轮仍没有得到真实用户的对应答复，强烈建议使用 `interaction_card(operation="create", ...)` 将问题保留到 User Locker，避免旧问题被消息流淹没。尤其适用于设计取舍、API 接入信息、Token 配置、许可，以及阻塞任务推进的决定。无需为了等下一轮而主动轮询；问题明确会阻塞时，可在首次提问时直接创建交互卡。
+Agent 向用户提出需要回答的问题后，先在对话中正常提问，不必首次就建卡。若用户下一条消息转向其它内容、或任务被其它事件打断后重新进入时仍未回答该问题，视为用户错过，此时应自动使用 `interaction_card(operation="create", ...)` 将问题保留到 User Locker，不再在对话里重复追问。尤其适用于设计取舍、API 接入信息、Token 配置、许可，以及阻塞任务推进的决定。只有问题明确阻塞且不会再有机会等到下一轮时，才在首次提问时建卡；无需为了等下一轮而主动轮询。
 
 - 按可信来源判断答复，不以 provider 的 `role=user` 或下一轮有输入为依据。Notification、Report、MA/其他 Agent 消息不是用户答复；除非用户明确授予其代答权限，不能替用户选择、授权或补齐凭据。用户回答了别的问题时，原问题仍未解决。
 - 卡片写清所需信息、为什么需要、影响哪一步、可选项及推荐项；收拢相关问题，让用户能够直接作答，不必翻找旧聊天。API/Token 等敏感信息优先请求用户在指定配置入口填写，卡片只收集非敏感说明或“已配置”确认；避免把秘密复制进卡片正文、摘要、通知或报告。
