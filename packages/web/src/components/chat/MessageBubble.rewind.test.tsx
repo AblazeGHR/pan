@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '@/types';
 import { useSessionStore } from '@/stores/sessionStore';
+import { usePlatformStore } from '@/stores/platformStore';
 import { MessageBubble } from './MessageBubble';
 
 vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ content }: { content: string }) => <span>{content}</span> }));
@@ -19,7 +20,11 @@ function session(adapter?: string, workerStatus = 'idle') {
 
 describe('rewind action placement and capability', () => {
   beforeEach(() => session('cbc'));
-  afterEach(() => { cleanup(); useSessionStore.setState({ sessions: [], currentSessionId: null, openRewind: originalOpen }); });
+  afterEach(() => {
+    cleanup();
+    useSessionStore.setState({ sessions: [], currentSessionId: null, openRewind: originalOpen });
+    usePlatformStore.setState({ platform: null, capabilities: null });
+  });
 
   it.each(['codex', 'claude', 'kimi', 'opencode', 'unknown', undefined])('hides rewind for %s', (adapter) => {
     session(adapter);
@@ -52,5 +57,24 @@ describe('rewind action placement and capability', () => {
     expect(screen.queryByRole('button', { name: '撤回' })).toBeNull();
     view.rerender(<MessageBubble message={{ ...message, role: 'assistant' }} />);
     expect(screen.queryByRole('button', { name: '撤回' })).toBeNull();
+  });
+
+  it('keeps the entry visible but disabled when the platform denies rewind', () => {
+    const open = vi.fn();
+    useSessionStore.setState({ openRewind: open });
+    usePlatformStore.setState({ platform: 'darwin', capabilities: { rewind: false } });
+    render(<MessageBubble message={message} />);
+    const button = screen.getByRole('button', { name: '撤回' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toContain('macOS');
+    expect(button.title).toContain('暂不支持');
+    fireEvent.click(button);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('stays enabled when the platform probe did not answer', () => {
+    usePlatformStore.setState({ platform: null, capabilities: null });
+    render(<MessageBubble message={message} />);
+    expect((screen.getByRole('button', { name: '撤回' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
