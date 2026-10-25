@@ -141,6 +141,13 @@ _LAUNCHER_STATUS_DIRNAME = "launcher-status"
 _RUNNER_STATUS_DIRNAME = "runner-status"
 _SERVICE_LOG_DIRNAME = "service-logs"
 
+#: 等 bootstrap 自证时的轮询间隔（与 ``secret_store.BOOTSTRAP_POLL_SECONDS`` 同量级）。
+#: 每一轮同时看一眼派生句柄是否已退出：引擎起不来时 launcher 早已 exit 8，
+#: 不该让调用方空等整个 ``startup_timeout``。
+_BOOTSTRAP_POLL_SECONDS = 0.05
+#: 读 launcher-status 的小重试窗口（launcher 先写状态再退出；仍容忍文件系统延迟）。
+_LAUNCHER_STATUS_READ_ATTEMPTS = 3
+
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -204,6 +211,19 @@ class ShutdownBudgetExhausted(TerminalServiceError):
     """shutdown 总预算耗尽；已收敛的部分如实报告，未收敛部分保留。"""
 
     reason = "shutdown-budget-exhausted"
+
+
+class _LauncherExitedBeforeBootstrap(Exception):
+    """派生句柄在 bootstrap 自证之前就已退出（内部信号，不外泄文本）。
+
+    ``evidence`` 是已读取的 launcher-status 白名单投影（可能为空）；分类只依据
+    其中的静态事实，不采用任何自由文本。
+    """
+
+    def __init__(self, exit_code: int | None, evidence: Mapping[str, Any] | None = None) -> None:
+        self.exit_code = exit_code
+        self.evidence = dict(evidence or {})
+        super().__init__("launcher exited before bootstrap")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -984,8 +1004,24 @@ class TerminalService:
         state.spawn_pid = int(getattr(process, "pid", 0) or 0) or None
 
         # ② hello 自证 + 同句柄 pid/raw FILETIME/Wait 内核核验 → 才写 DPAPI 秘密。
+        # 等待期间同时观察派生句柄：launcher 在 bootstrap 前就失败退出时立即分类，
+        # 不为一个已经死掉的 launcher 空等整个 startup_timeout。
         try:
-            bootstrap = store.wait_for_bootstrap_identity(terminal_id, timeout=budget)
+            bootstrap = self._wait_for_bootstrap(state, timeout=budget)
+        except _LauncherExitedBeforeBootstrap as exc:
+            outcome = self._classify_launcher_exit(state, exc)
+            self._note("launcher-exited-before-bootstrap", f"{terminal_id}:exit-{exc.exit_code}")
+            if outcome["clean"]:
+                # 引擎从未创建 / 启动失败且 owner 收尾已确证：没有需要"再清理"的
+                # 资源，不能记成 cleanup-failed（那会把启动失败伪装成清理未证明，
+                # 并让记录永远无法删除/收敛）。
+                self._mark_startup_failed(
+                    state, reason=str(outcome["reason"]), exit_code=exc.exit_code
+                )
+            else:
+                # 无状态文件 / 收尾未确证：维持保守口径，未证明就不是已清理。
+                self._mark_unproven(state, "bootstrap-unverified", "launcher-exited")
+            raise StartupFailed(str(outcome["reason"]), error_type="launcher-exited") from None
         except Exception as exc:  # noqa: BLE001
             self._mark_unproven(state, "bootstrap-unverified", type(exc).__name__)
             raise StartupFailed("bootstrap-unverified", error_type=type(exc).__name__) from None
@@ -1080,6 +1116,158 @@ class TerminalService:
             record.status = RuntimeState.CLEANUP_FAILED
             record.exit_reason = reason
         return record
+
+    # -- bootstrap 等待与启动失败分类 ------------------------------------
+    def _wait_for_bootstrap(self, state: _TerminalState, *, timeout: float) -> Any:
+        """等 runner 自证，同时观察派生句柄是否已经退出。
+
+        与 ``SecretStore.wait_for_bootstrap_identity`` 的语义一致（同样有界、同样
+        ``verify=True``）；区别只在于**每轮多看一眼我们自己派生的句柄**：引擎起
+        不来时 launcher 早已以 exit 8 结束并写好 launcher-status，调用方应当立即
+        拿到分类结果，而不是把 ``startup_timeout`` 空转完再报 bootstrap 超时。
+        """
+        from . import secret_store as secret_store_module
+
+        store = self._store()
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while True:
+            record = store.read_bootstrap_identity(state.terminal_id)
+            if record is not None:
+                return record
+            exit_code = self._spawn_handle_exit_code(state)
+            if exit_code is not None:
+                evidence = self._launcher_startup_evidence(state)
+                # 有终态文件 = 权威失败（launcher 自己写了结论）。没有文件时：
+                # 非零退出也不会有 runner 再来自证；零退出可能是 Python shim 先退
+                # 而真实 launcher 仍在跑（uv 场景），保持等待，不抢跑。
+                if evidence.get("present") is True or exit_code != 0:
+                    raise _LauncherExitedBeforeBootstrap(exit_code, evidence)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                raise secret_store_module.SecretNotFoundError(
+                    f"runner bootstrap did not appear within {timeout}s"
+                )
+            time.sleep(min(_BOOTSTRAP_POLL_SECONDS, remaining))
+
+    def _spawn_handle_exit_code(self, state: _TerminalState) -> int | None:
+        """派生句柄的退出码；仍在运行/无法判定 → ``None``（不造假证据）。"""
+        process = state.process
+        if process is None:
+            return None
+        try:
+            code = process.poll()
+        except Exception as exc:  # noqa: BLE001 - 判定失败按"未知"处理，不中断等待
+            self._note_error("spawn-handle-poll-failed", exc)
+            return None
+        if code is None:
+            return None
+        return int(code) if isinstance(code, int) and not isinstance(code, bool) else -1
+
+    def _launcher_startup_evidence(self, state: _TerminalState) -> dict[str, Any]:
+        """launcher-status 的启动期白名单投影（只取静态分类事实）。
+
+        与 :meth:`_launcher_status_evidence` 共用同一个文件，但这里不要求身份交叉
+        核验：bootstrap 还没发生，``runner_pid`` 尚不存在。只用来判断"引擎是否
+        创建过、启动 owner 是否收敛"，因此只接受 ``engine.created`` /
+        ``engine.startup.converged`` 两个布尔事实与静态的 ``phase`` /
+        ``reason_class``；其余字段（含任何自由文本）一律不取。
+        """
+        path = self.root / _LAUNCHER_STATUS_DIRNAME / f"{state.terminal_id}.json"
+        payload: Any = None
+        for attempt in range(_LAUNCHER_STATUS_READ_ATTEMPTS):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                break
+            except FileNotFoundError:
+                if attempt + 1 >= _LAUNCHER_STATUS_READ_ATTEMPTS:
+                    return {"present": False}
+                time.sleep(_BOOTSTRAP_POLL_SECONDS)
+            except Exception as exc:  # noqa: BLE001 - 损坏状态不得当"已收敛"
+                self._note_error("launcher-startup-status-unreadable", exc)
+                return {"present": False}
+        if not isinstance(payload, Mapping):
+            return {"present": False}
+        # 同一 terminal_id 的旧状态文件（显式 id 复用后）不算本次启动的证据。
+        updated_at = payload.get("updated_at")
+        created_at = state.record.created_at
+        if (isinstance(updated_at, (int, float)) and not isinstance(updated_at, bool)
+                and isinstance(created_at, (int, float))
+                and float(updated_at) < float(created_at) - 5.0):
+            return {"present": False}
+        engine = payload.get("engine") if isinstance(payload.get("engine"), Mapping) else {}
+        startup = engine.get("startup") if isinstance(engine.get("startup"), Mapping) else {}
+        residual = startup.get("residual") if isinstance(startup.get("residual"), Mapping) else {}
+        return {
+            "present": True,
+            "phase": str(payload.get("phase") or "")[:32],
+            "engine_created": engine.get("created") is True,
+            "startup_converged": startup.get("converged") is True,
+            "reason_class": str(residual.get("reason_class") or "")[:48],
+        }
+
+    def _classify_launcher_exit(
+        self, state: _TerminalState, exc: _LauncherExitedBeforeBootstrap
+    ) -> dict[str, Any]:
+        """把"bootstrap 前退出"分成"启动失败且无遗留资源"与"清理未证明"。
+
+        只有同时满足下列三条才算前者（否则保持 ``cleanup-failed`` 可重试）：
+
+        - launcher-status 存在且 ``phase == engine-startup-failed``（launcher 自己
+          的 exit 8 / 引擎构造失败分类）；
+        - ``engine.created is False``（从未创建引擎对象，没有 sidecar/Job 要收尾）；
+        - ``engine.startup.converged is True``（若有可重试 owner，已消费确证）。
+        """
+        evidence = exc.evidence if exc.evidence else self._launcher_startup_evidence(state)
+        clean = (
+            evidence.get("present") is True
+            and evidence.get("phase") == "engine-startup-failed"
+            and evidence.get("engine_created") is False
+            and evidence.get("startup_converged") is True
+        )
+        if not clean:
+            return {"clean": False, "reason": "bootstrap-unverified"}
+        return {"clean": True, "reason": self._startup_failure_reason(evidence)}
+
+    @staticmethod
+    def _startup_failure_reason(evidence: Mapping[str, Any]) -> str:
+        """静态原因：优先用 launcher 白名单里的具体类（如依赖缺失），否则泛化。"""
+        try:
+            from .launcher import STATIC_RESIDUAL_REASONS
+        except Exception:  # pragma: no cover - 导入失败不得改写失败分类
+            return "engine-startup-failed"
+        reason_class = str(evidence.get("reason_class") or "")
+        return reason_class if reason_class in STATIC_RESIDUAL_REASONS else "engine-startup-failed"
+
+    def _mark_startup_failed(
+        self, state: _TerminalState, *, reason: str, exit_code: int | None
+    ) -> None:
+        """引擎从未启动且无遗留资源：记终态（可删除），**不**冒充清理成功。
+
+        与 ``_mark_unproven`` 的分界是证据：这里只在 launcher 自报"引擎未创建 +
+        启动 owner 已收敛"且派生句柄已退出时调用，因此没有需要"再清理"的对象。
+        记录写成 ``exited`` + 静态 ``exit.reason``，``cleanup_pending=False``；
+        秘密从未写入（bootstrap 未完成），残留的自证文件一并删除。
+        """
+        terminal_id = state.terminal_id
+        self._note("startup-failed-retained", f"{terminal_id}:{reason}")
+
+        def update(record: TerminalRecord) -> TerminalRecord:
+            record.status = RuntimeState.EXITED
+            record.cleanup_pending = False
+            record.detached = False
+            record.exit_code = int(exit_code) if exit_code is not None else None
+            record.exit_reason = str(reason)
+            return record
+
+        try:
+            self._registry.update(terminal_id, update)
+        except Exception as exc:  # noqa: BLE001 - 记录写失败也不改失败分类
+            self._note_error("startup-failed-record-write-failed", exc)
+        self._sync_state_record(state)
+        try:
+            self._store().delete_bootstrap_identity(terminal_id)
+        except Exception as exc:  # noqa: BLE001 - 自证文件清理失败只记类型名
+            self._note_error("startup-failed-bootstrap-delete-failed", exc)
 
     # -- 派生（launcher） ----------------------------------------------
     def _spawn(

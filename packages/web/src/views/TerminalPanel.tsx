@@ -10,6 +10,22 @@ import type { TerminalState } from '@/services/terminalWs';
 
 const initial: TerminalState = { connected: false, control: false, recovering: true, message: '请选择终端' };
 
+// Server-side static exit/reason vocabulary: a terminal that never booted is not a
+// cleanup failure and must not be described as one.
+const STARTUP_FAILURE_MESSAGES: Record<string, string> = {
+  'sidecar-dependency-missing': '终端引擎依赖未安装（emulator sidecar 的 npm 包缺失），本次没有启动任何 shell。',
+  'node-missing': '未找到 Node 运行时，终端引擎无法启动，本次没有启动任何 shell。',
+  'sidecar-script-missing': '终端引擎脚本缺失，无法启动，本次没有启动任何 shell。',
+  'unsupported-platform': '当前平台不支持常驻终端（仅 Windows 生产宿主）。',
+  'guard-create-failed': '终端引擎的进程守卫创建失败，无法启动，本次没有启动任何 shell。',
+  'engine-startup-failed': '终端引擎启动失败，本次没有启动任何 shell。',
+  'bootstrap-failed': '终端引导失败，本次没有启动任何 shell。',
+};
+
+function startupFailureMessage(reason?: string | null): string | undefined {
+  return reason ? STARTUP_FAILURE_MESSAGES[reason] : undefined;
+}
+
 export default function TerminalPanel() {
   const [records, setRecords] = useState<TerminalView[]>([]);
   const [showArchived, setShowArchived] = useState(false);
@@ -23,7 +39,7 @@ export default function TerminalPanel() {
   const [state, setState] = useState(initial);
   const element = useRef<HTMLDivElement>(null);
   const stream = useRef<TerminalStream | null>(null);
-  const endedSelection = useRef<string | undefined>(undefined);
+  const endedSelection = useRef<{ status: string; reason?: string | null } | undefined>(undefined);
   const refresh = useCallback(async () => {
     try { setRecords(await terminalRequest<TerminalView[]>()); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '终端列表不可用'); }
@@ -39,8 +55,9 @@ export default function TerminalPanel() {
     if (selectedRecord?.status === 'exited') {
       setState((previous) => previous.terminalStatus === 'exited' ? previous : {
         ...previous, connected: false, control: false, recovering: false, terminalStatus: 'exited',
-        message: selectedRecord.exit?.reason === 'externally-terminated'
-          ? '进程已被外部终止；可以归档记录。' : '终端已退出。',
+        message: startupFailureMessage(selectedRecord.exit?.reason)
+          ?? (selectedRecord.exit?.reason === 'externally-terminated'
+            ? '进程已被外部终止；可以归档记录。' : '终端已退出。'),
       });
     }
   }, [selectedRecord]);
@@ -48,11 +65,13 @@ export default function TerminalPanel() {
   useEffect(() => {
     if (!selected || !element.current) return;
     if (endedSelection.current) {
+      const ended = endedSelection.current;
       setState({ connected: false, control: false, recovering: false,
-        terminalStatus: endedSelection.current,
-        message: endedSelection.current === 'exited'
-          ? '终端已退出；历史屏幕未持久化，不能重连旧进程。'
-          : '终端记录为 lost；请核对服务端清理状态。' });
+        terminalStatus: ended.status,
+        message: (ended.status === 'exited' ? startupFailureMessage(ended.reason) : undefined)
+          ?? (ended.status === 'exited'
+            ? '终端已退出；历史屏幕未持久化，不能重连旧进程。'
+            : '终端记录为 lost；请核对服务端清理状态。') });
       return;
     }
     let alive = true;
@@ -118,7 +137,12 @@ export default function TerminalPanel() {
       setWorkspaceId(view.scope?.workspace_id || '');
       setSessionId(view.scope?.session_id || '');
       setShowArchived(false);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); }
+    } catch (reason) {
+      const code = reason instanceof Error ? reason.message : '';
+      setError(code === 'startup-failed'
+        ? '终端未启动（引擎启动失败）；记录已保留，可在列表中选择查看原因并删除后重试。'
+        : (code || '创建失败'));
+    }
     finally { setBusy(false); }
   }
   async function lifecycle(action: 'close' | 'detach') {
@@ -198,7 +222,8 @@ export default function TerminalPanel() {
       }} />已归档</label>
       <select aria-label="选择终端" value={selected} onChange={(event) => {
         const selectedRecord = records.find(record => record.terminal_id === event.target.value);
-        endedSelection.current = selectedRecord && ['exited', 'lost'].includes(selectedRecord.status) ? selectedRecord.status : undefined;
+        endedSelection.current = selectedRecord && ['exited', 'lost'].includes(selectedRecord.status)
+          ? { status: selectedRecord.status, reason: selectedRecord.exit?.reason } : undefined;
         setWorkspaceId(selectedRecord?.scope?.workspace_id || '');
         setSessionId(selectedRecord?.scope?.session_id || '');
         setSelected(event.target.value); setState(initial);
