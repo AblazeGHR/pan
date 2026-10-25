@@ -10,11 +10,11 @@ import type { Trigger } from '@/types/automation';
 import { useActionRegistryStore } from '@/stores/actionRegistryStore';
 
 function Login() {
-  const token = useAutomationAuth((s) => s.token);
+  const token = useAutomationAuth((s) => s.token || s.authenticated);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  return <section aria-label="Automation login" className={cardClass}><h2 className="mb-2 font-medium">User authorization</h2><p className="mb-3 text-sm text-text-secondary">Local key: automation/user.key beside the Session data directory. Login lasts up to 12 hours in memory. Refresh requires login again. Token expiry does not stop enabled Triggers.</p>
+  return <section aria-label="Automation login" className={cardClass}><h2 className="mb-2 font-medium">User authorization</h2><p className="mb-3 text-sm text-text-secondary">Local key: automation/user.key beside the Session data directory. Login is restored from an HttpOnly cookie. Session duration follows the global Local Authorization setting. Token expiry does not stop enabled Triggers.</p>
     {error && <p role="alert" className="mb-2 text-sm text-danger">{error}</p>}
     {token ? <Button disabled={busy} onClick={() => { setBusy(true); setError(''); void automationLogout().catch(() => setError('Server logout could not be confirmed. Local credentials cleared.')).finally(() => setBusy(false)); }}>Log out</Button> : <form className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); const secret = key; setKey(''); setBusy(true); setError(''); void automationLogin(secret).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Login failed')).finally(() => setBusy(false)); }}><label className="min-w-0 flex-1 basis-48 text-sm">Local user key<input type="password" required autoComplete="off" className={fieldClass} value={key} onChange={(e) => setKey(e.target.value)} /></label><Button type="submit" disabled={busy}>Log in</Button></form>}
   </section>;
@@ -35,7 +35,7 @@ export default function AutomationView() {
     if (editor && !leaveGuard.current?.()) return;
     setEditor({ key: ++editorSequence.current, initial });
   }
-  const authorizationToken = useAutomationAuth((state) => state.token);
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   useEffect(() => { void refresh(); }, [refresh, authorizationToken]);
   return <section aria-label="Automation management" className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div className="mx-auto max-w-5xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Events → Triggers → Actions</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void refresh(tab !== 'Runs')}>{tab === 'Runs' ? 'Refresh Runs' : 'Refresh'}</Button></div></header>

@@ -185,13 +185,18 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
 }
 
 async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
-  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$))/.test(url)) {
-    const { useAutomationAuth } = await import('@/stores/automationStore');
-    const token = useAutomationAuth.getState().token;
-    if (token) options = { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } };
-  }
+  const protectedPath = /^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$))/.test(url);
+  const authStore = protectedPath ? (await import('@/stores/automationStore')).useAutomationAuth : null;
+  const auth = authStore?.getState();
+  if (protectedPath) options = { ...options, credentials: 'same-origin', headers: {
+    ...options?.headers, ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+  } };
   const finish = background ? () => {} : beginForegroundRequest();
   try { return await requestBody<T>(url, options, background); }
+  catch (error) {
+    if (error instanceof ApiRequestError && error.status === 401 && authStore?.getState() === auth) auth?.clear();
+    throw error;
+  }
   finally { finish(); }
 }
 

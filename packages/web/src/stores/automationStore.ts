@@ -9,21 +9,34 @@ export class AutomationError extends Error {
 
 // This module deliberately has no persistence middleware. Neither credentials
 // nor keys enter the general API cache, URL, storage or diagnostic logging.
-export const useAutomationAuth = create<{ token: string | null; expiresAt: number; clear: () => void }>((set) => ({
-  token: null, expiresAt: 0, clear: () => set({ token: null, expiresAt: 0 }),
+export const useAutomationAuth = create<{ token: string | null; authenticated: boolean; sessionDays: number; expiresAt: number; clear: () => void }>((set) => ({
+  token: null, authenticated: false, sessionDays: 0, expiresAt: 0,
+  clear: () => set({ token: null, authenticated: false, expiresAt: 0 }),
 }));
-let expiry: ReturnType<typeof setTimeout> | undefined;
+
+export async function restoreAutomationSession() {
+  const before = useAutomationAuth.getState();
+  const response = await fetch('/api/automation/session', { credentials: 'same-origin' });
+  if (!response.ok) {
+    if (response.status === 401 && useAutomationAuth.getState() === before) before.clear();
+    return;
+  }
+  const state = await response.json() as { authenticated: boolean; expiresAt: number | null; sessionDays: number };
+  if (useAutomationAuth.getState() === before) useAutomationAuth.setState({
+    authenticated: state.authenticated, expiresAt: (state.expiresAt ?? 0) * 1000,
+    sessionDays: state.sessionDays, token: null,
+  });
+}
 export async function automationRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const auth = useAutomationAuth.getState();
-  if (auth.expiresAt <= Date.now()) auth.clear();
   const protectedPath = path.startsWith('automation') || path.startsWith('jobs/action-jobs') || path.startsWith('jobs/job-templates') || path.startsWith('actions');
   const token = protectedPath ? useAutomationAuth.getState().token : null;
-  const response = await fetch(`/api/${path}`, { method, headers: {
+  const response = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: {
     ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   if (!response.ok) {
-    if (response.status === 401 && useAutomationAuth.getState().token === token) useAutomationAuth.getState().clear();
+    if (response.status === 401 && useAutomationAuth.getState() === auth) useAutomationAuth.getState().clear();
     const data = await response.json().catch(() => ({})) as { detail?: unknown };
     throw new AutomationError(response.status, response.status === 401 ? 'User login required. Your draft is preserved.' :
       response.status === 409 ? 'Revision conflict. Your draft is preserved. Refresh, compare with the server, then reopen or explicitly rebase your draft.' :
@@ -33,16 +46,14 @@ export async function automationRequest<T>(path: string, method = 'GET', body?: 
 }
 export async function automationLogin(key: string) {
   // Login must not attach a previous Bearer or expose a server-echoed key.
-  const response = await fetch('/api/automation/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+  const response = await fetch('/api/automation/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
   if (!response.ok) throw new Error('Login failed. Check your local automation/user.key.');
   const { token, expiresIn } = await response.json() as { token: string; expiresIn: number };
-  clearTimeout(expiry);
-  useAutomationAuth.setState({ token, expiresAt: Date.now() + expiresIn * 1000 });
-  expiry = setTimeout(() => useAutomationAuth.getState().clear(), expiresIn * 1000);
+  useAutomationAuth.setState({ token, authenticated: true, expiresAt: Date.now() + expiresIn * 1000 });
 }
 export async function automationLogout() {
   try { await automationRequest('automation/logout', 'POST'); }
-  finally { clearTimeout(expiry); useAutomationAuth.getState().clear(); }
+  finally { useAutomationAuth.getState().clear(); }
 }
 
 type State = { data: AutomationData | null; updatedAt: number; loading: boolean; error: string; refresh: (forceActions?: boolean) => Promise<void>; invalidate: () => Promise<void> };

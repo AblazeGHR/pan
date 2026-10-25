@@ -2,23 +2,23 @@
 
 This profile has one human user and one global set of delegated Agent grants.
 There is no Session/Agent/scope ACL in this feature. User identity and delegation
-are separate: a valid in-memory UserAuth Bearer can manage the four objects even
+are separate: a valid UserAuth Cookie or Bearer session can manage the four objects even
 when every Agent grant is off. Only the user can edit the grant matrix/password.
 
 ## State and API
 
-`automation/authorization.json` contains `{revision: integer, permissions: {...}}`.
+`automation/authorization.json` contains `{revision: integer, permissions: {...}, sessionDays: 0|7|30|90}`.
 The missing-file default is revision 0 with all 22 booleans false. Unknown keys,
 non-booleans and unreadable/corrupt state fail closed. Writes use atomic replace,
 fsync and the existing UserAuth writer lock; a stale CAS fails without mutation.
-No database/data migration is introduced. Password and Bearer behavior is retained.
+No database/data migration is introduced. Password revision and delegated permission behavior is retained. Session lifetime is described below.
 
-- `GET /api/automation/authorization`: user Bearer; password `revision`,
+- `GET /api/automation/authorization`: user session; password `revision`,
   `authorizationRevision`, `permissions`, `configured` (no credential value).
-- `PUT /api/automation/authorization/permissions`: user Bearer;
+- `PUT /api/automation/authorization/permissions`: user session;
   `{expectedRevision, permissions}`; returns `{revision, permissions}`.
 - The existing password PUT retains its separate password revision and revokes
-  Bearer sessions on successful replacement. Grant changes do not log a credential
+  all user sessions on successful replacement. Grant changes do not log a credential
   or require logging out. GUI Authorization has the global Agent checkbox table.
 
 | Object | Agent grants | Runtime/operation meaning |
@@ -113,7 +113,7 @@ profile; raw/forged/expired HTTP cases still omit credentials and assert denial.
 
 - `test_action_groups`: owned ASGI user client, default Agent grants remain off;
   running blockers, idle detach, rollback, pin/lease and I/O assertions retained.
-- `test_automation_core`: disabled draft management now has a user Bearer;
+- `test_automation_core`: disabled draft management now has a user session;
   self-reported agentId does not change the principal. Expiry/CAS/401 assertions stay.
 - `test_job_action_templates`, `test_job_mcp_config`, Template editor tests:
   remove Template enable controls/fixtures; keep complete-copy/idempotency,
@@ -131,3 +131,40 @@ profile; raw/forged/expired HTTP cases still omit credentials and assert denial.
 - Error serialization no longer copies command stderr or invalid argument values
   into Attempt errors. Configuration/result data remains in its existing stores;
   authorization adds no sensitive parameter, password or Bearer logging.
+
+## Persistent user login (2026-10-26)
+
+Local Authorization offers one profile-wide duration selector (0, 7, 30, 90 days),
+without a remember-me checkbox. The default 0 uses a browser session cookie and a
+fixed server TTL of 12 hours. Positive durations use sliding expiration: validation
+extends a session only when less than half its period remains. Existing sessions
+receive the selected server TTL when the setting changes; the requesting browser
+receives the corresponding Cookie immediately. Other browsers receive a refreshed
+Cookie on their next authenticated request, including when changing to 0. Browser session-cookie lifetime follows the
+browser's close/restore behavior.
+
+- `POST /api/automation/login` validates the local key, sets
+  `pan_automation_session`, and retains `{token, expiresIn}` for Bearer clients.
+- The Cookie is HttpOnly, SameSite=Lax, Path=/, Secure only for HTTPS requests.
+  Positive durations set Max-Age to days * 86400; 0 omits Max-Age.
+- `GET /api/automation/session` returns `{authenticated, expiresAt, sessionDays}`;
+  `expiresAt` is Unix wall-clock seconds, or null for an unauthenticated request.
+- `GET/PUT /api/automation/settings` requires login; PUT accepts exactly
+  `{sessionDays}` and returns 400 for values outside the four integer choices.
+- Cookie-authenticated POST/PUT/PATCH/DELETE requests require an Origin matching
+  the request scheme, Host and effective port. Missing/invalid/cross-origin Origin
+  receives 403. Explicit Bearer calls keep their previous Origin-independent use.
+- Logout removes the current session; password replacement and
+  `POST /api/automation/revoke` revoke all sessions. Each clears the browser Cookie.
+- `automation/sessions.json` stores only SHA-256 token digests and wall-clock
+  expirations, bound to the current key revision. Atomic fsync/replace writes use
+  mode 0600. A restarted Auth restores live sessions and prunes expired entries;
+  ordinary validation before the half-period threshold does not write the ledger.
+  One runtime owns this profile; independent writers are not a distributed session
+  store. Storage errors are not successful login or revocation receipts.
+
+The React startup probe restores the login without a JavaScript-readable Cookie
+or a persisted Bearer. Protected requests include same-origin credentials; a 401
+clears the current login while preserving editor drafts. Shared Actions, Jobs and
+Locker login controls recognize Cookie sessions. No service restart, production
+profile migration, or deployment is part of this candidate's validation.
