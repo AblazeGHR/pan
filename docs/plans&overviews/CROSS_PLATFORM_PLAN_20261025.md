@@ -96,7 +96,7 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 | `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
 | `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |
 | `service.lifecycle` | 可用 | 不可用 | 不可用 | UI Exit/Restart 依赖 main_lifecycle supervisor |
-| `processOwner` | 可用 | 不可用 | 不可用 | POSIX `ProcessOwner` 由 Phase B/C 实现后改表 |
+| `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验 |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：

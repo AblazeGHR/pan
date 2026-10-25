@@ -9,6 +9,7 @@ from packages.core import background_jobs as registry
 from packages.jobs import final_contracts as contracts
 
 from .ledger import Ledger, aggregate, now, public
+from .executor import TypedExecutor
 
 
 class ExecutorPort(Protocol):
@@ -21,6 +22,11 @@ class ExecutorPort(Protocol):
         effect_key: Mapping[str, Any],
         frozen_plan: Mapping[str, Any],
     ) -> Mapping[str, Any]: ...
+
+
+# Default implementation exported beside the port so callers can depend on
+# one canonical executor without constructing a second Job/Run coordinator.
+EffectExecutor = TypedExecutor
 
 
 class TriggerAdmissionPort(Protocol):
