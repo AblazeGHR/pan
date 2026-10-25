@@ -10806,17 +10806,15 @@ async def api_sessions_wake(data: dict):
 async def _legacy_mcp_authority(request: Request, capability: str, *, action: bool = False):
     """Authenticate only the private MCP compatibility transport.
 
-    Ordinary HTTP/GUI legacy routes keep their historical contract.  A request
-    reaching these handlers through the trusted MCP IPC marker must also hold
-    the new Job capability before it can create or mutate an Action Job.
+    Legacy tools retain their existing Session access gates. Their internal
+    Action representation must not add the opt-in four-object permissions to
+    the old tool contract. The private IPC marker and Pan plugin binding still
+    establish provenance; explicit Action/Job tools use their normal grants.
     """
-    from packages.automation.authorization import delegated, require, authority
+    from packages.automation.authorization import delegated
     if request is None or not delegated(request):
         return None
-    await require(request, 'job', capability)
-    if action:
-        await require(request, 'action', 'manageSystemActions')
-    return await authority(request)
+    return {'type': 'legacy-mcp'}
 
 
 async def _legacy_action_job(kind: str, fields: dict, request: Request):
@@ -10907,6 +10905,12 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
                 if auth is None:
                     raise ValueError('legacy Action cancellation requires trusted MCP transport')
                 runtime = request.app.state.automation.job_runtime
+                if (job.get('legacyCompat') == background_jobs.BACKGROUND_PROCESS_KIND
+                        and job.get('processAdmissionId') and not runtime.live_for(job_id)
+                        and job.get('status') in {'unknown', 'uncertain'}):
+                    # Recovery has no in-memory waiter to cancel the detached
+                    # Runner. Reuse the original PID/create-time guarded path.
+                    await asyncio.to_thread(background_jobs.cancel, job_id, runtime.root)
                 return legacy_view(await runtime.cancel(job_id, job['configRevision']))
         return background_jobs.cancel(job_id)
     except ValueError as exc:
@@ -11000,7 +11004,7 @@ async def api_background_job_update(job_id: str, data: dict, request: Request = 
                 updated = await asyncio.to_thread(runtime.update, job_id, raw, job['configRevision'], True, auth)
                 if 'schedule' in data:
                     await asyncio.to_thread(background_jobs._update, job_id, {
-                        'schedule': copy.deepcopy(data['schedule']),
+                        'legacySchedule': copy.deepcopy(data['schedule']),
                         'nextRunAt': background_jobs._iso_utc(background_jobs._normalize_message_schedule(data['schedule'], time.time())[1])})
                 return legacy_view(updated)
         if not job or job.get("kind") not in {
@@ -11024,6 +11028,8 @@ async def api_background_job_retry(job_id: str, request: Request = None):
         if old and old.get('legacyCompat'):
             from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
             if is_legacy_action_job(old):
+                if old.get('status') not in {'completed', 'failed', 'cancelled'}:
+                    raise ValueError('Job cannot be retried without a known terminal result')
                 auth = await _legacy_mcp_authority(request, 'create', action=True)
                 if auth is None:
                     raise ValueError('legacy Action retry requires trusted MCP transport')
@@ -11031,6 +11037,8 @@ async def api_background_job_retry(job_id: str, request: Request = None):
                 fields = {key: copy.deepcopy(old.get(key)) for key in (
                     'targetSessionId','targetSessionIds','argv','cwd','hideWindow','label','text','schedule','name','description')}
                 fields['retryOf'] = job_id
+                if old.get('legacySchedule') is not None:
+                    fields['schedule'] = copy.deepcopy(old['legacySchedule'])
                 fields['_legacyRequestKey'] = None
                 fresh = await asyncio.to_thread(runtime.create_legacy, old['legacyCompat'], fields, auth)
                 await asyncio.to_thread(background_jobs._update, fresh['jobId'], {'retryOf': job_id})

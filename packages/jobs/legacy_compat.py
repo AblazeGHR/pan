@@ -67,9 +67,9 @@ def config_for(kind: str, fields: dict) -> tuple[dict, dict]:
              "enabled": True, "recovery": {"enabled": False, "monitoring": False,
                                                 "maxAttempts": 3, "backoffSec": [5, 15, 60],
                                                 "stableResetSec": 300}},
-            {"kind": kind, "targetSessionId": targets[0] if len(targets) == 1 else None,
-             "targetSessionIds": targets if len(targets) > 1 else None,
-             "text": fields["text"], "schedule": copy.deepcopy(fields["schedule"]),
+            {"kind": kind, "targetSessionId": targets[0] if kind == background_jobs.SESSION_MESSAGE_KIND else None,
+             "targetSessionIds": targets if kind == background_jobs.SESSION_BROADCAST_KIND else None,
+             "text": fields["text"], "legacySchedule": copy.deepcopy(fields["schedule"]),
              "nextRunAt": background_jobs._iso_utc(background_jobs._normalize_message_schedule(
                  fields["schedule"], time.time())[1]),
              "source": "agent", "sourceSessionId": fields.get("creatorSessionId"),
@@ -94,6 +94,13 @@ def request_key(kind: str, fields: dict) -> str | None:
 def legacy_view(job: dict) -> dict:
     """Project an Action Job to the old MCP shape without changing its record."""
     value = copy.deepcopy(job)
+    if "legacySchedule" in value:
+        value["schedule"] = value.pop("legacySchedule")
+        from packages.jobs.cron import parse_datetime
+        point = parse_datetime(job.get('nextFireAt'))
+        value['nextRunAt'] = background_jobs._iso_utc(point.timestamp()) if point else None
+        if job.get('status') == 'scheduled' and not job.get('runCount'):
+            value['status'] = 'pending'
     value.pop("config", None)
     value.pop("action", None)
     value.pop("unified", None)

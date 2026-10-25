@@ -48,6 +48,8 @@ class LegacySchedulerBridge:
     @staticmethod
     def _action_args(job):
         action = copy.deepcopy(job.get('action') or {'api': 'assign'})
+        if action.get('api') == 'action_reference' and job.get('legacySchedulerCompat'):
+            action = copy.deepcopy(job['config']['arguments']['action'])
         if action.get('api') not in {'assign', 'send_session', 'send_qq', 'shell',
                                      background_jobs.RESUME_LEGAL_RUNNING_ACTION}:
             raise ValueError('Unknown scheduled Action shape; legacy owner retained')
@@ -176,6 +178,28 @@ class LegacySchedulerBridge:
     def _task_view(self, job):
         return store._task_from_job(job)
 
+    def project_cursor(self, source_id):
+        """Repairable legacy read projection; the source remains the sole owner."""
+        source = self.sources.get(source_id)
+        if not source:
+            return
+        for ref in self.sources.references(source_id):
+            jid = ref.get('jobId') or ref.get('job_id')
+            with background_jobs._lock, background_jobs._job_lock(jid, store.data_root()):
+                job = self._job(jid)
+                if not job or not job.get('legacySchedulerCompat') or job.get('legacySourceId') != source_id:
+                    continue
+                entry = self._entry(job)
+                cursor = source.get('publishCursor') or {}
+                entry.update(nextFireAt=source['nextFireAt'], enabled=source['nextFireAt'] is not None)
+                if cursor:
+                    entry['lastFireAt'] = cursor['scheduledAt']
+                changes = {'schedule': [entry], 'nextFireAt': source['nextFireAt']}
+                if cursor:
+                    changes['lastFireAt'] = cursor['scheduledAt']
+                if any(job.get(key) != value for key, value in changes.items()):
+                    background_jobs._update(jid, changes, registry_root=store.data_root())
+
     async def update(self, task_id, patch):
         async with self.lock:
             return await asyncio.to_thread(self._update, task_id, patch)
@@ -194,23 +218,27 @@ class LegacySchedulerBridge:
         if 'paused' in patch: merged['paused'] = bool(patch['paused'])
         if 'misfire_policy' in patch and patch['misfire_policy'] not in store.MISFIRE_POLICIES:
             raise ValueError('misfire_policy must be fire_now / skip')
-        entry = self._entry({**job, 'schedule': [merged['schedule']] if isinstance(merged.get('schedule'), dict) else job['schedule']})
+        entry = self._entry(job)
+        if 'schedule' in patch:
+            spec = merged['schedule']
+            entry = {**spec, 'id': entry['id'], 'enabled': True,
+                     'nextFireAt': store.iso(background_jobs._entry_next_fire(spec, datetime.now().replace(microsecond=0)))}
         args = self._action_args({**job, 'targetSessionId': merged.get('target_session_id', job.get('targetSessionId')),
                                   'text': merged.get('text', job.get('text')), 'action': merged.get('action', job.get('action'))})
         config = self._config({**job, 'name': merged.get('name', job.get('name')), 'description': merged.get('description', job.get('description')),
                                'maxRuns': merged.get('max_runs', job.get('maxRuns')), 'misfirePolicy': merged.get('misfire_policy', job.get('misfirePolicy'))}, args, enabled=False)
-        current = self._write_job(job, config, enabled=False, source_id=job['legacySourceId'], trigger_id=job['legacyTriggerId'], state='complete')
+        current = self._write_job(job, config, enabled=bool(merged['enabled']), source_id=job['legacySourceId'], trigger_id=job['legacyTriggerId'], state='complete')
         # Replace the old top-level compatibility fields under the same lock.
         changes = {'name': merged.get('name', job.get('name')), 'description': merged.get('description', job.get('description')),
                    'text': merged.get('text', job.get('text')), 'targetSessionId': merged.get('target_session_id', job.get('targetSessionId')),
-                   'action': copy.deepcopy(merged.get('action', job.get('action'))), 'schedule': [entry],
-                   'nextFireAt': merged.get('next_fire_at', entry.get('nextFireAt', job.get('nextFireAt'))),
-                   'enabled': bool(merged.get('enabled', job.get('enabled'))) and not bool(merged.get('paused', job.get('paused'))),
+                   'schedule': [entry],
+                   'nextFireAt': entry.get('nextFireAt'),
+                   'enabled': bool(merged.get('enabled', job.get('enabled'))),
                    'paused': bool(merged.get('paused', job.get('paused'))), 'maxRuns': merged.get('max_runs', job.get('maxRuns')),
                    'misfirePolicy': merged.get('misfire_policy', job.get('misfirePolicy')), 'legacySchedulerCompat': True}
         updated = background_jobs._update(job['jobId'], changes, registry_root=store.data_root())
         source_current = self.sources.get(updated['legacySourceId'])
-        self.sources.put(self._source_config(updated, entry, enabled=changes['enabled']),
+        self.sources.put(self._source_config(updated, entry, enabled=changes['enabled'] and not changes['paused']),
                          source_current['revision'], sid=updated['legacySourceId'])
         if updated.get('nextFireAt') is not None:
             self.sources.set_next_fire(updated['legacySourceId'], updated['nextFireAt'])
@@ -233,19 +261,6 @@ class LegacySchedulerBridge:
             job = self._job(task_id)
             if not job or not job.get('legacySchedulerCompat'):
                 raise KeyError(task_id)
-            tid = job['legacyTriggerId']; sid = job['legacySourceId']
-            trigger = self.ledger.read()['triggers'].get(tid)
-            if trigger:
-                self.ledger.put({**{k: v for k, v in trigger.items() if k not in {'revision','createdBy','createdAt','updatedAt','authorization'}},
-                                 'enabled': False}, trigger['revision'], True, authority={'type':'user'}, managed=True)
-            source = self.sources.get(sid)
-            if source and source.get('enabled'):
-                self.sources.composition_enabled(sid, False)
-            self.sources.detach_links(job['jobId'])
-            try:
-                if trigger:
-                    self.ledger.delete(tid, self.ledger.read()['triggers'][tid]['revision'])
-            except Exception:
-                pass
-            self.sources.delete(sid, self.sources.get(sid)['revision'])
-            return await self.jobs.delete(job['jobId'], job['configRevision'])
+            # The generic Job deletion checks active admission before removing
+            # its managed Trigger. Shared Scheduler sources outlive Jobs.
+            return await asyncio.to_thread(self.jobs.delete, job['jobId'], job['configRevision'])

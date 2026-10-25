@@ -28,6 +28,22 @@
 
 真实代码锚点：`packages/jobs/legacy_compat.py`（参数/结果适配）、`packages/jobs/action_runtime.py`（统一 Job 生命周期）、`packages/jobs/system_actions.py`（产品维护的 system Actions）、`packages/web/server.py`（legacy route 的 trusted-MCP 分流）、`packages/mcp/server.py`（原 tool names/parameters）。
 
+## Phase 5 实例验证与修正（当前实现）
+
+以下证据更新前面的 Phase 4 静态/单元结论。真实 stdio 使用 `python -m packages.mcp.server`；message/background 走产品私有 IPC，scheduler 走真实 HTTP；独立 HTTP 客户端和 Chromium 连接随机 loopback 端口。profile 全部由 pytest 临时目录持有。
+
+| entry / contract | 当前执行路径与修正 | 实例证据 |
+|---|---|---|
+| legacy MCP 默认授权 | `server._legacy_mcp_authority` 只识别私有 IPC marker，记录 `legacy-mcp` 来源；继续使用旧 tool 的 caller/managed Session 门禁，不额外要求新四对象授权。显式 Action/Job 工具的权限规则保持原路径 | `test_real_mcp_legacy_message_and_process_become_action_jobs` 在所有 agent 四对象 grants 为 false 时成功；授权回归仍覆盖显式工具拒绝 |
+| `agent_background_start/get/cancel/retry` | `Runtime.execute` → `system_actions.execute` → `background_jobs.start_action_process` → 原 native Runner；Runner 直接附着到返回的 Job，**不再调用旧 `start` 创建第二条 Job**。进程 Attempt 与 effect 使用同一 Job ID | 同一 profile 的记录集合断言；`processJobId == jobId`；短进程与 Runner 退出；host crash 后原 ID 可查，unknown retry 拒绝，安全取消后 PID 清零 |
+| `agent_message_job_create/get/cancel` | 统一 Job 保留运行时 schedule 列表，`legacySchedule` 供旧 MCP 投影；旧 message 扫描跳过 Action Job。`system_actions.execute` 复用原 `send_session` 并保留 agent/sourceSessionId | 实际 once 调用 → 一次 `system_session_message` Attempt → 真实 queue → 隔离 stream CLI 收到一次带 agent prefix 的正文；完成后 MCP `nextRunAt=None`；未来消息可取消 |
+| broadcast 的单目标列表 | storage 按 kind 保留 `targetSessionIds`，即使稳定去重后只有一个目标也保留 broadcast 身份 | 既有 broadcast 单元回归；本阶段未另做真实多目标 stdio/provider 验证 |
+| Scheduler 周期 owner | `Runtime.tick` 对 `schedulerOwner=event` 跳过 inline plan；`TimeEvents.tick` 的游标提交后调用 `LegacySchedulerBridge.project_cursor` 更新旧 nextFireAt 投影，重启也能修复投影 | 到期只有一个 Event、一个 Trigger Run、一个 system Action Attempt；正常重启无新 Attempt/Event；once 的旧 nextFireAt 变为 null |
+| pause/resume、run-now、旧未迁移记录 | bridge update 从 config 中取回原 scheduled Action，paused 与 enabled 独立保存；未切换记录仍由旧 store 更新 | 实际 MCP pause/resume；run-now 前后 nextFireAt 相同；带未知 schedule 字段的记录拒绝 owner-switch、保留原字段且旧 pause 可用 |
+| Scheduler delete 与共享 source | `LegacySchedulerBridge.delete` 复用同步 `Runtime.delete` 和通用 managed cleanup；先检查运行状态，再删自己的 Job/Trigger；source 按 Phase 3 独立生命周期保留 | 真实 MCP delete 后，共享 source 仍存在且只剩浏览器链 Job 的引用 |
+
+证据入口：`artifacts/job-chain-phase5/e2e-final.xml`、`http-stdio.json`、`crash-restart.json`、`browser/browser.json`；命令和未验证边界见 `PHASE5_E2E_REPORT_20261025.md`。本阶段未执行真实数据迁移；weekly 秒精度、所有时区/DST、所有 misfire/grace 组合、多目标 QQ/provider 回执及旧 Jobs panel 编辑/取消不因这些样例而宣称已完成端到端验证。
+
 ## Phase 4b Scheduler owner switch
 
 | legacy entry | switch expression | owner/evidence | remaining gap |

@@ -228,10 +228,11 @@ class Sources:
 
 
 class Runtime:
-    def __init__(self, sources, admit, diagnostics, acknowledge=None,source_ready=None):
+    def __init__(self, sources, admit, diagnostics, acknowledge=None,source_ready=None,cursor_advanced=None):
         self.sources, self.admit, self.diagnostics = sources, admit, diagnostics
         self.acknowledge=acknowledge
         self.source_ready=source_ready
+        self.cursor_advanced=cursor_advanced
         self.lock = asyncio.Lock()
 
     async def tick(self, cfg, *, at=None):
@@ -243,6 +244,8 @@ class Runtime:
                 return
             for item in items:
                 try:
+                    if self.cursor_advanced:
+                        await io(self.cursor_advanced, item['id'])
                     if item.get('setupOperation') and (not self.source_ready or not await io(self.source_ready,item['setupOperation'])):continue
                     if self.acknowledge and item.get('publishCursor') and not item['publishCursor'].get('eventStoreReleased'):
                         await self.acknowledge(item['publishCursor']['eventId'])
@@ -254,6 +257,8 @@ class Runtime:
                     if receipt.get('persisted') is not True or receipt.get('event', {}).get('id') != pending['event']['id']:
                         raise ValueError('Durable Event receipt identity mismatch')
                     await io(self.sources.advance, item['id'], pending['event']['id'])
+                    if self.cursor_advanced:
+                        await io(self.cursor_advanced, item['id'])
                     if self.acknowledge:
                         await self.acknowledge(pending['event']['id'])
                         await io(self.sources.acknowledged,item['id'],pending['event']['id'])

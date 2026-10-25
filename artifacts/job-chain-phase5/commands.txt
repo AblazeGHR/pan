@@ -1,0 +1,26 @@
+Working directory: D:/project/pan-worktrees/job-chain-phase1-20261025
+Python: D:/project/Pan-main/.venv/Scripts/python.exe
+
+Final E2E command (exit status and counts: manifest.json):
+D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_job_chain_phase5_e2e.py -q -s --junitxml=artifacts/job-chain-phase5/e2e-final.xml
+stdout/stderr: artifacts/job-chain-phase5/e2e-final.log
+
+Final backend regression command:
+D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_background_jobs.py tests/test_background_job_api.py tests/test_scheduler_api.py tests/test_scheduler_store.py tests/test_scheduler_engine.py tests/test_scheduler_dispatch.py tests/test_scheduler_mcp.py tests/test_scheduler_cron.py tests/test_scheduler_integration.py tests/test_scheduler_time_events.py tests/test_scheduler_legacy_bridge.py tests/test_legacy_mcp_compat.py tests/test_job_system_actions.py tests/test_job_action_templates.py tests/test_job_action_chain.py tests/test_automation_core.py tests/test_automation_concurrency.py tests/test_automation_action_chain.py tests/test_automation_job_links.py tests/test_automation_retry_parallel.py tests/test_authorization_runtime.py tests/test_authorization_permissions.py tests/test_authorization_mcp.py tests/test_session_message_jobs.py tests/test_job_unified_contract.py tests/test_automation_http.py tests/test_automation_retry_http.py tests/test_job_action_http.py -q --junitxml=artifacts/job-chain-phase5/backend-regression.xml
+stdout/stderr: artifacts/job-chain-phase5/backend-regression.log
+
+Final owner/admission check after making the spawn timestamp atomic with admission:
+D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_legacy_mcp_compat.py tests/test_background_jobs.py tests/test_job_chain_phase5_e2e.py -q -s --junitxml=artifacts/job-chain-phase5/final-owner-check.xml
+stdout/stderr: artifacts/job-chain-phase5/final-owner-check.log
+
+Owned children started by the E2E test (actual port/profile: JSON evidence):
+<same Python> tests/support/job_chain_phase5_server.py --port <allocated ephemeral port> --data-root <pytest temporary profile>
+<same Python> -m packages.mcp.server
+node packages/web/e2e/job-chain-phase5.live.mjs <owned loopback base URL> D:/project/pan-worktrees/job-chain-phase1-20261025/artifacts/job-chain-phase5/browser-input.json D:/project/pan-worktrees/job-chain-phase1-20261025/artifacts/job-chain-phase5/browser
+
+Git delivery checks:
+git diff --check
+git diff --cached --check
+git status --porcelain
+git rev-parse HEAD
+git branch --show-current

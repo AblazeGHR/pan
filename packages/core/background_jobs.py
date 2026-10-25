@@ -753,6 +753,7 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
 
 def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | None = None) -> dict:
     job_id = job["jobId"]
+    _update(job_id, {'runnerSpawnStartedAt': time.time()}, registry_root=registry_root)
     log_path = Path(job["logPath"])
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log = open(log_path, "ab")
@@ -849,6 +850,29 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     }
     _create(job, registry_root=registry_root)
     return _spawn_background_runner(job, registry_root=registry_root)
+
+
+def start_action_process(job_id: str, execution_id: str, *, registry_root=None) -> dict:
+    """Attach the native Runner to an already admitted legacy Action Job.
+
+    Admission is persisted before spawn. An interrupted spawn is uncertain and
+    is never retried by this function: the same execution cannot spawn twice.
+    """
+    with _lock, _job_lock(job_id, registry_root):
+        current = get(job_id, registry_root)
+        if (not current or current.get('legacyCompat') != BACKGROUND_PROCESS_KIND
+                or current.get('execution', {}).get('id') != execution_id
+                or current.get('status') != 'running'):
+            raise ValueError('System Action process admission is no longer current')
+        if current.get('processAdmissionId'):
+            raise ValueError('Process spawn already admitted; do not replay an unconfirmed spawn')
+        admitted_at = time.time()
+        current.update(processAdmissionId=execution_id, processAdmittedAt=admitted_at,
+                       runnerSpawnStartedAt=admitted_at,
+                       logPath=str(_root(registry_root) / 'logs' / (job_id + '.log')),
+                       notificationState='pending', pid=None, processCreatedAt=None)
+        _write_job(_job_path(job_id, registry_root), current)
+    return _spawn_background_runner(current, registry_root)
 
 
 def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
@@ -1251,11 +1275,14 @@ def cancel_message(job_id: str, registry_root: str | Path | None = None) -> dict
 async def run_due_message_jobs(now: float | None = None,
                               registry_root: str | Path | None = None) -> int:
     """Claim and deliver due message Jobs once; safe across Pan processes."""
+    from packages.jobs.action_runtime import is_action_job
     current_time = time.time() if now is None else float(now)
     # A service crash can leave a message Job between claim and the normal
     # post-send update.  Requeue only stale claims, allowing a fresh service
     # to recover them without treating an active in-process send as orphaned.
     for candidate in list_jobs(registry_root):
+        if is_action_job(candidate):
+            continue
         if (candidate.get("kind") in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}
                 and candidate.get("status") == "running"):
             started = candidate.get("runStartedAt")
@@ -1281,6 +1308,8 @@ async def run_due_message_jobs(now: float | None = None,
                     _write_job(path, current)
     claimed: list[dict] = []
     for candidate in list_jobs(registry_root):
+        if is_action_job(candidate):
+            continue
         if candidate.get("kind") not in {SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND}:
             continue
         if candidate.get("status") not in {"pending", "scheduled"}:
@@ -3376,6 +3405,15 @@ def runner_update(job_id: str, **changes: Any) -> dict:
             changes.pop("status", None)
         if current.get("status") == "cancelled":
             changes.pop("status", None)
+        from packages.jobs.action_runtime import is_action_job
+        if (is_action_job(current) and not current.get('execution')
+                and current.get('lastExecution', {}).get('status') in {'unknown', 'uncertain'}
+                and changes.get('status') in {'completed', 'failed'}):
+            current['processOutcome'] = {key: changes[key] for key in
+                ('status', 'exitCode', 'error', 'processTreeEnded') if key in changes}
+            changes.pop('status', None)
+            changes.pop('terminalEventId', None)
+            changes.pop('notificationState', None)
         current.update(changes)
         _write_job(_job_path(job_id), current)
         return current
@@ -3388,16 +3426,22 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
     liveness inspection, PID reuse, or a dead Runner is persisted as failed;
     we never kill a process when its creation time cannot be verified.
     """
+    from packages.jobs.action_runtime import is_action_job
     changed = 0
     for job in list_jobs(registry_root):
         if job.get("executionOwner") == "independent-job-service":
             continue
+        if is_action_job(job) and not job.get('processAdmissionId'):
+            continue  # The Action runtime owns admission and non-process effects.
         if job.get("kind") in {
             SERVICE_LIFECYCLE_KIND, SESSION_MESSAGE_KIND, SESSION_BROADCAST_KIND,
             SCHEDULED_TASK_KIND}:
             continue
         if job.get("status") not in {"starting", "running"}:
             continue
+        if (not job.get('runnerClaim') and job.get('runnerSpawnStartedAt')
+                and time.time() - job['runnerSpawnStartedAt'] < 5):
+            continue  # Windows venv redirector can exit before real Python claims.
         runner_pid = job.get("runnerPid")
         runner_created = job.get("runnerProcessCreatedAt")
         runner = _owns_process({"pid": runner_pid, "processCreatedAt": runner_created})

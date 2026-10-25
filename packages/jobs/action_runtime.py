@@ -432,7 +432,7 @@ class Runtime:
             # The claimed entry is consumed at dispatch admission, not recovery.
             exhausted=not any(e.get('enabled',True) and e.get('nextFireAt') for e in job['schedule'])
             if outcome['status'] in {'uncertain','cancelled'} or (not job.get('pendingRuns') and outcome['status']!='restarting' and
-                    ((exhausted and cfg['trigger']['kind'] not in ('event','manual')) or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']))):
+                    ((exhausted and (cfg['trigger']['kind'] not in ('event','manual') or job.get('legacySchedulerCompat'))) or (cfg['maxRuns'] and job['runCount']>=cfg['maxRuns']))):
                 job['enabled']=False;job['config']['enabled']=False
             job['status']=('restarting' if outcome['status']=='restarting' else ('scheduled' if job['enabled'] else outcome['status']))
             if active:
@@ -745,6 +745,8 @@ class Runtime:
                 try:await self.launch(job['jobId'])
                 except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                 continue
+            if job.get('schedulerOwner') == 'event':
+                continue  # Time Sources exclusively own this periodic plan.
             for entry in job.get('schedule',[]):
                 if entry.get('enabled',True) and jobs._entry_is_due(entry,datetime.now().replace(microsecond=0)):
                     if await io(self.skip_misfire,job,entry,cfg):

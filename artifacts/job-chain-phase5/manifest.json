@@ -1,0 +1,101 @@
+{
+  "phase": 5,
+  "branch": "feature/job-chain-phase1-20261025",
+  "baseSha": "653e05537e2333f117e803dd209dbb5428e5a5f9",
+  "verification": {
+    "backend-regression": {
+      "tests": 526,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 525,
+      "seconds": 89.277,
+      "exitCode": 0
+    },
+    "e2e-final": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 2,
+      "seconds": 34.573,
+      "exitCode": 0
+    },
+    "final-owner-check": {
+      "tests": 58,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 58,
+      "seconds": 37.177,
+      "exitCode": 0
+    }
+  },
+  "sourceFilesSha256Utf8Lf": {
+    "packages/automation/service.py": "d53fe7d77302d61e61dce76de1bd2fc3f3d60f81362bb5686eaf6d7171810796",
+    "packages/core/background_jobs.py": "5b163cf436d3639cc20bb9f76232b4a6c337f8702e9ef52ba6a38640c4b0ef5b",
+    "packages/jobs/action_runtime.py": "25c996ca4da58fdc4eb34f04e65f6e6c36395af9272f59efe2752e6b516924a7",
+    "packages/jobs/legacy_compat.py": "22f8fcb222d8bf449431ae978c40524c941a7198c82a2a7889709d0b08a3c5a5",
+    "packages/jobs/system_actions.py": "02da5549801be37dcb5b7e3048caf9172b48b2772d1ce9ec3954f1285af64411",
+    "packages/scheduler/api.py": "41499a5aa4349ed90b172d233a810a76f5ee17b0aa4c1b7695717d1c948086ca",
+    "packages/scheduler/legacy_bridge.py": "c8ccdbe91e6ebef1761cbe92c06625390942bc92160b4ba3702896a5ea067f83",
+    "packages/scheduler/time_events.py": "e7aef968801a417ec20295e7ac781aacd9c937a6f5e5fe02490f06bcf27671d3",
+    "packages/web/e2e/job-chain-phase5.live.mjs": "ef38b393a85b1d183cff0b1ec18b52f0a985d79f773969a2767eef0142385033",
+    "packages/web/server.py": "006680e408eccbe498ca1d50768eb24ff713b78d0f4a8ae44edd601a44f92e96",
+    "tests/support/job_chain_phase5_server.py": "2e5ab137a31df86bedce8a6d73f548b07bc7ee6b8d24807e04a84a8463100a54",
+    "tests/test_job_chain_phase5_e2e.py": "169d8bd8193deb8890b2a3dbeee55f7c4d10ad61f8fcf2a432c2516f23677007",
+    "tests/test_legacy_mcp_compat.py": "5849bf08e5ba88de160fe84b5fa66707e7f04be6fd332c2066d590a30496ffc4"
+  },
+  "isolatedInstances": [
+    {
+      "port": 64645,
+      "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_real_mcp_legacy_message_a0\\pan-data",
+      "portReleased": true
+    },
+    {
+      "port": 54358,
+      "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0\\crash-profile",
+      "portReleased": true
+    }
+  ],
+  "crashCleanup": {
+    "ownedProcessesRemaining": [],
+    "fallbackCleanupPids": [],
+    "secondRestartNoReplay": true
+  },
+  "browser": {
+    "version": "156.0.4314.42",
+    "screenshots": [
+      "chain-editor-1440.png",
+      "existing-scheduler-flow-1440.png",
+      "job-1440.png",
+      "trigger-1440.png",
+      "event-register-1440.png",
+      "job-390.png",
+      "trigger-390.png",
+      "event-register-390.png",
+      "chain-editor-390.png",
+      "existing-scheduler-flow-390.png"
+    ],
+    "errors": [],
+    "realHttpWs": true
+  },
+  "interactionCardIds": [],
+  "gitDiffCheck": "passed",
+  "report": "docs/design/job-unification/PHASE5_E2E_REPORT_20261025.md",
+  "limitations": [
+    "No deployment, real data migration or remote CI",
+    "No real LLM/provider/QQ receipts",
+    "No real-host kill at the exact Event admission/cursor commit boundary",
+    "No exhaustive timezone/DST/misfire/pending/undelivered or legacy Jobs panel lifecycle verification",
+    "Existing timezone database skip retained",
+    "Design section 8 remains partial",
+    "No kill injection at every owner-switch/update activation step"
+  ],
+  "businessEffects": {
+    "scheduledTaskReceiptCount": 1,
+    "manualTaskReceiptCount": 1,
+    "messageReceiptCount": 1,
+    "nativeProcessAndRunnerCleanupAsserted": true
+  }
+}

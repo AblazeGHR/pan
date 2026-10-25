@@ -351,7 +351,7 @@ class Service:
         self.scheduler_compat=LegacySchedulerBridge(self)
         await self.links.recover()
         async def acknowledged(event_id):await self.engine.io(self.events.release_pin,event_id)
-        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged,self.links.source_ready)
+        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged,self.links.source_ready,self.scheduler_compat.project_cursor)
         self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
         self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
         self.worker.set_running_observer(self.observe)

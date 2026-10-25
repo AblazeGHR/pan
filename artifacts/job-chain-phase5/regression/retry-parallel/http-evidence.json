@@ -1,0 +1,3587 @@
+{
+  "port": 63678,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile",
+  "processes": [
+    {
+      "pid": 27804,
+      "created": 1792922989.507746,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 8620,
+      "created": 1792922989.5265615,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41384,
+      "created": 1792922989.5464213,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 55240,
+      "created": 1792922990.7158113,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 48980,
+      "created": 1792922990.8255305,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 3956,
+      "created": 1792922992.3224037,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 47828,
+      "created": 1792922992.3644505,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 35952,
+      "created": 1792922992.3768797,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 29064,
+      "created": 1792922992.328873,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 36368,
+      "created": 1792922992.3478303,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 6188,
+      "created": 1792922990.8303597,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46616,
+      "created": 1792922990.8499658,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 55200,
+      "created": 1792922990.9289556,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 12088,
+      "created": 1792922990.9546564,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 11156,
+      "created": 1792922990.7253032,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45664,
+      "created": 1792922990.7398424,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 27804,
+      "created": 1792922989.507746,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 8620,
+      "created": 1792922989.5265615,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 41384,
+      "created": 1792922989.5464213,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 55240,
+      "created": 1792922990.7158113,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 48980,
+      "created": 1792922990.8255305,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 54828,
+      "created": 1792922994.2076323,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 49028,
+      "created": 1792922994.2138433,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 6188,
+      "created": 1792922990.8303597,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46616,
+      "created": 1792922990.8499658,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 55200,
+      "created": 1792922990.9289556,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 12088,
+      "created": 1792922990.9546564,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 11156,
+      "created": 1792922990.7253032,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 45664,
+      "created": 1792922990.7398424,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 47552,
+      "created": 1792922996.7448845,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42268,
+      "created": 1792922996.7499409,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10440,
+      "created": 1792922996.7648113,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 33004,
+      "created": 1792922997.6361587,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 33808,
+      "created": 1792922997.6455953,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 25672,
+      "created": 1792922997.6606455,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 51124,
+      "created": 1792922997.73616,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 48452,
+      "created": 1792922997.760924,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 47552,
+      "created": 1792922996.7448845,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 42268,
+      "created": 1792922996.7499409,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 10440,
+      "created": 1792922996.7648113,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-profile"
+      ]
+    },
+    {
+      "pid": 33004,
+      "created": 1792922997.6361587,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 33808,
+      "created": 1792922997.6455953,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 25672,
+      "created": 1792922997.6606455,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.plugins.stdio_runner",
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 51124,
+      "created": 1792922997.73616,
+      "command": [
+        "D:\\software\\nodeJs\\node.EXE",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\examples\\event-plugin\\provider.mjs"
+      ]
+    },
+    {
+      "pid": 48452,
+      "created": 1792922997.760924,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    }
+  ],
+  "held": {
+    "revision": 22,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-25T10:09:50.806641+00:00",
+        "updatedAt": "2026-10-25T10:09:50.806646+00:00",
+        "authorization": {
+          "type": "user"
+        }
+      }
+    },
+    "runs": {
+      "run_baa3793ae613471fa85471e3276ce1af": {
+        "id": "run_baa3793ae613471fa85471e3276ce1af",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.077285+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.090120+00:00",
+        "status": "running",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_328caf2d98f548d2ba6b410c1ca246ee",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.099421+00:00",
+            "finishedAt": "2026-10-25T10:09:51.293033+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_aa6f992afe3f478296d522bbc6fade7e",
+            "number": 2,
+            "status": "running",
+            "startedAt": "2026-10-25T10:09:52.303233+00:00",
+            "reason": "automatic"
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.303233+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_aa6f992afe3f478296d522bbc6fade7e",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "system": false,
+          "monitoring": false,
+          "recoverable": false,
+          "output_format": "json"
+        }
+      },
+      "run_ec84aaa809c24fb08e2d250dc9dacd04": {
+        "id": "run_ec84aaa809c24fb08e2d250dc9dacd04",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.106001+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.138514+00:00",
+        "status": "running",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 7,
+        "attempts": [
+          {
+            "id": "att_59fcdd8043834c118a0dbcc1d0674fba",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.150163+00:00",
+            "finishedAt": "2026-10-25T10:09:51.339460+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_39fe612502ca49d6b47d28c7edd44a98",
+            "number": 2,
+            "status": "running",
+            "startedAt": "2026-10-25T10:09:52.349741+00:00",
+            "reason": "automatic"
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.349741+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_39fe612502ca49d6b47d28c7edd44a98",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "action": {
+          "id": "retry_command",
+          "name": "Owned idempotent retry fixture",
+          "enabled": true,
+          "idempotent": true,
+          "effect": "write_local",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "key"
+            ],
+            "additionalProperties": false
+          },
+          "execution": {
+            "kind": "command",
+            "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+            "args": [
+              "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\retry_action.py",
+              "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-action-cli",
+              "{key}"
+            ],
+            "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_node_parallel_finite_retr0\\owned-action-cli",
+            "timeout_sec": 30
+          },
+          "description": "Owned idempotent retry fixture",
+          "system": false,
+          "monitoring": false,
+          "recoverable": false,
+          "output_format": "json"
+        }
+      },
+      "run_d856a29dc9d7490faf5570a5a04ec575": {
+        "id": "run_d856a29dc9d7490faf5570a5a04ec575",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.172470+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.184143+00:00",
+        "status": "retry_wait",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 5,
+        "attempts": [
+          {
+            "id": "att_0f23362c438d448c9e7d332f3827ed74",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.298479+00:00",
+            "finishedAt": "2026-10-25T10:09:51.512643+00:00",
+            "error": "Command exited 7"
+          }
+        ],
+        "attemptCount": 1,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:51.298479+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_0f23362c438d448c9e7d332f3827ed74",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "error": "Command exited 7",
+        "finishedAt": "2026-10-25T10:09:51.512643+00:00",
+        "retryAuthorized": "automatic",
+        "nextAttemptAt": "2026-10-25T10:09:52.512670+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 3,
+        "bytes": 1830,
+        "pending": 0,
+        "databaseBytes": 40960,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 3,
+        "bytes": 5951,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "runtime.issue.v1",
+        "source": {
+          "type": "core",
+          "id": "runtime"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "issueId",
+            "adapter",
+            "classification",
+            "confidence",
+            "observation",
+            "correlation",
+            "delivery"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "issueId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "adapter": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "classification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "confidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "observation": {
+              "type": "object"
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "delivery": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "scheduler.time.v1",
+        "source": {
+          "type": "core",
+          "id": "scheduler"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleId",
+            "scheduleRevision",
+            "scheduledAt",
+            "emittedAt",
+            "eventId"
+          ],
+          "properties": {
+            "scheduleId": {
+              "type": "string"
+            },
+            "scheduleRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "scheduledAt": {
+              "type": "string"
+            },
+            "emittedAt": {
+              "type": "string"
+            },
+            "eventId": {
+              "type": "string"
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "pan.interaction.responded",
+        "source": {
+          "type": "core",
+          "id": "pan"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "recipientId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "response": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "requestId",
+                "userId",
+                "createdAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "choiceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "outcome": {
+                  "enum": [
+                    "submit",
+                    "reject"
+                  ]
+                }
+              }
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "executionBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "triggerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "actionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "triggerDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "actionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "action": {
+                  "type": "object"
+                },
+                "arguments": {
+                  "type": "object"
+                },
+                "selector": {
+                  "type": "object"
+                },
+                "authorization": {
+                  "type": "object"
+                },
+                "version": {
+                  "const": 1
+                },
+                "triggerRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "targetIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "triggerId",
+                "triggerRevision",
+                "triggerDigest",
+                "actionId",
+                "actionDigest",
+                "action",
+                "arguments",
+                "selector",
+                "authorization",
+                "summary",
+                "targetIds"
+              ]
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "succeeded": {
+    "revision": 27,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-25T10:09:50.806641+00:00",
+        "updatedAt": "2026-10-25T10:09:50.806646+00:00",
+        "authorization": {
+          "type": "user"
+        }
+      }
+    },
+    "runs": {
+      "run_baa3793ae613471fa85471e3276ce1af": {
+        "id": "run_baa3793ae613471fa85471e3276ce1af",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.077285+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.090120+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_328caf2d98f548d2ba6b410c1ca246ee",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.099421+00:00",
+            "finishedAt": "2026-10-25T10:09:51.293033+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_aa6f992afe3f478296d522bbc6fade7e",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.303233+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.518023+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.303233+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_aa6f992afe3f478296d522bbc6fade7e",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.518023+00:00"
+      },
+      "run_ec84aaa809c24fb08e2d250dc9dacd04": {
+        "id": "run_ec84aaa809c24fb08e2d250dc9dacd04",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.106001+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.138514+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_59fcdd8043834c118a0dbcc1d0674fba",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.150163+00:00",
+            "finishedAt": "2026-10-25T10:09:51.339460+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_39fe612502ca49d6b47d28c7edd44a98",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.349741+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.563475+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.349741+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_39fe612502ca49d6b47d28c7edd44a98",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.563475+00:00"
+      },
+      "run_d856a29dc9d7490faf5570a5a04ec575": {
+        "id": "run_d856a29dc9d7490faf5570a5a04ec575",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.172470+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.184143+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_0f23362c438d448c9e7d332f3827ed74",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.298479+00:00",
+            "finishedAt": "2026-10-25T10:09:51.512643+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_a8b4ec0e79634dd1b3e19ba343037406",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.523839+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.713833+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.523839+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_a8b4ec0e79634dd1b3e19ba343037406",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.713833+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 4,
+        "bytes": 2038,
+        "pending": 0,
+        "databaseBytes": 40960,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 3,
+        "bytes": 5708,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "runtime.issue.v1",
+        "source": {
+          "type": "core",
+          "id": "runtime"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "issueId",
+            "adapter",
+            "classification",
+            "confidence",
+            "observation",
+            "correlation",
+            "delivery"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "issueId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "adapter": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "classification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "confidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "observation": {
+              "type": "object"
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "delivery": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "scheduler.time.v1",
+        "source": {
+          "type": "core",
+          "id": "scheduler"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleId",
+            "scheduleRevision",
+            "scheduledAt",
+            "emittedAt",
+            "eventId"
+          ],
+          "properties": {
+            "scheduleId": {
+              "type": "string"
+            },
+            "scheduleRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "scheduledAt": {
+              "type": "string"
+            },
+            "emittedAt": {
+              "type": "string"
+            },
+            "eventId": {
+              "type": "string"
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "pan.interaction.responded",
+        "source": {
+          "type": "core",
+          "id": "pan"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "recipientId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "response": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "requestId",
+                "userId",
+                "createdAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "choiceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "outcome": {
+                  "enum": [
+                    "submit",
+                    "reject"
+                  ]
+                }
+              }
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "executionBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "triggerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "actionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "triggerDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "actionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "action": {
+                  "type": "object"
+                },
+                "arguments": {
+                  "type": "object"
+                },
+                "selector": {
+                  "type": "object"
+                },
+                "authorization": {
+                  "type": "object"
+                },
+                "version": {
+                  "const": 1
+                },
+                "triggerRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "targetIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "triggerId",
+                "triggerRevision",
+                "triggerDigest",
+                "actionId",
+                "actionDigest",
+                "action",
+                "arguments",
+                "selector",
+                "authorization",
+                "summary",
+                "targetIds"
+              ]
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "confirmed": {
+    "id": "run_a7618d8bcc4648da9d029240b1e1766e",
+    "triggerId": "t",
+    "triggerRevision": 1,
+    "actionId": "retry_command",
+    "event": {
+      "id": "retry-4",
+      "type": "producer.ping",
+      "schemaVersion": 1,
+      "source": {
+        "type": "plugin",
+        "id": "producer"
+      },
+      "occurredAt": "2026-10-25T10:09:52.933488+00:00",
+      "payload": {
+        "value": 4
+      }
+    },
+    "createdAt": "2026-10-25T10:09:52.953951+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {
+      "key": 4
+    },
+    "state": {},
+    "authorization": {
+      "type": "user"
+    },
+    "revision": 12,
+    "attempts": [
+      {
+        "id": "att_272dd55c00784a4a8a74f0cd5d8e16fa",
+        "number": 1,
+        "status": "failed",
+        "startedAt": "2026-10-25T10:09:52.969390+00:00",
+        "finishedAt": "2026-10-25T10:09:53.178075+00:00",
+        "error": "Command exited 7"
+      },
+      {
+        "id": "att_a3e10e852a894dc2b0652af5441a750d",
+        "number": 2,
+        "status": "uncertain",
+        "startedAt": "2026-10-25T10:09:54.189992+00:00",
+        "reason": "automatic",
+        "finishedAt": "2026-10-25T10:09:56.012269+00:00",
+        "error": "Execution interrupted; no automatic retry"
+      },
+      {
+        "id": "att_e3404dc4d3e548dda35bf88dbea803f6",
+        "number": 3,
+        "status": "succeeded",
+        "startedAt": "2026-10-25T10:10:00.767833+00:00",
+        "reason": "user-confirmed",
+        "finishedAt": "2026-10-25T10:10:00.956297+00:00",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false,
+          "processTreeEnded": true
+        }
+      }
+    ],
+    "attemptCount": 3,
+    "retryPolicy": {
+      "enabled": true,
+      "maxAttempts": 3
+    },
+    "startedAt": "2026-10-25T10:10:00.767833+00:00",
+    "authorizationRevision": null,
+    "activeAttemptId": "att_e3404dc4d3e548dda35bf88dbea803f6",
+    "retryEligible": true,
+    "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+        }
+      ],
+      "structuredContent": {
+        "ok": true,
+        "key": "4",
+        "attempt": 3
+      },
+      "isError": false,
+      "processTreeEnded": true
+    },
+    "finishedAt": "2026-10-25T10:10:00.956297+00:00"
+  },
+  "trace": [
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 1,
+      "pid": 42524,
+      "at": 1792922991.2735634
+    },
+    {
+      "kind": "failed",
+      "key": "1",
+      "attempt": 1,
+      "pid": 42524,
+      "at": 1792922991.2751083
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 1,
+      "pid": 5656,
+      "at": 1792922991.3201656
+    },
+    {
+      "kind": "failed",
+      "key": "2",
+      "attempt": 1,
+      "pid": 5656,
+      "at": 1792922991.3216653
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 1,
+      "pid": 18028,
+      "at": 1792922991.493729
+    },
+    {
+      "kind": "failed",
+      "key": "3",
+      "attempt": 1,
+      "pid": 18028,
+      "at": 1792922991.495404
+    },
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 2,
+      "pid": 25724,
+      "at": 1792922992.4974406
+    },
+    {
+      "kind": "succeeded",
+      "key": "1",
+      "attempt": 2,
+      "pid": 25724,
+      "at": 1792922992.4989073
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 2,
+      "pid": 36276,
+      "at": 1792922992.5435507
+    },
+    {
+      "kind": "succeeded",
+      "key": "2",
+      "attempt": 2,
+      "pid": 36276,
+      "at": 1792922992.544999
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 2,
+      "pid": 32708,
+      "at": 1792922992.694947
+    },
+    {
+      "kind": "succeeded",
+      "key": "3",
+      "attempt": 2,
+      "pid": 32708,
+      "at": 1792922992.6965005
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 1,
+      "pid": 53084,
+      "at": 1792922993.1582546
+    },
+    {
+      "kind": "failed",
+      "key": "4",
+      "attempt": 1,
+      "pid": 53084,
+      "at": 1792922993.1597319
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 2,
+      "pid": 45320,
+      "at": 1792922994.3652003
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 3,
+      "pid": 34876,
+      "at": 1792923000.9350839
+    },
+    {
+      "kind": "succeeded",
+      "key": "4",
+      "attempt": 3,
+      "pid": 34876,
+      "at": 1792923000.9366379
+    }
+  ],
+  "final": {
+    "revision": 42,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-25T10:09:50.806641+00:00",
+        "updatedAt": "2026-10-25T10:09:50.806646+00:00",
+        "authorization": {
+          "type": "user"
+        }
+      }
+    },
+    "runs": {
+      "run_baa3793ae613471fa85471e3276ce1af": {
+        "id": "run_baa3793ae613471fa85471e3276ce1af",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.077285+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.090120+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_328caf2d98f548d2ba6b410c1ca246ee",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.099421+00:00",
+            "finishedAt": "2026-10-25T10:09:51.293033+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_aa6f992afe3f478296d522bbc6fade7e",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.303233+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.518023+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.303233+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_aa6f992afe3f478296d522bbc6fade7e",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.518023+00:00"
+      },
+      "run_ec84aaa809c24fb08e2d250dc9dacd04": {
+        "id": "run_ec84aaa809c24fb08e2d250dc9dacd04",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.106001+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.138514+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_59fcdd8043834c118a0dbcc1d0674fba",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.150163+00:00",
+            "finishedAt": "2026-10-25T10:09:51.339460+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_39fe612502ca49d6b47d28c7edd44a98",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.349741+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.563475+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.349741+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_39fe612502ca49d6b47d28c7edd44a98",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.563475+00:00"
+      },
+      "run_d856a29dc9d7490faf5570a5a04ec575": {
+        "id": "run_d856a29dc9d7490faf5570a5a04ec575",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.172470+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.184143+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_0f23362c438d448c9e7d332f3827ed74",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.298479+00:00",
+            "finishedAt": "2026-10-25T10:09:51.512643+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_a8b4ec0e79634dd1b3e19ba343037406",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.523839+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.713833+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.523839+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_a8b4ec0e79634dd1b3e19ba343037406",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.713833+00:00"
+      },
+      "run_a7618d8bcc4648da9d029240b1e1766e": {
+        "id": "run_a7618d8bcc4648da9d029240b1e1766e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-4",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:52.933488+00:00",
+          "payload": {
+            "value": 4
+          }
+        },
+        "createdAt": "2026-10-25T10:09:52.953951+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 4
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 12,
+        "attempts": [
+          {
+            "id": "att_272dd55c00784a4a8a74f0cd5d8e16fa",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:52.969390+00:00",
+            "finishedAt": "2026-10-25T10:09:53.178075+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_a3e10e852a894dc2b0652af5441a750d",
+            "number": 2,
+            "status": "uncertain",
+            "startedAt": "2026-10-25T10:09:54.189992+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:56.012269+00:00",
+            "error": "Execution interrupted; no automatic retry"
+          },
+          {
+            "id": "att_e3404dc4d3e548dda35bf88dbea803f6",
+            "number": 3,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:10:00.767833+00:00",
+            "reason": "user-confirmed",
+            "finishedAt": "2026-10-25T10:10:00.956297+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "4",
+                "attempt": 3
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 3,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:10:00.767833+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_e3404dc4d3e548dda35bf88dbea803f6",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:10:00.956297+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 5,
+        "bytes": 2648,
+        "pending": 0,
+        "databaseBytes": 40960,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 4,
+        "bytes": 7713,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "runtime.issue.v1",
+        "source": {
+          "type": "core",
+          "id": "runtime"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "issueId",
+            "adapter",
+            "classification",
+            "confidence",
+            "observation",
+            "correlation",
+            "delivery"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "issueId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "adapter": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "classification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "confidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "observation": {
+              "type": "object"
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "delivery": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "scheduler.time.v1",
+        "source": {
+          "type": "core",
+          "id": "scheduler"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleId",
+            "scheduleRevision",
+            "scheduledAt",
+            "emittedAt",
+            "eventId"
+          ],
+          "properties": {
+            "scheduleId": {
+              "type": "string"
+            },
+            "scheduleRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "scheduledAt": {
+              "type": "string"
+            },
+            "emittedAt": {
+              "type": "string"
+            },
+            "eventId": {
+              "type": "string"
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "pan.interaction.responded",
+        "source": {
+          "type": "core",
+          "id": "pan"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "recipientId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "response": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "requestId",
+                "userId",
+                "createdAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "choiceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "outcome": {
+                  "enum": [
+                    "submit",
+                    "reject"
+                  ]
+                }
+              }
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "executionBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "triggerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "actionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "triggerDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "actionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "action": {
+                  "type": "object"
+                },
+                "arguments": {
+                  "type": "object"
+                },
+                "selector": {
+                  "type": "object"
+                },
+                "authorization": {
+                  "type": "object"
+                },
+                "version": {
+                  "const": 1
+                },
+                "triggerRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "targetIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "triggerId",
+                "triggerRevision",
+                "triggerDigest",
+                "actionId",
+                "actionDigest",
+                "action",
+                "arguments",
+                "selector",
+                "authorization",
+                "summary",
+                "targetIds"
+              ]
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "lastView": {
+    "revision": 42,
+    "triggers": {
+      "t": {
+        "id": "t",
+        "name": "t",
+        "eventTypes": [
+          "producer.ping"
+        ],
+        "actionId": "retry_command",
+        "arguments": {
+          "key": {
+            "from": "event",
+            "path": "payload.value"
+          }
+        },
+        "enabled": true,
+        "executionMode": "parallel",
+        "maxConcurrency": 2,
+        "retry": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "revision": 1,
+        "createdBy": {
+          "type": "user"
+        },
+        "createdAt": "2026-10-25T10:09:50.806641+00:00",
+        "updatedAt": "2026-10-25T10:09:50.806646+00:00",
+        "authorization": {
+          "type": "user"
+        }
+      }
+    },
+    "runs": {
+      "run_baa3793ae613471fa85471e3276ce1af": {
+        "id": "run_baa3793ae613471fa85471e3276ce1af",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-1",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.077285+00:00",
+          "payload": {
+            "value": 1
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.090120+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 1
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_328caf2d98f548d2ba6b410c1ca246ee",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.099421+00:00",
+            "finishedAt": "2026-10-25T10:09:51.293033+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_aa6f992afe3f478296d522bbc6fade7e",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.303233+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.518023+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "1",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.303233+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_aa6f992afe3f478296d522bbc6fade7e",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"1\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "1",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.518023+00:00"
+      },
+      "run_ec84aaa809c24fb08e2d250dc9dacd04": {
+        "id": "run_ec84aaa809c24fb08e2d250dc9dacd04",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-2",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.106001+00:00",
+          "payload": {
+            "value": 2
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.138514+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 2
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_59fcdd8043834c118a0dbcc1d0674fba",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.150163+00:00",
+            "finishedAt": "2026-10-25T10:09:51.339460+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_39fe612502ca49d6b47d28c7edd44a98",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.349741+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.563475+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "2",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.349741+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_39fe612502ca49d6b47d28c7edd44a98",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"2\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "2",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.563475+00:00"
+      },
+      "run_d856a29dc9d7490faf5570a5a04ec575": {
+        "id": "run_d856a29dc9d7490faf5570a5a04ec575",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-3",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:51.172470+00:00",
+          "payload": {
+            "value": 3
+          }
+        },
+        "createdAt": "2026-10-25T10:09:51.184143+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 3
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 8,
+        "attempts": [
+          {
+            "id": "att_0f23362c438d448c9e7d332f3827ed74",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:51.298479+00:00",
+            "finishedAt": "2026-10-25T10:09:51.512643+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_a8b4ec0e79634dd1b3e19ba343037406",
+            "number": 2,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:09:52.523839+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:52.713833+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "3",
+                "attempt": 2
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 2,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:09:52.523839+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_a8b4ec0e79634dd1b3e19ba343037406",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"3\", \"attempt\": 2}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "3",
+            "attempt": 2
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:09:52.713833+00:00"
+      },
+      "run_a7618d8bcc4648da9d029240b1e1766e": {
+        "id": "run_a7618d8bcc4648da9d029240b1e1766e",
+        "triggerId": "t",
+        "triggerRevision": 1,
+        "actionId": "retry_command",
+        "event": {
+          "id": "retry-4",
+          "type": "producer.ping",
+          "schemaVersion": 1,
+          "source": {
+            "type": "plugin",
+            "id": "producer"
+          },
+          "occurredAt": "2026-10-25T10:09:52.933488+00:00",
+          "payload": {
+            "value": 4
+          }
+        },
+        "createdAt": "2026-10-25T10:09:52.953951+00:00",
+        "status": "succeeded",
+        "admitted": true,
+        "arguments": {
+          "key": 4
+        },
+        "state": {},
+        "authorization": {
+          "type": "user"
+        },
+        "revision": 12,
+        "attempts": [
+          {
+            "id": "att_272dd55c00784a4a8a74f0cd5d8e16fa",
+            "number": 1,
+            "status": "failed",
+            "startedAt": "2026-10-25T10:09:52.969390+00:00",
+            "finishedAt": "2026-10-25T10:09:53.178075+00:00",
+            "error": "Command exited 7"
+          },
+          {
+            "id": "att_a3e10e852a894dc2b0652af5441a750d",
+            "number": 2,
+            "status": "uncertain",
+            "startedAt": "2026-10-25T10:09:54.189992+00:00",
+            "reason": "automatic",
+            "finishedAt": "2026-10-25T10:09:56.012269+00:00",
+            "error": "Execution interrupted; no automatic retry"
+          },
+          {
+            "id": "att_e3404dc4d3e548dda35bf88dbea803f6",
+            "number": 3,
+            "status": "succeeded",
+            "startedAt": "2026-10-25T10:10:00.767833+00:00",
+            "reason": "user-confirmed",
+            "finishedAt": "2026-10-25T10:10:00.956297+00:00",
+            "result": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+                }
+              ],
+              "structuredContent": {
+                "ok": true,
+                "key": "4",
+                "attempt": 3
+              },
+              "isError": false,
+              "processTreeEnded": true
+            }
+          }
+        ],
+        "attemptCount": 3,
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3
+        },
+        "startedAt": "2026-10-25T10:10:00.767833+00:00",
+        "authorizationRevision": null,
+        "activeAttemptId": "att_e3404dc4d3e548dda35bf88dbea803f6",
+        "retryEligible": true,
+        "actionDigest": "4fc52909f190a5d74ba1f3c6d618cc682bb84eb37b1763e8018b562912c47bf2",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"ok\": true, \"key\": \"4\", \"attempt\": 3}"
+            }
+          ],
+          "structuredContent": {
+            "ok": true,
+            "key": "4",
+            "attempt": 3
+          },
+          "isError": false,
+          "processTreeEnded": true
+        },
+        "finishedAt": "2026-10-25T10:10:00.956297+00:00"
+      }
+    },
+    "storage": {
+      "events": {
+        "events": 5,
+        "bytes": 2648,
+        "pending": 0,
+        "databaseBytes": 40960,
+        "maxEvents": 100000,
+        "maxBytes": 268435456,
+        "retentionSeconds": 604800,
+        "overduePending": 0,
+        "physicalCapacityBytes": 335544320,
+        "warning": false,
+        "full": false
+      },
+      "runs": {
+        "runs": 4,
+        "bytes": 7713,
+        "maxRuns": 10000,
+        "maxBytes": 67108864,
+        "warning": false,
+        "full": false
+      }
+    },
+    "definitions": [
+      {
+        "type": "workers.all_idle",
+        "source": {
+          "type": "core",
+          "id": "workers"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runningCount": {
+              "const": 0
+            }
+          },
+          "required": [
+            "runningCount"
+          ],
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "runtime.issue.v1",
+        "source": {
+          "type": "core",
+          "id": "runtime"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "schemaVersion",
+            "issueId",
+            "adapter",
+            "classification",
+            "confidence",
+            "observation",
+            "correlation",
+            "delivery"
+          ],
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "issueId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "adapter": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 64
+            },
+            "classification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "confidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "observation": {
+              "type": "object"
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "delivery": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "scheduler.time.v1",
+        "source": {
+          "type": "core",
+          "id": "scheduler"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheduleId",
+            "scheduleRevision",
+            "scheduledAt",
+            "emittedAt",
+            "eventId"
+          ],
+          "properties": {
+            "scheduleId": {
+              "type": "string"
+            },
+            "scheduleRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "scheduledAt": {
+              "type": "string"
+            },
+            "emittedAt": {
+              "type": "string"
+            },
+            "eventId": {
+              "type": "string"
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "pan.interaction.responded",
+        "source": {
+          "type": "core",
+          "id": "pan"
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardId",
+            "ownerSessionId",
+            "recipientId",
+            "response",
+            "correlation"
+          ],
+          "properties": {
+            "cardId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "recipientId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "response": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "requestId",
+                "userId",
+                "createdAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "requestId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "userId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "answer": {
+                  "type": "string"
+                },
+                "choiceId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "outcome": {
+                  "enum": [
+                    "submit",
+                    "reject"
+                  ]
+                }
+              }
+            },
+            "correlation": {
+              "type": "object"
+            },
+            "triggerRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "executionBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "triggerId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "actionId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "triggerDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "actionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "action": {
+                  "type": "object"
+                },
+                "arguments": {
+                  "type": "object"
+                },
+                "selector": {
+                  "type": "object"
+                },
+                "authorization": {
+                  "type": "object"
+                },
+                "version": {
+                  "const": 1
+                },
+                "triggerRevision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "targetIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "version",
+                "triggerId",
+                "triggerRevision",
+                "triggerDigest",
+                "actionId",
+                "actionDigest",
+                "action",
+                "arguments",
+                "selector",
+                "authorization",
+                "summary",
+                "targetIds"
+              ]
+            }
+          }
+        },
+        "schemaVersion": 1,
+        "available": true
+      },
+      {
+        "type": "producer.ping",
+        "source": {
+          "type": "plugin",
+          "id": "producer"
+        },
+        "schema": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "schemaVersion": 1,
+        "available": true,
+        "description": "Owned external fact"
+      }
+    ],
+    "dependencies": {
+      "t": {
+        "available": true,
+        "unavailable": []
+      }
+    },
+    "diagnostics": [],
+    "limits": {
+      "subscriberQueue": 128,
+      "pendingRuns": 1024,
+      "triggers": 64
+    }
+  },
+  "traceAtCleanup": [
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 1,
+      "pid": 42524,
+      "at": 1792922991.2735634
+    },
+    {
+      "kind": "failed",
+      "key": "1",
+      "attempt": 1,
+      "pid": 42524,
+      "at": 1792922991.2751083
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 1,
+      "pid": 5656,
+      "at": 1792922991.3201656
+    },
+    {
+      "kind": "failed",
+      "key": "2",
+      "attempt": 1,
+      "pid": 5656,
+      "at": 1792922991.3216653
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 1,
+      "pid": 18028,
+      "at": 1792922991.493729
+    },
+    {
+      "kind": "failed",
+      "key": "3",
+      "attempt": 1,
+      "pid": 18028,
+      "at": 1792922991.495404
+    },
+    {
+      "kind": "start",
+      "key": "1",
+      "attempt": 2,
+      "pid": 25724,
+      "at": 1792922992.4974406
+    },
+    {
+      "kind": "succeeded",
+      "key": "1",
+      "attempt": 2,
+      "pid": 25724,
+      "at": 1792922992.4989073
+    },
+    {
+      "kind": "start",
+      "key": "2",
+      "attempt": 2,
+      "pid": 36276,
+      "at": 1792922992.5435507
+    },
+    {
+      "kind": "succeeded",
+      "key": "2",
+      "attempt": 2,
+      "pid": 36276,
+      "at": 1792922992.544999
+    },
+    {
+      "kind": "start",
+      "key": "3",
+      "attempt": 2,
+      "pid": 32708,
+      "at": 1792922992.694947
+    },
+    {
+      "kind": "succeeded",
+      "key": "3",
+      "attempt": 2,
+      "pid": 32708,
+      "at": 1792922992.6965005
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 1,
+      "pid": 53084,
+      "at": 1792922993.1582546
+    },
+    {
+      "kind": "failed",
+      "key": "4",
+      "attempt": 1,
+      "pid": 53084,
+      "at": 1792922993.1597319
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 2,
+      "pid": 45320,
+      "at": 1792922994.3652003
+    },
+    {
+      "kind": "start",
+      "key": "4",
+      "attempt": 3,
+      "pid": 34876,
+      "at": 1792923000.9350839
+    },
+    {
+      "kind": "succeeded",
+      "key": "4",
+      "attempt": 3,
+      "pid": 34876,
+      "at": 1792923000.9366379
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

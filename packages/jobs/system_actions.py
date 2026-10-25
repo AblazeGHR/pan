@@ -266,8 +266,12 @@ async def execute(action, params, context, progress):
     if kind == 'main-lifecycle':
         raise PermissionError('Main lifecycle requires its existing protected supervisor entry point')
     if kind == 'background-process':
-        child = await io(jobs.start, params['sessionId'], params['argv'], params['cwd'],
-                         hide_window=params.get('hideWindow', True), name=context['jobName'], registry_root=root)
+        parent = await io(jobs.get, context['jobId'], root)
+        if parent and parent.get('legacyCompat') == kind:
+            child = await io(jobs.start_action_process, context['jobId'], context['id'], registry_root=root)
+        else:
+            child = await io(jobs.start, params['sessionId'], params['argv'], params['cwd'],
+                             hide_window=params.get('hideWindow', True), name=context['jobName'], registry_root=root)
         await progress(processJobId=child['jobId'])
         result = await wait_process(child, root)
     elif kind in ('session-message', 'session-broadcast'):
@@ -280,7 +284,10 @@ async def execute(action, params, context, progress):
                 continue  # A known or uncertain receipt is never sent again.
             guard=getattr(progress,'before_effect',None)
             if guard:await guard()
-            try:result = await jobs._worker.send_session(sid, params['text'], source='automation')
+            parent = await io(jobs.get, context['jobId'], root)
+            metadata = ({'source': parent.get('source', 'agent'), 'source_session_id': parent.get('sourceSessionId')}
+                        if parent and parent.get('legacyCompat') == kind else {'source': 'automation'})
+            try:result = await jobs._worker.send_session(sid, params['text'], **metadata)
             except Exception as exc:result={'status':'unknown','error':str(exc)}
             results.append({'sessionId': sid, **result})
             await progress(targetResults=copy.deepcopy(results))

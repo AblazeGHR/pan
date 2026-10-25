@@ -72,7 +72,8 @@ async def _switch(request, task_id):
 async def _legacy_update(request, task_id, patch):
     svc = _compat(request)
     bridge = getattr(svc, 'scheduler_compat', None) if svc else None
-    return await bridge.update(task_id, patch) if bridge else None
+    job = scheduler_store._job_for_task(task_id)
+    return await bridge.update(task_id, patch) if bridge and job and job.get('legacySchedulerCompat') else None
 
 # 注入的 WS 广播函数（server.py → bind(broadcast=broadcast)）
 _state: dict = {"broadcast": None}
