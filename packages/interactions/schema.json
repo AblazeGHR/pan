@@ -52,117 +52,14 @@
       }
     },
     "Definition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "title",
-        "body"
-      ],
-      "properties": {
-        "title": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500
+      "oneOf": [
+        {
+          "$ref": "#/$defs/DefinitionV1"
         },
-        "body": {
-          "type": "string",
-          "maxLength": 32000
-        },
-        "answerInput": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "label": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "maxLength": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 32000
-            }
-          }
-        },
-        "choices": {
-          "type": "array",
-          "maxItems": 32,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "id",
-              "label"
-            ],
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/Id"
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 500
-              },
-              "triggerRef": {
-                "$ref": "#/$defs/TriggerRef"
-              }
-            }
-          }
-        },
-        "notification": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "title": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "summary": {
-              "type": "string",
-              "maxLength": 1000
-            },
-            "tag": {
-              "$ref": "#/$defs/Id"
-            }
-          }
-        },
-        "correlation": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "job": {
-              "$ref": "#/$defs/JobRef"
-            },
-            "trigger": {
-              "$ref": "#/$defs/TriggerRef"
-            }
-          }
-        },
-        "summaryBody": {
-          "type": "string",
-          "maxLength": 32000
-        },
-        "attachments": {
-          "type": "array",
-          "maxItems": 64,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "id",
-              "name"
-            ],
-            "properties": {
-              "id": {
-                "$ref": "#/$defs/Id"
-              },
-              "name": {
-                "type": "string",
-                "maxLength": 500
-              }
-            }
-          }
+        {
+          "$ref": "#/$defs/DefinitionV2"
         }
-      }
+      ]
     },
     "Create": {
       "type": "object",
@@ -212,6 +109,13 @@
         },
         "choiceId": {
           "$ref": "#/$defs/Id"
+        },
+        "answers": {
+          "$ref": "#/$defs/Answers"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 32000
         }
       }
     },
@@ -248,6 +152,9 @@
             "submit",
             "reject"
           ]
+        },
+        "answers": {
+          "$ref": "#/$defs/Answers"
         }
       }
     },
@@ -288,9 +195,17 @@
         "createdAt"
       ],
       "properties": {
-        "relatedMessageId": {"type": ["string", "null"]},
+        "relatedMessageId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "schemaVersion": {
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "id": {
           "$ref": "#/$defs/Id"
@@ -347,7 +262,17 @@
         "trustedChoices": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/ExecutionBinding"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ExecutionBinding"
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/ExecutionBinding"
+                }
+              }
+            ]
           }
         }
       }
@@ -413,6 +338,12 @@
             },
             "executionBinding": {
               "$ref": "#/$defs/ExecutionBinding"
+            },
+            "questionId": {
+              "$ref": "#/$defs/Id"
+            },
+            "choiceId": {
+              "$ref": "#/$defs/Id"
             }
           }
         }
@@ -829,6 +760,359 @@
           }
         }
       ]
+    },
+    "Question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "prompt",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "type": {
+          "enum": [
+            "single_choice",
+            "multi_choice",
+            "text"
+          ]
+        },
+        "required": {
+          "type": "boolean",
+          "default": true
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "triggerRef": {
+                "$ref": "#/$defs/TriggerRef"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "choices"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "choices"
+            ]
+          }
+        }
+      ]
+    },
+    "DefinitionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "body"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "answerInput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32000
+            }
+          }
+        },
+        "choices": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "triggerRef": {
+                "$ref": "#/$defs/TriggerRef"
+              }
+            }
+          }
+        },
+        "notification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "tag": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "job": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "trigger": {
+              "$ref": "#/$defs/TriggerRef"
+            }
+          }
+        },
+        "summaryBody": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "schemaVersion": {
+          "const": 1
+        }
+      }
+    },
+    "DefinitionV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "title",
+        "questions"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "notification": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "tag": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        "correlation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "job": {
+              "$ref": "#/$defs/JobRef"
+            },
+            "trigger": {
+              "$ref": "#/$defs/TriggerRef"
+            }
+          }
+        },
+        "summaryBody": {
+          "type": "string",
+          "maxLength": 32000
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "schemaVersion": {
+          "const": 2
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/Question"
+          }
+        }
+      }
+    },
+    "Answer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rejected"
+          ],
+          "properties": {
+            "rejected": {
+              "const": true
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "choiceId"
+          ],
+          "properties": {
+            "choiceId": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "choiceIds"
+          ],
+          "properties": {
+            "choiceIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/Id"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Answers": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "$ref": "#/$defs/Id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Answer"
+      }
     }
   },
   "$ref": "#/$defs/Card"

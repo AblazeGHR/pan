@@ -1,0 +1,84 @@
+
+> pan-web@ build <WORKTREE>\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2550 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) <WORKTREE>/packages/web/src/stores/automationStore.ts is dynamically imported by <WORKTREE>/packages/web/src/services/api.ts, <WORKTREE>/packages/web/src/services/api.ts but also statically imported by <WORKTREE>/packages/web/src/components/automation/JobUserAuthorization.tsx, <WORKTREE>/packages/web/src/components/automation/PauseTemplate.tsx, <WORKTREE>/packages/web/src/components/automation/RunList.tsx, <WORKTREE>/packages/web/src/components/automation/TriggerEditor.tsx, <WORKTREE>/packages/web/src/components/jobs/JobTemplateEditor.tsx, <WORKTREE>/packages/web/src/components/layout/AuthorizationSettings.tsx, <WORKTREE>/packages/web/src/components/layout/ViewEntryBadge.tsx, <WORKTREE>/packages/web/src/views/ActionsView.tsx, <WORKTREE>/packages/web/src/views/AutomationView.tsx, <WORKTREE>/packages/web/src/views/JobsView.tsx, <WORKTREE>/packages/web/src/views/LockerMessageRow.tsx, <WORKTREE>/packages/web/src/views/LockerView.tsx, <WORKTREE>/packages/web/src/views/UserCardRow.tsx, <WORKTREE>/packages/web/src/views/lockerModel.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) <WORKTREE>/packages/web/src/router.tsx is dynamically imported by <WORKTREE>/packages/web/src/utils/session-deeplink.ts but also statically imported by <WORKTREE>/packages/web/src/main.tsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../dist/index.html                                   1.44 kB │ gzip:   0.67 kB
+../dist/assets/MarkdownRenderer-BEHUn5zE.css         1.32 kB │ gzip:   0.61 kB
+../dist/assets/ActionsView-5rGcqsPE.css              2.11 kB │ gzip:   0.75 kB
+../dist/assets/xterm-6GBZ9nXN.css                    5.24 kB │ gzip:   1.92 kB
+../dist/assets/LockerView-By-pSOu5.css              12.76 kB │ gzip:   2.58 kB
+../dist/assets/index-CmNSYuU3.css                  117.36 kB │ gzip:  19.61 kB
+../dist/assets/check-h7ch4cbY.js                     0.34 kB │ gzip:   0.28 kB │ map:     0.86 kB
+../dist/assets/arrow-left-DxK1CQtT.js                0.39 kB │ gzip:   0.30 kB │ map:     0.99 kB
+../dist/assets/user-round-BQw_flRt.js                0.40 kB │ gzip:   0.32 kB │ map:     1.03 kB
+../dist/assets/play-D5N-cFKz.js                      0.41 kB │ gzip:   0.32 kB │ map:     0.96 kB
+../dist/assets/pause-D8j51YLi.js                     0.43 kB │ gzip:   0.31 kB │ map:     1.12 kB
+../dist/assets/copy-BedcmyVS.js                      0.45 kB │ gzip:   0.34 kB │ map:     1.10 kB
+../dist/assets/download-BBPLgw9r.js                  0.45 kB │ gzip:   0.33 kB │ map:     1.12 kB
+../dist/assets/globe-CaD2B9OZ.js                     0.46 kB │ gzip:   0.33 kB │ map:     1.13 kB
+../dist/assets/external-link-C4hGquYn.js             0.48 kB │ gzip:   0.34 kB │ map:     1.16 kB
+../dist/assets/file-ChKFEvcL.js                      0.49 kB │ gzip:   0.35 kB │ map:     1.10 kB
+../dist/assets/useSessionWorkspace-x4AQn0lT.js       0.49 kB │ gzip:   0.32 kB │ map:     2.35 kB
+../dist/assets/shield-check-BWvFGeyw.js              0.54 kB │ gzip:   0.39 kB │ map:     1.20 kB
+../dist/assets/refresh-cw-1joW5ltf.js                0.55 kB │ gzip:   0.37 kB │ map:     1.28 kB
+../dist/assets/clipboard-Bka3b3-h.js                 0.61 kB │ gzip:   0.39 kB │ map:     2.05 kB
+../dist/assets/sliders-horizontal-Cffkd5jG.js        0.66 kB │ gzip:   0.38 kB │ map:     1.74 kB
+../dist/assets/terminal-BdKMddFh.js                  0.86 kB │ gzip:   0.45 kB │ map:     2.12 kB
+../dist/assets/FreshnessStatus-B84S4JfO.js           1.20 kB │ gzip:   0.66 kB │ map:     3.59 kB
+../dist/assets/qqContactSearch-hULCNyda.js           1.33 kB │ gzip:   0.74 kB │ map:     3.03 kB
+../dist/assets/JobUserAuthorization-Crf1BdFc.js      1.52 kB │ gzip:   0.86 kB │ map:     3.52 kB
+../dist/assets/ManageView-ENiDi9u8.js                1.68 kB │ gzip:   0.87 kB │ map:     4.81 kB
+../dist/assets/PluginSelection-CdcxfQbi.js           1.89 kB │ gzip:   0.94 kB │ map:     4.95 kB
+../dist/assets/DetailPanel-ChqISWzT.js               2.57 kB │ gzip:   1.17 kB │ map:     6.71 kB
+../dist/assets/CodeEditor-Chg2pC7G.js                2.59 kB │ gzip:   1.28 kB │ map:     8.25 kB
+../dist/assets/codexRateLimits-D0VsjuO0.js           2.75 kB │ gzip:   1.14 kB │ map:    11.09 kB
+../dist/assets/messageFilter-BwaB5hLV.js             3.15 kB │ gzip:   1.62 kB │ map:    22.25 kB
+../dist/assets/NativeTerminal-CuRCE1oT.js            3.23 kB │ gzip:   1.66 kB │ map:    11.90 kB
+../dist/assets/editorFileLinks-DbeUbjrD.js           3.73 kB │ gzip:   1.73 kB │ map:    16.56 kB
+../dist/assets/nativeControlStore-CU8YheAt.js        3.74 kB │ gzip:   1.32 kB │ map:    13.48 kB
+../dist/assets/DirectoryInput-l2girVVG.js            5.39 kB │ gzip:   2.07 kB │ map:    21.61 kB
+../dist/assets/JobRetentionSettings-Bhkd3FDe.js      6.61 kB │ gzip:   2.53 kB │ map:    17.94 kB
+../dist/assets/PostboxModal-MVSgmFd0.js              9.77 kB │ gzip:   3.44 kB │ map:    34.40 kB
+../dist/assets/EditorDirectoryRoots-CLaXihdv.js     11.55 kB │ gzip:   4.22 kB │ map:    36.75 kB
+../dist/assets/GlobalHistorySearch-CRP9cuVf.js      11.62 kB │ gzip:   4.01 kB │ map:    42.07 kB
+../dist/assets/EditorView-CWK1guVQ.js               13.25 kB │ gzip:   4.56 kB │ map:    38.20 kB
+../dist/assets/SessionDetailsModal-nLN8Psi2.js      13.69 kB │ gzip:   4.68 kB │ map:    45.29 kB
+../dist/assets/SessionHistorySearch-BCyo8VRz.js     14.56 kB │ gzip:   5.14 kB │ map:    46.45 kB
+../dist/assets/monaco-vendor-fGo_w72f.js            14.96 kB │ gzip:   5.18 kB │ map:    48.03 kB
+../dist/assets/ScheduleListEditor-DTRjGKx_.js       16.81 kB │ gzip:   5.36 kB │ map:    58.19 kB
+../dist/assets/TerminalPanel-nVm4Gd_s.js            17.84 kB │ gzip:   6.85 kB │ map:    46.28 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+../dist/assets/ImportModal-CKkLcg7U.js              18.62 kB │ gzip:   4.56 kB │ map:    67.75 kB
+../dist/assets/PluginPanelView-Y_2Pka1Y.js          19.63 kB │ gzip:   7.45 kB │ map:    64.79 kB
+../dist/assets/AutomationView-C_AN7Tsc.js           25.49 kB │ gzip:   7.75 kB │ map:    63.92 kB
+../dist/assets/NewJobForm-CFDFs7Xq.js               25.87 kB │ gzip:   7.45 kB │ map:    87.81 kB
+../dist/assets/ManageModal-yw2OyOcN.js              27.73 kB │ gzip:   8.08 kB │ map:    93.27 kB
+../dist/assets/SessionOperationFields-BlK41iC4.js   27.95 kB │ gzip:   9.01 kB │ map:    72.80 kB
+../dist/assets/NewSessionModal-CIVTJXsN.js          28.64 kB │ gzip:   8.23 kB │ map:    87.60 kB
+../dist/assets/MarkdownRenderer-BEGRn8fm.js         35.78 kB │ gzip:  11.88 kB │ map:   131.42 kB
+../dist/assets/LockerView-DK4DbEJU.js               36.94 kB │ gzip:  12.07 kB │ map:   121.96 kB
+../dist/assets/JobsView-FnKyysCd.js                 69.19 kB │ gzip:  18.39 kB │ map:   192.22 kB
+../dist/assets/ActionsView-CeHTz2aJ.js              72.22 kB │ gzip:  18.24 kB │ map:   204.04 kB
+../dist/assets/AppSettingsModal-BSPAfRp9.js        125.51 kB │ gzip:  32.99 kB │ map:   339.76 kB
+../dist/assets/ChatView-Cg5BtKfs.js                246.09 kB │ gzip:  74.19 kB │ map:   966.66 kB
+../dist/assets/react-vendor-DZ42Ocw1.js            288.18 kB │ gzip:  92.33 kB │ map: 1,477.37 kB
+../dist/assets/xterm-XOw-FC4b.js                   334.26 kB │ gzip:  84.78 kB │ map:   697.29 kB
+../dist/assets/index-DVkVnqYB-pc2.js               433.77 kB │ gzip: 127.41 kB │ map: 1,785.46 kB
+../dist/assets/markdown-vendor-B3UHhm0a.js         602.56 kB │ gzip: 181.56 kB │ map: 2,598.33 kB
+✓ built in 9.32s
+Verified 90 compressed production assets

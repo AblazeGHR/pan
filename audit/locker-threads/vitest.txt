@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 <WORKTREE>/packages/web/src
+
+ ✓ views/lockerModel.auth.test.ts (2 tests) 3ms
+ ✓ views/LockerView.test.tsx (36 tests) 3682ms
+   ✓ renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render 599ms
+
+ Test Files  2 passed (2)
+      Tests  38 passed (38)
+   Start at  20:53:22
+   Duration  6.28s (transform 411ms, setup 17ms, collect 808ms, tests 3.69s, environment 642ms, prepare 268ms)
+

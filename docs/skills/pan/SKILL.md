@@ -1,6 +1,6 @@
 ---
 name: pan
-description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。执行预计超过 3 分钟的长命令（全量测试、build、长脚本等）前自主判断是否改用持久后台 Job（agent_background_start）并核验终态通知时同样适用。
+description: Pan CLI Agent 编排中间层——冷启动操作手册。通过 MCP 工具管理 Session（持久编排对象，承载 meta-agent/MA 或 task-agent/TA 身份）及其 Worker 进程（cbc/kimi/opencode/claude/codex 等多 CLI adapter）。当需要创建会话、并行派发任务（agent_assign）、订阅完成通知（report_subscribe → queue_pending）、读取结果、清理 session 或了解 Pan 编排坑与约定时使用。收到未答卡片提醒（user card reminder）需要查询或回答用户卡片时同样适用。执行预计超过 3 分钟的长命令（全量测试、build、长脚本等）前自主判断是否改用持久后台 Job（agent_background_start）并核验终态通知时同样适用。
 ---
 
 # Pan — CLI Agent 编排中间层（冷启动操作手册）

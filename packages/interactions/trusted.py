@@ -25,9 +25,21 @@ def scope(producer_id, owner_id, ids):
             'basis': 'self_or_managed' if restricted else 'existing_unrestricted', 'targetIds': ids}
 
 
+def all_choices(definition):
+    if definition.get('schemaVersion', 1) == 2:
+        for question in definition['questions']:
+            for choice in question.get('choices', []):
+                if choice.get('triggerRef'):
+                    yield question['id'], choice
+    else:
+        for choice in definition.get('choices', []):
+            if choice.get('triggerRef'):
+                yield None, choice
+
+
 def resolve(service, request):
     """Read definitions under existing writers; persist result only with the Card."""
-    choices = [c for c in request['card'].get('choices', []) if c.get('triggerRef')]
+    choices = list(all_choices(request['card']))
     if not choices:
         return {}
     if service is None or not service.started or service.stopping:
@@ -36,7 +48,7 @@ def resolve(service, request):
     with service.ledger.lock, actions_lock:
         triggers = service.ledger.read()['triggers']
         actions = service.engine.actions.read()['actions']
-        for choice in choices:
+        for question_id, choice in choices:
             ref = choice['triggerRef']
             trigger = triggers.get(ref['id'])
             if not trigger or not trigger['enabled'] or 'pan.interaction.responded' not in trigger['eventTypes']:
@@ -52,7 +64,8 @@ def resolve(service, request):
                 raise InteractionError('incomplete', 'Choice requires provable fixed Session targets')
             ids = list(dict.fromkeys(execution['selector']['ids']))
             authorization = scope(request.get('producerSessionId', request['ownerSessionId']), request['ownerSessionId'], ids)
-            result[choice['id']] = copy.deepcopy(dict(version=1, triggerId=trigger['id'],
+            target = result.setdefault(question_id, {}) if question_id is not None else result
+            target[choice['id']] = copy.deepcopy(dict(version=1, triggerId=trigger['id'],
                 triggerRevision=trigger['revision'], triggerDigest=digest(trigger), actionId=action['id'],
                 actionDigest=digest(action), action=action, arguments=trigger.get('arguments', {}),
                 selector=execution['selector'], authorization=authorization,
@@ -71,7 +84,7 @@ def create(service, store, request, *, producer_id=None):
         return store.create(request, producer_id=producer_id)
     from .related_context import previous_user_message_id
     related = previous_user_message_id(request['ownerSessionId']) if producer_id else None
-    if not any(c.get('triggerRef') for c in request['card'].get('choices', [])):
+    if not any(all_choices(request['card'])):
         return store.create(request, producer_id=producer_id, related_message_id=related)
     if service is None:
         raise InteractionError('incomplete', 'Trigger host unavailable')

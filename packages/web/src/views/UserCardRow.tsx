@@ -4,6 +4,7 @@ import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { attachmentMarkdown, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
+import { CardIdChip } from './CardIdChip';
 import { lockerRequest, type UserCard, type Locker } from './lockerModel';
 
 export interface UserCardRowState {
@@ -153,6 +154,7 @@ export function UserCardRow({
           {error}
         </p>
       )}
+      <CardIdChip id={card.id} testId="reminding-card-id" kind="reminding" />
     </article>
   );
 }

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useViewEntries } from './viewEntries';
-import { ViewEntryBadge, ViewEntryDirectionDot, useLockerUnread } from './ViewEntryBadge';
+import { ViewEntryBadge, ViewEntryDirectionDot } from './ViewEntryBadge';
+import { useLockerUnread } from '@/stores/lockerUnreadStore';
 import { useSessionStore } from '@/stores/sessionStore';
 
 export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
