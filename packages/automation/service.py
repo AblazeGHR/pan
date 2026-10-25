@@ -25,6 +25,9 @@ class Service:
         self.bus.register(self.core, 'workers.all_idle', {'type': 'object', 'properties': {'runningCount': {'const': 0}}, 'required': ['runningCount'], 'additionalProperties': False})
         self.issue_runtime = self.bus.activate('core', 'runtime')
         self.bus.register(self.issue_runtime, 'runtime.issue.v1', runtime_issue_event_schema())
+        from packages.scheduler.time_events import EVENT_TYPE, PAYLOAD_SCHEMA
+        self.scheduler_handle=self.bus.activate('core','scheduler')
+        self.bus.register(self.scheduler_handle,EVENT_TYPE,PAYLOAD_SCHEMA)
         async def state_reader(key):
             if key == 'workers.runningCount':
                 return sum(w.status == 'running' for w in worker.workers.values())
@@ -148,9 +151,12 @@ class Service:
                 # The inbox may have expired while Run dedup is still retained.
                 # Preserve its original envelope; do not reset any Run/Attempt.
                 event = retained[0]
-            targets = [t for t in state['triggers'].values() if t['enabled'] and event['type'] in t['eventTypes'] and self.engine.available(t)]
+            # Snapshot every subscription, including non-executing admissions.
+            targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] else
+                       'unavailable' if not self.engine.available(t) else 'eligible'}
+                       for t in state['triggers'].values() if event['type'] in t['eventTypes']]
             if self.job_runtime:
-                targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type']))
+                targets.extend(await self.engine.io(self.job_runtime.event_targets,event['type'],True))
             try:
                 receipt = await self.engine.io(self.events.append, event, targets)
                 if retained:
@@ -159,7 +165,60 @@ class Service:
                 self.diagnostic('event-admission', exc, event['id'])
                 raise
             self.wake.set()
+            receipt['persisted']=True
             return receipt
+
+    async def accept_time(self,event):
+        prepared=self.bus.prepare(self.scheduler_handle,event['type'],event['payload'],event['id'])
+        prepared['occurredAt']=event['occurredAt']
+        return await self.accept(prepared,self.scheduler_handle)
+
+    async def deliver(self,row,errors_batch=None):
+        """Each persisted subscription settles independently; retry only gaps."""
+        import copy
+        event=row['event']; eid=event['id']
+        receipts=await self.engine.io(self.events.subscription_receipts,eid)
+        errors=[]
+        if not row['targets']:
+            await self.engine.match(copy.deepcopy(event),targets=[],strict=True)
+        for target in row['targets']:
+            key=('job:'+target['jobId']) if target.get('_job') else 'trigger:'+target['id']
+            if receipts.get(key,{}).get('status') not in (None,'error'):continue
+            try:
+                admission=target.get('_admissionStatus','eligible')
+                if admission!='eligible':
+                    await self.engine.io(self.events.subscription,eid,key,admission,revision=target.get('revision'))
+                    continue
+                if target.get('_job'):
+                    if not self.job_runtime:raise ValueError('Job Event runtime unavailable')
+                    await self.job_runtime.match_event(copy.deepcopy(event),[copy.deepcopy(target)])
+                    job=await self.engine.io(self.job_runtime.get,target['jobId'])
+                    result=job.get('eventReceipts',{}).get(eid,{'status':'cancelled'})
+                    await self.engine.io(self.events.subscription,eid,key,'admitted',result=result,revision=target['configRevision'])
+                else:
+                    if not self.engine.available(target):raise ValueError('Event dependency unavailable')
+                    await self.engine.match(copy.deepcopy(event),targets=[copy.deepcopy(target)],strict=True)
+                    state=await self.engine.io(self.ledger.read)
+                    run=next((r for r in state['runs'].values() if r['event']['id']==eid and r['triggerId']==target['id']),None)
+                    if not run:raise ValueError('Subscription has no durable admission result')
+                    await self.engine.io(self.events.subscription,eid,key,'admitted',runId=run['id'],admissionResult=run['status'],revision=target['revision'])
+            except Exception as exc:
+                errors.append(str(exc))
+                if errors_batch is not None:errors_batch.append((eid,key,str(exc)))
+                else:
+                    try:await self.engine.io(self.events.subscription,eid,key,'error',error=str(exc)[:1000])
+                    except Exception as write_error:self.diagnostic('subscription-receipt',write_error,eid)
+        if errors:raise ValueError('; '.join(errors))
+
+    async def event_page(self,after,limit,include_execution=False):
+        page=await self.engine.io(self.events.page,after,limit)
+        if not include_execution:return page
+        state=await self.engine.io(self.ledger.read)
+        for row in page['events']:
+            for receipt in row.get('subscriptions',{}).values():
+                run=state['runs'].get(receipt.get('runId'))
+                if run:receipt['execution']={k:run[k] for k in ('status','result','error') if k in run}
+        return page
 
     async def ingest_core(self):
         while True:
@@ -195,15 +254,14 @@ class Service:
                     maintenance_at = loop.time() + 60
                 batch = await self.engine.io(self.events.pending, 64, cursor)
                 delivery_errors = []
+                subscription_errors=[]
                 try:
                     for row in batch:
                         cursor = row['seq']
                         if self.stopping:
                             return
                         try:
-                            await self.engine.match(row['event'], targets=[t for t in row['targets'] if not t.get('_job')], strict=True)
-                            if self.job_runtime:
-                                await self.job_runtime.match_event(row['event'],[t for t in row['targets'] if t.get('_job')])
+                            await self.deliver(row,subscription_errors)
                             # Notifications remain best effort; durable inbox delivery
                             # guarantees Trigger matching, not plugin delivery receipts.
                             self.bus._fanout(row['event'])
@@ -217,6 +275,8 @@ class Service:
                             # before independent events on the next page can run.
                             delivery_errors.append((row['event']['id'], str(exc)))
                 finally:
+                    if subscription_errors:
+                        await self.engine.io(self.events.subscription_errors,subscription_errors)
                     if delivery_errors:
                         await self.engine.io(self.events.delivery_errors, delivery_errors)
                 cycle_retry = cycle_retry or retry
@@ -281,6 +341,10 @@ class Service:
         if self.stopping:
             return
         self.started = True
+        from packages.scheduler.time_events import Sources, Runtime as TimeEvents
+        self.time_sources=Sources(data_root())
+        async def acknowledged(event_id):await self.engine.io(self.events.release_pin,event_id)
+        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged)
         self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
         self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
         self.worker.set_running_observer(self.observe)

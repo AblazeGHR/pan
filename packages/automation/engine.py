@@ -42,6 +42,11 @@ async def evaluate(condition, reader, cache):
     return ops[condition['op']](cache[key], condition['value'])
 
 
+def matches_event(filters,event):
+    try:return all(field(event,path)==value for path,value in filters.items())
+    except (KeyError,TypeError):return False
+
+
 def arguments(mapping, event):
     values = {}
     for key, binding in mapping.items():
@@ -143,6 +148,8 @@ class Engine:
                     await self._check_authorization(run['authorization'])
                     if obsolete:
                         run.update(status='cancelled', finishedAt=now(), error='Trigger changed before event delivery')
+                    elif not matches_event(trigger.get('eventFilter',{}),event):
+                        run.update(status='skipped', finishedAt=now(), error='Event filter did not match')
                     elif pending >= self.max_pending:
                         self.diagnostics.append(dict(eventId=event['id'], triggerId=trigger['id'], phase='capacity', error='Trigger backlog full', at=now()))
                         raise ValueError('Trigger backlog full')

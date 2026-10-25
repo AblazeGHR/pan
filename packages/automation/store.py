@@ -49,7 +49,7 @@ class Ledger:
     def put(self, raw, expected, authorized=False, creator=None, authority=None):
         def change(state):
             item = copy.deepcopy(raw)
-            allowed = {'id', 'name', 'description', 'eventTypes', 'condition', 'actionId', 'arguments', 'steps', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
+            allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
             if set(item) - allowed:
                 raise ValueError('Unknown Trigger fields')
             tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
@@ -59,6 +59,7 @@ class Ledger:
             # Older clients omit additive scheduler fields. Preserve an existing
             # explicit policy rather than silently reverting it on a name edit.
             if old:
+                if 'eventFilter' in old:item.setdefault('eventFilter',copy.deepcopy(old['eventFilter']))
                 item.setdefault('executionMode', old.get('executionMode', 'serial'))
                 if item['executionMode'] == old.get('executionMode', 'serial'):
                     item.setdefault('maxConcurrency', concurrency(old))
@@ -76,6 +77,11 @@ class Ledger:
             events = item.get('eventTypes')
             if not isinstance(events, list) or not events or any(not isinstance(e, str) for e in events):
                 raise ValueError('eventTypes must be nonempty strings')
+            filters=item.get('eventFilter',{})
+            if not isinstance(filters,dict) or len(filters)>16 or any(
+                not isinstance(k,str) or not k.startswith('payload.') or any(not part for part in k.split('.'))
+                or not isinstance(v,(str,int,float,bool,type(None))) for k,v in filters.items()):
+                raise ValueError('eventFilter requires at most16 payload paths with scalar equality values')
             item['maxConcurrency'] = concurrency(item)
             item.setdefault('executionMode', 'serial')
             if 'retry' in item and item['retry'] is None:

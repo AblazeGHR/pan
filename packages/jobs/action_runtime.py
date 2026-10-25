@@ -576,11 +576,12 @@ class Runtime:
             jobs._write_job(jobs._job_path(jid,self.root),job)
             return job
 
-    def event_targets(self,event_type):
-        return [{'_job':True,'jobId':job['jobId'],'configRevision':job['configRevision']}
-                for job in self.list() if job['enabled'] and job['config']['trigger']['kind']=='event'
+    def event_targets(self,event_type,include_inactive=False):
+        return [{'_job':True,'jobId':job['jobId'],'configRevision':job['configRevision'],
+                 **({'_admissionStatus':'disabled' if not job['enabled'] else 'unavailable' if not getattr(self,'event_available',lambda _:True)(event_type) else 'eligible'} if include_inactive else {})}
+                for job in self.list() if (include_inactive or job['enabled']) and job['config']['trigger']['kind']=='event'
                 and event_type in job['config']['trigger']['eventTypes']
-                and getattr(self,'event_available',lambda _:True)(event_type)]
+                and (include_inactive or getattr(self,'event_available',lambda _:True)(event_type))]
 
     def queue_event(self,event,target):
         jid=target['jobId']
@@ -659,6 +660,7 @@ class Runtime:
 
     async def tick(self,cfg):
         if self.closed:return
+        if getattr(self,'time_events',None):await self.time_events.tick(cfg)
         policy=getattr(self,'quota_policy',None)
         if policy is not None:
             try:await policy.tick()

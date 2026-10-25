@@ -263,9 +263,10 @@ def install(server):
             raise HTTPException(404, 'Run not found') from exc
 
     @router.get('/api/automation/events')
-    async def events(after: int = 0, limit: int = 20):
+    async def events(request:Request,after: int = 0, limit: int = 20,includeExecution:bool=False):
+        if includeExecution:await require_permission(request,'trigger','read')
         try:
-            return {**await service().engine.io(service().events.page, after, limit),
+            return {**await service().event_page(after, limit,includeExecution),
                     'storage': await service().engine.io(service().events.stats)}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc

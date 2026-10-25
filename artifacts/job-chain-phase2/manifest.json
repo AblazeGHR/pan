@@ -1,0 +1,103 @@
+{
+  "phase": 2,
+  "base": "cf9bbf3d42a43a3e9c197991926f3af46ce2c704",
+  "branch": "feature/job-chain-phase1-20261025",
+  "cwd": "D:/project/pan-worktrees/job-chain-phase1-20261025",
+  "command": "python -m pytest -q tests/test_scheduler_time_events.py tests/test_scheduler_api.py tests/test_scheduler_dispatch.py tests/test_scheduler_engine.py tests/test_scheduler_cron.py tests/test_scheduler_mcp.py tests/test_scheduler_store.py tests/test_automation_core.py tests/test_automation_concurrency.py tests/test_automation_retry_parallel.py tests/test_event_store.py tests/test_event_trigger_reliability.py tests/test_plugin_events.py tests/test_plugin_event_lifecycle.py tests/test_job_action_chain.py tests/test_automation_action_chain.py tests/test_job_action_templates.py tests/test_job_completion_recovery.py tests/test_job_system_actions.py tests/test_job_overlap.py tests/test_system_fields.py tests/test_jobs_api.py tests/test_background_job_api.py tests/test_session_message_jobs.py --junitxml=artifacts/job-chain-phase2/final.xml",
+  "environment": {
+    "PYTHONPATH": "."
+  },
+  "exitCode": 0,
+  "tests": 517,
+  "passed": 517,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "newTests": 17,
+  "existingRegressionTests": 500,
+  "countsByFile": {
+    "test_scheduler_time_events": 17,
+    "test_scheduler_api": 19,
+    "test_scheduler_dispatch": 4,
+    "test_scheduler_engine": 29,
+    "test_scheduler_cron": 43,
+    "test_scheduler_mcp": 22,
+    "test_scheduler_store": 37,
+    "test_automation_core": 20,
+    "test_automation_concurrency": 8,
+    "test_automation_retry_parallel": 50,
+    "test_event_store": 19,
+    "test_event_trigger_reliability": 15,
+    "test_plugin_events": 10,
+    "test_plugin_event_lifecycle": 18,
+    "test_job_action_chain": 31,
+    "test_automation_action_chain": 10,
+    "test_job_action_templates": 33,
+    "test_job_completion_recovery": 11,
+    "test_job_system_actions": 11,
+    "test_job_overlap": 4,
+    "test_system_fields": 13,
+    "test_jobs_api": 54,
+    "test_background_job_api": 25,
+    "test_session_message_jobs": 14
+  },
+  "experiments": {
+    "final.xml": {
+      "tests": 517,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "initial-regression.xml": {
+      "tests": 115,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "regression.xml": {
+      "tests": 513,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "second.xml": {
+      "tests": 43,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "special-final.xml": {
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "special-second.xml": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "auth-final.xml": {
+      "tests": 71,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "first.xml.gz": {
+      "tests": 43,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0
+    },
+    "special.xml.gz": {
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "diffCheckExitCode": 0,
+  "compileallExitCode": 0,
+  "interactionCardIds": []
+}

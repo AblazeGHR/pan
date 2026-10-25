@@ -26,6 +26,8 @@ from . import engine as scheduler_engine
 from . import store as scheduler_store
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
+from .event_api import router as event_sources_router
+router.include_router(event_sources_router)
 
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"

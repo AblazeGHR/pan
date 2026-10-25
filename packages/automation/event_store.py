@@ -61,6 +61,10 @@ class EventStore:
                 deliveries INTEGER NOT NULL DEFAULT 0, last_error TEXT)''')
             db.execute('CREATE INDEX IF NOT EXISTS events_pending ON events(done,seq)')
             db.execute('CREATE INDEX IF NOT EXISTS events_retention ON events(done,received)')
+            db.execute('''CREATE TABLE IF NOT EXISTS subscriptions (
+                event_id TEXT NOT NULL, target TEXT NOT NULL, receipt TEXT NOT NULL,
+                PRIMARY KEY(event_id,target))''')
+            db.execute('CREATE TABLE IF NOT EXISTS event_pins(event_id TEXT PRIMARY KEY)')
             db.execute('PRAGMA user_version=1')
 
     def append(self, event, targets):
@@ -88,6 +92,8 @@ class EventStore:
                 raise CapacityError('Event Store capacity reached; admission refused')
             db.execute('INSERT INTO events(id,fingerprint,event,targets,received,bytes) VALUES(?,?,?,?,?,?)',
                        (event['id'], fingerprint, event_json, targets_json, self.clock(), size))
+            if event['type']=='scheduler.time.v1' and event.get('source')=={'type':'core','id':'scheduler'}:
+                db.execute('INSERT OR IGNORE INTO event_pins VALUES(?)',(event['id'],))
         return {'event': event, 'duplicate': False}
 
     @staticmethod
@@ -105,11 +111,35 @@ class EventStore:
             row = db.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
             return self.decode(row) if row else None
 
+    def subscription_receipts(self, event_id):
+        with self.connection() as db:
+            return {row[0]:json.loads(row[1]) for row in db.execute(
+                'SELECT target,receipt FROM subscriptions WHERE event_id=?',(event_id,))}
+
+    def release_pin(self,event_id):
+        with self.connection() as db:db.execute('DELETE FROM event_pins WHERE event_id=?',(event_id,))
+
+    def subscription(self,event_id,target,status,**fields):
+        receipt=dict(status=status,**fields)
+        with self.connection() as db:
+            if not db.execute('SELECT 1 FROM events WHERE id=?',(event_id,)).fetchone():
+                raise ValueError('Subscription requires admitted Event')
+            db.execute('INSERT OR REPLACE INTO subscriptions VALUES(?,?,?)',
+                       (event_id,target,json.dumps(receipt,ensure_ascii=False,allow_nan=False)))
+        return receipt
+
+    def subscription_errors(self,rows):
+        with self.connection() as db:
+            db.executemany('INSERT OR REPLACE INTO subscriptions VALUES(?,?,?)',
+                [(eid,key,json.dumps({'status':'error','error':str(error)[:1000]})) for eid,key,error in rows])
+
     def page(self, after=0, limit=20):
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= BATCH:
             raise ValueError('after must be nonnegative; limit must be 1..100')
         with self.connection() as db:
             rows = [self.decode(r) for r in db.execute('SELECT * FROM events WHERE seq>? ORDER BY seq LIMIT ?', (after, limit))]
+            for row in rows:
+                row['subscriptions']={r[0]:json.loads(r[1]) for r in db.execute('SELECT target,receipt FROM subscriptions WHERE event_id=?',(row['event']['id'],))}
         return {'events': rows, 'nextAfter': rows[-1]['seq'] if rows else after}
 
     def delivery(self, event_id, *, done=False, error=None):
@@ -137,7 +167,8 @@ class EventStore:
     def maintenance(self):
         with self.connection() as db:
             # Never silently discard undelivered facts to meet retention/capacity.
-            deleted = db.execute('DELETE FROM events WHERE done=1 AND received<?', (self.clock()-self.retention,)).rowcount
+            deleted = db.execute('DELETE FROM events WHERE done=1 AND received<? AND id NOT IN (SELECT event_id FROM event_pins)', (self.clock()-self.retention,)).rowcount
+            db.execute('DELETE FROM subscriptions WHERE event_id NOT IN (SELECT id FROM events)')
             return {'deletedEvents': deleted, 'retainedIds': {r[0] for r in db.execute('SELECT id FROM events')}}
 
     def stats(self):
