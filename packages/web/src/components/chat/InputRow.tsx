@@ -2064,7 +2064,7 @@ export function InputRow() {
       <div
         data-testid="send-queue-anchor"
         className={
-          isMobile && mobileFullscreen && !queueEditActive ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-20'
+          isMobile && mobileFullscreen && !queueEditActive ? 'shrink-0' : 'absolute inset-x-0 bottom-full z-40'
         }
       >
         <SendQueuePanel remindingCardMode={cardMode} onNewRemindingCard={() => {
@@ -2803,7 +2803,7 @@ export function InputRow() {
                   Steer
                 </button>
               )}
-              <div className={`flex flex-col items-end ${cardMode ? 'min-w-[88px] gap-0 lg:-translate-y-10' : 'gap-1'}`}>
+              <div className={`flex flex-col items-end ${cardMode ? 'min-w-[88px] gap-1' : 'gap-1'}`}>
                 <button
                   ref={sendButtonRef}
                   type="button"
@@ -2815,7 +2815,7 @@ export function InputRow() {
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
                       : `${cardMode ? 'create' : lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
-                    className={`${cardMode ? 'max-w-[142px] px-3 py-0.5 text-[11px] sm:max-w-none sm:text-sm' : 'px-4 py-2'} rounded border-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
+                    className={`${cardMode ? 'h-6 max-w-[142px] px-2 py-0 text-xs leading-none sm:max-w-none' : 'px-4 py-2'} rounded border-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
@@ -2824,7 +2824,7 @@ export function InputRow() {
                 </button>
                 {cardMode && (
                   <button type="button" onClick={() => setCardMode(false)}
-                    className="w-full rounded border border-border-default px-3 py-0.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50">
+                    className="h-6 w-full rounded border border-border-default px-2 py-0 text-xs leading-none font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50">
                     cancel
                   </button>
                 )}

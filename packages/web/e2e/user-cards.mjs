@@ -30,10 +30,47 @@ try {
   await page.getByRole('button',{name:'Navigate to chat',exact:true}).first().click();
   await page.locator('#send-queue-button').click();
   await expect(page.getByRole('button',{name:'create reminding card',exact:true})).toBeVisible();
+  await page.screenshot({path:`${out}/composer-queue-open-1440.png`});
+  const queueActionRect = await page.getByRole('button',{name:'create reminding card',exact:true}).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};
+  });
+  expect(queueActionRect.height).toBeGreaterThan(0);
+  expect(queueActionRect.top).toBeGreaterThanOrEqual(0);
+  expect(queueActionRect.bottom).toBeLessThanOrEqual(1000);
   const entry = page.getByRole('button', {name:'create reminding card',exact:true});
   await expect(entry).toBeEnabled();
   await entry.click();
   await expect(page.getByRole('button',{name:'create',exact:true})).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const r = document.querySelector(selector)?.getBoundingClientRect();
+      return r ? {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height} : null;
+    };
+    return {
+      composer: rect('[data-testid="input-row"]'),
+      kind: rect('[data-testid="reminding-card-kind-row"]'),
+      editor: rect('[data-testid="rich-text-composer"]'),
+      create: rect('button[title^="create ("]'),
+      cancel: (() => {
+        const button = [...document.querySelectorAll('button')].find((candidate) => candidate.textContent?.trim() === 'cancel');
+        if (!button) return null;
+        const r = button.getBoundingClientRect();
+        return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};
+      })(),
+    };
+  });
+  expect(geometry.composer && geometry.kind && geometry.editor && geometry.create && geometry.cancel).toBeTruthy();
+  expect(geometry.composer.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.composer.bottom).toBeLessThanOrEqual(1000);
+  for (const key of ['kind','editor','create','cancel']) {
+    const r = geometry[key];
+    expect(r.top).toBeGreaterThanOrEqual(geometry.composer.top);
+    expect(r.bottom).toBeLessThanOrEqual(geometry.composer.bottom);
+  }
+  expect(geometry.create.bottom).toBeLessThanOrEqual(geometry.cancel.top);
+  expect(geometry.kind.bottom).toBeLessThanOrEqual(geometry.editor.top);
+  evidence.desktopGeometry = geometry;
   const editor = page.getByTestId('rich-text-composer');
   await editor.fill('## Review the implementation\n\nPlease explain how the reminder respects Illegal and Pause.');
   await page.getByTestId('client-attachment-input').setInputFiles({name:'review-notes.txt',mimeType:'text/plain',buffer:Buffer.from('Visual acceptance evidence')});

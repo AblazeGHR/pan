@@ -1854,7 +1854,7 @@ describe('InputRow responsive composer controls', () => {
     const anchor = screen.getByTestId('send-queue-anchor');
     expect(anchor.className).toContain('absolute');
     expect(anchor.className).toContain('bottom-full');
-    expect(anchor.className).toContain('z-20');
+    expect(anchor.className).toContain('z-40');
     expect(root.getAttribute('style')).toContain('height: 120px');
     expect(screen.getByPlaceholderText(/Type a message/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();

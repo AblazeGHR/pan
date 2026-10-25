@@ -32,6 +32,48 @@
     }
   ],
   "errors": [],
+  "desktopGeometry": {
+    "composer": {
+      "top": 820,
+      "bottom": 1000,
+      "left": 280,
+      "right": 1440,
+      "width": 1160,
+      "height": 180
+    },
+    "kind": {
+      "top": 873,
+      "bottom": 899.5,
+      "left": 292,
+      "right": 1428,
+      "width": 1136,
+      "height": 26.5
+    },
+    "editor": {
+      "top": 907.5,
+      "bottom": 988,
+      "left": 292,
+      "right": 1336,
+      "width": 1044,
+      "height": 80.5
+    },
+    "create": {
+      "top": 907.5,
+      "bottom": 931.5,
+      "left": 1371.65625,
+      "right": 1428,
+      "width": 56.34375,
+      "height": 24
+    },
+    "cancel": {
+      "top": 935.5,
+      "bottom": 959.5,
+      "left": 1340,
+      "right": 1428,
+      "width": 88,
+      "height": 24
+    }
+  },
   "browserCreateAttachmentDelete": true,
   "chromiumVersion": "153.0.8010.12"
 }
