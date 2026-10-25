@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="131" failures="0" errors="0" time="4.623">
+    <testsuite name="services/api.legacyJobs.test.ts" timestamp="2026-10-25T19:04:47.584Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0086397">
+        <testcase classname="services/api.legacyJobs.test.ts" name="retains JSON content type and current Bearer on legacy create/edit after user login" time="0.0049355">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="uses original endpoints for legacy get/cancel/retry/delete without Action auth" time="0.0011198">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0011081">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0003557">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0005746">
+        </testcase>
+    </testsuite>
+    <testsuite name="services/api.test.ts" timestamp="2026-10-25T19:04:47.589Z" hostname="ablaze" tests="30" failures="0" errors="0" skipped="0" time="0.0325388">
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; aborts the real XHR and rejects when its signal is cancelled" time="0.0026673">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="uploadSessionAttachment &gt; keeps the stable server reference and reports completion progress" time="0.0012442">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported cbc history-import route" time="0.001226">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported kimi history-import route" time="0.00025">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported opencode history-import route" time="0.0002196">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported codex history-import route" time="0.0001768">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimportSession adapter routes &gt; uses the supported claude history-import route" time="0.0001647">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; sends force only with the explicit Session-bound confirmation" time="0.0002378">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="reimport confirmation API &gt; retains the structured summary on a business error instead of losing it in a generic Error" time="0.0003238">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; rejects HTTP 200 responses that carry a worker error body" time="0.0003264">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; keeps an unknown Steer outcome distinct from a rejection so the draft cannot be resent" time="0.0005858">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; uses rejected status even when its detail contains unknown or awaiting words" time="0.0004658">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; queue mutations reject HTTP 200 responses that carry an error body" time="0.0009292">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="worker control business errors &gt; carries one edit token through queue lease, save, and release requests" time="0.0006529">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes the global query, bounds pages to 100, and forwards cancellation" time="0.0012987">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 409 so search can show the correct recovery state" time="0.0004123">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; preserves HTTP 503 so search can show the correct recovery state" time="0.0002231">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="global history search API &gt; encodes occurrence counting, empty roles, ordinal seek and stable-ID relocation" time="0.0011045">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="history page API for search jumps &gt; opts in only explicit jump requests to the larger page cap" time="0.000693">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="canonical Jobs completed-retention API &gt; reads and writes the same Jobs API route with the rules payload" time="0.0131742">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends workspaceIds when creating a new Session" time="0.000328">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; sends an empty workspaceIds array for all and ungrouped creation scopes" time="0.0001572">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in cbc import payloads" time="0.0002064">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in kimi import payloads" time="0.0002239">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in opencode import payloads" time="0.0001519">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="workspace assignment for Session creation/import requests &gt; includes the selected Workspace in codex import payloads" time="0.0001317">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="Jobs pin metadata envelope &gt; reports unknown metadata even when the list is empty" time="0.0023539">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="Jobs pin metadata envelope &gt; reports restored available metadata on the next read" time="0.0007271">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="plugin panel structured failures &gt; keeps a host-provided code and leaves plain text uncoded" time="0.00023">
+        </testcase>
+        <testcase classname="services/api.test.ts" name="plugin panel structured failures &gt; throws the coded failure from an isError action response" time="0.000371">
+        </testcase>
+    </testsuite>
+    <testsuite name="services/canonicalJobs.test.ts" timestamp="2026-10-25T19:04:47.597Z" hostname="ablaze" tests="22" failures="0" errors="0" skipped="0" time="0.0154622">
+        <testcase classname="services/canonicalJobs.test.ts" name="sends canonical JSON with the current in-memory Bearer including DELETE" time="0.0042506">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 invalid_schema without echoing untrusted error text" time="0.0008446">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 invalid_condition without echoing untrusted error text" time="0.0005219">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 unsupported_operation without echoing untrusted error text" time="0.0005053">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 unauthenticated without echoing untrusted error text" time="0.0004842">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 authorization_denied without echoing untrusted error text" time="0.0004508">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 not_found without echoing untrusted error text" time="0.0004642">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 revision_conflict without echoing untrusted error text" time="0.0004265">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 idempotency_conflict without echoing untrusted error text" time="0.0006101">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 reference_conflict without echoing untrusted error text" time="0.0006052">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 pending_publication without echoing untrusted error text" time="0.0003887">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 reconciliation_required without echoing untrusted error text" time="0.0003509">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 not_retryable without echoing untrusted error text" time="0.000392">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 cancellation_window_closed without echoing untrusted error text" time="0.0003733">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 capability_unsupported without echoing untrusted error text" time="0.0003285">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 unsupported_schema_version without echoing untrusted error text" time="0.0003277">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 capacity_exceeded without echoing untrusted error text" time="0.0003561">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 provider_unavailable without echoing untrusted error text" time="0.0003569">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="maps WP01 storage_unavailable without echoing untrusted error text" time="0.0003301">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="expires the shared Bearer and clears only the matching 401 credential" time="0.0011121">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="encodes page cursors and operation identities" time="0.0010333">
+        </testcase>
+        <testcase classname="services/canonicalJobs.test.ts" name="extracts the complete definition without server state" time="0.0002248">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-25T19:04:47.602Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="1.6293999">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs" time="0.2443456">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.1406519">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.166317">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.095647">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0005627">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0006708">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.0951682">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.0551961">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0003886">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="shares Action loads, adopts template mutation without extra reads, and fences late registry replies" time="0.0006946">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.0955631">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards accepted switching, but blocks departure and duplicate submits while saving" time="0.1777579">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.2919433">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.2635433">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationWorkspace.test.tsx" timestamp="2026-10-25T19:04:47.605Z" hostname="ablaze" tests="12" failures="0" errors="0" skipped="0" time="1.54802">
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="navigates exactly three accessible tabs by keyboard and follows Job/Trigger/Scheduler links" time="0.1638378">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="adds, reorders and removes steps without changing stable IDs and rejects forward output references" time="0.2051311">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="keeps literal JSON typed and maps Job input or Event fields" time="0.1091851">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="selects an existing Scheduler by search and submits its revision with the Job" time="0.1161206">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="creates a new Scheduler through one recoverable operation and retries with the same key" time="0.1761634">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="shows source impact, requires review, and preserves a conflicting draft" time="0.0621138">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="disables a source without touching Job lifecycle and deletes only unreferenced disabled sources" time="0.0663123">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="generates stable random IDs on remote HTTP contexts without randomUUID" time="0.0009127">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="keeps existing timing controls on pre-composition Jobs while allowing chain edits" time="0.046276">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="preserves existing chain literals, trusted mappings and parallel policy in the Trigger editor" time="0.1331383">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="explicitly rebases a source conflict and requires impact review again" time="0.2260097">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="uses one navigation guard for simultaneous drafts on different subpages" time="0.2419746">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/CanonicalJobsView.test.tsx" timestamp="2026-10-25T19:04:47.609Z" hostname="ablaze" tests="18" failures="0" errors="0" skipped="0" time="1.2612395">
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires jobs with canonical CAS envelopes" time="0.2045786">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires triggers with canonical CAS envelopes" time="0.0775291">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires event-creators with canonical CAS envelopes" time="0.1097119">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires job-templates with canonical CAS envelopes" time="0.109207">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs retry using Run state revision and current Job config" time="0.078415">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs run-again using Run state revision and current Job config" time="0.0607579">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs clone-and-run using Run state revision and current Job config" time="0.0779335">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs cancel using Run state revision and current Job config" time="0.0782979">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs pause using Run state revision and current Job config" time="0.0487628">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs resume using Run state revision and current Job config" time="0.0616331">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 422 rejection for run operations" time="0.0476725">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 403 rejection for run operations" time="0.0622772">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps an edit draft on conflict and close does not submit" time="0.0504413">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="does not resend an unconfirmed request and queries its original identity" time="0.0405725">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows accepted as pending effect and queries by operationId" time="0.0787847">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="renders loading and list errors with a retry" time="0.0301273">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps legacy navigation and performs no legacy transport requests" time="0.0107268">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="clears canonical data on logout and blocks unauthenticated reads" time="0.0329374">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/JobsView.bulk-search.test.tsx" timestamp="2026-10-25T19:04:47.613Z" hostname="ablaze" tests="25" failures="0" errors="0" skipped="0" time="2.4378512">
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps legacy records and their projections out of the new Job tab" time="0.1935631">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps the opened config revision when WS replaces a dirty unified Job" time="0.1325669">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a pin through lifecycle events and restores ordinary ordering after unpin" time="0.0668506">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows unavailable pin metadata, disables pin, and leaves ordinary filters usable" time="0.0900531">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows metadata failure for an empty list via the list envelope" time="0.0278218">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; clears a cached pin when an update explicitly reports unknown metadata" time="0.0469824">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; matches Completed and Timeout only to their persisted API statuses" time="0.0373888">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads retention settings from the server and saves the edited values" time="0.0480065">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads blank retention days from server defaults" time="0.0937605">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads and saves failed, timeout, cancelled, and log retention independently" time="0.1103637">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a cleared day count blank when saving an enabled rule" time="0.0471997">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows invalid persisted rule feedback and keeps that switch off" time="0.021696">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows settings load and save errors" time="0.0866883">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; combines case-insensitive name, ID, and description search with status and kind filters" time="0.1740586">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps controls and counts outside the dedicated row scroll container" time="0.0917688">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; selects and deselects visible results without opening a detail drawer; row menus stay isolated" time="0.1219281">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; pauses unpaused jobs with paused=true, reports partial failure, and retries only failures" time="0.154719">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; blocks duplicate bulk submission while per-job pause requests are pending" time="0.1101784">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; cancels batch delete without requests and confirms the displayed quantity" time="0.1160899">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; removes WS-deleted selection before confirmation and retries only a failed DELETE" time="0.1831629">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; supports searching by kind payload ID and description while retaining kind filters" time="0.0415179">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; retains a failed cancellation and prevents duplicate requests" time="0.1298271">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; sorts equal timestamps by ID and persists direction while live updates reorder" time="0.089259">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="sorts created time and actual kind safely with missing legacy times last" time="0.0988652">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="keeps accepted asynchronous cancellation disabled until the live terminal event" time="0.1218877">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/JobsView.schedule-shapes.test.tsx" timestamp="2026-10-25T19:04:47.618Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.4795775">
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; reproduces a historical object schedule from the initial REST list" time="0.081012">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; opens details for object, missing, null, and scalar schedules safely" time="0.2241903">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; keeps a message Job object schedule read-only without pause controls" time="0.0838925">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; renders scheduled-task entry arrays and keeps their controls available" time="0.0737302">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; accepts object schedule updates arriving over WebSocket" time="0.0160746">
+        </testcase>
+    </testsuite>
+</testsuites>

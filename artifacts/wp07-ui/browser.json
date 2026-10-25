@@ -1,0 +1,35 @@
+{
+  "mode": "mocked canonical API, route.fulfill, no listener",
+  "results": [
+    {
+      "width": 390,
+      "state": "list",
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "state": "editor-schema",
+      "overflow": []
+    },
+    {
+      "width": 390,
+      "state": "runs-operation",
+      "overflow": []
+    },
+    {
+      "width": 1440,
+      "state": "list",
+      "overflow": []
+    },
+    {
+      "width": 1440,
+      "state": "editor-schema",
+      "overflow": []
+    },
+    {
+      "width": 1440,
+      "state": "runs-operation",
+      "overflow": []
+    }
+  ]
+}
