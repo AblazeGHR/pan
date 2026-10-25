@@ -218,6 +218,29 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 44%, transparent);
 }
 
+/* Navigation Chat/Locker unread badge: same 14px geometry as the queue badge,
+   with the Session unread warning treatment rather than the Jobs accent. */
+.session-unread-entry-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-warning) 44%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  cursor: default;
+  user-select: none;
+  pointer-events: auto;
+}
+
 /* 信息区 J 标识：target 为本 Session 的待调度/运行中 Job 聚合为单枚 J
    （多 Job 时 running 优先）。几何与队列/未读徽标完全一致（14px 胶囊、
    9px/700），仅语义色不同：scheduled 用 warning 黄，running 用 accent 蓝。

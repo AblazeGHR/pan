@@ -67,6 +67,8 @@ import { LocalPluginPanelsSettings } from './LocalPluginPanelsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
 import { useCurrentSession } from '@/stores/sessionStore';
+import { reorderViewEntryIds, useViewEntries } from './viewEntries';
+import { resolveDropZone } from '@/components/session/sessionDrag';
 
 interface AppSettingsModalProps {
   open: boolean;
@@ -498,7 +500,26 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     saveReportWorkerKillErrors,
     saveAutoForceSend,
     resetSettings,
+    setViewEntryOrder,
   } = useAppSettingsStore();
+  const viewEntries = useViewEntries();
+  const [dragEntry, setDragEntry] = useState<string | null>(null);
+  const [dropEntry, setDropEntry] = useState<{ id: string; zone: 'before' | 'after' } | null>(null);
+  const orderedEntries = viewEntries;
+  const moveEntry = (id: string, delta: number) => {
+    const ids = orderedEntries.map((entry) => entry.id);
+    const index = ids.indexOf(id); const target = index + delta;
+    if (index < 0 || target < 0 || target >= ids.length) return;
+    const current = ids[index]!;
+    ids[index] = ids[target]!;
+    ids[target] = current;
+    setViewEntryOrder(ids);
+  };
+  const dropOrder = (targetId: string, zone: 'before' | 'after') => {
+    if (!dragEntry || dragEntry === targetId) return;
+    const ids = reorderViewEntryIds(orderedEntries.map((entry) => entry.id), dragEntry, targetId, zone);
+    setViewEntryOrder(ids); setDragEntry(null); setDropEntry(null);
+  };
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('lifecycle');
   const [behaviorAnchor, setBehaviorAnchor] = useState<BehaviorAnchor | null>(null);
@@ -1470,6 +1491,22 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             </section>
           ) : activeTab === 'appearance' ? (
             <>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Panel order</h3>
+                <div data-testid="panel-order-list" className="rounded-md border border-border-muted bg-bg-primary divide-y divide-border-muted">
+                  {orderedEntries.map((entry, index) => <div key={entry.id}
+                    className={`relative flex items-center gap-2 px-3 py-2 text-xs ${dropEntry?.id === entry.id ? (dropEntry.zone === 'before' ? 'border-t-2' : 'border-b-2') + ' border-accent' : ''}`}
+                    draggable onDragStart={() => setDragEntry(entry.id)}
+                    onDragOver={(event) => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); const zone = resolveDropZone(rect.top, rect.height, event.clientY); setDropEntry(zone === 'center' ? null : { id: entry.id, zone }); }}
+                    onDragEnd={() => { setDragEntry(null); setDropEntry(null); }}
+                    onDrop={(event) => { event.preventDefault(); if (dropEntry?.id === entry.id) dropOrder(entry.id, dropEntry.zone); }}>
+                    <entry.icon size={14} className="shrink-0 text-text-tertiary" /><span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                    <button type="button" aria-label={`Move ${entry.label} up`} disabled={index === 0} onClick={() => moveEntry(entry.id, -1)} className="px-1 disabled:opacity-30">↑</button>
+                    <button type="button" aria-label={`Move ${entry.label} down`} disabled={index === orderedEntries.length - 1} onClick={() => moveEntry(entry.id, 1)} className="px-1 disabled:opacity-30">↓</button>
+                  </div>)}
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary">Drag an entry to the insertion line, or use the move buttons. This order also controls navigation pages, the collapsed rail, and panel shortcut display.</p>
+              </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                   Chat view

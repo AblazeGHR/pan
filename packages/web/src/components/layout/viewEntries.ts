@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Code, ListChecks, MessageSquare, TerminalSquare, PanelsTopLeft } from 'lucide-react';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
+import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { PluginPanel } from '@/types/pluginPanels';
 
 export type ViewEntry = {
@@ -73,10 +74,40 @@ export function mergeViewEntries(
 
 export function useViewEntries(): ViewEntry[] {
   const panels = usePluginPanelStore((state) => state.panels);
-  return useMemo(() => mergeViewEntries(entries, panels), [panels]);
+  const order = useAppSettingsStore((state) => state.viewEntryOrder);
+  return useMemo(() => applyViewEntryOrder(mergeViewEntries(entries, panels), order), [panels, order]);
 }
 
 /** Non-reactive snapshot for the global keydown dispatcher. */
 export function getViewEntriesSnapshot(): ViewEntry[] {
-  return mergeViewEntries(entries, usePluginPanelStore.getState().panels);
+  return applyViewEntryOrder(mergeViewEntries(entries, usePluginPanelStore.getState().panels), useAppSettingsStore.getState().viewEntryOrder);
+}
+
+/** Merge persisted ids with the current catalog: stale ids are dropped and new entries append. */
+export function applyViewEntryOrder(all: ViewEntry[], saved: unknown): ViewEntry[] {
+  if (!Array.isArray(saved)) return all;
+  const byId = new Map(all.map((entry) => [entry.id, entry]));
+  const result: ViewEntry[] = [];
+  const seen = new Set<string>();
+  for (const id of saved) {
+    if (typeof id !== 'string' || seen.has(id)) continue;
+    const entry = byId.get(id);
+    if (entry) { result.push(entry); seen.add(id); }
+  }
+  for (const entry of all) if (!seen.has(entry.id)) result.push(entry);
+  return result;
+}
+
+export function reorderViewEntryIds(ids: readonly string[], draggedId: string, targetId: string, zone: 'before' | 'after'): string[] {
+  if (draggedId === targetId || !ids.includes(draggedId) || !ids.includes(targetId)) return [...ids];
+  const next = ids.filter((id) => id !== draggedId);
+  const index = next.indexOf(targetId);
+  next.splice(index + (zone === 'after' ? 1 : 0), 0, draggedId);
+  return next;
+}
+
+export function paginateViewEntries<T>(items: readonly T[], size = 3): T[][] {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, group) =>
+    Array.from({ length: size }, (_, slot) => items[group * size + slot]).filter((item): item is T => item !== undefined),
+  );
 }

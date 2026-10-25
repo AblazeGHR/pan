@@ -29,7 +29,9 @@ export function ViewEntryRail() {
           }
         >
           <entry.icon size={18} />
-          {entry.to === '/jobs' && <ViewEntryBadge />}
+          {entry.to === '/jobs' && <ViewEntryBadge kind="jobs" />}
+          {entry.to === '/' && <ViewEntryBadge kind="chat" />}
+          {entry.to === '/locker' && <ViewEntryBadge kind="locker" />}
         </NavLink>
       ))}
     </>

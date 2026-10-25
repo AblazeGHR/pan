@@ -162,6 +162,8 @@ export function sanitizeAutoReport(value: unknown): AutoReportSettings {
 }
 
 export interface AppSettings {
+  /** Stable navigation entry ids in user-selected order. */
+  viewEntryOrder: string[];
   autoReport: AutoReportSettings;
   /**
    * Chat message presentation. TUI is the default; `bubble` is the opt-in
@@ -246,6 +248,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  viewEntryOrder: [],
   autoReport: DEFAULT_AUTO_REPORT,
   chatViewStyle: 'tui',
   defaultGroupBy: 'none',
@@ -303,6 +306,9 @@ export function sanitizeSettings(
       ? rawNotifications as Record<string, unknown>
       : {};
   return {
+    viewEntryOrder: Array.isArray(parsed.viewEntryOrder)
+      ? [...new Set(parsed.viewEntryOrder.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+      : [],
     autoReport: sanitizeAutoReport(parsed.autoReport),
     chatViewStyle:
       parsed.chatViewStyle === 'bubble' ||
@@ -385,6 +391,7 @@ export function sanitizeSettings(
 }
 
 interface AppSettingsStore extends AppSettings {
+  setViewEntryOrder: (value: string[]) => void;
   /** True once the initial GET finished (success or failure). */
   loaded: boolean;
   setDefaultGroupBy: (mode: GroupMode) => void;
@@ -474,6 +481,12 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
   return {
     ...DEFAULT_SETTINGS,
     loaded: false,
+
+    setViewEntryOrder: (value) => {
+      const order = [...new Set(value.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+      set({ viewEntryOrder: order });
+      persist({ viewEntryOrder: order });
+    },
 
     loadSettings: () => {
       if (loadingPromise) return loadingPromise;
