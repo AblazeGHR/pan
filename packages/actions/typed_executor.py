@@ -227,10 +227,14 @@ class TypedExecutor:
         session_provider: SessionProvider | Any | None = None,
         channel_provider: ChannelProvider | Any | None = None,
         receipt_store: ReceiptStore | MutableMapping[str, Mapping[str, Any]] | None = None,
+        independent_executor: Any | None = None,
+        lifecycle_executor: Any | None = None,
         process_timeout: float = 30.0,
         terminate_grace: float = 2.0,
     ) -> None:
         self.process_owner = process_owner
+        self.independent_executor = independent_executor
+        self.lifecycle_executor = lifecycle_executor
         self.session_provider = session_provider
         self.channel_provider = channel_provider
         self.receipt_store = receipt_store if receipt_store is not None else InMemoryReceiptStore()
@@ -283,10 +287,20 @@ class TypedExecutor:
             if prior != "rejected" or not retry:
                 return copy.deepcopy(dict(existing))
 
+        # Durable hosts own their pending/unknown receipts. Do not cache a
+        # pending projection here: reconnection must query the original host.
+        plan = _mapping(frozen_plan, "frozenPlan")
+        operation = plan.get("operation")
+        if operation in {"service.restart", "service.exit"} and self.lifecycle_executor is not None:
+            return await self.lifecycle_executor.execute(attempt=attempt, effect_key=key, frozen_plan=frozen_plan, retry=retry)
+        if (operation in {"process", "background-process", "command"}
+                and frozen_plan.get("effect") != "high_risk" and self.independent_executor is not None):
+            return await self.independent_executor.execute(attempt=attempt, effect_key=key, frozen_plan=frozen_plan, retry=retry)
+
         try:
             plan = _mapping(frozen_plan, "frozenPlan")
             operation = plan.get("operation") or plan.get("executor") or plan.get("kind")
-            if plan.get("effect") == "high_risk" or operation == "main-lifecycle":
+            if plan.get("effect") == "high_risk" or operation in {"main-lifecycle", "service.restart", "service.exit"}:
                 result = EffectReceipt(key, "rejected", {"code": "authorization_denied", "message": "Lifecycle/high-risk effects require the protected supervisor"}).as_dict()
             elif operation in {"shell", "assign", "send_session", "send_qq_dispatch"}:
                 result = EffectReceipt(key, "rejected", {"code": "unsupported_operation", "message": "Legacy shell/API dispatcher is not a typed effect"}).as_dict()

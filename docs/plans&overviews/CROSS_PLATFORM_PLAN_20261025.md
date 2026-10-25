@@ -95,8 +95,8 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 | `terminal.native` | 可用 | 不可用 | 不可用 | Windows ConPTY + Job Object；POSIX PTY 属 Phase D |
 | `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
 | `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |
-| `service.lifecycle` | 可用 | 不可用 | 不可用 | UI Exit/Restart 依赖 main_lifecycle supervisor |
-| `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验 |
+| `service.lifecycle` | 可用 | 不可用 | 不可用 | UI 旧入口保留；WP05b canonical 单步 service.restart/exit 经受保护 supervisor，取消窗口在 stopping 前关闭，ready/offline 需证据；POSIX 显式 capability_unsupported |
+| `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
@@ -110,3 +110,8 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 
 “可用”只表示**已声明**且 Windows 有实现；macOS/Linux 的**运行**证据来自
 `posix-fast` CI（import + collect + 平台单元子集），在 CI 实际跑绿前不得当作已验证。
+
+WP05b 本地证据为 Windows 独立 worker、同身份离线查询及临时 HTTP；lifecycle stop/start
+使用 mock，未启停真实 Pan 服务。POSIX 的 independent worker 运行、三平台 CI、真实
+supervisor 停机/重启验收仍待验证。接线与收据契约见
+[WP05b execution](../design/job-unification/WP05B_EXECUTION_20261026.md)。
