@@ -21,6 +21,12 @@ from packages.core.adapters.dsh import sessions as S
 requires_zstd = pytest.mark.skipif(
     not S.zstd_available(), reason="zstandard (or Python >= 3.14 compression.zstd) is required"
 )
+# This case pins the third-party backend specifically; on 3.14 the wheel is
+# intentionally not installed (minimal-requirements.txt marker), so the stdlib
+# backend carries the rest of the suite instead.
+requires_zstandard_pkg = pytest.mark.skipif(
+    S._zstandard is None, reason="pins the zstandard wheel; not installed on this interpreter"
+)
 
 WORKDIR = r"D:\proj\alpha"
 
@@ -56,21 +62,31 @@ def _assistant(text: str, seq: int, reasoning: str = "", tool=None,
             "time": 1_792_856_941_900 + seq * 10, "data": data}
 
 
+def _compress_chunks(chunks: list[bytes]) -> bytes:
+    """zstd-compress every chunk as its own frame via the runtime's backend.
+
+    Mirrors the adapter's backend selection (``zstandard`` first, then the
+    Python 3.14 ``compression.zstd``) instead of importing ``zstandard``
+    directly: the test must be able to build real DSH logs on interpreters
+    where only the stdlib backend exists.
+    """
+    if S._zstandard is not None:
+        compressor = S._zstandard.ZstdCompressor()
+        return b"".join(compressor.compress(chunk) for chunk in chunks)
+    if S._std_zstd is not None:
+        return b"".join(S._std_zstd.compress(chunk) for chunk in chunks)
+    raise RuntimeError("no zstd backend available")
+
+
 def _write_session(home: Path, events: list[dict], session_id: str,
                    project: str, multi_frame: bool = True) -> Path:
     session_dir = home / "sessions" / project / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
     lines = [json.dumps(event, ensure_ascii=False) for event in events]
     store = session_dir / "session.v4.jsonl.zstd"
-    if multi_frame:
-        import zstandard
-        compressor = zstandard.ZstdCompressor()
-        store.write_bytes(b"".join(compressor.compress((line + "\n").encode("utf-8"))
-                                   for line in lines))
-    else:
-        import zstandard
-        store.write_bytes(zstandard.ZstdCompressor().compress(
-            ("\n".join(lines) + "\n").encode("utf-8")))
+    payload = [line.encode("utf-8") + b"\n" for line in lines]
+    # 多帧 = 一行一帧（DSH 真实布局）；单帧 = 整个日志一个 frame。
+    store.write_bytes(_compress_chunks(payload if multi_frame else [b"".join(payload)]))
     return session_dir
 
 
@@ -129,6 +145,7 @@ class _Explode:
 
 
 @requires_zstd
+@requires_zstandard_pkg
 def test_zstandard_only_backend_handles_read_write(dsh_home, monkeypatch):
     """模拟无 ``compression.zstd`` 的 Python（3.12）：仅 zstandard 也要全绿。"""
     monkeypatch.setattr(S, "_std_zstd", _Explode())
