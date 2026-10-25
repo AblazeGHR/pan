@@ -93,6 +93,10 @@ describe('dynamic panel shortcut registry', () => {
         'app.commandPalette',
         'app.historySearch',
         'app.globalHistorySearch',
+        'queue.selectPrevious',
+        'queue.selectNext',
+        'queue.editSelected',
+        'queue.toggleSelectedLock',
         'queue.togglePanel',
         'queue.enqueueLocked',
         'queue.lockAll',
@@ -101,12 +105,21 @@ describe('dynamic panel shortcut registry', () => {
         'session.toggleNotification',
       ]),
     );
+    // Queue-row navigation ships bound (it is scoped to the open panel and
+    // releases the chord when disabled); the destructive queue/session actions
+    // still start unbound.
+    const queueDefaults: Record<string, string> = {
+      'queue.selectPrevious': 'Alt+ArrowUp',
+      'queue.selectNext': 'Alt+ArrowDown',
+      'queue.editSelected': 'Alt+Enter',
+      'queue.toggleSelectedLock': 'Alt+L',
+    };
     for (const action of actions) {
-      if (
-        action.id.startsWith('queue.') ||
-        action.id.startsWith('session.')
-      ) {
+      if (action.id.startsWith('session.')) {
         expect(action.defaultBinding, action.id).toBeNull();
+      }
+      if (action.id.startsWith('queue.')) {
+        expect(action.defaultBinding, action.id).toBe(queueDefaults[action.id] ?? null);
       }
     }
     expect(actions.find((action) => action.id === 'app.historySearch')?.defaultBinding).toBe('Mod+F');

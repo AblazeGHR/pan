@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { usePluginPanelStore } from '@/stores/pluginPanelStore';
+import { useQueueStore } from '@/stores/queueStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import type { AgentQueueItem } from '@/types';
 import { registerLockedEnqueueHandler } from './composerBridge';
+import { registerQueueSelectedEditHandler } from './queueBridge';
 import {
   setShortcutRecording,
   shouldIgnoreShortcutEvent,
@@ -26,8 +29,9 @@ const panel = {
   actions: {},
 };
 
-function press(init: KeyboardEventInit, target: Element | Window | Document = document): void {
-  fireEvent.keyDown(target, init);
+/** Returns false when a listener called preventDefault (i.e. the key was consumed). */
+function press(init: KeyboardEventInit, target: Element | Window | Document = document): boolean {
+  return fireEvent.keyDown(target, init);
 }
 
 beforeEach(() => {
@@ -194,5 +198,154 @@ describe('central shortcut dispatcher', () => {
     press({ key: 'g', code: 'KeyG', ctrlKey: true }, input);
     expect(globalHistory).toHaveBeenCalledTimes(1);
     window.removeEventListener('pan:shortcut:global-history-search', globalHistory);
+  });
+});
+
+function queueRow(id: string): AgentQueueItem {
+  return {
+    id,
+    queueItemId: id,
+    text: id,
+    source: 'user',
+    kind: 'task',
+    createdAt: 1,
+    meta: { dispatchState: 'queued', revision: 1 },
+  };
+}
+
+function queueSelection(): string | null {
+  return useQueueStore.getState().queueSelection.s1 ?? null;
+}
+
+describe('queue panel selection shortcuts', () => {
+  beforeEach(() => {
+    useQueueStore.setState({
+      queues: {},
+      queueSelection: {},
+      edits: {},
+      panelOpen: false,
+      queueLockUpdating: {},
+      agentReportsPauseUpdating: {},
+    });
+  });
+
+  it('moves the highlight only while the panel is open and releases the chord otherwise', () => {
+    render(<Harness navigate={vi.fn()} />);
+    useQueueStore.setState({
+      queues: { s1: [queueRow('q1'), queueRow('q2')] },
+      panelOpen: true,
+    });
+
+    // fireEvent returns false when the dispatcher consumed the event.
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBe(false);
+    expect(queueSelection()).toBe('q1');
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBe(false);
+    expect(queueSelection()).toBe('q2');
+    // Boundary clamp is still "handled", but never wraps to the first row.
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBe(false);
+    expect(queueSelection()).toBe('q2');
+
+    // Plain arrows keep their native caret/scroll behavior.
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown' })).toBe(true);
+    expect(queueSelection()).toBe('q2');
+
+    useQueueStore.setState({ panelOpen: false });
+    expect(press({ key: 'ArrowUp', code: 'ArrowUp', altKey: true })).toBe(true);
+    expect(queueSelection()).toBe('q2');
+  });
+
+  it('follows a user rebinding and stops firing the default chord', () => {
+    useAppSettingsStore.setState({
+      shortcuts: { 'queue.selectNext': 'Mod+Shift+J' },
+    });
+    render(<Harness navigate={vi.fn()} />);
+    useQueueStore.setState({ queues: { s1: [queueRow('q1')] }, panelOpen: true });
+
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBe(true);
+    expect(queueSelection()).toBeNull();
+
+    expect(press({ key: 'j', code: 'KeyJ', ctrlKey: true, shiftKey: true })).toBe(false);
+    expect(queueSelection()).toBe('q1');
+
+    // Clearing the binding releases the chord entirely.
+    useAppSettingsStore.setState({ shortcuts: { 'queue.selectNext': null } });
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBe(true);
+    expect(queueSelection()).toBe('q1');
+  });
+
+  it('does not execute a persisted conflict between selection chords', () => {
+    useAppSettingsStore.setState({
+      shortcuts: { 'queue.selectNext': 'Alt+ArrowUp' },
+    });
+    render(<Harness navigate={vi.fn()} />);
+    useQueueStore.setState({ queues: { s1: [queueRow('q1')] }, panelOpen: true });
+
+    expect(press({ key: 'ArrowUp', code: 'ArrowUp', altKey: true })).toBe(true);
+    expect(queueSelection()).toBeNull();
+  });
+
+  it('works from the composer, ignores other inputs, IME and open modals', () => {
+    render(<Harness navigate={vi.fn()} />);
+    useQueueStore.setState({
+      queues: { s1: [queueRow('q1'), queueRow('q2')] },
+      panelOpen: true,
+    });
+    const composer = document.createElement('div');
+    composer.className = 'composer-editor';
+    composer.setAttribute('contenteditable', 'true');
+    const input = document.createElement('input');
+    document.body.append(composer, input);
+
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true }, composer)).toBe(false);
+    expect(queueSelection()).toBe('q1');
+
+    // A different input owns the chord: nothing is consumed and nothing moves.
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true }, input)).toBe(true);
+    expect(queueSelection()).toBe('q1');
+
+    // IME composition and open modals keep their own keys.
+    expect(press({
+      key: 'ArrowDown', code: 'ArrowDown', altKey: true, isComposing: true,
+    }, composer)).toBe(true);
+    expect(queueSelection()).toBe('q1');
+
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    document.body.appendChild(modal);
+    expect(press({ key: 'ArrowDown', code: 'ArrowDown', altKey: true }, composer)).toBe(true);
+    expect(queueSelection()).toBe('q1');
+  });
+
+  it('consumes Alt+Enter and Alt+L only with a selected row', () => {
+    const edit = vi.fn(() => true);
+    const unregisterEdit = registerQueueSelectedEditHandler(edit);
+    const lock = vi.fn(async () => undefined);
+    const originalLock = useQueueStore.getState().setQueueItemLocked;
+    useQueueStore.setState({ setQueueItemLocked: lock });
+    try {
+      render(<Harness navigate={vi.fn()} />);
+      useQueueStore.setState({ queues: { s1: [queueRow('q1')] }, panelOpen: true });
+
+      // No selection: both chords stay native.
+      expect(press({ key: 'Enter', code: 'Enter', altKey: true })).toBe(true);
+      expect(press({ key: 'l', code: 'KeyL', altKey: true })).toBe(true);
+      expect(edit).not.toHaveBeenCalled();
+      expect(lock).not.toHaveBeenCalled();
+
+      useQueueStore.getState().setQueueSelection('s1', 'q1');
+      expect(press({ key: 'Enter', code: 'Enter', altKey: true })).toBe(false);
+      expect(edit).toHaveBeenCalledWith('s1', 'q1');
+      expect(press({ key: 'l', code: 'KeyL', altKey: true })).toBe(false);
+      expect(lock).toHaveBeenCalledWith('s1', 'q1', true);
+
+      lock.mockClear();
+      useQueueStore.setState({ queueLockUpdating: { s1: true } });
+      expect(press({ key: 'l', code: 'KeyL', altKey: true })).toBe(true);
+      expect(lock).not.toHaveBeenCalled();
+    } finally {
+      unregisterEdit();
+      useQueueStore.setState({ setQueueItemLocked: originalLock });
+    }
   });
 });

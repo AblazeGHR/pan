@@ -32,6 +32,14 @@ interface QueueStore {
   edits: Record<string, QueuedEdit | null>;
   batchSend: Record<string, boolean>;
   panelOpen: boolean;
+  /**
+   * Keyboard/pointer selection in the send-queue panel, keyed by Session.
+   * Stored here (not in the panel) because the shortcut actions must reach the
+   * same selection when the composer owns focus. The value is an item id, not
+   * an index: a reorder or a late server snapshot must never retarget it.
+   */
+  queueSelection: Record<string, string | null>;
+  setQueueSelection: (sessionId: string, itemId: string | null) => void;
   sendingId: string | null;
   agentQueues: Record<string, AgentQueueItem[]>;
   agentQueueLoadSeq: Record<string, number>;
@@ -358,6 +366,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
   edits: {},
   batchSend: {},
   panelOpen: false,
+  queueSelection: {},
   sendingId: null,
   agentQueues: {},
   agentQueueLoadSeq: {},
@@ -985,6 +994,13 @@ export const useQueueStore = create<QueueStore>((set, get) => {
   },
   togglePanel: () => set((state) => ({ panelOpen: !state.panelOpen })),
   setPanelOpen: (open) => set({ panelOpen: open }),
+  setQueueSelection: (sessionId, itemId) => {
+    if (!sessionId) return;
+    if ((get().queueSelection[sessionId] ?? null) === itemId) return;
+    set((state) => ({
+      queueSelection: { ...state.queueSelection, [sessionId]: itemId },
+    }));
+  },
   flush: () => {},
 
   removeSession: (sessionId) => {
@@ -1017,6 +1033,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       const agentReportsPauseUpdating = { ...state.agentReportsPauseUpdating };
       const queueLockUpdating = { ...state.queueLockUpdating };
       const lockedComposerModes = { ...state.lockedComposerModes };
+      const queueSelection = { ...state.queueSelection };
       delete queueTombstones[sessionId];
       delete queueDeliveredIds[sessionId];
       delete queueRevisions[sessionId];
@@ -1025,11 +1042,12 @@ export const useQueueStore = create<QueueStore>((set, get) => {
       delete agentReportsPauseUpdating[sessionId];
       delete queueLockUpdating[sessionId];
       delete lockedComposerModes[sessionId];
+      delete queueSelection[sessionId];
       return {
         queues, edits, agentQueues, queueTombstones, queueDeliveredIds, queueRevisions,
         queuePaused, queuePauseLoaded, queuePauseUpdating,
         agentReportsPaused, agentReportsPauseLoaded, agentReportsPauseUpdating,
-        queueLockUpdating, lockedComposerModes,
+        queueLockUpdating, lockedComposerModes, queueSelection,
       };
     });
   },
