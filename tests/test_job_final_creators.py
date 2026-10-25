@@ -135,6 +135,38 @@ def test_fs01_cron_dst_gap_and_impossible_search_have_explicit_results():
     assert provider.next_after(impossible, "2026-01-01T00:00:00Z") is None
 
 
+def test_fs01_utc_and_fixed_offset_do_not_require_zoneinfo():
+    def unavailable(_name):
+        raise RuntimeError("tzdata intentionally unavailable")
+    provider = TimeProvider(zone_factory=unavailable)
+    utc = {
+        "ruleId": "utc", "type": "weekly", "weekday": 3, "time": "00:00:07",
+        "timezone": "UTC", "dstPolicy": "gap-skip-fold-first",
+    }
+    assert provider.next_after(utc, T0)["at"] == "2026-01-01T00:00:07Z"
+    fixed = {
+        "ruleId": "fixed", "type": "weekly", "weekday": 3, "time": "06:00:00",
+        "timezone": "+05:30", "dstPolicy": "gap-skip-fold-first",
+    }
+    occurrence = provider.next_after(fixed, T0)
+    assert occurrence["at"] == "2026-01-01T00:30:00Z"
+    assert occurrence["timezone"] == "+05:30"
+
+
+def test_fs01_named_zone_without_tzdata_is_explicitly_unavailable():
+    def unavailable(_name):
+        raise RuntimeError("tzdata intentionally unavailable")
+    provider = TimeProvider(zone_factory=unavailable)
+    rule = {
+        "ruleId": "named", "type": "weekly", "weekday": 3, "time": "00:00:07",
+        "timezone": "Europe/London", "dstPolicy": "gap-skip-fold-first",
+    }
+    with pytest.raises(contracts.ContractError) as error:
+        provider.next_after(rule, T0)
+    assert error.value.code == "provider_unavailable"
+    assert error.value.details["reason"] == "timezone_unavailable"
+
+
 def test_fs01_explicit_dst_gap_fold_and_unavailable_zone():
     provider = TimeProvider()
     base = {"ruleId": "dst", "type": "weekly", "weekday": 6, "time": "02:30:00", "timezone": "America/New_York"}

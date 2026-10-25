@@ -31,6 +31,7 @@ _TIMESTAMP = re.compile(
     r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?"
     r"(?:[Zz]|([+-])(\d{2}):(\d{2}))$"
 )
+_FIXED_OFFSET = re.compile(r"^([+-])(\d{2}):?(\d{2})$")
 
 
 def instant(value: str | datetime) -> Decimal:
@@ -186,7 +187,8 @@ class TimeProvider:
     release_digest = contracts.digest({"provider": "time/scheduler", "release": 1})
     capabilities = (
         "time.rules.v2", "time.decimal-seconds", "time.iana-zone",
-        "time.explicit-dst", "time.grid", "time.after-publication",
+        "time.fixed-offset", "time.explicit-dst", "time.grid",
+        "time.after-publication",
     )
     config_schema_ref = {
         "id": "scheduler.config", "revision": 1,
@@ -200,12 +202,27 @@ class TimeProvider:
         return {"status": "available", "capabilities": list(self.capabilities)}
 
     def zone(self, name: str):
+        text = str(name or "").strip()
+        if text.upper() in {"UTC", "Z", "+00:00", "-00:00"}:
+            return UTC
+        fixed = _FIXED_OFFSET.match(text)
+        if fixed:
+            hours, minutes = int(fixed.group(2)), int(fixed.group(3))
+            if hours > 23 or minutes > 59:
+                raise contracts.ContractError(
+                    "invalid_schema", "Fixed offset is outside the supported range",
+                    details={"reason": "invalid_timezone", "timezone": text},
+                )
+            delta = timedelta(hours=hours, minutes=minutes)
+            if fixed.group(1) == "-":
+                delta = -delta
+            return timezone(delta, text)
         try:
-            return self.zone_factory(name)
+            return self.zone_factory(text)
         except Exception as exc:
             raise contracts.ContractError(
                 "provider_unavailable", "IANA timezone is unavailable",
-                details={"reason": "timezone_unavailable", "timezone": name},
+                details={"reason": "timezone_unavailable", "timezone": text},
             ) from exc
 
     def validate_config(self, config: Mapping[str, Any]) -> None:
