@@ -28,7 +28,7 @@ import type { AdapterConfig } from '@/types';
 import { ATTACHMENT_DRAG_MIME } from '@/utils/attachmentDrag';
 import { requestLockedComposerEnqueue } from '@/shortcuts/composerBridge';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
-import { setShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
+import { setShortcutRecording, useGlobalShortcuts } from '@/shortcuts/useGlobalShortcuts';
 
 // Attachment navigation now requires the same Router context as the Chat route.
 const render = (element: Parameters<typeof renderComponent>[0]) =>
@@ -164,6 +164,7 @@ beforeEach(() => {
   useWorkerStore.setState({ workers: {}, currentWorkerId: null, currentWorker: null });
   useQueueStore.setState({
     queues: {},
+    queueSelection: {},
     edits: {},
     batchSend: {},
     sendingId: null,
@@ -2343,5 +2344,53 @@ describe('reminding card composer', () => {
     expect(body).toMatchObject({ownerSessionId:'s1', kind:'task', body:'task body', requestKey:expect.any(String),
       attachments:[{id:expect.any(String), name:'evidence.txt'}]});
     expect(enqueueSessionMessage).not.toHaveBeenCalled(); expect(steerSessionWorker).not.toHaveBeenCalled();
+  });
+});
+
+function QueueShortcutHarness() {
+  useGlobalShortcuts(() => {});
+  return null;
+}
+
+describe('queue panel keyboard scope', () => {
+  it('keeps composer focus while expanding and edits the selected row with Alt+Enter', async () => {
+    setBusySession();
+    const first = {
+      id: 'q-kb-1', queueItemId: 'q-kb-1', text: 'first', source: 'user' as const,
+      kind: 'task' as const, createdAt: 1, meta: { dispatchState: 'queued' as const, revision: 1 },
+    };
+    const second = {
+      id: 'q-kb-2', queueItemId: 'q-kb-2', text: 'second', source: 'user' as const,
+      kind: 'task' as const, createdAt: 2, meta: { dispatchState: 'queued' as const, revision: 1 },
+    };
+    useQueueStore.setState({ queues: { s1: [first, second] }, panelOpen: false });
+    render(<><QueueShortcutHarness /><InputRow /></>);
+
+    const editor = screen.getByTestId('rich-text-composer');
+    editor.focus();
+    expect(document.activeElement).toBe(editor);
+
+    const toggle = screen.getByRole('button', { name: /发送队列/ });
+    // A real browser focuses the button on mousedown; the guarded toggle keeps
+    // the caret in the composer instead.
+    expect(fireEvent.mouseDown(toggle)).toBe(false);
+    fireEvent.click(toggle);
+    expect(useQueueStore.getState().panelOpen).toBe(true);
+    expect(document.activeElement).toBe(editor);
+
+    // Alt+Down only highlights; the queue order and text stay untouched.
+    fireEvent.keyDown(editor, { key: 'ArrowDown', code: 'ArrowDown', altKey: true });
+    expect(useQueueStore.getState().queueSelection.s1).toBe('q-kb-1');
+    fireEvent.keyDown(editor, { key: 'ArrowDown', code: 'ArrowDown', altKey: true });
+    expect(useQueueStore.getState().queueSelection.s1).toBe('q-kb-2');
+    expect(useQueueStore.getState().queues.s1?.map((entry) => entry.id)).toEqual(['q-kb-1', 'q-kb-2']);
+    expect(enqueueSessionMessage).not.toHaveBeenCalled();
+
+    // Alt+Enter runs the existing edit flow and hands focus to the edit box.
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter', altKey: true });
+    await waitFor(() => expect(useQueueStore.getState().edits.s1?.id).toBe('q-kb-2'));
+    const editBox = await screen.findByTestId('queue-rich-text-composer');
+    await waitFor(() => expect(editBox.textContent).toBe('second'));
+    await waitFor(() => expect(document.activeElement).toBe(editBox));
   });
 });

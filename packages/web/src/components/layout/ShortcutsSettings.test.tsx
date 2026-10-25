@@ -94,6 +94,29 @@ describe('ShortcutsSettings', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
   });
 
+  it('lists the queue selection shortcuts with defaults and supports rebinding plus restore', async () => {
+    render(<ShortcutsSettings />);
+    expect(row('queue.selectPrevious').textContent).toContain('Alt+↑');
+    expect(row('queue.selectNext').textContent).toContain('Alt+↓');
+    expect(row('queue.editSelected').textContent).toContain('Alt+Enter');
+    expect(row('queue.toggleSelectedLock').textContent).toContain('Alt+L');
+
+    fireEvent.click(
+      within(row('queue.selectNext')).getByLabelText('Record shortcut for Select next queued message'),
+    );
+    fireEvent.keyDown(window, { key: 'j', code: 'KeyJ', ctrlKey: true, altKey: true });
+    expect(useAppSettingsStore.getState().shortcuts['queue.selectNext']).toBe('Mod+Alt+J');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+    expect(within(row('queue.selectNext')).getByText('Ctrl+Alt+J')).toBeTruthy();
+
+    fireEvent.click(
+      within(row('queue.selectNext')).getByLabelText('Restore default shortcut for Select next queued message'),
+    );
+    expect(useAppSettingsStore.getState().shortcuts['queue.selectNext']).toBeUndefined();
+    expect(within(row('queue.selectNext')).getByText('Alt+↓')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+  });
+
   it('records Ctrl+4 and function keys, cancels with Tab/Escape and reports unsupported typing', async () => {
     render(<ShortcutsSettings />);
     const record = () => fireEvent.click(within(row('composer.steer')).getByRole('button', { name: /Record shortcut/ }));
