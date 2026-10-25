@@ -10,6 +10,7 @@ from pathlib import Path
 from packages.actions.store import atomic
 from packages.core.system_fields import validate_argument_bindings
 from .events import now
+from packages.jobs import chains
 from .event_store import CapacityError, RETENTION_SECONDS
 from .policy import concurrency, retry_policy, backoff
 
@@ -35,6 +36,9 @@ class Ledger:
             state = self.read()
             previous_size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
             result = change(state)
+            for run in state['runs'].values():
+                if run.get('stepExecutions') and run['status'] not in {'queued','running','retry_wait'}:
+                    run.pop('chainSnapshot',None)
             state['revision'] += 1
             size = len(json.dumps(state, ensure_ascii=False).encode('utf-8'))
             if size > self.max_bytes and size > previous_size:
@@ -45,7 +49,7 @@ class Ledger:
     def put(self, raw, expected, authorized=False, creator=None, authority=None):
         def change(state):
             item = copy.deepcopy(raw)
-            allowed = {'id', 'name', 'description', 'eventTypes', 'condition', 'actionId', 'arguments', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
+            allowed = {'id', 'name', 'description', 'eventTypes', 'condition', 'actionId', 'arguments', 'steps', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
             if set(item) - allowed:
                 raise ValueError('Unknown Trigger fields')
             tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
@@ -63,6 +67,10 @@ class Ledger:
                 raise ValueError('Trigger capacity reached')
             if type(expected) is not int or expected != (old['revision'] if old else 0):
                 raise Conflict('Trigger revision changed')
+            if 'steps' in item:
+                item['steps']=chains.normalize(item['steps'])
+                item.setdefault('actionId',item['steps'][0]['actionId'])
+                if item['actionId']!=item['steps'][0]['actionId']:raise ValueError('actionId must match first step')
             if not isinstance(item.get('name'), str) or not item['name'].strip() or not isinstance(item.get('actionId'), str):
                 raise ValueError('Trigger name and actionId required')
             events = item.get('eventTypes')
@@ -184,6 +192,8 @@ class Ledger:
             # A dependency deferral is pre-effect waiting, not a new retry.
             if not attempts:
                 attempts.append(dict(id='att_' + uuid.uuid4().hex, number=1, status='running', startedAt=started_at))
+            elif run.pop('chainContinuation',False):
+                pass  # Same host Attempt, no new effect attempt at a safe boundary.
             elif attempts[-1]['status'] != 'queued':
                 limit = min(retry_policy(run.get('retryPolicy'))['maxAttempts'], retry_policy(trigger.get('retry'))['maxAttempts'])
                 if not run.get('retryAuthorized') or len(attempts) >= limit:
@@ -198,6 +208,16 @@ class Ledger:
             run['attemptCount'] = len(attempts)
             run['activeAttemptId'] = attempts[-1]['id']
             self.sync_attempt(run)
+            return run
+        return self.mutate(change)
+
+    def save_chain(self,rid,attempt_id,steps,phase,retry_eligible=False):
+        def change(state):
+            run=state['runs'][rid]
+            if run['status']!='running' or run.get('activeAttemptId')!=attempt_id:
+                raise Conflict('Chain Attempt no longer running')
+            run.update(stepExecutions=copy.deepcopy(steps),chainPhase=phase,retryEligible=retry_eligible,
+                       revision=run['revision']+1)
             return run
         return self.mutate(change)
 
@@ -269,6 +289,8 @@ class Ledger:
             run = state['runs'][rid]
             if type(expected) is not int or run['revision'] != expected or run['status'] != 'uncertain':
                 raise Conflict('Expected current uncertain Run revision')
+            if run.get('stepExecutions'):
+                raise Conflict('Uncertain chain step requires reconciliation; replay refused')
             trigger = state['triggers'].get(run['triggerId'])
             if not trigger or not trigger['enabled']:
                 raise Conflict('Enable current Trigger before confirming recovery')
@@ -308,6 +330,9 @@ class Ledger:
             run = state['runs'][rid]
             if type(expected) is not int or run['revision'] != expected:
                 raise Conflict('Run revision changed')
+            if run['status']=='running' and run.get('chainSnapshot'):
+                run.update(cancellationRequested=True,revision=expected+1)
+                return run
             if run['status'] not in {'queued', 'retry_wait'}:
                 raise Conflict('Only queued or retry-wait Runs can be cancelled; started effects require reconciliation')
             run.update(status='cancelled', finishedAt=now(), revision=expected + 1)
@@ -328,6 +353,15 @@ class Ledger:
                         run.pop('retryAuthorized', None)
                     run['admitted'] = True
                     run['revision'] += 1
+                if run['status']=='running' and run.get('chainSnapshot'):
+                    safe=chains.interrupted(run['stepExecutions'])
+                    if safe and not run.get('cancellationRequested'):
+                        run.update(status='queued',admitted=True,chainContinuation=True,revision=run['revision']+1)
+                        continue
+                    if run.get('cancellationRequested'):
+                        run.update(status='cancelled',finishedAt=now(),revision=run['revision']+1)
+                        self.sync_attempt(run)
+                        continue
                 if run['status'] == 'running':
                     run.update(status='uncertain', error='Service interrupted; no automatic replay', finishedAt=now(), revision=run['revision'] + 1)
                     if not run.get('attempts'):

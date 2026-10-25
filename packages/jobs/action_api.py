@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from packages.plugins.lifecycle import io
 from .action_runtime import AuthorizationRevoked
+from . import chains
 from .action_templates import strict, Conflict, CreationPending, references
 from packages.automation.authorization import require, require_write, authority
 
@@ -61,7 +62,8 @@ async def runs(job_id:str,request:Request):
     try:job=await invoke(rt.get,job_id)
     except KeyError as exc:raise HTTPException(404,str(exc)) from exc
     return {'jobId':job_id,'run':job.get('runId'),'attempts':job.get('attempts',[]),
-            'lastExecution':job.get('lastExecution'),'status':job.get('status')}
+            'lastExecution':job.get('lastExecution'),'status':job.get('status'),
+            'activeExecutions':chains.public(rt.active(job))}
 
 
 @router.get('/action-jobs/schema')
@@ -94,7 +96,10 @@ async def schema(request:Request,actionId:str|None=None):
         'completion':{'type':'object','additionalProperties':False,'properties':{'kind':{'enum':['ordinary','monitoring']},'signalType':{'type':'string'}}},
         'enabled':{'type':'boolean','default':False},'maxRuns':{'type':['integer','null'],'minimum':1},
         'misfirePolicy':{'enum':['fire_now','skip']}}}
-    return {'version':1,'config':config_schema,'template':{'type':'object','additionalProperties':False,
+    config_schema['required']=['name','schedule']
+    config_schema['anyOf']=[{'required':['actionId']},{'required':['steps']}]
+    config_schema['properties']['steps']=chains.SCHEMA['steps']
+    return {'version':1,'chains':chains.SCHEMA,'config':config_schema,'template':{'type':'object','additionalProperties':False,
         'required':['name','config'],'properties':{**metadata,'id':{'type':'string','pattern':'^jtpl_','maxLength':64},
         'config':config_schema}},
         'instantiate':{'type':'object','additionalProperties':False,'required':['expectedRevision','idempotencyKey'],

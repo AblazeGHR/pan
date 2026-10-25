@@ -9,6 +9,7 @@ from collections import deque
 from datetime import datetime
 
 from .policy import concurrency
+from packages.jobs import chains
 
 from packages.core.system_fields import system_binding_name, system_value
 from .events import now
@@ -149,6 +150,12 @@ class Engine:
                         run.update(status='skipped', finishedAt=now())
                     else:
                         run['arguments'] = arguments(trigger.get('arguments', {}), event)
+                        if 'steps' in trigger:
+                            if event['type']=='pan.interaction.responded' and event.get('payload',{}).get('triggerRef'):
+                                raise ValueError('Bound interaction responses require the existing single Action verifier')
+                            registry=await self.io(self.actions.read)
+                            run['chainSnapshot']=await self.io(chains.freeze,trigger['steps'],registry,run['arguments'],event,config_revision=trigger['revision'])
+                            run['stepExecutions']=chains.records(run['chainSnapshot'],run['id'])
                 except Exception as exc:
                     run.update(status='failed', error=str(exc), finishedAt=now())
                 try:
@@ -259,7 +266,7 @@ class Engine:
                             delay = remaining if delay is None else min(delay, remaining)
                             continue
                     current_action = (await self.io(self.actions.read))['actions'].get(run['actionId'])
-                    if not current_action or not current_action.get('enabled'):
+                    if not run.get('chainSnapshot') and (not current_action or not current_action.get('enabled')):
                         await self.io(self.ledger.block_pending, run['id'], run['revision'], 'Action changed: disabled or missing')
                         continue
                     try:
@@ -314,6 +321,9 @@ class Engine:
 
     async def run_attempt(self, run):
         rid = run['id']
+        if run.get('chainSnapshot'):
+            from .chain_engine import run_chain
+            return await run_chain(self,run)
         interaction=False
         effect_started = False
         try:

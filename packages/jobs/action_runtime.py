@@ -8,7 +8,8 @@ import uuid
 
 from packages.core import background_jobs as jobs
 from packages.plugins.lifecycle import io
-from .action_templates import Templates, Conflict, CreationPending, config_value, digest, generation, integrity, revision, conservative_config
+from .action_templates import Templates, Conflict, CreationPending, config_value, digest, generation, integrity, revision, conservative_config, reference_generation
+from . import chains
 
 RUNTIMES = {}
 
@@ -173,16 +174,16 @@ class Runtime:
     def create(self,raw,authorized=False,authority=None):
         def change(state):
             cfg=config_value(raw,state)
-            if not state['actions'][cfg['actionId']]['enabled'] or state.get('actionLifecycle',{}).get(cfg['actionId']) is False:
+            if any(not state['actions'][aid]['enabled'] or state.get('actionLifecycle',{}).get(aid) is False for aid in chains.action_ids(cfg)):
                 raise Conflict('Action disabled; new Job refused')
             if cfg['enabled'] and not authorized:raise PermissionError('Agent may create disabled Job draft only')
             jid='job_'+uuid.uuid4().hex[:24];key=digest(jid)
-            intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=generation(state,cfg['actionId']),
+            intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=reference_generation(state,cfg),
                         fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root),
                         authorization=copy.deepcopy(authority or {'type':'user'}))
             if len(state.setdefault('jobInstantiations',{}))>=10000:raise ValueError('Instantiation capacity reached')
             state['jobInstantiations'][key]=intent
-            state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'position':'/config/actionId','jobRoot':str(self.root)}
+            state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'actionIds':chains.action_ids(cfg),'position':'/config/actionId','jobRoot':str(self.root)}
             return copy.deepcopy(intent)
         return self.publish_intent(self.templates.transaction(change))
 
@@ -211,7 +212,7 @@ class Runtime:
         # only conservatively require delete confirmation, never grant execution.
         old=self.get(jid);revision(old['configRevision'],expected)
         def validate(state):
-            cfg=config_value(raw,state);aid=cfg['actionId'];gen=generation(state,aid)
+            cfg=config_value(raw,state);aid=cfg['actionId'];gen=reference_generation(state,cfg)
             if cfg['overlap']!=old['config']['overlap'] and not authorized:
                 raise PermissionError('User Bearer required to change overlap policy')
             maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
@@ -222,7 +223,7 @@ class Runtime:
             if repair:cfg['enabled']=False
             refs=state.setdefault('jobReferences',{})
             previous=refs.get(jid,{})
-            refs[jid]={'actionId':aid,'actionIds':list(dict.fromkeys([*previous.get('actionIds',[old['config']['actionId']]),aid])),
+            refs[jid]={'actionId':aid,'actionIds':list(dict.fromkeys([*previous.get('actionIds',chains.action_ids(old['config'])),*chains.action_ids(cfg)])),
                        'position':'/config/actionId','jobRoot':str(self.root),'configRevision':expected+1}
             return cfg,gen
         cfg,gen=self.templates.transaction(validate)
@@ -233,12 +234,13 @@ class Runtime:
             intent={'jobId':jid,'config':cfg,'fingerprint':old['creationFingerprint'],'referenceGeneration':gen,
                     'authorization':copy.deepcopy(authority or {'type':'user'})}
             replacement=config_job(self.root,intent)
-            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','runAuthorization','paused','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible'):
+            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','runAuthorization','paused','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible','chainRecovery'):
                 if key in old:replacement[key]=copy.deepcopy(old[key])
             if cfg['schedule']==old['config']['schedule']:
                 replacement['schedule']=copy.deepcopy(old['schedule'])
                 replacement['nextFireAt']=old.get('nextFireAt')
             if old['status'] in {'running','cleaning'}:replacement['status']=old['status']
+            if old['status']=='restarting' and old.get('chainRecovery'):replacement['status']='restarting'
             if authority is not None and not self.active(old):
                 replacement['runAuthorization']=copy.deepcopy(authority)
             replacement['configRevision']=expected+1
@@ -247,7 +249,7 @@ class Runtime:
         def narrow(state):
             ref=state['jobReferences'].get(jid,{})
             if ref.get('configRevision')==expected+1 and ref.get('actionId')==cfg['actionId']:
-                ref['actionIds']=[cfg['actionId']]
+                ref['actionIds']=chains.action_ids(cfg)
         self.templates.transaction(narrow)
         return self.view(replacement)
 
@@ -278,6 +280,19 @@ class Runtime:
             config=job['config']
             recovering=job.get('status')=='restarting' or confirmed
             if recovering and not confirmed and job.get('runRecoveryEligible') is not True:raise Conflict('Original Run lacks frozen recovery eligibility')
+            chain_recovery=copy.deepcopy(job.get('chainRecovery')) if recovering else None
+            chain_snapshot=None
+            if chain_recovery:
+                chain_snapshot=chain_recovery['snapshot']
+                context=copy.deepcopy(chain_snapshot['event'])
+            elif 'steps' in config:
+                state=self.actions.read()
+                checked=integrity(state,config,job['referenceGeneration'])
+                if checked['status']!='complete' or checked['approvalRequired']:raise Conflict('Action chain requires reference repair')
+                chain_snapshot=chains.freeze(config['steps'],state,config['arguments'],context,
+                    completion=config['completion'],config_revision=job['configRevision'])
+                chain_snapshot['trigger']=copy.deepcopy(config['trigger'])
+                chain_snapshot['digest']=digest({k:v for k,v in chain_snapshot.items() if k!='digest'})
             source=copy.deepcopy(authority or (job.get('runAuthorization') if recovering else None) or job.get('authorization', {'type':'user'}))
             job['runAuthorization']=source
             if not recovering:
@@ -295,6 +310,13 @@ class Runtime:
                        'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
                        'templateRevision':job.get('templateRevision'),'backoffSec':0,
                        'receipt':None,'sideEffectUncertainty':False}
+            if chain_snapshot:
+                execution.update(chainSnapshot=chain_snapshot,configRevision=chain_snapshot['configRevision'],
+                    stepExecutions=copy.deepcopy(chain_recovery['steps']) if chain_recovery else chains.records(chain_snapshot,run_id))
+                execution['context']=copy.deepcopy(context)
+                execution['context']['id']=eid
+                execution['context']['dispatchKey']=eid
+            job.pop('chainRecovery',None)
             if confirmed:
                 execution['recoveryCheckpoint']=copy.deepcopy(confirmation['checkpoint'])
                 job['recoveryConfirmation']={**confirmation,'status':'consumed','attemptId':attempt_id}
@@ -345,6 +367,13 @@ class Runtime:
             summary={'id':eid,'runId':execution_audit.get('runId') or job.get('runId'),'attemptId':execution_audit.get('attemptId'),
                      'authorization':copy.deepcopy(execution_audit.get('authorization',{'type':'user'})),
                      'executionKind':execution_audit.get('executionKind'),'status':outcome['status'],'notificationPolicy':copy.deepcopy(execution_audit.get('policy',{}).get('notification',{})),**outcome['audit']}
+            if execution_audit.get('chainSnapshot'):
+                summary['stepExecutions']=copy.deepcopy(execution_audit['stepExecutions'])
+                summary['configRevision']=execution_audit.get('configRevision')
+                if outcome['status'] in {'failed','restarting'}:
+                    job['chainRecovery']={'snapshot':copy.deepcopy(execution_audit['chainSnapshot']),
+                        'steps':copy.deepcopy(execution_audit['stepExecutions']),
+                        'safeBoundary':bool(outcome['audit'].get('safeBoundary'))}
             event_id=execution_audit.get('context',{}).get('eventId')
             if event_id:
                 summary['eventId']=event_id
@@ -356,7 +385,8 @@ class Runtime:
             job.update(lastExecution=summary,lastStatus=outcome['status'],runStartedAt=None,
                        runCount=int(job.get('runCount',0))+(1 if execution_audit.get('attemptCount',1)==1 else 0),terminalEventId=eid)
             policy=execution_audit.get('policy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
-            if outcome['status']=='restarting' and policy.get('enabled'):
+            safe_boundary=outcome.get('audit',{}).get('safeBoundary') is True
+            if outcome['status']=='restarting' and policy.get('enabled') and not safe_boundary:
                 reset=policy.get('stableResetSec',300)
                 stable=reset>0 and time.time()-execution_audit.get('startedAt',time.time())>=reset
                 count=(0 if stable else job.get('recoveryFailures',0))+(0 if outcome.get('audit',{}).get('gateBlocked') else 1)
@@ -366,7 +396,7 @@ class Runtime:
                 for attempt in job.get('attempts',[]):
                     if attempt.get('id')==execution_audit.get('attemptId'):
                         attempt.update(backoffSec=backoff,nextAttemptAt=job['nextAttemptAt'])
-            elif outcome['status']!='restarting':
+            elif outcome['status']!='restarting' or safe_boundary:
                 job.pop('nextAttemptAt',None)
             cfg=job['config'];once=all(e['kind']=='once' and not e.get('enabled',True) for e in job['schedule'])
             # The claimed entry is consumed at dispatch admission, not recovery.
@@ -425,6 +455,9 @@ class Runtime:
 
     async def execute(self,job):
         from packages.actions.executor import execute_dynamic
+        if job['execution'].get('chainSnapshot'):
+            from .chain_runtime import execute_job_chain
+            return await execute_job_chain(self,job)
         eid=job['execution']['id'];audit={};outcome='uncertain'
         try:
             snapshot=await io(self.templates.snapshot,job,job['execution'])
@@ -489,6 +522,14 @@ class Runtime:
                 await self.publish_events()
             except Exception as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'cleanup','error':str(exc)})
             self.cancelled.discard(eid)
+
+    def chain_save(self,jid,eid,steps,phase):
+        with jobs._lock,jobs._job_lock(jid,self.root):
+            job=self.get(jid);active=self.active(job)
+            if eid not in active:raise SnapshotPersistenceError('Chain execution no longer admitted')
+            active[eid].update(stepExecutions=copy.deepcopy(steps),phase=phase)
+            job.update(activeExecutions=active,execution=next(iter(active.values())))
+            jobs._write_job(jobs._job_path(jid,self.root),job)
 
     @staticmethod
     def selection_audit(checkpoint):
@@ -577,15 +618,19 @@ class Runtime:
         try:
             before=await io(self.get,jid)
             source = authority or (before.get('runAuthorization') if before.get('status')=='restarting' else None) or before.get('authorization', {'type':'user'})
-            action = (await io(self.actions.read))['actions'].get(before['config']['actionId'])
-            if not action or not action.get('enabled'):
+            continuation=before.get('chainRecovery') if before.get('status')=='restarting' or confirmed else None
+            action = (await io(self.actions.read))['actions'].get(before['config']['actionId']) if not continuation else None
+            if not continuation and (not action or not action.get('enabled')):
                 raise Conflict('Action disabled or missing')
             authorization_revision = await self._check_authorization(source, action)
             view=await io(self.view,before)
-            if not view['enabled'] and not (confirmed and view['integrity']['status']=='complete' and not view['integrity']['approvalRequired']):raise Conflict('Job disabled, incomplete or requires user repair')
-            if before['config']['trigger']['kind']=='event' and not all(getattr(self,'event_available',lambda _:True)(t) for t in before['config']['trigger']['eventTypes']):
+            if continuation:
+                if not before['enabled'] and not confirmed:raise Conflict('Job disabled')
+            elif not view['enabled'] and not (confirmed and view['integrity']['status']=='complete' and not view['integrity']['approvalRequired']):raise Conflict('Job disabled, incomplete or requires user repair')
+            trigger=continuation['snapshot']['trigger'] if continuation else before['config']['trigger']
+            if trigger['kind']=='event' and not all(getattr(self,'event_available',lambda _:True)(t) for t in trigger['eventTypes']):
                 raise Conflict('Event source unavailable; queued intent retained')
-            if before.get('status')=='restarting':
+            if before.get('status')=='restarting' and not before.get('chainRecovery'):
                 from .system_actions import recovery_ready
                 state=await io(self.actions.read)
                 if not await io(recovery_ready,state['actions'][before['config']['actionId']],before['config']['arguments']):raise Conflict('Recovery blocked by business gates; budget unchanged')
@@ -634,8 +679,10 @@ class Runtime:
         for job in await io(jobs.list_jobs,self.root):
             if len(self.tasks)>=limit:break
             if not is_action_job(job) or not job.get('enabled') or job.get('paused'):continue
+            safe_boundary=job.get('chainRecovery',{}).get('safeBoundary') is True
+            continuing=job.get('status')=='restarting' and bool(job.get('chainRecovery'))
             job=await io(self.view,job)
-            if not job['enabled']:continue
+            if not job['enabled'] and not continuing:continue
             policy=job['config'].get('overlap',{})
             maximum=policy.get('parallelLimit',3) if policy.get('mode')=='parallel' else 1
             if (len(self.active(job))>=maximum and policy.get('mode')!='queue') or self.admitting(job['jobId']):continue
@@ -651,7 +698,7 @@ class Runtime:
             recovery=job.get('runPolicy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
             if job.get('status')=='restarting':
                 count=job.get('recoveryFailures',sum(a.get('runId')==job.get('runId') for a in job.get('attempts',[])))
-                if not recovery.get('enabled') or count>=recovery.get('maxAttempts',3):
+                if not safe_boundary and (not recovery.get('enabled') or count>=recovery.get('maxAttempts',3)):
                     if count>=recovery.get('maxAttempts',3):
                         await io(self.finalize_recovery_exhausted,job)
                     continue
@@ -705,8 +752,8 @@ class Runtime:
         return True
 
     def recover(self,initial=True):
-        # Recovery consumes no executable historical definition. It only removes
-        # snapshots and finalizes known in-flight identities once.
+        # Legacy in-flight effects remain uncertain. Explicit chains additionally
+        # resume only durable boundaries with no unconfirmed running Step.
         state=self.actions.read()
         for intent in state.get('jobInstantiations',{}).values():
             if intent.get('jobRoot')==str(self.root) and intent['phase']=='reserved':self.publish_intent(intent)
@@ -717,7 +764,16 @@ class Runtime:
                 snap=state.get('jobExecutions',{}).get(eid,{})
                 audit={k:snap[k] for k in ('actionId','actionRevision','registryRevision','digest','argumentsDigest','contextDigest') if k in snap}
                 audit.update(self.selection_audit(snap.get('checkpoint',{})))
-                self.finalize(job['jobId'],eid,'uncertain',audit)
+                if execution.get('chainSnapshot'):
+                    steps=copy.deepcopy(execution['stepExecutions'])
+                    safe=chains.interrupted(steps)
+                    self.chain_save(job['jobId'],eid,steps,'boundary' if safe else 'interrupted')
+                    audit.update(stepExecutions=steps,safeBoundary=safe)
+                    if safe:
+                        self.action_audit(job['jobId'],eid,{},True)
+                    self.finalize(job['jobId'],eid,'restarting' if safe else 'uncertain',audit)
+                else:
+                    self.finalize(job['jobId'],eid,'uncertain',audit)
         state=self.actions.read()
         for eid,snap in state.get('jobExecutions',{}).items():
             if snap.get('jobRoot')==str(self.root) and not self.live_for(snap.get('jobId')) and not self.admitting(snap.get('jobId')):
@@ -726,18 +782,18 @@ class Runtime:
                     'dispatch_key':eid,'status':'uncertain','result':audit},registry_root=self.root)
                 self.templates.clear_snapshot(eid)
         if initial:
-            actual={j['jobId']:j['config']['actionId'] for j in jobs.list_jobs(self.root) if is_action_job(j)}
+            actual={j['jobId']:chains.action_ids(j['config']) for j in jobs.list_jobs(self.root) if is_action_job(j)}
             state=self.actions.read()
             existing=state.get('jobReferences',{})
-            needs=any(existing.get(jid,{}).get('actionIds',[existing.get(jid,{}).get('actionId')])!=[aid] for jid,aid in actual.items())
+            needs=any(existing.get(jid,{}).get('actionIds',[existing.get(jid,{}).get('actionId')])!=aids for jid,aids in actual.items())
             needs=needs or any(r.get('jobRoot')==str(self.root) and jid not in actual for jid,r in existing.items())
             if needs:
                 def reconcile(state):
                     refs=state.setdefault('jobReferences',{})
                     for jid,r in list(refs.items()):
                         if r.get('jobRoot')==str(self.root) and jid not in actual:refs.pop(jid)
-                    for jid,aid in actual.items():
-                        refs[jid]={'actionId':aid,'actionIds':[aid],'position':'/config/actionId','jobRoot':str(self.root)}
+                    for jid,aids in actual.items():
+                        refs[jid]={'actionId':aids[0],'actionIds':aids,'position':'/config/actionId','jobRoot':str(self.root)}
                 self.templates.transaction(reconcile)
 
     def delete(self,jid,expected):
@@ -790,6 +846,8 @@ class Runtime:
             job=self.get(jid);revision(job['configRevision'],expected)
             if self.active(job) or self.admitting(jid):raise Conflict('Attempt still running or cleaning')
             last=job.get('lastExecution',{})
+            if last.get('stepExecutions') and last.get('status') in ('unknown','uncertain'):
+                raise Conflict('Uncertain chain step requires reconciliation; replay refused')
             if last.get('status') not in status or not last.get('runId'):raise Conflict('No eligible terminal Run to confirm')
             # A process receipt must have a known terminal child. Never spawn
             # a second command while the original can still be alive.
@@ -810,8 +868,8 @@ class Runtime:
     async def confirm_recovery(self,jid,expected,failed=False,authority=None):
         current=await io(self.get,jid)
         source=authority or current.get('runAuthorization') or current.get('authorization',{'type':'user'})
-        action=(await io(self.actions.read))['actions'].get(current['config']['actionId'])
-        if not action or not action.get('enabled'):raise Conflict('Action disabled or missing')
+        action=(await io(self.actions.read))['actions'].get(current['config']['actionId']) if not current.get('chainRecovery') else None
+        if not current.get('chainRecovery') and (not action or not action.get('enabled')):raise Conflict('Action disabled or missing')
         await self._check_authorization(source,action)
         job=await io(self.reserve_recovery,jid,expected,('failed',) if failed else ('uncertain','unknown'))
         return await self.launch(jid,job['configRevision'],confirmed=True,authority=source)

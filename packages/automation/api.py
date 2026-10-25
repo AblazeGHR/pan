@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from packages.core.system_fields import public_schema
 from .store import Conflict
+from packages.jobs import chains
 from .authorization import require as object_require, require_write, authority
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
@@ -82,7 +83,7 @@ def install(server):
     async def view(request: Request):
         await require_permission(request, 'trigger', 'read')
         svc = service()
-        state = await svc.engine.io(svc.ledger.read)
+        state = chains.public(await svc.engine.io(svc.ledger.read))
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
 
     @router.get('/api/automation/system-fields')
@@ -104,7 +105,7 @@ def install(server):
                                        'policyIdentityDomain':'cc-switch-provider:codex','maxOfficialProviders':32,
                                        'providerSampleBudgetSeconds':8,'workerLaunchBinding':'unavailable'},
                                'defaultAdapter':'unavailable','unknownReplayed':False},
-                'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
+                'chains': chains.SCHEMA, 'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
                 'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
                            'backoffSeconds': BACKOFF_SECONDS, 'backoffCapSeconds': BACKOFF_CAP_SECONDS}}
 
@@ -237,8 +238,10 @@ def install(server):
         try:
             svc = service()
             run = await svc.engine.io(svc.ledger.cancel, rid, data['expectedRevision'])
+            task=getattr(svc.engine,'chain_tasks',{}).get(rid)
+            if run.get('cancellationRequested') and task:task.cancel()
             await svc.engine.kick()
-            return {'run': run}
+            return {'run': chains.public(run)}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:
@@ -253,7 +256,7 @@ def install(server):
             svc = service()
             run = await svc.engine.io(svc.ledger.confirm_uncertain, rid, data['expectedRevision'], svc.engine.max_pending, await authority(request))
             await svc.engine.kick()
-            return {'run': run}
+            return {'run': chains.public(run)}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:

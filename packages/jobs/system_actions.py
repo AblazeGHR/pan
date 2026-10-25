@@ -292,7 +292,8 @@ async def execute(action, params, context, progress):
     else:
         legacy = {'jobId': context['jobId'], 'kind': 'scheduled-task', 'targetSessionId': params['sessionId'],
                   'text': params['text'], 'action': params['action'], 'name': context['jobName']}
-        result = await jobs._execute_job_action(legacy, params['sessionId'], context['id'], registry_root=root, admitted_execution=context['id'])
+        result = await jobs._execute_job_action(legacy, params['sessionId'], context['id'], registry_root=root,
+                                                admitted_execution=context.get('admittedExecution', context['id']))
         if result.get('processJobId') and result.get('status') == 'running':
             await progress(processJobId=result['processJobId'])
             result = await wait_process({'jobId': result['processJobId']}, root)

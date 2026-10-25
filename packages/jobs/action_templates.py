@@ -10,6 +10,7 @@ import uuid
 import jsonschema
 
 from packages.actions.store import validate_action
+from . import chains
 
 MAX_TEMPLATES = 256
 MAX_RECEIPTS = 10000
@@ -83,16 +84,20 @@ def check_action_graph(state, action, seen=()):
     template = state.get('jobTemplates', {}).get(ex['templateId'])
     if not template or template['revision'] != ex['templateRevision']:
         raise ReferenceError(aid,'/actions/'+aid+'/execution/templateId','Missing or changed fixed Job Template: '+ex['templateId'])
-    target = state['actions'].get(template['config']['actionId'])
-    if not target:
-        target_id=template['config']['actionId']
-        raise ReferenceError(target_id,'/jobTemplates/'+template['id']+'/config/actionId','Missing Action reference: '+target_id)
-    filled_arguments(validate_action(target), template['config']['arguments'])
-    check_action_graph(state, target, (*seen, aid))
+    for target_id in chains.action_ids(template['config']):
+        target = state['actions'].get(target_id)
+        if not target:
+            raise ReferenceError(target_id,'/jobTemplates/'+template['id']+'/config/actionId','Missing Action reference: '+target_id)
+        if 'steps' not in template['config']:
+            filled_arguments(validate_action(target), template['config']['arguments'])
+        else:
+            for step in template['config']['steps']:
+                if step['actionId']==target_id:chains.validate_arguments(validate_action(target),step['arguments'])
+        check_action_graph(state, target, (*seen, aid))
 
 
 def config_value(raw, state):
-    strict(raw, {'name','description','actionId','arguments','schedule','trigger','recovery','overlap','notification','completion','enabled','maxRuns','misfirePolicy'}, 'Job config')
+    strict(raw, {'name','description','actionId','arguments','steps','schedule','trigger','recovery','overlap','notification','completion','enabled','maxRuns','misfirePolicy'}, 'Job config')
     value = copy.deepcopy(raw)
     if not isinstance(value.get('name'), str) or not value['name'].strip() or len(value['name']) > 200:
         raise ValueError('Job name required (1..200 characters)')
@@ -157,6 +162,12 @@ def config_value(raw, state):
     recipients=notification.get('sessionIds',[])
     if not isinstance(recipients,list) or len(recipients)>128 or any(not isinstance(s,str) or not s for s in recipients) or len(set(recipients))!=len(recipients):
         raise ValueError('Notification sessionIds requires at most128 distinct Session IDs')
+    if 'steps' in value:
+        value['steps'] = chains.normalize(value['steps'])
+        value.setdefault('actionId', value['steps'][0]['actionId'])
+        if value['actionId'] != value['steps'][0]['actionId']:
+            raise ValueError('actionId must match first step')
+        if not isinstance(value['arguments'], dict):raise ValueError('Job input arguments must be an object')
     aid = value.get('actionId')
     if not isinstance(aid, str) or aid not in state['actions']:
         raise ValueError('Missing Action reference at /config/actionId: '+str(aid))
@@ -164,8 +175,19 @@ def config_value(raw, state):
     if action['execution']=={'kind':'system_job','operation':'main-lifecycle'}:
         raise ValueError('Main lifecycle is available only through its protected supervisor entry point')
     completion_policy(action,value)
-    value['arguments'] = filled_arguments(action, value['arguments'])
-    check_action_graph(state, action)
+    if 'steps' in value:
+        for step in value['steps']:
+            target = state['actions'].get(step['actionId'])
+            if not target:raise ValueError('Missing Action reference: '+step['actionId'])
+            target = validate_action(target)
+            if target['execution'] == {'kind':'system_job','operation':'main-lifecycle'}:
+                raise ValueError('Main lifecycle requires protected supervisor entry point')
+            completion_policy(target,value)
+            chains.validate_arguments(target,step['arguments'])
+            check_action_graph(state,target)
+    else:
+        value['arguments'] = filled_arguments(action, value['arguments'])
+        check_action_graph(state, action)
     from packages.jobs.api import _validate_scheduled_specs
     if trigger['kind'] in ('immediate','event') and value.get('schedule') == []:
         return value
@@ -190,6 +212,11 @@ def generation(state, aid):
     return state.get('actionGenerations', {}).get(aid, 0)
 
 
+def reference_generation(state, config):
+    return ({aid:generation(state,aid) for aid in chains.action_ids(config)}
+            if 'steps' in config else generation(state,config['actionId']))
+
+
 def integrity(state, config, approved_generation):
     config=conservative_config(config)
     aid = config['actionId']
@@ -198,7 +225,7 @@ def integrity(state, config, approved_generation):
         action = state['actions'].get(aid)
         if not action:
             raise ValueError('Missing Action reference: '+aid)
-        filled_arguments(validate_action(action), config['arguments'])
+        if 'steps' not in config:filled_arguments(validate_action(action), config['arguments'])
         # Validate additive policies without rejecting a persisted, already-fired
         # once date. No migration write, date shift, enable or recovery is implied.
         from datetime import datetime,timedelta
@@ -209,12 +236,12 @@ def integrity(state, config, approved_generation):
     except (ValueError, jsonschema.ValidationError) as exc:
         issues.append({'actionId':getattr(exc,'action_id',aid), 'position':getattr(exc,'position','/config/actionId'), 'error':str(exc)[:1000]})
     return {'status':'incomplete' if issues else 'complete','issues':issues,
-            'approvalRequired':generation(state,aid) != approved_generation}
+            'approvalRequired':reference_generation(state,config) != approved_generation}
 
 
 def references(state, aid):
     return ([{'jobId':jid, 'position':'/config/actionId'} for jid,r in state.get('jobReferences',{}).items() if aid in r.get('actionIds',[r['actionId']])]
-            + [{'templateId':t['id'],'position':'/config/actionId'} for t in state.get('jobTemplates',{}).values() if t['config']['actionId']==aid])
+            + [{'templateId':t['id'],'position':'/config/actionId'} for t in state.get('jobTemplates',{}).values() if aid in chains.action_ids(t['config'])])
 
 
 class Templates:
@@ -254,7 +281,7 @@ class Templates:
             if not isinstance(item['description'],str):
                 raise ValueError('Invalid Template metadata')
             item['config'] = config_value(item.get('config'),state)
-            aid = item['config']['actionId'];gen = generation(state,aid)
+            aid = item['config']['actionId'];gen = reference_generation(state,item['config'])
             repairing = old and (old['config']['actionId']!=aid or old['referenceGeneration']!=gen)
             if not authorized and (item['config']['enabled'] or repairing):
                 raise PermissionError('Authorized caller required for enabled Job config or reference repair')
@@ -299,14 +326,14 @@ class Templates:
             if not view['usable']:raise Conflict('Template incomplete or requires user repair')
             config = (config_value({**item['config'],**overrides},state) if admitted_template is None
                       else copy.deepcopy({**item['config'],**overrides}))
-            if not state['actions'][config['actionId']]['enabled'] or state.get('actionLifecycle',{}).get(config['actionId']) is False:
+            if any(not state['actions'][aid]['enabled'] or state.get('actionLifecycle',{}).get(aid) is False for aid in chains.action_ids(config)):
                 raise Conflict('Action disabled; new Job refused')
             job_id = 'job_'+digest('template-instance:'+key)[:24]
             intent = dict(key=receipt_key,fingerprint=fingerprint,jobId=job_id,templateId=tid,templateRevision=expected,
                           config=config,referenceGeneration=item['referenceGeneration'],jobRoot=job_root,phase='reserved',
                           authorization=copy.deepcopy(authority or {'type':'user'}))
             receipts[receipt_key]=intent
-            state.setdefault('jobReferences',{})[job_id]={'actionId':config['actionId'],'position':'/config/actionId','jobRoot':job_root}
+            state.setdefault('jobReferences',{})[job_id]={'actionId':config['actionId'],'actionIds':chains.action_ids(config),'position':'/config/actionId','jobRoot':job_root}
             return copy.deepcopy(intent)
         return self.transaction(change)
 
@@ -320,6 +347,19 @@ class Templates:
     def snapshot(self, job, execution):
         def change(state):
             config=job['config'];aid=config['actionId']
+            if execution.get('chainSnapshot'):
+                snapshot=execution['chainSnapshot']
+                first=snapshot['steps'][0]
+                snapshots=state.setdefault('jobExecutions',{})
+                if len(snapshots)>=MAX_SNAPSHOTS:raise ValueError('Temporary snapshot capacity reached')
+                snap=dict(chainSnapshot=copy.deepcopy(snapshot),definition=copy.deepcopy(first['definition']),
+                    arguments=copy.deepcopy(snapshot['input']),context=copy.deepcopy(snapshot['event']),
+                    actionId=first['actionId'],actionRevision=first['actionRevision'],registryRevision=snapshot['registryRevision'],
+                    digest=snapshot['digest'],argumentsDigest=digest(snapshot['input']),contextDigest=digest(snapshot['event']),
+                    checkpoint={},jobId=job['jobId'],taskId=job['taskId'],jobRoot=execution['jobRoot'])
+                strict(snap,set(snap),'execution snapshot')
+                snapshots[execution['id']]=snap
+                return copy.deepcopy(snap)
             status=integrity(state,config,job['referenceGeneration'])
             if status['status']!='complete' or status['approvalRequired']:
                 raise Conflict('Action reference incomplete or requires user repair: '+aid)

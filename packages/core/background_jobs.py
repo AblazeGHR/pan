@@ -458,7 +458,8 @@ def job_public_view(job: dict | None) -> dict | None:
     """
     if not isinstance(job, dict):
         return job
-    view = dict(job)
+    from packages.jobs.chains import public as chain_public
+    view = chain_public(job)
     view.pop('attemptSnapshot', None)
     identity = _structured_identity(job)
     view["source"] = identity["source"]
@@ -880,8 +881,14 @@ def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
         action = parent.get("action")
         if admitted_execution is not None:
             admission = parent.get('activeExecutions', {}).get(admitted_execution, parent.get('execution', {}))
-            if (admission.get('id') != admitted_execution or dispatch_key != admitted_execution
-                    or admission.get('actionId') != 'system_scheduled_task'
+            step = next((s for s in admission.get('stepExecutions', [])
+                         if s.get('status') == 'running' and s.get('actionId') == 'system_scheduled_task'
+                         and dispatch_key == admission.get('runId', '') + ':' + s.get('stepId', '')), None)
+            chain_admitted = (admission.get('chainSnapshot') is not None and step is not None
+                              and step.get('arguments', {}).get('action') == parent_job.get('action'))
+            if (admission.get('id') != admitted_execution
+                    or (not chain_admitted and (dispatch_key != admitted_execution
+                        or admission.get('actionId') != 'system_scheduled_task'))
                     or parent.get('status') != 'running'):
                 raise ValueError('System Action admission no longer current')
             action = parent_job.get('action')
