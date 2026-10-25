@@ -708,6 +708,27 @@ class Orchestrator:
             if not pending:
                 break
             if self.clock() >= deadline:
+                forced = False
+                for item in pending:
+                    if (item.restart and item.restart.get("kind") == "delayed"
+                            and not item.restart.get("forced")):
+                        try:
+                            retry = self.api.restart_worker(item.worker_id)
+                        except RotationError:
+                            continue
+                        if not retry.get("error"):
+                            item.restart.update(
+                                kind="immediate",
+                                status="accepted",
+                                error=None,
+                                forced=True,
+                            )
+                            forced = True
+                if forced:
+                    deadline = self.clock() + 60.0
+                    self.event("wait", force_restart=True,
+                               pending=[item.session_id for item in pending])
+                    continue
                 for item in pending:
                     item.restart["status"] = "timeout"
                     item.restart["error"] = "restart did not reach a terminal state before timeout"

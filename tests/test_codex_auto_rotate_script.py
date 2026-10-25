@@ -316,14 +316,44 @@ class AlwaysPendingApi(FakeApi):
         return {"status": "pending"}
 
 
-def test_restart_timeout_is_recorded(tmp_path):
+def test_restart_timeout_forces_immediate_restart_and_resumes(tmp_path):
     workers = [_worker("s1", "worker-1", "running", 1)]
     summaries = [_summary("s1", "codex", "running", "T1", 1)]
     details = {"s1": _detail("s1", "T1")}
     api = AlwaysPendingApi(workers, summaries, details)
+    now = [0.0]
+    def clock():
+        now[0] += 1.0
+        return now[0]
     orchestrator = rotate.Orchestrator(
         api, FakeSwitcher(), trigger=_trigger(), execute=True, timeout=0.01, poll=0.01,
-        ledger_path=tmp_path / "ledger.json", sleep=lambda _: None,
+        ledger_path=tmp_path / "ledger.json", sleep=lambda _: None, clock=clock,
+    )
+    ledger = orchestrator.run()
+    restart = ledger["frozen"][0]["restart"]
+    assert restart["status"] == "completed"
+    assert restart.get("forced") is True
+    assert ledger["frozen"][0]["resume"]["status"] == "queued"
+
+
+class FailingRestartApi(AlwaysPendingApi):
+    def restart_worker(self, worker_id):
+        self.calls.append(("restart_worker", worker_id))
+        return {"error": "restart refused"}
+
+
+def test_restart_timeout_is_recorded_when_force_also_fails(tmp_path):
+    workers = [_worker("s1", "worker-1", "running", 1)]
+    summaries = [_summary("s1", "codex", "running", "T1", 1)]
+    details = {"s1": _detail("s1", "T1")}
+    api = FailingRestartApi(workers, summaries, details)
+    now = [0.0]
+    def clock():
+        now[0] += 1.0
+        return now[0]
+    orchestrator = rotate.Orchestrator(
+        api, FakeSwitcher(), trigger=_trigger(), execute=True, timeout=0.01, poll=0.01,
+        ledger_path=tmp_path / "ledger.json", sleep=lambda _: None, clock=clock,
     )
     ledger = orchestrator.run()
     assert ledger["frozen"][0]["restart"]["status"] == "timeout"
