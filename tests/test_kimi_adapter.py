@@ -236,6 +236,217 @@ def test_fork_kimi_session():
     print("PASS: fork_kimi_session")
 
 
+# ── kimi 2.3.1 实测回归项（2026-10-24，真实 CLI 端到端核验后固化）──────────
+
+
+def test_fork_args_is_provider_owned_no_side_effect():
+    """fork_args 不得自行 fork：worker branch 路径随后还会经 provider fork，
+    两侧都做会双重 fork（每次 branch 留孤儿 kimi 会话）。对齐 claude/opencode/codex。"""
+    a = _adapter()
+    s = _sess.Session(id="ses_test", name="test", adapter="kimi",
+                      adapter_config={"cli_session_id": "session_parent"})
+    assert a.fork_args(s) == []
+    assert s.cli_session_id == "session_parent"  # 未被改写
+
+
+def test_tool_result_event_is_transient():
+    """2.3.1 新增 role=tool 结果事件（tool_call_id + content）：既不是 assistant
+    （不入历史块）也不是 result（不结束回合），worker 原样忽略。"""
+    a = _adapter()
+    event = {"role": "tool", "tool_call_id": "call_probe_1",
+             "content": "PAN_MCP_OK\n<mcp-result-extras>...</mcp-result-extras>"}
+    assert a.parse_event(json.dumps(event)) == event
+    assert a.is_assistant_event(event) is False
+    assert a.is_result_event(event) is False
+    assert a.event_type(event) == "tool"
+
+
+def test_meta_version_event_is_not_init():
+    """init 事件只有 meta/session.resume_hint；system.version 等 meta 事件
+    必须被 is_init_event 排除（worker 只在 init 事件提取 session_id）。"""
+    a = _adapter()
+    event = {"role": "meta", "type": "system.version", "version": "2.3.1"}
+    assert a.is_init_event(event) is False
+    assert a.extract_session_id(event) is None
+
+
+def test_thinking_flat_content_event():
+    """2.3.1 stream-json 的思考事件（role=thinking + content 字符串）。"""
+    a = _adapter()
+    event = {"role": "thinking", "content": "先分析一下"}
+    assert a.is_assistant_event(event) is True
+    assert a.extract_assistant_blocks(event) == [
+        {"role": "thinking", "content": "先分析一下"}]
+
+
+def test_takeover_command_with_and_without_isolated_home():
+    a = _adapter()
+    s = _sess.Session(id="ses_t", name="t", adapter="kimi",
+                      adapter_config={"cli_session_id": "session_x"})
+    cmd = a.takeover_command(s)
+    assert cmd[-2:] == ["-S", "session_x"]
+    assert "kimi" in os.path.basename(cmd[0]).lower()
+
+    s2 = _sess.Session(id="ses_t2", name="t2", adapter="kimi",
+                       adapter_config={"cli_session_id": "session_x",
+                                       "kimi_home_dir": "D:/data/kimi-homes/ses_t2"})
+    cmd2 = a.takeover_command(s2)
+    assert cmd2[0] == sys.executable
+    assert "KIMI_CODE_HOME" in cmd2[2]
+    assert cmd2[-2:] == ["-S", "session_x"]
+
+
+def test_prepare_kimi_home_writes_config_and_mcp(tmp_path, monkeypatch):
+    """_prepare_kimi_home（方案 C）：拷贝真实 config.toml + 写含身份注入的
+    mcp.json；无 mcp_servers 返回 None（不加 --kimi-home）。"""
+    fake_home = tmp_path / "fake-user-home"
+    (fake_home / ".kimi-code").mkdir(parents=True)
+    (fake_home / ".kimi-code" / "config.toml").write_text(
+        'default_model = "moonshot-cn/kimi-k2.6"\n', encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    a = _adapter()
+    repo_root = Path(__file__).resolve().parent.parent
+    s = _sess.Session(id="ses_mcp", name="mcp-session", adapter="kimi",
+                      adapter_config={"mcp_servers": [{
+                          "name": "pan",
+                          "command": "python",
+                          "args": ["-m", "packages.mcp.server"],
+                          "cwd": str(repo_root),
+                      }]})
+    home = a._prepare_kimi_home(s)
+    assert home is not None and home.is_dir()
+    # (a) 真实 config.toml 被拷入隔离 HOME
+    assert (home / "config.toml").read_text(encoding="utf-8").startswith("default_model")
+    # (b) mcp.json 含 pan server 与身份注入
+    mcp = json.loads((home / "mcp.json").read_text(encoding="utf-8"))
+    assert "pan" in mcp["mcpServers"]
+    env = mcp["mcpServers"]["pan"]["env"]
+    assert env["PAN_AGENT_SESSION_ID"] == "ses_mcp"
+    assert env["PAN_AGENT_SESSION_TITLE"] == "mcp-session"
+    # 路径回填 adapter_config 供清理/enrich/fork 使用
+    assert s.adapter_config["kimi_home_dir"] == str(home)
+
+    # 无 MCP 配置 → None（走原路径，用真实用户目录）
+    s_plain = _sess.Session(id="ses_plain", name="plain", adapter="kimi")
+    assert a._prepare_kimi_home(s_plain) is None
+
+
+def test_enrich_usage_cursor_against_synthetic_wire(tmp_path):
+    """enrich 增量游标（usage.record 的 time）：首轮返回全部新条目并推进游标，
+    二轮无新条目返回 None；model 回填 s.model。"""
+    from packages.core.adapters.kimi.adapter import _read_kimi_new_entries
+
+    home = tmp_path / "home"
+    sdir = home / "sessions" / "wd_a" / "session_e"
+    (sdir / "agents" / "main").mkdir(parents=True)
+    events = []
+    for i, t in enumerate([1792857801901, 1792857817404]):
+        events.append({"type": "usage.record", "agentId": "main",
+                       "model": "moonshot-cn/kimi-k2.6",
+                       "usage": {"inputOther": 7, "output": 3,
+                                 "inputCacheRead": 0, "inputCacheCreation": 0},
+                       "time": t})
+    (sdir / "agents" / "main" / "wire.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
+    (sdir / "state.json").write_text(json.dumps({"id": "session_e"}), encoding="utf-8")
+
+    s = _sess.Session(id="ses_e", name="e", adapter="kimi",
+                      workdir=str(tmp_path),
+                      adapter_config={"cli_session_id": "session_e",
+                                      "kimi_home_dir": str(home)})
+    entries = _read_kimi_new_entries(s)
+    assert entries is not None and len(entries) == 2
+    assert entries[0]["rawUsage"]["prompt_tokens"] == 7
+    assert entries[0]["rawUsage"]["completion_tokens"] == 3
+    assert s.adapter_config["kimi_last_usage_ts"] == 1792857817404
+    assert s.model == "moonshot-cn/kimi-k2.6"  # stdout 无 model 字段，从 usage 回填
+    # 游标已推进 → 二轮无新增
+    assert _read_kimi_new_entries(s) is None
+
+
+def test_wrapper_main_loop_argv_and_resume(monkeypatch, tmp_path):
+    """wrapper 主循环对 kimi 的 argv 契约（2.3.1 实测有效）：
+    首轮 `-p <text> --output-format stream-json [-m model] [--agent-file f]`，
+    二轮起追加 `-S <session_id>` 且不再传 --agent-file（kimi 禁止组合）；
+    KIMI_CODE_HOME 经 env 注入。"""
+    from packages.core.adapters.kimi import wrapper as kimi_wrapper
+
+    calls: list[dict] = []
+    written: list[str] = []
+
+    class _FakeStdout:
+        def __init__(self, lines):
+            self._lines = lines
+
+        def __iter__(self):
+            return iter(self._lines)
+
+    class _FakeProc:
+        def __init__(self, lines):
+            self.stdout = _FakeStdout(lines)
+            self.stderr = _FakeStdout([])
+            self.returncode = 0
+
+        def wait(self):
+            return 0
+
+    def fake_popen(args, **kwargs):
+        calls.append({"args": args, "env": kwargs.get("env"), "cwd": kwargs.get("cwd")})
+        if len(calls) == 1:
+            lines = [
+                b'{"role":"meta","type":"system.version","version":"2.3.1"}\n',
+                b'{"role":"assistant","content":"FIRST_OK"}\n',
+                b'{"role":"meta","type":"session.resume_hint","session_id":"session_fake1"}\n',
+            ]
+        else:
+            lines = [
+                b'{"role":"assistant","content":"SECOND_OK"}\n',
+                b'{"role":"meta","type":"session.resume_hint","session_id":"session_fake1"}\n',
+            ]
+        return _FakeProc(lines)
+
+    monkeypatch.setattr(kimi_wrapper.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(kimi_wrapper, "_write_stdout_line",
+                        lambda text: written.append(text))
+
+    def fake_reader(message_queue, shutdown_event):
+        message_queue.put({"text": "first"})
+        message_queue.put({"text": "second"})
+        message_queue.put(None)  # stop
+
+    monkeypatch.setattr(kimi_wrapper, "_stdin_reader", fake_reader)
+
+    kimi_home = tmp_path / "home"
+    kimi_home.mkdir()
+    rc = kimi_wrapper._main_loop(
+        kimi_path="kimi.exe", model="moonshot-cn/kimi-k2.6",
+        initial_session_id=None, cwd=str(tmp_path),
+        kimi_home=str(kimi_home),
+        system_prompt="You are PAN.",
+    )
+    assert rc == 0
+    assert len(calls) == 2
+
+    first, second = calls[0], calls[1]
+    assert first["args"][:3] == ["kimi.exe", "-p", "first"]
+    assert "--output-format" in first["args"] and "stream-json" in first["args"]
+    assert "-m" in first["args"] and "moonshot-cn/kimi-k2.6" in first["args"]
+    assert "-S" not in first["args"]
+    assert "--agent-file" in first["args"]  # 首轮人设注入
+    assert first["env"]["KIMI_CODE_HOME"] == str(kimi_home)
+    assert first["cwd"] == str(tmp_path)
+
+    assert second["args"][:3] == ["kimi.exe", "-p", "second"]
+    assert "-S" in second["args"] and "session_fake1" in second["args"]
+    assert "--agent-file" not in second["args"]  # resume 后不再传（kimi 禁止组合）
+
+    # 合成 result 事件（worker 据此结束回合）
+    results = [json.loads(w) for w in written if '"role": "result"' in w.replace("'", '"')]
+    assert results and results[-1]["result"] == "SECOND_OK"
+    assert results[-1]["is_error"] is False
+
+
 if __name__ == "__main__":
 
     test_adapter_metadata()

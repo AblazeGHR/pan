@@ -2171,6 +2171,34 @@ export async function importCodexSession(sessionId: string, cwd: string, workspa
   return data;
 }
 
+// ── Import: dsh (generic adapter sessions endpoints) ──
+
+/**
+ * DSH 的 sessions provider 与 codex 返回同形列表（session_id/title/workDir/…），
+ * 因此复用 CodexSessionItem。空 cwd = 全部项目。
+ */
+export async function fetchDshSessions(cwd: string): Promise<CodexSessionItem[]> {
+  const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : '';
+  const data = await request<{ sessions: CodexSessionItem[] }>(
+    `${BASE}/adapters/dsh/sessions${query}`,
+    { cache: 'no-store' },
+  );
+  return data.sessions || [];
+}
+
+export async function importDshSession(sessionId: string, cwd: string, workspaceIds?: string[]): Promise<Session> {
+  const data = await request<ApiSessionResponse>(`${BASE}/adapters/dsh/sessions/import`, {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: sessionId,
+      ...(cwd ? { cwd } : {}),
+      ...(workspaceIds !== undefined ? { workspaceIds } : {}),
+    }),
+  });
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 // ── Reimport ──
 
 export interface ReimportConflict {

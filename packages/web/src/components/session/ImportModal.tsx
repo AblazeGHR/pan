@@ -25,6 +25,8 @@ import {
   importOpencodeSession,
   fetchCodexSessions,
   importCodexSession,
+  fetchDshSessions,
+  importDshSession,
 } from '@/services/api';
 
 interface ImportModalProps {
@@ -33,13 +35,14 @@ interface ImportModalProps {
   initialAdapter?: Adapter;
 }
 
-type Adapter = 'cbc' | 'kimi' | 'opencode' | 'codex';
+type Adapter = 'cbc' | 'kimi' | 'opencode' | 'codex' | 'dsh';
 
 const IMPORT_ADAPTERS: Array<{ name: Adapter; label: string }> = [
   { name: 'cbc', label: 'cbc' },
   { name: 'kimi', label: 'kimi' },
   { name: 'opencode', label: 'opencode' },
   { name: 'codex', label: 'codex' },
+  { name: 'dsh', label: 'dsh' },
 ];
 
 // Match native CLI IDs without altering the original item used for import.
@@ -122,6 +125,12 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
   const [codexLoading, setCodexLoading] = useState(false);
   const codexRequest = useRef(0);
 
+  // ── dsh state (native DSH session list; same shape as codex) ──
+  const [dshCwd, setDshCwd] = useState('');
+  const [dshSessions, setDshSessions] = useState<CodexSessionItem[]>([]);
+  const [dshLoading, setDshLoading] = useState(false);
+  const dshRequest = useRef(0);
+
   // ── Import state ──
   const [importingId, setImportingId] = useState<string | null>(null);
 
@@ -147,6 +156,9 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     setCodexCwd('');
     setCodexSessions([]);
     setCodexLoading(false);
+    setDshCwd('');
+    setDshSessions([]);
+    setDshLoading(false);
     setImportingId(null);
   }, [open, loadCliStatus]);
 
@@ -201,6 +213,9 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     } else if (next === 'codex') {
       setCodexSessions([]);
       setCodexLoading(false);
+    } else if (next === 'dsh') {
+      setDshSessions([]);
+      setDshLoading(false);
     }
   };
 
@@ -326,6 +341,41 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     };
   }, [open, adapter, codexCwd, loadCodex]);
 
+  // ── Load dsh sessions (filtered by optional cwd) ──
+  const loadDsh = useCallback(
+    (cwd: string) => {
+      const requestId = ++dshRequest.current;
+      setDshLoading(true);
+      setDshSessions([]);
+      fetchDshSessions(cwd)
+        .then((list) => {
+          if (requestId === dshRequest.current) setDshSessions(list);
+        })
+        .catch((e) => {
+          if (requestId !== dshRequest.current) return;
+          showToast(
+            e instanceof Error ? e.message : 'Failed to load DSH sessions',
+            'error',
+          );
+        })
+        .finally(() => {
+          if (requestId === dshRequest.current) setDshLoading(false);
+        });
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    if (!open || adapter !== 'dsh') return;
+    setDshSessions([]);
+    setDshLoading(true);
+    const timer = setTimeout(() => loadDsh(dshCwd), 200);
+    return () => {
+      clearTimeout(timer);
+      ++dshRequest.current;
+    };
+  }, [open, adapter, dshCwd, loadDsh]);
+
   // ── Import CBC session ──
   const handleImportCbc = async (item: CbcSessionItem) => {
     if (importingId) return;
@@ -400,6 +450,28 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
     try {
       const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
       const result = await importCodexSession(item.session_id, item.workDir, workspaceIds);
+      onClose();
+      await loadSessions();
+      selectSession(result.id);
+      showToast('Session imported');
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : 'Import failed',
+        'error',
+      );
+    } finally {
+      setImportingId(null);
+    }
+  };
+
+  // ── Import dsh session ──
+  const handleImportDsh = async (item: CodexSessionItem) => {
+    if (importingId) return;
+    const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
+    setImportingId(item.session_id);
+    try {
+      const workspaceIds = await getCreationWorkspaceIds(activeWorkspaceId);
+      const result = await importDshSession(item.session_id, item.workDir, workspaceIds);
       onClose();
       await loadSessions();
       selectSession(result.id);
@@ -540,6 +612,20 @@ export function ImportModal({ open, onClose, initialAdapter = 'cbc' }: ImportMod
             importingId={importingId}
             onLoad={() => loadCodex(codexCwd)}
             onImport={handleImportCodex}
+          />
+        )}
+
+        {/* dsh import — same list shape as codex, so the section is reused. */}
+        {adapter === 'dsh' && (
+          <CodexSection
+            cwd={dshCwd}
+            onCwdChange={setDshCwd}
+            sessions={dshSessions}
+            loading={dshLoading}
+            importingId={importingId}
+            onLoad={() => loadDsh(dshCwd)}
+            onImport={handleImportDsh}
+            nativeLabel="DSH"
           />
         )}
 
@@ -1057,6 +1143,8 @@ interface CodexSectionProps {
   importingId: string | null;
   onLoad: () => void;
   onImport: (item: CodexSessionItem) => void;
+  /** Native CLI name shown in the loading/empty copy (dsh reuses this section). */
+  nativeLabel?: string;
 }
 
 function CodexSection({
@@ -1067,6 +1155,7 @@ function CodexSection({
   importingId,
   onLoad,
   onImport,
+  nativeLabel = 'Codex',
 }: CodexSectionProps) {
   const [query, setQuery] = useState('');
   const visibleSessions = sessions.filter((item) =>
@@ -1097,13 +1186,13 @@ function CodexSection({
 
       {loading && (
         <div className="py-4 text-center text-sm text-text-tertiary">
-          Loading Codex sessions...
+          Loading {nativeLabel} sessions...
         </div>
       )}
 
       {!loading && sessions.length === 0 && (
         <div className="py-4 text-center text-sm text-text-tertiary">
-          No Codex sessions found
+          No {nativeLabel} sessions found
         </div>
       )}
 

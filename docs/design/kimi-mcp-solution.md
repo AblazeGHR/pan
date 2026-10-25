@@ -219,3 +219,25 @@ ACP（B）仅在 Pan MCP 改 HTTP/SSE 后可行；项目级 + 非交互不可用
 - ~~前端对 kimi 会话 `mcp_servers` 的提示文案更新（§5 第 3 点）~~：**已完成（commit `99e4619`，2026-08-27 核对）**。
 
 **commit**：`feat(kimi): MCP via KIMI_CODE_HOME 隔离 + data 统一管理`。
+
+---
+
+## 8. 2.3.1 复核（2026-10-24，T-KIMI-001）
+
+方案 C 在 kimi **2.3.1** 上重新实测，结论仍成立：
+
+- 隔离 home（`KIMI_CODE_HOME`）中的 `mcp.json`（`{"mcpServers": {...}}`，stdio
+  条目 `command/args/env/type`）被识别：wire.jsonl 出现 `mcp.tools_discovered`，
+  请求的 tools 列表出现 `mcp__<server>__<tool>`（如 `mcp__pan-probe__pan_probe`）。
+- 模型发起的工具调用被真实执行（探针写 marker `PAN_MCP_OK`），流中可见
+  `assistant.tool_calls` 与 `role:"tool"` 结果事件（含 `<mcp-result-extras>`）。
+- 隔离 home 的用户级语义未变：**项目级**（`<workdir>/.kimi-code/mcp.json`）在
+  `-p` 下仍受 folder-trust 拦截，用户级/隔离 home 不受影响。
+- 新问题（已修）：隔离 home **没有** `session_index.jsonl`（2.3.1 只在真实 home
+  追加旧索引，新 home 用 `sessions/.index-cache/scan.json`）。Pan 的 sessions
+  读取已改为三源合并，否则 MCP 会话的 enrich/历史/fork 会静默为空。
+  详见 `kimi-adaptation.md` §8.2 / §8.3（F1/F2）。
+- 凭据：`config.toml`（provider + api_key）由 Pan **只读**拷贝进隔离 home，
+  从不写回 `~/.kimi-code`。2026-10-24 复核时 Moonshot 账户余额不足（429），
+  模型侧 token 消费被阻塞；MCP 链路证据由本地 OpenAI 兼容端点驱动真实 kimi
+  进程取得（进程、argv、MCP 握手、工具执行均为真实）。

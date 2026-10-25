@@ -312,7 +312,8 @@ def test_native_adapter_keeps_legacy_and_first_spawn_separate(monkeypatch, tmp_p
 
 def test_cbc_interrupt_uncertainty_does_not_restart_kernel(monkeypatch):
     from packages.core import worker
-    w = SimpleNamespace(adapter=SimpleNamespace(name="cbc"), native_control_enabled=True,
+    w = SimpleNamespace(adapter=SimpleNamespace(name="cbc", interrupt_via_native_control=True),
+                        native_control_enabled=True,
                         native_control_generation=3, status="running")
     monkeypatch.setitem(worker.workers, "cbc-probe", w)
     send = AsyncMock(return_value={"ok": False})

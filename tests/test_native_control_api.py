@@ -93,7 +93,8 @@ def test_default_and_other_adapters_reject_without_spawning(target, monkeypatch)
     s.adapter_config = {}
     assert request(app, "POST", "/mode", json={"mode": "native"}).status_code == 409
     s.adapter_config["native_control"] = True
-    s.adapter = "kimi"
+    # kimi now declares the capability; claude/opencode remain non-capable.
+    s.adapter = "claude"
     assert request(app, "GET").status_code == 409
     assert spawn.await_count == 0
 
@@ -199,10 +200,13 @@ def test_creation_is_explicit_native_adapter_and_old_session_data_stays_unchange
         before = dict(old.adapter_config)
         assert server._session_to_api(old)["nativeControl"] is False
         assert old.adapter_config == before
-    params = server._build_session_params({"name": "native", "adapter": "codex", "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
-    assert params["adapter_config"]["native_control"] is True
-    cbc = server._build_session_params({"name": "native-cbc", "adapter": "cbc", "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
-    assert cbc["adapter_config"]["native_control"] is True
-    for adapter, value in (("kimi", True), ("codex", "true"), ("codex", 1), ("cbc", "true")):
+    for adapter in ("codex", "cbc", "kimi"):
+        params = server._build_session_params({"name": f"native-{adapter}", "adapter": adapter, "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
+        assert params["adapter_config"]["native_control"] is True
+    # Adapters without a Terminal TUI transport still reject the flag.
+    for adapter in ("claude", "opencode"):
+        with pytest.raises(ValueError):
+            server._build_session_params({"name": "bad", "adapter": adapter, "nativeControl": True, "mcpServers": []}, resolve_workdir=False)
+    for adapter, value in (("codex", "true"), ("codex", 1), ("cbc", "true"), ("kimi", "true")):
         with pytest.raises(ValueError):
             server._build_session_params({"name": "bad", "adapter": adapter, "nativeControl": value, "mcpServers": []}, resolve_workdir=False)

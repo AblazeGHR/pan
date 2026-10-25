@@ -147,13 +147,13 @@ def test_reload_picks_up_permanent_cache_adapter_change():
 
 
 def test_reload_reports_all_adapters_before_after():
-    """scope=adapters 覆盖全部 5 个已注册 adapter，配置未变时前后数量一致。"""
-    for name in ("cbc", "kimi", "opencode", "claude", "codex"):
+    """scope=adapters 覆盖全部 6 个已注册 adapter，配置未变时前后数量一致。"""
+    for name in ("cbc", "kimi", "opencode", "claude", "codex", "dsh"):
         get_adapter(name).supported_models  # 预热
 
     r = asyncio.run(srv.api_config_reload({"scope": "adapters"}))
     assert r["reloaded"] is True
-    assert {e["name"] for e in r["adapters"]} == {"cbc", "kimi", "opencode", "claude", "codex"}
+    assert {e["name"] for e in r["adapters"]} == {"cbc", "kimi", "opencode", "claude", "codex", "dsh"}
     for e in r["adapters"]:
         assert e["modelsBefore"] == e["modelsAfter"]
 

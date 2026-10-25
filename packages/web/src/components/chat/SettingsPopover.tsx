@@ -351,8 +351,10 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
   // The mobile top bar no longer hosts the Terminal TUI / Upgrades entry; the
   // same contract (upgrade confirm, pending idle, enter TUI, error retry) is
   // reachable here inside the More disclosure. Desktop keeps its top-bar entry.
-  const mobileTerminalEntry = isMobile && (s.adapter === 'codex' || s.adapter === 'cbc');
-  const terminalAdapterLabel = s.adapter === 'cbc' ? 'CBC' : 'Codex';
+  const nativeTuiCapable =
+    s.nativeControlCapable ?? (s.adapter === 'codex' || s.adapter === 'cbc');
+  const mobileTerminalEntry = isMobile && nativeTuiCapable;
+  const terminalAdapterLabel = s.adapter === 'cbc' ? 'CBC' : s.adapter === 'kimi' ? 'Kimi' : 'Codex';
   const hasCodexOverrides = s.modelContextWindow != null || s.modelAutoCompactTokenLimit != null;
 
   if (!popoverPosition) return null;
@@ -597,7 +599,7 @@ export function SettingsPopover({ open, onClose, anchorRef }: SettingsPopoverPro
 
       <div className="border-t border-border-muted" />
 
-      {(session.adapter === 'codex' || session.adapter === 'cbc') && session.nativeControl && (
+      {nativeTuiCapable && session.nativeControl && (
         <div>
           <h4 className="text-xs font-semibold text-text-secondary mb-2">Session control mode</h4>
           <Button variant="secondary" size="sm" disabled={converting || typeof nativeState?.pendingEnabled === 'boolean'}
