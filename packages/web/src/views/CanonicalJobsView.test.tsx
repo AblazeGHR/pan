@@ -116,7 +116,7 @@ it.each(Object.entries(names))(
     await waitFor(() => expect(writes.length).toBe(1));
     await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
     expect(writes[0]).toMatchObject({
-      url: `/api/final/${kind}`,
+      url: `/api/${kind}`,
       method: 'POST',
       body: { definition: { name: 'Created', description: 'new' }, expectedRevision: 0 },
     });
@@ -132,7 +132,7 @@ it.each(Object.entries(names))(
     await waitFor(() => expect(writes.length).toBe(2));
     await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
     expect(writes[1]).toMatchObject({
-      url: `/api/final/${kind}/canonical%2Fone`,
+      url: `/api/${kind}/canonical%2Fone`,
       method: 'PUT',
       body: { expectedRevision: 7, definition: { name: 'Edited' } },
     });
@@ -161,7 +161,7 @@ it.each(runOperations)(
     click('确认操作');
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]).toMatchObject({
-      url: '/api/final/job-runs/run%2Fone/operations',
+      url: '/api/job-runs/run%2Fone/operations',
       method: 'POST',
       body: { operation, expectedStateRevision: 4 },
     });
@@ -229,7 +229,7 @@ it('shows accepted as pending effect and queries by operationId', async () => {
   click('查询原操作');
   await screen.findByText('操作状态：completed');
   expect(
-    vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/final/operations/op%2Fone'),
+    vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/operations/op%2Fone'),
   ).toBe(true);
 });
 it('renders loading and list errors with a retry', async () => {
@@ -252,7 +252,7 @@ it('keeps legacy navigation and performs no legacy transport requests', async ()
   await screen.findByText('Example');
   expect(screen.getByRole('link', { name: 'Legacy Jobs' }).getAttribute('href')).toBe('/jobs');
   expect(screen.getByRole('link', { name: 'Automation' }).getAttribute('href')).toBe('/automation');
-  expect(vi.mocked(fetch).mock.calls.every(([url]) => String(url).startsWith('/api/final/'))).toBe(
+  expect(vi.mocked(fetch).mock.calls.every(([url]) => /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(String(url)))).toBe(
     true,
   );
 });

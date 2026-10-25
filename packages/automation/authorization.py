@@ -12,15 +12,28 @@ _MARKER = object()
 _SCOPE_KEY = "pan.authorization.transport"
 
 
+def canonical_path(path):
+    """Canonical resources only, including deprecated final aliases."""
+    parsed = urlsplit(path)
+    if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
+        return False
+    if parsed.path in {'/api/final/actions', '/api/jobs/actions'}:
+        return True
+    # These are concrete legacy routes, even where their segment looks like an ID.
+    if re.match(r'/api/jobs/(?:action-jobs|job-templates|action-references|kinds|templates|next|settings)(?:/|$)', parsed.path):
+        return False
+    return bool(re.fullmatch(
+        r'/api/(?:final/)?(?:jobs(?:/[A-Za-z0-9_-]+(?:/(?:runs|operations))?)?'
+        r'|(?:triggers|event-creators|job-templates)(?:/[A-Za-z0-9_-]+(?:/operations)?)?'
+        r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?)', parsed.path))
+
+
 def object_path(path):
     """Narrow bridge allowlist; no groups, other MCPs or arbitrary HTTP proxy."""
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
-    if re.fullmatch(
-        r'/api/final/(?:jobs(?:/[A-Za-z0-9_-]+(?:/(?:runs|operations))?)?'
-        r'|(?:triggers|event-creators|job-templates)(?:/[A-Za-z0-9_-]+(?:/operations)?)?'
-        r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?|actions)', parsed.path):
+    if canonical_path(path):
         return True
     if re.fullmatch(r'/api/(?:background-jobs(?:/[^/]+(?:/(?:cancel|retry))?)?|session-message-jobs)', parsed.path):
         return True
@@ -78,7 +91,7 @@ def bind_objects(runtime, app):
             response = await client.request(method, path, json=body if body is not None else None)
         result = response.json()
         if response.status_code >= 400:
-            if path.startswith('/api/final/'):
+            if canonical_path(path):
                 return result  # WP01 structured error code/path/details, unchanged
             # Static authorization/validation response, never credentials or body.
             return {'ok': False, 'error': {'code': response.status_code,

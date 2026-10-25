@@ -22,7 +22,7 @@ it('sends canonical JSON with the current in-memory Bearer including DELETE', as
     'retire-key',
   );
   const [url, init] = fetcher.mock.calls[0]!;
-  expect(url).toBe('/api/final/triggers/t%2F1');
+  expect(url).toBe('/api/triggers/t%2F1');
   expect(init.method).toBe('DELETE');
   expect(new Headers(init.headers).get('Authorization')).toBe('Bearer canonical-user');
   expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
@@ -66,10 +66,12 @@ it('encodes page cursors and operation identities', async () => {
   await canonicalJobs.list('jobs', 'a/b+c=');
   await canonicalJobs.runs('j/1', 'next/2');
   await canonicalJobs.lookup('clone-and-run', 'key/1');
+  await canonicalJobs.actions();
   expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-    '/api/final/jobs?limit=100&cursor=a%2Fb%2Bc%3D',
-    '/api/final/jobs/j%2F1/runs?limit=100&cursor=next%2F2',
-    '/api/final/operations?operation=clone-and-run&requestKey=key%2F1',
+    '/api/jobs?limit=100&cursor=a%2Fb%2Bc%3D',
+    '/api/jobs/j%2F1/runs?limit=100&cursor=next%2F2',
+    '/api/operations?operation=clone-and-run&requestKey=key%2F1',
+    '/api/jobs/actions',
   ]);
 });
 it('extracts the complete definition without server state', () => {

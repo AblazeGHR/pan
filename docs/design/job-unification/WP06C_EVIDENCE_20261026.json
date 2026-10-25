@@ -1,0 +1,121 @@
+{
+  "base": "111ae6c14c86a83d7d70eaee9dca7b9873288118",
+  "branch": "r1/wp06c-path-flip-20261025",
+  "routes": {
+    "canonical": 31,
+    "deprecatedAliases": 31,
+    "legacyFacade": 17,
+    "oldSpecific": 29,
+    "total": 108,
+    "methodPathConflicts": 0
+  },
+  "pytestRuns": [
+    {
+      "entry": "initial.xml",
+      "tests": "95",
+      "failures": "3",
+      "errors": "0",
+      "skipped": "0",
+      "time": "13.911"
+    },
+    {
+      "entry": "transports.xml",
+      "tests": "95",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "14.784"
+    },
+    {
+      "entry": "clients-initial.xml",
+      "tests": "47",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "17.578"
+    },
+    {
+      "entry": "path-flip-initial.xml",
+      "tests": "14",
+      "failures": "3",
+      "errors": "0",
+      "skipped": "0",
+      "time": "6.807"
+    },
+    {
+      "entry": "routing.xml",
+      "tests": "76",
+      "failures": "2",
+      "errors": "0",
+      "skipped": "0",
+      "time": "7.810"
+    },
+    {
+      "entry": "acceptance.xml",
+      "tests": "255",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "52.107"
+    },
+    {
+      "entry": "targeted.xml",
+      "tests": "256",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "46.062"
+    },
+    {
+      "entry": "routing-final.xml",
+      "tests": "78",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "12.626"
+    },
+    {
+      "entry": "baseline-legacy.xml",
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "27.781"
+    },
+    {
+      "entry": "baseline-legacy-repeat.xml",
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "skipped": "0",
+      "time": "26.471"
+    }
+  ],
+  "frontend": {
+    "files": 5,
+    "passed": 88,
+    "failed": 0,
+    "buildExitCode": 0,
+    "compressedAssets": 92
+  },
+  "unresolvedLegacyRegression": {
+    "test": "tests/test_job_action_http.py::test_complete_template_reference_snapshot_and_recovery_http",
+    "candidate": "run-now HTTP 409 Job overlap capacity reached",
+    "baselineBothRuns": "template event wait timeout KeyError(actionId)",
+    "sameCauseEstablished": false
+  },
+  "warnings": [
+    "pytest-timeout absent in local interpreter; timeout option/marks not active",
+    "dependency deprecations",
+    "Vite chunk size and mixed dynamic/static import warnings"
+  ],
+  "unverified": [
+    "full backend suite",
+    "real browser",
+    "three-platform remote CI",
+    "real profile migration",
+    "real provider",
+    "deployment",
+    "human acceptance"
+  ]
+}

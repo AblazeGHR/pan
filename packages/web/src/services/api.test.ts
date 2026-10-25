@@ -385,9 +385,9 @@ describe('canonical Jobs completed-retention API', () => {
     await updateCompletedJobRetentionSettings(rules);
 
     expect(requests).toEqual([
-      { url: '/api/jobs/settings/completed-retention', method: 'GET', body: undefined },
+      { url: '/api/legacy/jobs/settings/completed-retention', method: 'GET', body: undefined },
       {
-        url: '/api/jobs/settings/completed-retention',
+        url: '/api/legacy/jobs/settings/completed-retention',
         method: 'PUT',
         body: { rules },
       },

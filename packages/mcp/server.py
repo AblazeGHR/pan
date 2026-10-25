@@ -187,7 +187,8 @@ _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
 def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
-    if path.startswith('/api/final/'):
+    from packages.automation.authorization import canonical_path, object_path
+    if canonical_path(path):
         # A gateway can import this registry without running main(). Inspect the
         # request context too; the module's default 'stdio' is not provenance.
         try:
@@ -197,7 +198,6 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
         if remote_request or _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 'authorization_denied',
                     'message': 'Trusted local MCP transport required'}}
-    from packages.automation.authorization import object_path
     if object_path(path):
         if _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 403, 'message': 'Trusted local MCP transport required'}}
@@ -207,7 +207,7 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
                             'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
                             'method': method, 'path': path, 'body': body})
         except Exception:
-            if path.startswith('/api/final/'):
+            if canonical_path(path):
                 return {'ok': False, 'error': {'code': 'transport_unconfirmed',
                         'message': 'Outcome unconfirmed; query original requestKey; do not replay'}}
             return {'ok': False, 'error': {'code': 'object_transport_unavailable',

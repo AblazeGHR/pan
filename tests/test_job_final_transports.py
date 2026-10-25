@@ -55,7 +55,7 @@ def harness(tmp_path, *, trusted=False):
     app.state.automation = SimpleNamespace(auth=auth)
     service = ServiceProbe()
     app.state.job_final_service = service
-    app.include_router(api.router)
+    api.install(app)
     token = auth.login(auth.key())
     async def transport(scope, receive, send):
         if trusted:
@@ -279,18 +279,18 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
         for route in routes:
             child = getattr(route, "original_router", None)
             if child is not None:
-                yield from leaves(child.routes)
+                yield from route.effective_route_contexts()
             else:
                 yield route
     routes = list(leaves(app.routes))
     pairs = Counter((method, route.path) for route in routes if hasattr(route, "methods") for method in route.methods)
     assert max(pairs.values()) == 1
-    canonical = [route for route in routes if "canonical-jobs" in getattr(route, "tags", [])]
+    canonical = [route for route in routes if "canonical-jobs" in getattr(route, "tags", []) and not route.deprecated]
     assert len(canonical) == 31
     assert pairs[("POST", "/api/final/jobs")] == 1
     assert pairs[("POST", "/api/jobs")] == 1
     assert pairs[("POST", "/api/jobs/action-jobs")] == 1
-    assert app.openapi()["paths"]["/api/jobs"]["get"]["deprecated"] is True
+    assert app.openapi()["paths"]["/api/legacy/jobs"]["get"]["deprecated"] is True
     # R3 hasn't removed the old bridge allowlist.
     assert authorization.object_path("/api/background-jobs")
     assert authorization.object_path("/api/jobs/action-jobs")
@@ -307,6 +307,6 @@ async def test_ft03_legacy_facade_handler_behavior_preserved(tmp_path):
             for method, path, value in [("GET", "/api/jobs/kinds", None), ("GET", "/api/jobs", None),
                                         ("POST", "/api/jobs", {"kind": "not-supported"})]:
                 old = await before.request(method, path, json=value)
-                new = await after.request(method, path, json=value)
+                new = await after.request(method, path.replace("/api/jobs", "/api/legacy/jobs"), json=value)
                 assert new.status_code == old.status_code
                 assert new.json() == old.json()

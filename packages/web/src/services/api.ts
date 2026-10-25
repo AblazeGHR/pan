@@ -186,14 +186,14 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
-  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$))/.test(url)) {
+async function request<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
+  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$)|legacy\/jobs(?:\/|$))/.test(url)) {
     const { useAutomationAuth } = await import('@/stores/automationStore');
     const token = useAutomationAuth.getState().token;
     if (token) options = { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } };
   }
   const finish = background ? () => {} : beginForegroundRequest();
-  try { return await requestBody<T>(url, options, background); }
+  try { return await requestBody<T>(url, options, background, canonical); }
   finally { finish(); }
 }
 
@@ -208,9 +208,9 @@ export async function canonicalRequest<T>(path: string, method = 'GET', body?: u
   if (auth.token && auth.expiresAt <= Date.now()) auth.clear();
   const token = useAutomationAuth.getState().token;
   try {
-    return await request<T>(`/api/final/${path}`, { method, signal,
+    return await request<T>(`/api/${path === 'actions' ? 'jobs/actions' : path}`, { method, signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, false, true);
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 401 && useAutomationAuth.getState().token === token) useAutomationAuth.getState().clear();
     throw error;
@@ -286,7 +286,7 @@ export async function invokePluginPanel<T>(plugin: string, panel: string, action
   return result.structuredContent;
 }
 
-async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+async function requestBody<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
   // Authorization adds headers to formerly headerless JSON requests. Merge
   // defaults after spreading options so authentication cannot erase JSON type.
   const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -296,7 +296,7 @@ async function requestBody<T>(url: string, options?: RequestInit, background = f
     headers: Object.fromEntries(headers),
   });
   if (!res.ok) {
-    if (url.startsWith('/api/final/')) {
+    if (canonical) {
       const payload = await res.json().catch(() => null) as { error?: { code?: string } } | null;
       const error = new ApiRequestError(res.status, `HTTP ${res.status}`);
       error.code = payload?.error?.code;
@@ -2568,7 +2568,7 @@ interface ApiCompletedJobRetentionResponse {
   error?: SchedulerApiError;
 }
 
-/** GET /api/jobs/settings/completed-retention. */
+/** GET /api/legacy/jobs/settings/completed-retention. */
 export async function fetchCompletedJobRetentionSettings(): Promise<{
   settings: CompletedJobRetentionSettings;
   rules: JobRetentionRules;
@@ -2578,7 +2578,7 @@ export async function fetchCompletedJobRetentionSettings(): Promise<{
   lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }> {
   const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/jobs/settings/completed-retention`,
+    `${BASE}/legacy/jobs/settings/completed-retention`,
   );
   if (data.error) throwSchedulerError(data.error);
   if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
@@ -2594,7 +2594,7 @@ export async function fetchCompletedJobRetentionSettings(): Promise<{
   };
 }
 
-/** PUT /api/jobs/settings/completed-retention. */
+/** PUT /api/legacy/jobs/settings/completed-retention. */
 export async function updateCompletedJobRetentionSettings(
   rules: JobRetentionRules,
 ): Promise<{
@@ -2606,7 +2606,7 @@ export async function updateCompletedJobRetentionSettings(
   lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }> {
   const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/jobs/settings/completed-retention`,
+    `${BASE}/legacy/jobs/settings/completed-retention`,
     { method: 'PUT', body: JSON.stringify({ rules }) },
   );
   if (data.error) throwSchedulerError(data.error);
@@ -2623,34 +2623,34 @@ export async function updateCompletedJobRetentionSettings(
   };
 }
 
-/** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
+/** GET /api/legacy/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(
   onPinMetadataStatus?: (status: 'available' | 'unavailable') => void,
 ): Promise<Job[]> {
-  const data = await request<ApiJobsResponse>(`${BASE}/jobs`);
+  const data = await request<ApiJobsResponse>(`${BASE}/legacy/jobs`);
   if (data.error) throwSchedulerError(data.error);
   onPinMetadataStatus?.(data.pinMetadataStatus === 'unavailable' ? 'unavailable' : 'available');
   return data.jobs || [];
 }
 
-/** GET /api/jobs/kinds — kind 元数据（中文 label + 能力位）。 */
+/** GET /api/legacy/jobs/kinds — kind 元数据（中文 label + 能力位）。 */
 export async function fetchJobKinds(): Promise<JobKindMeta[]> {
-  const data = await request<ApiJobKindsResponse>(`${BASE}/jobs/kinds`);
+  const data = await request<ApiJobKindsResponse>(`${BASE}/legacy/jobs/kinds`);
   if (data.error) throwSchedulerError(data.error);
   return data.kinds || [];
 }
 
-/** GET /api/jobs/{id} — 详情（结构化 source/target 视图）。 */
+/** GET /api/legacy/jobs/{id} — 详情（结构化 source/target 视图）。 */
 export async function fetchJob(jobId: string): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`);
+  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`);
   if (data.error) throwSchedulerError(data.error);
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }
 
-/** POST /api/jobs — creates one of the kinds advertised as creatable by /api/jobs/kinds. */
+/** POST /api/legacy/jobs — creates one of the kinds advertised as creatable by /api/jobs/kinds. */
 export async function createJob(input: JobCreateInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs`, {
+  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -2659,9 +2659,9 @@ export async function createJob(input: JobCreateInput): Promise<Job> {
   return data.job;
 }
 
-/** PATCH /api/jobs/{id} — kind-specific editable fields; unsupported fields are rejected. */
+/** PATCH /api/legacy/jobs/{id} — kind-specific editable fields; unsupported fields are rejected. */
 export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
+  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
@@ -2731,28 +2731,28 @@ export async function mutateActionJob(job: Job, operation: 'run-now' | 'cancel' 
       ...(['retry','confirm-recovery'].includes(operation) ? { confirm: true } : {}) });
 }
 
-/** DELETE /api/jobs/{id}。 */
+/** DELETE /api/legacy/jobs/{id}。 */
 export async function deleteJob(jobId: string): Promise<void> {
   const data = await request<ApiJobDeleteResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}`,
+    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`,
     { method: 'DELETE' },
   );
   if (data.error) throwSchedulerError(data.error);
 }
 
-/** GET /api/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
+/** GET /api/legacy/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
 export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRecord[]> {
   const data = await request<ApiJobRunsResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
+    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
   );
   if (data.error) throwSchedulerError(data.error);
   return data.runs || [];
 }
 
-/** POST /api/jobs/{id}/run-now — manually trigger a scheduled-task action. */
+/** POST /api/legacy/jobs/{id}/run-now — manually trigger a scheduled-task action. */
 export async function runJobNow(jobId: string): Promise<Job> {
   const data = await request<ApiJobResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}/run-now`,
+    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/run-now`,
     { method: 'POST' },
   );
   if (data.error) throwSchedulerError(data.error);
@@ -2762,7 +2762,7 @@ export async function runJobNow(jobId: string): Promise<Job> {
 
 /** Persist Pan-owned presentation metadata for every Job kind/owner. */
 export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}/pin`, {
+  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/pin`, {
     method: 'PUT', body: JSON.stringify({ pinned }),
   });
   if (data.error) throwSchedulerError(data.error);

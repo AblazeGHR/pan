@@ -277,6 +277,7 @@ def test_wp01_validation_before_transport(resource, mutation):
     "/api/final/job-runs/r/operations", "/api/final/operations?operation=retry&requestKey=k", "/api/final/actions"])
 def test_bridge_canonical_allowlist(path):
     assert object_path(path)
+    assert object_path(path.replace("/api/final/actions", "/api/jobs/actions").replace("/api/final/", "/api/"))
 
 
 @pytest.mark.parametrize("path", ["https://bad/api/final/jobs", "//bad/api/final/jobs", "/api/final/jobs/x/private",
@@ -284,6 +285,7 @@ def test_bridge_canonical_allowlist(path):
     "/api/final/jobs/..", "/api/final/jobs/%2fapi%2fmain%2fexit"])
 def test_bridge_stays_bounded(path):
     assert not object_path(path)
+    assert not object_path(path.replace("/api/final/", "/api/"))
 
 
 def test_cli_real_tcp_run_controls_and_receipt_recovery(h, tcp):
@@ -369,19 +371,21 @@ def test_http_unconfirmed_write_is_never_replayed(monkeypatch):
     assert json.loads(calls[0].data)["requestKey"] == "original-key"
 
 
-def test_remote_mcp_cannot_borrow_local_authority(monkeypatch):
+@pytest.mark.parametrize("prefix", ["/api", "/api/final"])
+def test_remote_mcp_cannot_borrow_local_authority(monkeypatch, prefix):
     from packages.mcp import server
     monkeypatch.setattr(server, "_terminal_transport", "streamable-http")
-    assert server._api("GET", "/api/final/jobs")["error"]["code"] == "authorization_denied"
+    assert server._api("GET", prefix + "/jobs")["error"]["code"] == "authorization_denied"
 
 
-def test_imported_gateway_request_cannot_borrow_default_stdio_authority(monkeypatch):
+@pytest.mark.parametrize("prefix", ["/api", "/api/final"])
+def test_imported_gateway_request_cannot_borrow_default_stdio_authority(monkeypatch, prefix):
     from packages.mcp import server
     monkeypatch.setattr(server, "_terminal_transport", "stdio")
     monkeypatch.setattr(server.mcp, "get_context", lambda: SimpleNamespace(
         request_context=SimpleNamespace(request=object())))
     monkeypatch.setattr("packages.plugins.ipc.request", lambda *args: pytest.fail("HTTP request must not use IPC"))
-    assert server._api("GET", "/api/final/jobs")["error"]["code"] == "authorization_denied"
+    assert server._api("GET", prefix + "/jobs")["error"]["code"] == "authorization_denied"
 
 
 @run

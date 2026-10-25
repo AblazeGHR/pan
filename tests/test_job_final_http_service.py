@@ -17,7 +17,7 @@ from packages.jobs.final_runtime.executor import TypedExecutor
 from packages.scheduler.providers import time_definition
 from tests.test_job_final_creators import config, interval
 
-BASE = "/api/final"
+BASE = "/api"
 USER = {"type": "user", "id": "local"}
 
 
@@ -47,7 +47,9 @@ def h(tmp_path):
     automation.auth = api.CanonicalUserAuth(tmp_path / "automation")
     service = bind(app, automation, tmp_path / "canonical")
     app.state.automation = automation
-    api.install(app)
+    from packages.jobs.action_api import router as action_router
+    from packages.jobs.api import router as facade_router
+    api.install(app, action_router, facade_router)
     provider = SessionProvider()
     service.executor = TypedExecutor(session_provider=provider)
     product = next(item for item in service.actions(actor=USER)["items"] if item["id"] == "product_session_message")
@@ -354,7 +356,7 @@ def test_ft01_failed_creator_or_cross_reference_rolls_back_every_table(h, monkey
         assert db.execute("SELECT count(*) FROM final_operations").fetchone()[0] == 0
 
 
-def test_ft03_old_facade_remains_at_identical_urls_with_canonical_registered(h):
+def test_ft03_old_facade_remains_at_legacy_urls_with_canonical_registered(h):
     from packages.jobs.api import router as old
     from packages.jobs.action_api import router as action_old
     before, after = FastAPI(), FastAPI()
@@ -367,10 +369,10 @@ def test_ft03_old_facade_remains_at_identical_urls_with_canonical_registered(h):
                                       ("PATCH", "/api/jobs/missing", {"name": "x"}),
                                       ("DELETE", "/api/jobs/missing", None)]:
             old_response = a.request(method, path, json=payload)
-            new_response = b.request(method, path, json=payload)
+            new_response = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"), json=payload)
             assert new_response.status_code == old_response.status_code
             assert new_response.json() == old_response.json()
-    assert "/api/legacy/jobs" not in after.openapi()["paths"]
+    assert "/api/legacy/jobs" in after.openapi()["paths"]
 
 
 def test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt(h):
