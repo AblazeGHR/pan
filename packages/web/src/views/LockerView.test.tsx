@@ -644,7 +644,7 @@ function reverseCard(answered = true): UserCard {
 describe('reminding card positions share one record', () => {
   it('renders pending once without read controls and keeps answered projections ordered deterministically', async () => {
     cards = []; userCards = [reverseCard(false)]; mount();
-    await screen.findByText('等待回答 · Awaiting answer');
+    await screen.findByText('Awaiting answer');
     expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1);
     expect(screen.queryByRole('button', {name: /Mark reminding card/})).toBeNull();
     const sameTime = {...reverseCard(), answeredAt: reverseCard().createdAt};

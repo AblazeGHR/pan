@@ -2713,7 +2713,17 @@ export function InputRow() {
               )}
             </div>}
           </Modal>
-          <div className="flex min-h-0 flex-1 gap-2">
+          {cardMode && (
+            <div data-testid="reminding-card-kind-row" className="relative z-10 flex w-full shrink-0 justify-end">
+              <div className="inline-flex gap-0.5 rounded-md border border-border-default bg-bg-secondary p-0.5" role="radiogroup" aria-label="Card type">
+                {(['question', 'task'] as const).map((kind) => <button key={kind} type="button" role="radio"
+                  aria-checked={cardKind === kind} onClick={() => setCardKind(kind)} className={`rounded px-2 py-0.5 text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${cardKind === kind ? 'bg-bg-tertiary text-accent font-medium' : 'text-text-secondary hover:bg-bg-hover'}`}>
+                  {kind === 'question' ? 'Question' : 'Task'}
+                </button>)}
+              </div>
+            </div>
+          )}
+          <div className={`flex min-h-0 flex-1 ${cardMode ? 'gap-1' : 'gap-2'}`}>
             <input
               ref={clientAttachmentInputRef}
               type="file"
@@ -2746,16 +2756,6 @@ export function InputRow() {
               }}
               onKeyDown={handleKeyDown}
             />
-            {cardMode && (
-              <div data-testid="reminding-card-kind-row" className="flex shrink-0 justify-end">
-                <div className="inline-flex gap-0.5 rounded-md border border-border-default bg-bg-secondary p-0.5" role="radiogroup" aria-label="Card type">
-                  {(['question', 'task'] as const).map((kind) => <button key={kind} type="button" role="radio"
-                    aria-checked={cardKind === kind} onClick={() => setCardKind(kind)} className={`rounded px-2 py-1 text-[11px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${cardKind === kind ? 'bg-bg-tertiary text-accent font-medium' : 'text-text-secondary hover:bg-bg-hover'}`}>
-                    {kind === 'question' ? 'Question' : 'Task'}
-                  </button>)}
-                </div>
-              </div>
-            )}
             <RichTextComposer
               placeholder={`Type a message... (${composerHint})`}
               key={currentSessionId || 'no-session'}
@@ -2803,7 +2803,7 @@ export function InputRow() {
                   Steer
                 </button>
               )}
-              <div className={`flex flex-col items-end gap-1 ${cardMode ? 'min-w-[88px]' : ''}`}>
+              <div className={`flex flex-col items-end ${cardMode ? 'min-w-[88px] gap-0 lg:-translate-y-10' : 'gap-1'}`}>
                 <button
                   ref={sendButtonRef}
                   type="button"
@@ -2815,7 +2815,7 @@ export function InputRow() {
                     : attachmentsBlocked
                       ? '请等待附件上传完成，或重试/取消失败附件'
                       : `${cardMode ? 'create' : lockedComposerMode ? 'put in queue' : 'Send'} (${composerBindingLabel('composer.send')})`}
-                  className={`${cardMode ? 'max-w-[142px] text-[11px] sm:max-w-none sm:text-sm' : ''} rounded border-2 px-4 py-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
+                    className={`${cardMode ? 'max-w-[142px] px-3 py-0.5 text-[11px] sm:max-w-none sm:text-sm' : 'px-4 py-2'} rounded border-2 text-sm font-medium text-white transition-colors self-end disabled:cursor-not-allowed disabled:opacity-50 ${lockedComposerMode
                     ? 'border-danger bg-accent hover:bg-accent-hover'
                     : 'border-transparent bg-accent hover:bg-accent-hover'}`}
                 >
@@ -2824,7 +2824,7 @@ export function InputRow() {
                 </button>
                 {cardMode && (
                   <button type="button" onClick={() => setCardMode(false)}
-                    className="w-full rounded border border-border-default px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50">
+                    className="w-full rounded border border-border-default px-3 py-0.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50">
                     cancel
                   </button>
                 )}

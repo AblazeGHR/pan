@@ -1,4 +1,4 @@
-import { Check, Circle, Trash2, ArrowUpRight, MessageSquare, ClipboardList } from 'lucide-react';
+import { Check, Circle, Trash2, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MarkdownRenderer } from '@/components/chat/MarkdownRenderer';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
@@ -113,7 +113,7 @@ export function UserCardRow({
           {card.kind === 'question' ? 'Reminding · Question' : 'Reminding · Task'}
         </span>
         <span className={`locker-status ${answered ? 'responded' : ''}`}>
-          {answered ? '已回答 · Answered' : '等待回答 · Awaiting answer'}
+          {answered ? 'Answered' : 'Awaiting answer'}
         </span>
         {answered && (
           <button
@@ -128,7 +128,6 @@ export function UserCardRow({
           </button>
         )}
       </header>
-      <h2 className="locker-card-title reminding-card-heading">{card.kind === 'question' ? <MessageSquare size={15} /> : <ClipboardList size={15} />}{card.kind === 'question' ? 'Reminding · Question' : 'Reminding · Task'}</h2>
       <MarkdownRenderer
         sourceSessionId={card.ownerSessionId}
         content={card.body + (attachments ? `\n\n${attachments}` : '')}

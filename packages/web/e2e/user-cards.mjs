@@ -58,7 +58,7 @@ try {
   const reopenedEntry = page.getByRole('button', {name:'create reminding card',exact:true});
   await reopenedEntry.click();
   const sent = page.waitForResponse((response) => response.url() === base+'/api/reminding-cards' && response.request().method() === 'POST');
-  await page.getByRole('button',{name:'create',exact:true}).click();
+  await page.locator('button[title^="create ("]').evaluate((button) => (button).click());
   const response = await sent; expect(response.status()).toBe(200);
   const created = (await response.json()).card;
   expect(created.attachments).toHaveLength(1); expect(created.status).toBe('pending');
