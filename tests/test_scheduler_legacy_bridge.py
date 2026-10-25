@@ -115,12 +115,13 @@ async def test_switched_task_flows_event_trigger_job_and_system_action_audit(tmp
         await svc.deliver(row)
         async def done():
             state = svc.ledger.read()
-            return any(run['triggerId'] == switched['legacyTriggerId'] and run['status'] == 'succeeded'
+            return any(run['triggerId'] == switched['legacyTriggerId'] and run['status'] == 'admitted'
+                       and run.get('result', {}).get('jobId') == switched['jobId']
                        for run in state['runs'].values())
         await until(done)
         async def job_done():
             current = jobs.get(switched['jobId'])
-            return current if current.get('lastExecution', {}).get('actionId') == 'system_scheduled_task' else None
+            return current if current.get('lastStatus') == 'completed' else None
         await until(job_done)
         current = jobs.get(switched['jobId'])
         assert current['lastExecution']['actionId'] == 'system_scheduled_task'

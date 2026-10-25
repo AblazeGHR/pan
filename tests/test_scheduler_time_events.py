@@ -105,23 +105,37 @@ async def test_scheduler_missed_policy_not_trigger_retry(tmp_path,kind,policy,ex
     if kind=='interval':assert item['nextFireAt']==(NOW+timedelta(seconds=660)).isoformat()
 
 
-async def service(tmp_path):
+async def service(tmp_path,execute=None,with_runtime=True):
+    from unittest.mock import patch
+    from packages.jobs.action_runtime import Runtime as JobRuntime
     worker=SimpleNamespace(workers={})
     svc=Service(tmp_path/'automation',worker,None)
     svc.engine.actions=Store(tmp_path/'actions');svc.engine.actions.put('actions',action())
     svc.events.initialize();svc.started=True
+    if not with_runtime:return svc
+    runtime=JobRuntime(tmp_path/'jobs-runtime',svc.engine.actions,None);await runtime.start()
+    svc.job_runtime=runtime;svc.engine.job_runtime=runtime;runtime.event_available=svc.bus.available
+    patched=None
+    if execute:
+        async def invoke(definition,arguments,event,progress,pause):
+            return await execute(definition,arguments,event,progress)
+        patched=patch('packages.actions.executor.execute_dynamic',invoke);patched.start()
+    close_engine=svc.engine.close
+    async def close():
+        await close_engine();await runtime.close()
+        if patched:patched.stop()
+    svc.engine.close=close
     return svc
 
 
 @async_test
 async def test_broadcast_independent_failure_skip_disable_unavailable_and_mutation(tmp_path,monkeypatch):
-    svc=await service(tmp_path)
     calls=[]
     async def execute(action,args,event,progress):
         calls.append(event['payload']['runningCount']);event['payload']['runningCount']=999
         if len(calls)==1:raise RuntimeError('independent effect failure')
         return {'ok':True}
-    svc.engine.execute=execute
+    svc=await service(tmp_path,execute)
     for tid in ('first','second','skipped','disabled','unavailable','filtered'):
         item=trigger(tid)
         if tid=='disabled':item['enabled']=False
@@ -134,26 +148,28 @@ async def test_broadcast_independent_failure_skip_disable_unavailable_and_mutati
         await svc.accept(event)
         await svc.deliver(svc.events.pending()[0])
         rows=await settled(svc.engine,4)
-        assert sorted(r['status'] for r in rows)==['failed','skipped','skipped','succeeded']
+        assert sorted(r['status'] for r in rows)==['admitted','admitted','skipped','skipped']
         assert calls==[0,0] and event['payload']['runningCount']==0
+        jobs={j['name']:j['lastStatus'] for j in svc.job_runtime.list()}
+        assert jobs=={'first':'failed','second':'completed'}
         receipts=svc.events.subscription_receipts('broadcast')
         assert len(receipts)==6 and receipts['trigger:disabled']['status']=='disabled'
         assert receipts['trigger:unavailable']['status']=='unavailable'
+        assert receipts['trigger:skipped']['admissionResult']=='skipped'
         await svc.deliver(svc.events.pending()[0])
         assert calls==[0,0]
         page=await svc.event_page(0,20,True)
-        assert page['events'][0]['subscriptions']['trigger:first']['execution']['status']=='failed'
+        assert page['events'][0]['subscriptions']['trigger:first']['execution']['status']=='admitted'
     finally:
         await svc.engine.close();await svc.bus.close()
 
 
 @async_test
 async def test_one_subscription_persistence_failure_does_not_block_another(tmp_path,monkeypatch):
-    svc=await service(tmp_path)
-    for tid in ('broken','healthy'):svc.ledger.put(trigger(tid),0,True)
     calls=[]
     async def execute(*args):calls.append(1);return {'ok':True}
-    svc.engine.execute=execute
+    svc=await service(tmp_path,execute)
+    for tid in ('broken','healthy'):svc.ledger.put(trigger(tid),0,True)
     original=svc.ledger.append
     def append(run):
         if run['triggerId']=='broken':raise OSError('owned single subscription write fault')
@@ -168,29 +184,31 @@ async def test_one_subscription_persistence_failure_does_not_block_another(tmp_p
         monkeypatch.setattr(svc.ledger,'append',original)
         await svc.deliver(svc.events.pending()[0]);await settled(svc.engine,2)
         assert calls==[1,1]
+        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed','completed']
     finally:
         await svc.engine.close();await svc.bus.close()
 
 
 @async_test
 async def test_time_event_to_frozen_chain_end_to_end_without_service(tmp_path):
-    svc=await service(tmp_path);sources=Sources(tmp_path/'scheduler');item=source(sources)
+    calls=[]
+    async def execute(action,args,*unused):
+        calls.append((action['id'],args['value']));return {'ok':True,'structuredContent':{'answer':args['value']+'!'}}
+    svc=await service(tmp_path,execute);sources=Sources(tmp_path/'scheduler');item=source(sources)
     for aid in ('one','two'):svc.engine.actions.put('actions',_action(aid))
     steps=_steps();steps[0]['arguments']['value']={'from':'event','path':'payload.scheduleId'}
     steps[1]['arguments']['value']={'from':'step','stepId':'first','path':'answer'}
     t={**trigger(),'eventTypes':[EVENT_TYPE],'eventFilter':{'payload.scheduleId':item['id']},'actionId':'one','steps':steps}
     svc.ledger.put(t,0,True)
-    calls=[]
-    async def execute(action,args,*unused):
-        calls.append((action['id'],args['value']));return {'ok':True,'structuredContent':{'answer':args['value']+'!'}}
-    svc.engine.execute=execute
     try:
         await Runtime(sources,svc.accept_time,[]).tick({},at=NOW+timedelta(seconds=60))
         row=svc.events.pending()[0]
         assert row['event']['id']==row['event']['payload']['eventId']
         assert sources.list()[0]['publishCursor']['eventId']==row['event']['id']
         await svc.deliver(row);runs=await settled(svc.engine,1)
-        assert runs[0]['status']=='succeeded' and calls==[('one',item['id']),('two',item['id']+'!')]
+        jobs=svc.job_runtime.list()
+        assert runs[0]['status']=='admitted' and len(jobs)==1 and jobs[0]['lastStatus']=='completed'
+        assert calls==[('one',item['id']),('two',item['id']+'!')]
     finally:
         await svc.engine.close();await svc.bus.close()
 
@@ -221,8 +239,8 @@ async def test_unified_pass_has_separate_legacy_and_event_owners(tmp_path,monkey
     old=store._job_for_task(legacy['id'])
     old['schedule'][0]['nextFireAt']=(datetime.now()-timedelta(seconds=1)).isoformat(timespec='seconds')
     jobs._write_job(jobs._job_path(old['jobId'],root),old)
-    svc=await service(tmp_path)
-    runtime=JobRuntime(root,svc.engine.actions,None);await runtime.start()
+    svc=await service(tmp_path,with_runtime=False)
+    runtime=JobRuntime(root,Store(tmp_path/'unified-actions'),None);await runtime.start()
     sources=Sources(root)
     item=source(sources,schedule={'kind':'once','at':(NOW+timedelta(seconds=60)).isoformat()})
     # Make its real next tick due without changing production clock functions.
@@ -264,23 +282,24 @@ async def test_source_http_user_auth_and_revision_without_listening(tmp_path,mon
 
 @async_test
 async def test_unavailable_after_admission_retries_only_waiting_subscription(tmp_path):
-    svc=await service(tmp_path)
+    calls=[]
+    async def execute(*args):calls.append(1);return {'ok':True}
+    svc=await service(tmp_path,execute)
     plugin=svc.bus.activate('plugin','extra');svc.bus.register(plugin,'extra.ready',{'type':'object'})
     for tid in ('healthy','waiting'):
         t=trigger(tid)
         if tid=='waiting':t['eventTypes'].append('extra.ready')
         svc.ledger.put(t,0,True)
-    calls=[]
-    async def execute(*args):calls.append(1);return {'ok':True}
-    svc.engine.execute=execute
     try:
         await svc.accept(svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'availability'))
         svc.bus.definitions['extra.ready']['available']=False
         with pytest.raises(ValueError):await svc.deliver(svc.events.pending()[0])
         await settled(svc.engine,1);assert len(calls)==1
+        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed']
         svc.bus.definitions['extra.ready']['available']=True
         await svc.deliver(svc.events.pending()[0]);await settled(svc.engine,2)
         assert len(calls)==2
+        assert [j['lastStatus'] for j in svc.job_runtime.list()]==['completed','completed']
     finally:
         await svc.engine.close();await svc.bus.close()
 
