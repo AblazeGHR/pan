@@ -1,3 +1,4 @@
+import { AttachedReminder } from './AttachedReminder';
 import { TrustedChoice } from './TrustedChoice';
 import { CardQuestions, questionErrors } from './CardQuestions';
 import { UserCardRow, type UserCardRowState } from './UserCardRow';
@@ -19,6 +20,8 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Archive,
+  ArrowDown,
+  Link2,
   PanelLeft,
   Check,
   CheckCheck,
@@ -45,6 +48,7 @@ import {
   type QuestionAnswer,
   lockerProjection,
   lockerTimeline,
+  lockerEntryWindow,
   isUserCard,
   type UserCard,
   loadLockerMessages,
@@ -562,7 +566,25 @@ export default function LockerView() {
     request.current?.abort();
     ++generation.current;
     setLoading(false);
-    setCards((previous) => previous.filter((card) => card.id !== id));
+    setCards((previous) => {
+      const removed = new Set([id]);
+      const children = new Map<string, string[]>();
+      for (const item of previous)
+        if (isUserCard(item) && item.parent) {
+          const siblings = children.get(item.parent.id) ?? [];
+          siblings.push(item.id);
+          children.set(item.parent.id, siblings);
+        }
+      const stack = [id];
+      while (stack.length)
+        for (const child of children.get(stack.pop()!) ?? []) {
+          if (!removed.has(child)) {
+            removed.add(child);
+            stack.push(child);
+          }
+        }
+      return previous.filter((card) => !removed.has(card.id));
+    });
   }, []);
   const workspaceCards = useMemo(
     () => lockerProjection(lockers, cards, activeWorkspaceId, selected),
@@ -619,35 +641,80 @@ export default function LockerView() {
   const previousScope = useRef('');
   const [windowSize, setWindowSize] = useState(50);
   const prepend = useRef<{ height: number; top: number } | null>(null);
-  const ordered = lockerTimeline(visible);
+  const [nearBottom, setNearBottom] = useState(true);
+  const [entryNotice, setEntryNotice] = useState('');
+  const entryScope = useRef('');
+  const visibleIds = new Set(visible.map((item) => item.id));
+  const arranged = lockerTimeline(workspaceCards);
+  const relevantRoots = new Set(
+    arranged.filter((entry) => visibleIds.has(entry.item.id)).map((entry) => entry.rootId),
+  );
+  const ordered = arranged.filter(
+    (entry) => entry.item.id === entry.rootId && relevantRoots.has(entry.rootId),
+  );
+  const entryWindow = lockerEntryWindow(
+    ordered.filter((entry) => !entry.parent).map((entry) => entry.item),
+  );
+  const entering = entryScope.current !== scope;
+  const effectiveWindowSize = entering ? entryWindow.size : windowSize;
   const firstVisible = useRef<string | undefined>(undefined);
   const oldStart = ordered.findIndex((entry) => entry.key === firstVisible.current);
   const start =
     !follow.current && previousScope.current === scope && oldStart >= 0
-      ? Math.min(oldStart, Math.max(0, ordered.length - windowSize))
-      : Math.max(0, ordered.length - windowSize);
+      ? Math.min(oldStart, Math.max(0, ordered.length - effectiveWindowSize))
+      : Math.max(0, ordered.length - effectiveWindowSize);
   const windowItems = ordered.slice(start);
   firstVisible.current = windowItems[0]?.key;
-  const windowIds = new Set(windowItems.map((entry) => entry.key));
+  const rootIds = new Set(windowItems.map((entry) => entry.item.id));
+  const windowIds = new Set(
+    arranged
+      .filter(
+        (entry) =>
+          rootIds.has(entry.rootId) &&
+          (visibleIds.has(entry.item.id) || relevantRoots.has(entry.item.id)),
+      )
+      .map((entry) => entry.key),
+  );
   useLayoutEffect(() => {
     const node = timeline.current;
     if (!node) return;
     if (previousScope.current !== scope) {
       previousScope.current = scope;
-      follow.current = true;
       prepend.current = null;
-      setWindowSize(50);
+    }
+    if (entering && dataVisible && !loading) {
+      entryScope.current = scope;
+      setWindowSize(entryWindow.size);
+      setEntryNotice(
+        entryWindow.limited
+          ? '已向前加载 5 页，仍未找到第一条未读。当前停在最早已加载项，可继续加载更早消息。'
+          : '',
+      );
+      const target = entryWindow.limited ? windowItems[0]?.item.id : entryWindow.firstUnreadId;
+      follow.current = !target;
+      if (target) {
+        const row = Array.from(node.querySelectorAll<HTMLElement>('[data-locker-entry]')).find(
+          (element) => element.dataset.lockerEntry === target,
+        );
+        if (row)
+          node.scrollTop =
+            row.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop;
+      } else node.scrollTop = node.scrollHeight;
+      setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
+      return;
     }
     if (prepend.current) {
       node.scrollTop = prepend.current.top + node.scrollHeight - prepend.current.height;
       prepend.current = null;
     } else if (follow.current) node.scrollTop = node.scrollHeight;
+    setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
   });
   useEffect(() => {
     const node = timeline.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
       if (follow.current) node.scrollTop = node.scrollHeight;
+      setNearBottom(node.scrollHeight - node.scrollTop - node.clientHeight <= 48);
     });
     for (const child of node.children) observer.observe(child);
     return () => observer.disconnect();
@@ -915,8 +982,13 @@ export default function LockerView() {
           {visible.length} messages{unreadOnly ? ' · Unread only' : ''}
         </span>
       </div>
-      <div className="locker-workspace-layout">
+      <div className="locker-workspace-layout relative">
         {sidebarPanel ? sidebarPanel[0] && createPortal(sourceList, sidebarPanel[0]) : sourceList}
+        {entryNotice && (
+          <p role="status" className="locker-entry-notice">
+            {entryNotice}
+          </p>
+        )}
         <section
           ref={timeline}
           aria-label="Locker messages"
@@ -925,7 +997,14 @@ export default function LockerView() {
             const node = timeline.current;
             if (!node) return;
             follow.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 48;
-            if (node.scrollTop <= 48 && start > 0 && !prepend.current) {
+            setNearBottom(follow.current);
+            if (
+              node.scrollTop <= 48 &&
+              start > 0 &&
+              !prepend.current &&
+              !entryNotice &&
+              !entering
+            ) {
               prepend.current = { height: node.scrollHeight, top: node.scrollTop };
               setWindowSize(windowItems.length + 50);
             }
@@ -957,44 +1036,90 @@ export default function LockerView() {
               <span>Messages from this Workspace appear here after a source sends them.</span>
             </div>
           )}
-          {lockerTimeline(cards).map(({ item: card, key: positionKey }) =>
-            isUserCard(card) ? (
-              <UserCardRow
-                key={`${token}:${positionKey}`}
-                card={card}
-                hidden={!windowIds.has(positionKey)}
-                source={lockers.find((locker) => locker.id === card.lockerId)}
-                update={update}
-                remove={remove}
-                state={userCardRowStates[card.id] ?? { busy: false, error: '' }}
-                setState={(patch) =>
-                  setUserCardRowStates((previous) => ({
-                    ...previous,
-                    [card.id]: { ...(previous[card.id] ?? { busy: false, error: '' }), ...patch },
-                  }))
+          {lockerTimeline(cards).map(({ item: card, key: positionKey, parent }) => (
+            <div
+              key={`${token}:${positionKey}`}
+              data-locker-entry={card.id}
+              data-parent-id={parent?.id}
+              hidden={!windowIds.has(positionKey)}
+              className={parent ? 'locker-attached-entry' : 'locker-root-entry'}
+            >
+              {card.id === entryWindow.firstUnreadId && !parent && (
+                <div role="separator" className="locker-unread-divider">
+                  以下为未读 · Unread messages
+                </div>
+              )}
+              {parent && (
+                <div
+                  className="locker-parent-chain"
+                  aria-label={`Attached to ${parent.type} ${parent.id}`}
+                >
+                  <Link2 size={14} />
+                  <span>{parent.id}</span>
+                </div>
+              )}
+              {isUserCard(card) ? (
+                <UserCardRow
+                  key={`${token}:${positionKey}`}
+                  card={card}
+                  hidden={!windowIds.has(positionKey)}
+                  source={lockers.find((locker) => locker.id === card.lockerId)}
+                  update={update}
+                  remove={remove}
+                  state={userCardRowStates[card.id] ?? { busy: false, error: '' }}
+                  setState={(patch) =>
+                    setUserCardRowStates((previous) => ({
+                      ...previous,
+                      [card.id]: { ...(previous[card.id] ?? { busy: false, error: '' }), ...patch },
+                    }))
+                  }
+                />
+              ) : 'message' in card ? (
+                <LockerMessageRow
+                  key={`${token}:${positionKey}`}
+                  item={card}
+                  hidden={!windowIds.has(positionKey)}
+                  source={lockers.find((locker) => locker.id === card.lockerId)}
+                  update={update}
+                  remove={remove}
+                />
+              ) : (
+                <Card
+                  key={`${token}:${positionKey}`}
+                  hidden={!windowIds.has(positionKey)}
+                  card={card}
+                  source={lockers.find((locker) => locker.id === card.lockerId)}
+                  update={update}
+                  remove={remove}
+                />
+              )}
+              <AttachedReminder
+                item={card}
+                created={(created) =>
+                  setCards((previous) =>
+                    previous.some((item) => item.id === created.id)
+                      ? previous
+                      : [...previous, created],
+                  )
                 }
               />
-            ) : 'message' in card ? (
-              <LockerMessageRow
-                key={`${token}:${positionKey}`}
-                item={card}
-                hidden={!windowIds.has(positionKey)}
-                source={lockers.find((locker) => locker.id === card.lockerId)}
-                update={update}
-                remove={remove}
-              />
-            ) : (
-              <Card
-                key={`${token}:${positionKey}`}
-                hidden={!windowIds.has(positionKey)}
-                card={card}
-                source={lockers.find((locker) => locker.id === card.lockerId)}
-                update={update}
-                remove={remove}
-              />
-            ),
-          )}
+            </div>
+          ))}
         </section>
+        {!nearBottom && (
+          <button
+            type="button"
+            title="Scroll to bottom"
+            aria-label="Scroll to bottom"
+            className="absolute bottom-2 right-4 rounded-full bg-accent text-white p-2 shadow-lg hover:bg-accent-hover transition-colors z-10"
+            onClick={() => {
+              const node = timeline.current;
+              if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+            }}
+          >
+            <ArrowDown size={16} />
+          </button>
+        )}
       </div>
     </main>
   );

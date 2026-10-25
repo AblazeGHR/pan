@@ -14,6 +14,7 @@ import LockerView from './LockerView';
 import {
   lockerProjection,
   lockerTimeline,
+  lockerEntryWindow,
   type UserCard,
   type InteractionCard,
   type LockerMessage,
@@ -650,33 +651,33 @@ function reverseCard(answered = true): UserCard {
     read: !answered, revision: answered ? 1 : 0};
 }
 describe('reminding card positions share one record', () => {
-  it('renders pending once without read controls and keeps answered projections ordered deterministically', async () => {
+  it('renders pending once without read controls and keeps a single answered record at createdAt', async () => {
     cards = []; userCards = [reverseCard(false)]; mount();
     await screen.findByText('Awaiting answer');
     expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1);
     expect(screen.queryByRole('button', {name: /Mark reminding card/})).toBeNull();
     const sameTime = {...reverseCard(), answeredAt: reverseCard().createdAt};
-    expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created', 'answered']);
-    expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(2);
+    expect(lockerTimeline([sameTime]).map((entry) => entry.position)).toEqual(['created']);
+    expect(new Set(lockerTimeline([sameTime]).map((entry) => entry.key)).size).toBe(1);
     const positions = lockerTimeline([reverseCard(), card('b')]);
-    expect(positions.map((entry) => entry.item.id)).toEqual(['uc', 'b', 'uc']);
+    expect(positions.map((entry) => entry.item.id)).toEqual(['uc', 'b']);
   });
-  it.each([0, 1])('read and delete from position %i update/remove both identical rows', async (position) => {
+  it('read and delete operate on the single original row', async () => {
     cards = []; userCards = [reverseCard()]; mount();
-    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(2));
+    await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(1));
     let rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
-    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
-    expect(screen.getAllByText('Agent answer body')).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('Agent answer body');
+    expect(screen.getAllByText('Agent answer body')).toHaveLength(1);
     expect(rows.every((row) => row.querySelector('textarea,input') === null)).toBe(true);
     const reads = screen.getAllByRole('button', {name: 'Mark reminding card as read'});
-    fireEvent.click(reads[position]!);
-    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark reminding card as unread'})).toHaveLength(2));
+    fireEvent.click(reads[0]!);
+    await waitFor(() => expect(screen.getAllByRole('button', {name: 'Mark reminding card as unread'})).toHaveLength(1));
     rows = [...document.querySelectorAll<HTMLElement>('[data-reminding-card-id="uc"]')];
-    expect(rows[0]!.textContent).toBe(rows[1]!.textContent);
+    expect(rows[0]!.textContent).toContain('Agent answer body');
     expect(calls.filter((call) => call.path === '/api/reminding-cards/uc/read')).toHaveLength(1);
     expect(userCards).toHaveLength(1);
     expect(calls.filter((call) => /attachments/.test(call.path))).toHaveLength(0);
-    fireEvent.click(screen.getAllByRole('button', {name: 'Delete reminding card'})[position]!);
+    fireEvent.click(screen.getAllByRole('button', {name: 'Delete reminding card'})[0]!);
     await waitFor(() => expect(document.querySelectorAll('[data-reminding-card-id="uc"]')).toHaveLength(0));
     expect(userCards).toHaveLength(0);
   });
@@ -811,10 +812,52 @@ describe('Session deep link and card ids', () => {
     const interactionChip = within(interactive.closest('article')!).getByTestId('locker-card-id');
     expect(interactionChip.getAttribute('data-card-id-value')).toBe('a');
     expect(interactionChip.getAttribute('title')).toContain('a');
-    // An answered reminding card is projected twice (created + answered); both
-    // rows carry the same record id.
+    // Answered reminding cards keep a single row at their creation position.
     const reminding = screen.getAllByTestId('reminding-card-id')[0]!;
     expect(reminding.getAttribute('data-card-id-value')).toBe('uc');
     expect(reminding.getAttribute('aria-label')).toContain('uc');
+  });
+});
+
+describe('attached reminders and entry window', () => {
+  it('preorders children by creation, leaves root order and unread anchor independent', () => {
+    const first = {...card('a'), read: true};
+    const last = card('b');
+    const child = {...reverseCard(), id: 'child', parent: {type: 'interaction_card' as const, id: first.id}, createdAt: '2099-01-01T00:00:00Z'};
+    const sibling = {...child, id: 'sibling', createdAt: '2098-01-01T00:00:00Z'};
+    const nested = {...child, id: 'nested', parent: {type: 'user_card' as const, id: sibling.id}};
+    const result = lockerTimeline([last, child, nested, first, sibling]);
+    expect(result.map((entry) => entry.item.id)).toEqual(['a', 'sibling', 'nested', 'child', 'b']);
+    expect(lockerEntryWindow(result.filter((entry) => !entry.parent).map((entry) => entry.item)).firstUnreadId).toBe('b');
+    expect(child.read).toBe(false); expect(first.read).toBe(true);
+  });
+  it('handles 20000 levels and corrupt cycles without recursion or loss', () => {
+    const items: UserCard[] = Array.from({length: 20000}, (_, i) => ({...reverseCard(), id: `deep${i}`,
+      parent: i ? {type: 'user_card', id: `deep${i-1}`} : null}));
+    expect(lockerTimeline(items)).toHaveLength(20000);
+    items[0]!.parent = {type: 'user_card', id: 'deep19999'};
+    expect(lockerTimeline(items)).toHaveLength(20000);
+  });
+  it('loads at most five older pages and reports a missing first unread', () => {
+    const roots = Array.from({length: 400}, (_, i) => ({...card(`c${i}`), read: i !== 0}));
+    expect(lockerEntryWindow(roots)).toEqual({size: 300, firstUnreadId: 'c0', limited: true});
+    roots[0]!.read = true; roots[120]!.read = false;
+    expect(lockerEntryWindow(roots)).toEqual({size: 300, firstUnreadId: 'c120', limited: false});
+    expect(lockerEntryWindow(roots.map((item) => ({...item, read: true})))).toEqual({size: 50, firstUnreadId: null, limited: false});
+  });
+  it('puts the divider before the chronological unread, not an unread attachment of a read root', async () => {
+    cards = [{...card('a'), read: true}, card('b')];
+    userCards = [{...reverseCard(), parent: {type: 'interaction_card', id: 'a'}}];
+    mount(); await screen.findByText('Agent answer body');
+    const divider = screen.getByRole('separator');
+    expect(divider.parentElement?.dataset.lockerEntry).toBe('b');
+    const ids = [...document.querySelectorAll('[data-locker-entry]')].map((element) => (element as HTMLElement).dataset.lockerEntry);
+    expect(ids).toEqual(['a', 'uc', 'b']);
+    expect(document.querySelector('[data-parent-id="a"]')).not.toBeNull();
+    expect(screen.getAllByRole('button', {name: '创建提醒卡'})).toHaveLength(3);
+    fireEvent.click(within(document.querySelector('[data-card-id="b"]') as HTMLElement).getByRole('button', {name: 'Mark card as read'}));
+    await waitFor(() => expect(screen.queryByRole('separator')).toBeNull());
+    // Only the chronological parent was marked; attached unread retains its own state.
+    expect(userCards[0]!.read).toBe(false);
   });
 });
