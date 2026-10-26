@@ -61,6 +61,8 @@ class CanonicalEventStore:
                         eventId TEXT PRIMARY KEY, factDigest TEXT NOT NULL,
                         record TEXT NOT NULL, targets TEXT NOT NULL, receivedAt TEXT NOT NULL)""")
                     db.execute("CREATE TABLE IF NOT EXISTS event_pins(eventId TEXT PRIMARY KEY)")
+                    db.execute("""CREATE TABLE IF NOT EXISTS pending_adoptions(
+                        eventId TEXT PRIMARY KEY, document TEXT NOT NULL)""")
                     yield db
             finally:
                 db.close()
@@ -72,6 +74,16 @@ class CanonicalEventStore:
         digest = contracts.event_fact_digest(envelope)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            adoption = db.execute("SELECT document FROM pending_adoptions WHERE eventId=?",
+                                  (envelope["eventId"],)).fetchone()
+            if adoption:
+                binding = json.loads(adoption[0])
+                if binding["envelope"] != envelope:
+                    raise contracts.ContractError("idempotency_conflict", "Adopted Event identity changed")
+                if not binding["admissionAllowed"]:
+                    retained = db.execute("SELECT 1 FROM events WHERE eventId=?", (envelope["eventId"],)).fetchone()
+                    if not retained:
+                        raise contracts.ContractError("pending_publication", "Original admission evidence is uncertain")
             old = db.execute("SELECT record,targets FROM events WHERE eventId=?", (envelope["eventId"],)).fetchone()
             if old:
                 record = json.loads(old["record"])
@@ -307,6 +319,12 @@ class CreatorStore:
         with self.connection(readonly=True) as db:
             row = db.execute("SELECT document FROM legacy_scheduler_history WHERE requestKey=?", (request_key,)).fetchone()
             return json.loads(row[0]) if row else None
+
+    def adopt_legacy_pending(self, events, legacy_events, *, import_key, source_id, timezone_name):
+        """Explicit R6 pending handoff; never a generic v1 publication port."""
+        from .pending_adoption import PendingPublicationAdoption
+        return PendingPublicationAdoption(self, events, legacy_events).adopt(
+            import_key=import_key, source_id=source_id, timezone_name=timezone_name)
 
     def _request(self, db, key, fingerprint):
         old = db.execute("SELECT fingerprint,objectId FROM requests WHERE key=?", (key,)).fetchone()
@@ -592,6 +610,9 @@ class CreatorStore:
                 db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
             pending = item.get("pendingPublication")
+            if (item.get("pendingAdoption") and not item["pendingAdoption"]["publicationSettled"]
+                    and not getattr(self._joined, "settling_adoption", False)):
+                raise contracts.ContractError("unsupported_operation", "Use explicit pending adoption settlement")
             if not pending or pending["envelope"]["eventId"] != event_id:
                 return False
             fence = pending["fence"]
@@ -635,6 +656,9 @@ class CreatorStore:
             if not db.in_transaction:
                 db.execute("BEGIN IMMEDIATE")
             item = self._read_db(db, creator_id)
+            if (item.get("pendingAdoption") and not item["pendingAdoption"]["publicationSettled"]
+                    and not getattr(self._joined, "settling_adoption", False)):
+                raise contracts.ContractError("unsupported_operation", "Use explicit pending adoption settlement")
             cursor = item.get("lastPublication")
             if cursor and cursor["eventId"] == event_id and cursor["epoch"] == epoch:
                 cursor["eventStoreReleased"] = True
@@ -707,12 +731,16 @@ class CreatorRuntime:
         self.last_tick_at = None
 
     async def _ack(self, item):
+        if item.get("pendingAdoption") and not item["pendingAdoption"]["publicationSettled"]:
+            raise contracts.ContractError("unsupported_operation", "Use explicit pending adoption settlement")
         cursor = item.get("lastPublication")
         if cursor and not cursor.get("eventStoreReleased"):
             await self.bus.release_pin(cursor["eventId"])
             await asyncio.to_thread(self.creators.acknowledged, item["id"], cursor["eventId"], cursor["epoch"])
 
     async def _publish(self, creator_id, pending):
+        if pending.get("adoptedIdentity"):
+            raise contracts.ContractError("unsupported_operation", "Pending adoption cannot be automatically published")
         if self.authorize is not None:
             await asyncio.to_thread(self.authorize, await asyncio.to_thread(self.creators.get, creator_id))
         fence = pending["fence"]
@@ -733,6 +761,10 @@ class CreatorRuntime:
         self.last_tick_at = at
         for item in items:
             try:
+                if item.get("pendingAdoption") and not item["pendingAdoption"].get("publicationSettled"):
+                    # Adoption is a handoff of facts, never permission to replay
+                    # a v1 publication, advance its cursor, or fabricate an ack.
+                    continue
                 await self._ack(item)
                 if item.get("pendingPublication"):
                     await self._publish(item["id"], item["pendingPublication"])
