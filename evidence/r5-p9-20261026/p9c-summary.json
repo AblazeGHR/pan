@@ -1,0 +1,113 @@
+{
+  "schema": "pan.r5-p9c.review-evidence/v1",
+  "result": "REVIEW_PACKET_READY_UNAPPROVED",
+  "migrationGate": "BLOCKED",
+  "task": "T-JOB-P9C-REVIEW-PACKET-20261025-1",
+  "baselineCommit": "7da2aa4a1405109d9e212aa4a1b5a7f5f042c8d5",
+  "acceptedIntegration": "d55d014c75de0f526e3ab078c863ed9b793a84f7",
+  "implementationCommit": "40e18f7eb0b1fda3275c4ccb76c7e62e6f6e2943",
+  "packetDirectory": ".validation/p9c-private-20261026/review-packet",
+  "packetId": "review1_1025fc1dae54c64b3a86b801",
+  "packetDigest": "42647c17b1643fd86366d554aaad408682895afcce7354d1e8552d1d9af63222",
+  "draftPlanDigest": "3c3d9be079bde09baeb9a0082cae1c3b9191348d00bdc11dc4220251dbae6b37",
+  "counts": {
+    "complex": 59,
+    "filesHashVerified": 1971,
+    "reasons": {
+      "active_resource": 14,
+      "corrupt_record": 1,
+      "counter_coupling": 4,
+      "pending_notice": 1,
+      "schedule_semantic_loss": 4,
+      "uncertain_effect": 21,
+      "unknown_field": 3,
+      "unknown_schema": 1,
+      "unsupported_complex_instance": 50,
+      "unverified_authority": 1
+    },
+    "recommendations": {
+      "保留（待人类确认）": 39,
+      "需业务决策": 21
+    },
+    "simple": 51,
+    "total": 111,
+    "unknown": 1
+  },
+  "packetArtifactSha256": {
+    "REVIEW.md": "f093774aefe75d148a18569cec17dcf77cd8b992eba9ea076a8961688adcf0bc",
+    "decisions.json": "9138d86c62e3e6a93d1ee7d6447bf7ce12eb637a346f3526f3d56945ae582ea4",
+    "preserved-review.csv": "783ee56f0aec2f8348b90ad64410bf960bc79744bf4b0fde661908b75690aa62",
+    "records.json": "bece3c5c28004a2f311f3658a6fd131a9baf0894f9e0edb9971ad3ac9f5b39cd",
+    "reviewed-context.draft.json": "baf07ac0d2e7275fa5a81ec2ec1bf3cfbb4cc34a71a13e3de77a4722376a41e5",
+    "simple-review.csv": "a438b75effb4f2714bb280576b2bd2552ae5212176d092abc2724dc29b611842",
+    "packet-manifest.json": "a1010d46de1c292333bcfbe0a314f25b1054362770aaad43dcae4d0d05f434fc"
+  },
+  "verification": {
+    "packetSelfDigestVerified": true,
+    "artifactHashesVerified": 7,
+    "repeatByteIdenticalFiles": 7,
+    "simpleCsvRows": 51,
+    "preservedCsvRows": 60,
+    "perIdSha256ShapeVerified": true,
+    "p9bEvidenceArtifactsUnchanged": 18,
+    "snapshotFilesRehashedPerGeneration": 1971,
+    "canonicalTargetCreated": false,
+    "canonicalRecordsImported": 0,
+    "realSourceOpened": false,
+    "evidence": "generator reads only P9B source-copy; hashes rechecked twice; no legacy loader, apply or runtime import call"
+  },
+  "authorization": {
+    "status": "draft_unapproved",
+    "signature": null,
+    "approvedSelection": [],
+    "active_ids": [],
+    "draftProposedSelectionCount": 51,
+    "p9cReviewFormatsAlwaysRejected": true,
+    "trustedSignatureVerifierImplemented": false,
+    "legacyV1AttestationContractUnchanged": true
+  },
+  "tests": {
+    "passed": 267,
+    "previousPassed": 254,
+    "newPassed": 13,
+    "skipped": 1,
+    "failed": 0,
+    "errors": 0,
+    "exitCode": 0,
+    "warnings": 1,
+    "elapsedSeconds": 60.61,
+    "junit": {
+      "tests": 268,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "skipReason": "Windows symlink creation permission unavailable; allowlist/cache/lock tests independently pass",
+    "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_migration_apply.py tests/test_job_final_migration.py tests/test_job_final_contracts.py tests/test_job_runtime_owner.py tests/test_job_inbox_migration_drill.py tests/test_job_runtime_registry.py tests/test_p9_practical_rehearsal.py tests/test_job_final_migration_partial.py tests/test_job_final_migration_review_packet.py -q -o addopts= --tb=short --junitxml=.validation/p9c-private-20261026/combined.xml"
+  },
+  "remainingBlockers": [
+    "named reviewer and trusted verification contract",
+    "51 simple authorization/fence/Action/provider/policy evidence",
+    "60 retained legacy identities and original-key settlement/history-reader acceptance",
+    "cross-store consistency and external independent history remain unverified"
+  ],
+  "decisionGroups": [
+    "D1: simple selection, accountable signer and exact hash-bound authority/policy evidence",
+    "D2: permanent historical retention versus separately approved conversion by ID",
+    "D3: original-key reconciliation owner for uncertain/resource/notice/consumed-counter cases"
+  ],
+  "boundaries": {
+    "sourceWrites": 0,
+    "canonicalImports": 0,
+    "servicesChanged": false,
+    "ports8767or8768Used": false,
+    "build": false,
+    "push": false
+  },
+  "privateTestEvidenceSha256": {
+    "combined.xml": "336a35540d6886d98a5bc3a6ae0361f017dade58d0cbbc3643011f98995d4756",
+    "combined.log": "d2a3917897ee66abde22732c6072517df477cf855562bdacc4bbdde1e04b64fb",
+    "combined.exit.txt": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "verification.json": "34259bf5c9ac6042d30299f4487bae923205e590c521f1d9765606e2378be52f"
+  }
+}
