@@ -1,0 +1,143 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-reds-auth-20261025
+.FFFF.F...                                                               [100%]
+================================== FAILURES ===================================
+__ test_real_external_fanout_action_and_shared_session_lifetime[standalone] ___
+tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in <lambda>
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'
+__ test_real_external_fanout_action_and_shared_session_lifetime[pan_native] ___
+tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in <lambda>
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'
+____ test_real_external_fanout_action_and_shared_session_lifetime[gateway] ____
+tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in <lambda>
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'
+____________ test_external_rejections_disconnect_and_queue_restore ____________
+tests\test_plugin_events.py:214: in test_external_rejections_disconnect_and_queue_restore
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:203: in run
+    svc.ledger.append(run)
+packages\automation\store.py:172: in append
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:153: in synchronous
+    with owner.legacy_pass() if reservation else owner.writer():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+_____ test_service_restart_restores_queued_only_after_actual_plugin_ready _____
+tests\test_plugin_events.py:283: in test_service_restart_restores_queued_only_after_actual_plugin_ready
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:259: in run
+    svc.ledger.append({'id': 'persisted', 'triggerId': 't', 'triggerRevision': 1, 'actionId': 'pause',
+packages\automation\store.py:172: in append
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:153: in synchronous
+    with owner.legacy_pass() if reservation else owner.writer():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[standalone]
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[pan_native]
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[gateway]
+FAILED tests/test_plugin_events.py::test_external_rejections_disconnect_and_queue_restore
+FAILED tests/test_plugin_events.py::test_service_restart_restores_queued_only_after_actual_plugin_ready
+5 failed, 5 passed, 2 warnings in 15.65s

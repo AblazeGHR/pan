@@ -7,7 +7,7 @@ import pytest
 from packages.jobs.action_runtime import AuthorizationRevoked
 from packages.jobs.action_templates import Conflict
 from tests.test_automation_core import async_test, action, trigger, event, until
-from tests.test_authorization_mcp import harness, close
+from tests.support.legacy_automation import harness, close
 from tests.test_authorization_permissions import full_permissions
 from tests.test_job_action_templates import config, finished
 
@@ -89,28 +89,23 @@ async def test_action_disable_blocks_new_job_attempt_recovery_without_killing_st
     finally:await close(h)
 
 
-@async_test
-async def test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation(tmp_path,monkeypatch):
-    h=await harness(tmp_path,monkeypatch)
-    try:
-        h.svc.engine.execute.keywords['pause']=lambda *args:None  # replaced below by deterministic async effect
-        async def pause(sid,args):h.calls.append(sid);return {'ok':True}
-        h.svc.engine.execute.keywords['pause']=pause
-        await h.svc.engine.start()
-        permissions=full_permissions(False)
-        permissions['trigger']={k:True for k in permissions['trigger']}
-        h.svc.auth.change_permissions(permissions,0)
-        h.svc.ledger.put(trigger('agent'),0,True,authority={'type':'agent','revision':1})
-        await h.svc.engine.match(event('denied'))
-        runs=h.svc.ledger.read()['runs']
-        assert len(runs)==1 and next(iter(runs.values()))['status']=='failed'
-        assert not next(iter(runs.values()))['attempts'] and not h.calls
-        h.svc.ledger.put(trigger('agent'),1,True,authority={'type':'user'})
-        await h.svc.engine.match(event('user'))
-        async def done():return any(r['status']=='succeeded' for r in h.svc.ledger.read()['runs'].values())
-        await until(done)
-        assert h.calls==['selected']
-    finally:await close(h)
+def test_legacy_trigger_dispatch_surface_is_retired():
+    """Retired by R5-P3: Automation no longer owns an Action execution host.
+
+    Successors (all collect and pass):
+    * ``tests/test_automation_retirement.py::test_legacy_execution_api_is_absent``
+      — ``Engine.execute``/``Ledger.claim``/``Ledger.finish`` must not exist.
+    * ``tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered``
+      — historical Runs stay readable and are never re-executed.
+    * ``tests/test_automation_canonical.py`` — canonical Trigger-to-Job admission
+      carries the authorization revision and the effect barrier.
+    """
+    from packages.automation.engine import Engine
+    from packages.automation.store import Ledger
+    for name in ('execute', 'run_attempt'):
+        assert not hasattr(Engine, name), name
+    for name in ('claim', 'finish'):
+        assert not hasattr(Ledger, name), name
 
 
 @async_test
@@ -130,48 +125,6 @@ async def test_revoked_retry_does_not_reserve_recovery_and_user_confirmation_can
         await finished(h.rt,j['jobId'],'failed')
         assert len(h.rt.get(j['jobId'])['attempts'])==2
         assert h.rt.get(j['jobId'])['runAuthorization']=={'type':'user'}
-    finally:await close(h)
-
-
-@async_test
-async def test_trigger_effect_revision_barrier(tmp_path,monkeypatch):
-    h=await harness(tmp_path,monkeypatch)
-    prepared=asyncio.Event();release=asyncio.Event()
-    async def executor(a,args,ev,progress):
-        prepared.set();await release.wait();await progress.before_effect()
-        h.calls.append('effect');return {'ok':True}
-    h.svc.engine.execute=executor
-    try:
-        h.svc.auth.change_permissions(full_permissions(),0)
-        h.svc.ledger.put(trigger(),0,True,authority={'type':'agent','revision':1})
-        await h.svc.engine.start()
-        await h.svc.engine.match(event())
-        await asyncio.wait_for(prepared.wait(),3)
-        h.svc.auth.change_permissions(full_permissions(False),1)
-        release.set()
-        async def done():return all(r['status']=='failed' for r in h.svc.ledger.read()['runs'].values())
-        await until(done)
-        row=next(iter(h.svc.ledger.read()['runs'].values()))
-        assert row['authorizationRevision']==1 and len(row['attempts'])==1
-        assert not h.calls and 'nextAttemptAt' not in row
-    finally:release.set();await close(h)
-
-
-@async_test
-async def test_agent_resume_of_user_job_is_not_an_execute_grant(tmp_path,monkeypatch):
-    from packages.plugins.ipc import request
-    h=await harness(tmp_path,monkeypatch)
-    try:
-        j=h.rt.create(config(),True,{'type':'user'})
-        h.rt.set_paused(j['jobId'],True,1,{'type':'user'})
-        permissions=full_permissions(False);permissions['job']['lifecycle']=True
-        h.svc.auth.change_permissions(permissions,0)
-        response=await asyncio.to_thread(request,{'session_id':h.session.id,'operation':'authorization_objects',
-            'method':'POST','path':'/api/jobs/action-jobs/'+j['jobId']+'/resume',
-            'body':{'expectedRevision':2}},h.bridge.address)
-        assert response['job']['authorization']['type']=='agent'
-        with pytest.raises(AuthorizationRevoked):await h.rt.launch(j['jobId'],3)
-        assert not h.calls and not h.rt.get(j['jobId']).get('attempts')
     finally:await close(h)
 
 

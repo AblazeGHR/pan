@@ -1,0 +1,81 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-reds-auth-20261025
+........................................................................ [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 19%]
+........................................................................ [ 26%]
+........................................................................ [ 32%]
+........................................................................ [ 39%]
+........................................................................ [ 45%]
+........................................................................ [ 52%]
+........................................................................ [ 58%]
+........................................................................ [ 65%]
+........................................................................ [ 71%]
+........................................................................ [ 78%]
+..................................................................F..... [ 84%]
+...........................................F............................ [ 91%]
+........................................................................ [ 97%]
+.............F...........                                                [100%]
+================================== FAILURES ===================================
+_______________ test_owned_notification_consumption_and_restart _______________
+tests\test_locker_independent_http.py:64: in test_owned_notification_consumption_and_restart
+    rt.request('POST', '/api/automation/triggers', headers=auth, json={'item': {
+tests\support\authorization.py:46: in request
+    ???
+tests\test_real_queue_http_e2e.py:288: in request
+    raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   Owned server log:
+____ TestDescriptionCallChain.test_every_tool_ends_with_pan_skill_pointer _____
+tests\test_mcp_handbook.py:101: in test_every_tool_ends_with_pan_skill_pointer
+    assert doc.rstrip().endswith(SKILL_POINTER), tool.__name__
+E   AssertionError: authorization_objects
+E   assert False
+E    +  where False = <built-in method endswith of str object at 0x000002BD344B5A50>('完整编排流程见 /pan skill。')
+E    +    where <built-in method endswith of str object at 0x000002BD344B5A50> = "Compatibility reads for Trigger/Action/Job Template/Job via canonical pages.\n\nUses trusted local IPC and the user's...explicitly retired. Use canonical object and\nRun tools with their complete revision, identity and operation envelope.".endswith
+E    +      where "Compatibility reads for Trigger/Action/Job Template/Job via canonical pages.\n\nUses trusted local IPC and the user's...explicitly retired. Use canonical object and\nRun tools with their complete revision, identity and operation envelope." = <built-in method rstrip of str object at 0x000002BD286690B0>()
+E    +        where <built-in method rstrip of str object at 0x000002BD286690B0> = "Compatibility reads for Trigger/Action/Job Template/Job via canonical pages.\n\nUses trusted local IPC and the user's...plicitly retired. Use canonical object and\nRun tools with their complete revision, identity and operation envelope.\n".rstrip
+________________________ test_locker_browser_http_mcp _________________________
+tests\test_user_locker_browser.py:5: in test_locker_browser_http_mcp
+    run_http_mcp(tmp_path,browser=True)
+tests\test_interaction_card_http.py:73: in run_http_mcp
+    assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_interaction_card_http.py:48: in call
+    with urllib.request.urlopen(request,timeout=15) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:187: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:493: in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:602: in http_response
+    response = self.parent.error(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:531: in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:464: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:611: in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+E   urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart
+FAILED tests/test_mcp_handbook.py::TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer
+FAILED tests/test_user_locker_browser.py::test_locker_browser_http_mcp - urll...
+3 failed, 1102 passed, 3 warnings in 311.45s (0:05:11)

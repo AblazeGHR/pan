@@ -1,0 +1,37 @@
+{
+  "qa71": {
+    "legacy_protocol_rewritten_or_retired": 45,
+    "integrated_fix_reverified": 23,
+    "environment_dependency_repaired": 2,
+    "product_or_fixture_defect_fixed": 1
+  },
+  "allTrackedIdentities": 146,
+  "allTrackedCategories": {
+    "legacy_protocol_rewritten_or_retired": 118,
+    "integrated_fix_reverified": 23,
+    "product_or_fixture_defect_fixed": 3,
+    "environment_dependency_repaired": 2
+  },
+  "retiredOrRewrittenDefinitions": 53,
+  "triage": {
+    "failed": 122,
+    "passed": 723
+  },
+  "handoff": {
+    "passed": 755,
+    "failed": 70
+  },
+  "expandedVerification": {
+    "passed": 1102,
+    "failed": 3
+  },
+  "finalAcceptance": {
+    "passed": 1104
+  },
+  "unclassified": [],
+  "remainingNewFailures": [],
+  "allSuccessorsExecutedAndPassed": true,
+  "baselineQaSameIdentityPassed": 62,
+  "baselineAbsent": 9,
+  "baselineExistingProductFailures": 0
+}

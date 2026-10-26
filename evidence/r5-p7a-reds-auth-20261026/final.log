@@ -1,0 +1,730 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-reds-auth-20261025
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+...................................FFFFFFFEFFFFFFFFF.................... [ 34%]
+..........F.F.........................F.F...F........................... [ 43%]
+......FF.F.............................................................. [ 52%]
+........................................................................ [ 61%]
+.......................................................................F [ 69%]
+F...F...F..............................................FF......F.FFFFFFF [ 78%]
+...............FF.....F................FFFFFF.FFF....................... [ 87%]
+.............FFFFFFFFFF...F......F....F................................. [ 96%]
+.......F.FF........FFF...........                                        [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_pending_old_plugin_events_do_not_starve_independent_event _
+file D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_event_store.py, line 536
+  async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_path, monkeypatch, commit_delay):
+      svc,calls=await setup(tmp_path)
+      # Stop only dispatcher while arranging a deterministic >one-page backlog.
+      svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
+      waiting={**trigger('wait'),'eventTypes':['workers.all_idle','missing.fact']}
+      svc.ledger.put(waiting,0,True)
+      waiting=svc.ledger.read()['triggers']['wait']
+      for i in range(65):
+          svc.events.append(fact('waiting-'+str(i)),[waiting])
+      await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'independent')
+      # Model slow durable ledger replacement after arranging the backlog. An
+      # unavailable dependency must not force a no-op commit for every old fact.
+      from packages.automation import store as ledger_store
+      import time
+      original_atomic = ledger_store.atomic
+      def slow_atomic(*args, **kwargs):
+E       fixture 'commit_delay' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, canonical, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, isolate_session_storage, isolate_terminal_heartbeat_threads, isolate_websocket_clients, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_event_store.py:536
+================================== FAILURES ===================================
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+E   AssertionError: assert ({'deletedRuns': 0} == {'deletedRuns': 1}
+      
+      Differing items:
+      {'deletedRuns': 0} != {'deletedRuns': 1}
+      Use -v to get more diff)
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_event_store.py:514: AssertionError: assert ({'deletedRuns': 0} == {'deletedRuns': 1}
+E   assert 1 == (1 + 1)
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_event_store.py:531: assert 1 == (1 + 1)
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+D:\project\Pan-main\.venv\Lib\site-packages\_pytest\python.py:157: Failed: async def functions are not natively supported.
+E   RuntimeError: Cannot add middleware after an application has started
+D:\project\Pan-main\.venv\Lib\site-packages\starlette\applications.py:106: RuntimeError: Cannot add middleware after an application has started
+E   RuntimeError: Cannot add middleware after an application has started
+D:\project\Pan-main\.venv\Lib\site-packages\starlette\applications.py:106: RuntimeError: Cannot add middleware after an application has started
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   AssertionError: {'id': 'jexec_8cc67ddd4f9e48509a672a6ad563fd48', 'runId': 'run_9d1b16a7832243a2b8efc8b8', 'attemptId': 'attempt_ac38b09f6726491e9a000275', 'authorization': {'type': 'user'}, ...}
+    assert 'failed' == 'completed'
+      
+      - completed
+      + failed
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_action_chain.py:510: AssertionError: {'id': 'jexec_8cc67ddd4f9e48509a672a6ad563fd48', 'runId': 'run_9d1b16a7832243a2b8efc8b8', 'attemptId': 'attempt_ac38b09f6726491e9a000275', 'authorization': {'type': 'user'}, ...}
+E   KeyError: 'job'
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_action_chain.py:545: KeyError: 'job'
+E   AssertionError: GET /api/jobs/action-jobs/schema?actionId=pause: 503 {"detail":"Job Action runtime unavailable"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: GET /api/jobs/action-jobs/schema?actionId=pause: 503 {"detail":"Job Action runtime unavailable"}
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 74, in test_real_mcp_legacy_message_and_process_become_action_jobs
+  |     async with stdio_client(params) as streams, ClientSession(*streams) as client:
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 74, in test_real_mcp_legacy_message_and_process_become_action_jobs
+    |     async with stdio_client(params) as streams, ClientSession(*streams) as client:
+    |                                                 ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 77, in test_real_mcp_legacy_message_and_process_become_action_jobs
+      |     assert "agent_message_job_create" in {item.name for item in listed.tools}
+      | AssertionError: assert 'agent_message_job_create' in {'action_drafts', 'agent_assign', 'agent_background_cancel', 'agent_background_get', 'agent_background_list', 'agent_inbox', ...}
+      +------------------------------------
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:847: AssertionError("assert 'agent_message_job_create' in {'action_drafts', 'agent_assign', 'agent_background_cancel', 'agent_background_get', 'agent_background_list', 'agent_inbox', ...}") [single exception in ExceptionGroup]
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 281, in test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy
+  |     async with stdio_client(params(sid)) as streams, ClientSession(*streams) as client:
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 281, in test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy
+    |     async with stdio_client(params(sid)) as streams, ClientSession(*streams) as client:
+    |                                                      ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 283, in test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy
+      |     created = _payload(await client.call_tool('agent_background_start', {'argv': [sys.executable, '-c', code],
+      |         'cwd': str(tmp_path), 'name': 'Phase5 crash uncertainty', 'target_session_id': sid}))
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_chain_phase5_e2e.py", line 49, in _payload
+      |     return json.loads(result.content[0].text)
+      |            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\__init__.py", line 352, in loads
+      |     return _default_decoder.decode(s)
+      |            ~~~~~~~~~~~~~~~~~~~~~~~^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py", line 345, in decode
+      |     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\json\decoder.py", line 363, in raw_decode
+      |     raise JSONDecodeError("Expecting value", s, err.value) from None
+      | json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+      +------------------------------------
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Tool 'agent_background_start' not listed, no validation will be performed
+D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:847: JSONDecodeError('Expecting value: line 1 column 1 (char 0)') [single exception in ExceptionGroup]
+E   TypeError: harness() takes 1 positional argument but 2 were given
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_delete_main_combination.py:41: TypeError: harness() takes 1 positional argument but 2 were given
+E   AssertionError: POST /api/jobs/action-jobs: 410 {"detail":{"code":"retired","message":"Legacy write entrypoint retired; use the canonical /api API"}}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/jobs/action-jobs: 410 {"detail":{"code":"retired","message":"Legacy write entrypoint retired; use the canonical /api API"}}
+E   AssertionError: assert 0 == 1
+     +  where 0 = <function reconcile_running at 0x000001DF02F66770>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5270/test_runner_death_at_creation_0/registry'))
+     +    where <function reconcile_running at 0x000001DF02F66770> = legacy.reconcile_running
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_lifecycle_prevention.py:110: AssertionError: assert 0 == 1
+E   AssertionError: assert 0 == 1
+     +  where 0 = <function reconcile_running at 0x000001DF02F66770>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5270/test_runner_death_at_creation_4/registry'))
+     +    where <function reconcile_running at 0x000001DF02F66770> = legacy.reconcile_running
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_lifecycle_prevention.py:110: AssertionError: assert 0 == 1
+E   AssertionError: assert 0 == 1
+     +  where 0 = <function reconcile_running at 0x000001DF02F66770>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5270/test_runner_death_at_creation_8/registry'))
+     +    where <function reconcile_running at 0x000001DF02F66770> = legacy.reconcile_running
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_job_lifecycle_prevention.py:110: AssertionError: assert 0 == 1
+E   AssertionError: POST /api/jobs/action-jobs: 410 {"detail":{"code":"retired","message":"Legacy write entrypoint retired; use the canonical /api API"}}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/jobs/action-jobs: 410 {"detail":{"code":"retired","message":"Legacy write entrypoint retired; use the canonical /api API"}}
+E   AssertionError: POST /api/background-jobs: 401 {"detail":"User Bearer or trusted MCP transport required"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/background-jobs: 401 {"detail":"User Bearer or trusted MCP transport required"}
+E   FileNotFoundError: [Errno 2] No such file or directory: 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\web\\dist\\index.html'
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:771: FileNotFoundError: [Errno 2] No such file or directory: 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\web\\dist\\index.html'
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   AssertionError: 
+      node:internal/modules/package_json_reader:331
+        throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+              ^
+      
+      Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\web\e2e\locker-order-scroll.mjs
+          at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+          at packageResolve (node:internal/modules/esm/resolve:784:25)
+          at moduleResolve (node:internal/modules/esm/resolve:873:18)
+          at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+          at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+          at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+          at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+          at #resolve (node:internal/modules/esm/loader:687:17)
+          at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+          at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+        code: 'ERR_MODULE_NOT_FOUND'
+      }
+      
+      Node.js v24.22.1
+      
+    assert 1 == 0
+     +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\web\\e2e\\locker-ord...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_locker_order_scroll_live.py:57: AssertionError:
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\automation\service.py:328: packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+E   TimeoutError
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+E   TimeoutError
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+E   TimeoutError
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\jobs\runtime_owner.py:22: packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+E   TimeoutError
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\jobs\runtime_owner.py:22: packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 317, in test_example_real_mcp_projection_and_events_share_lifecycle
+  |     asyncio.run(run())
+  |     ~~~~~~~~~~~^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 297, in run
+  |     async with stdio_client(StdioServerParameters(command=sys.executable,
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         args=['-m', 'packages.plugins.mcp', '--view', view, '--plugin', 'producer'],
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         cwd=str(PROVIDER.parents[2]), env={**os.environ, 'PAN_PLUGIN_IPC': bridge.address,
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                                          'PAN_AGENT_SESSION_ID': 'a'})) as streams:
+  |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 301, in run
+    |     async with ClientSession(*streams) as client:
+    |                ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 53, in until
+      |     await asyncio.sleep(.02)
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 702, in sleep
+      |     return await future
+      |            ^^^^^^^^^^^^
+      | asyncio.exceptions.CancelledError
+      | 
+      | The above exception was the direct cause of the following exception:
+      | 
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 311, in run
+      |     await until(lambda: calls == ['selected'])
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 51, in until
+      |     async with asyncio.timeout(timeout):
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py", line 114, in __aexit__
+      |     raise TimeoutError from exc_val
+      | TimeoutError
+      +------------------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:847: TimeoutError() [single exception in ExceptionGroup]
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 317, in test_example_real_mcp_projection_and_events_share_lifecycle
+  |     asyncio.run(run())
+  |     ~~~~~~~~~~~^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 297, in run
+  |     async with stdio_client(StdioServerParameters(command=sys.executable,
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         args=['-m', 'packages.plugins.mcp', '--view', view, '--plugin', 'producer'],
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         cwd=str(PROVIDER.parents[2]), env={**os.environ, 'PAN_PLUGIN_IPC': bridge.address,
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                                          'PAN_AGENT_SESSION_ID': 'a'})) as streams:
+  |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 301, in run
+    |     async with ClientSession(*streams) as client:
+    |                ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 53, in until
+      |     await asyncio.sleep(.02)
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 702, in sleep
+      |     return await future
+      |            ^^^^^^^^^^^^
+      | asyncio.exceptions.CancelledError
+      | 
+      | The above exception was the direct cause of the following exception:
+      | 
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 311, in run
+      |     await until(lambda: calls == ['selected'])
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 51, in until
+      |     async with asyncio.timeout(timeout):
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py", line 114, in __aexit__
+      |     raise TimeoutError from exc_val
+      | TimeoutError
+      +------------------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:847: TimeoutError() [single exception in ExceptionGroup]
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 317, in test_example_real_mcp_projection_and_events_share_lifecycle
+  |     asyncio.run(run())
+  |     ~~~~~~~~~~~^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 297, in run
+  |     async with stdio_client(StdioServerParameters(command=sys.executable,
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         args=['-m', 'packages.plugins.mcp', '--view', view, '--plugin', 'producer'],
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |         cwd=str(PROVIDER.parents[2]), env={**os.environ, 'PAN_PLUGIN_IPC': bridge.address,
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                                          'PAN_AGENT_SESSION_ID': 'a'})) as streams:
+  |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 301, in run
+    |     async with ClientSession(*streams) as client:
+    |                ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 53, in until
+      |     await asyncio.sleep(.02)
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py", line 702, in sleep
+      |     return await future
+      |            ^^^^^^^^^^^^
+      | asyncio.exceptions.CancelledError
+      | 
+      | The above exception was the direct cause of the following exception:
+      | 
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 311, in run
+      |     await until(lambda: calls == ['selected'])
+      |   File "D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_plugin_events.py", line 51, in until
+      |     async with asyncio.timeout(timeout):
+      |                ~~~~~~~~~~~~~~~^^^^^^^^^
+      |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py", line 114, in __aexit__
+      |     raise TimeoutError from exc_val
+      | TimeoutError
+      +------------------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:847: TimeoutError() [single exception in ExceptionGroup]
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   AssertionError: timed out
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_automation_core.py:47: AssertionError: timed out
+E   AssertionError: assert {'second': 'f...: 'completed'} == {'first': 'fa...: 'completed'}
+      
+      Differing items:
+      {'second': 'failed'} != {'second': 'completed'}
+      {'first': 'completed'} != {'first': 'failed'}
+      Use -v to get more diff
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_scheduler_time_events.py:154: AssertionError: assert {'second': 'f...: 'completed'} == {'first': 'fa...: 'completed'}
+E   AssertionError: {"detail":{"code":"retired","message":"Legacy scheduler write entrypoint retired; use canonical event/job operations"}}
+    assert 410 == 200
+     +  where 410 = <Response [410 Gone]>.status_code
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_scheduler_time_events.py:276: AssertionError: {"detail":{"code":"retired","message":"Legacy scheduler write entrypoint retired; use canonical event/job operations"}}
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+E   TimeoutError
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   AssertionError: assert ('admitted' == 'failed'
+      
+      - failed
+      + admitted)
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_session_query.py:244: AssertionError: assert ('admitted' == 'failed'
+E   AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+    Owned server log:
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_real_queue_http_e2e.py:288: AssertionError: POST /api/automation/triggers: 400 {"detail":"Job runtime owner epoch fence rejected writer"}
+E   AssertionError: node:internal/modules/package_json_reader:331
+        throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+              ^
+      
+      Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-reds-auth-20261025\packages\web\e2e\user-cards.mjs
+          at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+          at packageResolve (node:internal/modules/esm/resolve:784:25)
+          at moduleResolve (node:internal/modules/esm/resolve:873:18)
+          at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+          at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+          at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+          at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+          at #resolve (node:internal/modules/esm/loader:687:17)
+          at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+          at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+        code: 'ERR_MODULE_NOT_FOUND'
+      }
+      
+      Node.js v24.22.1
+      
+    assert 1 == 0
+     +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/user-cards.mjs', 'http://127.0.0.1:62832', 'D:\\project\\pan-worktree...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+D:\project\pan-worktrees\job-p7a-reds-auth-20261025\tests\test_user_cards_live.py:91: AssertionError: node:internal/modules/package_json_reader:331
+E   urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:611: urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_event_store.py::test_commit_precedes_fanout_schema_and_write_failure
+FAILED tests/test_event_store.py::test_crash_after_commit_before_delivery_and_frozen_trigger_set
+FAILED tests/test_event_store.py::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry
+FAILED tests/test_event_store.py::test_uncertain_preserves_attempt_and_refuses_user_replay
+FAILED tests/test_event_store.py::test_api_bounded_pages_replay_authorization_and_dedup
+FAILED tests/test_event_store.py::test_run_retention_protects_pending_uncertain_and_retained_event
+FAILED tests/test_event_store.py::test_empty_event_release_is_read_only_and_existing_run_still_admitted
+FAILED tests/test_event_store.py::test_dispatch_cancel_flushes_completed_failure_without_delivering_pending
+FAILED tests/test_event_store.py::test_slow_commit_cancellation_settles_and_restart_delivers
+FAILED tests/test_event_store.py::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id
+FAILED tests/test_event_store.py::test_capacity_alarm_visible_without_evicting_uncertain
+FAILED tests/test_event_store.py::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay
+FAILED tests/test_event_store.py::test_plugin_revocation_while_waiting_for_admission_rejects_old_handle
+FAILED tests/test_event_store.py::test_many_concurrent_same_event_ids_have_one_run_and_attempt
+FAILED tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run
+FAILED tests/test_event_store_http.py::test_event_receipt_http_points_to_same_run_before_and_after_dispatch
+FAILED tests/test_interaction_runtime.py::test_real_auth_and_directed_engine
+FAILED tests/test_interaction_runtime.py::test_real_event_receipt_recovers_unknown_without_second_admission
+FAILED tests/test_job_action_chain.py::test_system_shell_steps_have_distinct_trusted_child_admissions
+FAILED tests/test_job_action_chain.py::test_chain_api_schema_audit_and_private_snapshot_projection
+FAILED tests/test_job_action_http.py::test_complete_template_reference_snapshot_and_recovery_http
+FAILED tests/test_job_chain_phase5_e2e.py::test_real_mcp_legacy_message_and_process_become_action_jobs
+FAILED tests/test_job_chain_phase5_e2e.py::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy
+FAILED tests/test_job_delete_main_combination.py::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard
+FAILED tests/test_job_inbox_http.py::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]
+FAILED tests/test_job_unified_http.py::test_unified_event_system_actions_legacy_and_production_ui
+FAILED tests/test_legacy_job_transition_http.py::test_dual_job_tabs_and_old_lifecycle_over_real_http
+FAILED tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[pinned_action]
+FAILED tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action[after_admission]
+FAILED tests/test_locker_independent_review.py::test_unknown_receipt_reconciles_after_trigger_revocation[False-False]
+FAILED tests/test_locker_independent_review.py::test_unknown_receipt_reconciles_after_trigger_revocation[False-True]
+FAILED tests/test_locker_independent_review.py::test_unknown_receipt_reconciles_after_trigger_revocation[True-False]
+FAILED tests/test_locker_independent_review.py::test_unknown_receipt_reconciles_after_trigger_revocation[True-True]
+FAILED tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live
+FAILED tests/test_locker_product_live.py::test_locker_messages_cards_real_service_browser_cli_restart
+FAILED tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart
+FAILED tests/test_locker_trusted_binding.py::test_create_writer_barrier - pac...
+FAILED tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers[approval]
+FAILED tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers[admission]
+FAILED tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers[effect]
+FAILED tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers[revoked_effect]
+FAILED tests/test_locker_trusted_binding.py::test_scope_and_dynamic_targets_fail_closed
+FAILED tests/test_locker_trusted_binding.py::test_cold_queued_run_and_unknown_original_receipt[False]
+FAILED tests/test_locker_trusted_binding.py::test_cold_queued_run_and_unknown_original_receipt[True]
+FAILED tests/test_locker_trusted_binding.py::test_later_attempt_cannot_read_new_action
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[standalone]
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[pan_native]
+FAILED tests/test_plugin_events.py::test_real_external_fanout_action_and_shared_session_lifetime[gateway]
+FAILED tests/test_plugin_events.py::test_external_rejections_disconnect_and_queue_restore
+FAILED tests/test_plugin_events.py::test_slow_external_subscriber_isolated_and_bounded
+FAILED tests/test_plugin_events.py::test_service_restart_restores_queued_only_after_actual_plugin_ready
+FAILED tests/test_plugin_events.py::test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]
+FAILED tests/test_plugin_events.py::test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]
+FAILED tests/test_plugin_events.py::test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]
+FAILED tests/test_plugin_events_http.py::test_real_http_plugin_lifecycle_and_restart
+FAILED tests/test_scheduler_legacy_bridge.py::test_switched_task_flows_event_trigger_job_and_system_action_audit
+FAILED tests/test_scheduler_time_events.py::test_broadcast_independent_failure_skip_disable_unavailable_and_mutation
+FAILED tests/test_scheduler_time_events.py::test_source_http_user_auth_and_revision_without_listening
+FAILED tests/test_session_query.py::test_recovery_preserves_frozen_targets_and_never_requeries
+FAILED tests/test_session_query.py::test_query_real_isolated_http_fakecli - A...
+FAILED tests/test_session_query.py::test_query_overflow_is_failed_run_without_effects
+FAILED tests/test_system_fields_http.py::test_worker_error_persists_system_session_and_pauses_via_mapping
+FAILED tests/test_user_cards_live.py::test_real_http_stdio_locker_roundtrip_and_restart
+FAILED tests/test_user_locker_browser.py::test_locker_browser_http_mcp - urll...
+69 failed, 755 passed, 3 warnings, 1 error in 336.85s (0:05:36)

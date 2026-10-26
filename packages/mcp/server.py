@@ -188,7 +188,14 @@ _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
     from packages.automation.authorization import canonical_path, object_path
-    if canonical_path(path):
+    # Retired object families must never fall through to the generic HTTP
+    # helper. Their readable/cancellable subset is method-checked below.
+    object_family = path.split('?', 1)[0].split('/', 3)
+    retired_family = (len(object_family) > 2 and object_family[2] in {
+        'final', 'jobs', 'actions', 'action-drafts', 'background-jobs',
+        'session-message-jobs', 'scheduler'}) or path.startswith((
+            '/api/automation/triggers', '/api/automation/runs'))
+    if canonical_path(path) or retired_family:
         # A gateway can import this registry without running main(). Inspect the
         # request context too; the module's default 'stdio' is not provenance.
         try:
@@ -198,9 +205,15 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
         if remote_request or _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 'authorization_denied',
                     'message': 'Trusted local MCP transport required'}}
-    if object_path(path):
+    if object_path(path) or retired_family:
         if _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 403, 'message': 'Trusted local MCP transport required'}}
+        if not object_path(path, method):
+            # The address belongs to the retained legacy surface but this method
+            # is retired. Fail closed here instead of leaking an unauthenticated
+            # write onto the application port.
+            return {'ok': False, 'error': {'code': 403,
+                    'message': 'Legacy write entrypoint retired; use the canonical /api API'}}
         try:
             from packages.plugins.ipc import request
             return request({'operation': 'authorization_objects',
@@ -3381,25 +3394,21 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
 def authorization_objects(kind: str, operation: str, item: dict | None = None,
                           item_id: str | None = None, expected_revision: int | None = None,
                           idempotency_key: str | None = None) -> dict:
-    """Profile-wide delegated Trigger/Action/Job Template/Action-reference Job operations.
+    """Compatibility reads for Trigger/Action/Job Template/Job via canonical pages.
 
-    Uses trusted local IPC and the user's Agent grant, never a user password or Bearer.
-    kind: trigger/action/jobTemplate/job. Operations: read/create/updateConfig/delete;
-    trigger/action/job also enable/disable; job also pause/resume/cancel/execute/retry/
-    confirmRecovery; jobTemplate only use (copies a passive fixed configuration).
-    item is the complete Trigger/Action/Template or Job config. Updates and lifecycle
-    require current expected_revision; use also requires stable idempotency_key.
-    Template has no enabled/lifecycle/execute. System definitions cannot be edited or
-    deleted; only their separate enable/disable state is configurable with the explicit
-    manageSystemActions grant. Trigger matches never grant effects; delegated effects
-    also require job.execute. Creation outcome unknown: inspect before retry, never replay.
+    Uses trusted local IPC and the user's Agent read grant, never a user password
+    or Bearer. All legacy writes are explicitly retired. Use canonical object and
+    Run tools with their complete revision, identity and operation envelope.
 
     完整编排流程见 /pan skill。
     """
-    from packages.automation.authorization import object_request
+    from packages.automation.authorization import object_request, LegacyObjectWriteRetired
     try:
         method, path, body = object_request(kind, operation, item, item_id,
                                             expected_revision, idempotency_key)
+    except LegacyObjectWriteRetired:
+        return {'ok': False, 'error': {'code': 'retired',
+                'message': 'Legacy object writes retired; use canonical operation tools'}}
     except ValueError:
         return {'ok': False, 'error': {'code': 'invalid_operation', 'message': 'Invalid four-object operation'}}
     return _api(method, path, body)

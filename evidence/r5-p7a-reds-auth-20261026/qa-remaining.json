@@ -1,0 +1,499 @@
+[
+  {
+    "id": "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]",
+    "status": "failed",
+    "detail": "KeyError('deleted') [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]",
+    "status": "failed",
+    "detail": "KeyError('deleted') [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_authorization_mcp::test_user_management_ignores_grants_forged_http_rejected_system_definitions_immutable",
+    "status": "failed",
+    "detail": "AssertionError: assert not True",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_authorization_runtime::test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_authorization_runtime::test_trigger_effect_revision_barrier",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[codex]",
+    "status": "failed",
+    "detail": "AssertionError: assert 200 == 409",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[cbc]",
+    "status": "failed",
+    "detail": "AssertionError: assert 200 == 409",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_interaction_runtime::test_real_auth_and_directed_engine",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_chain::test_restart_boundary_reuses_original_run_and_never_reruns_completed",
+    "status": "failed",
+    "detail": "AssertionError: assert ('failed' == 'completed'",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_action_chain::test_system_shell_steps_have_distinct_trusted_child_admissions",
+    "status": "failed",
+    "detail": "AssertionError: {'id': 'jexec_80b046f7650c42c4a9279e55b95e4ec0', 'runId': 'run_2522dfeac8524c6a834df174', 'attemptId': 'attempt_5982a50bc12f4e8f80d6a2fc', 'authorization': {'type': 'user'}, ...}",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_action_chain::test_real_owned_commands_pass_structured_output_without_server",
+    "status": "failed",
+    "detail": "AssertionError: {'id': 'jexec_352e7087abb444429b8fd15d50d3ccc5', 'runId': 'run_33e36d2d81ac44dfb47538da', 'attemptId': 'attempt_9857ee1aee7f47f195b042be', 'authorization': {'type': 'user'}, ...}",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_action_chain::test_admitted_fixed_template_step_uses_original_template_revision",
+    "status": "failed",
+    "detail": "AssertionError: {'id': 'jexec_6eb1ddc3e2274520a11fe41bf41e92df', 'runId': 'run_2a4908b70b684c699ca11c02', 'attemptId': 'attempt_86eefc49c5ee45f9a4133768', 'authorization': {'type': 'user'}, ...}",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_action_http::test_complete_template_reference_snapshot_and_recovery_http",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for real Worker event creates Job via delegated fixed template: KeyError('actionId')",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_cancel_exception_shutdown_and_recovery_remove_snapshots",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only",
+    "status": "failed",
+    "detail": "AssertionError: assert ('cleaning' == 'cleaning'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_snapshot_write_or_post_effect_checkpoint_failure_never_replays",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_terminal_job_write_failure_after_cleanup_recovers_same_run_once",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_fixed_template_action_capability_idempotence_and_group_gate",
+    "status": "failed",
+    "detail": "KeyError: 'id'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_running_template_instantiation_uses_private_context_after_template_delete",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_api_permissions_unknown_fields_legacy_aliases_and_repair",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_duplicate_profile_owner_cannot_recover_or_close_active_execution",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_notification_retry_is_independent_of_effect_and_snapshot",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_chain_phase5_e2e::test_real_mcp_legacy_message_and_process_become_action_jobs",
+    "status": "failed",
+    "detail": "AssertionError('GET /api/jobs/job_34ac17dcdf89466fafc1f65d: 401 {\"error\":{\"code\":\"unauthenticated\",\"message\":\"unauthenticated\"}}\\nOwned server log:\\n') [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_chain_phase5_e2e::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy",
+    "status": "failed",
+    "detail": "AssertionError('timed out waiting for native command admitted before owned host crash: None') [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard",
+    "status": "failed",
+    "detail": "KeyError: 'deleted'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_inbox_http::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak",
+    "status": "failed",
+    "detail": "AssertionError: file:///D:/project/pan-worktrees/job-qa-integration-20261025/packages/web/e2e/job-unified-live.mjs:34",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+    "status": "failed",
+    "detail": "AssertionError: assert 0 == 1",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+    "status": "failed",
+    "detail": "AssertionError: assert 0 == 1",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+    "status": "failed",
+    "detail": "AssertionError: assert 0 == 1",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_overlap::test_parallel_claim_bound_independent_jobs_and_terminal_cleanup",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_overlap::test_queue_is_persistent_bounded_and_disable_cancels_waiting",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_unified_contract::test_monitoring_without_signal_enters_restarting",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_job_unified_http::test_unified_event_system_actions_legacy_and_production_ui",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for real Worker running edge -> Event Store -> unified Job query -> Pause: AssertionError('GET /api/jobs/job_f54d172ab7004dc78b35f4ca: 404 {\"error\":{\"code\":\"not_found\",\"message\":\"Object not found\"}}\\nOwned server log:\\n')",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+    "status": "failed",
+    "detail": "AssertionError: DELETE /api/jobs/job_unknown_fixture: 401 {\"error\":{\"code\":\"unauthenticated\",\"message\":\"unauthenticated\"}}",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+    "status": "failed",
+    "detail": "AssertionError: assert 'failed' == 'uncertain'",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_locker_independent_http::test_owned_notification_consumption_and_restart",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for one directed Pause Run: None",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'run_attempt'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[pinned_action]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'run_attempt'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[after_admission]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'run_attempt'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+    "status": "failed",
+    "detail": "AssertionError: ",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+    "status": "failed",
+    "detail": "AssertionError: ",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_runtime_http::test_product_locker_login_choice_pause_restart",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for selected real Run completes Pause: None",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[approval]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[admission]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[effect]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[revoked_effect]",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[False]",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[True]",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_locker_trusted_binding::test_later_attempt_cannot_read_new_action",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_mcp_handbook.TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer",
+    "status": "failed",
+    "detail": "AssertionError: session_handoff",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[standalone]",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[pan_native]",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[gateway]",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_external_rejections_disconnect_and_queue_restore",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_slow_external_subscriber_isolated_and_bounded",
+    "status": "failed",
+    "detail": "TimeoutError",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_service_restart_restores_queued_only_after_actual_plugin_ready",
+    "status": "failed",
+    "detail": "AttributeError: 'Engine' object has no attribute 'execute'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]",
+    "status": "failed",
+    "detail": "TimeoutError() [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]",
+    "status": "failed",
+    "detail": "TimeoutError() [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]",
+    "status": "failed",
+    "detail": "TimeoutError() [single exception in ExceptionGroup]",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_plugin_events_http::test_real_http_plugin_lifecycle_and_restart",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for external event Action: None",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_scheduler_legacy_bridge::test_switched_task_flows_event_trigger_job_and_system_action_audit",
+    "status": "failed",
+    "detail": "AssertionError: timed out",
+    "category": "integration_regression",
+    "baselineStatus": "not_collected"
+  },
+  {
+    "id": "tests.test_session_query::test_recovery_preserves_frozen_targets_and_never_requeries",
+    "status": "failed",
+    "detail": "AssertionError: assert ('admitted' == 'uncertain'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_session_query::test_query_real_isolated_http_fakecli",
+    "status": "failed",
+    "detail": "AssertionError: timed out waiting for durable automatic Pause: None",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_session_query::test_query_overflow_is_failed_run_without_effects",
+    "status": "failed",
+    "detail": "AssertionError: assert ('admitted' == 'failed'",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_system_fields_http::test_worker_error_persists_system_session_and_pauses_via_mapping",
+    "status": "failed",
+    "detail": "AssertionError: {'id': 'run_b8030b4212ef492c854eede175048c36', 'recordType': 'triggerAdmission', 'triggerId': 'runtime_issue_pause', 'triggerRevision': 2, ...}",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  },
+  {
+    "id": "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart",
+    "status": "failed",
+    "detail": "AssertionError: node:internal/modules/run_main:107",
+    "category": "integration_regression",
+    "baselineStatus": "passed"
+  }
+]

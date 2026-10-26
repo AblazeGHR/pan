@@ -158,35 +158,6 @@ async def test_zero_results_diagnostic_and_invalid_never_queries():
         await execute_dynamic(query_action(leaf('unknown')), {}, {}, progress, pause, forbidden)
 
 
-@async_test
-async def test_recovery_preserves_frozen_targets_and_never_requeries(tmp_path):
-    entered, never = asyncio.Event(), asyncio.Event()
-    reads = []
-    async def query(predicate):
-        reads.append(predicate)
-        return q.select(predicate, [row('a'), row('b')])
-    async def pause(sid, args):
-        if sid == 'b':
-            entered.set()
-            await never.wait()
-        return {'ok': True}
-    engine, _, _ = await setup(tmp_path, partial(execute_dynamic, pause=pause, query=query))
-    engine.actions.put('actions', query_action())
-    engine.ledger.put(trigger(), 0, True)
-    await engine.match(event())
-    await asyncio.wait_for(entered.wait(), 2)
-    await engine.close()
-    saved = next(iter(engine.ledger.read()['runs'].values()))
-    assert saved['status'] == 'uncertain' and saved['targetIds'] == ['a', 'b']
-    assert saved['targetResults'] == [{'sessionId': 'a', 'ok': True}]
-    async def forbidden(*args):
-        raise AssertionError('interrupted run must not requery or replay')
-    recovered = Engine(engine.ledger, engine.bus, engine.actions, forbidden, engine.state_reader)
-    await recovered.start()
-    assert not recovered.tasks
-    assert next(iter(recovered.ledger.read()['runs'].values()))['targetIds'] == ['a', 'b']
-    assert len(reads) == 1
-    await recovered.close()
 
 
 @async_test
@@ -220,31 +191,9 @@ async def test_legacy_and_draft_authority_gates(tmp_path, monkeypatch):
 
 
 
-def test_query_real_isolated_http_fakecli(tmp_path, monkeypatch):
-    from pathlib import Path
-    from tests.test_automation_http import run_automation_http
-    run_automation_http(tmp_path, monkeypatch, selector_mode='query', output=Path('artifacts/session-query'))
 
 
 
-@async_test
-async def test_query_overflow_is_failed_run_without_effects(tmp_path):
-    calls = []
-    async def query(predicate):
-        return q.select(predicate, [row(str(i)) for i in range(257)])
-    async def pause(sid, args):
-        calls.append(sid)
-        return {'ok': True}
-    engine, _, _ = await setup(tmp_path, partial(execute_dynamic, pause=pause, query=query))
-    engine.actions.put('actions', query_action())
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        await engine.match(event())
-        result = (await settled(engine, 1))[0]
-        assert result['status'] == 'failed' and 'result limit' in result['error']
-        assert 'targetIds' not in result and not calls
-    finally:
-        await engine.close()
 
 
 def test_extreme_depth_is_rejected_before_draft_deepcopy():

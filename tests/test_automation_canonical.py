@@ -59,6 +59,8 @@ def canonical(tmp_path):
     service.owner.claim(0)
     service.owner.set_state('active')
     automation.events.initialize()
+    from packages.automation.api import install
+    install(SimpleNamespace(app=app))
     client = TestClient(app)
     token = automation.auth.login(automation.auth.key())
     client.headers['Authorization'] = 'Bearer ' + token

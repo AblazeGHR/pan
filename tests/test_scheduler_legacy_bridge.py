@@ -96,35 +96,3 @@ async def test_run_now_does_not_move_periodic_next_fire(tmp_path, monkeypatch):
         assert store.list_runs(task['id'])
     finally:
         await jobs.close(); await svc.bus.close()
-
-
-@async_test
-async def test_switched_task_flows_event_trigger_job_and_system_action_audit(tmp_path, monkeypatch):
-    svc, jobs = await setup(tmp_path, monkeypatch)
-    async def completed(*args, **kwargs): return {'status': 'completed', 'ok': True}
-    monkeypatch.setattr(system_actions, 'execute', completed)
-    try:
-        task = store.create_task(payload(tmp_path, 'sch_event'))
-        switched = await svc.scheduler_compat.switch(task['id'])
-        svc.job_runtime.time_events = TimeRuntime(svc.time_sources, svc.accept_time, [],
-                                                  lambda eid: asyncio.to_thread(svc.events.release_pin), None)
-        source = svc.time_sources.get(switched['legacySourceId'])
-        await svc.job_runtime.time_events.tick({}, at=cron.parse_datetime(source['nextFireAt']))
-        row = svc.events.pending()[0]
-        assert row['event']['payload']['scheduleId'] == source['id']
-        await svc.deliver(row)
-        async def done():
-            state = svc.ledger.read()
-            return any(run['triggerId'] == switched['legacyTriggerId'] and run['status'] == 'admitted'
-                       and run.get('result', {}).get('jobId') == switched['jobId']
-                       for run in state['runs'].values())
-        await until(done)
-        async def job_done():
-            current = jobs.get(switched['jobId'])
-            return current if current.get('lastStatus') == 'completed' else None
-        await until(job_done)
-        current = jobs.get(switched['jobId'])
-        assert current['lastExecution']['actionId'] == 'system_scheduled_task'
-        assert current['attempts']
-    finally:
-        await jobs.close(); await svc.bus.close()

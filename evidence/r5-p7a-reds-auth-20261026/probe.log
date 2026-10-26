@@ -1,0 +1,325 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-reds-auth-20261025
+F...F...F...F                                                            [100%]
+================================== FAILURES ===================================
+_ test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFBCD480>
+kind = 'legacy', fault = 'pre-import', launch_mode = 'base'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+     job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+     child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
+     try:
+      assert until(gate.exists)
+      row=json.loads(gate.read_text())
+      if fault=='post-create':child=retain(row['pid'],row['creationFiletime'])
+      assert read_creation_filetime(int(runner._handle))==runner_ft
+      inner=retain(row['runnerPid'],row['runnerFiletime'])
+      if store and fault=='post-create':
+       store.recover()
+       alive_fact=store.get(job['jobId'])
+       assert alive_fact['status'] in ('starting','running')
+       assert alive_fact['runnerPid']==row['runnerPid']
+       assert int(alive_fact['runnerFiletime'])==row['runnerFiletime']
+      if launch_mode=='venv-inner':
+       kill(inner)
+      else:kill(int(runner._handle))
+      runner.wait(timeout=5)
+      assert until(lambda:wait_state(inner) is ProcessStatus.DEAD), 'Actual Python runner survived redirector death'
+      if store:
+       restarted=JobStore(root);restarted.recover();fact=restarted.get(job['jobId'])
+       assert fact['status']=='UNKNOWN'
+       with pytest.raises(ServiceError,match='retired'):restarted.retry(job['jobId'])
+       from packages.jobs.independent_runner import run
+       assert run(root,job['jobId'])==3
+      else:
+>      assert legacy.reconcile_running(root)==1
+E      AssertionError: assert 0 == 1
+E       +  where 0 = <function reconcile_running at 0x00000269EDAA0510>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0/registry'))
+E       +    where <function reconcile_running at 0x00000269EDAA0510> = legacy.reconcile_running
+
+argv       = ['D:\\project\\Pan-main\\.venv\\Scripts\\python.exe', '-c', "from pathlib import Path;Path('C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_0\\\\must-not-run').touch()"]
+child      = None
+fault      = 'pre-import'
+gate       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0/gate.json')
+helper     = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025/tests/helpers/lifecycle_fault_runner.py')
+independent_service = <module 'packages.jobs.independent_service' from 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\jobs\\independent_service.py'>
+inner      = 668
+job        = {'jobId': 'job_9a34c5b06345135db904d4f9', 'targetSessionId': 'owned', 'argv': ['D:\\project\\Pan-main\\.venv\\Scripts\...ytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_0\\\\must-not-run').touch()"], 'hideWindow': True, ...}
+kind       = 'legacy'
+launch_mode = 'base'
+marker     = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0/must-not-run')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFBCD480>
+original_popen = <class 'subprocess.Popen'>
+repo       = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025')
+root       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0/registry')
+row        = {'runnerPid': 36360, 'runnerFiletime': 134374711494335870}
+runner     = <Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Programs\\Py...>
+runner_ft  = 134374711494335870
+runners    = [<Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Programs\\Py...>]
+runtime    = 'C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe'
+spawn      = <function test_runner_death_at_creation_edge_converges_without_survivors.<locals>.spawn at 0x00000269EFCBD6F0>
+store      = None
+tmp_path   = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_0')
+
+tests\test_job_lifecycle_prevention.py:110: AssertionError
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFD90270>
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-outer'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+     job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+     child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
+     try:
+      assert until(gate.exists)
+      row=json.loads(gate.read_text())
+      if fault=='post-create':child=retain(row['pid'],row['creationFiletime'])
+      assert read_creation_filetime(int(runner._handle))==runner_ft
+      inner=retain(row['runnerPid'],row['runnerFiletime'])
+      if store and fault=='post-create':
+       store.recover()
+       alive_fact=store.get(job['jobId'])
+       assert alive_fact['status'] in ('starting','running')
+       assert alive_fact['runnerPid']==row['runnerPid']
+       assert int(alive_fact['runnerFiletime'])==row['runnerFiletime']
+      if launch_mode=='venv-inner':
+       kill(inner)
+      else:kill(int(runner._handle))
+      runner.wait(timeout=5)
+      assert until(lambda:wait_state(inner) is ProcessStatus.DEAD), 'Actual Python runner survived redirector death'
+      if store:
+       restarted=JobStore(root);restarted.recover();fact=restarted.get(job['jobId'])
+       assert fact['status']=='UNKNOWN'
+       with pytest.raises(ServiceError,match='retired'):restarted.retry(job['jobId'])
+       from packages.jobs.independent_runner import run
+       assert run(root,job['jobId'])==3
+      else:
+>      assert legacy.reconcile_running(root)==1
+E      AssertionError: assert 0 == 1
+E       +  where 0 = <function reconcile_running at 0x00000269EDAA0510>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4/registry'))
+E       +    where <function reconcile_running at 0x00000269EDAA0510> = legacy.reconcile_running
+
+argv       = ['D:\\project\\Pan-main\\.venv\\Scripts\\python.exe', '-c', "from pathlib import Path;Path('C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_4\\\\must-not-run').touch()"]
+child      = None
+fault      = 'pre-import'
+gate       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4/gate.json')
+helper     = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025/tests/helpers/lifecycle_fault_runner.py')
+independent_service = <module 'packages.jobs.independent_service' from 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\jobs\\independent_service.py'>
+inner      = 864
+job        = {'jobId': 'job_beaec6d2421bd451041922e2', 'targetSessionId': 'owned', 'argv': ['D:\\project\\Pan-main\\.venv\\Scripts\...ytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_4\\\\must-not-run').touch()"], 'hideWindow': True, ...}
+kind       = 'legacy'
+launch_mode = 'venv-outer'
+marker     = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4/must-not-run')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFD90270>
+original_popen = <class 'subprocess.Popen'>
+repo       = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025')
+root       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4/registry')
+row        = {'runnerPid': 30044, 'runnerFiletime': 134374711506771490}
+runner     = <Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest...>
+runner_ft  = 134374711506342564
+runners    = [<Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest...>]
+runtime    = 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5272\\test_runner_death_at_creation_4\\venv\\Scripts\\python.exe'
+spawn      = <function test_runner_death_at_creation_edge_converges_without_survivors.<locals>.spawn at 0x00000269EFD2AE50>
+store      = None
+tmp_path   = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_4')
+venv       = <module 'venv' from 'C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\venv\\__init__.py'>
+
+tests\test_job_lifecycle_prevention.py:110: AssertionError
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFDA0F50>
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-inner'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+     job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+     child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
+     try:
+      assert until(gate.exists)
+      row=json.loads(gate.read_text())
+      if fault=='post-create':child=retain(row['pid'],row['creationFiletime'])
+      assert read_creation_filetime(int(runner._handle))==runner_ft
+      inner=retain(row['runnerPid'],row['runnerFiletime'])
+      if store and fault=='post-create':
+       store.recover()
+       alive_fact=store.get(job['jobId'])
+       assert alive_fact['status'] in ('starting','running')
+       assert alive_fact['runnerPid']==row['runnerPid']
+       assert int(alive_fact['runnerFiletime'])==row['runnerFiletime']
+      if launch_mode=='venv-inner':
+       kill(inner)
+      else:kill(int(runner._handle))
+      runner.wait(timeout=5)
+      assert until(lambda:wait_state(inner) is ProcessStatus.DEAD), 'Actual Python runner survived redirector death'
+      if store:
+       restarted=JobStore(root);restarted.recover();fact=restarted.get(job['jobId'])
+       assert fact['status']=='UNKNOWN'
+       with pytest.raises(ServiceError,match='retired'):restarted.retry(job['jobId'])
+       from packages.jobs.independent_runner import run
+       assert run(root,job['jobId'])==3
+      else:
+>      assert legacy.reconcile_running(root)==1
+E      AssertionError: assert 0 == 1
+E       +  where 0 = <function reconcile_running at 0x00000269EDAA0510>(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8/registry'))
+E       +    where <function reconcile_running at 0x00000269EDAA0510> = legacy.reconcile_running
+
+argv       = ['D:\\project\\Pan-main\\.venv\\Scripts\\python.exe', '-c', "from pathlib import Path;Path('C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_8\\\\must-not-run').touch()"]
+child      = None
+fault      = 'pre-import'
+gate       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8/gate.json')
+helper     = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025/tests/helpers/lifecycle_fault_runner.py')
+independent_service = <module 'packages.jobs.independent_service' from 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\jobs\\independent_service.py'>
+inner      = 880
+job        = {'jobId': 'job_b9f3fd706c61cc1266050533', 'targetSessionId': 'owned', 'argv': ['D:\\project\\Pan-main\\.venv\\Scripts\...ytest-of-ablaze\\\\pytest-5272\\\\test_runner_death_at_creation_8\\\\must-not-run').touch()"], 'hideWindow': True, ...}
+kind       = 'legacy'
+launch_mode = 'venv-inner'
+marker     = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8/must-not-run')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFDA0F50>
+original_popen = <class 'subprocess.Popen'>
+repo       = WindowsPath('D:/project/pan-worktrees/job-p7a-reds-auth-20261025')
+root       = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8/registry')
+row        = {'runnerPid': 36000, 'runnerFiletime': 134374711518847219}
+runner     = <Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest...>
+runner_ft  = 134374711518587305
+runners    = [<Popen: returncode: 1 args: ['C:\\Users\\14709\\AppData\\Local\\Temp\\pytest...>]
+runtime    = 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5272\\test_runner_death_at_creation_8\\venv\\Scripts\\python.exe'
+spawn      = <function test_runner_death_at_creation_edge_converges_without_survivors.<locals>.spawn at 0x00000269EFD387D0>
+store      = None
+tmp_path   = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_runner_death_at_creation_8')
+venv       = <module 'venv' from 'C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\venv\\__init__.py'>
+
+tests\test_job_lifecycle_prevention.py:110: AssertionError
+_______ test_system_shell_steps_have_distinct_trusted_child_admissions ________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_system_shell_steps_have_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFD5CF50>
+
+    @async_test
+    async def test_system_shell_steps_have_distinct_trusted_child_admissions(tmp_path, monkeypatch):
+        from packages.core import background_jobs as jobs
+        runtime = await _runtime(tmp_path)
+        children = []
+        def spawn(child, registry_root=None):
+            children.append(child)
+            jobs._update(child['jobId'], {'status': 'completed', 'exitCode': 0, 'processTreeEnded': True}, registry_root=registry_root)
+            return jobs.get(child['jobId'], registry_root)
+        monkeypatch.setattr(jobs, '_spawn_background_runner', spawn)
+        steps = [{'stepId': sid, 'actionId': 'system_scheduled_task', 'arguments': {
+            'sessionId': '', 'text': '', 'action': {'api': 'shell', 'args': {'command': 'echo owned-fixture', 'cwd': str(tmp_path)}}}}
+            for sid in ('shell1', 'shell2')]
+        try:
+            job = runtime.create(_config(steps), True)
+            await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
+            done = runtime.get(job['jobId'])
+>           assert done['lastStatus'] == 'completed', done['lastExecution']
+E           AssertionError: {'id': 'jexec_80bf18b58b104242a52b996f5bd0b942', 'runId': 'run_c75cb482d56e41308d381522', 'attemptId': 'attempt_1ec56fdd6a3c48a893683252', 'authorization': {'type': 'user'}, ...}
+E           assert 'failed' == 'completed'
+E             
+E             - completed
+E             + failed
+
+children   = []
+done       = {'jobId': 'job_b2f4e17418714e6bbec04cdd', 'kind': 'scheduled-task', 'taskId': 'sch_7e090d7d0fbc44d5ba8249b8', 'name': 'chain', ...}
+job        = {'jobId': 'job_b2f4e17418714e6bbec04cdd', 'kind': 'scheduled-task', 'taskId': 'sch_7e090d7d0fbc44d5ba8249b8', 'name': 'chain', ...}
+jobs       = <module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\packages\\core\\background_jobs.py'>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000269EFD5CF50>
+runtime    = <packages.jobs.action_runtime.Runtime object at 0x00000269EFB3BA10>
+spawn      = <function test_system_shell_steps_have_distinct_trusted_child_admissions.<locals>.spawn at 0x00000269EFD39BC0>
+steps      = [{'stepId': 'shell1', 'actionId': 'system_scheduled_task', 'arguments': {'sessionId': '', 'text': '', 'action': {'api'...', 'cwd': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5272\\test_system_shell_steps_have_d0'}}}}]
+tmp_path   = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5272/test_system_shell_steps_have_d0')
+
+tests\test_job_action_chain.py:510: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]
+FAILED tests/test_job_action_chain.py::test_system_shell_steps_have_distinct_trusted_child_admissions
+4 failed, 9 passed, 2 warnings in 4.76s
