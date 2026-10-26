@@ -21,6 +21,8 @@ import type {
   JsonObject,
   RunOperation,
 } from '@/types/canonicalJobs';
+import { newId, type EventCreator } from '@/types/automationJobs';
+import { useAutomationDraft } from '@/components/automation/DraftBoundary';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -65,6 +67,7 @@ const examples: Record<CanonicalKind, JsonObject> = {
     composition: { creators: [], triggers: [] },
   },
 };
+function previewObject(text: string): JsonObject { try { return objectJson(text); } catch { return {}; } }
 function objectJson(text: string): JsonObject {
   const value: unknown = JSON.parse(text);
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -127,7 +130,7 @@ function Workspace() {
     </>
   );
 }
-function Collection({ kind }: { kind: CanonicalKind }) {
+export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jobs = [], reviewSourceRefs = false, refreshToken }: { kind: CanonicalKind; focusId?: string; onChanged?: () => Promise<void>; sources?: EventCreator[]; jobs?: CanonicalObject[]; reviewSourceRefs?: boolean; refreshToken?: CanonicalObject[] }) {
   const [items, setItems] = useState<CanonicalObject[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -138,11 +141,17 @@ function Collection({ kind }: { kind: CanonicalKind }) {
     name: string;
     json: string;
   } | null>(null);
+  const [creatorRevisions, setCreatorRevisions] = useState<Record<string, number>>({});
+  const [conflict, setConflict] = useState(false);
+  const [enabling, setEnabling] = useState<CanonicalObject | null>(null);
+  const [enableReviewed, setEnableReviewed] = useState(false);
   const [retiring, setRetiring] = useState<CanonicalObject | null>(null);
   const [selectedJob, setSelectedJob] = useState<CanonicalObject | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const busy = working || unresolved(pending);
+  useAutomationDraft(!!editor || !!enabling, busy);
   const alive = useRef(true);
+  const mutationActive = useRef(false);
   const load = useCallback(
     async (next?: string | null, signal?: AbortSignal) => {
       setLoading(true);
@@ -169,10 +178,11 @@ function Collection({ kind }: { kind: CanonicalKind }) {
       alive.current = false;
       controller.abort();
     };
-  }, [load]);
+  }, [load, refreshToken]);
   async function mutate(operation: string, task: (key: string) => Promise<CanonicalReceipt>) {
-    if (busy) return;
-    const requestKey = crypto.randomUUID();
+    if (busy || mutationActive.current) return;
+    mutationActive.current = true;
+    const requestKey = newId('operation');
     setBusy(true);
     setError('');
     setPending({ operation, requestKey });
@@ -183,15 +193,20 @@ function Collection({ kind }: { kind: CanonicalKind }) {
       if (receipt.status === 'completed') {
         setEditor(null);
         setRetiring(null);
+        setEnabling(null);
+        setConflict(false);
       }
       await load();
+      await onChanged?.();
     } catch (e) {
       if (alive.current) {
         setError(canonicalError(e));
+        if (e instanceof ApiRequestError && e.status === 409) setConflict(true);
         if (e instanceof ApiRequestError && e.status < 500)
           setPending({ operation, requestKey, rejected: true });
       }
     } finally {
+      mutationActive.current = false;
       if (alive.current) setBusy(false);
     }
   }
@@ -204,11 +219,11 @@ function Collection({ kind }: { kind: CanonicalKind }) {
         </Button>
         <Button
           type="button"
-          disabled={busy || !!editor}
+          disabled={busy || !!editor || !!enabling}
           onClick={() => {
             const definition = { ...examples[kind] };
             delete definition.name;
-            setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
+            setConflict(false); setCreatorRevisions({}); setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
           }}
         >
           创建 {labels[kind]}
@@ -228,6 +243,7 @@ function Collection({ kind }: { kind: CanonicalKind }) {
             if (value.receipt?.status === 'completed') {
               setEditor(null);
               setRetiring(null);
+              setEnabling(null);
               void load();
             }
           }}
@@ -242,7 +258,7 @@ function Collection({ kind }: { kind: CanonicalKind }) {
             try {
               const definition = { ...objectJson(editor.json), name: editor.name };
               void mutate(editor.item ? 'update' : 'create', (key) =>
-                canonicalJobs.write(kind, editor.item, definition, key),
+                canonicalJobs.write(kind, editor.item, definition, key, undefined, kind === 'triggers' && reviewSourceRefs ? creatorRevisions : undefined),
               );
             } catch (failure) {
               setError(canonicalError(failure));
@@ -281,17 +297,52 @@ function Collection({ kind }: { kind: CanonicalKind }) {
               {JSON.stringify(definitionSchemas[kind], null, 2)}
             </pre>
           </details>
+          {conflict && editor.item && <section aria-label="Compare canonical configuration" className="space-y-2">
+            <p>The draft is retained. Compare the current server definition before explicitly rebasing.</p>
+            <Button type="button" disabled={busy} onClick={() => {
+              const id = editor.item!.id;
+              void canonicalJobs.get(kind, id).then((current) => {
+                if (!alive.current) return;
+                setItems((old) => old.map((item) => item.id === id ? current : item));
+              }).catch((failure: unknown) => setError(canonicalError(failure)));
+            }}>Compare server definition</Button>
+            <pre className="max-w-full whitespace-pre-wrap break-all text-xs">{JSON.stringify(items.find((item) => item.id === editor.item?.id), null, 2)}</pre>
+            <Button type="button" disabled={busy} onClick={() => {
+              const current = items.find((item) => item.id === editor.item?.id);
+              if (current) { setEditor({ ...editor, item: current }); setConflict(false); setPending(null); }
+            }}>Keep draft against server revision</Button>
+            <Button type="button" disabled={busy} onClick={() => {
+              const current = items.find((item) => item.id === editor.item?.id);
+              if (current) { const value = definitionOf(kind, current); delete value.name; setEditor({ item: current, name: current.name, json: JSON.stringify(value, null, 2) }); setConflict(false); setPending(null); }
+            }}>Load server definition</Button>
+          </section>}
           {kind === 'jobs' && <ActionCatalog />}
+          {kind === 'triggers' && <div className="space-y-3">
+            <label className="block">Target canonical Job<select className={field} value={String(previewObject(editor.json).targetJobId ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), targetJobId: e.target.value }, null, 2) })}><option value="">Choose a Job</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.name} · {job.state}</option>)}</select></label>
+            <label className="block">Scheduler sources<select multiple className={field} value={((previewObject(editor.json).creatorSelector as { ids?: string[] })?.ids ?? [])} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => o.value); setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); const value = previewObject(editor.json); setEditor({ ...editor, json: JSON.stringify({ ...value, creatorSelector: { mode: 'ids', ids }, eventTypes: [...new Set([...(Array.isArray(value.eventTypes) ? value.eventTypes as string[] : []), ...sources.filter((s) => ids.includes(s.id)).flatMap((s) => s.eventTypes)])] }, null, 2) }); }}>
+              {sources.map((source) => <option key={source.id} value={source.id}>{source.name} · Revision {source.revision} · {source.state}</option>)}
+            </select></label>
+            {reviewSourceRefs && <Button type="button" disabled={busy} onClick={() => {
+              const ids = (previewObject(editor.json).creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
+              setCreatorRevisions(Object.fromEntries(sources.filter((source) => ids.includes(source.id)).map((source) => [source.id, source.revision])));
+            }}>Review selected source revisions</Button>}
+          </div>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={busy}>
               保存定义
             </Button>
-            <Button type="button" disabled={busy} onClick={() => setEditor(null)}>
+            <Button type="button" disabled={busy} onClick={() => { if (window.confirm('Discard this definition draft?')) { setEditor(null); setConflict(false); } }}>
               关闭编辑
             </Button>
           </div>
         </form>
       )}
+      {enabling && <section aria-label="Review before enabling" className={`${card} space-y-3`}>
+        <h3>Review {enabling.name} before enabling</h3>
+        <pre className="max-w-full whitespace-pre-wrap break-all text-xs">{JSON.stringify(definitionOf(kind, enabling), null, 2)}</pre>
+        <label><input type="checkbox" disabled={busy} checked={enableReviewed} onChange={(event) => setEnableReviewed(event.target.checked)} />I reviewed this definition, Actions, parameters and source references.</label>
+        <div className="flex gap-2"><Button disabled={busy || !enableReviewed} onClick={() => void mutate('enable', (key) => canonicalJobs.controlDefinition(kind, enabling, 'enable', key))}>Confirm enable</Button><Button disabled={busy} onClick={() => setEnabling(null)}>Cancel enable review</Button></div>
+      </section>}
       {retiring && (
         <section aria-label="确认 retire" className={`${card} space-y-2`}>
           <p className="break-all">
@@ -318,8 +369,9 @@ function Collection({ kind }: { kind: CanonicalKind }) {
         {items.map((item) => (
           <article
             key={item.id}
+            id={item.id}
             aria-label={`${labels[kind]} ${item.name}`}
-            className={`${card} space-y-2`}
+            className={`${card} space-y-2 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
           >
             <h3 className="break-words font-medium">{item.name}</h3>
             <p className="break-all text-xs">{item.id}</p>
@@ -327,15 +379,21 @@ function Collection({ kind }: { kind: CanonicalKind }) {
               {item.state} · 定义版本 {revisionOf(item)} · 状态版本 {item.stateRevision}
             </p>
             <div className="flex flex-wrap gap-2">
+              {kind !== 'job-templates' && <>
+                {(item.state === 'draft' || item.state === 'disabled') && <Button disabled={busy || !!editor || !!enabling} onClick={() => { setEnableReviewed(false); setEnabling(item); }}>Enable {item.name}</Button>}
+                {item.state === 'enabled' && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('pause', (key) => canonicalJobs.controlDefinition(kind, item, 'pause', key))}>Pause {item.name}</Button>}
+                {item.state === 'paused' && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('resume', (key) => canonicalJobs.controlDefinition(kind, item, 'resume', key))}>Resume {item.name}</Button>}
+                {(item.state === 'enabled' || item.state === 'paused') && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('disable', (key) => canonicalJobs.controlDefinition(kind, item, 'disable', key))}>Disable {item.name}</Button>}
+              </>}
               <Button
                 type="button"
                 aria-label={`编辑 ${item.name}`}
                 className="max-w-full break-all"
-                disabled={busy || !!editor}
+                disabled={busy || !!editor || !!enabling}
                 onClick={() => {
-                  const definition = definitionOf(kind, item);
+                  setConflict(false); const definition = definitionOf(kind, item);
                   delete definition.name;
-                  setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
+                  const ids = (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? []; setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
                 }}
               >
                 编辑
@@ -344,7 +402,7 @@ function Collection({ kind }: { kind: CanonicalKind }) {
                 type="button"
                 aria-label={`retire ${item.name}`}
                 className="max-w-full break-all"
-                disabled={busy || item.state === 'retired'}
+                disabled={busy || !!editor || !!enabling || item.state === 'retired'}
                 onClick={() => setRetiring(item)}
               >
                 retire
@@ -375,6 +433,7 @@ function Collection({ kind }: { kind: CanonicalKind }) {
     </div>
   );
 }
+const Collection = CanonicalCollection;
 function OperationStatus({
   pending,
   onChange,
@@ -492,7 +551,7 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
       setError(canonicalError(e));
       return;
     }
-    const requestKey = crypto.randomUUID();
+    const requestKey = newId('operation');
     const { run, operation } = selected;
     setBusy(true);
     setError('');

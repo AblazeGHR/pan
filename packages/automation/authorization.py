@@ -19,6 +19,8 @@ def canonical_path(path):
         return False
     if parsed.path == '/api/jobs/actions':
         return True
+    if re.fullmatch(r'/api/event-creators/[A-Za-z0-9_-]+/references', parsed.path):
+        return True
     # These are concrete legacy routes, even where their segment looks like an ID.
     if re.match(r'/api/jobs/(?:action-jobs|job-templates|action-references|kinds|templates|next|settings)(?:/|$)', parsed.path):
         return False
