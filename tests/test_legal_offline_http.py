@@ -210,7 +210,7 @@ def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
         if method.startswith("q-"):
             from packages.core.console_exit import ConsoleExit
             now = [0.0]
-            console = ConsoleExit(lambda payload: instance.request("POST", "/api/main/exit", json=payload),
+            console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
                 lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
             console.line("qqq" if method == "q-triple" else "q")
             now[0] = 2.1
@@ -220,7 +220,7 @@ def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
             assert console.accepted
         elif method.endswith("api"):
             payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
-            assert instance.request("POST", "/api/main/exit", json=payload)["accepted"]
+            assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
         else:
             instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
         _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")

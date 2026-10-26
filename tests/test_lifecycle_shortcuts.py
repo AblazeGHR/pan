@@ -14,8 +14,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SHORTCUTS = {
-    "restart": (ROOT / "scripts" / "restart.bat", "/api/main/restart"),
-    "stop": (ROOT / "scripts" / "stop.bat", "/api/main/exit"),
+    "restart": (ROOT / "scripts" / "restart.bat", "/api/system-actions/main-lifecycle"),
+    "stop": (ROOT / "scripts" / "stop.bat", "/api/system-actions/main-lifecycle"),
 }
 WINDOWS_ONLY = pytest.mark.skipif(os.name != "nt", reason="Windows batch runtime")
 FORBIDDEN = (
@@ -110,7 +110,10 @@ def test_shortcut_returns_zero_and_prints_scheduled_response(name, fake_api):
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert '"status": "scheduled"' in result.stdout
-    assert _FakeApiHandler.requests == [(SHORTCUTS[name][1], b"{}")]
+    assert len(_FakeApiHandler.requests) == 1
+    path, body = _FakeApiHandler.requests[0]
+    assert path == SHORTCUTS[name][1]
+    assert json.loads(body) == {"operation": "exit" if name == "stop" else "restart"}
 
 
 @WINDOWS_ONLY

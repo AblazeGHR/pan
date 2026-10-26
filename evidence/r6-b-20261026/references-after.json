@@ -1,0 +1,3458 @@
+{
+  "base": "e153fc4d",
+  "textFilesScanned": 6310,
+  "hits": [
+    {
+      "path": "artifacts/job-chain-phase1/final.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase1/regression-second.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 4,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 6,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 8,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 11,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 18,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 20,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/crash-server.log",
+      "line": 26,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 7,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 9,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 11,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 13,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 16,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 36,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 117,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 164,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-chain-phase5/server.log",
+      "line": 257,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/job-unified-final-python.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39926544494/attempt2/gate.json",
+      "line": 11962,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39926544494/attempt2/gate.json",
+      "line": 11968,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39926544494/attempt2/gate.json",
+      "line": 45582,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39926544494/attempt2/gate.json",
+      "line": 45588,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39961776834/gate.json",
+      "line": 11975,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39961776834/gate.json",
+      "line": 11981,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39961776834/gate.json",
+      "line": 45552,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39961776834/gate.json",
+      "line": 45558,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39965883287/gate.json",
+      "line": 11963,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39965883287/gate.json",
+      "line": 11969,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39965883287/gate.json",
+      "line": 45636,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39965883287/gate.json",
+      "line": 45642,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39970102909/gate.json",
+      "line": 12083,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39970102909/gate.json",
+      "line": 12089,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39970102909/gate.json",
+      "line": 45896,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39970102909/gate.json",
+      "line": 45902,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39971712612/gate.json",
+      "line": 12089,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39971712612/gate.json",
+      "line": 12095,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39971712612/gate.json",
+      "line": 45914,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39971712612/gate.json",
+      "line": 45920,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39976748349/gate.json",
+      "line": 12065,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39976748349/gate.json",
+      "line": 12071,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39976748349/gate.json",
+      "line": 45860,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39976748349/gate.json",
+      "line": 45866,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39977913668/gate.json",
+      "line": 12057,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39977913668/gate.json",
+      "line": 12063,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39977913668/gate.json",
+      "line": 45858,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39977913668/gate.json",
+      "line": 45864,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39983726899/gate.json",
+      "line": 12069,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39983726899/gate.json",
+      "line": 12075,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39983726899/gate.json",
+      "line": 45876,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39983726899/gate.json",
+      "line": 45882,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39984709747/gate.json",
+      "line": 12095,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39984709747/gate.json",
+      "line": 12101,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39984709747/gate.json",
+      "line": 45912,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39984709747/gate.json",
+      "line": 45918,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39991213850/gate.json",
+      "line": 12101,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39991213850/gate.json",
+      "line": 12107,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39991213850/gate.json",
+      "line": 45930,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39991213850/gate.json",
+      "line": 45936,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39997143184/gate.json",
+      "line": 12113,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39997143184/gate.json",
+      "line": 12119,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39997143184/gate.json",
+      "line": 45962,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-39997143184/gate.json",
+      "line": 45968,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-40005263943/gate.json",
+      "line": 12155,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-40005263943/gate.json",
+      "line": 12161,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-40005263943/gate.json",
+      "line": 46038,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-40005263943/gate.json",
+      "line": 46044,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/main-ci-40083487423/pytest-results.xml",
+      "line": 373,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/p8-send-rename/final.xml",
+      "line": 2,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r4-regression-tests.xml",
+      "line": 2,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/canonical-final.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 1862,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 2331,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 2844,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 2845,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 3407,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "line": 3408,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 1862,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 2331,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 2847,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 2848,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 3410,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "line": 3411,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/expanded.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/final.xml",
+      "line": 1,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart",
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/first.xml",
+      "line": 5,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "artifacts/r5-p4/safety.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/clear-illegal-backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/codex-native-control/20261010/evidence-r2/python-full.xml",
+      "line": 65,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/codex-session-mode/20261010/evidence/python-full.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/codex-session-mode/20261010/python-rerun/python-full.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/collection.json",
+      "line": 708,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/collection.json",
+      "line": 709,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final312.log",
+      "line": 719,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final312.log",
+      "line": 720,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final312.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final314.log",
+      "line": 719,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final314.log",
+      "line": 720,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final314.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/cleanup-final312.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/cleanup-final314.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/collection.json",
+      "line": 708,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/collection.json",
+      "line": 709,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007/remaining-final312.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/github-ci/20261007/remaining-final314.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/independent-jobs/20261010/premerge/pytest-fixed.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/independent-jobs/20261010/premerge/pytest.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/job-hidden-runner/REPORT.md",
+      "line": 23,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/REPORT.md",
+      "line": 13,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 103,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 115,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 123,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 131,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 147,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 175,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legacy-job-latest/browser.json",
+      "line": 199,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-20261018-final/backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-20261018/backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-final-integration-20261019/backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-multi-operation-20261018/final-frozen-regression.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-multi-operation-20261018/final-regression.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legal-offline-multi-operation-20261018/stage1-regression.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/legality-migration-lifecycle-native.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/os-autostart-20261019/backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/candidate-main-full-repository-uv.xml",
+      "line": 36,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/final-closeout-full-repository-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/final-isolated-job-full-repository-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-4823-final-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-586ec3f0-final-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-ed1-final-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-final-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-uv.xml",
+      "line": 35,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/job-external-cwd-regression-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/job-isolation-regression-uv.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/premerge-20261006/python-final.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/terminal/implementation/premerge-20261006/python-full.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "audit/unified-illegal-backend.xml",
+      "line": 1,
+      "matches": [
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/CODEX_AUTO_ROTATION_GAP_20261025.md",
+      "line": 223,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/CODEX_AUTO_ROTATION_GAP_20261025.md",
+      "line": 224,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/CODEX_AUTO_ROTATION_GAP_20261025.md",
+      "line": 308,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/CODEX_AUTO_ROTATION_GAP_20261025.md",
+      "line": 353,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/CODEX_AUTO_ROTATION_GAP_20261025.md",
+      "line": 397,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u542f\u52a8\u5668\u4e0eWindows\u751f\u547d\u5468\u671f\u67b6\u6784.md",
+      "line": 208,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 7,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 24,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 25,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 53,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 54,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 238,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1-p1.md",
+      "line": 241,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1.md",
+      "line": 23,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1.md",
+      "line": 51,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/Pan\u9000\u51fa\u7b56\u7565\u5bf9\u8c61\u4e0e\u670d\u52a1\u91cd\u542f\u8bbe\u8ba1.md",
+      "line": 53,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/background-jobs.md",
+      "line": 28,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/background-jobs.md",
+      "line": 63,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/background-jobs.md",
+      "line": 64,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/background-jobs.md",
+      "line": 65,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/GUI_DESIGN.md",
+      "line": 40,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/GUI_DESIGN.md",
+      "line": 106,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/IMPLEMENTATION_MATRIX_20261025.md",
+      "line": 14,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/IMPLEMENTATION_MATRIX_20261025.md",
+      "line": 16,
+      "matches": [
+        "/api/session-message-jobs",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/IMPLEMENTATION_MATRIX_20261025.md",
+      "line": 17,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/IMPLEMENTATION_MATRIX_20261025.md",
+      "line": 23,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart",
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/IMPLEMENTATION_MATRIX_20261025.md",
+      "line": 24,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/JOB_FINAL_MODEL_20261025.md",
+      "line": 33,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_retry",
+        "api_background_job_start",
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/JOB_FINAL_MODEL_20261025.md",
+      "line": 34,
+      "matches": [
+        "/api/session-message-jobs",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/JOB_FINAL_MODEL_20261025.md",
+      "line": 42,
+      "matches": [
+        "/api/main/restart",
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/PHASE4_COMPAT_MATRIX_20261025.md",
+      "line": 7,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/PHASE4_COMPAT_MATRIX_20261025.md",
+      "line": 8,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/PHASE4_COMPAT_MATRIX_20261025.md",
+      "line": 13,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/PHASE4_COMPAT_MATRIX_20261025.md",
+      "line": 23,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_P5_ENTRYPOINTS_20261026.md",
+      "line": 14,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 356,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 361,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 367,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 371,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 372,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 373,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2315,
+      "matches": [
+        "/api/main/restart",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2317,
+      "matches": [
+        "/api/main/exit",
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2318,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2319,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2320,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2321,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2322,
+      "matches": [
+        "/api/session-message-jobs",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2323,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2324,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2487,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2743,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2744,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2745,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2890,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 2998,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3184,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3297,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3472,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3493,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3494,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3495,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3497,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3510,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3527,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3528,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3546,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3547,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3735,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/R5_R6_EXECUTION_MANIFEST_20261026.json",
+      "line": 3767,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 27,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 28,
+      "matches": [
+        "/api/session-message-jobs",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 36,
+      "matches": [
+        "/api/main/restart",
+        "api_main_exit",
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 67,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 68,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 69,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 73,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 81,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 82,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 92,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 129,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/job-unification/RETIREMENT_INVENTORY_20261025.md",
+      "line": 299,
+      "matches": [
+        "api_background_job_start",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/legacy-job-dual-track-transition.md",
+      "line": 13,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/legacy-job-dual-track-transition.md",
+      "line": 32,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/legacy-job-dual-track-transition.md",
+      "line": 35,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/design/legacy-job-dual-track-transition.md",
+      "line": 36,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md",
+      "line": 109,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/plans&overviews/live-session-job-indicators-20261018.md",
+      "line": 56,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/plans&overviews/live-session-job-indicators-20261018.md",
+      "line": 57,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/reports/jobs-controls-sort-20261021.md",
+      "line": 11,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/reports/jobs-controls-sort-20261021.md",
+      "line": 20,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/reports/shutdown-pan-and-background-job-fault-injection-20261019.md",
+      "line": 10,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/reports/t043-jobs-backend-20260918.md",
+      "line": 14,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/reports/t045-scheduled-broadcast-backend-20260918.md",
+      "line": 15,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 41,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 63,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 132,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 133,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 134,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 135,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 136,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 137,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 138,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 141,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "docs/skills/pan/references/http-api.md",
+      "line": 156,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/acceptance.xml",
+      "line": 1,
+      "matches": [
+        "/api/background-jobs",
+        "/api/main/exit",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/auth-successor.xml",
+      "line": 4,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/classification.json",
+      "line": 2063,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/final.log",
+      "line": 282,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/final.log",
+      "line": 284,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/final.xml",
+      "line": 183,
+      "matches": [
+        "/api/background-jobs",
+        "/api/main/exit",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/final.xml",
+      "line": 190,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/final.xml",
+      "line": 191,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/triage-current.log",
+      "line": 672,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/triage-current.log",
+      "line": 674,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/triage-current.xml",
+      "line": 327,
+      "matches": [
+        "/api/background-jobs",
+        "/api/main/exit",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/triage-current.xml",
+      "line": 334,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/triage-current.xml",
+      "line": 335,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r5-p7a-reds-auth-20261026/verification.xml",
+      "line": 1,
+      "matches": [
+        "/api/background-jobs",
+        "/api/main/exit",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 1981,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2348,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2349,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2350,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2351,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2369,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2370,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2371,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2372,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2400,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2401,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2402,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2403,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2414,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2415,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2416,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2417,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2423,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 2573,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 3099,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 3100,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 3689,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 3690,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 4336,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 4337,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 4338,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection-with-deps.log",
+      "line": 4339,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 1981,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2348,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2349,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2350,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2351,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2369,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2370,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2371,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2372,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2400,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2401,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2402,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2403,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2414,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2415,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2416,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2417,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2423,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 2573,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 3096,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 3097,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 3686,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 3687,
+      "matches": [
+        "/api/main/restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 4333,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 4334,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 4335,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/collection.log",
+      "line": 4336,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/focused.xml",
+      "line": 1,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/import-retained.xml",
+      "line": 1,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/leaves.xml",
+      "line": 1,
+      "matches": [
+        "api_background_job_retry",
+        "api_background_job_start",
+        "api_background_job_update",
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-after.json",
+      "line": 51,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-after.json",
+      "line": 52,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-after.json",
+      "line": 53,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-after.json",
+      "line": 54,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 51,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 52,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 53,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 54,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 17763,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 28511,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 35109,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 35115,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 48619,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 56959,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 73728,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 73734,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 73740,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 73746,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/references-before.json",
+      "line": 73752,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 36,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 39,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 57,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 60,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 202,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 205,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 233,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 236,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 264,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/r6-a-20261026/review.json",
+      "line": 267,
+      "matches": [
+        "api_background_job_update"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/shortcuts-settings-20261019/pytest-collect-order.txt",
+      "line": 1308,
+      "matches": [
+        "api_main_restart"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "evidence/shortcuts-settings-20261019/pytest-collect-order.txt",
+      "line": 1309,
+      "matches": [
+        "api_main_exit"
+      ],
+      "category": "artifact/docs"
+    },
+    {
+      "path": "packages/automation/authorization.py",
+      "line": 47,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/automation/authorization.py",
+      "line": 48,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/automation/authorization.py",
+      "line": 56,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2271,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2317,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2326,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2355,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2390,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2402,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2419,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2442,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2460,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/mcp/server.py",
+      "line": 2475,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/e2e/jobs-controls-production.e2e.mjs",
+      "line": 43,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/legacy-job-transition.mjs",
+      "line": 56,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/legacy-job-transition.mjs",
+      "line": 61,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.e2e.mjs",
+      "line": 102,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.e2e.mjs",
+      "line": 104,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.e2e.mjs",
+      "line": 108,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.e2e.mjs",
+      "line": 118,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.e2e.mjs",
+      "line": 125,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11071,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11089,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11099,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11124,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11125,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11126,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "packages/web/server.py",
+      "line": 11127,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "production"
+    },
+    {
+      "path": "tests/support/authorization.py",
+      "line": 22,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 259,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 260,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 268,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 275,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 279,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 280,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 287,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_authorization_mcp.py",
+      "line": 305,
+      "matches": [
+        "/api/background-jobs",
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_auto_force_http_e2e.py",
+      "line": 481,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 13,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 23,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 37,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 109,
+      "matches": [
+        "api_background_job_retry"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 138,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 189,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 211,
+      "matches": [
+        "api_session_message_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 243,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_api.py",
+      "line": 280,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_background_job_retry_if.py",
+      "line": 181,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_illegal_queue_wake_http.py",
+      "line": 75,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_illegal_queue_wake_http.py",
+      "line": 81,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_illegal_queue_wake_http.py",
+      "line": 106,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_clients.py",
+      "line": 295,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 47,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 48,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 49,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 50,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 68,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 93,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 94,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 95,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 96,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 101,
+      "matches": [
+        "api_background_job_start",
+        "api_session_message_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 102,
+      "matches": [
+        "api_background_job_retry",
+        "api_background_job_update"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 154,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 155,
+      "matches": [
+        "/api/session-message-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 156,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 157,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_retirement.py",
+      "line": 165,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_final_transports.py",
+      "line": 297,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_path_flip.py",
+      "line": 175,
+      "matches": [
+        "/api/main/exit"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_runner_venv.py",
+      "line": 78,
+      "matches": [
+        "/api/background-jobs",
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_window_policy.py",
+      "line": 89,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_job_window_policy.py",
+      "line": 90,
+      "matches": [
+        "api_background_job_start"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_lan_access.py",
+      "line": 154,
+      "matches": [
+        "/api/main/exit",
+        "/api/main/restart"
+      ],
+      "category": "test"
+    },
+    {
+      "path": "tests/test_legacy_mcp_compat.py",
+      "line": 25,
+      "matches": [
+        "/api/background-jobs"
+      ],
+      "category": "test"
+    }
+  ],
+  "note": "All baseline-tracked readable text; excludes new R6-B evidence/test files. Exact main write paths exclude status children. Historical artifacts and obsolete positive tests included, not runtime callers."
+}
