@@ -162,7 +162,7 @@ def ready_checks(*, root: str, port: int, old_pid: int | None,
     pid = launcher.listener_owner(port)
     created = process_create_time(pid)
     result: dict[str, Any] = {
-        "port": int(port), "listenerOwner": pid,
+        "root": str(Path(root).resolve()), "port": int(port), "listenerOwner": pid,
         "listenerOwnerCreatedAt": created, "newPid": pid,
         "newPidCreatedAt": created, "ok": False,
     }

@@ -606,7 +606,17 @@ class FinalService:
         if not current["enabled"] or current["state"] != "published":
             error("authorization_denied", "Action unavailable before effect")
         if action.get("effectClass") == "high_risk":
-            error("authorization_denied", "Arbitrary high-risk effects are forbidden")
+            # The product-owned lifecycle Action is the sole high-risk
+            # definition that may pass this boundary.  Its executor still
+            # requires the protected supervisor and a one-step grant; user or
+            # plugin supplied high-risk Actions remain rejected.
+            fixed_lifecycle = (
+                action.get("system") is True
+                and action.get("id") == "system_main_lifecycle"
+                and (action.get("execution") or {}).get("operation") == "main-lifecycle"
+            )
+            if not fixed_lifecycle:
+                error("authorization_denied", "Arbitrary high-risk effects are forbidden")
 
     async def dispatch_once(self):
         """Drive WP02 records through WP05, one serial boundary per Run."""
