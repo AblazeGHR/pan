@@ -26,6 +26,7 @@ from typing import Any
 from packages.core import session as _sessions
 from packages.core import worker as _worker
 from packages.core import config as _config
+from packages.core import background_retry as _retry
 from packages.jobs import cron as _job_cron
 from packages.jobs.final_runtime.coordinator import REGISTRY_LOCK as _lock
 
@@ -52,6 +53,10 @@ SERVICE_ACTIVE_PHASES = frozenset({
     "stopped", "starting",
 })
 SERVICE_TERMINAL_PHASES = frozenset({"ready", "offline", "failed", "timed_out"})
+
+
+class _RunnerSpawnFailed(OSError):
+    """Process creation failed and its terminal fact was committed."""
 
 
 def _legacy_write(fn):
@@ -99,6 +104,7 @@ def _write_job(path: Path, job: dict, *, created: bool = False) -> None:
     responsible for broadcasting after Pan observes the durable result.
     """
     from packages.jobs.system_actions import sync
+    _retry.terminal(job, time.time())
     sync(job, created)
     _atomic_write(path, job)
     if (not job.get("scheduledParentJobId")
@@ -188,6 +194,7 @@ def _normalize_job(job: dict | None) -> dict | None:
     result = dict(job)
     result.setdefault("kind", BACKGROUND_PROCESS_KIND)
     result.setdefault("operation", "run")
+    _retry.defaults(result)
     # name/description 必填规范（所有 kind）：旧记录读路径兜底，不重写文件。
     # 兜底名只用 jobId 派生（无注册表扫描），避免读路径产生 I/O 放大。
     if not str(result.get("name") or "").strip():
@@ -416,6 +423,7 @@ def job_public_view(job: dict | None) -> dict | None:
         return job
     from packages.jobs.chains import public as chain_public
     view = chain_public(job)
+    _retry.defaults(view)
     view.pop('attemptSnapshot', None)
     identity = _structured_identity(job)
     view["source"] = identity["source"]
@@ -594,7 +602,9 @@ def _spawn_background_runner(job: dict, registry_root: str | Path | None = None)
         current = get(job["jobId"], registry_root)
         if not current or current.get("status") not in {"starting", "running"}:
             raise ValueError("Job no longer admitted for runner spawn")
-        return _spawn_background_runner_unlocked(job, registry_root)
+        if current.get("runnerSpawnStartedAt"):
+            return current
+        return _spawn_background_runner_unlocked(current, registry_root)
 
 
 def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | None = None) -> dict:
@@ -621,12 +631,15 @@ def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | Non
     else:
         kwargs["start_new_session"] = True
     try:
-        proc = subprocess.Popen(_runner_command(job_id), **kwargs)
+        command = _runner_command(job_id)
+        if job.get("attemptId"):
+            command += ["--attempt-id", job["attemptId"]]
+        proc = subprocess.Popen(command, **kwargs)
     except Exception as exc:
         _update(job_id, {"status": "failed", "error": f"runner spawn failed: {exc}",
                          "notificationState": "pending", "updatedAt": time.time()},
                 registry_root=registry_root)
-        raise
+        raise _RunnerSpawnFailed(str(exc)) from exc
     finally:
         log.close()
     with _lock, _job_lock(job_id, registry_root):
@@ -634,6 +647,8 @@ def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | Non
         current = _load_path(path)
         if not current:
             raise ValueError("job not found after runner spawn")
+        if current.get("attemptId") != job.get("attemptId"):
+            return _normalize_job(current)
         current.setdefault("runnerPid", proc.pid)
         current.setdefault("runnerProcessCreatedAt", _process_create_time(proc.pid))
         if current.get("status") == "starting":
@@ -650,7 +665,20 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
           name: str | None = None,
           description: str | None = None,
           creator_session_id: str | None = None,
+          retry_if: list[str] | None = None,
+          max_retries: int = 0,
+          backoff_sec: float = 0,
+          idempotency_key: str | None = None,
+          deduplication: str | None = None,
           registry_root: str | Path | None = None) -> dict:
+    """Start a process Job; retries are opt-in and retain this Job's identity.
+
+    attempt starts at 1; max_retries counts additional attempts. backoff_sec is
+    a fixed persisted delay. Commands must enforce their supplied idempotency
+    key or deduplication guarantee; the registry records that caller contract.
+    """
+    retry_policy = _retry.policy(retry_if, max_retries, backoff_sec,
+                                 idempotency_key=idempotency_key, deduplication=deduplication)
     from packages.jobs.window import validate_hide_window
     validate_hide_window(hide_window)
     name = normalize_name(name)
@@ -666,6 +694,8 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     argv, cwd_path = _validate_command(argv, cwd)
     if registry_root is None:
         from packages.jobs import pan_bridge
+        if retry_if and pan_bridge.configured_client() is not None:
+            raise ValueError("retryIf is not supported by the independent Job service")
         remote = pan_bridge.request("start", {
             "targetSessionId": target_session_id, "creatorSessionId": creator_sid,
             "argv": argv, "cwd": str(cwd_path), "label": label,
@@ -681,6 +711,8 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     now = time.time()
     log_path = _root(registry_root) / "logs" / f"{job_id}.log"
     job = {
+        **retry_policy,
+        "attempt": 1, "attemptId": secrets.token_hex(16), "attemptCreatedAt": now,
         "jobId": job_id, "targetSessionId": target_session_id, "argv": argv,
         "hideWindow": hide_window,
         "kind": BACKGROUND_PROCESS_KIND, "operation": "run",
@@ -2719,6 +2751,18 @@ def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
         return cancel_message(job_id, registry_root)
     if job.get("status") in {"cleanup_pending", "deleting"}:
         raise ValueError("cannot safely cancel: deletion cleanup pending; use explicit DELETE to recheck")
+    if job.get("nextRetryAt") is not None:
+        with _registry_lock("spawn-" + job_id, registry_root), _lock, _job_lock(job_id, registry_root):
+            path = _job_path(job_id, registry_root)
+            current = _load_path(path)
+            if current and current.get("nextRetryAt") is not None:
+                current.update(status="cancelled", reason="cancelled", nextRetryAt=None,
+                               cancelRequestedAt=time.time(), updatedAt=time.time(),
+                               terminalEventId=f"{job_id}:cancelled:terminal")
+                _write_job(path, current)
+                return current
+        # A concurrent retry was admitted; use its identities for cancellation.
+        return cancel(job_id, registry_root)
     if job.get("status") in {"completed", "failed", "cancelled"}:
         return job
     proc = _owns_process(job)
@@ -2946,11 +2990,11 @@ def find_service_job(request_id: str, registry_root: str | Path | None = None) -
 
 
 @_legacy_write
-def claim_hidden_runner(job_id: str) -> bool:
+def claim_hidden_runner(job_id: str, *, expected_attempt: str | None = None) -> bool:
     """Publish the real Python owner before hidden task creation, exactly once.
 
     The spawning controller can die before persisting Popen's redirector PID.
-    The runner therefore owns this claim; recovery never starts a replacement.
+    The runner therefore owns this claim, fenced by the persisted attempt ID.
     """
     from packages.core.terminal.identity import probe_process, ProcessStatus
     pid = os.getpid()
@@ -2962,7 +3006,8 @@ def claim_hidden_runner(job_id: str) -> bool:
         path = _job_path(job_id)
         current = _load_path(path)
         if (not current or current.get("status") not in {"starting", "running"}
-                or current.get("runnerClaim")):
+                or current.get("runnerClaim")
+                or (expected_attempt is not None and current.get("attemptId", "legacy") != expected_attempt)):
             return False
         if current.get("cancelRequestedAt"):
             current.update(status="cancelled", exitCode=None,
@@ -2978,14 +3023,15 @@ def claim_hidden_runner(job_id: str) -> bool:
 
 
 @_legacy_write
-def runner_spawn(job_id: str, factory):
+def runner_spawn(job_id: str, factory, *, expected_attempt: str | None = None):
     """Serialize task spawn/publication without holding the global registry gate."""
     with _registry_lock("task-spawn-" + job_id):
         with _lock, _job_lock(job_id):
             path = _job_path(job_id)
             current = _load_path(path)
             if (not current or current.get("status") not in {"starting", "running"}
-                    or current.get("cancelRequestedAt")):
+                    or current.get("cancelRequestedAt")
+                    or (expected_attempt is not None and current.get("attemptId", "legacy") != expected_attempt)):
                 raise ValueError("Job no longer admitted for task spawn")
         proc = factory()
         try:
@@ -3003,7 +3049,8 @@ def runner_spawn(job_id: str, factory):
             with _lock, _job_lock(job_id):
                 current = _load_path(path)
                 if (not current or current.get("status") not in {"starting", "running"}
-                        or current.get("cancelRequestedAt")):
+                        or current.get("cancelRequestedAt")
+                        or (expected_attempt is not None and current.get("attemptId", "legacy") != expected_attempt)):
                     raise ValueError("Job no longer admitted after task spawn")
                 current.update(facts)
                 _write_job(path, current)
@@ -3018,11 +3065,13 @@ def runner_spawn(job_id: str, factory):
 
 
 @_legacy_write
-def runner_update(job_id: str, **changes: Any) -> dict:
+def runner_update(job_id: str, *, expected_attempt: str | None = None, **changes: Any) -> dict:
     job = get(job_id)
     if not job:
         raise ValueError("job not found")
     changes = dict(changes)
+    if "reason" in changes and changes["reason"] not in _retry.REASONS:
+        raise ValueError("invalid terminal reason")
     if changes.get("status") in {"completed", "failed", "cancelled"}:
         changes.setdefault("terminalEventId", f"{job_id}:terminal")
         changes["notificationState"] = "pending"
@@ -3030,10 +3079,13 @@ def runner_update(job_id: str, **changes: Any) -> dict:
     with _lock, _job_lock(job_id):
         current = _load_path(_job_path(job_id))
         if not current: raise ValueError("job not found")
+        if expected_attempt is not None and (current.get("attemptId", "legacy") != expected_attempt
+                                            or current.get("status") in _retry.TERMINAL):
+            return current
         if current.get("cancelRequestedAt") and changes.get("status") in {"completed", "failed"}:
             # The runner may finish before the cancelling caller commits (or
             # that caller may disappear). Do not leave an active pending record.
-            changes.update(status="cancelled", exitCode=None)
+            changes.update(status="cancelled", exitCode=None, reason="cancelled")
         if current.get("status") in {"cleanup_pending", "deleting"}:
             if changes.get("status") in {"completed", "failed", "cancelled"}:
                 # This is an observation, not an admitted terminal transition.
@@ -3046,7 +3098,7 @@ def runner_update(job_id: str, **changes: Any) -> dict:
                 changes.pop("notificationState", None)
             changes.pop("status", None)
         if current.get("status") == "cancelled":
-            changes.pop("status", None)
+            return current
         from packages.jobs.action_runtime import is_action_job
         if (is_action_job(current) and not current.get('execution')
                 and current.get('lastExecution', {}).get('status') in {'unknown', 'uncertain'}
@@ -3066,8 +3118,8 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
     """Resolve running records whose independent Runner disappeared.
 
     A live Runner is the safe re-attach case. Missing identity, unavailable
-    liveness inspection, PID reuse, or a dead Runner is persisted as failed;
-    we never kill a process when its creation time cannot be verified.
+    liveness inspection, PID reuse, or a dead Runner is persisted as failed
+    with reason=orphaned. Only explicit policies admit a replacement attempt.
     """
     from packages.jobs.action_runtime import is_action_job
     changed = 0
@@ -3090,10 +3142,12 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
         runner = _owns_process({"pid": runner_pid, "processCreatedAt": runner_created})
         if runner is not None:
             continue
-        with _lock, _job_lock(job["jobId"], registry_root):
+        with (_registry_lock("spawn-" + job["jobId"], registry_root),
+              _lock, _job_lock(job["jobId"], registry_root)):
             path = _job_path(job["jobId"], registry_root)
             current = _load_path(path)
             if (not current or current.get("status") not in {"starting", "running"}
+                    or current.get("attemptId") != job.get("attemptId")
                     or current.get("runnerPid") != runner_pid
                     or current.get("runnerProcessCreatedAt") != runner_created):
                 # A runner may commit its terminal fact during the liveness probe.
@@ -3112,12 +3166,65 @@ def reconcile_running(registry_root: str | Path | None = None) -> int:
                     except Exception:
                         pass
                     reason = "Runner disappeared; terminated the verified scheduled shell process"
-            current.update(status="failed", error="orphaned: " + reason,
+            current.update(status="failed", reason="orphaned", error="orphaned: " + reason,
                            terminalEventId=f"{job['jobId']}:terminal",
                            notificationState="pending", updatedAt=time.time())
             _write_job(path, current)
             changed += 1
+    changed += retry_due(registry_root)
     return changed
+
+
+@_legacy_write
+def retry_due(registry_root: str | Path | None = None) -> int:
+    """Claim due attempts durably before spawn; concurrent recovery is idempotent.
+
+    Unknown task ownership blocks replay: losing a runner is not proof that its
+    side-effecting child stopped. Do not kill or duplicate an unverified child.
+    """
+    count = 0
+    for job in list_jobs(registry_root):
+        if not _retry.eligible(job) or job.get("nextRetryAt") is None:
+            continue
+        job_id = job["jobId"]
+        with (_registry_lock("spawn-" + job_id, registry_root),
+              _registry_lock("task-spawn-" + job_id, registry_root)):
+            with _lock, _job_lock(job_id, registry_root):
+                path = _job_path(job_id, registry_root)
+                current = _load_path(path)
+                if (not current or current.get("status") not in {"failed", "cancelled"}
+                        or current.get("nextRetryAt") is None
+                        or current["nextRetryAt"] > time.time()):
+                    continue
+                _retry.defaults(current)
+                if (current.get("cancelRequestedAt") or current["status"] == "cancelled"
+                        or current.get("reason") == "cancelled" or not current["remaining"]
+                        or current.get("reason") not in current["retryIf"]
+                        or not (current.get("idempotencyKey") or current.get("deduplication"))):
+                    current["nextRetryAt"] = None
+                    _write_job(path, current)
+                    continue
+                if current.get("pid") and not current.get("processTreeEnded"):
+                    import psutil
+                    try:
+                        alive = psutil.pid_exists(current["pid"])
+                    except (OSError, ValueError):
+                        alive = True
+                    if alive:
+                        current["retryBlockedReason"] = "task exit is unverified"
+                        _write_job(path, current)
+                        continue
+                _retry.new_attempt(current, time.time())
+                from packages.jobs.system_actions import prepare
+                prepare(current, job_id + ":retry:" + current["attemptId"])
+                _write_job(path, current)
+            try:
+                _spawn_background_runner_unlocked(current, registry_root)
+            except _RunnerSpawnFailed:
+                # Spawn failure is already durable; future recovery applies the policy.
+                pass
+            count += 1
+    return count
 
 
 async def _scheduled_task_emit_strict(event: dict) -> bool:
@@ -3304,12 +3411,15 @@ async def recover_notifications() -> int:
                 _mark_terminal_broadcast(broadcast["jobId"], root)
             if (job.get("notificationState") in {"delivered", "not_applicable"}):
                 continue
+            if job.get("nextRetryAt") is not None:
+                continue  # Final outcome notification follows the retry chain.
             # Hold the cross-process job lock through projection and terminal
             # notification marking; enqueue_notice is idempotent after a crash.
             with _lock, _job_lock(job["jobId"], root):
                 current = _load_path(_job_path(job["jobId"], root))
                 if (not current
                         or current.get("notificationState") in {"delivered", "not_applicable"}
+                        or current.get("nextRetryAt") is not None
                         or current.get("status") not in {"completed", "failed", "cancelled"}):
                     continue
                 target = current.get("targetSessionId")
