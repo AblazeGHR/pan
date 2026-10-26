@@ -180,7 +180,7 @@ it('keeps existing timing controls on pre-composition Jobs while allowing chain 
   snapshot.triggers = {};
   render(<Host />);fireEvent.click(await screen.findByRole('button', { name: 'Edit Morning review' }));
   expect((screen.getByRole('button', { name: 'Add time trigger' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole('link', { name: 'Open existing Job controls' }).getAttribute('href')).toBe('/jobs');
+  expect(screen.getByRole('link', { name: 'Open Canonical Job controls' }).getAttribute('href')).toBe('/automation/canonical');
   fireEvent.click(screen.getByRole('button', { name: 'Save and disable' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.body).toMatchObject({ config: { trigger: { kind: 'immediate' }, schedule: [] }, schedulers: [] });

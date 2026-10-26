@@ -1051,10 +1051,8 @@ describe('AppSettingsModal', () => {
     fireEvent.click(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.trim() === 'Save settings')!);
 
-    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith({
-      ...defaultJobRetentionRules,
-      failed: { enabled: false, days: 21 },
-    }));
+    await waitFor(() => expect(screen.getByText(/read-only after Jobs migration/)).toBeTruthy());
+    expect(updateCompletedJobRetentionSettingsMock).not.toHaveBeenCalled();
     expect(updateDataRetentionMock).not.toHaveBeenCalled();
   });
 
