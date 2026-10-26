@@ -64,6 +64,7 @@ class ExecutionStore:
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         db.execute("PRAGMA busy_timeout=10000")
+        db.execute("PRAGMA synchronous=FULL")
         return db
 
     @staticmethod
@@ -157,6 +158,15 @@ class ExecutionStore:
             self._check(doc, attempt, claim, require_claim=True)
             if doc["result"] is not None:
                 raise ExecutionConflict("execution already settled")
+            transitions = ({"preparing": {"stopping"}, "stopping": {"stopped"},
+                            "stopped": {"starting"}, "starting": {"checking_ready"}}
+                           if doc["frozenPlan"].get("operation") in {"service.restart", "service.exit"}
+                           else {"preparing": {"executing"}, "executing": {"running", "cleaning"},
+                                 "running": {"cleaning"}})
+            if phase not in transitions.get(doc["phase"], set()):
+                raise ExecutionConflict("invalid or repeated execution phase")
+            if doc["frozenPlan"].get("operation") == "service.exit" and phase == "starting":
+                raise ExecutionConflict("exit execution cannot start a service")
             doc.update(phase=phase, cancellable=False)
             doc.setdefault("evidence", {}).update(evidence)
             doc["phases"].append(phase)
@@ -345,6 +355,9 @@ class ExecutionHost:
     def get_execution(self, identity):
         return self.store.get(identity)
 
+    def cancel_execution(self, identity, attempt):
+        return self.store.cancel(identity, attempt)
+
     def submit_execution(self, request):
         if not isinstance(request.get("frozenPlan"), dict) or type(request.get("retry", False)) is not bool:
             raise ValueError("frozenPlan must be an object and retry must be boolean")
@@ -356,10 +369,12 @@ class ExecutionHost:
         # Validate process arguments before persisting or launching a worker.
         args = request["frozenPlan"].get("arguments", request["frozenPlan"])
         if (not isinstance(args, Mapping) or not isinstance(args.get("argv"), list) or not args["argv"]
-                or any(not isinstance(item, str) or not item for item in args["argv"])
+                or not args["argv"][0]
+                or any(not isinstance(item, str) or "\x00" in item for item in args["argv"])
                 or not isinstance(args.get("cwd"), str) or not Path(args["cwd"]).is_absolute()
                 or not Path(args["cwd"]).is_dir()
-                or type(args.get("hideWindow", True)) is not bool):
+                or type(args.get("hideWindow", True)) is not bool
+                or args.get("shell", False) is not False or "command" in args):
             raise ValueError("invalid typed process arguments")
         doc, created = self.store.admit(job_id=request["jobId"], attempt=request["attempt"],
             effect_key=request["effectKey"], frozen_plan=request["frozenPlan"], retry=request.get("retry", False))

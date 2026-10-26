@@ -136,6 +136,10 @@ CAPABILITIES: Mapping[str, Capability] = {
         frozenset({WINDOWS, DARWIN, LINUX}),
         "Windows 使用 Job Object；POSIX 使用 setsid/进程组与持久身份核验",
     ),
+    "process.hiddenDesktop": Capability(
+        "process.hiddenDesktop", frozenset({WINDOWS}),
+        "Windows 私有桌面、受限令牌与 CreateProcess Job 属性；其它平台显式 unsupported",
+    ),
     # DPAPI。
     "secretStore": Capability(
         "secretStore",

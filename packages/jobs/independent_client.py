@@ -38,10 +38,12 @@ class IndependentJobClient:
     def execution_events(self): return self._request("GET", "/execution-events")
     def ack_execution(self, event_id):
         return self._request("POST", "/execution-events/" + quote(event_id, safe="") + "/ack", {})
-    def start(self, job): return self._request("POST", "/jobs", job)
+    def start(self, job):
+        raise RuntimeError("410 legacy job creation retired; use submit_execution")
     def get(self, job_id): return self._request("GET", "/jobs/" + quote(job_id, safe=""))
     def list(self): return self._request("GET", "/jobs")
     def cancel(self, job_id): return self._request("POST", "/jobs/" + quote(job_id, safe="") + "/cancel", {})
-    def retry(self, job_id): return self._request("POST", "/jobs/" + quote(job_id, safe="") + "/retry", {})
+    def retry(self, job_id):
+        raise RuntimeError("410 legacy job retry retired; query the original execution")
     def events(self): return self._request("GET", "/events")
     def ack(self, event_id): return self._request("POST", "/events/" + quote(event_id, safe="") + "/ack", {})

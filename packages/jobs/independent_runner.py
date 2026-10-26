@@ -12,7 +12,6 @@ import time
 import traceback
 from packages.jobs.cleanup import CleanupStack, stop_window_guard
 from pathlib import Path
-from ctypes import wintypes
 from packages.jobs.window import windows_creation_flags
 
 
@@ -50,23 +49,6 @@ def _process_group_gone(pgid):
         return False
 
 
-class _STARTUPINFOW(ctypes.Structure):
-    _fields_ = [("cb", wintypes.DWORD), ("lpReserved", wintypes.LPWSTR),
-                ("lpDesktop", wintypes.LPWSTR), ("lpTitle", wintypes.LPWSTR),
-                ("dwX", wintypes.DWORD), ("dwY", wintypes.DWORD),
-                ("dwXSize", wintypes.DWORD), ("dwYSize", wintypes.DWORD),
-                ("dwXCountChars", wintypes.DWORD), ("dwYCountChars", wintypes.DWORD),
-                ("dwFillAttribute", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
-                ("wShowWindow", wintypes.WORD), ("cbReserved2", wintypes.WORD),
-                ("lpReserved2", ctypes.POINTER(ctypes.c_ubyte)),
-                ("hStdInput", wintypes.HANDLE), ("hStdOutput", wintypes.HANDLE),
-                ("hStdError", wintypes.HANDLE)]
-
-
-class _PROCESS_INFORMATION(ctypes.Structure):
-    _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE),
-                ("dwProcessId", wintypes.DWORD), ("dwThreadId", wintypes.DWORD)]
-
 
 def _owned_job_empty(guard, timeout=.5):
     """Allow kernel accounting to settle after root exit, never infer empty.
@@ -99,6 +81,8 @@ def _run_windows_task(root, job_id, claim, payload, env, log_path):
 
 def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, desktop):
     import msvcrt
+    from ctypes import wintypes
+    from packages.core.platform.process_structs_win import _STARTUPINFOW, _PROCESS_INFORMATION
     from packages.jobs.owned_process import job_startup_info, EXTENDED_STARTUPINFO_PRESENT
     from packages.core.terminal.guard import JobObjectGuard
     from packages.core.terminal.identity import read_creation_filetime, wait_state, informational_exit_code, ProcessStatus, close_handle_checked

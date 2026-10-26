@@ -203,9 +203,8 @@ def test_runner_persists_unknown_and_diagnostics_on_cleanup_failure(tmp_path, mo
     from packages.jobs.window_guard import OwnedWindowGuard
     store = JobStore(tmp_path / 'store')
     # Run the real one-shot entry in this test process, with no detached harness runner.
-    with monkeypatch.context() as patch:
-        patch.setattr(runner.subprocess, 'Popen', lambda *args, **kwargs: None)
-        job = store.create({'name': 'Validate owned process cleanup', 'argv': [sys.executable, '-c', 'pass'], 'cwd': str(tmp_path), 'targetSessionId': 'owned'})
+    from tests.helpers.legacy_process_fixture import historical_process
+    job = historical_process(store.root, [sys.executable, '-c', 'pass'], tmp_path, launch=False)
     original = OwnedWindowGuard.stop
     def stop(self):
         original(self)

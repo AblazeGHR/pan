@@ -1,9 +1,8 @@
 """Durable lifecycle supervisor for the Pan main service.
 
-The durable Job state remains here, but all Windows process work is delegated
-to :mod:`packages.core.launcher`.  There is no stop/start batch-script hop:
-the supervisor invokes the same verified Python launcher primitives used by
-the one-click entry point.
+Canonical state lives in the independent execution receipt store. Protected
+Windows stop/start uses the verified launcher primitives. Legacy supervisor
+names are retained as read-only compatibility entry points until R6.
 """
 from __future__ import annotations
 
@@ -15,7 +14,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from packages.core import background_jobs
 from packages.core import launcher
 
 # The launcher waits for the API and may also start the optional tunnel. Keep
@@ -30,13 +28,19 @@ class ProtectedLifecycleExecutor:
     ``authorize`` is a trusted host callback, never a Job-supplied flag. It
     rechecks privilege and returns the canonical scope with stepCount=1,
     jobId/runId/stepId/operation/root/port. WP06 owns transport authorization.
-    Old POST/CLI callers and their legacy writers remain unchanged until R4.
+    Legacy supervisor entry points are read-only; product transports use this port.
     """
 
     def __init__(self, *, job_id, store, authorize, launch=None):
         from packages.jobs.independent_executor import launch_execution
         self.job_id, self.store, self.authorize = job_id, store, authorize
         self.launch = launch or launch_execution
+
+    async def lookup_receipt(self, *, attempt, effect_key):
+        """Recover the original operation while the main service is offline."""
+        from packages.jobs.independent_executor import ExecutionHost, IndependentExecutor
+        return await IndependentExecutor(job_id=self.job_id, client=ExecutionHost(self.store)).lookup_receipt(
+            attempt=attempt, effect_key=effect_key)
 
     async def execute(self, *, attempt, effect_key, frozen_plan, retry=False):
         from packages.actions.typed_executor import EffectReceipt
@@ -180,141 +184,26 @@ def ready_checks(*, root: str, port: int, old_pid: int | None,
     return result
 
 
-def _fail(job_id: str, phase: str, message: str, registry_root: str | None = None) -> int:
-    try:
-        background_jobs.transition_service_job(job_id, phase, registry_root=registry_root, error=message)
-    except Exception:
-        # The original exception/exit code is still returned to the detached
-        # caller; do not hide a stop/start failure behind a registry write.
-        pass
-    return 1
-
-
-class _ServiceStopFailure(RuntimeError):
-    def __init__(self, phase: str, message: str):
-        super().__init__(message)
-        self.phase = phase
-
-
-def _stop_service(*, job_id: str, root_path: Path, port: int, old_pid: int | None,
-                  old_pid_created_at: float | None, log_path: str | None,
-                  phase: str, require_verified_identity: bool,
-                  registry_root: str | None) -> None:
-    """Run the shared old-service stop stage for Exit and Restart.
-
-    The caller owns the operation-specific phases before and after this
-    helper.  In particular, this helper never changes Worker state and never
-    starts a service; it only verifies and stops the current Pan service.
-    """
-    if require_verified_identity:
-        if not old_pid or old_pid_created_at is None:
-            raise _ServiceStopFailure("failed", "current service identity could not be verified")
-        if not service_process_identity(old_pid, str(root_path), old_pid_created_at)["ok"]:
-            raise _ServiceStopFailure("failed", "current service identity could not be verified")
-    elif old_pid and not service_process_identity(
-            old_pid, str(root_path), old_pid_created_at)["ok"]:
-        raise _ServiceStopFailure("failed", "old service identity could not be verified")
-
-    background_jobs.transition_service_job(job_id, phase, registry_root=registry_root)
-    try:
-        result = launcher.stop_service(
-            root_path, port, old_pid, old_pid_created_at,
-            log_path=Path(log_path) if log_path else None,
-            require_identity=require_verified_identity,
-        )
-    except launcher.LauncherError as exc:
-        message = str(exc)
-        phase_name = "timed_out" if "timeout" in message.lower() or "remained" in message.lower() else "failed"
-        raise _ServiceStopFailure(phase_name, message) from exc
-    if not result.get("stopped"):
-        raise _ServiceStopFailure("failed", "Pan launcher did not confirm service stop")
+def legacy_status(job_id: str, registry_root: str | None = None):
+    """Read the original historical lifecycle record without advancing it."""
+    from packages.core import background_jobs
+    return background_jobs.get(job_id, registry_root)
 
 
 def run_exit_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
                         old_pid_created_at: float | None = None,
                         registry_root: str | None = None) -> int:
-    """Stop one verified Pan service and persist the legal offline terminal state."""
-    root_path = Path(root).expanduser().resolve()
-    job = background_jobs.get(job_id, registry_root) or {}
-    log_path = job.get("logPath")
-    try:
-        old_pid = old_pid if old_pid is not None else job.get("oldPid")
-        old_pid_created_at = (
-            old_pid_created_at if old_pid_created_at is not None
-            else job.get("oldPidCreatedAt")
-        )
-        _stop_service(
-            job_id=job_id, root_path=root_path, port=port, old_pid=old_pid,
-            old_pid_created_at=old_pid_created_at, log_path=log_path,
-            phase="stopping_service", require_verified_identity=True,
-            registry_root=registry_root,
-        )
-        background_jobs.transition_service_job(
-            job_id, "offline", registry_root=registry_root,
-            # The service being offline does not imply that the whole Exit
-            # Job succeeded.  transition_service_job deliberately preserves
-            # any Worker/step error already recorded on the Job.
-            oldPid=old_pid, oldPidCreatedAt=old_pid_created_at,
-        )
-        return 0
-    except _ServiceStopFailure as exc:
-        return _fail(job_id, exc.phase, str(exc), registry_root)
-    except Exception as exc:
-        return _fail(job_id, "failed", str(exc), registry_root)
+    """Retired entry point; 1 signals refusal, even for completed records."""
+    legacy_status(job_id, registry_root)
+    return 1
 
 
 def run_supervisor(job_id: str, root: str, port: int, old_pid: int | None = None,
                    old_pid_created_at: float | None = None,
                    registry_root: str | None = None) -> int:
-    """Run the durable requested -> stopping -> ... -> ready sequence."""
-    root_path = Path(root).expanduser().resolve()
-    job = background_jobs.get(job_id, registry_root) or {}
-    # Operation and options are deliberately read from the durable Job here;
-    # the detached process must not depend on request-process memory or on a
-    # future caller re-supplying policy arguments.  Phase one has no active
-    # options, but validating the persisted shape keeps the boundary explicit.
-    persisted_options = job.get("options", {})
-    if not isinstance(persisted_options, dict):
-        return _fail(job_id, "failed", "persisted lifecycle options are invalid", registry_root)
-    if job.get("operation") == "exit":
-        return run_exit_supervisor(
-            job_id, root, port, old_pid, old_pid_created_at, registry_root,
-        )
-    log_path = job.get("logPath")
-    try:
-        _stop_service(
-            job_id=job_id, root_path=root_path, port=port, old_pid=old_pid,
-            old_pid_created_at=old_pid_created_at, log_path=log_path,
-            phase="stopping", require_verified_identity=False,
-            registry_root=registry_root,
-        )
-        background_jobs.transition_service_job(job_id, "stopped", registry_root=registry_root)
-        background_jobs.transition_service_job(job_id, "starting", registry_root=registry_root)
-        launcher.start_service(
-            # Keep the historical 30-second launcher readiness barrier; the
-            # larger supervisor budget below covers durable phase polling.
-            root_path, timeout=launcher.READY_TIMEOUT_SEC,
-            log_path=Path(log_path) if log_path else None,
-        )
-        deadline = time.monotonic() + START_TIMEOUT_SEC
-        last_error = "new service did not become ready"
-        while time.monotonic() < deadline:
-            checks = ready_checks(root=str(root_path), port=port, old_pid=old_pid,
-                                  old_pid_created_at=old_pid_created_at)
-            if checks["ok"]:
-                background_jobs.transition_service_job(
-                    job_id, "ready", registry_root=registry_root,
-                    newPid=checks["newPid"],
-                    newPidCreatedAt=checks["newPidCreatedAt"], error=None,
-                )
-                return 0
-            last_error = str(checks.get("error") or last_error)
-            time.sleep(READY_POLL_SEC)
-        return _fail(job_id, "timed_out", last_error, registry_root)
-    except _ServiceStopFailure as exc:
-        return _fail(job_id, exc.phase, str(exc), registry_root)
-    except Exception as exc:
-        return _fail(job_id, "failed", str(exc), registry_root)
+    """Retained CLI/import compatibility, with no lifecycle write or effect."""
+    legacy_status(job_id, registry_root)
+    return 1
 
 
 def main() -> int:
@@ -329,6 +218,8 @@ def main() -> int:
     args = parser.parse_args()
     if not args.supervise:
         parser.error("--supervise is required")
+    import sys
+    print("legacy_lifecycle_retired: query the original operation; use the protected canonical executor", file=sys.stderr)
     return run_supervisor(args.job_id, args.root, args.port, args.old_pid,
                           args.old_pid_created_at, args.registry_root)
 

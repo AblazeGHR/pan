@@ -297,6 +297,13 @@ class TypedExecutor:
                 and frozen_plan.get("effect") != "high_risk" and self.independent_executor is not None):
             return await self.independent_executor.execute(attempt=attempt, effect_key=key, frozen_plan=frozen_plan, retry=retry)
 
+        # Persist before the first provider await. If the effect completes but
+        # terminal persistence crashes, the original unknown intent prevents
+        # another host from interpreting a missing receipt as permission to send.
+        # Cross-host admission still belongs to the canonical Attempt claim.
+        self._store(key, EffectReceipt(key, "unknown", {
+            "code": "effect_unconfirmed", "attempt": copy.deepcopy(dict(attempt_map))
+        }).as_dict())
         try:
             plan = _mapping(frozen_plan, "frozenPlan")
             operation = plan.get("operation") or plan.get("executor") or plan.get("kind")
@@ -345,14 +352,17 @@ class TypedExecutor:
                 return EffectReceipt(dict(key), "rejected", {"code": "capability_unsupported", "message": str(exc) or "ProcessOwner unavailable"}).as_dict()
         arguments = plan.get("arguments") if isinstance(plan.get("arguments"), Mapping) else plan
         argv = arguments.get("argv")
-        if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv) or not argv[0]:
+        if (not isinstance(argv, list) or not argv or not argv[0]
+                or any(not isinstance(item, str) or "\x00" in item for item in argv)):
             raise contracts.ContractError("invalid_schema", "argv must be a non-empty array of strings", path="argv")
         cwd = _non_empty_string(arguments.get("cwd"), "cwd")
-        if not Path(cwd).is_dir():
+        if not Path(cwd).is_absolute() or not Path(cwd).is_dir():
             raise contracts.ContractError("invalid_schema", "cwd must be an existing directory", path="cwd")
         hide_window = arguments.get("hideWindow", arguments.get("hide_window", True))
         if not isinstance(hide_window, bool):
             raise contracts.ContractError("invalid_schema", "hideWindow must be boolean", path="hideWindow")
+        if arguments.get("shell", False) is not False or "command" in arguments:
+            raise contracts.ContractError("invalid_schema", "Process effects require argv without a shell", path="argv")
         handle: Any = None
         identity: Mapping[str, Any] | None = None
         cleanup: dict[str, Any] = {"confirmed": False, "remaining": []}
@@ -363,24 +373,30 @@ class TypedExecutor:
             waited = await _invoke(self.process_owner.wait, handle, timeout=self.process_timeout)
             if getattr(waited, "timed_out", False) or not getattr(waited, "exited", True):
                 terminated = await _invoke(self.process_owner.terminate, handle, grace=self.terminate_grace)
+                tree = await _invoke(self.process_owner.kill_tree, handle, timeout=self.terminate_grace)
                 cleanup = {
-                    "confirmed": bool(getattr(terminated, "remaining", ()) == () and getattr(terminated, "exited", False)),
-                    "treeTerminated": bool(getattr(terminated, "remaining", ()) == ()),
-                    "remaining": list(getattr(terminated, "remaining", ()) or ()),
+                    "confirmed": tree.confirmed is True and getattr(terminated, "exited", False) is True,
+                    "treeTerminated": tree.confirmed is True,
+                    "remaining": list(tree.remaining),
+                    "ownedTree": tree.as_dict(),
                     "reason": "timeout",
                 }
                 outcome = "rejected" if cleanup["confirmed"] else "unknown"
                 receipt = {"code": "timeout", "exitCode": getattr(terminated, "exit_code", None), "processIdentity": copy.deepcopy(identity)}
                 result = EffectReceipt(dict(key), outcome, receipt, cleanup).as_dict()
             else:
+                # The retained owner handle proves the whole tree. A dead root
+                # or a fresh PID lookup alone cannot establish cleanup.
+                tree = await _invoke(self.process_owner.kill_tree, handle, timeout=self.terminate_grace)
                 check = await _invoke(self.process_owner.verify, identity)
-                status_value = getattr(getattr(check, "status", None), "value", getattr(check, "status", None))
-                identity_verified = getattr(check, "ours", None) is True
+                identity_verified = (getattr(check, "ours", None) is True
+                                     or (waited.exited is True and tree.confirmed is True))
                 cleanup = {
-                    "confirmed": status_value == "dead" and identity_verified,
+                    "confirmed": waited.exited is True and tree.confirmed is True and identity_verified,
                     "identityVerified": identity_verified,
-                    "treeTerminated": status_value == "dead" and identity_verified,
-                    "remaining": [],
+                    "treeTerminated": tree.confirmed is True,
+                    "remaining": list(tree.remaining),
+                    "ownedTree": tree.as_dict(),
                 }
                 code = getattr(waited, "exit_code", None)
                 outcome = "succeeded" if code == 0 and cleanup["confirmed"] else "rejected" if code not in (None, 0) and cleanup["confirmed"] else "unknown"
@@ -392,6 +408,12 @@ class TypedExecutor:
             result = EffectReceipt(dict(key), "unknown", {"code": "process_exception", "message": str(exc) or type(exc).__name__, "processIdentity": copy.deepcopy(identity) if identity else None}, cleanup).as_dict()
         finally:
             if handle is not None:
+                if cleanup.get("confirmed") is not True and "ownedTree" not in cleanup:
+                    try:
+                        tree = await _invoke(self.process_owner.kill_tree, handle, timeout=self.terminate_grace)
+                        cleanup.update(ownedTree=tree.as_dict(), remaining=list(tree.remaining))
+                    except Exception as exc:
+                        cleanup["treeError"] = str(exc) or type(exc).__name__
                 try:
                     await _invoke(handle.close)
                 except Exception:

@@ -34,6 +34,10 @@ class FakeOwner:
     def verify(self, _identity):
         return SimpleNamespace(status="dead", ours=True)
 
+    def kill_tree(self, _handle, *, timeout):
+        from packages.core.platform.process import TreeTerminationResult
+        return TreeTerminationResult((7,), (), True)
+
 
 class SessionProvider:
     def __init__(self, statuses):
@@ -137,4 +141,106 @@ def test_invalid_qq_identity_is_rejected_before_provider_call():
             frozen_plan={"operation": "channel", "action": {"api": "send_qq", "args": {"targetType": "user", "targetId": "bad"}}, "text": "x"},
         ))
     assert exc.value.code == "invalid_schema"
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize("remaining,confirmed", [((9,), False), ((), False)])
+def test_r5_root_exit_without_owned_tree_proof_is_unknown(tmp_path, remaining, confirmed):
+    from packages.core.platform.process import TreeTerminationResult
+    class Unconfirmed(FakeOwner):
+        def kill_tree(self, handle, *, timeout): return TreeTerminationResult((7, 9), remaining, confirmed)
+    owner = Unconfirmed()
+    executor = TypedExecutor(process_owner=owner)
+    args = dict(attempt=attempt(), effect_key=key(), frozen_plan={"operation": "process", "argv": ["tool"], "cwd": str(tmp_path)})
+    first = run(executor.execute(**args))
+    second = run(executor.execute(**args, retry=True))
+    assert first == second and first["outcome"] == "unknown" and len(owner.calls) == 1
+    assert first["cleanupProof"]["confirmed"] is False
+
+
+def test_r5_cleanup_close_failure_cannot_be_success_or_retry(tmp_path):
+    class CloseFailure(FakeOwner):
+        def spawn(self, argv, **kwargs):
+            self.calls.append(argv)
+            def close(): raise OSError("close unconfirmed")
+            return SimpleNamespace(close=close)
+    owner = CloseFailure()
+    executor = TypedExecutor(process_owner=owner)
+    args = dict(attempt=attempt(), effect_key=key(), frozen_plan={"operation": "process", "argv": ["tool"], "cwd": str(tmp_path)})
+    first = run(executor.execute(**args))
+    assert first["outcome"] == "unknown" and first["cleanupProof"]["closeError"] is True
+    assert run(executor.execute(**args, retry=True)) == first and len(owner.calls) == 1
+
+
+@pytest.mark.parametrize("changes", [{"shell": True}, {"command": "echo unsafe"}, {"argv": ["tool", "bad\x00arg"]}, {"cwd": "."}])
+def test_r5_invalid_process_plan_is_refused_before_spawn(tmp_path, changes):
+    owner = FakeOwner()
+    with pytest.raises(ContractError):
+        run(TypedExecutor(process_owner=owner).execute(attempt=attempt(), effect_key=key(),
+            frozen_plan={"operation": "process", "argv": ["tool"], "cwd": str(tmp_path), **changes}))
+    assert owner.calls == []
+
+
+@pytest.mark.parametrize("statuses,outcome", [({"s": "unknown"}, "unknown"), ({"s": "queued", "t": "unknown"}, "partial")])
+def test_r5_system_typed_port_reuses_unknown_partial_receipts(statuses, outcome):
+    from packages.jobs.system_actions import execute_typed
+    provider = SessionProvider(statuses)
+    executor = TypedExecutor(session_provider=provider)
+    args = dict(attempt=attempt(), effect_key=key(), frozen_plan={"operation": "session-broadcast", "sessionIds": list(statuses), "text": "one"})
+    first = run(execute_typed(**args, executor=executor))
+    assert first["outcome"] == outcome
+    assert run(execute_typed(**args, executor=executor, retry=True)) == first
+    assert len(provider.calls) == len(statuses)
+    with pytest.raises(ValueError, match="reusable"):
+        run(execute_typed(**args, session_provider=provider))
+
+
+
+def test_r5_terminal_persistence_crash_retains_unknown_intent_without_resend():
+    class Store(InMemoryReceiptStore):
+        def put(self, key, receipt):
+            if receipt["outcome"] != "unknown": raise OSError("terminal receipt commit crashed")
+            super().put(key, receipt)
+    store = Store()
+    first, later = SessionProvider({"s": "queued"}), SessionProvider({"s": "queued"})
+    args = dict(attempt=attempt(), effect_key=key(), frozen_plan={"operation": "session-message", "sessionId": "s", "text": "once"})
+    failed = run(TypedExecutor(session_provider=first, receipt_store=store).execute(**args))
+    assert failed["outcome"] == "unknown" and failed["receipt"]["code"] == "receipt_persist_failed"
+    recovered = run(TypedExecutor(session_provider=later, receipt_store=store).execute(**args, retry=True))
+    assert recovered["outcome"] == "unknown" and len(first.calls) == 1 and later.calls == []
+
+
+def test_r5_failed_intent_persistence_prevents_provider_call():
+    class Store(InMemoryReceiptStore):
+        def put(self, *args): raise OSError("intent commit failed")
+    provider = SessionProvider({"s": "queued"})
+    with pytest.raises(OSError, match="intent commit"):
+        run(TypedExecutor(session_provider=provider, receipt_store=Store()).execute(attempt=attempt(), effect_key=key(),
+            frozen_plan={"operation": "session-message", "sessionId": "s", "text": "once"}))
+    assert provider.calls == []
+
+
+def test_r5_concurrent_same_effect_does_not_send_twice():
+    class Blocking(SessionProvider):
+        async def send_session(self, session_id, text, **kwargs):
+            result = await super().send_session(session_id, text, **kwargs)
+            await asyncio.sleep(.01)
+            return result
+    async def exercise():
+        provider = Blocking({"s": "queued"})
+        executor = TypedExecutor(session_provider=provider)
+        args = dict(attempt=attempt(), effect_key=key(), frozen_plan={"operation": "session-message", "sessionId": "s", "text": "once"})
+        receipts = await asyncio.gather(executor.execute(**args), executor.execute(**args))
+        assert len(provider.calls) == 1 and {item["outcome"] for item in receipts} == {"unknown", "succeeded"}
+    run(exercise())
+
+
+
+def test_r5_unrelated_receipt_host_cannot_authorize_ephemeral_message_executor():
+    from packages.jobs.system_actions import execute_typed
+    provider = SessionProvider({"s": "queued"})
+    with pytest.raises(ValueError, match="reusable"):
+        run(execute_typed(attempt=attempt(), effect_key=key(),
+            frozen_plan={"operation": "session-message", "sessionId": "s", "text": "once"},
+            independent_executor=object(), session_provider=provider))
     assert provider.calls == []

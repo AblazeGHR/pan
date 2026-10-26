@@ -44,6 +44,7 @@ EXPECTED_CAPABILITIES = (
     "rewind",
     "service.lifecycle",
     "processOwner",
+    "process.hiddenDesktop",
     "secretStore",
 )
 

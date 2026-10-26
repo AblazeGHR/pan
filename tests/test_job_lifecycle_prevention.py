@@ -7,6 +7,7 @@ import pytest
 import site
 from packages.core import background_jobs as legacy
 from packages.jobs.independent_service import JobStore, ServiceError
+from tests.helpers.legacy_process_fixture import historical_process
 from packages.core.terminal.identity import read_creation_filetime, wait_state, ProcessStatus, close_handle_checked
 pytestmark=pytest.mark.skipif(os.name!='nt',reason='Windows kernel Job lifecycle')
 
@@ -80,7 +81,7 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
  monkeypatch.setattr(subprocess,'Popen',spawn)
  argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
  store=JobStore(root) if kind=='independent' else None
- job=store.create({'name':'Validate owned lifecycle','argv':argv,'cwd':str(tmp_path),'targetSessionId':'owned'}) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+ job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
  child=None; inner=None; runner=runners[0];runner_ft=read_creation_filetime(int(runner._handle))
  try:
   assert until(gate.exists)
@@ -102,7 +103,7 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
   if store:
    restarted=JobStore(root);restarted.recover();fact=restarted.get(job['jobId'])
    assert fact['status']=='UNKNOWN'
-   with pytest.raises(ServiceError,match='UNKNOWN'):restarted.retry(job['jobId'])
+   with pytest.raises(ServiceError,match='retired'):restarted.retry(job['jobId'])
    from packages.jobs.independent_runner import run
    assert run(root,job['jobId'])==3
   else:
@@ -152,7 +153,7 @@ def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monke
     monkeypatch.setattr(subprocess, 'Popen', spawn)
     argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
     store = JobStore(root) if kind == 'independent' else None
-    job = (store.create({'name':'Validate owned lifecycle','argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned'})
+    job = (historical_process(root, argv, tmp_path)
            if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
     runner = runners[0]
     runner_ft = read_creation_filetime(int(runner._handle))
@@ -177,7 +178,7 @@ def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monke
         assert fact['status'] == expected, fact
         if store:
             store.recover()
-            with pytest.raises(ServiceError, match='UNKNOWN'): store.retry(job['jobId'])
+            with pytest.raises(ServiceError, match='retired'): store.retry(job['jobId'])
         else:
             assert legacy.reconcile_running(root) == 0
         text = Path(fact['logPath']).read_text(encoding='utf8')
