@@ -102,7 +102,7 @@ def test_old_stores_are_readable_and_all_new_writes_refused(h, tmp_path):
                 ledger.mutate(lambda state: state.clear())
             with pytest.raises(ServiceError) as exc:
                 independent.create({})
-            assert exc.value.status == 409
+            assert exc.value.status == 410
             with pytest.raises(ServiceError):
                 independent.retry("job_missing")
             with pytest.raises(fc.ContractError):
