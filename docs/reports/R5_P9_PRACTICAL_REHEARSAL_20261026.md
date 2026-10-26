@@ -101,4 +101,14 @@ partial-preserve-apply: blocked, unverified_authority: missing reviewed record <
 
 最后一项是预期的真实阻断：没有获得可验证的实际 owner/authorization/context，不能把 51 个 simple 形状候选伪造成可导入。它不再因为 59 complex + 1 unknown 而拒绝整个 partial plan，而是在第一项真实授权缺失处停止；目标文件不存在，未产生任何 canonical ID。合成 partial apply 已证明 6 个 selected simple 进入 bundle、2 个 complex/unknown 原 bytes 进入 historical preserve，重复 apply 不重复，失败 replace 保留旧完整包，unknown 不执行/不重投；allowlist 和变化文件重试也有测试。
 
-P9B 新增 10 个测试，当前组合回归为 **251 passed、1 skipped、0 failed、0 errors**；原先的 241 个测试全部保持通过，唯一 skip 是 Windows 当前用户没有创建 symlink 的权限，并在测试中显式记录。新增内容没有 build、HTTP、8768、服务或真实 runtime activation。这个 SHA 可作为“快照范围/partial policy 的实现证据”，不能作为 R6 迁移完成依据；R6 仍被实际 authorization/fence、simple 集合正式导入、complex/unknown legacy 保留、independent 根外历史和全量 activeLegacy 证明阻断。
+P9B 新增通过 13 项，当前组合回归为 **254 passed、1 skipped、0 failed、0 errors，退出码 0**（57.71s，1 条既有 deprecation warning）；原先的 241 个测试全部保持通过。唯一 skip 是 Windows 当前用户没有创建 symlink 的权限，并在测试中显式记录；allowlist/cache/锁排除已拆成独立通过项，不因该 skip 而漏测。拒读文件按次数重试后必须阻断，SQLite rollback journal 存在时也必须阻断，不可静默丢弃。新增内容没有 build、HTTP、8767/8768、服务或真实 runtime activation。这个 SHA 可作为“快照范围/partial policy 的实现证据”，不能作为 R6 迁移完成依据；R6 仍被实际 authorization/fence、simple 集合正式导入、complex/unknown legacy 保留、independent 根外历史和全量 activeLegacy 证明阻断。
+
+本轮私有证据目录是 `.validation/p9b-private-20261026-v2/`；原 P9 及首次 SQLite handle 失败证据保持原样。对该目录的 `source-copy` 重新逐文件复核：**1,971 files / 723,823,286 bytes，missing=0、extra=0、mismatch=0**，不重开真实源。SQLite 比较对象是已校验 backup，不把 backup 的物理文件 SHA 冒充源 DB 的物理 SHA；manifest 另列 rawSourceSha256。快照 manifest SHA-256 为 `b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5`。
+
+当前 bounded 副本观察到 Sessions=139、history=65,304、Event DB events=707、Actions=5、Agent Locker=16/1,795 messages、Runs ledger=15。与早先 P9 的 137/65,033/687 不同，代表读取批次间实际 profile 已变化，不是 canonical 前后差异。各类格式、关键字段 digest、文件/记录 SHA 在 `audit-summary.json`、`record-index.jsonl` 和 `snapshot-manifest.json` 中。本轮跨 store 一致性、源库整体停写点仍未证明。
+
+`remaining-legacy-by-id.json` 明确列出全部 **111 个仍保留的原身份：51 simple 缺 reviewed authorization context、59 complex、1 unknown**，每项附路径、原 SHA、分类、原因和空 targetIds；complex/unknown 的细分原因另见 `blockers.json`。清单 SHA-256 为 `deafc00de451a103b1a92d0594ea807446a4b0ebf8e0954421ad8d51ecb62a23`。这里的“仍保留”指副本中记录存在；真实进程活动没有探测，不能把 14 条 active_resource 拒绝原因解释为当前实际运行 14 条。实际导入集合为空，不能以空集对照宣称 activeLegacy 清零、原键结算或历史导入成功。
+
+剩余门禁具体为：① 51 simple 的逐条 current authority、固定 Action/provider、old owner/fence 与 retention/notification 上下文尚缺，partial 实际停在首个 missing reviewed record，尚未逐项触达后续引用检查；② 59 complex + 1 unknown 的 legacy 身份尚未退役，原 bytes 保留没有替代迁移；③ Sessions/Locker/通知/根外 independent 的正式可读与结算路径尚未通过 actual import 验证；④ 只有 per-file/SQLite group 稳定，未建立应用整体一致性。实际 canonical imported=0、active_ids=[]、target 不存在。不能将工具合成数据上的 import/restart/rollback 测试用于填补这些实际证据。
+
+公开脱敏入口为 [`p9b-summary.json`](../../evidence/r5-p9-20261026/p9b-summary.json)，固定实现提交 `d195dcc60171ba108b3b9a87333afbf4b8a76616`，包含 18 个私有工件 SHA、完整测试命令与 JUnit 计数。新快照/审计/副本复核的可复现命令见 [`README.md`](../../scripts/job_final_migration/README.md#p9b-partial-preserve)。本报告及所有 private 清单不构成生产迁移完成、R6 放行或源 owner 停写的证明。

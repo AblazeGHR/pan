@@ -1,7 +1,7 @@
 {
   "schema": "pan.r5-p9b.rehearsal-evidence/v1",
   "result": "BLOCKED",
-  "scope": "bounded allowlisted practical-data rehearsal; no source writes, services, 8768 or push",
+  "scope": "bounded allowlisted practical-data rehearsal; no source writes, services, 8767/8768, build or push",
   "snapshot": {
     "followlinks": false,
     "capturedFiles": 1971,
@@ -38,11 +38,22 @@
   },
   "tests": {
     "originalRegressionPassed": 241,
-    "newP9BPassed": 10,
-    "totalPassed": 251,
+    "newP9BPassed": 13,
+    "totalPassed": 254,
     "skipped": 1,
     "failed": 0,
-    "errors": 0
+    "errors": 0,
+    "exitCode": 0,
+    "warnings": 1,
+    "elapsedSeconds": 57.71,
+    "skipReason": "Windows symlink creation denied; allowlist/cache/lock exclusion tested separately",
+    "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_migration_apply.py tests/test_job_final_migration.py tests/test_job_final_contracts.py tests/test_job_runtime_owner.py tests/test_job_inbox_migration_drill.py tests/test_job_runtime_registry.py tests/test_p9_practical_rehearsal.py tests/test_job_final_migration_partial.py -q -o addopts= --tb=short --junitxml=.validation/p9b-private-20261026-v2/final.xml",
+    "junit": {
+      "tests": 255,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    }
   },
   "unverified": [
     "real owner fencing and authorization evidence",
@@ -52,5 +63,83 @@
     "external independent history roots",
     "deployment, remote CI, browser, HTTP, provider effects"
   ],
-  "implementationCommit": "84d7a09a2fc244382d905184ba6cbf7bc1412b2e"
+  "implementationCommit": "d195dcc60171ba108b3b9a87333afbf4b8a76616",
+  "initialImplementationCommit": "84d7a09a21324ef14b207a1b6d4e019c95b917f9",
+  "privateEvidenceDirectory": ".validation/p9b-private-20261026-v2",
+  "remainingLegacy": {
+    "recordCount": 111,
+    "classificationCounts": {
+      "complex": 59,
+      "simple": 51,
+      "unknown": 1
+    },
+    "perIdManifest": "remaining-legacy-by-id.json",
+    "runtimeActivity": "not-probed",
+    "fullActiveLegacyZeroProven": false
+  },
+  "observedCategoryCounts": {
+    "actions": 5,
+    "locker:lockers": 16,
+    "locker:messages": 1795,
+    "locker:sqlite_sequence": 2,
+    "locker:origins": 1795,
+    "locker:migrations": 11,
+    "metadata:automation": 2,
+    "sqlite:events": 707,
+    "sqlite:sqlite_sequence": 1,
+    "retention-marker": 1,
+    "job:background-process": 102,
+    "job:main-lifecycle": 5,
+    "job:session-message": 4,
+    "metadata:background_jobs": 1,
+    "runs-ledger": 15,
+    "metadata:session-bookmarks": 4,
+    "session-pins": 1,
+    "session-history": 65304,
+    "sessions": 139,
+    "locker:cards": 14,
+    "locker:user_lockers": 4,
+    "locker:owner_receipts": 4,
+    "locker:tombstones": 4,
+    "locker:rejection_outbox": 2,
+    "locker:response_outbox": 10,
+    "locker:user_cards": 3,
+    "locker:user_card_deleted": 1,
+    "locker:user_card_reminders": 1,
+    "locker:user_card_settings": 1
+  },
+  "copyVerification": {
+    "verifiedFiles": 1971,
+    "verifiedBytes": 723823286,
+    "mismatches": [],
+    "extraFiles": [],
+    "missingFiles": [],
+    "retainedLinks": 0,
+    "changedDuringRead": 0,
+    "changedAcrossResume": 0,
+    "sourceReopenedForComparison": false,
+    "canonicalRecordsImported": 0,
+    "recordComparison": "all archived bytes, IDs and fields identical if mismatches/missing/extra are empty; canonical import blocked"
+  },
+  "privateArtifactSha256": {
+    "snapshot-manifest.json": "b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5",
+    "snapshot-summary.json": "23fca0d3a479c70365c0006a99c784de3ac1897cc3b53167360c8a3c02b25657",
+    "old-change-retries.json": "82ab7f9ed20d3e8649edf9b749b103cc5f52b234993c7bb7f5ea8aabc299a3a1",
+    "wp08-inventory.json": "14fb5302bbbc408c1b5b6e8f5da7066596e276dd1e5342e6555b362b699c0ebc",
+    "record-index.jsonl": "96b56e567009c7c14371dc1d0f2cae1cf7ed89a0021f46491763d6bdd84c3332",
+    "references.json": "59e50e21e3eb7362a170c0a272d4b8e7ea6eb295d832efc3ad9ed40bcfc9e68b",
+    "object-identities.json": "61dc8c5c84fda056df0b5bcd66604cb96aac558fa9eeb39c1390314c1f9fd5fa",
+    "sqlite-inventory.json": "8e5100cfc61db0ec381f4bfc3d66e6e62b5cdff37b4548bd1a4143ee93c45461",
+    "blockers.json": "ce684b2baf714c9d967e1292f3dc0f4df6587900e6a34695ccad1f06b61758cf",
+    "remaining-legacy-by-id.json": "deafc00de451a103b1a92d0594ea807446a4b0ebf8e0954421ad8d51ecb62a23",
+    "unapproved-context.json": "dc30d37be82e6be9acae1aaf84d03ba15601e573980bcd6cf537464d82a55d26",
+    "apply-attempts.json": "2a9ee250c85d48b171c042df8b26be4a2928920bac5a6fd8873e8957721f1176",
+    "audit-summary.json": "75a119da8e770e21f562a6a6bbfc60530a450e41da6a7601aad9acd9da9215c6",
+    "preservation-bundle-manifest.json": "2cbd6a5a77a763b6caa089ffb934fbb03174a6ddb18de3f1be6545defa635972",
+    "before-after-comparison.json": "0c12401b4bcb829c93e249c1df49db125017824800792f8db98c9e49757cb10d",
+    "final.xml": "bf7583d49996bb122f56f3c46c3ad36d07cb9caa0e1557cc7c180aeba193ce40",
+    "final-tests.log": "294f94dea41207bb3beb1cc10704e5eb1290c5a69a21d8d590d5cb62d1110c1f",
+    "final-tests.exit.txt": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+  },
+  "canEstablishR6MigrationCompletion": false
 }
