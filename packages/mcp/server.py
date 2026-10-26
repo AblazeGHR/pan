@@ -3405,6 +3405,44 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
     return _api(method, path, body)
 
 
+# R5 retirement: historical Job writes are no longer discoverable or callable
+# through MCP.  Their tool functions stay defined for R6 source removal; the
+# registrations are withdrawn here so ``tools/list`` and ``tools/call`` agree.
+# Retained on purpose: reads (get/list/runs) and the explicit cancels.  A legacy
+# Job that still owns a Runner process must remain inspectable and cancellable
+# until its owner is drained; an orphaned process is worse than a stale read.
+RETIRED_MCP_TOOLS = (
+    "agent_background_start",
+    "agent_background_retry",
+    "agent_message_job_create",
+    "agent_message_job_update",
+    "scheduler_create",
+    "scheduler_update",
+    "scheduler_delete",
+    "scheduler_pause",
+    "scheduler_resume",
+    "scheduler_run_now",
+)
+RETAINED_LEGACY_MCP_TOOLS = (
+    "agent_background_get",
+    "agent_background_list",
+    "agent_background_cancel",
+    "agent_message_job_get",
+    "agent_message_job_list",
+    "agent_message_job_cancel",
+    "scheduler_list",
+    "scheduler_get",
+    "scheduler_runs",
+)
+for _retired_tool in RETIRED_MCP_TOOLS:
+    mcp.remove_tool(_retired_tool)
+_registered_tools = {tool.name for tool in mcp._tool_manager.list_tools()}
+for _retained_tool in RETAINED_LEGACY_MCP_TOOLS:
+    assert _retained_tool in _registered_tools, f"Retained legacy tool disappeared: {_retained_tool}"
+for _retired_tool in RETIRED_MCP_TOOLS:
+    assert _retired_tool not in _registered_tools, f"Retired tool still discoverable: {_retired_tool}"
+
+
 def main():
     global _pan_api_url, _terminal_transport
     parser = argparse.ArgumentParser(description="Pan MCP Server")

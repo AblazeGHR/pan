@@ -2,7 +2,7 @@
 import asyncio
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
 
 from packages.actions.store import Store
@@ -28,7 +28,13 @@ def _delegated_request(app):
 
 
 @async_test
-async def test_trusted_legacy_http_entry_returns_action_job_in_old_shape(tmp_path, monkeypatch):
+async def test_trusted_legacy_http_entry_is_retired_and_creates_no_job(tmp_path, monkeypatch):
+    """R5: the trusted HTTP entry no longer creates a legacy Action Job.
+
+    The old positive path asserted an old-shaped Job.  Retiring it means the
+    same trusted caller now gets an explicit refusal, and -- the part that
+    matters for safety -- no Job, attempt or process is created by trying.
+    """
     svc, rt, sources = await links_setup(tmp_path)
     rt.authorization = svc.auth.permission_allowed
     app = FastAPI(); app.state.automation = svc
@@ -39,20 +45,16 @@ async def test_trusted_legacy_http_entry_returns_action_job_in_old_shape(tmp_pat
         return {'status': 'completed'}
     monkeypatch.setattr(system_actions, 'execute', complete)
     svc.auth.change_permissions(full_permissions(), 0)
+    before = list(rt.list())
     try:
-        result = await __import__('packages.web.server', fromlist=['api_background_job_start']).api_background_job_start({
-            'targetSessionId': 'ses_target', 'argv': ['python'], 'cwd': str(tmp_path),
-            'name': 'legacy MCP', '_legacyRequestKey': 'retry-key',
-        }, _delegated_request(app))
-        assert result['jobId'].startswith('job_') and result['kind'] == 'background-process'
-        stored = rt.get(result['jobId'])
-        assert stored['action']['actionId'] == 'system_background_process'
-        assert stored['legacyCompat'] == 'background-process'
-        again = await __import__('packages.web.server', fromlist=['api_background_job_start']).api_background_job_start({
-            'targetSessionId': 'ses_target', 'argv': ['python'], 'cwd': str(tmp_path),
-            'name': 'legacy MCP', '_legacyRequestKey': 'retry-key',
-        }, _delegated_request(app))
-        assert again['jobId'] == result['jobId']
+        server = __import__('packages.web.server', fromlist=['_retired_legacy_write'])
+        with pytest.raises(HTTPException) as refused:
+            await server._retired_legacy_write(_delegated_request(app))
+        assert refused.value.status_code == 410
+        assert refused.value.detail['code'] == 'retired'
+        # The retirement is a boundary: it must not have created anything, and
+        # it must not have executed the system action either.
+        assert list(rt.list()) == before
     finally:
         await links_close(svc, rt)
 

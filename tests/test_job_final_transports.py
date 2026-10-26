@@ -291,22 +291,41 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     assert pairs[("POST", "/api/jobs")] == 1
     assert pairs[("POST", "/api/jobs/action-jobs")] == 1
     assert app.openapi()["paths"]["/api/legacy/jobs"]["get"]["deprecated"] is True
-    # R3 hasn't removed the old bridge allowlist.
+    # R5 retires the old writes at the HTTP boundary rather than by rewriting
+    # the trusted bridge: the allowlist keeps its shape, and every effectful old
+    # route answers 410, so a delegated caller cannot write through it.
     assert authorization.object_path("/api/background-jobs")
     assert authorization.object_path("/api/jobs/action-jobs")
+    assert authorization.object_path("/api/jobs")          # canonical
+    assert authorization.object_path("/api/triggers")      # canonical
+    old_writes = {("POST", "/api/jobs/action-jobs"),
+                  ("POST", "/api/jobs/job-templates/{template_id}/instantiate"),
+                  ("POST", "/api/jobs/action-jobs/{job_id}/retry")}
+    retired = {(method, route.path) for route in routes
+               if getattr(route, "endpoint", None) is api.retired_legacy_write
+               for method in route.methods}
+    assert old_writes <= retired
 
 
 @run
-async def test_ft03_legacy_facade_handler_behavior_preserved(tmp_path):
+async def test_ft03_legacy_facade_retires_writes_and_keeps_reads(tmp_path):
     from packages.jobs.api import router as old_router
-    direct, installed = FastAPI(), FastAPI()
-    direct.include_router(old_router)
-    api.install(installed, old_router)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(direct), base_url="http://test") as before:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(installed), base_url="http://test") as after:
-            for method, path, value in [("GET", "/api/jobs/kinds", None), ("GET", "/api/jobs", None),
-                                        ("POST", "/api/jobs", {"kind": "not-supported"})]:
-                old = await before.request(method, path, json=value)
-                new = await after.request(method, path.replace("/api/jobs", "/api/legacy/jobs"), json=value)
-                assert new.status_code == old.status_code
-                assert new.json() == old.json()
+    from packages.jobs.action_api import router as action_router
+    installed = FastAPI()
+    api.install(installed, action_router, old_router)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(installed), base_url="http://test") as after:
+        # Launcher/inventory reads keep their original handler.
+        assert (await after.get("/api/legacy/jobs/kinds")).status_code == 200
+        # Every old mutation refuses before any handler runs.  Without an
+        # authorization provider the boundary fails closed rather than falling
+        # through to the old writer; the authenticated 410 is covered by
+        # test_job_final_http_service and test_job_path_flip.
+        for method, path in (("POST", "/api/legacy/jobs/templates"),
+                             ("DELETE", "/api/legacy/jobs/templates/{id}"),
+                             ("PUT", "/api/legacy/jobs/settings/completed-retention"),
+                             ("POST", "/api/legacy/jobs/action-jobs"),
+                             ("POST", "/api/legacy/jobs/action-jobs/{id}/run-now"),
+                             ("POST", "/api/legacy/jobs/job-templates/{id}/instantiate")):
+            retired = await after.request(method, path, json={"kind": "not-supported"})
+            assert retired.status_code == 503, (path, retired.text)
+            assert retired.json()["detail"]["code"] == "provider_unavailable"

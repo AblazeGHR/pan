@@ -10929,6 +10929,34 @@ async def api_sessions_wake(data: dict):
 
 # ── Durable background jobs ──
 
+# ── R5: retire the pre-canonical durable Job writes ──
+# The old handlers stay defined below for R6 source removal, but they are no
+# longer routed: FastAPI fixes the handler at decoration time, so the boundary
+# has to be installed here rather than patched into the route table later.
+# Reads and the explicit cancel control are deliberately not retired: an old
+# Runner process must stay inspectable and cancellable until its owner drains.
+RETIRED_LEGACY_WRITE = {"code": "retired",
+                        "message": "Legacy Job write entrypoint retired; use the canonical /api API"}
+
+
+async def _retired_legacy_write(request: Request):
+    """Refuse a pre-canonical durable Job mutation after authenticating it.
+
+    Only trusted local MCP could ever reach these writers, so the provenance
+    check runs first and fails closed: an untrusted caller gets 401 instead of
+    falling through to a Runner spawn. A trusted caller then gets the explicit
+    retirement, before any store, process or redelivery is touched.
+    """
+    authorized = await _legacy_mcp_authority(request, "write", action=True)
+    if authorized is None:
+        raise HTTPException(status_code=401,
+                            detail="User Bearer or trusted MCP transport required")
+    raise HTTPException(status_code=410, detail=RETIRED_LEGACY_WRITE)
+
+
+_retired_legacy_write.retirement_boundary = True
+
+
 async def _legacy_mcp_authority(request: Request, capability: str, *, action: bool = False):
     """Authenticate only the private MCP compatibility transport.
 
@@ -10960,7 +10988,6 @@ async def _legacy_action_job(kind: str, fields: dict, request: Request):
             await runtime.launch(job['jobId'], expected=job['configRevision'], authority=auth)
     return legacy_view(await asyncio.to_thread(runtime.get, job['jobId']))
 
-@app.post("/api/background-jobs")
 async def api_background_job_start(data: dict, request: Request = None):
     """Create a durable process Job with independent creator/target fields."""
     target = data.get("targetSessionId")
@@ -11044,7 +11071,6 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/session-message-jobs")
 async def api_session_message_job_start(data: dict, request: Request = None):
     """Create a durable Session message or scheduled broadcast.
 
@@ -11102,7 +11128,6 @@ async def api_session_message_job_start(data: dict, request: Request = None):
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
 
 
-@app.patch("/api/background-jobs/{job_id}")
 async def api_background_job_update(job_id: str, data: dict, request: Request = None):
     try:
         job = background_jobs.get(job_id)
@@ -11147,7 +11172,6 @@ async def api_background_job_update(job_id: str, data: dict, request: Request = 
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/background-jobs/{job_id}/retry")
 async def api_background_job_retry(job_id: str, request: Request = None):
     try:
         old = background_jobs.get(job_id)
@@ -11175,6 +11199,22 @@ async def api_background_job_retry(job_id: str, request: Request = None):
     except ValueError as exc:
         code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+# R5: the durable Job mutations are no longer routed.  The handlers above keep
+# their original names and bodies so the safety work behind them (window policy,
+# PID birth checks, per-target redelivery) stays testable until R6 deletes it;
+# what changed is that no address reaches them.  Registering the boundary as a
+# separate route is deliberate: FastAPI binds the handler at decoration time, so
+# a decorator would keep the old effect alive.
+for _path, _method in (("/api/background-jobs", "POST"),
+                       ("/api/session-message-jobs", "POST"),
+                       ("/api/background-jobs/{job_id}", "PATCH"),
+                       ("/api/background-jobs/{job_id}/retry", "POST")):
+    app.add_api_route(_path, _retired_legacy_write, methods=[_method],
+                      name="retired_legacy_" + _method.lower() + "_" +
+                           _path.strip("/").replace("/", "_").replace("{", "").replace("}", ""),
+                      tags=["retired"], deprecated=True)
 
 
 # ── 定时任务（scheduler 插件） ──

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import re
 import sqlite3
 from typing import Any, Mapping, Protocol
 from urllib.parse import urlsplit
@@ -86,6 +87,51 @@ class CanonicalService(Protocol):
 
 def reject(code, message, *, path=None):
     raise contracts.ContractError(code, message, path=path)
+
+
+RETIRED_MESSAGE = "Legacy write entrypoint retired; use the canonical /api API"
+
+
+async def retired_legacy_write(request: Request):
+    """Authenticate a compatibility caller, then close the old write boundary.
+
+    Authentication runs first so an unknown/revoked caller keeps its original
+    401/403 instead of learning which legacy paths remain.  Nothing below this
+    point reaches an old handler, store, or process.  The contract error is
+    translated here because this boundary is not a canonical ``ContractRoute``
+    and an escaping exception must never surface as a 500.
+    """
+    try:
+        await actor(request)
+    except contracts.ContractError as exc:
+        raise HTTPException(status_code=exc.status,
+                            detail={"code": exc.code, "message": exc.code.replace("_", " ")}) from exc
+    raise HTTPException(status_code=410, detail={"code": "retired", "message": RETIRED_MESSAGE})
+
+
+retired_legacy_write.retirement_boundary = True
+
+
+def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
+    """Whether an old facade route was an effectful write.
+
+    Historical reads and the explicit cancel control stay on the legacy facade
+    until P6 removes the legacy UI: a legacy Job that still owns a process must
+    remain inspectable and cancellable.  Every other old mutation is refused.
+    """
+    if methods <= {"GET", "HEAD", "OPTIONS"}:
+        return False
+    if suffix.endswith("/cancel"):
+        return False
+    return True
+
+
+def _retired_route(target, path, methods):
+    target.router.add_api_route(
+        path, retired_legacy_write, methods=sorted(methods),
+        name="retired_legacy_" + path.strip("/").replace("/", "_").replace("{", "").replace("}", ""),
+        tags=["retired"], deprecated=True,
+    )
 
 
 def same_origin(request):
@@ -381,41 +427,98 @@ async def operation_detail(operation_id: str, request: Request):
     return value
 
 
-def _facade_route(target, route, path):
-    """Remount the legacy facade without wrapping or changing its handler."""
-    target.router.add_api_route(
-        path, route.endpoint, methods=route.methods, name=route.name,
-        response_model=route.response_model, status_code=route.status_code,
-        tags=["legacy-jobs"], dependencies=route.dependencies, responses=route.responses,
-        summary=route.summary, description=route.description,
-        response_description=route.response_description, response_class=route.response_class,
-        response_model_include=route.response_model_include,
-        response_model_exclude=route.response_model_exclude,
-        response_model_by_alias=route.response_model_by_alias,
-        response_model_exclude_unset=route.response_model_exclude_unset,
-        response_model_exclude_defaults=route.response_model_exclude_defaults,
-        response_model_exclude_none=route.response_model_exclude_none,
-        callbacks=route.callbacks, openapi_extra=route.openapi_extra,
-        include_in_schema=route.include_in_schema, deprecated=True, route_class_override=type(route),
-    )
+def _remount_legacy(facade, legacy_routers, facade_prefix):
+    """Relocate legacy writes under the facade; legacy reads stay at both.
+
+    ``/api/jobs`` now belongs to the canonical API, so a pre-canonical effectful
+    handler must not stay there: it is replaced by a 410 boundary on the facade
+    address.  Reads remain available at their original address as well, because
+    the old Job history/listing queries are retained until R6 and moving them
+    would break the legacy UI and audit reads for no security gain.
+    """
+    for old in legacy_routers:
+        for route in old.routes:
+            path = facade_prefix + route.path.removeprefix("/api/jobs")
+            _copy_legacy_route(facade, route, path)
+
+
+def _copy_legacy_route(target, route, path):
+    """Add a facade copy of a pre-canonical route: reads keep, writes refuse."""
+    if route.methods <= {"GET", "HEAD", "OPTIONS"}:
+        target.add_api_route(
+            path, route.endpoint, methods=sorted(route.methods),
+            name="legacy_" + route.name,
+            response_model=route.response_model, status_code=route.status_code,
+            tags=["legacy-jobs"], dependencies=route.dependencies,
+            responses=route.responses, summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            response_class=route.response_class,
+            response_model_include=route.response_model_include,
+            response_model_exclude=route.response_model_exclude,
+            response_model_by_alias=route.response_model_by_alias,
+            response_model_exclude_unset=route.response_model_exclude_unset,
+            response_model_exclude_defaults=route.response_model_exclude_defaults,
+            response_model_exclude_none=route.response_model_exclude_none,
+            callbacks=route.callbacks, openapi_extra=route.openapi_extra,
+            include_in_schema=route.include_in_schema,
+            deprecated=True, route_class_override=type(route),
+        )
+    else:
+        target.add_api_route(
+            path, retired_legacy_write, methods=sorted(route.methods),
+            name="retired_legacy_" + route.name,
+            tags=["retired"], deprecated=True,
+        )
 
 
 def install(app, *legacy_routers):
-    """Specific legacy paths precede canonical IDs; aliases share endpoints."""
+    """Serve legacy reads, retire legacy writes, keep canonical authoritative.
+
+    The pre-canonical routers used to be mounted twice, at ``/api/jobs`` and at
+    ``/api/legacy/jobs``.  After the R5 retirement:
+
+    * ``/api/legacy/jobs`` is the only facade address a legacy writer may use,
+      and its effectful routes answer 410 after authenticating the caller.
+    * old reads keep both addresses, because Job history/listing queries are
+      retained until R6 and moving them would break audit reads for no gain.
+    * a canonical path always wins; an old write address that canonical does not
+      serve answers 410 instead of a bare 404, so a stale client learns it is
+      retired rather than that the path never existed.
+    """
+    from packages.automation.authorization import canonical_path as is_canonical
+    canonical = [API_PREFIX + route.path for route in router.routes
+                 if getattr(route, "methods", None)]
+
+    def canonical_serves(path):
+        """Whether a canonical route covers this path first.
+
+        Static legacy names such as ``action-jobs`` must never be read as a
+        canonical object ID, so a static legacy path is never suppressed.  A
+        dynamic legacy path (``/api/jobs/{job_id}``) does defer to the canonical
+        object route, whose namespace owns job IDs.
+        """
+        if "{" not in path:
+            return any(item == path for item in canonical)
+        return any(re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", item), path)
+                   for item in canonical)
+
+    facade = APIRouter(tags=["legacy-jobs"])
+    _remount_legacy(facade, legacy_routers, "/api/legacy/jobs")
+    app.include_router(facade)
+
+    retained = APIRouter(tags=["legacy-jobs"])
     for old in legacy_routers:
-        if old.prefix != "/api/jobs" or "jobs" not in old.tags:
-            app.include_router(old, tags=["legacy-jobs"], deprecated=True)
-            continue
         for route in old.routes:
             suffix = route.path.removeprefix("/api/jobs")
-            _facade_route(app, route, "/api/legacy/jobs" + suffix)
-            # Root, detail and runs now belong to canonical. Keep every other
-            # old entry, including PATCH/pin/run-now and static facade paths.
-            overlaps = (suffix in {"", "/"} or
-                        (suffix == "/{job_id}" and route.methods & {"GET", "DELETE"}) or
-                        suffix == "/{job_id}/runs")
-            if not overlaps:
-                _facade_route(app, route, "/api/jobs" + suffix)
+            retired = _is_retired_legacy_route(suffix, set(route.methods))
+            if retired:
+                if suffix in {"", "/"} or is_canonical(route.path) or canonical_serves(route.path):
+                    continue
+                _retired_route(app, route.path, set(route.methods))
+            elif not canonical_serves(route.path):
+                _copy_legacy_route(retained, route, route.path)
+    app.include_router(retained)
     app.include_router(router, prefix=API_PREFIX)
     # The catalog cannot replace the existing /api/actions legacy registry.
     # Keep its original URL while sharing the new /api/jobs/actions handler.

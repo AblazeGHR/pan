@@ -356,22 +356,36 @@ def test_ft01_failed_creator_or_cross_reference_rolls_back_every_table(h, monkey
         assert db.execute("SELECT count(*) FROM final_operations").fetchone()[0] == 0
 
 
-def test_ft03_old_facade_remains_at_legacy_urls_with_canonical_registered(h):
+def test_ft03_old_facade_retires_writes_and_keeps_reads(h):
     from packages.jobs.api import router as old
     from packages.jobs.action_api import router as action_old
     before, after = FastAPI(), FastAPI()
     before.include_router(action_old)
     before.include_router(old)
+    after.state.automation = h.automation
     api.install(after, action_old, old)
-    with TestClient(before) as a, TestClient(after) as b:
-        for method, path, payload in [("GET", "/api/jobs", None), ("GET", "/api/jobs/kinds", None),
-                                      ("POST", "/api/jobs", {"kind": "unrecognized"}),
-                                      ("PATCH", "/api/jobs/missing", {"name": "x"}),
-                                      ("DELETE", "/api/jobs/missing", None)]:
+    with TestClient(before) as a, TestClient(after, raise_server_exceptions=False) as b:
+        headers = {"Authorization": "Bearer " + h.token}
+        # Reads and the cancel control keep their original handler behavior.
+        for method, path, payload in [("GET", "/api/jobs", None), ("GET", "/api/jobs/kinds", None)]:
             old_response = a.request(method, path, json=payload)
-            new_response = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"), json=payload)
+            new_response = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"),
+                                     json=payload, headers=headers)
             assert new_response.status_code == old_response.status_code
             assert new_response.json() == old_response.json()
+        # Old mutations are refused after authentication, not validated.
+        for method, path in [("POST", "/api/jobs/templates"), ("PATCH", "/api/jobs/legacy_job"),
+                             ("DELETE", "/api/jobs/legacy_job"), ("POST", "/api/jobs/legacy_job/run-now"),
+                             ("POST", "/api/jobs/action-jobs"),
+                             ("POST", "/api/jobs/job-templates/legacy_template/instantiate")]:
+            retired = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"),
+                                json={"kind": "unrecognized"}, headers=headers)
+            assert retired.status_code == 410, (method, path, retired.text)
+            assert retired.json()["detail"]["code"] == "retired"
+            # Unauthenticated callers keep the original 401 and learn nothing.
+            anonymous = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"),
+                                  json={"kind": "unrecognized"})
+            assert anonymous.status_code == 401, (method, path, anonymous.text)
     assert "/api/legacy/jobs" in after.openapi()["paths"]
 
 

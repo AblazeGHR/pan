@@ -1,4 +1,13 @@
-"""User-controlled complete Job Templates and Action Job configuration endpoints."""
+"""User-controlled complete Job Templates and Action Job configuration endpoints.
+
+R5 retirement boundary: the pre-canonical Action Job *writes* below are no
+longer served.  ``retire`` replaces each old mutation at the route table while
+the historical handler function bodies stay intact for R6 source removal, so
+this module keeps documenting exactly which effects existed instead of hiding
+them behind a rewritten stub.  Reads (``GET``) and the explicit ``cancel``
+control stay reachable: live legacy Jobs must remain inspectable and
+cancellable until their owner is drained.
+"""
 from fastapi import APIRouter, Request, HTTPException
 import sqlite3
 from packages.plugins.lifecycle import io
@@ -8,6 +17,27 @@ from .action_templates import strict, Conflict, CreationPending, references
 from packages.automation.authorization import require, require_write, authority
 
 router=APIRouter(prefix='/api/jobs',tags=['action-jobs'])
+
+
+RETIRED = {'code': 'retired',
+           'message': 'Legacy Action Job write entrypoint retired; use the canonical /api API'}
+
+
+def retire(endpoint):
+    """Authenticate the compatibility caller, then refuse the old mutation.
+
+    Ordering is deliberate: authorization runs first, so an anonymous or
+    revoked caller keeps its original 401/403 and cannot use the retirement
+    boundary to probe which legacy paths still exist.  Only then is the effect
+    refused, before any runtime, store or process call.
+    """
+    async def retired_route(request: Request):
+        await require(request)
+        raise HTTPException(status_code=410, detail=RETIRED)
+    retired_route.__name__ = endpoint.__name__
+    retired_route.__doc__ = endpoint.__doc__
+    retired_route.retirement_boundary = True
+    return retired_route
 
 
 def runtime(request):
@@ -233,3 +263,42 @@ async def instantiate(template_id:str,data:dict,request:Request):
     if template and template['config'].get('enabled'):
         await require_capability(request, 'job', 'lifecycle')
     return {'job':await invoke(runtime(request).instantiate,template_id,data['expectedRevision'],source['type']+':'+key,data.get('overrides'),authority=source,_emit=True)}
+
+
+# R5: replace the old mutation endpoints at the route table.  Reads and the
+# explicit cancel control are listed as retained, so a new write surface cannot
+# be added here by accident without the retirement test failing.
+RETIRED_ROUTES = {
+    ('POST', '/api/jobs/action-jobs'),
+    ('PUT', '/api/jobs/action-jobs/{job_id}'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/run-now'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/lifecycle'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/pause'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/resume'),
+    ('DELETE', '/api/jobs/action-jobs/{job_id}'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/confirm-recovery'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/retry'),
+    ('POST', '/api/jobs/job-templates'),
+    ('PUT', '/api/jobs/job-templates/{template_id}'),
+    ('DELETE', '/api/jobs/job-templates/{template_id}'),
+    ('POST', '/api/jobs/job-templates/{template_id}/instantiate'),
+}
+
+RETAINED_ROUTES = {
+    ('GET', '/api/jobs/action-jobs'),
+    ('GET', '/api/jobs/action-jobs/{job_id}/runs'),
+    ('GET', '/api/jobs/action-jobs/schema'),
+    ('GET', '/api/jobs/action-references/{action_id}'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/cancel'),
+    ('GET', '/api/jobs/job-templates'),
+}
+
+for _route in router.routes:
+    _retire = any((method, _route.path) in RETIRED_ROUTES for method in _route.methods)
+    _known = any((method, _route.path) in RETIRED_ROUTES | RETAINED_ROUTES
+                 for method in _route.methods)
+    if not _known:
+        raise RuntimeError(f'Unclassified Action Job route: {sorted(_route.methods)} {_route.path}')
+    if _retire:
+        _route.endpoint = retire(_route.endpoint)
+        _route.deprecated = True
