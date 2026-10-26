@@ -1,0 +1,8 @@
+{
+  "command": "python scripts/run_tests_isolated.py -- python scripts/probe_pending_adoption.py --output evidence/r6j-pending-adoption/identity-gate.json",
+  "exitCode": 1,
+  "stage": "TemporaryDirectory cleanup after the three identity cases",
+  "error": "PermissionError [WinError 32]: automation/events.sqlite3 still open",
+  "cause": "sqlite3 connection context commits or rolls back but does not close the connection",
+  "repair": "Explicit contextlib.closing for both legacy evidence reads and original pin release; rerun the same probe including cleanup"
+}

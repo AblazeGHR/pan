@@ -1,0 +1,63 @@
+{
+  "baseSha": "f0970e23df5108eabd7580847346129d1714ba14",
+  "branch": "r5/p22-r6-pending-adoption-20261025",
+  "sourceFilesSha256": {
+    "packages/scheduler/creators.py": "53021f30fd4873b8e145080574e86d1e0b7f783a8d613f7c03fa2d32a6b15bd6",
+    "packages/scheduler/pending_adoption.py": "c171ea7a4268143d2b2fb81fd581ded152c3e42fa0c3bda6d474495ffc38a5c9",
+    "tests/test_scheduler_pending_adoption.py": "3a64e237c10ec94c92dca850b821f0b0ac57e8157d40770943695008625a17a3",
+    "scripts/probe_pending_adoption.py": "a0f643b2d914f388d10be76b2e282c2a60538f7c678063f506e68e650457df65"
+  },
+  "counts": {
+    "tests": 334,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 334
+  },
+  "pendingAdoptionTests": 27,
+  "regressionExitCode": 0,
+  "regressionSeconds": 79.311,
+  "positiveProbeExitCode": 0,
+  "positiveProbeCases": 3,
+  "abruptExitRecovery": {
+    "childExitCode": 73,
+    "recovered": true
+  },
+  "retainedFiles": {
+    "packages/scheduler/time_events.py": {
+      "unchangedFromBaseline": true,
+      "gitBlobSha256": "f94ceb5ea45095f795232b212034a5cfb7d6de56d5eba5b5ea8d674866afb0a6"
+    },
+    "packages/scheduler/store.py": {
+      "unchangedFromBaseline": true,
+      "gitBlobSha256": "34c3cf7290f6385a80cfa2db47ee78d60d44ee5b6071a576d96227f9739cccc2"
+    },
+    "packages/scheduler/legacy_bridge.py": {
+      "unchangedFromBaseline": true,
+      "gitBlobSha256": "4ec013c14ef4c18fc74edba72243f43bc74cdb4fc431c98aa37f224cb409abc8"
+    },
+    "packages/jobs/final_contracts.py": {
+      "unchangedFromBaseline": true,
+      "gitBlobSha256": "007d1d3725f9c30e620f028e45a5890b7224b249d6000d9ac55ac8ff0bfb4909"
+    }
+  },
+  "schemaArtifactsUnchanged": true,
+  "scope": {
+    "push": false,
+    "serviceLifecycleOperations": false,
+    "protectedPortsUsed": false,
+    "realDataMigration": false
+  },
+  "unverified": [
+    "real HTTP/browser",
+    "remote CI and POSIX execution",
+    "real user data migration",
+    "deployment",
+    "human acceptance"
+  ],
+  "initialProbeFailure": "probe-initial-failure.json",
+  "cleanup": {
+    "initialFailedProbeScratch": "retained",
+    "recursiveCleanup": "automatic approval rejected; blocked by policy"
+  }
+}
