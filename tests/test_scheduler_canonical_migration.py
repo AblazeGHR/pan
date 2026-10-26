@@ -12,7 +12,7 @@ import pytest
 
 from packages.jobs import final_contracts as fc
 from packages.jobs.runtime_owner import OwnerFence
-from packages.scheduler import engine, store
+from packages.scheduler import store
 from packages.scheduler.composition import CompositionCoordinator, NullCompositionPort
 from packages.scheduler.creators import CanonicalEventStore, CreatorRuntime, CreatorStore, EventBus
 from packages.scheduler.legacy_bridge import LegacySchedulerBridge
@@ -143,9 +143,9 @@ def test_store_engine_bridge_imports_and_old_api_reads_survive_cutover(tmp_path,
         ):
             with pytest.raises(fc.ContractError, match='fence'):
                 operation()
-        for name in ('_ensure_registered', 'start_loop', 'tick_once', 'run_now'):
-            with pytest.raises(AttributeError, match='retired'):
-                getattr(engine, name)
+        import importlib
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module("packages.scheduler.engine")
         assert all(path.read_bytes() == value for path, value in before.items())
     finally:
         owner.release()
@@ -445,7 +445,7 @@ def test_legacy_zone_conversion_is_explicit_and_dst_ambiguity_stays_historical(t
 def test_compatibility_consumers_and_web_server_still_import():
     import packages.automation.service
     import packages.web.server
-    from packages.scheduler import cron
+    from packages.jobs import cron
     assert packages.automation.service.Service is not None
     assert packages.web.server.app is not None
     assert cron.next_fire_after is not None

@@ -3,7 +3,7 @@
 契约来源：``data/workdirs/time_setting/PLAN_SCHEDULER.md`` §4（唯一契约源）。
 
 职责边界：本模块只做参数校验、camelCase 字段映射、统一响应包络与 WS 广播；
-历史读取委托给无副作用的 ``history``，预览 / 状态委托给 ``engine``。
+历史读取委托给无副作用的 ``history``，预览使用 canonical TimeProvider，状态读取绑定的 FinalService。
 
 **禁止 import ``packages.web.server``**（会与 server.py 形成循环依赖）：WS 广播
 函数由 server.py 在启动时通过 :func:`bind` 注入。
@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from packages.automation.authorization import may_read_jobs, principal, require_job
@@ -22,8 +22,8 @@ from packages.automation.authorization import may_read_jobs, principal, require_
 from packages.core import session as sess
 from packages.core.config import load_config
 
-from . import cron as scheduler_cron
-from . import engine as scheduler_engine
+from packages.jobs import cron as scheduler_cron
+from .providers import TimeProvider, timestamp
 from .history import History
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
@@ -286,7 +286,7 @@ async def emit_strict(event: dict) -> bool:
 
 
 def on_event(event: dict) -> None:
-    """engine 的事件回调（server.py 用 ``start_loop(on_event=scheduler_api.on_event)`` 注入）。"""
+    """广播兼容事件；不注册或启动旧 scheduler host。"""
     if isinstance(event, dict) and event.get("type"):
         _emit(event)
 
@@ -428,21 +428,79 @@ async def next_preview(task_id: str | None = None, count: int = 5, request: Requ
             allowed = {t['id'] for t in tasks if not is_action_job(t['history']['source'])}
         else:
             allowed = {t['id'] for t in tasks}
-        items = await scheduler_engine.preview_next(task_id=task_id, count=count, history=history)
+        items = _preview_next(history, task_id, count)
         items = [item for item in items if item['taskId'] in allowed]
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     return _ok(next=items or [])
 
 
+def _preview_next(history, task_id, count, *, at=None):
+    """Read-only historical projection using the canonical Creator calculator.
+
+    Legacy once/interval values are host-local instants; cron has its explicit
+    wall-clock zone. No Creator, cursor or publication is created or advanced.
+    """
+    provider = TimeProvider()
+    after = at or datetime.now().replace(microsecond=0)
+    boundary = timestamp(after.astimezone(timezone.utc))
+    tasks = [history.get(task_id)] if task_id else history.tasks(include_disabled=False)
+    result = []
+    for task in tasks:
+        if not task or not task.get('enabled'):
+            continue
+        spec = task.get('schedule') or {}
+        kind = spec.get('kind')
+        rule = {'ruleId': 'preview', 'type': kind}
+        local_wall = kind == 'cron' and not spec.get('timezone')
+        def legacy_instant(value):
+            point = scheduler_cron.parse_datetime(value)
+            if point is None:
+                raise ValueError('Historical schedule requires a valid instant')
+            return timestamp(point.astimezone(timezone.utc))
+        if kind == 'once':
+            rule['at'] = legacy_instant(spec.get('at'))
+        elif kind == 'interval':
+            rule.update(seconds=str(spec.get('interval_sec', spec.get('intervalSec'))),
+                        anchor=legacy_instant(spec.get('anchor') or task.get('createdAt', task.get('created_at'))),
+                        advanceMode='grid')
+        elif kind == 'cron':
+            rule.update(expression=spec.get('cron'),
+                        timezone=spec.get('timezone') or 'UTC',
+                        dstPolicy='gap-shift-fold-first')
+        provider.validate_config({'rules': [rule], 'misfirePolicy': 'skip',
+                                  'graceSeconds': '0', 'pausePolicy': 'advance'})
+        # A legacy cron without a zone uses naive local wall time. Evaluate
+        # that wall calendar in UTC, then return it unchanged as naive time.
+        cursor = timestamp(after.replace(tzinfo=timezone.utc)) if local_wall else boundary
+        for _ in range(count):
+            point = provider.next_after(rule, cursor)
+            if point is None:
+                break
+            cursor = point['at']
+            fire = datetime.fromisoformat(cursor.replace('Z', '+00:00'))
+            if not local_wall:
+                fire = fire.astimezone()
+            fire = fire.replace(tzinfo=None, microsecond=0)
+            result.append({'taskId': task['id'], 'fireAt': fire.isoformat()})
+    result.sort(key=lambda item: (item['fireAt'], item['taskId']))
+    return result[:count]
+
+
 @router.get("/status")
-async def engine_status():
-    """调度引擎健康状态（running / tickSec / dueScanned / lastTickAt）。"""
+async def engine_status(request: Request = None):
+    """Health of the canonical runtime bound to this application."""
+    service = getattr(getattr(getattr(request, 'app', None), 'state', None), 'job_final_service', None)
+    if service is None:
+        return _err('engine_not_running', 'Canonical runtime is not bound')
     try:
-        state = scheduler_engine.status()
-    except Exception as exc:  # 引擎不可用时不能让健康检查 500
-        return _err("engine_not_running", str(exc))
-    return _ok(status=state if isinstance(state, dict) else {})
+        task = service.task
+        runtime = service.creator_runtime
+        return _ok(status={'running': not service.closed and task is not None and not task.done(),
+                           'tickSec': 0.25, 'dueScanned': runtime.due_scanned,
+                           'lastTickAt': runtime.last_tick_at})
+    except Exception as exc:
+        return _err('engine_not_running', str(exc))
 
 
 # R5: retire the old scheduler mutations at the route table.  Handler bodies

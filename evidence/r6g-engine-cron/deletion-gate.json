@@ -1,0 +1,91 @@
+{
+  "schema": "pan.r6g.engine-cron-gate/v1",
+  "baseline": "8703526392bbab655020cb69fba9b3a2ecec3a43",
+  "deleted": [
+    "packages/scheduler/engine.py",
+    "packages/scheduler/cron.py"
+  ],
+  "scannedTextFiles": 6337,
+  "pythonParseErrors": [],
+  "staticImportsIncludingTests": [],
+  "productionStaticImportCount": 0,
+  "dynamicReview": {
+    "pythonCalls": 30,
+    "frontendCalls": 196,
+    "result": "No production loader selects engine/cron; remaining test loaders are import-refusal negative controls. Historical import inventory skips deleted files.",
+    "testOnlySchedulerLoaders": [
+      {
+        "path": "tests/test_scheduler_canonical_migration.py",
+        "line": 148,
+        "code": "importlib.import_module('packages.scheduler.engine')"
+      },
+      {
+        "path": "tests/test_scheduler_dispatch.py",
+        "line": 16,
+        "code": "importlib.import_module('packages.scheduler.engine')"
+      },
+      {
+        "path": "tests/test_scheduler_engine.py",
+        "line": 23,
+        "code": "importlib.import_module('packages.scheduler.' + module)"
+      },
+      {
+        "path": "tests/test_scheduler_time_events.py",
+        "line": 234,
+        "code": "importlib.import_module('packages.scheduler.engine')"
+      }
+    ]
+  },
+  "catalog": {
+    "routes": 15,
+    "tools": 118,
+    "unchanged": true,
+    "sha256": "2fb4a4226b371dcf6fa9f4e7dd9c4e78f98d6599c69662f419b24e8c15345df1"
+  },
+  "protectedFilesUnchanged": [
+    "packages/scheduler/store.py",
+    "packages/scheduler/time_events.py",
+    "packages/scheduler/legacy_bridge.py"
+  ],
+  "collection": {
+    "tests": 7115,
+    "exit": 0
+  },
+  "imports": {
+    "passed": 300,
+    "failed": 0,
+    "excludedLaunchOrTestFiles": 34,
+    "runtimeIOForbidden": true
+  },
+  "tests": {
+    "core-tests": {
+      "tests": 197,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "surface-tests": {
+      "tests": 307,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "baseline-legacy-bridge": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "react": {
+      "passed": 41,
+      "files": 3,
+      "exit": 0
+    }
+  },
+  "limits": [
+    "Repository-local proof only; no external/deployed plugin zero-call claim.",
+    "Windows local validation only; no remote or Linux/macOS CI.",
+    "No full application lifespan, deployed service, real user data migration or browser E2E.",
+    "Full backend execution and React build not run; targeted backend and React tests only."
+  ]
+}

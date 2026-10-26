@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from packages.core import background_jobs
-from packages.scheduler import cron
+from packages.jobs import cron
 from packages.scheduler import store
 
 

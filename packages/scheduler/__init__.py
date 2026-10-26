@@ -1,7 +1,4 @@
-"""Pan 定时任务插件（内核层）：store / cron / engine。
-
-HTTP 层见 ``packages/scheduler/api.py``（由 ts-api 提供）。
-"""
+"""Canonical Event Creators and retained scheduler history/API surfaces."""
 
 from __future__ import annotations
 
