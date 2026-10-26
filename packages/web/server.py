@@ -4106,8 +4106,7 @@ class CLIInstanceGuardMiddleware:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] == "http" and scope["method"] == "POST"
-                and scope["path"] in {"/api/main/exit", "/api/main/restart",
-                                        "/api/system-actions/main-lifecycle"}):
+                and scope["path"] == "/api/system-actions/main-lifecycle"):
             headers = dict(scope.get("headers", []))
             pid = headers.get(b"x-pan-expected-pid")
             created = headers.get(b"x-pan-expected-created-at")
@@ -4168,14 +4167,6 @@ async def api_runtime_issue_schema():
 async def api_main_restart_status():
     """Report whether the safe Windows main-service restart is available."""
     return _main_restart_status()
-
-
-@app.post("/api/main/restart")
-async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
-    """Compatibility alias for the fixed system lifecycle Action."""
-    body = dict(payload or {})
-    body["operation"] = "restart"
-    return await api_system_main_lifecycle(body)
 
 
 async def _schedule_main_restart(options: dict) -> dict:
@@ -4494,14 +4485,6 @@ async def _perform_main_exit(request_id: str) -> None:
 async def api_main_exit_status():
     """Report stop-only Pan exit availability and pending stage."""
     return _main_exit_status()
-
-
-@app.post("/api/main/exit")
-async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
-    """Compatibility alias for the fixed system lifecycle Action."""
-    body = dict(payload or {})
-    body["operation"] = "exit"
-    return await api_system_main_lifecycle(body)
 
 
 async def _schedule_main_exit(options: dict) -> dict:
@@ -11041,11 +11024,8 @@ async def api_sessions_wake(data: dict):
 # ── Durable background jobs ──
 
 # ── R5: retire the pre-canonical durable Job writes ──
-# The old handlers stay defined below for R6 source removal, but they are no
-# longer routed: FastAPI fixes the handler at decoration time, so the boundary
-# has to be installed here rather than patched into the route table later.
-# Reads and the explicit cancel control are deliberately not retired: an old
-# Runner process must stay inspectable and cancellable until its owner drains.
+# R6-B: only explicit 410 tombstones remain for the four removed writers.
+# Reads and cancel stay available while historical owners drain.
 RETIRED_LEGACY_WRITE = {"code": "retired",
                         "message": "Legacy Job write entrypoint retired; use the canonical /api API"}
 
@@ -11083,11 +11063,6 @@ async def _legacy_mcp_authority(request: Request, capability: str, *, action: bo
 
 
 async def _legacy_action_job(kind: str, fields: dict, request: Request):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
-
-async def api_background_job_start(data: dict, request: Request = None):
     """Retired legacy producer; authentication and refusal precede all work."""
     from packages.jobs.final_api import retired_legacy_write
     return await retired_legacy_write(request)
@@ -11145,30 +11120,7 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-async def api_session_message_job_start(data: dict, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
-
-
-async def api_background_job_update(job_id: str, data: dict, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
-
-
-async def api_background_job_retry(job_id: str, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
-
-
-# R5: the durable Job mutations are no longer routed.  The handlers above keep
-# their original names and bodies so the safety work behind them (window policy,
-# PID birth checks, per-target redelivery) stays testable until R6 deletes it;
-# what changed is that no address reaches them.  Registering the boundary as a
-# separate route is deliberate: FastAPI binds the handler at decoration time, so
-# a decorator would keep the old effect alive.
+# Explicit negative controls only: none of these routes owns a producer.
 for _path, _method in (("/api/background-jobs", "POST"),
                        ("/api/session-message-jobs", "POST"),
                        ("/api/background-jobs/{job_id}", "PATCH"),
@@ -13613,8 +13565,6 @@ async def api_cbc_projects():
         recent_days=recent_days, min_resume_bytes=min_resume_bytes
     )
     return {"projects": projects}
-
-
 
 
 @app.get("/api/cbc/sessions")

@@ -37,8 +37,6 @@ REMOVED = {
 
 REPLACED = {
     "packages/web/server.py": [
-        "api_background_job_start", "api_session_message_job_start",
-        "api_background_job_update", "api_background_job_retry",
         "_legacy_action_job",
     ],
     "packages/jobs/api.py": ["create_job", "patch_job", "run_job_now"],

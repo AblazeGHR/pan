@@ -308,7 +308,7 @@ def test_compatibility_supervisors_are_launcher_wrappers():
 
 @pytest.mark.parametrize(
     ("operation", "endpoint"),
-    [("restart", web_server.api_main_restart), ("exit", web_server.api_main_exit)],
+    [("restart", web_server.api_system_main_lifecycle), ("exit", web_server.api_system_main_lifecycle)],
 )
 def test_unknown_lifecycle_option_is_rejected_before_any_side_effect(
     tmp_path, monkeypatch, operation, endpoint,
@@ -322,7 +322,7 @@ def test_unknown_lifecycle_option_is_rejected_before_any_side_effect(
     )
 
     with pytest.raises(web_server.HTTPException) as caught:
-        asyncio.run(endpoint({"options": {"drain": True}}))
+        asyncio.run(endpoint({"operation": operation, "options": {"drain": True}}))
 
     assert caught.value.status_code == 400
     assert caught.value.detail["code"] == "unsupported_lifecycle_options"

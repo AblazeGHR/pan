@@ -93,13 +93,13 @@ def test_rewind_returns_unsupported_platform(monkeypatch):
     assert "/" not in body["error"]["message"]
 
 
-@pytest.mark.parametrize("path", ["/api/main/exit", "/api/main/restart"])
-def test_main_lifecycle_actions_return_unsupported_platform(monkeypatch, path):
+@pytest.mark.parametrize("operation", ["exit", "restart"])
+def test_main_lifecycle_actions_return_unsupported_platform(monkeypatch, operation):
     _unsupported(monkeypatch)
 
     async def run():
         async with _client() as client:
-            return await client.post(path, json={})
+            return await client.post("/api/system-actions/main-lifecycle", json={"operation": operation})
 
     response = asyncio.run(run())
     assert response.status_code == 501, response.text
