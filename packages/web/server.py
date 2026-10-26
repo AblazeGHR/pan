@@ -133,7 +133,6 @@ from packages.core import notifications, reminders
 from packages.core import platform as platform_layer
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
-from packages.scheduler import engine as scheduler_engine
 
 # ── logging ──
 
@@ -410,7 +409,6 @@ async def _owned_lifespan(app: FastAPI, owner):
     await asyncio.to_thread(_get_data_retention_service().stop)
     _DATA_RETENTION_LOOP = None
     worker.stop_global_watchdog()
-    await scheduler_engine.stop_loop()
     await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess

@@ -228,40 +228,11 @@ def test_source_revision_disable_and_identity_are_explicit(tmp_path):
     assert not sources.list()
 
 
-@async_test
-async def test_unified_pass_has_separate_legacy_and_event_owners(tmp_path,monkeypatch):
-    from packages.core import background_jobs as jobs
-    from packages.jobs.action_runtime import Runtime as JobRuntime
-    from packages.scheduler import store,engine
-    root=tmp_path/'jobs'
-    monkeypatch.setenv('PAN_SCHEDULER_DIR',str(root))
-    monkeypatch.setattr(jobs,'DEFAULT_ROOT',root)
-    monkeypatch.setattr(engine,'scheduler_config',lambda:{'enabled':True,'max_concurrent_dispatch':5})
-    legacy=store.create_task({'name':'legacy','text':'old','target_session_id':'selected',
-        'enabled':True,'schedule':{'kind':'once','at':(datetime.now()+timedelta(seconds=60)).isoformat()}})
-    old=store._job_for_task(legacy['id'])
-    old['schedule'][0]['nextFireAt']=(datetime.now()-timedelta(seconds=1)).isoformat(timespec='seconds')
-    jobs._write_job(jobs._job_path(old['jobId'],root),old)
-    svc=await service(tmp_path,with_runtime=False)
-    runtime=JobRuntime(root,Store(tmp_path/'unified-actions'),None);await runtime.start()
-    sources=Sources(root)
-    item=source(sources,schedule={'kind':'once','at':(NOW+timedelta(seconds=60)).isoformat()})
-    # Make its real next tick due without changing production clock functions.
-    pending=sources.reserve(item['id'],NOW+timedelta(seconds=60))
-    runtime.time_events=Runtime(sources,svc.accept_time,[])
-    calls=[]
-    async def execute(job,*args,**kw):calls.append(job['jobId']);return {'status':'completed'}
-    monkeypatch.setattr(jobs,'_run_job_action',execute)
-    try:
-        await engine.tick_once();await engine.tick_once()
-        assert len(calls)==1 and calls[0]==store._job_for_task(legacy['id'])['jobId']
-        assert svc.events.stats()['events']==1
-        assert svc.events.page()['events'][0]['event']['id']==pending['event']['id']
-        assert all(j.get('jobId')!=item['id'] for j in jobs.list_jobs(root))
-    finally:
-        await runtime.close();await svc.engine.close();await svc.bus.close()
-
-
+def test_old_engine_cannot_drive_legacy_or_event_owner():
+    import importlib
+    with pytest.raises(ModuleNotFoundError) as exc:
+        importlib.import_module('packages.scheduler.engine')
+    assert exc.value.name == 'packages.scheduler.engine'
 
 
 @async_test

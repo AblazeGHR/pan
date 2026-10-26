@@ -19,6 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize("path,name", [(path, name) for path, names in REMOVED.items() for name in names])
 def test_removed_leaf_is_absent_and_explicitly_retired_without_owner_or_io(tmp_path, monkeypatch, path, name):
+    if path == "packages/scheduler/engine.py":
+        with pytest.raises(ModuleNotFoundError) as exc:
+            importlib.import_module(path.removesuffix(".py").replace("/", "."))
+        assert exc.value.name == "packages.scheduler.engine"
+        assert not list(tmp_path.rglob("*"))
+        return
     module = importlib.import_module(path.removesuffix(".py").replace("/", "."))
     monkeypatch.setenv("PAN_BACKGROUND_JOBS_DIR", str(tmp_path / "must-not-exist"))
     assert name not in vars(module)

@@ -1,11 +1,11 @@
-"""packages/scheduler/cron.py 的单元测试 —— 纯函数，无 I/O、无隔离需求。"""
+"""packages/jobs/cron.py 的单元测试 —— 纯函数，无 I/O、无隔离需求。"""
 
 import time
 from datetime import datetime, timedelta
 
 import pytest
 
-from packages.scheduler import cron
+from packages.jobs import cron
 
 
 # ── parse_cron ──

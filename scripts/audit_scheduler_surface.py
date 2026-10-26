@@ -53,7 +53,8 @@ def scan(root):
              ('store', 'engine', 'time_events', 'legacy_bridge', 'cron')}
     for relative in tracked:
         if not relative or relative.startswith(('evidence/r6c-scheduler-surface/',
-                                                'evidence/r6d-scheduler-host/')):
+                                                'evidence/r6d-scheduler-host/',
+                                                'evidence/r6g-engine-cron/')):
             continue
         path = root / relative
         if not path.is_file():

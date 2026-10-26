@@ -703,6 +703,8 @@ class CreatorRuntime:
         self.bus = bus
         self.diagnostics = diagnostics if diagnostics is not None else []
         self.authorize = authorize
+        self.due_scanned = 0
+        self.last_tick_at = None
 
     async def _ack(self, item):
         cursor = item.get("lastPublication")
@@ -727,6 +729,8 @@ class CreatorRuntime:
         except Exception as exc:
             self.diagnostics.append({"phase": "creator-store", "error": str(exc)[:1000]})
             return 0
+        self.due_scanned += len(items)
+        self.last_tick_at = at
         for item in items:
             try:
                 await self._ack(item)

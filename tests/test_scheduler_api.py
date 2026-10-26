@@ -107,10 +107,12 @@ def test_next_preview_rejects_bad_count(scheduler_env, count):
 
 def test_status_and_next_preview(monkeypatch, scheduler_env):
     client, task, root, headers = scheduler_env
-    monkeypatch.setattr(api.scheduler_engine, 'status', lambda: {'running': False, 'tickSec': 1})
+    client.app.state.job_final_service = SimpleNamespace(
+        task=None, closed=True, creator_runtime=SimpleNamespace(due_scanned=7, last_tick_at='2026-01-01T00:00:00Z'))
     before = contents(root)
     response = client.get('/api/scheduler/status', headers=headers)
-    assert response.json()['status'] == {'running': False, 'tickSec': 1}
+    assert response.json()['status'] == {'running': False, 'tickSec': 0.25,
+                                         'dueScanned': 7, 'lastTickAt': '2026-01-01T00:00:00Z'}
     preview = client.get(f'/api/scheduler/next?task_id={task["id"]}&count=2', headers=headers).json()
     assert preview['ok'] and len(preview['next']) == 2
     assert all(row['taskId'] == task['id'] for row in preview['next'])
