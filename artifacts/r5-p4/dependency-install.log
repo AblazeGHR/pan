@@ -1,0 +1,53 @@
+Collecting playwright
+  Downloading playwright-1.64.1-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting pytest-timeout
+  Using cached pytest_timeout-2.4.0-py3-none-any.whl.metadata (20 kB)
+Collecting pyee<15,>=13 (from playwright)
+  Downloading pyee-14.0.0-py3-none-any.whl.metadata (1.8 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright)
+  Using cached greenlet-3.5.6-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+Collecting typing-extensions (from pyee<15,>=13->playwright)
+  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting pytest>=7.0.0 (from pytest-timeout)
+  Using cached pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting colorama>=0.4 (from pytest>=7.0.0->pytest-timeout)
+  Using cached colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Collecting iniconfig>=1.0.1 (from pytest>=7.0.0->pytest-timeout)
+  Using cached iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+Collecting packaging>=22 (from pytest>=7.0.0->pytest-timeout)
+  Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Collecting pluggy<2,>=1.5 (from pytest>=7.0.0->pytest-timeout)
+  Using cached pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+Collecting pygments>=2.7.2 (from pytest>=7.0.0->pytest-timeout)
+  Using cached pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+Downloading playwright-1.64.1-py3-none-win_amd64.whl (38.8 MB)
+   ---------------------------------------- 38.8/38.8 MB 726.2 kB/s  0:01:05
+Using cached greenlet-3.5.6-cp314-cp314-win_amd64.whl (327 kB)
+Downloading pyee-14.0.0-py3-none-any.whl (15 kB)
+Using cached pytest_timeout-2.4.0-py3-none-any.whl (14 kB)
+Using cached pytest-9.1.1-py3-none-any.whl (386 kB)
+Using cached pluggy-1.7.0-py3-none-any.whl (27 kB)
+Using cached colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Using cached iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+Using cached packaging-26.3-py3-none-any.whl (129 kB)
+Using cached pygments-2.21.0-py3-none-any.whl (1.3 MB)
+Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Installing collected packages: typing-extensions, pygments, pluggy, packaging, iniconfig, greenlet, colorama, pytest, pyee, pytest-timeout, playwright
+
+Successfully installed colorama-0.4.6 greenlet-3.5.6 iniconfig-2.3.1 packaging-26.3 playwright-1.64.1 pluggy-1.7.0 pyee-14.0.0 pygments-2.21.0 pytest-9.1.1 pytest-timeout-2.4.0 typing-extensions-4.16.0
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Ignoring invalid distribution ~ip ([USER_HOME]\AppData\Local\Programs\Python\Python314\Lib\site-packages)
+
+[notice] A new release of pip is available: 26.1.1 -> 26.2.2
+[notice] To update, run: python.exe -m pip install --upgrade pip

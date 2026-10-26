@@ -1,0 +1,12 @@
+{
+  "port": 55705,
+  "coldRecoveryRetained": true,
+  "unknownRetainedThenExplicitRecheck": true,
+  "response": {
+    "ok": true,
+    "deleted": true,
+    "jobId": "job_fa22d7777658d1eefee0eec3"
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

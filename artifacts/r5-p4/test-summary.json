@@ -1,0 +1,155 @@
+{
+  "baseline-delete": {
+    "tests": 1,
+    "passed": 0,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0,
+    "failures": [
+      "tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard"
+    ],
+    "skipReasons": {}
+  },
+  "baseline-preimport": {
+    "tests": 3,
+    "passed": 0,
+    "failed": 3,
+    "errors": 0,
+    "skipped": 0,
+    "failures": [
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]"
+    ],
+    "skipReasons": {}
+  },
+  "canonical-final": {
+    "tests": 282,
+    "passed": 263,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 19,
+    "failures": [],
+    "skipReasons": {
+      "POSIX \u5951\u7ea6\u6d4b\u8bd5\u9700\u8981\u771f\u5b9e POSIX \u4e3b\u673a\uff08ubuntu/macos CI\uff09\uff1astart_new_session/killpg//proc/ps \u8bed\u4e49\u65e0\u6cd5\u5728 Windows \u4e0a\u9a8c\u8bc1\uff1b\u672c\u673a\u4e3a Windows\uff0c\u663e\u5f0f\u8df3\u8fc7\u800c\u4e0d\u662f\u9759\u9ed8\u901a\u8fc7": 18,
+      "\u4ec5\u5728 POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1 Windows \u5b9e\u73b0\u95e8\u7981": 1
+    }
+  },
+  "collection-missing-deps": {
+    "tests": 4,
+    "passed": 0,
+    "failed": 0,
+    "errors": 4,
+    "skipped": 0,
+    "failures": [],
+    "skipReasons": {}
+  },
+  "collection": {
+    "tests": 0,
+    "passed": 0,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failures": [],
+    "skipReasons": {},
+    "collected": 6573
+  },
+  "compatibility": {
+    "tests": 33,
+    "passed": 30,
+    "failed": 2,
+    "errors": 0,
+    "skipped": 1,
+    "failures": [
+      "tests.test_independent_job_bridge::test_real_service_outbox_reaches_durable_pan_queue",
+      "tests.test_independent_job_bridge::test_duplicate_runner_claim_launches_command_only_once"
+    ],
+    "skipReasons": {
+      "explicit opt-in required to register an owned temporary Windows task": 1
+    }
+  },
+  "expanded": {
+    "tests": 267,
+    "passed": 235,
+    "failed": 13,
+    "errors": 0,
+    "skipped": 19,
+    "failures": [
+      "tests.test_job_cleanup_failures::test_runner_persists_unknown_and_diagnostics_on_cleanup_failure",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-independent]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-independent]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-independent]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-independent]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-independent]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-independent]",
+      "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-independent]",
+      "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-independent]",
+      "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[independent]"
+    ],
+    "skipReasons": {
+      "POSIX \u5951\u7ea6\u6d4b\u8bd5\u9700\u8981\u771f\u5b9e POSIX \u4e3b\u673a\uff08ubuntu/macos CI\uff09\uff1astart_new_session/killpg//proc/ps \u8bed\u4e49\u65e0\u6cd5\u5728 Windows \u4e0a\u9a8c\u8bc1\uff1b\u672c\u673a\u4e3a Windows\uff0c\u663e\u5f0f\u8df3\u8fc7\u800c\u4e0d\u662f\u9759\u9ed8\u901a\u8fc7": 18,
+      "\u4ec5\u5728 POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1 Windows \u5b9e\u73b0\u95e8\u7981": 1
+    }
+  },
+  "final": {
+    "tests": 393,
+    "passed": 369,
+    "failed": 4,
+    "errors": 0,
+    "skipped": 20,
+    "failures": [
+      "tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]"
+    ],
+    "skipReasons": {
+      "POSIX \u5951\u7ea6\u6d4b\u8bd5\u9700\u8981\u771f\u5b9e POSIX \u4e3b\u673a\uff08ubuntu/macos CI\uff09\uff1astart_new_session/killpg//proc/ps \u8bed\u4e49\u65e0\u6cd5\u5728 Windows \u4e0a\u9a8c\u8bc1\uff1b\u672c\u673a\u4e3a Windows\uff0c\u663e\u5f0f\u8df3\u8fc7\u800c\u4e0d\u662f\u9759\u9ed8\u901a\u8fc7": 18,
+      "\u4ec5\u5728 POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1 Windows \u5b9e\u73b0\u95e8\u7981": 1,
+      "explicit opt-in required to register an owned temporary Windows task": 1
+    }
+  },
+  "first": {
+    "tests": 114,
+    "passed": 113,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 0,
+    "failures": [
+      "tests.test_job_final_independent_execution::test_fe02_live_supervisor_survives_host_reload_and_ack_loss"
+    ],
+    "skipReasons": {}
+  },
+  "integration-final": {
+    "tests": 79,
+    "passed": 77,
+    "failed": 1,
+    "errors": 0,
+    "skipped": 1,
+    "failures": [
+      "tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard"
+    ],
+    "skipReasons": {
+      "explicit opt-in required to register an owned temporary Windows task": 1
+    }
+  },
+  "safety": {
+    "tests": 300,
+    "passed": 278,
+    "failed": 3,
+    "errors": 0,
+    "skipped": 19,
+    "failures": [
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+      "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]"
+    ],
+    "skipReasons": {
+      "POSIX \u5951\u7ea6\u6d4b\u8bd5\u9700\u8981\u771f\u5b9e POSIX \u4e3b\u673a\uff08ubuntu/macos CI\uff09\uff1astart_new_session/killpg//proc/ps \u8bed\u4e49\u65e0\u6cd5\u5728 Windows \u4e0a\u9a8c\u8bc1\uff1b\u672c\u673a\u4e3a Windows\uff0c\u663e\u5f0f\u8df3\u8fc7\u800c\u4e0d\u662f\u9759\u9ed8\u901a\u8fc7": 18,
+      "\u4ec5\u5728 POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1 Windows \u5b9e\u73b0\u95e8\u7981": 1
+    }
+  }
+}
