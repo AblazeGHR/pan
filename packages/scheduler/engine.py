@@ -22,6 +22,7 @@ from datetime import datetime
 
 from packages.core import background_jobs
 from packages.jobs import cron
+from packages.jobs.runtime_owner import legacy_writer
 from . import store
 
 _log = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ async def _consume(awaitable) -> None:
         _log.exception("scheduler: on_event 异步回调异常")
 
 
+@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
 def _ensure_registered() -> None:
     """把本插件的数据根 / 配置 / 事件回调注册进统一内核（幂等）。
 
@@ -119,6 +121,7 @@ def _ensure_registered() -> None:
 # ── 生命周期（循环已统一，这里只做注册 + 迁移）──
 
 
+@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
 async def start_loop(on_event=None) -> None:
     """注册进统一循环；幂等。leader 锁已退役。"""
     global _on_event
@@ -156,6 +159,7 @@ def status() -> dict:
     }
 
 
+@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
 async def tick_once() -> int:
     """扫一轮到期任务（统一循环同一入口；测试/手动驱动用）。"""
     _ensure_registered()
@@ -168,6 +172,7 @@ async def tick_once() -> int:
 # ── 手动触发 / 预览 ──
 
 
+@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
 async def run_now(task_id: str) -> dict:
     """手动立即触发一次；**不推进** next_fire_at（契约不变）。"""
     task = store.get_task(task_id)

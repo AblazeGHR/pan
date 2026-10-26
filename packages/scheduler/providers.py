@@ -299,7 +299,11 @@ class TimeProvider:
             for hour in hours:
                 for minute in minutes:
                     wall = datetime(day.year, day.month, day.day, hour, minute)
-                    if wall <= wall_after.replace(microsecond=0, tzinfo=None):
+                    # A passed strict wall time need not be resolved (it may
+                    # be a historical gap). Fold-second/shift policies can
+                    # still have a future instant behind the current wall time.
+                    if (wall <= wall_after.replace(microsecond=0, tzinfo=None)
+                            and rule["dstPolicy"] in {"strict", "gap-skip-fold-first"}):
                         continue
                     occurrence = _wall_instant(wall, zone, rule["dstPolicy"])
                     if occurrence is not None and occurrence["at"] > boundary:
@@ -312,7 +316,7 @@ class TimeProvider:
         for rule in item["config"]["rules"]:
             old = previous.get(rule["ruleId"])
             if old and old.get("rule") == rule:
-                rules[rule["ruleId"]] = {k: copy.deepcopy(v) for k, v in old.items() if k != "rule"}
+                rules[rule["ruleId"]] = copy.deepcopy(old)
                 continue
             occurrence = self.initial(rule, at)
             rules[rule["ruleId"]] = {
@@ -534,6 +538,68 @@ def time_definition(name: str, config: Mapping[str, Any], event_type="scheduler.
         "config": copy.deepcopy(dict(config)), "eventTypes": [event_type],
         "requiredCapabilities": list(provider.capabilities),
     }
+
+
+def legacy_source_plan(source, *, timezone_name, rule_id="legacy"):
+    """Pure, explicit conversion of a settled v1 source; never infer host TZ.
+
+    Unsettled/unknown sources belong in the historical ledger and require
+    explicit review. In particular a pending v1 envelope is never republished
+    with a new v2 identity. The reviewed next-fire fact is adopted, not recomputed
+    from createdAt, so historical occurrences cannot be replayed at cutover.
+    """
+    allowed = {"id", "name", "owner", "revision", "enabled", "schedule", "misfirePolicy",
+               "graceSec", "nextFireAt", "publishCursor", "createdAt", "updatedAt", "pending",
+               "lastOutcome", "lastScheduledAt", "compositionBlocked", "setupOperation"}
+    if (not isinstance(source, dict) or set(source) - allowed
+            or source.get("owner") != "scheduler-event-v1" or type(source.get("enabled")) is not bool
+            or source.get("compositionBlocked") or source.get("setupOperation")):
+        raise contracts.ContractError("capability_unsupported", "Legacy source requires explicit review")
+    published = source.get("publishCursor")
+    if source.get("pending") or published and published.get("eventStoreReleased") is not True:
+        raise contracts.ContractError("pending_publication", "Legacy source publication is unsettled; history only")
+    provider = TimeProvider()
+    zone = provider.zone(timezone_name)
+
+    def explicit(value):
+        try:
+            return timestamp(value)
+        except ValueError:
+            wall = datetime.fromisoformat(value)
+            if wall.tzinfo is not None:
+                raise
+            return _public_occurrence(_wall_instant(wall, zone, "strict"))["at"]
+
+    spec = source["schedule"]
+    if not isinstance(spec, dict) or set(spec) - {"kind", "at", "intervalSec", "interval_sec", "anchor", "cron", "timezone"}:
+        raise contracts.ContractError("capability_unsupported", "Unsupported legacy schedule fields")
+    kind = spec.get("kind")
+    rule = {"ruleId": rule_id, "type": kind}
+    if kind == "once":
+        rule["at"] = explicit(spec["at"])
+    elif kind == "interval":
+        if not isinstance(zone, timezone):
+            raise contracts.ContractError("capability_unsupported", "Legacy wall-time interval across DST requires review")
+        rule.update(seconds=format(Decimal(str(spec.get("intervalSec", spec.get("interval_sec")))), "f"),
+                    anchor=explicit(spec["anchor"]), advanceMode="grid")
+    elif kind == "cron":
+        rule.update(expression=spec["cron"], timezone=spec.get("timezone") or timezone_name,
+                    dstPolicy="gap-shift-fold-first")
+    else:
+        raise contracts.ContractError("capability_unsupported", "Unsupported legacy source rule")
+    config = {"rules": [rule], "misfirePolicy": source["misfirePolicy"],
+              "graceSeconds": str(source["graceSec"]), "pausePolicy": "advance"}
+    provider.validate_config(config)
+    occurrence = None
+    if source.get("nextFireAt") is not None:
+        point = instant(explicit(source["nextFireAt"]))
+        before = _decimal_add(point, -Decimal(1).scaleb(min(point.as_tuple().exponent, -6)))
+        occurrence = provider.next_after(rule, timestamp(before))
+        if occurrence is None or instant(occurrence["at"]) != point:
+            raise contracts.ContractError("reference_conflict", "Legacy cursor is outside the canonical rule")
+    elif source["enabled"]:
+        raise contracts.ContractError("reference_conflict", "Enabled legacy source has no next-fire fact")
+    return time_definition(source["name"], config), occurrence
 
 
 def settlement_definition(name: str, config: Mapping[str, Any], event_type="scheduler.settlement.v1"):

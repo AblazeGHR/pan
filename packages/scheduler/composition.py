@@ -12,6 +12,7 @@ from typing import Any, Mapping, Protocol
 from packages.jobs import final_contracts as contracts
 
 from .creators import CreatorStore
+from .providers import legacy_source_plan
 
 PHASES = (
     "reserved", "disabled_objects_created", "links_verified",
@@ -75,13 +76,16 @@ class CompositionCoordinator:
 
     def reserve(self, *, request_key: str, desired_graph, expected_refs=(),
                 authorization_evidence=None, old_graph_digest=None, activate=False,
-                operation="create"):
+                operation="create", legacy_sources=()):
         contracts.check_request_key(request_key)
         self._validate_graph(desired_graph)
-        request_digest = contracts.request_digest(operation, {
+        request = {
             "desiredGraph": desired_graph, "expectedRefs": list(expected_refs),
             "activate": bool(activate), "oldGraphDigest": old_graph_digest,
-        })
+        }
+        if legacy_sources:
+            request["legacySources"] = list(legacy_sources)
+        request_digest = contracts.request_digest(operation, request)
         existing = self.creators.composition_for_key(request_key)
         if existing:
             if existing["requestDigest"] != request_digest:
@@ -113,6 +117,7 @@ class CompositionCoordinator:
             "desiredGraph": resolved_graph,
             "authorizationEvidence": copy.deepcopy(authorization_evidence or {}),
             "oldGraphDigest": old_graph_digest or contracts.digest(None),
+            "legacySources": copy.deepcopy(list(legacy_sources)),
             "activate": bool(activate), "phase": "reserved", "status": "pending", "error": None,
         }
         return self.creators.save_composition(record)
@@ -162,6 +167,7 @@ class CompositionCoordinator:
             self.port.create_disabled(copy.deepcopy(operation))
             operation = self._checkpoint(operation, "disabled_objects_created")
         if operation["phase"] == "disabled_objects_created":
+            self._restore_legacy_sources(operation)
             for expected in operation["expectedRefs"]:
                 actual = self.creators.ref(expected["id"])
                 if actual["revision"] != expected["revision"] or actual["digest"] != expected["digest"]:
@@ -202,6 +208,67 @@ class CompositionCoordinator:
             self.port.complete(copy.deepcopy(operation))
             operation = self._checkpoint(operation, "complete")
         return operation
+
+    def _restore_legacy_sources(self, operation):
+        """Adopt reviewed simple cursors before any composition can activate.
+
+        Pending publications and partially shared cohorts stay historical. All
+        old edges must have explicit successors; no implicit half-source switch.
+        Runtime only reads the resulting canonical cursor/links afterwards.
+        """
+        graph = operation["desiredGraph"]
+        ids = operation["objectIds"]
+        seen = set()
+        with self.creators.transaction() as db:
+            for migration in operation.get("legacySources", []):
+                if not isinstance(migration, dict) or set(migration) != {
+                    "creatorKey", "importKey", "sourceId", "timezone", "triggerKeys",
+                }:
+                    raise ValueError("Invalid legacySources migration binding")
+                key = migration["creatorKey"]
+                if key in seen:
+                    raise ValueError("Duplicate legacy Creator binding")
+                seen.add(key)
+                spec = next((s for s in graph.get("creators", []) if s["key"] == key), None)
+                if spec is None or spec["mode"] != "create":
+                    raise contracts.ContractError("reference_conflict", "Legacy migration requires an owned disabled Creator")
+                history = self.creators.legacy_history(migration["importKey"])
+                if history is None:
+                    raise contracts.ContractError("reference_conflict", "Reviewed Scheduler history import required")
+                snapshot = history["snapshot"]
+                source = next((s for s in snapshot["sources"] if s["id"] == migration["sourceId"]), None)
+                if source is None:
+                    raise contracts.ContractError("reference_conflict", "Legacy source missing from history")
+                definition, occurrence = legacy_source_plan(source, timezone_name=migration["timezone"])
+                if definition != spec["definition"] or operation["activate"] and not source["enabled"]:
+                    raise contracts.ContractError("reference_conflict", "Migration definition/state differs from the legacy source")
+                old_links = [link for link in snapshot["links"] if link["sourceId"] == source["id"]]
+                mapping = migration["triggerKeys"]
+                if (not isinstance(mapping, dict) or set(mapping) != {link["triggerId"] for link in old_links}
+                        or len({link["jobId"] for link in old_links}) > 1
+                        or len(set(mapping.values())) != len(mapping)):
+                    raise contracts.ContractError("reference_conflict", "Legacy source cohort is incomplete or shared across Jobs")
+                for trigger_key in mapping.values():
+                    trigger = next((t for t in graph.get("triggers", []) if t["key"] == trigger_key), None)
+                    if trigger is None or key not in trigger["creatorKeys"]:
+                        raise contracts.ContractError("reference_conflict", "Legacy link has no canonical successor")
+                item = self.creators._read_db(db, ids["creators"][key])
+                origin = {"importKey": migration["importKey"], "sourceId": source["id"],
+                          "sourceDigest": history["sourceDigest"]}
+                adopted = db.execute("SELECT importKey,creatorId FROM legacy_scheduler_adoptions WHERE sourceId=?",
+                                     (source["id"],)).fetchone()
+                if adopted and tuple(adopted) != (migration["importKey"], item["id"]):
+                    raise contracts.ContractError("reference_conflict", "Legacy source already has a canonical owner")
+                if item.get("legacyHistory") == origin:
+                    continue
+                if item["state"] != "disabled" or item.get("pendingPublication") or item["drives"]:
+                    raise contracts.ContractError("reference_conflict", "Migration Creator has already driven")
+                cursor = item["cursor"]["rules"]["legacy"]
+                cursor.update(nextFireAt=occurrence["at"] if occurrence else None, nextOccurrence=occurrence)
+                item["legacyHistory"] = origin
+                db.execute("INSERT INTO legacy_scheduler_adoptions VALUES(?,?,?)",
+                           (source["id"], migration["importKey"], item["id"]))
+                self.creators._write(db, item)
 
     def cancel(self, request_key):
         operation = self.creators.composition_for_key(request_key)

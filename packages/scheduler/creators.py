@@ -1,7 +1,8 @@
 """Canonical Event Creator storage, durable Event Bus, and drive coordinator.
 
-The module is an internal/feature-gated service surface for WP06. It does not
-replace or call the legacy Sources/store/pass, and it never executes an Action.
+Production drives use this ledger and the composition activation gate. Legacy
+snapshots enter only through an explicit fenced import, never startup scanning.
+Historical pending envelopes remain audit facts and never execute an Action.
 """
 from __future__ import annotations
 
@@ -155,13 +156,19 @@ class EventBus:
             and pending["envelope"]["eventId"] == envelope["eventId"]
             and contracts.event_fact_digest(pending["envelope"]) == digest
         )
+        if accepted and dict(fence) != pending["fence"]:
+            raise contracts.ContractError("revision_conflict", "Pending Creator publication fence rejected")
         if not accepted:
-            current = {
-                "revision": creator["revision"], "epoch": creator["ownerEpoch"],
-                "generation": creator["providerGeneration"],
-            }
-            if any(fence.get(key) != value for key, value in current.items()):
-                raise contracts.ContractError("revision_conflict", "Creator publication fence rejected")
+            # A concurrent publisher may have advanced this pending already.
+            # Only an existing identical receipt can be retried after that CAS;
+            # current owner metadata alone cannot authorize a new occurrence.
+            retained = await asyncio.to_thread(self.events.get, envelope["eventId"])
+            if not retained or not any(
+                drive.get("driveId") == fence.get("driveId") and drive.get("eventId") == envelope["eventId"]
+                for drive in creator["drives"]
+            ):
+                raise contracts.ContractError("revision_conflict", "Creator publication has no reserved drive")
+            contracts.event_receipt_outcome(retained["event"], envelope)
         return await asyncio.to_thread(
             self.events.append, envelope,
             profile_id=creator["profileId"], targets=self.targets(envelope),
@@ -212,6 +219,11 @@ class CreatorStore:
                         PRIMARY KEY(triggerId,creatorId))""")
                     db.execute("""CREATE TABLE IF NOT EXISTS compositions(
                         id TEXT PRIMARY KEY,requestKey TEXT UNIQUE,document TEXT NOT NULL)""")
+                    db.execute("""CREATE TABLE IF NOT EXISTS legacy_scheduler_history(
+                        requestKey TEXT PRIMARY KEY,sourcePath TEXT UNIQUE NOT NULL,
+                        sourceDigest TEXT NOT NULL,document TEXT NOT NULL)""")
+                    db.execute("""CREATE TABLE IF NOT EXISTS legacy_scheduler_adoptions(
+                        sourceId TEXT PRIMARY KEY,importKey TEXT NOT NULL,creatorId TEXT UNIQUE NOT NULL)""")
                     yield db
             finally:
                 db.close()
@@ -257,6 +269,44 @@ class CreatorStore:
         if item is None:
             raise KeyError(creator_id)
         return {"id": creator_id, "revision": item["revision"], "digest": contracts.digest(_definition(item))}
+
+    def import_legacy_sources(self, sources, *, request_key, expected_digest):
+        """Copy reviewed source/pending/link/cursor facts without executing them.
+
+        Activation must already exclude legacy writers through the profile's
+        fencing authority. Complex/unsettled rows are retained verbatim here;
+        they are deliberately not CreatorRuntime inputs. No source is modified.
+        """
+        contracts.check_request_key(request_key)
+        if sources.owner_fence.root != self.owner_fence.root:
+            raise contracts.ContractError("reference_conflict", "Legacy source belongs to another profile")
+        if self.owner_fence.token is None:
+            raise contracts.ContractError("revision_conflict", "Canonical owner required for Scheduler import")
+        with self.transaction() as db:
+            snapshot = sources.snapshot()
+            digest = contracts.digest(snapshot)
+            if digest != expected_digest:
+                raise contracts.ContractError("revision_conflict", "Legacy Scheduler snapshot changed")
+            path = str(sources.path.resolve())
+            old = db.execute("SELECT document FROM legacy_scheduler_history WHERE requestKey=? OR sourcePath=?",
+                             (request_key, path)).fetchone()
+            if old:
+                record = json.loads(old[0])
+                if (record["requestKey"] != request_key or record["sourceDigest"] != digest
+                        or record["sourcePath"] != path):
+                    raise contracts.ContractError("idempotency_conflict", "Scheduler history import identity changed")
+                return record
+            record = {"schemaVersion": 2, "recordType": "legacy_scheduler_history",
+                      "requestKey": request_key, "sourceDigest": digest, "sourcePath": path,
+                      "ownerEpoch": self.owner_fence.token[0], "snapshot": copy.deepcopy(snapshot)}
+            db.execute("INSERT INTO legacy_scheduler_history VALUES(?,?,?,?)",
+                       (request_key, path, digest, _json(record)))
+            return record
+
+    def legacy_history(self, request_key):
+        with self.connection(readonly=True) as db:
+            row = db.execute("SELECT document FROM legacy_scheduler_history WHERE requestKey=?", (request_key,)).fetchone()
+            return json.loads(row[0]) if row else None
 
     def _request(self, db, key, fingerprint):
         old = db.execute("SELECT fingerprint,objectId FROM requests WHERE key=?", (key,)).fetchone()
@@ -452,6 +502,9 @@ class CreatorStore:
             if item is None:
                 return None
             if item.get("pendingPublication"):
+                pending_fence = item["pendingPublication"]["fence"]
+                if revision != pending_fence["revision"] or epoch != pending_fence["epoch"]:
+                    raise contracts.ContractError("revision_conflict", "Pending Creator reservation fence rejected")
                 return copy.deepcopy(item["pendingPublication"])
             if item["state"] != "enabled" or not item.get("activation", {}).get("committed"):
                 return None
