@@ -69,8 +69,9 @@ def start_console_exit(port, strategy, *, stream=None):
     if stream is None or not stream.isatty():
         return None
     def submit(payload):
-        request = Request(f"http://127.0.0.1:{port}/api/main/exit",
-                          data=json.dumps(payload).encode(),
+        from .lifecycle_action import ACTION_ROUTE
+        request = Request(f"http://127.0.0.1:{port}{ACTION_ROUTE}",
+                          data=json.dumps({"operation": "exit", **payload}).encode(),
                           headers={"Content-Type": "application/json"}, method="POST")
         try:
             with urlopen(request, timeout=10) as response:

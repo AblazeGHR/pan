@@ -8,7 +8,6 @@ import json
 import math
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 import time
@@ -95,43 +94,63 @@ def status(root):
                 "listenerOwner": owner, "error": str(exc)}
 
 
-def lifecycle(root, operation, timeout, choice=None):
-    port, record, _ = verified(root)
-    payload = {"options": {"markRunningSessionsOffline": choice}} if choice is not None else {}
-    result = request(port, f"/api/main/{operation}", payload, record)
-    job_id = result.get("jobId", "")
-    if not result.get("ok") or not re.fullmatch(r"job_[a-zA-Z0-9_-]+", job_id):
-        raise launcher.LauncherError(f"{operation} was not accepted: {result}")
-    print(f"{operation} accepted; waiting for terminal state: {job_id}", flush=True)
-    path = root / "data/background_jobs/jobs" / (job_id + ".json")
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        job = launcher._read_json(path) or {}
-        if job and (job.get("operation") != operation or job.get("oldPid") != record["pid"] or
-                    job.get("oldPidCreatedAt") != record["createdAt"] or
-                    job.get("requestId") != result.get("requestId") or
-                    launcher._normal_path(job.get("root", "")) != launcher._normal_path(root) or
-                    job.get("port") != port):
-            raise launcher.LauncherError("Lifecycle Job identity mismatch")
-        phase = job.get("phase")
-        if phase in {"failed", "timed_out"} or job.get("error"):
-            raise launcher.LauncherError(f"{operation} failed: {job}")
-        if phase == ("offline" if operation == "exit" else "ready"):
-            if launcher.process_alive(record["pid"], record["createdAt"]):
-                raise launcher.LauncherError("Old service identity is still alive")
-            if operation == "exit":
-                if launcher.listener_owner(port) is not None:
-                    raise launcher.LauncherError("Exit completed but port still has a listener")
-            else:
-                _, new, _ = verified(root)
-                if new["pid"] != job.get("newPid") or new["createdAt"] != job.get("newPidCreatedAt"):
-                    raise launcher.LauncherError("New instance differs from the completed restart Job")
-                if not launcher.readiness(root=root, port=port, expected_pid=new["pid"],
-                                          expected_created_at=new["createdAt"]).get("ok"):
-                    raise launcher.LauncherError("Restart Job ready but HTTP readiness failed")
-            return {"ok": True, "phase": phase, "jobId": job_id}
-        time.sleep(0.2)
-    raise launcher.LauncherError(f"{operation} outcome unknown after {timeout:g}s; Job={path}; no automatic retry/kill")
+def lifecycle(root, operation, timeout, choice=None, *, fallback=False):
+    """Run exit/restart through the fixed system Action.
+
+    The old HTTP/JSON implementation remains available only through the
+    explicit ``fallback`` switch.  A failed canonical admission is reported;
+    it is never followed by a second launch implicitly.
+    """
+    from . import lifecycle_action
+    operation = "exit" if operation == "exit" else "restart" if operation == "restart" else operation
+    if operation not in lifecycle_action.PROTECTED_OPERATIONS:
+        raise launcher.LauncherError(f"unsupported protected lifecycle operation: {operation}")
+    try:
+        port, record, _ = verified(root)
+        payload = {"operation": operation,
+                   "options": {"markRunningSessionsOffline": choice}} if choice is not None else {"operation": operation}
+        result = request(port, lifecycle_action.ACTION_ROUTE, payload, record)
+        effect_id = result.get("effectId") if isinstance(result, dict) else None
+        if not result.get("accepted") or not isinstance(effect_id, str):
+            raise launcher.LauncherError(f"{operation} canonical Action failed/not accepted: {result}")
+        print(f"{operation} accepted; waiting for canonical receipt: {effect_id}", flush=True)
+        receipt = lifecycle_action.run_wait_for_receipt(
+            root=root, effect_id=effect_id, operation=operation, timeout=timeout,
+        )
+        if receipt.get("outcome") != "succeeded":
+            raise launcher.LauncherError(f"{operation} failed: {receipt}")
+        evidence = receipt.get("receipt") or {}
+        if operation == "exit":
+            offline = evidence.get("offlineProof") or {}
+            if (evidence.get("phase") != "offline" or offline.get("ok") is not True
+                    or offline.get("root") != str(root)
+                    or offline.get("port") != port
+                    or offline.get("oldPid") != record["pid"]
+                    or offline.get("oldPidCreatedAt") != record["createdAt"]):
+                raise launcher.LauncherError(f"exit completed without offline proof: {receipt}")
+        else:
+            proof = evidence.get("readyProof") or {}
+            identity = proof.get("identity") or {}
+            if (evidence.get("phase") != "ready" or proof.get("ok") is not True
+                    or proof.get("root") != str(root) or proof.get("port") != port
+                    or proof.get("http") is not True
+                    or proof.get("listenerOwner") != proof.get("newPid")
+                    or identity.get("ok") is not True or identity.get("root") != str(root)):
+                raise launcher.LauncherError(f"restart completed without ready proof: {receipt}")
+            new_pid = proof.get("newPid")
+            new_birth = proof.get("newPidCreatedAt")
+            if new_pid == record["pid"] or new_birth is None:
+                raise launcher.LauncherError(f"restart receipt reused the old service identity: {receipt}")
+        return {"ok": True, "phase": evidence.get("phase"),
+                "effectId": effect_id, "receipt": receipt}
+    except (launcher.LauncherError, OSError, ValueError, TypeError, TimeoutError):
+        if not fallback:
+            raise
+        # Explicit migration escape hatch: the fallback is called only after
+        # Action admission failed, and never in parallel with it.
+        from . import lifecycle_legacy
+        return lifecycle_legacy.run(root, operation, timeout, choice,
+                                    verified=verified, request=request)
 
 
 def logs(root, follow=False, lines=50):
@@ -257,7 +276,8 @@ def main(argv=None):
             raise launcher.LauncherError("--timeout must be finite and positive")
         if args.command == "start":
             with start_lock(root):
-                launcher.start_service(root, timeout=args.timeout)
+                from . import lifecycle_action
+                lifecycle_action.execute_local("start", root=root, timeout=args.timeout)
         elif args.command == "debug":
             return debug(root, args.timeout)
         elif args.command in {"exit", "restart"}:
@@ -265,8 +285,10 @@ def main(argv=None):
             print(json.dumps(lifecycle(root, args.command, args.timeout, choice), ensure_ascii=False))
         elif args.command in {"show", "hide"}:
             port, record, _ = verified(root)
-            result = request(port, "/api/main/console", {"action": args.command,
-                             "pid": record["pid"], "createdAt": record["createdAt"]})
+            from . import lifecycle_action
+            result = request(port, lifecycle_action.ACTION_ROUTE,
+                             {"operation": args.command, "pid": record["pid"],
+                              "createdAt": record["createdAt"]}, record)
             if not result.get("ok"):
                 raise launcher.LauncherError(str(result))
             print(json.dumps(result, ensure_ascii=False))

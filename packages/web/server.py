@@ -660,6 +660,7 @@ _main_exit_request_id: str | None = None
 _main_exit_stage = "idle"
 _main_exit_error: str | None = None
 _lifecycle_operation_lock = asyncio.Lock()
+_canonical_lifecycle_pending: dict[str, dict[str, Any]] = {}
 
 _MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
 _MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline", "preserveRunningIllegal"})
@@ -843,6 +844,27 @@ def _main_restart_job_view(job: dict | None) -> dict:
     }
 
 
+def _canonical_lifecycle_status(operation: str) -> dict:
+    """Project the in-process Action receipt for legacy status readers."""
+    from packages.core import lifecycle_action
+    from packages.jobs.independent_executor import ExecutionStore
+    for item in _canonical_lifecycle_pending.values():
+        if item.get("operation") != operation:
+            continue
+        try:
+            doc = ExecutionStore(lifecycle_action.receipt_root(_PROJECT_DIR)).get(item["effectId"])
+        except (KeyError, OSError, ValueError):
+            doc = None
+        result = (doc or {}).get("result") if doc else None
+        receipt = (result or {}).get("receipt") or {}
+        return {**item, "pending": result is None, "phase": (doc or {}).get("phase") or receipt.get("phase"),
+                "jobStatus": "running" if result is None else ("completed" if result.get("outcome") == "succeeded" else "uncertain"),
+                "newPid": receipt.get("readyProof", {}).get("newPid"),
+                "newPidCreatedAt": receipt.get("readyProof", {}).get("newPidCreatedAt"),
+                "oldPid": receipt.get("oldPid"), "oldPidCreatedAt": receipt.get("oldPidCreatedAt")}
+    return {}
+
+
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     launcher_module = Path(launcher.__file__).resolve()
@@ -873,6 +895,9 @@ def _main_restart_status() -> dict:
         "platform": os.name,
         "port": port,
     }
+    canonical = _canonical_lifecycle_status("restart")
+    if canonical:
+        result.update(canonical)
     job = active_job or latest_job
     if job:
         result.update(_main_restart_job_view(job))
@@ -1027,6 +1052,9 @@ def _main_exit_status() -> dict:
         "platform": os.name,
         "port": port,
     }
+    canonical = _canonical_lifecycle_status("exit")
+    if canonical:
+        result.update(canonical)
     job = active_job or latest_job
     if job:
         result.update(_main_restart_job_view(job))
@@ -3973,6 +4001,103 @@ async def api_main_identity():
             "root": str(_PROJECT_DIR), "version": __version__, "console": console.snapshot()}
 
 
+async def _canonical_lifecycle_handoff(operation: str, options: dict,
+                                       request_id: str, old_pid: int,
+                                       old_created_at: float) -> dict:
+    """Submit exactly one protected fixed system Action for this instance."""
+    from packages.core import lifecycle_action
+    from packages.actions.typed_executor import TypedExecutor
+    from packages.core.main_lifecycle import ProtectedLifecycleExecutor
+    from packages.jobs.independent_executor import ExecutionStore, effect_id
+
+    root = str(_PROJECT_DIR.expanduser().resolve())
+    port = _main_restart_port()
+    job_id, identity, plan = lifecycle_action.protected_plan(
+        root=root, port=port, old_pid=old_pid, old_pid_created_at=old_created_at,
+        operation=operation, options=options, request_id=request_id,
+    )
+    expected = {"jobId": job_id, "runId": identity["effectKey"]["runId"],
+                "stepId": identity["effectKey"]["stepId"],
+                "operation": plan["operation"], "root": root,
+                "port": port, "stepCount": 1}
+    grant = lambda scope: dict(expected) if scope == expected else {"denied": True}
+    protected = ProtectedLifecycleExecutor(
+        job_id=job_id, store=ExecutionStore(lifecycle_action.receipt_root(root)),
+        authorize=grant,
+    )
+    result = await TypedExecutor(lifecycle_executor=protected).execute(
+        attempt=identity["attempt"], effect_key=identity["effectKey"],
+        frozen_plan=plan,
+    )
+    return {"ok": result.get("outcome") in {"succeeded", "unknown"},
+            "accepted": True, "actionId": lifecycle_action.ACTION_ID,
+            "jobId": job_id, "requestId": request_id,
+            "effectId": effect_id(identity["effectKey"]),
+            "operation": operation, "receipt": result}
+
+
+@app.post("/api/system-actions/main-lifecycle")
+async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = None):
+    """Fixed product-owned lifecycle Action entrypoint.
+
+    Only the immutable ``system_main_lifecycle`` definition can reach this
+    route; arbitrary high-risk Actions remain rejected by FinalService.
+    """
+    from packages.core import lifecycle_action
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail={"code": "invalid_lifecycle_request"})
+    unknown = sorted(set(payload) - {"operation", "options", "pid", "createdAt"})
+    if unknown:
+        raise HTTPException(status_code=400, detail={"code": "unsupported_lifecycle_request_fields",
+                                                      "fields": unknown})
+    operation = lifecycle_action.validate_operation(payload.get("operation"))
+    if operation == "start":
+        raise HTTPException(status_code=409, detail={"code": "service_online", "message": "start is a host-local Action"})
+    options = _parse_main_lifecycle_options({"options": payload.get("options", {})}, operation)
+    if operation in lifecycle_action.PROTECTED_OPERATIONS and not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service " + operation)
+    current_pid = os.getpid()
+    current_birth = launcher.process_create_time(current_pid)
+    if current_birth is None:
+        raise HTTPException(status_code=409, detail={"code": "identity_unavailable"})
+    if payload.get("pid") is not None and payload.get("pid") != current_pid:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if payload.get("createdAt") is not None and payload.get("createdAt") != current_birth:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if operation in {"show", "hide"}:
+        from packages.core.host_console import console, ConsoleError
+        try:
+            return {"ok": True, "actionId": lifecycle_action.ACTION_ID,
+                    "operation": operation, "console": console.change(operation)}
+        except (ConsoleError, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    async with _lifecycle_operation_lock:
+        for pending in _canonical_lifecycle_pending.values():
+            if pending.get("operation") == operation:
+                return dict(pending)
+        # Stable across a lost HTTP response/reloaded host; the canonical
+        # effect fence then returns the original receipt instead of relaunching.
+        request_id = "request_" + hashlib.sha256(
+            f"main-lifecycle:{_PROJECT_DIR.resolve()}:{_main_restart_port()}:{operation}:{current_pid}:{current_birth}".encode("utf-8")
+        ).hexdigest()[:24]
+        result = await _canonical_lifecycle_handoff(
+            operation, options, request_id, current_pid, float(current_birth),
+        )
+        receipt = result.get("receipt") or {}
+        if (receipt.get("outcome") == "rejected"
+                or (receipt.get("outcome") == "unknown"
+                    and (receipt.get("receipt") or {}).get("code") != "execution_pending")):
+            return {"ok": False, "accepted": False, "actionId": lifecycle_action.ACTION_ID,
+                    "operation": operation, "error": receipt.get("receipt", {})}
+        pending = {"ok": True, "accepted": True,
+                   "actionId": lifecycle_action.ACTION_ID, "operation": operation,
+                   "requestId": request_id, "jobId": result["jobId"],
+                   "effectId": result["effectId"]}
+        _canonical_lifecycle_pending[result["effectId"]] = pending
+        return pending
+
+
 class CLIInstanceGuardMiddleware:
     """Fence lifecycle writes without task/stream relays on ordinary requests."""
 
@@ -3981,7 +4106,8 @@ class CLIInstanceGuardMiddleware:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] == "http" and scope["method"] == "POST"
-                and scope["path"] in {"/api/main/exit", "/api/main/restart"}):
+                and scope["path"] in {"/api/main/exit", "/api/main/restart",
+                                        "/api/system-actions/main-lifecycle"}):
             headers = dict(scope.get("headers", []))
             pid = headers.get(b"x-pan-expected-pid")
             created = headers.get(b"x-pan-expected-created-at")
@@ -4046,18 +4172,10 @@ async def api_main_restart_status():
 
 @app.post("/api/main/restart")
 async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
-    """Accept a durable detached restart of this Pan instance.
-
-    Returning before the supervisor stops this process is essential: waiting
-    for stop/start inside this request would turn the expected disconnect into
-    an HTTP failure in the browser. The detached Python lifecycle supervisor
-    owns the subsequent launcher stop/start chain.
-    """
-    if not platform_layer.supports("service.lifecycle"):
-        return _unsupported_platform("Main service restart")
-    options = _parse_main_lifecycle_options(payload, "restart")
-    async with _lifecycle_operation_lock:
-        return await _schedule_main_restart(options)
+    """Compatibility alias for the fixed system lifecycle Action."""
+    body = dict(payload or {})
+    body["operation"] = "restart"
+    return await api_system_main_lifecycle(body)
 
 
 async def _schedule_main_restart(options: dict) -> dict:
@@ -4380,17 +4498,10 @@ async def api_main_exit_status():
 
 @app.post("/api/main/exit")
 async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
-    """Schedule a legal, stop-only shutdown of this Pan instance.
-
-    The HTTP response is returned before Worker draining and service stop.  No
-    health-recovery wait follows: this operation intentionally makes the
-    service unavailable.
-    """
-    if not platform_layer.supports("service.lifecycle"):
-        return _unsupported_platform("Main service exit")
-    options = _parse_main_lifecycle_options(payload, "exit")
-    async with _lifecycle_operation_lock:
-        return await _schedule_main_exit(options)
+    """Compatibility alias for the fixed system lifecycle Action."""
+    body = dict(payload or {})
+    body["operation"] = "exit"
+    return await api_system_main_lifecycle(body)
 
 
 async def _schedule_main_exit(options: dict) -> dict:
