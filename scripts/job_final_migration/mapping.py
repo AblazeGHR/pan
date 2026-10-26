@@ -170,7 +170,10 @@ class Mapper:
     def map(self, item: dict, source: dict) -> dict:
         require(item["classification"] == SIMPLE, "refusing non-simple record")
         mid = item["migrationId"]
-        proof = copy.deepcopy(self.context["records"][mid])
+        proof_source = self.context.get("records", {}).get(mid)
+        require(proof_source is not None,
+                f"unverified_authority: missing reviewed record {mid}")
+        proof = copy.deepcopy(proof_source)
         require(proof["originalDigest"] == item["originalDigest"], "plan_stale: context source changed")
         require(proof["oldOwnerStopped"] is True and type(proof["oldOwnerEpoch"]) is int
                 and proof["oldOwnerEpoch"] >= 1 and bool(proof["fenceEvidence"])

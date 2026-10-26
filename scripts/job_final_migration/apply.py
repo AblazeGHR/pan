@@ -139,7 +139,8 @@ def _publish(target: Path, bundle: dict, check) -> bool:
 
 def migrate(root: str | Path, target: str | Path, context: dict, *,
             apply: bool = False, mark_read_only: bool = False,
-            expected_digest: str | None = None, allow_real_profile: bool = False) -> dict:
+            expected_digest: str | None = None, allow_real_profile: bool = False,
+            preserve_incompatible: bool = False) -> dict:
     """Build/commit a disabled canonical graph outside root. Default is dry-run.
 
     expected_digest is the planDigest from a reviewed context-bound dry-run.
@@ -151,18 +152,38 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     inventory_digest = fc.digest(inventory)
     reviewed_digest = plan_digest(inventory, context)
     require(not apply or expected_digest == reviewed_digest, "plan_stale: --expected-digest required/mismatched")
-    require(not inventory["summary"]["unknown"] and not inventory["scanErrors"],
-            "unknown/corrupt source or scan error: refusing whole apply")
+    if preserve_incompatible:
+        require(context.get("partialPolicy") == {"version": 1, "mode": "preserve-incompatible"},
+                "partial apply requires a reviewed context partialPolicy")
+        # A malformed/unknown record is itself a historical-preserve item when
+        # inventory retained its raw bytes and digest.  Other scan errors (for
+        # example an unreadable source file or path escape) still block the
+        # whole partial apply because preservation cannot be proven.
+        unknown_files = {item["sourceFile"] for item in inventory["instances"]
+                         if item["classificationDetail"] == "unknown"}
+        allowed_scan_errors = [error for error in inventory["scanErrors"]
+                               if error.get("path") in unknown_files]
+        require(len(allowed_scan_errors) == len(inventory["scanErrors"]),
+                "scan error: cannot prove complete preservation")
+    else:
+        require(not inventory["summary"]["unknown"] and not inventory["scanErrors"],
+                "unknown/corrupt source or scan error: refusing whole apply")
     sources = _inputs(root)
     classified_files = {item["sourceFile"] for item in inventory["instances"]}
-    require(all(not name.startswith(("background_jobs/jobs/", "scheduler/tasks/"))
-                or name in classified_files for name in sources), "unknown unclassified source file")
+    unclassified = [name for name in sources if name.startswith(("background_jobs/jobs/", "scheduler/tasks/"))
+                    and name not in classified_files]
+    require(preserve_incompatible or not unclassified, "unknown unclassified source file")
     require(fc.digest(build_inventory(root, allow_real_profile=allow_real_profile)) == inventory_digest,
             "plan_stale: inventory changed during snapshot")
     mapper = Mapper(context)
     entries = []
+    simple_ids = {item["migrationId"] for item in inventory["instances"] if item["classification"] == SIMPLE}
+    selected = context.get("selectedMigrationIds", sorted(simple_ids))
+    require(isinstance(selected, list) and len(selected) == len(set(selected)) and set(selected) <= simple_ids,
+            "invalid selectedMigrationIds: only explicit simple candidates may import")
+    require(preserve_incompatible or set(selected) == simple_ids, "selection requires partial apply")
     for item in inventory["instances"]:
-        if item["classification"] == SIMPLE:
+        if item["classification"] == SIMPLE and item["migrationId"] in selected:
             require(_hash(sources[item["sourceFile"]]) == item["originalDigest"], "plan_stale: source hash changed")
             entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
     require(bool(entries), "no simple records to migrate")
@@ -175,6 +196,23 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
             root, allow_real_profile=allow_real_profile)) == inventory_digest,
             "plan_stale: source changed before commit")
     report = copy.deepcopy(inventory)
+    if preserve_incompatible:
+        preserved = [{**copy.deepcopy(item), "targetIds": [], "historicalOnly": True, "executable": False}
+                     for item in inventory["plan"]["preserved"]]
+        for item in inventory["instances"]:
+            if item["classification"] == SIMPLE and item["migrationId"] not in selected:
+                preserved.append({"migrationId": item["migrationId"], "originalId": item["id"],
+                    "sourceFile": item["sourceFile"], "originalDigest": item["originalDigest"],
+                    "reasonCodes": ["not_selected"], "targetIds": [], "historicalOnly": True, "executable": False})
+        preserved.extend({"sourceFile": name, "originalDigest": _hash(sources[name]), "originalId": None,
+            "reasonCodes": ["unclassified_source_file"], "targetIds": [], "historicalOnly": True,
+            "executable": False} for name in unclassified)
+        report["plan"]["preserved"] = preserved
+        report["plan"]["items"] = [p for p in report["plan"]["items"] if p["migrationId"] in selected]
+        report["plan"]["invariant"] = {"sourceTotal": len(inventory["instances"]), "planned": len(entries),
+            "preserved": len(inventory["instances"]) - len(entries), "classificationPending": 0}
+        report["partialApply"] = {"selected": len(entries), "preservedInstances": len(inventory["instances"]) - len(entries),
+            "preservedMetadataFiles": len(unclassified), "allLegacyCleared": False}
     report["inventoryDigest"] = inventory_digest
     report["planDigest"] = reviewed_digest
     report["contextDigest"] = context_digest
@@ -206,7 +244,7 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
         "planDigest": reviewed_digest,
         "sourceDigest": source_digest, "contextDigest": context_digest,
         "canonical": mapper.objects, "allocations": {v["migrationId"]: v["targetIds"] for v in entries},
-        "entries": entries, "preserved": inventory["plan"]["preserved"],
+        "entries": entries, "preserved": report["plan"]["preserved"],
         "sourceBackups": {key: {"sha256": _hash(raw), "encoding": "base64", "bytes": base64.b64encode(raw).decode("ascii")}
                           for key, raw in sources.items()},
         "runtimeActivated": False, "runtimeFenceVerified": False})
