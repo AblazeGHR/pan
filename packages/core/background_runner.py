@@ -9,6 +9,7 @@ import os
 import traceback
 from contextlib import nullcontext
 from packages.jobs.desktop import DesktopCommand
+from packages.jobs.runtime_owner import legacy_writer
 
 
 def main() -> int:
@@ -20,6 +21,7 @@ def main() -> int:
         return _run_legacy(args)
 
 
+@legacy_writer(lambda args: jobs._root().parent, reservation=True)
 def _run_legacy(args) -> int:
     job = jobs.get(args.job_id)
     if not job:

@@ -18,7 +18,6 @@ import re
 import secrets
 import stat
 import subprocess
-import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -28,10 +27,10 @@ from packages.core import session as _sessions
 from packages.core import worker as _worker
 from packages.core import config as _config
 from packages.jobs import cron as _job_cron
+from packages.jobs.final_runtime.coordinator import REGISTRY_LOCK as _lock
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOT = PROJECT_ROOT / "data" / "background_jobs"
-_lock = threading.RLock()
 _recovery_task: asyncio.Task | None = None
 _stop_recovery = asyncio.Event()
 COMPLETED_RETENTION_SCAN_INTERVAL_SEC = 24 * 60 * 60
@@ -86,23 +85,9 @@ def _job_path(job_id: str, registry_root: str | Path | None = None) -> Path:
 
 
 def _atomic_write(path: Path, value: dict) -> None:
-    tmp = path.with_suffix(path.suffix + f".{secrets.token_hex(4)}.tmp")
-    tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    # Windows file scanners and a concurrently closing reader can briefly
-    # deny the replace even while the registry lock is held. Retry the atomic
-    # rename; never fall back to truncating the canonical record.
-    for attempt in range(20):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError:
-            if attempt == 19:
-                try:
-                    tmp.unlink()
-                except OSError:
-                    pass
-                raise
-            time.sleep(0.01 * (attempt + 1))
+    """Compatibility import; canonical runtime owns atomic storage."""
+    from packages.jobs.final_runtime.coordinator import atomic_write
+    atomic_write(path, value)
 
 
 @_legacy_write
@@ -168,52 +153,16 @@ def _windows_named_mutex(lock_path: Path, namespace: str):
 
 @contextmanager
 def _job_lock(job_id: str, registry_root: str | Path | None = None):
-    """Cross-process lock for a single job's read/modify/write transaction."""
-    lock_path = _root(registry_root) / "jobs" / f"{job_id}.lock"
-    if os.name == "nt":
-        # msvcrt byte-range locks are not reliable for this workload when
-        # several fresh Python processes open/replace the same JSON quickly.
-        # A named kernel mutex is process-wide, automatically released when a
-        # process dies, and does not add a dependency to the MVP.
-        with _windows_named_mutex(lock_path, "Local\\PanBackgroundJob_"):
-            yield
-        return
-    lock_path.touch(exist_ok=True)
-    handle = open(lock_path, "r+b")
-    try:
-        if handle.seek(0, 2) == 0:
-            handle.write(b"0")
-            handle.flush()
-        handle.seek(0)
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    from packages.jobs.final_runtime.coordinator import registry_lock
+    with registry_lock(_root(registry_root), "job:" + job_id):
         yield
-    finally:
-        try:
-            import fcntl
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        finally:
-            handle.close()
 
 
 @contextmanager
 def _registry_lock(name: str, registry_root: str | Path | None = None):
-    """Cross-process lock for a registry-wide key (for example root+port)."""
-    lock_path = _root(registry_root) / "jobs" / f".{name}.lock"
-    if os.name == "nt":
-        with _windows_named_mutex(lock_path, "Local\\PanBackgroundRegistry_"):
-            yield
-        return
-    lock_path.touch(exist_ok=True)
-    handle = open(lock_path, "r+b")
-    try:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    from packages.jobs.final_runtime.coordinator import registry_lock
+    with registry_lock(_root(registry_root), name):
         yield
-    finally:
-        import fcntl
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()
 
 
 def _load_path(path: Path) -> dict | None:
@@ -268,34 +217,21 @@ def _normalize_job(job: dict | None) -> dict | None:
 
 @_legacy_write
 def _save(job: dict, registry_root: str | Path | None = None) -> dict:
-    with _lock, _job_lock(job["jobId"], registry_root):
-        _write_job(_job_path(job["jobId"], registry_root), job)
-    return job
+    from packages.jobs.final_runtime.coordinator import JsonRegistryStore
+    return JsonRegistryStore(_root(registry_root)).publish(job, publisher=_write_job)
 
 
 @_legacy_write
 def _create(job: dict, registry_root: str | Path | None = None) -> dict:
-    """Create a job record atomically before its Runner is spawned."""
-    with _lock, _job_lock(job["jobId"], registry_root):
-        path = _job_path(job["jobId"], registry_root)
-        if path.exists():
-            raise ValueError("job id already exists")
-        _write_job(path, job, created=True)
-    return job
+    from packages.jobs.final_runtime.coordinator import JsonRegistryStore
+    return JsonRegistryStore(_root(registry_root)).publish(job, create=True, publisher=_write_job)
 
 
 @_legacy_write
 def _update(job_id: str, changes: dict[str, Any], *, replace: dict | None = None,
             registry_root: str | Path | None = None) -> dict:
-    """Read, modify, and atomically replace one job while holding its lock."""
-    with _lock, _job_lock(job_id, registry_root):
-        path = _job_path(job_id, registry_root)
-        current = replace if replace is not None else _load_path(path)
-        if not current:
-            raise ValueError("job not found")
-        current.update(changes)
-        _write_job(path, current)
-        return current
+    from packages.jobs.final_runtime.coordinator import JsonRegistryStore
+    return JsonRegistryStore(_root(registry_root)).update(job_id, changes, replace=replace, publisher=_write_job)
 
 
 def get(job_id: str, registry_root: str | Path | None = None) -> dict | None:
@@ -566,123 +502,10 @@ def _retarget_job_record(job: dict, old_session_id: str,
 @_legacy_write
 def retarget_session_jobs(old_session_id: str, new_session_id: str,
                           registry_root: str | Path | None = None) -> dict:
-    """Retarget every matching record in the live Jobs registry roots.
-
-    Jobs currently stores background-process (including scheduled-shell child),
-    session-message, session-broadcast, scheduled-task, and targetless
-    main-lifecycle records in the same ``jobs/job_*.json`` directory.  These
-    kinds have no other persisted target paths: scheduled actions carry their
-    target at the Job level, while delivery/run data is historical.  The
-    default scan resolves and de-duplicates both roots used by current APIs:
-    ``scheduler_store.data_root()`` and ``background_jobs._root()``.  It reads
-    only each root's live ``jobs/job_*.json`` records and edits only the four
-    current target fields.  It includes records in every status; completed
-    delivery/run history and already queued messages remain untouched.
-
-    Each record is read and atomically replaced while holding its existing
-    cross-process Job lock.  A failed record is reported by job ID so callers
-    can diagnose it by root and Job ID; repeating this operation is safe because
-    replacements are exact and idempotent.
-    """
-    summary = {
-        "oldSessionId": old_session_id,
-        "newSessionId": new_session_id,
-        "scanned": 0,
-        "updated": 0,
-        "unchanged": 0,
-        "errors": [],
-    }
-    if (not isinstance(old_session_id, str) or not old_session_id
-            or not isinstance(new_session_id, str) or not new_session_id):
-        summary["errors"].append({
-            "jobId": None,
-            "error": "old and new Session IDs must be non-empty strings",
-        })
-        return summary
-    if old_session_id == new_session_id:
-        return summary
-
-    candidate_roots: list[Path] = []
-    if registry_root is not None:
-        candidate_roots.append(Path(registry_root).expanduser())
-    else:
-        # The unified Jobs API and the legacy background-job routes can
-        # resolve different roots when both environment variables are set.
-        # Inspect both live API roots; migration-only scheduler sources are
-        # deliberately excluded.  Resolve independently so a broken root does
-        # not prevent updating records in the other live root.
-        try:
-            from packages.scheduler import store as scheduler_store
-
-            candidate_roots.append(scheduler_store.data_root())
-        except Exception as exc:
-            summary["errors"].append({
-                "root": None,
-                "jobId": None,
-                "error": f"scheduler registry resolution failed: {type(exc).__name__}: {exc}",
-            })
-        background_root_hint = Path(
-            os.environ.get("PAN_BACKGROUND_JOBS_DIR") or DEFAULT_ROOT).expanduser()
-        try:
-            candidate_roots.append(_root())
-        except Exception as exc:
-            summary["errors"].append({
-                "root": str(background_root_hint),
-                "jobId": None,
-                "error": f"background-job registry resolution failed: {type(exc).__name__}: {exc}",
-            })
-
-    roots: list[Path] = []
-    seen_roots: set[str] = set()
-    for candidate in candidate_roots:
-        root = Path(candidate).expanduser()
-        try:
-            key = os.path.normcase(str(root.resolve()))
-        except Exception as exc:
-            summary["errors"].append({
-                "root": str(root),
-                "jobId": None,
-                "error": f"registry resolution failed: {type(exc).__name__}: {exc}",
-            })
-            continue
-        if key not in seen_roots:
-            seen_roots.add(key)
-            roots.append(root)
-
-    for root in roots:
-        try:
-            paths = sorted((_root(root) / "jobs").glob("job_*.json"))
-        except Exception as exc:
-            summary["errors"].append({
-                "root": str(root),
-                "jobId": None,
-                "error": f"registry scan failed: {type(exc).__name__}: {exc}",
-            })
-            continue
-
-        for path in paths:
-            job_id = path.stem
-            summary["scanned"] += 1
-            try:
-                with _lock, _job_lock(job_id, root):
-                    current = _load_path(path)
-                    if current is None:
-                        if path.exists():
-                            raise ValueError("Job record could not be read")
-                        summary["unchanged"] += 1
-                        continue
-                    if not _retarget_job_record(current, old_session_id, new_session_id):
-                        summary["unchanged"] += 1
-                        continue
-                    _write_job(path, current)
-                    summary["updated"] += 1
-            except Exception as exc:
-                summary["errors"].append({
-                    "root": str(root),
-                    "jobId": job_id,
-                    "error": f"{type(exc).__name__}: {exc}",
-                })
-    return summary
+    """Compatibility adapter; the canonical runtime owns handoff policy."""
+    from packages.core import background_jobs as registry
+    from packages.jobs.final_runtime.coordinator import retarget_legacy_jobs
+    return retarget_legacy_jobs(registry, old_session_id, new_session_id, registry_root)
 
 
 @_legacy_write
@@ -1537,66 +1360,10 @@ def is_recovery_running() -> bool:
 
 @_legacy_write
 def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
-    """Serialize explicit delete/recheck; never unlink unconfirmed process owners.
-
-    Only the per-delete mutex spans OS waits. Registry/global locks are released
-    before cleanup, so unrelated Jobs and runner facts can continue to commit.
-    """
-    with (_registry_lock("delete-" + job_id, registry_root),
-          _registry_lock("spawn-" + job_id, registry_root),
-          _registry_lock("task-spawn-" + job_id, registry_root)):
-        with _lock, _job_lock(job_id, registry_root):
-            path = _job_path(job_id, registry_root)
-            current = _load_path(path)
-            if not current:
-                return False
-            if current.get("executionOwner") == "independent-job-service":
-                raise ValueError("independent Job deletion is unsupported")
-            action = current.get("action")
-            if (current.get("kind") == SCHEDULED_TASK_KIND
-                    and isinstance(action, dict) and action.get("api") == "shell"):
-                if current.get("status") in {"running", "starting"} or any(
-                        child.get("scheduledParentJobId") == job_id
-                        and child.get("status") not in {"completed", "failed", "cancelled"}
-                        for child in list_jobs(registry_root)):
-                    raise ValueError("cannot delete scheduled shell Job with an active dispatch/child")
-            active = current.get("status") in {"starting", "running", "cleanup_pending", "deleting"}
-            if current.get("kind", BACKGROUND_PROCESS_KIND) == BACKGROUND_PROCESS_KIND:
-                active = active or str(current.get("status", "")).lower() in {"unknown", "uncertain"}
-            if active:
-                current.setdefault("cleanupOriginalStatus", current.get("status"))
-                current.update(status="cleanup_pending", cleanupAttemptAt=time.time(),
-                               updatedAt=time.time(), cleanupError="process cleanup in progress")
-                _write_job(path, current)
-            else:
-                path.unlink()
-                return True
-
-        def persist_proof(proof):
-            with _lock, _job_lock(job_id, registry_root):
-                latest = _load_path(path)
-                if not latest or latest.get("status") != "cleanup_pending":
-                    raise ValueError("Job cleanup admission changed")
-                latest.update(proof, updatedAt=time.time())
-                _write_job(path, latest)
-
-        try:
-            frozen = dict(current)
-            frozen["_cleanupPersist"] = persist_proof
-            receipt = _terminate_job_processes([frozen])
-            if not isinstance(receipt, dict) or receipt.get("confirmed") is not True:
-                raise ValueError((receipt or {}).get("reason") or "process cleanup receipt unknown")
-        except Exception as exc:
-            persist_proof({"cleanupError": str(exc)[:500]})
-            raise ValueError(f"cannot safely delete: {exc}") from exc
-        with _lock, _job_lock(job_id, registry_root):
-            latest = _load_path(path)
-            if not latest:
-                return False
-            if latest.get("status") != "cleanup_pending":
-                raise ValueError("Job cleanup state changed; record retained")
-            path.unlink()
-            return True
+    """Fenced compatibility adapter for canonical deletion/cleanup policy."""
+    from packages.core import background_jobs as registry
+    from packages.jobs.final_runtime.coordinator import delete_legacy_job
+    return delete_legacy_job(registry, job_id, registry_root)
 
 
 def _terminate_job_processes(jobs: list[dict], *, timeout: float | None = None) -> dict:
@@ -1686,79 +1453,12 @@ def _job_is_expired_for_status(job: dict, status: str, cutoff: float) -> bool:
 @_legacy_write
 def cleanup_jobs_by_statuses(*, registry_root: str | Path,
                              retention_days_by_status: dict[str, int],
-                             now: float | None = None,
-                             emit_events: bool = True) -> dict[str, dict]:
-    """Clean exact top-level statuses, with one snapshot and locked rechecks."""
-    for status, days in retention_days_by_status.items():
-        if status not in _RETENTION_JOB_STATUSES:
-            raise ValueError(f"unsupported Job retention status: {status}")
-        _validate_retention_days(days)
-    now = time.time() if now is None else float(now)
-    if not math.isfinite(now):
-        raise ValueError("now must be finite")
-    candidates = [job for job in list_jobs(registry_root)
-                  if not job.get("scheduledParentJobId")]
-    results = {
-        status: _retention_result(now, len(candidates))
-        for status in retention_days_by_status
-    }
-    on_deleted = _completed_retention_hooks.get("on_deleted")
-    for result in results.values():
-        result["_deletedJobIds"] = []
-
-    for candidate in candidates:
-        status = candidate.get("status")
-        if status not in retention_days_by_status:
-            continue
-        result = results[status]
-        cutoff = now - retention_days_by_status[status] * 24 * 60 * 60
-        if not _job_is_expired_for_status(candidate, status, cutoff):
-            continue
-        job_id = candidate.get("jobId")
-        if not isinstance(job_id, str):
-            result["skipped"] += 1
-            continue
-        try:
-            with _lock, _job_lock(job_id, registry_root):
-                path = _job_path(job_id, registry_root)
-                current = _load_path(path)
-                if not _job_is_expired_for_status(current, status, cutoff):
-                    result["skipped"] += 1
-                    continue
-                if (current.get("kind") == BACKGROUND_PROCESS_KIND
-                        and current.get("status") in _RETENTION_JOB_STATUSES
-                        and current.get("notificationState")
-                        not in {"delivered", "not_applicable"}):
-                    result["skipped"] += 1
-                    continue
-                action = current.get("action")
-                if (current.get("kind") == SCHEDULED_TASK_KIND
-                        and isinstance(action, dict)
-                        and action.get("api") == "shell"):
-                    if (current.get("status") == "running"
-                            or any(child.get("scheduledParentJobId") == job_id
-                                   and child.get("status") in {"starting", "running"}
-                                   for child in list_jobs(registry_root))):
-                        result["skipped"] += 1
-                        continue
-                try:
-                    path.unlink()
-                except OSError as exc:
-                    _add_retention_error(result, f"{job_id}: {exc}")
-                    continue
-            result["deleted"] += 1
-            result["_deletedJobIds"].append(job_id)
-            if emit_events and callable(on_deleted):
-                try:
-                    on_deleted(job_id)
-                except Exception:
-                    pass
-        except (OSError, ValueError) as exc:
-            # Missing/corrupt records and active scheduled shell children are
-            # retained; a later daily pass may retry if the state changes.
-            result["skipped"] += 1
-            _add_retention_error(result, f"{job_id}: {exc}")
-    return results
+                             now: float | None = None, emit_events: bool = True) -> dict[str, dict]:
+    """Fenced compatibility adapter for the canonical retention policy."""
+    from packages.core import background_jobs as registry
+    from packages.jobs.final_runtime.coordinator import cleanup_legacy_jobs
+    return cleanup_legacy_jobs(registry, registry_root=registry_root,
+        retention_days_by_status=retention_days_by_status, now=now, emit_events=emit_events)
 
 
 def cleanup_completed_jobs(*, registry_root: str | Path,
@@ -1863,89 +1563,11 @@ def _runner_active_or_unknown(job: dict) -> bool:
 
 @_legacy_write
 def cleanup_job_log_files(*, registry_root: str | Path,
-                          retention_days: int,
-                          now: float | None = None) -> dict:
-    """Remove only expired, uniquely owned direct Job log files."""
-    _validate_retention_days(retention_days)
-    now = time.time() if now is None else float(now)
-    if not math.isfinite(now):
-        raise ValueError("now must be finite")
-    cutoff = now - retention_days * 24 * 60 * 60
-    result = _retention_result(now)
-    logs_dir, error = _controlled_logs_dir(registry_root)
-    if error:
-        _add_retention_error(result, error)
-        return result
-    if logs_dir is None:
-        return result
-
-    try:
-        jobs = list_jobs(registry_root)
-        entries = list(logs_dir.iterdir())
-    except (OSError, ValueError) as exc:
-        _add_retention_error(result, f"cannot list Job logs: {exc}")
-        return result
-
-    owners: dict[str, list[str]] = {}
-    for job in jobs:
-        key = _canonical_log_path(job.get("logPath"), job, logs_dir)
-        if key is not None:
-            owners.setdefault(key, []).append(str(job.get("jobId")))
-
-    for path in entries:
-        result["scanned"] += 1
-        try:
-            file_stat = path.lstat()
-        except OSError as exc:
-            result["skipped"] += 1
-            _add_retention_error(result, f"{path.name}: {exc}")
-            continue
-        if (_is_reparse_stat(file_stat) or not stat.S_ISREG(file_stat.st_mode)
-                or getattr(file_stat, "st_nlink", 1) != 1):
-            result["skipped"] += 1
-            continue
-        if file_stat.st_mtime > cutoff:
-            continue
-        key = os.path.normcase(os.path.abspath(path))
-        owner_ids = owners.get(key, [])
-        if len(owner_ids) != 1:
-            result["skipped"] += 1
-            continue
-        job_id = owner_ids[0]
-        try:
-            with _lock, _job_lock(job_id, registry_root):
-                current = _load_path(_job_path(job_id, registry_root))
-                if (not current
-                        or current.get("jobId") != job_id
-                        or _canonical_log_path(current.get("logPath"), current, logs_dir) != key
-                        or current.get("status") not in _RETENTION_LOG_SAFE_STATUSES
-                        or _runner_active_or_unknown(current)):
-                    result["skipped"] += 1
-                    continue
-                # Recheck directory, link type, identity and mtime while the
-                # owning Job lock is held. This protects concurrent runners.
-                latest_logs_dir, latest_error = _controlled_logs_dir(registry_root)
-                if latest_error or latest_logs_dir != logs_dir:
-                    result["skipped"] += 1
-                    if latest_error:
-                        _add_retention_error(result, latest_error)
-                    continue
-                latest_stat = path.lstat()
-                if (_is_reparse_stat(latest_stat) or not stat.S_ISREG(latest_stat.st_mode)
-                        or getattr(latest_stat, "st_nlink", 1) != 1
-                        or latest_stat.st_mtime > cutoff
-                        or (latest_stat.st_dev, latest_stat.st_ino,
-                            latest_stat.st_size, latest_stat.st_mtime_ns)
-                        != (file_stat.st_dev, file_stat.st_ino,
-                            file_stat.st_size, file_stat.st_mtime_ns)):
-                    result["skipped"] += 1
-                    continue
-                path.unlink()
-            result["deleted"] += 1
-        except (OSError, ValueError) as exc:
-            result["skipped"] += 1
-            _add_retention_error(result, f"{path.name}: {exc}")
-    return result
+                          retention_days: int, now: float | None = None) -> dict:
+    """Compatibility adapter for canonical log-retention policy."""
+    from packages.core import background_jobs as registry
+    from packages.jobs.final_runtime.coordinator import cleanup_legacy_logs
+    return cleanup_legacy_logs(registry, registry_root=registry_root, retention_days=retention_days, now=now)
 
 
 def _read_retention_marker(path: Path) -> dict:
@@ -2174,34 +1796,8 @@ def append_run_record(record: dict, registry_root: str | Path | None = None,
 
 def list_run_records(task_id: str | None = None, limit: int = 100,
                      registry_root: str | Path | None = None) -> list[dict]:
-    """Read run history, newest first; optional per-task filter."""
-    path = _root(registry_root) / "runs.jsonl"
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    records: list[dict] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(record, dict):
-            continue
-        if task_id and record.get("task_id") != task_id:
-            continue
-        records.append(record)
-    records.reverse()
-    try:
-        limit = int(limit)
-    except (TypeError, ValueError):
-        limit = 100
-    if limit > 0:
-        records = records[:limit]
-    return records
+    from packages.jobs.final_runtime.coordinator import read_legacy_history
+    return read_legacy_history(_root(registry_root), task_id=task_id, limit=limit)
 
 
 # ── scheduled-task pass ──

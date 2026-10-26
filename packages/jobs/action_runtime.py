@@ -11,6 +11,7 @@ from packages.plugins.lifecycle import io
 from .action_templates import Templates, Conflict, CreationPending, config_value, digest, generation, integrity, revision, conservative_config, reference_generation
 from . import chains
 from .final_runtime import FinalRuntime
+from .runtime_owner import legacy_writer
 from .final_runtime.ledger import admission_for_cause, cause as canonical_cause, new_id as canonical_id
 
 RUNTIMES = {}
@@ -120,6 +121,7 @@ class Runtime:
     def admitting(self,jid):
         return any(owner==jid for owner in self.admission_jobs.values())
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def start(self):
         async with self.lifecycle:
             await self._start()
@@ -168,6 +170,7 @@ class Runtime:
         job['config']=conservative_config(job['config'])
         return job
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def publish_intent(self,intent):
         try:return self._publish_intent(intent)
         except Conflict:raise
@@ -189,6 +192,7 @@ class Runtime:
         if intent['phase']=='reserved':self.templates.complete_intent(intent['key'])
         return self.view(old)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def create(self,raw,authorized=False,authority=None,*,creation_key=None,legacy=None):
         def change(state):
             cfg=config_value(raw,state)
@@ -210,6 +214,7 @@ class Runtime:
         if intent['phase']=='created':return self.view(self.get(intent['jobId']))
         return self.publish_intent(intent)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def create_legacy(self, kind, fields, authority=None, *, creation_key=None):
         """Create a legacy-shaped record whose only executor is a system Action."""
         from .legacy_compat import config_for
@@ -218,11 +223,13 @@ class Runtime:
                            creation_key=creation_key,
                            legacy={'kind': kind, 'fields': storage})
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def instantiate(self,tid,expected,key,overrides=None,admitted_template=None,authority=None):
         scoped=digest({'root':str(self.root),'key':key})
         intent=self.templates.reserve(tid,expected,scoped,overrides,job_root=str(self.root),admitted_template=admitted_template,authority=authority)
         return self.publish_intent(intent)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def instantiate_action(self,action,key,fixed=None,authority=None,authorization_revision=None):
         ex=action['execution']
         if not action['enabled'] or ex['kind']!='job_template' or action['effect']!='write_local':
@@ -237,6 +244,7 @@ class Runtime:
         return {'ok':True,'jobId':job['jobId'],'created':True,'jobCompleted':False,
                 'templateId':ex['templateId'],'templateRevision':ex['templateRevision']}
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def update(self,jid,raw,expected,authorized=False,authority=None):
         # Action reference validation/index is committed first; Job publication
         # validates its current revision under its own lock. Stale index entries
@@ -339,6 +347,7 @@ class Runtime:
             snapshot['fixedTemplate']=copy.deepcopy(view)
         return snapshot,None,context
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def claim(self,jid,eid,expected=None,entry=None,queued=None,confirmed=False,authority=None,authorization_revision=None,rerun_of=None,operation_id=None,provenance=None):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
@@ -431,6 +440,7 @@ class Runtime:
             result['config'].update(copy.deepcopy(policy))
             return result
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def finalize(self,jid,eid,status,audit=None):
         # A durable finalization intent precedes destructive snapshot cleanup.
         with jobs._lock,jobs._job_lock(jid,self.root):
@@ -496,7 +506,8 @@ class Runtime:
                 if attempt.get('id')==execution_audit.get('attemptId'):
                     attempt.update(status=outcome['status'],snapshotCleanup='cleaned',finishedAt=time.time())
             job['snapshotCleanup']='pending' if job.get('executionFinalizations') else 'active' if active else 'cleaned'
-            job.update(lastExecution=summary,lastStatus=outcome['status'],runStartedAt=None,
+            self.final.ledger.project_summary(job,summary)
+            job.update(runStartedAt=None,
                        runCount=int(job.get('runCount',0))+(1 if execution_audit.get('attemptCount',1)==1 else 0),terminalEventId=eid)
             policy=execution_audit.get('policy',{}).get('recovery',job.get('config',{}).get('recovery',{}))
             safe_boundary=outcome.get('audit',{}).get('safeBoundary') is True
@@ -535,6 +546,7 @@ class Runtime:
             jobs._append_run_record_once(record,registry_root=self.root)
             jobs._write_job(jobs._job_path(jid,self.root),job)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def publish_events(self):
         for job in await io(jobs.list_jobs,self.root):
             if not is_action_job(job):continue
@@ -578,6 +590,7 @@ class Runtime:
                         jobs._write_job(jobs._job_path(job['jobId'],self.root),current)
                 await io(mark)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def execute(self,job):
         from packages.actions.executor import execute_dynamic
         if job['execution'].get('chainSnapshot'):
@@ -650,6 +663,7 @@ class Runtime:
             except Exception as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'cleanup','error':str(exc)})
             self.cancelled.discard(eid)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def chain_save(self,jid,eid,steps,phase):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid);active=self.active(job)
@@ -680,6 +694,7 @@ class Runtime:
             safe['targetResults']=[{key:row[key] for key in ('sessionId','ok','status','queueItemId','error') if key in row} for row in checkpoint['targetResults']]
         return safe
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def action_audit(self,jid,eid,audit,eligible):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid);active=self.active(job)
@@ -695,6 +710,7 @@ class Runtime:
             job['activeExecutions']=active;job['execution']=next(iter(active.values()))
             jobs._write_job(jobs._job_path(jid,self.root),job)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def consume_entry(self,job,entry_id):
         if entry_id is None:return job
         def patch():
@@ -711,6 +727,7 @@ class Runtime:
                 return job
         return patch()
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def enqueue(self,jid,expected=None,entry=None,rerun_of=None,operation_id=None,provenance=None,authority=None,authorization_revision=None):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid)
@@ -739,6 +756,7 @@ class Runtime:
                 and event_type in job['config']['trigger']['eventTypes']
                 and (include_inactive or getattr(self,'event_available',lambda _:True)(event_type))]
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def queue_event(self,event,target):
         jid=target['jobId'];trigger_id=target.get('triggerId') or target.get('id')
         with jobs._lock,jobs._job_lock(jid,self.root):
@@ -787,6 +805,7 @@ class Runtime:
             await io(self.queue_event,event,target)
         await self.tick(await io(jobs._scheduled_task_config))
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def launch(self,jid,expected=None,entry=None,queued=None,confirmed=False,authority=None,expected_authorization=None,rerun_of=None,operation_id=None,provenance=None):
         if getattr(self,'setup_pending',None) and await io(self.setup_pending,jid):raise Conflict('Job setup incomplete; resume the saved edit')
         if self.closed:raise Conflict('Job runtime closed')
@@ -836,6 +855,7 @@ class Runtime:
             self.admissions.pop(eid,None);self.admission_jobs.pop(eid,None)
             if not self.live_for(jid):self.cancelled.discard(eid)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def tick(self,cfg):
         if self.closed:return
         if getattr(self,'time_events',None):await self.time_events.tick(cfg)
@@ -901,6 +921,7 @@ class Runtime:
                     except (Conflict,ValueError,AuthorizationRevoked) as exc:self.diagnostics.append({'jobId':job['jobId'],'error':str(exc)})
                     break
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def finalize_recovery_exhausted(self,job):
         with jobs._lock,jobs._job_lock(job['jobId'],self.root):
             current=self.get(job['jobId'])
@@ -919,6 +940,7 @@ class Runtime:
                         if attempt['id']==summary.get('attemptId'):attempt.update(status='failed',terminalStatus='failed')
                 jobs._write_job(jobs._job_path(job['jobId'],self.root),current)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def skip_misfire(self,job,entry,cfg):
         now=datetime.now().replace(microsecond=0)
         fire=jobs._job_cron.parse_datetime(entry['nextFireAt'])
@@ -939,6 +961,7 @@ class Runtime:
                                   'terminalEventId':key},registry_root=self.root)
         return True
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def recover(self,initial=True):
         # Legacy in-flight effects remain uncertain. Explicit chains additionally
         # resume only durable boundaries with no unconfirmed running Step.
@@ -984,6 +1007,7 @@ class Runtime:
                         refs[jid]={'actionId':aids[0],'actionIds':aids,'position':'/config/actionId','jobRoot':str(self.root)}
                 self.templates.transaction(reconcile)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def delete(self,jid,expected):
         with jobs._lock,jobs._job_lock(jid,self.root):
             job=self.get(jid);revision(job['configRevision'],expected)
@@ -1004,6 +1028,7 @@ class Runtime:
         old=self.get(jid)
         return self.update(jid,{**old['config'],'enabled':enabled},expected,True,authority)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def set_paused(self, jid, paused, expected, authority=None):
         with jobs._lock, jobs._job_lock(jid, self.root):
             job=self.get(jid); revision(job['configRevision'], expected)
@@ -1014,6 +1039,7 @@ class Runtime:
             jobs._write_job(jobs._job_path(jid,self.root),job)
         return self.view(job)
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def run_again(self,jid,expected,rerun_of,request_key,authority=None):
         """D3 Run again: same Job, new Run and new effect identities."""
         source=await io(self.get,jid);revision(source['configRevision'],expected)
@@ -1034,6 +1060,7 @@ class Runtime:
         run=current['finalRuntime']['runs'][existing]
         return {'job':await io(self.view,current),'runId':existing,'admissionId':run['admissionId'],'operationId':operation['operationId']}
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def clone_and_run(self,jid,expected,request_key,authority=None,overrides=None):
         """D3 Clone and run: one explicit new Job, then one canonical Run."""
         source=await io(self.get,jid);revision(source['configRevision'],expected)
@@ -1067,6 +1094,7 @@ class Runtime:
         await io(self.final.store.mutate,jid,lambda job:self.final.ledger.complete_operation(job,self.root,operation['operationId'],result,run_id=run_id,admission_id=admission_id))
         return result
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def cancel(self,jid,expected):
         def disable():
             with jobs._lock,jobs._job_lock(jid,self.root):
@@ -1101,6 +1129,7 @@ class Runtime:
             await io(self.finalize,jid,eid,'cancelled')
         return self.view(await io(self.get,jid))
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def reserve_recovery(self,jid,expected,status,request_key=None,authority=None,run_id=None):
         state=self.actions.read()
         with jobs._lock,jobs._job_lock(jid,self.root):
@@ -1109,6 +1138,13 @@ class Runtime:
             last=job.get('lastExecution',{})
             if run_id is not None:
                 last=copy.deepcopy(job.get('runSummaries',{}).get(run_id) or (last if last.get('runId')==run_id else {}))
+            elif last.get('status') not in status:
+                # lastExecution is a display selection, not the retry index.
+                # Preserve the old unambiguous confirmation convenience while
+                # requiring an original Run ID when several candidates exist.
+                eligible=[summary for summary in job.get('runSummaries',{}).values() if summary.get('status') in status]
+                if len(eligible)>1:raise Conflict('Select an original Run ID to confirm recovery')
+                if eligible:last=copy.deepcopy(eligible[0])
             if last.get('stepExecutions') and last.get('status') in ('unknown','uncertain'):
                 raise Conflict('Uncertain chain step requires reconciliation; replay refused')
             if last.get('status') not in status or not last.get('runId'):raise Conflict('No eligible terminal Run to confirm')
@@ -1139,6 +1175,7 @@ class Runtime:
             jobs._write_job(jobs._job_path(jid,self.root),job)
             return job
 
+    @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def confirm_recovery(self,jid,expected,failed=False,authority=None,run_id=None):
         current=await io(self.get,jid)
         source=authority or current.get('runAuthorization') or current.get('authorization',{'type':'user'})
