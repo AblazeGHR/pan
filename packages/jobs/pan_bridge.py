@@ -44,7 +44,7 @@ def request(method, *args, **kwargs):
     if client is None:
         return None
     try:
-        if method in {"start", "retry"}:
+        if method in {"start", "retry", "cancel", "ack"}:
             from packages.core import background_jobs
             from packages.jobs.runtime_owner import OwnerFence
             with OwnerFence(background_jobs._root().parent).legacy_pass():

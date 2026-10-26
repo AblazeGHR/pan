@@ -80,6 +80,17 @@ def admission_for_cause(state: Mapping[str, Any], value: Mapping[str, Any]) -> d
 class Ledger:
     """Pure aggregate transitions; callers commit through one registry lock."""
 
+    @staticmethod
+    def project_summary(job, summary):
+        """A late older parallel Run cannot replace the latest claimed Run.
+
+        Every Run still owns its own summary/outbox. The legacy lastExecution
+        field is only the current selection, never the authority for retry.
+        """
+        if not job.get("lastExecution") or job.get("runId") == summary["runId"]:
+            job["lastExecution"] = copy.deepcopy(summary)
+            job["lastStatus"] = summary["status"]
+
     def admit(
         self,
         job: dict[str, Any],
@@ -374,6 +385,34 @@ class Ledger:
             item["ackedAt"] = now()
             if item["recipientId"] in receipts:
                 item["receipt"] = copy.deepcopy(receipts[item["recipientId"]])
+
+    def settle_notification(self, job, root, original_key, *, receipt, outbox_id=None):
+        """Original-key settlement; unknown never becomes pending or acked.
+
+        This is a receipt/query entry point, not permission to send again. A
+        recipient-specific row is required when one key fans out to many rows.
+        The older ack_outbox method remains the pre-owner dispatch adapter.
+        """
+        if (not isinstance(receipt, Mapping) or receipt.get("outcome") not in {"succeeded", "unknown", "suppressed"}
+                or receipt.get("originalKey", original_key) != original_key
+                or (outbox_id is not None and receipt.get("outboxId", outbox_id) != outbox_id)):
+            raise contracts.ContractError("invalid_schema", "Notification receipt identity/outcome differs")
+        rows = [row for row in aggregate(job, root)["outbox"].values()
+                if row["legacyId"] == original_key and (outbox_id is None or row["outboxId"] == outbox_id)]
+        if not rows:
+            raise KeyError(original_key)
+        if len(rows) != 1:
+            raise contracts.ContractError("reference_conflict", "Select the original recipient outbox row")
+        row = rows[0]
+        target = {"succeeded": "acked", "unknown": "uncertain", "suppressed": "suppressed"}[receipt["outcome"]]
+        if row["status"] in {"acked", "suppressed"}:
+            if row["status"] != target or row.get("receipt") != dict(receipt):
+                raise contracts.ContractError("revision_conflict", "Notification receipt already settled")
+            return copy.deepcopy(row)
+        row.update(status=target, receipt=copy.deepcopy(dict(receipt)), settledAt=now())
+        if target == "acked":
+            row["ackedAt"] = row["settledAt"]
+        return copy.deepcopy(row)
 
     def begin_operation(
         self,
