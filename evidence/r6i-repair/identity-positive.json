@@ -1,0 +1,72 @@
+{
+  "gate": "passed",
+  "baseSha": "f0970e23df5108eabd7580847346129d1714ba14",
+  "sourceFilesSha256": {
+    "packages/scheduler/creators.py": "53021f30fd4873b8e145080574e86d1e0b7f783a8d613f7c03fa2d32a6b15bd6",
+    "packages/scheduler/pending_adoption.py": "4765339fa3167f11e179b3357cd0eab9a41a274b921ea202038396de004539a6",
+    "tests/test_scheduler_pending_adoption.py": "441be78b21d7810040aa0f004f6941d4d4d6dbce7305079bd32a6ff2d34c0f19",
+    "scripts/probe_pending_adoption.py": "cf11d6e9ecfd64f8312a656bb15be241a7173a8eee0796584b433debec038e58"
+  },
+  "cases": [
+    {
+      "phase": "before-admit",
+      "sameIdentityAdoption": true,
+      "adoptionState": "adopted_pending",
+      "publicationStateAfterAdopt": "awaiting_admission",
+      "pendingStatePreserved": true,
+      "cursorAdvancedAtAdopt": false,
+      "ackAtAdopt": false,
+      "legacyDatabaseBytesUnchangedAtAdopt": true,
+      "sourceBytesUnchangedAfterSettlement": true,
+      "linksAndRequestsPreserved": true,
+      "duplicateAdoptIdempotent": true,
+      "directV1WriterRejection": "invalid_schema",
+      "runtimePublicationsFromAdoption": 0,
+      "explicitFirstCanonicalPublication": true,
+      "sameIdentitySettlement": true,
+      "canonicalEvents": 1,
+      "canonicalDrives": 1,
+      "canonicalPinsAfterSettlement": 0
+    },
+    {
+      "phase": "after-admit-before-cursor",
+      "sameIdentityAdoption": true,
+      "adoptionState": "adopted_pending",
+      "publicationStateAfterAdopt": "committed",
+      "pendingStatePreserved": true,
+      "cursorAdvancedAtAdopt": false,
+      "ackAtAdopt": false,
+      "legacyDatabaseBytesUnchangedAtAdopt": true,
+      "sourceBytesUnchangedAfterSettlement": true,
+      "linksAndRequestsPreserved": true,
+      "duplicateAdoptIdempotent": true,
+      "directV1WriterRejection": "invalid_schema",
+      "runtimePublicationsFromAdoption": 0,
+      "explicitFirstCanonicalPublication": false,
+      "sameIdentitySettlement": true,
+      "canonicalEvents": 1,
+      "canonicalDrives": 1,
+      "canonicalPinsAfterSettlement": 0
+    },
+    {
+      "phase": "before-ack",
+      "sameIdentityAdoption": true,
+      "adoptionState": "adopted_pending",
+      "publicationStateAfterAdopt": "committed",
+      "pendingStatePreserved": true,
+      "cursorAdvancedAtAdopt": true,
+      "ackAtAdopt": false,
+      "legacyDatabaseBytesUnchangedAtAdopt": true,
+      "sourceBytesUnchangedAfterSettlement": true,
+      "linksAndRequestsPreserved": true,
+      "duplicateAdoptIdempotent": true,
+      "directV1WriterRejection": "invalid_schema",
+      "runtimePublicationsFromAdoption": 0,
+      "explicitFirstCanonicalPublication": false,
+      "sameIdentitySettlement": true,
+      "canonicalEvents": 1,
+      "canonicalDrives": 1,
+      "canonicalPinsAfterSettlement": 0
+    }
+  ]
+}

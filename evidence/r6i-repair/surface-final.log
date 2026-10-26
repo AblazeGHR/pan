@@ -1,0 +1,64 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+...F........................................F........................... [ 20%]
+........................................................................ [ 41%]
+........................................................................ [ 62%]
+........................................................................ [ 83%]
+...........................................F...........                  [100%]
+================================== FAILURES ===================================
+___________ test_production_route_snapshot_and_same_handler_aliases ___________
+tests\test_job_path_flip.py:55: in test_production_route_snapshot_and_same_handler_aliases
+    assert snapshot == json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+E   AssertionError: assert {'methodPathC...: True}, ...]} == {'methodPathC...: True}, ...]}
+E
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'routes': [{'path': '/api/legacy/jobs/action-jobs', 'methods': ['GET'], 'handler': 'packages.jobs.action_api.list_job...bs/{job_id}', 'methods': ['PUT'], 'handler': 'packages.jobs.final_api.retired_legacy_write', 'deprecated': True}, ...]} != {'routes': [{'path': '/api/legacy/jobs/action-jobs', 'methods': ['GET'], 'handler': 'packages.jobs.action_api.list_job...bs/{job_id}', 'methods': ['PUT'], 'handler': 'packages.jobs.final_api.retired_legacy_write', 'deprecated': True}, ...]}
+E     Use -v to get more diff
+_ test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt _
+packages\jobs\system_actions.py:209: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+The above exception was the direct cause of the following exception:
+tests\test_authorization_runtime.py:136: in test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+    monkeypatch.setattr('packages.jobs.system_actions.execute',no_signal)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:109: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:97: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'
+__ test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent ___
+tests\test_job_delete_safety.py:226: in test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent
+    jobs._reconcile_scheduled_processes(jobs._root())
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_job_path_flip.py::test_tcp_new_and_deprecated_crud_operations_and_legacy[/api]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_path_flip.py::test_tcp_new_and_deprecated_crud_operations_and_legacy[/api]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_path_flip.py::test_production_route_snapshot_and_same_handler_aliases
+FAILED tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+FAILED tests/test_job_delete_safety.py::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent

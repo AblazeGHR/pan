@@ -1,0 +1,184 @@
+[
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job",
+    "boundary": "draft/lifecycle 分离；OR Events 在 native subscription 后继覆盖"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::requires explicit full definition and Action parameter review before canonical enable",
+    "boundary": "原 401/换 token 独立断言继续保留"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server",
+    "boundary": "旧 Trigger 直接 Action 改为 native Job ref"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "does not let a delayed save overwrite a different editor",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::blocks duplicate submits and departure while the canonical definition receipt is pending",
+    "boundary": "busy 期间禁止换编辑对象；三个子页保持 mounted"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "deduplicates refresh and rejects an old read after mutation invalidation",
+    "disposition": "retained-exact-node",
+    "successor": "packages/web/src/views/AutomationView.test.tsx::deduplicates refresh and rejects an old read after mutation invalidation",
+    "boundary": "原独立 store/auth/Action template 断言原文保留并实跑"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "sends Bearer for cancel and never retries rejected effects",
+    "disposition": "retained-exact-node",
+    "successor": "packages/web/src/views/AutomationView.test.tsx::sends Bearer for cancel and never retries rejected effects",
+    "boundary": "原独立 store/auth/Action template 断言原文保留并实跑"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "preserves Event field parameters and nested OR/NOT conditions in the request",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::keeps OR events, nested OR/NOT conditions and Event arguments while editing a canonical subscription",
+    "boundary": "native Trigger 不持有执行链，绑定/condition 原型不丢"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "creates the Event target template as a normal Action using the registry revision",
+    "disposition": "retained-exact-node",
+    "successor": "packages/web/src/views/AutomationView.test.tsx::creates the Event target template as a normal Action using the registry revision",
+    "boundary": "原独立 store/auth/Action template 断言原文保留并实跑"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "a late unauthorized response cannot clear a newer login",
+    "disposition": "retained-exact-node",
+    "successor": "packages/web/src/views/AutomationView.test.tsx::a late unauthorized response cannot clear a newer login",
+    "boundary": "原独立 store/auth/Action template 断言原文保留并实跑"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "shares Action loads, adopts template mutation without extra reads, and fences late registry replies",
+    "disposition": "retained-exact-node",
+    "successor": "packages/web/src/views/AutomationView.test.tsx::shares Action loads, adopts template mutation without extra reads, and fences late registry replies",
+    "boundary": "原独立 store/auth/Action template 断言原文保留并实跑"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves simultaneous Job and source drafts behind one navigation guard",
+    "boundary": "关闭丢弃确认另由 CanonicalJobsView 原 conflict/close 节点加强验证"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "guards accepted switching, but blocks departure and duplicate submits while saving",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::blocks duplicate submits and departure while the canonical definition receipt is pending",
+    "boundary": "不自动重发，原 key 查询节点保留"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server",
+    "boundary": "类型/literal 原样 roundtrip 由 typed Job 后继覆盖；forward/self 引用服务端 FC03 严格拒绝"
+  },
+  {
+    "priorFile": "AutomationView.test.tsx",
+    "priorNode": "loading a conflicting server configuration replaces local literal text and resets dirty",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server",
+    "boundary": "显式 load 与 rebase 分开，无效 JSON 不被悄悄解析丢弃"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "navigates exactly three accessible tabs by keyboard and follows Job/Trigger/Scheduler links",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::navigates exactly three tabs and follows canonical Job/Trigger/source references",
+    "boundary": "canonical ID/ref 跳转；不使用旧 source list"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "adds, reorders and removes steps without changing stable IDs and rejects forward output references",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job",
+    "boundary": "以完整 native steps JSON 编辑稳定 stepId；旧按钮布局不继续发送 retired compose。FC03 forward/self 拒绝实跑，未声称仍有旧 Add/Move 按钮"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "keeps literal JSON typed and maps Job input or Event fields",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job",
+    "boundary": "native bindings 五种形式由 FC03 真 schema/引用校验覆盖"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "selects an existing Scheduler by search and submits its revision with the Job",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger",
+    "boundary": "D2 targetJobId；选择来源建立订阅，不把来源配置重新嵌入 Job"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "creates a new Scheduler through one recoverable operation and retries with the same key",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::creates a separate Creator with server-supplied provider metadata and explicit enable",
+    "boundary": "独立来源 create + 明确 enable；未知回执先查原 key，不照搬旧 compose 的自动 retry"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "shows source impact, requires review, and preserves a conflicting draft",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::reviews shared source impact and preserves a conflicting local draft",
+    "boundary": "真实 HTTP/browser 另验 2/3 共享引用、CAS 冲突"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "disables a source without touching Job lifecycle and deletes only unreferenced disabled sources",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::disables only the source through lifecycle CAS and blocks deleting a shared source",
+    "boundary": "browser 实验启用/停用不变更 Job，先 detach 再 retire"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "generates stable random IDs on remote HTTP contexts without randomUUID",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::keeps stable random request IDs without randomUUID on remote HTTP contexts",
+    "boundary": "唯一性与完整 step_32hex 断言均保留"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "keeps existing timing controls on pre-composition Jobs while allowing chain edits",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::round trips every rule, fraction, timezone, DST, anchor, limit and provider identity",
+    "boundary": "时间职责归 Creator；旧 timing/chain 记录不自动转换或执行，历史读与显式 adoption 后继另验"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "preserves existing chain literals, trusted mappings and parallel policy in the Trigger editor",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::keeps OR events, nested OR/NOT conditions and Event arguments while editing a canonical subscription",
+    "boundary": "chain 归 Job，Trigger 引用同 Job；完整链 typed roundtrip 后继另验"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "explicitly rebases a source conflict and requires impact review again",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::explicitly rebases changed references and requires impact review again",
+    "boundary": "source + referenceDigest 明确双重审阅"
+  },
+  {
+    "priorFile": "AutomationWorkspace.test.tsx",
+    "priorNode": "uses one navigation guard for simultaneous drafts on different subpages",
+    "disposition": "native-successor",
+    "successor": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves simultaneous Job and source drafts behind one navigation guard",
+    "boundary": "保留 dirty、busy、cancel 导航语义"
+  }
+]
