@@ -1,4 +1,4 @@
-"""Opt-in time Event sources, driven by the existing unified scheduler pass.
+"""Pre-cutover compatibility facade for time Event sources.
 
 Legacy Job records are never loaded here. A durable pending envelope bridges
 the source cursor and the automation Event Store; retries reuse its exact bytes.
@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from packages.jobs.action_templates import Conflict
+from packages.jobs.runtime_owner import OwnerFence
 from packages.plugins.lifecycle import io
 from . import store
 
@@ -31,10 +32,26 @@ class Sources:
     def __init__(self, root):
         self.path = Path(root) / 'time-events' / 'sources.sqlite3'
         self.lock = threading.RLock()
+        self.owner_fence = OwnerFence(Path(root).resolve().parent)
 
     @contextmanager
-    def connection(self):
-        with self.lock:
+    def connection(self, *, readonly=False):
+        # Reads of historical sources must not create/upgrade a legacy store,
+        # nor require an executable owner epoch after canonical activation.
+        if readonly and not self.path.exists():
+            yield None
+            return
+        from contextlib import nullcontext
+        guard = nullcontext() if readonly else self.owner_fence.writer()
+        with guard, self.lock:
+            if readonly:
+                db = sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True, timeout=5)
+                try:
+                    db.execute('PRAGMA query_only=ON')
+                    yield db
+                finally:
+                    db.close()
+                return
             self.path.parent.mkdir(parents=True, exist_ok=True)
             db = sqlite3.connect(self.path, timeout=5)
             try:
@@ -48,11 +65,13 @@ class Sources:
                 db.close()
 
     def list(self):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
+            if db is None:return []
             return [json.loads(row[0]) for row in db.execute('SELECT document FROM sources ORDER BY id')]
 
     def get(self, sid):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
+            if db is None:return None
             row = db.execute('SELECT document FROM sources WHERE id=?', (sid,)).fetchone()
             return json.loads(row[0]) if row else None
 
@@ -141,8 +160,27 @@ class Sources:
             db.executemany('DELETE FROM source_links WHERE trigger_id=?',[(r[0],) for r in rows if r[0] not in keep])
 
     def references(self,sid):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
+            if db is None:return []
             return [{'triggerId':r[0],'jobId':r[1]} for r in db.execute('SELECT trigger_id,job_id FROM source_links WHERE source_id=?',(sid,))]
+
+    def snapshot(self):
+        """Explicit migration input, including pending bytes and all edges.
+
+        One read transaction prevents a mixed source/link/cursor snapshot. The
+        caller supplies its reviewed digest to the canonical importer; reading
+        this snapshot never activates or repairs the old records.
+        """
+        with self.connection(readonly=True) as db:
+            if db is None:return {'sources': [], 'links': [], 'requests': []}
+            db.execute('BEGIN')
+            return {
+                'sources': [json.loads(r[0]) for r in db.execute('SELECT document FROM sources ORDER BY id')],
+                'links': [{'triggerId':r[0], 'sourceId':r[1], 'jobId':r[2]} for r in db.execute(
+                    'SELECT trigger_id,source_id,job_id FROM source_links ORDER BY trigger_id')],
+                'requests': [{'key':r[0], 'fingerprint':r[1], 'sourceId':r[2]} for r in db.execute(
+                    'SELECT key,fingerprint,id FROM source_requests ORDER BY key')],
+            }
 
     def composition_enabled(self,sid,enabled):
         """Trusted saga recovery only: fence a new source, retaining its fact."""
@@ -237,6 +275,12 @@ class Runtime:
 
     async def tick(self, cfg, *, at=None):
         if not cfg.get('enabled', True):return
+        # Reserve the entire pass, not only the SQLite write: owner activation
+        # cannot race an in-flight publish/ack or a legacy callback.
+        with self.sources.owner_fence.legacy_pass():
+            return await self._tick(cfg, at=at)
+
+    async def _tick(self, cfg, *, at=None):
         async with self.lock:
             try:items=await io(self.sources.list)
             except Exception as exc:

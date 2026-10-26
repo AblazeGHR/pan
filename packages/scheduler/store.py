@@ -33,6 +33,7 @@ from pathlib import Path
 from packages.core import background_jobs
 from packages.jobs import cron
 from packages.jobs.actions import normalize_scheduled_qq_action
+from packages.jobs.runtime_owner import legacy_writer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -375,6 +376,7 @@ def get_task(task_id: str) -> dict | None:
     return _task_from_job(job) if job else None
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def create_task(payload: dict) -> dict:
     """创建任务：校验 → job 记录 → 注册表原子落盘。
 
@@ -486,6 +488,7 @@ def create_task(payload: dict) -> dict:
     return _task_from_job(job)
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def update_task(task_id: str, patch: dict) -> dict | None:
     """局部更新；任务不存在返回 ``None``。next_fire_at 语义与 PR 逐条对齐：
 
@@ -621,6 +624,7 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     return _task_from_job(updated)
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def delete_task(task_id: str) -> bool:
     job = _job_for_task(task_id)
     from packages.jobs.action_runtime import is_protected_job as is_action_job
@@ -630,6 +634,7 @@ def delete_task(task_id: str) -> bool:
     return background_jobs.delete_job(job["jobId"], registry_root=data_root())
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def replace_task_schedule(task_id: str, specs,
                           registry_root: Path | None = None) -> dict | None:
     """整体替换 scheduled-task 的 schedule entry 列表（/api/jobs PATCH 底层）。
@@ -675,6 +680,7 @@ def replace_task_schedule(task_id: str, specs,
         return current
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def set_task_misfire_policy(task_id: str, policy: str) -> dict | None:
     """Set the job-level default without replacing entry-level overrides."""
     if policy not in MISFIRE_POLICIES:
@@ -702,6 +708,7 @@ def set_task_misfire_policy(task_id: str, policy: str) -> dict | None:
 # ── 执行历史 ──
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def append_run(record: dict) -> None:
     """兼容入口：append 一行到注册表 runs.jsonl（滚动上限 500）。"""
     background_jobs.append_run_record(record, registry_root=data_root(),
@@ -739,6 +746,7 @@ def _load_json(path: Path, default):
     return data if isinstance(data, type(default)) else default
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def migrate_legacy_tasks() -> int:
     """旧 ``<legacy_root>/tasks/*.json`` → 统一注册表。幂等，源文件保留。
 
@@ -832,6 +840,7 @@ def _job_from_legacy_task(data: dict) -> dict:
     }
 
 
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
 def _merge_legacy_runs() -> None:
     """旧 runs.jsonl → 注册表 runs.jsonl（按 run_id 去重，只补不删）。"""
     legacy_path = legacy_root() / "runs.jsonl"

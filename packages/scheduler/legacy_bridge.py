@@ -12,6 +12,7 @@ from packages.core import background_jobs
 from packages.jobs import cron
 from packages.jobs.action_templates import Conflict, digest
 from packages.jobs.action_runtime import is_action_job
+from packages.jobs.runtime_owner import legacy_writer
 from packages.jobs import system_actions
 from packages.automation.events import now
 from . import store
@@ -126,10 +127,12 @@ class LegacySchedulerBridge:
             background_jobs._write_job(background_jobs._job_path(job['jobId'], root), current)
             return current
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
     async def switch(self, task_id):
         async with self.lock:
             return await asyncio.to_thread(self._switch, task_id)
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
     def _switch(self, task_id):
         job = self._job(task_id)
         if not job: raise KeyError(task_id)
@@ -178,6 +181,7 @@ class LegacySchedulerBridge:
     def _task_view(self, job):
         return store._task_from_job(job)
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
     def project_cursor(self, source_id):
         """Repairable legacy read projection; the source remains the sole owner."""
         source = self.sources.get(source_id)
@@ -200,6 +204,7 @@ class LegacySchedulerBridge:
                 if any(job.get(key) != value for key, value in changes.items()):
                     background_jobs._update(jid, changes, registry_root=store.data_root())
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
     async def update(self, task_id, patch):
         async with self.lock:
             return await asyncio.to_thread(self._update, task_id, patch)
@@ -244,6 +249,7 @@ class LegacySchedulerBridge:
             self.sources.set_next_fire(updated['legacySourceId'], updated['nextFireAt'])
         return self._task_view(updated)
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
     async def run_now(self, task_id):
         async with self.lock:
             job = self._job(task_id)
@@ -256,6 +262,7 @@ class LegacySchedulerBridge:
             store.append_run(record)
             return {'ok': True, 'taskId': task_id, 'dispatchKey': dispatch, 'status': 'dispatched', 'run': record}
 
+    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
     async def delete(self, task_id):
         async with self.lock:
             job = self._job(task_id)
