@@ -209,6 +209,8 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
             "executable": False} for name in unclassified)
         report["plan"]["preserved"] = preserved
         report["plan"]["items"] = [p for p in report["plan"]["items"] if p["migrationId"] in selected]
+        report["plan"]["invariant"] = {"sourceTotal": len(inventory["instances"]), "planned": len(entries),
+            "preserved": len(inventory["instances"]) - len(entries), "classificationPending": 0}
         report["partialApply"] = {"selected": len(entries), "preservedInstances": len(inventory["instances"]) - len(entries),
             "preservedMetadataFiles": len(unclassified), "allLegacyCleared": False}
     report["inventoryDigest"] = inventory_digest

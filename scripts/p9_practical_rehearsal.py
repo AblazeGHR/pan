@@ -335,6 +335,16 @@ def audit(private):
             attempts.append({"operation": label, "result": "blocked", "error": type(exc).__name__, "detail": str(exc),
                              "targetExists": target.exists()})
     dump(private / "apply-attempts.json", attempts)
+    # Every source identity remains legacy. No live runtime probe is made, so
+    # "still present" must never be reported as "currently executing".
+    remaining = [{"migrationId": item["migrationId"], "originalId": item["id"],
+                  "sourceFile": item["sourceFile"], "originalDigest": item["originalDigest"],
+                  "classification": item["classificationDetail"], "targetIds": [],
+                  "legacyRecordRetained": True, "runtimeActivity": "not-probed",
+                  "reasonCodes": (["missing_reviewed_authorization_context"]
+                                  if item["classificationDetail"] == "simple" else item["reasonCodes"])}
+                 for item in inventory["instances"]]
+    dump(private / "remaining-legacy-by-id.json", remaining)
     # Full archive envelope references every physical source byte. It is
     # deliberately NOT labelled as a WP08 executable/canonical bundle.
     envelope = {"schema": "pan.p9.preservation-envelope/v1", "sourceCopy": str(root),
@@ -361,7 +371,11 @@ def compare(private):
     """Verify the archive after all offline reads, without reopening the source."""
     private = private.resolve(strict=True)
     root = private / "source-copy"
-    records = [json.loads(line) for line in (private / "copy-manifest.jsonl").read_text(encoding="utf-8").splitlines()]
+    if (private / "snapshot-manifest.json").exists():
+        bounded = json.loads((private / "snapshot-manifest.json").read_text(encoding="utf-8"))
+        records = [{**r, "copySha256": r["sha256"]} if r["state"].startswith("stable") else r for r in bounded]
+    else:
+        records = [json.loads(line) for line in (private / "copy-manifest.jsonl").read_text(encoding="utf-8").splitlines()]
     files = [r for r in records if r.get("kind") == "file" and "copySha256" in r]
     def check(row):
         try:

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -49,7 +51,9 @@ def data_paths(root):
                     yield "excluded", path, "cache/dependency/build metadata"
                 elif entry.is_dir(follow_symlinks=False):
                     stack.append(path)
-                elif path.name.endswith(("-wal", "-shm", "-journal")):
+                elif path.name.endswith(("-wal", "-shm", "-journal")) and path.with_name(
+                        path.name.rsplit("-", 1)[0]).suffix in {".sqlite3", ".sqlite", ".db"} and path.with_name(
+                        path.name.rsplit("-", 1)[0]).is_file():
                     yield "excluded", path, "SQLite sidecar included only in private consistent DB capture"
                 else:
                     yield "file", path, None
@@ -98,6 +102,10 @@ def sqlite_snapshot(source, target, *, attempts=4):
     target.parent.mkdir(parents=True, exist_ok=True)
     evidence = []
     for number in range(1, attempts + 1):
+        if Path(str(source) + "-journal").exists():
+            evidence.append({"attempt": number, "rollbackJournalPresent": True,
+                             "error": "rollback journal requires a quiescent snapshot; not silently omitted"})
+            continue
         with tempfile.TemporaryDirectory(prefix="sqlite-capture-", dir=target.parent) as temp:
             scratch = Path(temp) / source.name
             candidates = [Path(str(source) + suffix) for suffix in ("", "-wal")]
@@ -107,6 +115,7 @@ def sqlite_snapshot(source, target, *, attempts=4):
             # Pair capture must be stable across the entire DB+WAL read window.
             stable = stable and [p.exists() for p in candidates] == [p in present for p in candidates]
             stable = stable and all(digest_file(p) == captured[p.name]["sha256"] for p in present)
+            stable = stable and not Path(str(source) + "-journal").exists()
             row = {"attempt": number, "inputs": captured, "pairStable": stable}
             evidence.append(row)
             if not stable:
@@ -173,3 +182,15 @@ def collect(source, private, *, old_changed=()):
                "consistencyScope": "stable per file and SQLite DB/WAL group; no cross-store transaction claimed"}
     dump(private / "snapshot-summary.json", summary)
     return summary
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--private", type=Path, required=True)
+    parser.add_argument("--retry-paths-json", type=Path,
+                        help="private JSON list of relative path strings or prior retry rows")
+    args = parser.parse_args()
+    retries = json.loads(args.retry_paths_json.read_text(encoding="utf-8")) if args.retry_paths_json else []
+    print(json.dumps(collect(args.source, args.private,
+                           old_changed=[r["path"] if isinstance(r, dict) else r for r in retries])))

@@ -156,6 +156,19 @@ rollback 原子改成 `rolled-back-offline`，撤销当前包的 canonical 发�
 source snapshot、context 和迁移包可能含命令/文本/授权材料，必须按私有迁移材料保管，不能提交到仓库；
 仓库证据只保存合成 fixture 测试、统计、命令与 SHA。
 
+P9B 快照和复核可从仓库根目录复现；`--private` 必须是新的隔离目录，不能覆盖源。
+旧 8 项的路径只保存在私有 retry 清单，省略该参数时仍对 allowlist 中每个文件执行稳定双 hash：
+
+```powershell
+python -m scripts.job_final_migration.snapshot --source D:/project/Pan/data --private .validation/p9b-new-private --retry-paths-json .validation/p9b-private-20261026-v2/old-change-retries.json
+python scripts/p9_practical_rehearsal.py audit --private .validation/p9b-new-private
+python scripts/p9_practical_rehearsal.py compare --private .validation/p9b-new-private
+```
+
+SQLite WAL 仅在稳定的私有 DB/WAL 副本上 backup；发现 rollback journal 则保持阻断，不将 journal
+静默排除后宣称一致。`remaining-legacy-by-id.json` 列出每项仍保留的 legacy 身份及原因；
+它不探测真实进程，因此不能把文件存在、`active_resource` 原因或历史状态解释为当前运行数。
+
 ## 支持与验证矩阵
 
 | 功能 | Windows | Linux / macOS |

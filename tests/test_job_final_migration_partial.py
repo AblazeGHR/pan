@@ -4,7 +4,6 @@ import base64
 import copy
 import hashlib
 import os
-import sys
 from pathlib import Path
 import sqlite3
 
@@ -69,6 +68,7 @@ def test_partial_policy_and_selected_ids_are_bound_to_reviewed_digest(tmp_path):
     partial(root, target, context)
     bundle = migration.read_bundle(target)
     assert len(bundle["entries"]) == 1 and len(bundle["preserved"]) == 5
+    assert bundle["entries"][0]["migrationId"] == context["selectedMigrationIds"][0]
     context["selectedMigrationIds"] = ["unknown-id"]
     with pytest.raises(migration.ApplyError, match="selectedMigrationIds"):
         partial(root, tmp_path / "bad.json", context)
@@ -182,13 +182,53 @@ def test_sqlite_wal_backup_closes_handles_and_preserves_source_bytes(tmp_path):
         db.close()
 
 
-def test_allowlist_excludes_lock_cache_and_worktree_and_never_follows_link(tmp_path):
+def test_sqlite_rollback_journal_blocks_instead_of_silently_omitting_it(tmp_path):
+    source, target = tmp_path / "source.sqlite3", tmp_path / "private/copy.sqlite3"
+    source.write_bytes(b"database")
+    journal = source.with_name(source.name + "-journal")
+    journal.write_bytes(b"pending rollback")
+    before = source.read_bytes(), journal.read_bytes()
+    result = sqlite_snapshot(source, target, attempts=2)
+    assert result["state"] == "blocked-sqlite-snapshot" and not target.exists()
+    assert len(result["attempts"]) == 2 and all(r["rollbackJournalPresent"] for r in result["attempts"])
+    assert (source.read_bytes(), journal.read_bytes()) == before
+
+
+def test_unreadable_file_retries_without_installing_partial_copy(tmp_path, monkeypatch):
+    source, target = tmp_path / "source", tmp_path / "private/copy"
+    source.write_bytes(b"locked")
+    original = Path.open
+    def denied(path, *args, **kwargs):
+        if path == source:
+            raise PermissionError("injected locked input")
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", denied)
+    result = stable_copy(source, target, attempts=3)
+    assert result["state"] == "blocked-unstable-or-unreadable"
+    assert len(result["attempts"]) == 3
+    assert all(r["error"] == "PermissionError" for r in result["attempts"])
+    assert not target.exists() and not target.with_name("copy.capture").exists()
+
+
+def test_allowlist_excludes_lock_cache_and_worktree(tmp_path):
     source = tmp_path / "data"
     for rel in ("sessions/real.json", "sessions/node_modules/dependency.json", "workdirs/unrelated.json",
                 "actions/job-runtime/service.lock"):
         path = source / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}")
+    private = tmp_path / "private"
+    result = collect(source, private)
+    assert result["capturedFiles"] == 1 and result["linksNotFollowed"] == 0
+    assert result["captureBlockers"] == 0 and result["explicitExclusions"] == 3
+    assert not (private / "source-copy/actions/job-runtime/service.lock").exists()
+    assert not (private / "source-copy/sessions/node_modules").exists()
+    assert not (private / "source-copy/workdirs").exists()
+
+
+def test_allowlist_never_follows_link(tmp_path):
+    source = tmp_path / "data"
+    (source / "sessions").mkdir(parents=True)
     external = tmp_path / "outside"
     external.mkdir()
     (external / "secret.json").write_text("secret")
@@ -198,8 +238,7 @@ def test_allowlist_excludes_lock_cache_and_worktree_and_never_follows_link(tmp_p
         pytest.skip(f"link creation unsupported in this Windows test environment: {exc}")
     private = tmp_path / "private"
     result = collect(source, private)
-    assert result["capturedFiles"] == 1 and result["linksNotFollowed"] == 1
-    assert result["captureBlockers"] == 0 and result["explicitExclusions"] == 3
-    assert not (private / "source-copy/actions/job-runtime/service.lock").exists()
+    assert result["capturedFiles"] == 0 and result["linksNotFollowed"] == 1
+    assert result["captureBlockers"] == 0
     assert not (private / "source-copy/sessions/link").exists()
     assert not (private / "source-copy/workdirs").exists()
