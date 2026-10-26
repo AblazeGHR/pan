@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="61" time="129.275" timestamp="2026-10-26T15:03:29.564457+08:00" hostname="ablaze"><testcase classname="tests.test_authorization_mcp" name="test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]" time="1.001" /><testcase classname="tests.test_authorization_mcp" name="test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]" time="1.239" /><testcase classname="tests.test_authorization_mcp" name="test_user_management_ignores_grants_forged_http_rejected_system_definitions_immutable" time="0.168" /><testcase classname="tests.test_authorization_runtime" name="test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation" time="0.127" /><testcase classname="tests.test_authorization_runtime" name="test_trigger_effect_revision_barrier" time="0.118" /><testcase classname="tests.test_codex_session_conversion" name="test_other_adapter_readonly_and_security_gate_reject[codex]" time="0.008" /><testcase classname="tests.test_codex_session_conversion" name="test_other_adapter_readonly_and_security_gate_reject[cbc]" time="0.007" /><testcase classname="tests.test_interaction_runtime" name="test_real_auth_and_directed_engine" time="0.365" /><testcase classname="tests.test_job_action_http" name="test_complete_template_reference_snapshot_and_recovery_http" time="22.376" /><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]" time="0.190" /><testcase classname="tests.test_job_action_templates" name="test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]" time="0.198" /><testcase classname="tests.test_job_action_templates" name="test_cancel_exception_shutdown_and_recovery_remove_snapshots" time="0.391" /><testcase classname="tests.test_job_action_templates" name="test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only" time="0.102" /><testcase classname="tests.test_job_action_templates" name="test_snapshot_io_does_not_hold_job_registry_or_block_event_loop" time="0.113" /><testcase classname="tests.test_job_action_templates" name="test_snapshot_write_or_post_effect_checkpoint_failure_never_replays" time="0.230" /><testcase classname="tests.test_job_action_templates" name="test_terminal_job_write_failure_after_cleanup_recovers_same_run_once" time="0.149" /><testcase classname="tests.test_job_action_templates" name="test_fixed_template_action_capability_idempotence_and_group_gate" time="0.118" /><testcase classname="tests.test_job_action_templates" name="test_running_template_instantiation_uses_private_context_after_template_delete" time="0.176" /><testcase classname="tests.test_job_action_templates" name="test_api_permissions_unknown_fields_legacy_aliases_and_repair" time="0.279" /><testcase classname="tests.test_job_action_templates" name="test_duplicate_profile_owner_cannot_recover_or_close_active_execution" time="0.128" /><testcase classname="tests.test_job_action_templates" name="test_notification_retry_is_independent_of_effect_and_snapshot" time="0.150" /><testcase classname="tests.test_job_action_templates" name="test_shared_scheduler_entry_and_misfire_do_not_replay_effects" time="0.181" /><testcase classname="tests.test_job_delete_main_combination" name="test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard" time="0.119" /><testcase classname="tests.test_job_inbox_http" name="test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak" time="8.777"><failure message="AssertionError: node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_job_inbox_http.py:84: in test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]" time="0.105" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]" time="0.140" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]" time="0.131" /><testcase classname="tests.test_job_overlap" name="test_parallel_claim_bound_independent_jobs_and_terminal_cleanup" time="0.292" /><testcase classname="tests.test_job_overlap" name="test_queue_is_persistent_bounded_and_disable_cancels_waiting" time="0.155" /><testcase classname="tests.test_job_unified_contract" name="test_monitoring_without_signal_enters_restarting" time="0.188" /><testcase classname="tests.test_job_unified_http" name="test_unified_event_system_actions_legacy_and_production_ui" time="13.774"><failure message="AssertionError: node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_job_unified_http.py:94: in test_unified_event_system_actions_legacy_and_production_ui
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_legacy_job_transition_http" name="test_dual_job_tabs_and_old_lifecycle_over_real_http" time="6.158"><failure message="AssertionError: node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\legacy-job-transition.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'e2e/legacy-job-transition.mjs', 'http://127.0.0.1:51610', 'D:\\project\\pan-worktrees\...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_legacy_job_transition_http.py:89: in test_dual_job_tabs_and_old_lifecycle_over_real_http
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\legacy-job-transition.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'e2e/legacy-job-transition.mjs', 'http://127.0.0.1:51610', 'D:\\project\\pan-worktrees\...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_locker_independent_http" name="test_owned_notification_consumption_and_restart" time="0.040"><failure message="FileNotFoundError: [Errno 2] No such file or directory: 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\dist\\index.html'">tests\test_locker_independent_http.py:31: in test_owned_notification_consumption_and_restart
+    evidence['productionIndexSha256']=hashlib.sha256((root/'packages/web/dist/index.html').read_bytes()).hexdigest()
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:777: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:771: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\dist\\index.html'</failure></testcase><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]" time="0.154" /><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[pinned_action]" time="0.162" /><testcase classname="tests.test_locker_independent_review" name="test_fixed_choice_must_not_execute_changed_action[after_admission]" time="0.241" /><testcase classname="tests.test_locker_order_scroll_live" name="test_locker_order_scroll_live" time="7.221"><failure message="AssertionError: &#10;  node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-order-scroll.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_locker_order_scroll_live.py:57: in test_locker_order_scroll_live
+    assert result.returncode==0,result.stdout+'\n'+result.stderr
+E   AssertionError: 
+E     node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-order-scroll.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_locker_product_live" name="test_locker_messages_cards_real_service_browser_cli_restart" time="16.752"><failure message="AssertionError: &#10;  node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-product-live.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_locker_product_live.py:147: in test_locker_messages_cards_real_service_browser_cli_restart
+    browser('exercise', fixture, key)
+tests\test_locker_product_live.py:42: in browser
+    assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E   AssertionError: 
+E     node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-product-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_locker_runtime_http" name="test_product_locker_login_choice_pause_restart" time="6.401"><failure message="AssertionError: node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-runtime.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/locker-runtime.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-work...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_locker_runtime_http.py:80: in test_product_locker_login_choice_pause_restart
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-runtime.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/locker-runtime.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-work...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[approval]" time="0.208" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[admission]" time="0.194" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[effect]" time="0.249" /><testcase classname="tests.test_locker_trusted_binding" name="test_fixed_meaning_barriers[revoked_effect]" time="0.252" /><testcase classname="tests.test_locker_trusted_binding" name="test_cold_queued_run_and_unknown_original_receipt[False]" time="0.329" /><testcase classname="tests.test_locker_trusted_binding" name="test_cold_queued_run_and_unknown_original_receipt[True]" time="0.352" /><testcase classname="tests.test_locker_trusted_binding" name="test_later_attempt_cannot_read_new_action" time="0.222" /><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[standalone]" time="0.824" /><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[pan_native]" time="0.809" /><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[gateway]" time="0.808" /><testcase classname="tests.test_plugin_events" name="test_external_rejections_disconnect_and_queue_restore" time="1.083" /><testcase classname="tests.test_plugin_events" name="test_slow_external_subscriber_isolated_and_bounded" time="3.493" /><testcase classname="tests.test_plugin_events" name="test_service_restart_restores_queued_only_after_actual_plugin_ready" time="0.370" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]" time="1.009" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]" time="1.058" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]" time="0.991" /><testcase classname="tests.test_plugin_events_http" name="test_real_http_plugin_lifecycle_and_restart" time="8.242" /><testcase classname="tests.test_session_query" name="test_recovery_preserves_frozen_targets_and_never_requeries" time="0.068" /><testcase classname="tests.test_session_query" name="test_query_real_isolated_http_fakecli" time="6.365" /><testcase classname="tests.test_session_query" name="test_query_overflow_is_failed_run_without_effects" time="0.099" /><testcase classname="tests.test_system_fields_http" name="test_worker_error_persists_system_session_and_pauses_via_mapping" time="4.108" /><testcase classname="tests.test_user_cards_live" name="test_real_http_stdio_locker_roundtrip_and_restart" time="8.227"><failure message="AssertionError: node:internal/modules/package_json_reader:331&#10;    throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);&#10;          ^&#10;  &#10;  Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\user-cards.mjs&#10;      at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)&#10;      at packageResolve (node:internal/modules/esm/resolve:784:25)&#10;      at moduleResolve (node:internal/modules/esm/resolve:873:18)&#10;      at defaultResolve (node:internal/modules/esm/resolve:1006:11)&#10;      at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)&#10;      at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)&#10;      at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)&#10;      at #resolve (node:internal/modules/esm/loader:687:17)&#10;      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)&#10;      at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {&#10;    code: 'ERR_MODULE_NOT_FOUND'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/user-cards.mjs', 'http://127.0.0.1:60734', 'D:\\project\\pan-worktree...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_user_cards_live.py:91: in test_real_http_stdio_locker_roundtrip_and_restart
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\user-cards.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/user-cards.mjs', 'http://127.0.0.1:60734', 'D:\\project\\pan-worktree...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,32 @@
+ M artifacts/authorization-main-combination/locker-live/evidence.json
+ M artifacts/event-plugin-adapter/http-evidence.json
+ M artifacts/event-plugin-adapter/http-server.log
+ M artifacts/job-chain-phase5/crash-restart.json
+ M artifacts/job-chain-phase5/crash-server.log
+ M artifacts/job-chain-phase5/http-stdio.json
+ M artifacts/job-chain-phase5/server.log
+ M artifacts/job-inbox-followup/http/evidence.json
+ M artifacts/job-inbox-followup/http/server.log
+ M artifacts/job-templates/http-evidence.json
+ M artifacts/job-unified-live/http.json
+ M artifacts/job-unified-live/server.log
+ M artifacts/locker-related-context/live-evidence.json
+ M artifacts/session-query/http-evidence.json
+ M artifacts/session-query/http-server.log
+ M artifacts/system-fields-registry/http-closed-loop.json
+ M audit/locker-order-manual-read-mcp/scroll/evidence.json
+ M audit/locker-order-manual-read-mcp/scroll/fixture.json
+ M audit/locker-runtime/http/evidence.json
+ M audit/reminding-cards/live.json
+ M packages/automation/authorization.py
+ M packages/mcp/server.py
+ M tests/support/authorization.py
+ M tests/test_authorization_mcp.py
+ M tests/test_authorization_permissions.py
+ M tests/test_authorization_runtime.py
+ M tests/test_job_final_clients.py
+ M tests/test_plugin_events.py
+?? evidence/r5-p7a-reds-auth-20261026/
+?? tests/support/canonical_host.py
+?? tests/support/canonical_owner.py
+?? tests/support/legacy_automation.py

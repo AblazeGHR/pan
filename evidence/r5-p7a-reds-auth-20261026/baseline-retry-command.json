@@ -1,0 +1,22 @@
+[
+  "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\scripts\\run_tests_isolated.py",
+  "--",
+  "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "-m",
+  "pytest",
+  "tests/test_job_inbox_http.py::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak",
+  "tests/test_job_unified_http.py::test_unified_event_system_actions_legacy_and_production_ui",
+  "tests/test_legacy_job_transition_http.py::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+  "tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart",
+  "tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live",
+  "tests/test_locker_product_live.py::test_locker_messages_cards_real_service_browser_cli_restart",
+  "tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart",
+  "tests/test_user_cards_live.py::test_real_http_stdio_locker_roundtrip_and_restart",
+  "tests/test_mcp_handbook.py::TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer",
+  "-q",
+  "-o",
+  "addopts=",
+  "--tb=short",
+  "--junitxml=D:\\project\\pan-worktrees\\job-p7a-reds-auth-20261025\\evidence\\r5-p7a-reds-auth-20261026\\baseline-retry.xml"
+]

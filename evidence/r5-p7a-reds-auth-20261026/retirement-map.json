@@ -1,0 +1,497 @@
+{
+  "retired": [
+    {
+      "old": "tests/test_event_store.py::test_commit_precedes_fanout_schema_and_write_failure",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_durable_event_commit_precedes_any_admission_or_fanout"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_crash_after_commit_before_delivery_and_frozen_trigger_set",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_uncertain_preserves_attempt_and_refuses_user_replay",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity",
+        "tests/test_event_store.py::test_legacy_uncertain_event_replay_remains_refused"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_api_bounded_pages_replay_authorization_and_dedup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_run_retention_protects_pending_uncertain_and_retained_event",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_empty_event_release_is_read_only_and_existing_run_still_admitted",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_owner_fences_every_legacy_ledger_write",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_pending_old_plugin_events_do_not_starve_independent_event",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_dispatch_cancel_flushes_completed_failure_without_delivering_pending",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_dispatch_cancellation_flushes_failure_page_and_keeps_unfinished_event"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_slow_commit_cancellation_settles_and_restart_delivers",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return",
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_event_store.py::test_capacity_alarm_visible_without_evicting_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_event_store.py::test_plugin_revocation_while_waiting_for_admission_rejects_old_handle",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_many_concurrent_same_event_ids_have_one_run_and_attempt",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_concurrent_event_redelivery_persists_one_envelope_and_run",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_interaction_runtime.py::test_real_auth_and_directed_engine",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_interaction_runtime.py::test_real_event_receipt_recovers_unknown_without_second_admission",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_trusted_binding.py::test_create_writer_barrier",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_trusted_binding.py::test_fixed_meaning_barriers",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_trusted_binding.py::test_scope_and_dynamic_targets_fail_closed",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_trusted_binding.py::test_cold_queued_run_and_unknown_original_receipt",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_trusted_binding.py::test_later_attempt_cannot_read_new_action",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_independent_review.py::test_fixed_choice_must_not_execute_changed_action",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_independent_review.py::test_unknown_receipt_reconciles_after_trigger_revocation",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_job_action_chain.py::test_system_shell_steps_have_distinct_trusted_child_admissions",
+      "action": "retire",
+      "reason": "Canonical typed execution refuses shell/lifecycle operations; unrestricted legacy system_scheduled_task shell child admissions are no longer an executable product contract.",
+      "successors": [
+        "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused",
+        "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+        "tests/test_job_final_executors.py::test_fe02_cross_host_lookup_keeps_run_and_effect_identity"
+      ]
+    },
+    {
+      "old": "tests/test_job_action_chain.py::test_chain_api_schema_audit_and_private_snapshot_projection",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+        "tests/test_job_final_http_service.py::test_ft01_run_request_key_replays_after_restart_without_new_run",
+        "tests/test_job_final_http_service.py::test_ft02_real_http_401_403_404_409_and_cookie_same_origin"
+      ]
+    },
+    {
+      "old": "tests/test_job_action_http.py::test_complete_template_reference_snapshot_and_recovery_http",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+        "tests/test_job_final_http_service.py::test_ft01_run_request_key_replays_after_restart_without_new_run",
+        "tests/test_job_final_http_service.py::test_ft02_real_http_401_403_404_409_and_cookie_same_origin"
+      ]
+    },
+    {
+      "old": "tests/test_job_chain_phase5_e2e.py::test_real_mcp_legacy_message_and_process_become_action_jobs",
+      "action": "retire",
+      "reason": "R5-P5 removes legacy create MCP registration and legacy writes. Existing unknown receipts must retain identity without resend; an unmappable legacy record is history only.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy",
+        "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_and_cancel"
+      ]
+    },
+    {
+      "old": "tests/test_job_chain_phase5_e2e.py::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy",
+      "action": "retire",
+      "reason": "R5-P5 removes legacy create MCP registration and legacy writes. Existing unknown receipts must retain identity without resend; an unmappable legacy record is history only.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy",
+        "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+        "tests/test_job_final_retirement.py::test_mcp_retires_old_writes_and_keeps_reads_and_cancel"
+      ]
+    },
+    {
+      "old": "tests/test_job_delete_main_combination.py::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+        "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup"
+      ]
+    },
+    {
+      "old": "tests/test_job_inbox_http.py::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup",
+        "tests/test_locker_messages.py::test_read_delete_original_identity_tombstone_and_no_notification"
+      ]
+    },
+    {
+      "old": "tests/test_job_unified_http.py::test_unified_event_system_actions_legacy_and_production_ui",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs"
+      ]
+    },
+    {
+      "old": "tests/test_legacy_job_transition_http.py::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs"
+      ]
+    },
+    {
+      "old": "tests/test_locker_product_live.py::test_locker_messages_cards_real_service_browser_cli_restart",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_locker_independent_review.py::test_old_user_and_unknown_recipient_copy_migration",
+        "tests/test_locker_trusted_binding.py::test_old_unbound_migration_has_no_guessed_binding",
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "old": "tests/test_plugin_events_http.py::test_real_http_plugin_lifecycle_and_restart",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retained_plugin_event_subscription_never_reexecutes_history"
+      ]
+    },
+    {
+      "old": "tests/test_scheduler_legacy_bridge.py::test_switched_task_flows_event_trigger_job_and_system_action_audit",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retired_http_writes_preserve_history_and_canonical_successor_runs",
+        "tests/test_job_final_http_service.py::test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable"
+      ]
+    },
+    {
+      "old": "tests/test_scheduler_time_events.py::test_source_http_user_auth_and_revision_without_listening",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_time_source_write_retired_canonical_creator_owns_revision",
+        "tests/test_job_final_http_service.py::test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable"
+      ]
+    },
+    {
+      "old": "tests/test_session_query.py::test_recovery_preserves_frozen_targets_and_never_requeries",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_query_snapshot_executor_survives_without_trigger_execution_host"
+      ]
+    },
+    {
+      "old": "tests/test_session_query.py::test_query_real_isolated_http_fakecli",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_query_snapshot_executor_survives_without_trigger_execution_host"
+      ]
+    },
+    {
+      "old": "tests/test_session_query.py::test_query_overflow_is_failed_run_without_effects",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_query_snapshot_executor_survives_without_trigger_execution_host"
+      ]
+    },
+    {
+      "old": "tests/test_system_fields_http.py::test_worker_error_persists_system_session_and_pauses_via_mapping",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_trusted_core_binding_crosses_canonical_admission"
+      ]
+    },
+    {
+      "old": "tests/test_plugin_events.py::test_service_restart_restores_queued_only_after_actual_plugin_ready",
+      "action": "retire",
+      "reason": "R5 removed legacy Engine effects / legacy write transport; history remains readable. Canonical successor asserts the active contract. Live legacy browser and crash scenarios are no longer valid acceptance paths.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_retained_plugin_event_subscription_never_reexecutes_history"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_mcp.py::test_real_stdio_grants_no_user_bearer_and_four_object_operations",
+      "action": "rewrite",
+      "reason": "Four-object authorization migrated to canonical operations and separate config/state revisions; legacy writes have no complete envelope. The retained legacy Runtime barrier tests remain separate.",
+      "successors": [
+        "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_mcp.py::test_user_management_ignores_grants_forged_http_rejected_system_definitions_immutable",
+      "action": "rewrite",
+      "reason": "Four-object authorization migrated to canonical operations and separate config/state revisions; legacy writes have no complete envelope. The retained legacy Runtime barrier tests remain separate.",
+      "successors": [
+        "tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_runtime.py::test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation",
+      "action": "rewrite",
+      "reason": "Four-object authorization migrated to canonical operations and separate config/state revisions; legacy writes have no complete envelope. The retained legacy Runtime barrier tests remain separate.",
+      "successors": [
+        "tests/test_job_final_http_service.py::test_ft01_revoke_between_steps_prevents_next_effect"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_runtime.py::test_trigger_effect_revision_barrier",
+      "action": "rewrite",
+      "reason": "Four-object authorization migrated to canonical operations and separate config/state revisions; legacy writes have no complete envelope. The retained legacy Runtime barrier tests remain separate.",
+      "successors": [
+        "tests/test_job_final_http_service.py::test_ft01_revoke_between_steps_prevents_next_effect"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_runtime.py::test_agent_resume_of_user_job_is_not_an_execute_grant",
+      "action": "rewrite",
+      "reason": "Four-object authorization migrated to canonical operations and separate config/state revisions; legacy writes have no complete envelope. The retained legacy Runtime barrier tests remain separate.",
+      "successors": [
+        "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create"
+      ]
+    },
+    {
+      "old": "tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart",
+      "action": "retire",
+      "reason": "Historical browser harness creates a legacy Trigger after owner cutover. This is now fenced; it is not an environment failure or a valid canonical admission test. Retained Locker GUI, ordering and notification contracts remain independently exercised. No production fixture bypass is added.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_user_cards_live.py::test_real_http_stdio_locker_roundtrip_and_restart",
+        "tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live"
+      ]
+    },
+    {
+      "old": "tests/test_user_locker_browser.py::test_locker_browser_http_mcp",
+      "action": "retire",
+      "reason": "Historical browser harness creates a legacy Trigger after owner cutover. This is now fenced; it is not an environment failure or a valid canonical admission test. Retained Locker GUI, ordering and notification contracts remain independently exercised. No production fixture bypass is added.",
+      "successors": [
+        "tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution",
+        "tests/test_user_cards_live.py::test_real_http_stdio_locker_roundtrip_and_restart",
+        "tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_mcp.py::test_four_object_operation_mapping_is_allowlisted",
+      "action": "rewrite",
+      "reason": "Legacy object_request write envelopes cannot express canonical state/config CAS and Run identity. Reads and denial assertions now use canonical IPC/HTTP contracts.",
+      "successors": [
+        "tests/test_authorization_mcp.py::test_legacy_four_object_write_tool_keeps_only_retained_reads",
+        "tests/test_authorization_mcp.py::test_object_path_allowlist_is_canonical_plus_retained_reads"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_mcp.py::test_every_capability_maps_to_denial_on_existing_ipc",
+      "action": "rewrite",
+      "reason": "Legacy object_request write envelopes cannot express canonical state/config CAS and Run identity. Reads and denial assertions now use canonical IPC/HTTP contracts.",
+      "successors": [
+        "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc",
+        "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc",
+        "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc",
+        "tests/test_job_final_transports.py::test_ft01_agent_read_create_update_lifecycle_delete_exact_grants",
+        "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create"
+      ]
+    },
+    {
+      "old": "tests/test_authorization_mcp.py::test_job_reads_do_not_emit_mutations_and_writes_have_complete_gui_projection",
+      "action": "rewrite",
+      "reason": "Legacy object_request write envelopes cannot express canonical state/config CAS and Run identity. Reads and denial assertions now use canonical IPC/HTTP contracts.",
+      "successors": [
+        "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+        "tests/test_job_final_http_service.py::test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity"
+      ]
+    }
+  ]
+}

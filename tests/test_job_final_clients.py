@@ -116,11 +116,14 @@ async def test_real_stdio_crud_operations_permissions_and_legacy(h, tmp_path, pr
                     if name in {"job_run", "job_run_again", "job_run_clone_and_run"}:
                         arguments["expected_revision"] = 1
                 assert (await call(name, **arguments))["error"]["code"] == "authorization_denied"
-            # Legacy write still reaches its original authorization path and fails closed.
+            # The retained legacy read resolves to the canonical resource, so a
+            # denial carries the canonical structured code, not an HTTP integer.
             old = await call("authorization_objects", kind="trigger", operation="read")
-            assert old["error"]["code"] == 403
+            assert old["error"]["code"] == "authorization_denied"
             grants(h, True)
-            assert "triggers" in (await call("authorization_objects", kind="trigger", operation="read"))
+            # The retained read is the canonical page, not the legacy keyed document.
+            assert (await call("authorization_objects", kind="trigger", operation="read")) == {
+                "items": [], "nextCursor": None}
 
             objects = {}
             for resource in ["jobs", "event-creators", "triggers", "job-templates"]:
@@ -284,7 +287,7 @@ def test_wp01_validation_before_transport(resource, mutation):
     "/api/final/event-creators/c/operations", "/api/final/triggers/t", "/api/final/job-templates/t",
     "/api/final/job-runs/r/operations", "/api/final/operations?operation=retry&requestKey=k", "/api/final/actions"])
 def test_bridge_canonical_allowlist(path):
-    assert object_path(path)
+    assert not object_path(path)  # Deprecated aliases remain HTTP-only.
     assert object_path(path.replace("/api/final/actions", "/api/jobs/actions").replace("/api/final/", "/api/"))
 
 

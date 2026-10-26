@@ -8,7 +8,6 @@ from tests.test_automation_canonical import canonical, subscription, fact, deliv
 def test_event_history_http_bounded_pages_authorized_replay_and_no_new_run(canonical):
     h = canonical
     job, target = subscription(h)
-    install(SimpleNamespace(app=h.app))
     asyncio.run(deliver(h, fact(h)))
     assert h.client.get('/api/automation/events?limit=101').status_code == 400
     page = h.client.get('/api/automation/events?limit=1').json()
@@ -26,7 +25,6 @@ def test_event_history_http_bounded_pages_authorized_replay_and_no_new_run(canon
 def test_event_receipt_http_points_to_same_run_before_and_after_dispatch(canonical):
     h = canonical
     _, target = subscription(h)
-    install(SimpleNamespace(app=h.app))
     _, receipts = asyncio.run(deliver(h, fact(h)))
     rid = receipts['trigger:' + target['id']]['runId']
     assert h.client.get('/api/job-runs/' + rid).json()['state'] == 'queued'

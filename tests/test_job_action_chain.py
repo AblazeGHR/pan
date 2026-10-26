@@ -490,28 +490,6 @@ async def test_chain_checks_revocation_between_steps(tmp_path, monkeypatch, revo
         await runtime.close()
 
 
-@async_test
-async def test_system_shell_steps_have_distinct_trusted_child_admissions(tmp_path, monkeypatch):
-    from packages.core import background_jobs as jobs
-    runtime = await _runtime(tmp_path)
-    children = []
-    def spawn(child, registry_root=None):
-        children.append(child)
-        jobs._update(child['jobId'], {'status': 'completed', 'exitCode': 0, 'processTreeEnded': True}, registry_root=registry_root)
-        return jobs.get(child['jobId'], registry_root)
-    monkeypatch.setattr(jobs, '_spawn_background_runner', spawn)
-    steps = [{'stepId': sid, 'actionId': 'system_scheduled_task', 'arguments': {
-        'sessionId': '', 'text': '', 'action': {'api': 'shell', 'args': {'command': 'echo owned-fixture', 'cwd': str(tmp_path)}}}}
-        for sid in ('shell1', 'shell2')]
-    try:
-        job = runtime.create(_config(steps), True)
-        await runtime.launch(job['jobId'], 1); await asyncio.gather(*runtime.tasks.values())
-        done = runtime.get(job['jobId'])
-        assert done['lastStatus'] == 'completed', done['lastExecution']
-        assert len(children) == 2 and len({c['jobId'] for c in children}) == 2
-        assert [c['dispatchKey'] for c in children] == [done['runId'] + ':shell1', done['runId'] + ':shell2']
-    finally:
-        await runtime.close()
 
 
 def test_public_projection_preserves_legacy_result_field_names():
@@ -521,38 +499,6 @@ def test_public_projection_preserves_legacy_result_field_names():
     assert jobs.job_public_view(original)['lastDelivery'] == original['lastDelivery']
 
 
-@async_test
-async def test_chain_api_schema_audit_and_private_snapshot_projection(tmp_path, monkeypatch):
-    from types import SimpleNamespace
-    from fastapi import FastAPI
-    import httpx
-    from packages.automation.auth import UserAuth
-    from packages.jobs import action_api
-    runtime = await _runtime(tmp_path)
-    auth = UserAuth(tmp_path / 'auth'); token = auth.login(auth.key())
-    app = FastAPI(); app.state.automation = SimpleNamespace(job_runtime=runtime, auth=auth)
-    app.include_router(action_api.router)
-    entered, release = asyncio.Event(), asyncio.Event()
-    async def execute(*unused):entered.set(); await release.wait(); return {'ok': True}
-    monkeypatch.setattr(executor, 'execute_dynamic', execute)
-    try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://owned') as client:
-            headers = {'Authorization': 'Bearer ' + token}
-            config = _config(_steps()); config.pop('actionId')
-            assert (await client.post('/api/jobs/action-jobs', json={'config': config})).status_code == 401
-            schema = (await client.get('/api/jobs/action-jobs/schema', headers=headers)).json()
-            jsonschema.Draft202012Validator(schema['config']).validate(config)
-            job = (await client.post('/api/jobs/action-jobs', json={'config': config}, headers=headers)).json()['job']
-            await runtime.launch(job['jobId'], 1); await entered.wait()
-            audit = (await client.get('/api/jobs/action-jobs/' + job['jobId'] + '/runs', headers=headers)).json()
-            assert audit['activeExecutions'] and 'chainSnapshot' not in json.dumps(audit)
-            public = (await client.get('/api/jobs/action-jobs', headers=headers)).json()
-            assert 'chainSnapshot' not in json.dumps(public)
-            release.set(); await asyncio.gather(*runtime.tasks.values())
-            audit = (await client.get('/api/jobs/action-jobs/' + job['jobId'] + '/runs', headers=headers)).json()
-            assert len(audit['lastExecution']['stepExecutions']) == 2
-    finally:
-        release.set(); await runtime.close()
 
 
 @async_test

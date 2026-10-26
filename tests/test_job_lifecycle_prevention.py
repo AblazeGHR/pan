@@ -107,6 +107,11 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
    from packages.jobs.independent_runner import run
    assert run(root,job['jobId'])==3
   else:
+   if fault == "pre-import":
+    # P5b keeps an unclaimed redirector in its bounded startup grace period.
+    assert legacy.reconcile_running(root) == 0
+    clock_now = legacy.time.time()
+    monkeypatch.setattr(legacy.time, "time", lambda: clock_now + 6)
    assert legacy.reconcile_running(root)==1
    fact=legacy.get(job['jobId']);assert fact['status'] not in ('starting','running')
    assert legacy.reconcile_running(root)==0

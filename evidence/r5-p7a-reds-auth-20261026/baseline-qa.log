@@ -1,0 +1,242 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026
+.......................F......FFF...FFF.....................F            [100%]
+================================== FAILURES ===================================
+_ test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak _
+tests\test_job_inbox_http.py:84: in test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+_________ test_unified_event_system_actions_legacy_and_production_ui __________
+tests\test_job_unified_http.py:94: in test_unified_event_system_actions_legacy_and_production_ui
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\job-unified-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/job-unified-live.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-wo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+_____________ test_dual_job_tabs_and_old_lifecycle_over_real_http _____________
+tests\test_legacy_job_transition_http.py:89: in test_dual_job_tabs_and_old_lifecycle_over_real_http
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\legacy-job-transition.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'e2e/legacy-job-transition.mjs', 'http://127.0.0.1:51610', 'D:\\project\\pan-worktrees\...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+_______________ test_owned_notification_consumption_and_restart _______________
+tests\test_locker_independent_http.py:31: in test_owned_notification_consumption_and_restart
+    evidence['productionIndexSha256']=hashlib.sha256((root/'packages/web/dist/index.html').read_bytes()).hexdigest()
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:777: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:771: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\dist\\index.html'
+________________________ test_locker_order_scroll_live ________________________
+tests\test_locker_order_scroll_live.py:57: in test_locker_order_scroll_live
+    assert result.returncode==0,result.stdout+'\n'+result.stderr
+E   AssertionError: 
+E     node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-order-scroll.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+_________ test_locker_messages_cards_real_service_browser_cli_restart _________
+tests\test_locker_product_live.py:147: in test_locker_messages_cards_real_service_browser_cli_restart
+    browser('exercise', fixture, key)
+tests\test_locker_product_live.py:42: in browser
+    assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E   AssertionError: 
+E     node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-product-live.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-p7a-baseline-7f303faa-20261026\\packages\\web\\e2e\\lo...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+_______________ test_product_locker_login_choice_pause_restart ________________
+tests\test_locker_runtime_http.py:80: in test_product_locker_login_choice_pause_restart
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\locker-runtime.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/locker-runtime.mjs', 'http://127.0.0.1:54928', 'D:\\project\\pan-work...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+______________ test_real_http_stdio_locker_roundtrip_and_restart ______________
+tests\test_user_cards_live.py:91: in test_real_http_stdio_locker_roundtrip_and_restart
+    assert browser.returncode==0,browser.stderr
+E   AssertionError: node:internal/modules/package_json_reader:331
+E       throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+E             ^
+E     
+E     Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@playwright/test' imported from D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026\packages\web\e2e\user-cards.mjs
+E         at Object.getPackageJSONURL (node:internal/modules/package_json_reader:331:9)
+E         at packageResolve (node:internal/modules/esm/resolve:784:25)
+E         at moduleResolve (node:internal/modules/esm/resolve:873:18)
+E         at defaultResolve (node:internal/modules/esm/resolve:1006:11)
+E         at #cachedDefaultResolve (node:internal/modules/esm/loader:705:20)
+E         at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:725:38)
+E         at ModuleLoader.resolveSync (node:internal/modules/esm/loader:763:56)
+E         at #resolve (node:internal/modules/esm/loader:687:17)
+E         at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:607:35)
+E         at ModuleJob.syncLink (node:internal/modules/esm/module_job:276:33) {
+E       code: 'ERR_MODULE_NOT_FOUND'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/user-cards.mjs', 'http://127.0.0.1:60734', 'D:\\project\\pan-worktree...Job.syncLink (node:internal/modules/esm/module_job:276:33) {\n  code: 'ERR_MODULE_NOT_FOUND'\n}\n\nNode.js v24.22.1\n").returncode
+---------------------------- Captured stderr call -----------------------------
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+Processing request of type CallToolRequest
+Processing request of type ListToolsRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+Processing request of type CallToolRequest
+=========================== short test summary info ===========================
+FAILED tests/test_job_inbox_http.py::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak
+FAILED tests/test_job_unified_http.py::test_unified_event_system_actions_legacy_and_production_ui
+FAILED tests/test_legacy_job_transition_http.py::test_dual_job_tabs_and_old_lifecycle_over_real_http
+FAILED tests/test_locker_independent_http.py::test_owned_notification_consumption_and_restart
+FAILED tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live
+FAILED tests/test_locker_product_live.py::test_locker_messages_cards_real_service_browser_cli_restart
+FAILED tests/test_locker_runtime_http.py::test_product_locker_login_choice_pause_restart
+FAILED tests/test_user_cards_live.py::test_real_http_stdio_locker_roundtrip_and_restart
+8 failed, 53 passed in 129.95s (0:02:09)

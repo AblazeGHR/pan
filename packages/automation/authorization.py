@@ -13,37 +13,81 @@ _SCOPE_KEY = "pan.authorization.transport"
 
 
 def canonical_path(path):
-    """Canonical resources only, including deprecated final aliases."""
+    """Public canonical resources only; deprecated aliases are HTTP-only."""
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
-    if parsed.path in {'/api/final/actions', '/api/jobs/actions'}:
+    if parsed.path == '/api/jobs/actions':
         return True
     # These are concrete legacy routes, even where their segment looks like an ID.
     if re.match(r'/api/jobs/(?:action-jobs|job-templates|action-references|kinds|templates|next|settings)(?:/|$)', parsed.path):
         return False
     return bool(re.fullmatch(
-        r'/api/(?:final/)?(?:jobs(?:/[A-Za-z0-9_-]+(?:/(?:runs|operations))?)?'
+        r'/api/(?:jobs(?:/[A-Za-z0-9_-]+(?:/(?:runs|operations))?)?'
         r'|(?:triggers|event-creators|job-templates)(?:/[A-Za-z0-9_-]+(?:/operations)?)?'
         r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?)', parsed.path))
 
 
-def object_path(path):
-    """Narrow bridge allowlist; no groups, other MCPs or arbitrary HTTP proxy."""
+READ, CANCEL = 'read', 'cancel'
+
+#: Historical non-canonical addresses and the only method class each may serve.
+#: Everything absent here — every retired legacy *write* root, including the
+#: shared list/create addresses below — is not writable through the bridge.
+_LEGACY_SURFACE = (
+    # Historical Job/Template reads: retained until the last legacy owner drains.
+    (r'/api/jobs/action-jobs', READ),
+    (r'/api/jobs/action-jobs/schema', READ),
+    (r'/api/jobs/action-jobs/[A-Za-z0-9_-]+/runs', READ),
+    (r'/api/jobs/action-references/[A-Za-z0-9_-]+', READ),
+    (r'/api/jobs/job-templates', READ),
+    # Legacy Action catalog/template reads (``action_drafts`` discovery only).
+    (r'/api/actions', READ),
+    (r'/api/actions/session-operation-template', READ),
+    # Legacy background Job and scheduler aliases kept inspectable for R6.
+    (r'/api/background-jobs', READ),
+    (r'/api/background-jobs/[A-Za-z0-9_-]+', READ),
+    (r'/api/scheduler/tasks', READ),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+', READ),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/runs', READ),
+    (r'/api/scheduler/next', READ),
+    (r'/api/scheduler/status', READ),
+    # Explicit historical cancel controls: the only retained legacy POST.
+    (r'/api/jobs/action-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
+    (r'/api/background-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
+)
+_LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}}
+
+
+def _legacy_surface(path):
+    """Method class of a retained historical address, or ``None``."""
+    for pattern, kind in _LEGACY_SURFACE:
+        if re.fullmatch(pattern, path):
+            return kind
+    return None
+
+
+def object_path(path, method=None):
+    """Narrow trusted bridge allowlist: canonical objects plus retained history.
+
+    Canonical ``/api`` resources own every write, so they stay fully
+    method-addressable.  Historical addresses keep only the method class they
+    were inventoried for: reads and the explicit ``/cancel`` controls.
+    Passing *method* (as the IPC bridge always does)
+    therefore refuses a retired legacy write; omitting it answers "is this
+    address part of either retained surface", which catalog checks need without
+    silently granting a write.
+    """
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
     if canonical_path(path):
         return True
-    if re.fullmatch(r'/api/(?:background-jobs(?:/[^/]+(?:/(?:cancel|retry))?)?|session-message-jobs)', parsed.path):
+    kind = _legacy_surface(parsed.path)
+    if kind is None:
+        return False
+    if method is None:
         return True
-    return bool(re.fullmatch(
-        r'/api/(?:actions(?:/actions(?:/[a-z0-9_]+)?|/session-operation-template)?'
-        r'|actions/actions/[a-z0-9_]+/lifecycle'
-        r'|action-drafts/actions/(?:put|delete)'
-        r'|automation(?:/triggers(?:/[^/]+(?:/lifecycle)?)?|/runs/[^/]+/(?:cancel|confirm-recovery))?'
-        r'|jobs/(?:action-jobs(?:/[^/]+(?:/(?:runs|run-now|cancel|retry|confirm-recovery|pause|resume|lifecycle))?)?'
-        r'|job-templates(?:/[^/]+(?:/instantiate)?)?|action-references/[^/]+))', parsed.path))
+    return method.upper() in _LEGACY_METHODS[kind]
 
 
 def delegated(request):
@@ -82,7 +126,7 @@ def bind_objects(runtime, app):
     """Only called by the host; reused routes retain their normal business gates."""
     import httpx
     async def call(method, path, body):
-        if method not in {'GET','POST','PUT','DELETE','PATCH'} or not object_path(path):
+        if method not in {'GET','POST','PUT','DELETE','PATCH'} or not object_path(path, method):
             return {'ok': False, 'error': {'code': 403, 'message': 'Outside four-object MCP boundary'}}
         async def transport(scope, receive, send):
             scope[_SCOPE_KEY] = _MARKER
@@ -119,43 +163,27 @@ async def require_write(request, kind, old, new, *, ignored=()):
         await require(request, kind, 'lifecycle')
 
 
+class LegacyObjectWriteRetired(ValueError):
+    """The compatibility tool lacks the canonical operation envelope."""
+
+
 def object_request(kind, operation, item=None, item_id=None, expected_revision=None,
                    idempotency_key=None):
-    from urllib.parse import quote, urlencode
-    bases = {'trigger':'/api/automation/triggers', 'action':'/api/actions/actions',
-             'jobTemplate':'/api/jobs/job-templates', 'job':'/api/jobs/action-jobs'}
+    """Retained four-object reads; writes use the canonical operation tools.
+
+    The old tool cannot express both stateRevision and configRevision, a Run
+    identity, or the canonical request envelope.  Guessing these values would
+    bypass CAS or conflate retry with a new Run.  Keep its discovery/read
+    compatibility and reject writes before transport; the canonical MCP tools
+    already expose each complete operation envelope.
+    """
+    bases = {'trigger': '/api/triggers', 'action': '/api/jobs/actions',
+             'jobTemplate': '/api/job-templates', 'job': '/api/jobs'}
     if kind not in bases:
         raise ValueError('Unknown object kind')
-    base = bases[kind]
-    path = base + ('/' + quote(item_id, safe='') if item_id else '')
     if operation == 'read':
-        return 'GET', {'trigger':'/api/automation','action':'/api/actions'}.get(kind, base), None
-    if operation == 'create' or operation == 'updateConfig':
-        if not isinstance(item, dict):
-            raise ValueError('Complete item required')
-        if operation == 'updateConfig' and not item_id:
-            raise ValueError('Object ID required')
-        payload = {'config' if kind == 'job' else 'item': item}
-        if kind in ('trigger', 'jobTemplate') or operation == 'updateConfig':
-            payload['expectedRevision'] = expected_revision
-        if kind == 'trigger':
-            return 'POST', base, payload
-        return ('PUT', path, payload) if operation == 'updateConfig' else ('POST', base, payload)
-    if not item_id or type(expected_revision) is not int:
-        raise ValueError('Object ID and expectedRevision required')
-    if operation == 'delete':
-        return 'DELETE', path + '?' + urlencode({'expectedRevision':expected_revision}), None
-    if operation == 'use' and kind == 'jobTemplate':
-        return 'POST', path + '/instantiate', {'expectedRevision':expected_revision, 'idempotencyKey':idempotency_key}
-    if operation in ('enable','disable') and kind != 'jobTemplate':
-        return 'POST', path + '/lifecycle', {'expectedRevision':expected_revision, 'enabled':operation=='enable'}
-    if kind == 'job' and operation in ('pause','resume','cancel','execute','retry','confirmRecovery'):
-        suffix = {'execute':'run-now','confirmRecovery':'confirm-recovery'}.get(operation, operation)
-        body = {'expectedRevision':expected_revision}
-        if operation in ('retry','confirmRecovery'):
-            body['confirm'] = True
-        return 'POST', path + '/' + suffix, body
-    raise ValueError('Operation is not supported for this object')
+        return 'GET', bases[kind], None
+    raise LegacyObjectWriteRetired('Legacy object writes retired; use canonical operation tools')
 
 
 async def may_read_jobs(request):

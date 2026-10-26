@@ -1,0 +1,36 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-reds-auth-20261025
+.........F.............................................................F [ 94%]
+.F..                                                                     [100%]
+================================== FAILURES ===================================
+____ test_legacy_time_source_write_retired_canonical_creator_owns_revision ____
+tests\test_p7a_successors.py:148: in test_legacy_time_source_write_retired_canonical_creator_owns_revision
+    created = h.client.post('/api/event-creators', json={'definition': time_definition(config(interval())),
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: time_definition() missing 1 required positional argument: 'config'
+__________ test_remote_mcp_cannot_borrow_local_authority[/api/final] __________
+tests\test_job_final_clients.py:389: in test_remote_mcp_cannot_borrow_local_authority
+    assert server._api("GET", prefix + "/jobs")["error"]["code"] == "authorization_denied"
+E   AssertionError: assert 403 == 'authorization_denied'
+_ test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api/final] _
+tests\test_job_final_clients.py:399: in test_imported_gateway_request_cannot_borrow_default_stdio_authority
+    assert server._api("GET", prefix + "/jobs")["error"]["code"] == "authorization_denied"
+E   AssertionError: assert 403 == 'authorization_denied'
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_p7a_successors.py::test_legacy_time_source_write_retired_canonical_creator_owns_revision
+FAILED tests/test_job_final_clients.py::test_remote_mcp_cannot_borrow_local_authority[/api/final]
+FAILED tests/test_job_final_clients.py::test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api/final]
+3 failed, 73 passed, 3 warnings in 27.97s

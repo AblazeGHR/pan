@@ -128,7 +128,7 @@ def test_invalid_permission_root_http_error_is_bounded_and_file_retained(tmp_pat
 
 @pytest.mark.parametrize('value', [None, [], 'synthetic-private-marker', 7])
 def test_invalid_permission_root_private_ipc_rejects_without_raw_value(tmp_path, monkeypatch, value):
-    from tests.test_authorization_mcp import harness, close
+    from tests.support.legacy_automation import harness, close
     from packages.plugins.ipc import request
     async def run():
         h=await harness(tmp_path,monkeypatch)
