@@ -10988,15 +10988,7 @@ async def _legacy_action_job(kind: str, fields: dict, request: Request):
             await runtime.launch(job['jobId'], expected=job['configRevision'], authority=auth)
     return legacy_view(await asyncio.to_thread(runtime.get, job['jobId']))
 
-@app.post("/api/background-jobs", deprecated=True)
-async def api_background_job_start_retired(request: Request):
-    return await _retired_legacy_write(request)
-
-
-api_background_job_start_retired.retirement_boundary = True
-
-
-async def _legacy_api_background_job_start(data: dict, request: Request = None):
+async def api_background_job_start(data: dict, request: Request = None):
     """Create a durable process Job with independent creator/target fields."""
     target = data.get("targetSessionId")
     argv = data.get("argv")
@@ -11079,15 +11071,7 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/session-message-jobs", deprecated=True)
-async def api_session_message_job_retired(request: Request):
-    return await _retired_legacy_write(request)
-
-
-api_session_message_job_retired.retirement_boundary = True
-
-
-async def _legacy_api_session_message_job_start(data: dict, request: Request = None):
+async def api_session_message_job_start(data: dict, request: Request = None):
     """Create a durable Session message or scheduled broadcast.
 
     ``text`` is delivered as message text; it is never an OS command.
@@ -11144,15 +11128,7 @@ async def _legacy_api_session_message_job_start(data: dict, request: Request = N
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
 
 
-@app.patch("/api/background-jobs/{job_id}", deprecated=True)
-async def api_background_job_update_retired(request: Request):
-    return await _retired_legacy_write(request)
-
-
-api_background_job_update_retired.retirement_boundary = True
-
-
-async def _legacy_api_background_job_update(job_id: str, data: dict, request: Request = None):
+async def api_background_job_update(job_id: str, data: dict, request: Request = None):
     try:
         job = background_jobs.get(job_id)
         if job and job.get('legacyCompat'):
@@ -11196,15 +11172,7 @@ async def _legacy_api_background_job_update(job_id: str, data: dict, request: Re
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/background-jobs/{job_id}/retry", deprecated=True)
-async def api_background_job_retry_retired(request: Request):
-    return await _retired_legacy_write(request)
-
-
-api_background_job_retry_retired.retirement_boundary = True
-
-
-async def _legacy_api_background_job_retry(job_id: str, request: Request = None):
+async def api_background_job_retry(job_id: str, request: Request = None):
     try:
         old = background_jobs.get(job_id)
         if old and old.get('legacyCompat'):
@@ -11231,6 +11199,22 @@ async def _legacy_api_background_job_retry(job_id: str, request: Request = None)
     except ValueError as exc:
         code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+# R5: the durable Job mutations are no longer routed.  The handlers above keep
+# their original names and bodies so the safety work behind them (window policy,
+# PID birth checks, per-target redelivery) stays testable until R6 deletes it;
+# what changed is that no address reaches them.  Registering the boundary as a
+# separate route is deliberate: FastAPI binds the handler at decoration time, so
+# a decorator would keep the old effect alive.
+for _path, _method in (("/api/background-jobs", "POST"),
+                       ("/api/session-message-jobs", "POST"),
+                       ("/api/background-jobs/{job_id}", "PATCH"),
+                       ("/api/background-jobs/{job_id}/retry", "POST")):
+    app.add_api_route(_path, _retired_legacy_write, methods=[_method],
+                      name="retired_legacy_" + _method.lower() + "_" +
+                           _path.strip("/").replace("/", "_").replace("{", "").replace("}", ""),
+                      tags=["retired"], deprecated=True)
 
 
 # ── 定时任务（scheduler 插件） ──

@@ -52,7 +52,7 @@
 
 | 命令 | 结果 |
 |---|---|
-| `pytest tests/test_job_path_flip.py tests/test_job_final_transports.py tests/test_job_final_clients.py tests/test_job_final_http_service.py tests/test_job_final_retirement.py tests/test_legacy_mcp_compat.py tests/test_job_action_templates.py tests/test_scheduler_api.py tests/test_scheduler_mcp.py -q -o addopts=` | **317 passed, exit 0** |
+| `pytest tests/test_job_final_retirement.py tests/test_job_path_flip.py tests/test_job_final_transports.py tests/test_job_final_clients.py tests/test_job_final_http_service.py tests/test_legacy_mcp_compat.py tests/test_job_action_templates.py tests/test_scheduler_api.py tests/test_scheduler_mcp.py tests/test_background_job_api.py -q -o addopts=` | **345 passed, exit 0** |
 | 上述 + `test_jobs_api.py test_job_system_actions.py test_job_final_{contracts,admission,runtime,executors,creators,migration,migration_apply,independent_execution}.py` | 668 passed / **11 failed**, exit 1；11 项全部是 `test_jobs_api.py` 基线既有失败 |
 | 基线对照（同一 11 项，stash 本轮改动） | 11 failed / 81 passed — 同身份 |
 
@@ -64,7 +64,7 @@
 
 ## 6. 测试改动
 
-- 新增 `tests/test_job_final_retirement.py`（78 项）：31 条旧写矩阵（无业务 handler
+- 新增 `tests/test_job_final_retirement.py`（82 项）：31 条旧写矩阵（无业务 handler
   可达、匿名 401/503 不泄露、委托调用者 410 且零副作用）、7 条保留读、MCP 目录
   精确集合、CLI 保持可用、canonical 面不变。
 - `test_job_path_flip.py`：facade 写断言由「旧 handler 保留」改为「读/cancel 保留、
@@ -72,5 +72,6 @@
   （108 → 127 条，冲突 0）。
 - `test_job_final_transports.py`、`test_job_final_http_service.py`：facade 行为断言
   改为「读保持、写 410；匿名 401」。
-- `test_legacy_mcp_compat.py`、`test_job_action_templates.py`：旧正向流程改为
-  「退役 + 零副作用 + 鉴权优先」的后继断言，未删除安全负控。
+- `test_legacy_mcp_compat.py`、`test_job_action_templates.py`、`test_background_job_api.py`：
+  旧正向流程/工具 schema 改为「退役 + 零副作用 + 鉴权优先」的后继断言，未删除安全负控。
+- `test_job_action_http.py` 的 1 项失败为基线既有（stash 对照同身份），未改动该文件。

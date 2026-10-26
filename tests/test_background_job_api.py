@@ -283,7 +283,16 @@ def test_http_process_name_required_before_spawn(payload):
 
 
 def test_public_background_tool_schema_requires_name_only():
+    """R5: the old start tool is gone from the catalog.
+
+    The previous version asserted the ``agent_background_start`` input schema.
+    That tool is no longer discoverable, so the successor assertion is the
+    retirement itself plus the retained read/cancel tools that keep live
+    legacy Jobs inspectable and cancellable.
+    """
     tools = asyncio.run(mcp_server.mcp.list_tools())
-    tool = next(tool for tool in tools if tool.name == "agent_background_start")
-    assert "name" in tool.inputSchema["required"]
-    assert "label" not in tool.inputSchema["required"]
+    names = {tool.name for tool in tools}
+    assert "agent_background_start" not in names
+    assert "agent_background_retry" not in names
+    assert {"agent_background_get", "agent_background_list",
+            "agent_background_cancel"} <= names

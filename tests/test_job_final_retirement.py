@@ -89,6 +89,33 @@ def is_retirement(handler):
     return bool(getattr(handler, "retirement_boundary", False))
 
 
+@pytest.mark.parametrize("method,path", [
+    ("POST", "/api/background-jobs"),
+    ("POST", "/api/session-message-jobs"),
+    ("PATCH", "/api/background-jobs/{id}"),
+    ("POST", "/api/background-jobs/{id}/retry"),
+])
+def test_durable_job_route_is_not_bound_to_its_old_handler(method, path):
+    """The handlers stay defined but unrouted; that is the whole point.
+
+    FastAPI binds an endpoint when the route is added, so binding must not name
+    the legacy function at all.  This case fails if someone re-adds the old
+    decorator while leaving the retirement in place.
+    """
+    from packages.web import server
+    from tests.test_job_path_flip import effective_routes
+    legacy = {
+        ("POST", "/api/background-jobs"): server.api_background_job_start,
+        ("POST", "/api/session-message-jobs"): server.api_session_message_job_start,
+        ("PATCH", "/api/background-jobs/{job_id}"): server.api_background_job_update,
+        ("POST", "/api/background-jobs/{job_id}/retry"): server.api_background_job_retry,
+    }[(method, path.replace("{id}", "{job_id}"))]
+    for route in effective_routes(app):
+        if getattr(route, "path", None) == path and method in getattr(route, "methods", ()):
+            assert route.endpoint is not legacy, (method, path)
+            assert is_retirement(route.endpoint), (method, path)
+
+
 @pytest.mark.parametrize("method,path", LEGACY_HTTP_WRITES)
 def test_old_write_reaches_no_effectful_handler(method, path):
     routes = matching_routes(method, path)

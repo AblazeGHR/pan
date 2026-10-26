@@ -47,9 +47,9 @@ async def test_trusted_legacy_http_entry_is_retired_and_creates_no_job(tmp_path,
     svc.auth.change_permissions(full_permissions(), 0)
     before = list(rt.list())
     try:
-        server = __import__('packages.web.server', fromlist=['api_background_job_start_retired'])
+        server = __import__('packages.web.server', fromlist=['_retired_legacy_write'])
         with pytest.raises(HTTPException) as refused:
-            await server.api_background_job_start_retired(_delegated_request(app))
+            await server._retired_legacy_write(_delegated_request(app))
         assert refused.value.status_code == 410
         assert refused.value.detail['code'] == 'retired'
         # The retirement is a boundary: it must not have created anything, and
