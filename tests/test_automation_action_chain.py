@@ -1,210 +1,112 @@
-"""Existing direct Trigger admission/executor with explicit serial steps."""
+"""Trigger admission freezes a canonical chain; Automation never owns steps."""
 import asyncio
 import copy
 
 import pytest
 
-from packages.automation.store import Conflict
-from packages.jobs import chains
-from tests.test_automation_core import async_test, setup, trigger, event, settled, until
-from tests.test_job_action_chain import _action, _steps
+from packages.jobs.final_service import FinalService, definition
+from tests.test_automation_canonical import (
+    canonical, subscription, job_def, enabled, fact, admit, run, operation, USER,
+)
 
 
-async def chain_engine(tmp_path, execute):
-    engine, _, _ = await setup(tmp_path, execute)
-    for aid in ('one', 'two'):
-        engine.actions.put('actions', _action(aid))
-    item = {**trigger(), 'actionId': 'one', 'arguments': {'source': {'from': 'literal', 'value': 'input'}}, 'steps': _steps()}
-    engine.ledger.put(item, 0, True)
-    return engine, item
+def chain(h):
+    return subscription(h, enabled(h, job_def(h, steps=2)))
 
 
-@async_test
-async def test_trigger_chain_mapping_freezes_on_event_acceptance(tmp_path):
-    calls = []
-    entered, release = asyncio.Event(), asyncio.Event()
-    async def execute(action, args, ev, progress):
-        calls.append((action['id'], action['name'], args['value']))
-        if action['id'] == 'one':entered.set(); await release.wait()
-        return {'ok': True, 'structuredContent': {'answer': args['value'] + '!'}}
-    engine, item = await chain_engine(tmp_path, execute)
-    item['steps'] = [
-        {'stepId': 'first', 'actionId': 'one', 'arguments': {'value': {'from': 'input', 'path': 'source'}}},
-        {'stepId': 'second', 'actionId': 'two', 'arguments': {'value': {'from': 'step', 'stepId': 'first', 'path': 'answer'}}},
-        {'stepId': 'third', 'actionId': 'two', 'arguments': {'value': {'from': 'event', 'path': 'payload.text'}}},
-    ]
-    engine.ledger.put(item, 1, True)
-    try:
-        ev = event(); ev['payload']['text'] = 'event'
-        await engine.match(ev); await entered.wait()
-        engine.actions.put('actions', {**_action('two'), 'name': 'changed definition'})
-        changed = copy.deepcopy(item); changed['steps'][1]['arguments']['value'] = 'changed mapping'
-        engine.ledger.put(changed, 2, True)
-        release.set()
-        rows = await settled(engine, 1)
-        assert calls == [('one', 'one', 'input'), ('two', 'two', 'input!'), ('two', 'two', 'event')]
-        assert rows[0]['status'] == 'succeeded' and rows[0]['triggerRevision'] == 2
-        assert [s['status'] for s in rows[0]['stepExecutions']] == ['completed'] * 3
-        assert 'chainSnapshot' not in rows[0]
-    finally:
-        release.set(); await engine.close()
+def test_chain_and_arguments_freeze_at_canonical_admission(canonical):
+    h = canonical
+    job, target = chain(h)
+    receipt = admit(h, fact(h), target)
+    frozen = h.service.final.store.get(job['id'])['finalRuntime']['plans'][receipt['runId']]['frozen']
+    changed = job_def(h, steps=2)
+    changed['steps'][1]['arguments']['text']['value'] = 'edited'
+    response = h.client.put('/api/jobs/' + job['id'], json={'definition':changed,
+        'expectedRevision':1, 'requestKey':'edit-job'})
+    assert response.status_code == 200, response.text
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    rid = receipt['runId']
+    assert [text for text, _ in h.provider.calls] == ['0', '1']
+    assert run(h, rid)['state'] == 'completed'
+    assert [s['attemptCount'] for s in state['steps'][rid].values()] == [1, 1]
+    assert frozen['steps'][1]['arguments']['text']['value'] == '1'
+    assert h.automation.ledger.read()['runs'] == {}
 
 
-@pytest.mark.parametrize('result,status', [({'ok': False}, 'failed'), ({'status': 'unknown'}, 'uncertain'),
-                                        ({'status': 'uncertain', 'ok': True}, 'uncertain')])
-@async_test
-async def test_trigger_chain_failure_and_unknown_stop(tmp_path, result, status):
-    calls = []
-    async def execute(action, *args):calls.append(action['id']); return result
-    engine, _ = await chain_engine(tmp_path, execute)
-    try:
-        await engine.match(event()); rows = await settled(engine, 1)
-        await engine.kick()
-        assert calls == ['one'] and rows[0]['status'] == status
-        assert rows[0]['stepExecutions'][1]['status'] == 'pending'
-        if status == 'uncertain':
-            with pytest.raises(Conflict, match='reconciliation'):
-                engine.ledger.confirm_uncertain(rows[0]['id'], rows[0]['revision'])
-    finally:
-        await engine.close()
+@pytest.mark.parametrize('outcome,expected', [('reject', 'failed'), ('unknown', 'uncertain')])
+def test_chain_failure_or_unknown_stops_before_next_effect(canonical, outcome, expected):
+    h = canonical
+    job, target = chain(h)
+    h.provider.fail_once = '0' if outcome == 'reject' else None
+    h.provider.unknown = outcome == 'unknown'
+    receipt = admit(h, fact(h), target)
+    asyncio.run(h.service.dispatch_once())
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert run(h, receipt['runId'])['state'] == expected
+    assert state['steps'][receipt['runId']]['s1']['attemptCount'] == 0
+    assert len(h.provider.calls) == 1
+    assert admit(h, fact(h), target)['runId'] == receipt['runId']
+    if outcome == 'unknown':
+        response = operation(h, receipt['runId'], 'retry', stepId='s0')
+        assert response.status_code == 409
+        assert response.json()['error']['code'] == 'reconciliation_required'
 
 
-@async_test
-async def test_trigger_cancel_and_restart_running_step_never_replays(tmp_path):
-    entered, release = asyncio.Event(), asyncio.Event(); calls = []
-    async def execute(action, *args):
-        calls.append(action['id']); entered.set(); await release.wait(); return {'ok': True}
-    engine, _ = await chain_engine(tmp_path, execute)
-    try:
-        await engine.match(event()); await entered.wait()
-        row = next(iter(engine.ledger.read()['runs'].values()))
-        cancelled = engine.ledger.cancel(row['id'], row['revision'])
-        assert cancelled['cancellationRequested']
-        engine.chain_tasks[row['id']].cancel()
-        rows = await settled(engine, 1)
-        assert rows[0]['status'] == 'cancelled' and calls == ['one']
-        assert rows[0]['stepExecutions'][0]['attempts'][0]['status'] == 'cancelled'
-    finally:
-        release.set(); await engine.close()
+def test_boundary_restart_queries_same_run_and_preserves_completed_step(canonical):
+    h = canonical
+    job, target = chain(h)
+    receipt = admit(h, fact(h), target)
+    def pause_after_first():
+        assert operation(h, receipt['runId'], 'pause').status_code == 202
+        h.provider.after_send = None
+    h.provider.after_send = pause_after_first
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, receipt['runId'])['state'] == 'paused_at_boundary'
+    restored = FinalService(h.root, h.automation.auth, executor=h.service.executor, owner=h.service.owner)
+    restored.recover()
+    assert restored.get_run(receipt['runId'], actor=USER)['state'] == 'paused_at_boundary'
+    assert operation(h, receipt['runId'], 'resume').status_code == 202
+    asyncio.run(restored.dispatch_once())
+    state = restored.final.get(job['id'])
+    assert state['runs'][receipt['runId']]['state'] == 'completed'
+    assert [text for text, _ in h.provider.calls] == ['0', '1']
+    assert state['steps'][receipt['runId']]['s0']['attemptCount'] == 1
 
 
-@async_test
-async def test_trigger_boundary_recovers_same_run_without_effect_retry(tmp_path):
-    calls = []
-    async def execute(action, *args):calls.append(action['id']); return {'ok': True}
-    engine, _ = await chain_engine(tmp_path, execute)
-    try:
-        # Persist an admitted Run without starting the runner, then reconstruct
-        # the durable boundary as a previous process would have left it.
-        original = engine.kick
-        async def no_kick():pass
-        engine.kick = no_kick
-        await engine.match(event())
-        row = next(iter(engine.ledger.read()['runs'].values()))
-        claimed = engine.ledger.claim(row['id'])
-        steps = claimed['stepExecutions']
-        chains.start_step(steps[0]); chains.finish_step(steps[0], 'completed', result={'ok': True}, output={'value': 'done'})
-        engine.ledger.save_chain(row['id'], claimed['activeAttemptId'], steps, 'boundary')
-        engine.ledger.recover()
-        recovered = engine.ledger.read()['runs'][row['id']]
-        assert recovered['status'] == 'queued' and recovered['chainContinuation']
-        engine.kick = original
-        await engine.kick(); rows = await settled(engine, 1)
-        assert calls == ['two'] and rows[0]['status'] == 'succeeded'
-        assert len(rows[0]['attempts']) == 1
-        assert [len(s['attempts']) for s in rows[0]['stepExecutions']] == [1, 1]
-    finally:
-        await engine.close()
+def test_action_revoked_between_steps_prevents_second_effect(canonical):
+    h = canonical
+    job, target = chain(h)
+    receipt = admit(h, fact(h), target)
+    def revoke():
+        with h.service.transaction() as db:
+            action = h.service._get(db, 'action', h.action['id'])
+            action['enabled'] = False
+            h.service._save(db, 'action', action['id'], action)
+        h.provider.after_send = None
+    h.provider.after_send = revoke
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert run(h, receipt['runId'])['state'] == 'failed'
+    assert len(h.provider.calls) == 1
+    assert state['steps'][receipt['runId']]['s0']['state'] == 'completed'
+    assert state['steps'][receipt['runId']]['s1']['attemptCount'] == 0
 
 
-@async_test
-async def test_trigger_failed_retry_only_current_idempotent_step(tmp_path):
-    calls = []
-    async def execute(action, *args):
-        calls.append(action['id'])
-        return {'ok': not (action['id'] == 'two' and calls.count('two') == 1)}
-    engine, item = await chain_engine(tmp_path, execute)
-    engine.actions.put('actions', {**_action('two'), 'idempotent': True})
-    item['retry'] = {'enabled': True, 'maxAttempts': 2}
-    engine.ledger.put(item, 1, True)
-    # Advance the existing retry clock after first failure instead of waiting
-    # for wall time. The retry policy and total budget remain real.
-    clock = engine.ledger.clock
-    engine.ledger.clock = lambda: clock() + 600
-    try:
-        await engine.match(event())
-        async def waiting():return any(r['status'] == 'retry_wait' for r in engine.ledger.read()['runs'].values())
-        await until(waiting)
-        engine.ledger.clock = lambda: clock() + 1200
-        await engine.kick()
-        async def terminal():return all(r['status'] not in {'queued', 'running', 'retry_wait'} for r in engine.ledger.read()['runs'].values())
-        await until(terminal)
-        rows = list(engine.ledger.read()['runs'].values())
-        assert calls == ['one', 'two', 'two'] and rows[0]['status'] == 'succeeded'
-        assert [len(s['attempts']) for s in rows[0]['stepExecutions']] == [1, 2]
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_trigger_running_step_restart_never_replays(tmp_path):
-    calls = []
-    async def execute(action, *unused):calls.append(action['id']); return {'ok': True}
-    engine, _ = await chain_engine(tmp_path, execute)
-    original = engine.kick
-    async def no_kick(*unused):pass
-    engine.kick = no_kick
-    try:
-        await engine.match(event())
-        queued = next(iter(engine.ledger.read()['runs'].values()))
-        run = engine.ledger.claim(queued['id'])
-        steps = run['stepExecutions']; chains.start_step(steps[0])
-        engine.ledger.save_chain(run['id'], run['activeAttemptId'], steps, 'step_running')
-        engine.ledger.recover()
-        stopped = engine.ledger.read()['runs'][run['id']]
-        assert stopped['status'] == 'uncertain' and 'chainSnapshot' not in stopped
-        assert [s['status'] for s in stopped['stepExecutions']] == ['uncertain', 'pending']
-        assert stopped['stepExecutions'][0]['attempts'][0]['status'] == 'uncertain'
-        engine.kick = original; await engine.kick()
-        assert calls == []
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_trigger_post_effect_write_failure_blocks_chain(tmp_path, monkeypatch):
-    calls = []
-    async def execute(action, *unused):calls.append(action['id']); return {'ok': True}
-    engine, _ = await chain_engine(tmp_path, execute)
-    original = engine.ledger.save_chain
-    failed = False
-    def save(rid, attempt, steps, phase, eligible=False):
-        nonlocal failed
-        if phase == 'boundary' and not failed:
-            failed = True
-            raise OSError('owned one-time boundary failure')
-        return original(rid, attempt, steps, phase, eligible)
-    monkeypatch.setattr(engine.ledger, 'save_chain', save)
-    try:
-        await engine.match(event()); rows = await settled(engine, 1)
-        assert calls == ['one'] and rows[0]['status'] == 'uncertain'
-        assert [s['status'] for s in rows[0]['stepExecutions']] == ['uncertain', 'pending']
-        assert 'chainSnapshot' not in rows[0]
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_trigger_action_revoked_between_steps(tmp_path):
-    calls = []
-    async def execute(action, *unused):
-        calls.append(action['id'])
-        engine.actions.set_enabled('two', False, engine.actions.read()['revision'])
-        return {'ok': True}
-    engine, _ = await chain_engine(tmp_path, execute)
-    try:
-        await engine.match(event()); rows = await settled(engine, 1)
-        assert calls == ['one'] and rows[0]['status'] == 'cancelled'
-        assert rows[0]['stepExecutions'][1]['attempts'] == []
-    finally:
-        await engine.close()
+def test_post_effect_checkpoint_failure_never_reexecutes_on_recovery(canonical, monkeypatch):
+    h = canonical
+    job, target = chain(h)
+    receipt = admit(h, fact(h), target)
+    original = h.service.final.ledger.record_effect
+    def fail(*args, **kwargs):
+        raise OSError('post-effect write fault')
+    monkeypatch.setattr(h.service.final.ledger, 'record_effect', fail)
+    with pytest.raises(OSError, match='post-effect'):
+        asyncio.run(h.service.dispatch_once())
+    monkeypatch.setattr(h.service.final.ledger, 'record_effect', original)
+    h.service.recover()
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, receipt['runId'])['state'] == 'uncertain'
+    assert [text for text, _ in h.provider.calls] == ['0']
+    assert h.service.final.get(job['id'])['steps'][receipt['runId']]['s1']['attemptCount'] == 0

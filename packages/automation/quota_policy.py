@@ -15,6 +15,7 @@ from pathlib import Path
 from packages.actions.store import atomic
 from packages.core import background_jobs as jobs
 from packages.plugins.lifecycle import io
+from packages.jobs.runtime_owner import legacy_writer
 from .store import Conflict
 from . import quota_identity as identity
 
@@ -518,6 +519,7 @@ class Runtime:
                     c.update(status='blocked',diagnostic='legacy_identity_missing')
         await io(self.store.change,update)
 
+    @legacy_writer(lambda self, *a, **kw: self.root.parent)
     async def create_monitor(self, kind='monitor95', expected=None):
         state=await io(self.store.read)
         if self.closed:raise ValueError('Quota policy closed')
@@ -539,6 +541,7 @@ class Runtime:
         if account in latest['disabledAccountIds']:raise ValueError('Cannot monitor disabled account')
         return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account,wake_target)
 
+    @legacy_writer(lambda self, *a, **kw: self.root.parent, reservation=True)
     def ensure_job(self,state,purpose,at,account=None,wake_target=None):
         if purpose=='monitor95':
             # Profile-local query Job admission only; called off the event loop.
@@ -577,6 +580,7 @@ class Runtime:
             if protected(job) and (state['mode']!='automatic' or job['quotaPolicy']['epoch']!=state['epoch']):
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root)
 
+    @legacy_writer(lambda self, *a, **kw: self.root.parent)
     async def tick_jobs(self):
         if self.closed:return
         from datetime import datetime

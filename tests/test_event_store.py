@@ -15,35 +15,13 @@ from packages.automation.store import Ledger
 from packages.automation.api import install
 from tests.test_automation_core import async_test, action, trigger, event, until
 from packages.actions.store import Store
+from tests.test_automation_canonical import canonical, subscription, fact as canonical_fact, deliver, run
+from tests.test_automation_canonical import control
 
 
 def fact(eid='e', payload=None):
     return dict(id=eid, type='workers.all_idle', schemaVersion=1, source={'type':'core','id':'workers'},
                 occurredAt='2026-10-22T00:00:00Z',payload=payload or {'runningCount':0})
-
-
-async def setup(root, pause=None):
-    calls=[]
-    async def effect(sid, args):
-        calls.append(sid)
-        return {'ok':True}
-    # The current service host projects its disabled quota adapter from the
-    # worker's owned Session root. Keep that identity explicitly inside fixture.
-    svc=Service(root, SimpleNamespace(workers={},set_running_observer=lambda cb:None,
-        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')), pause or effect)
-    svc.engine.actions=Store(root/'actions')
-    svc.engine.actions.put('actions',action())
-    svc.ledger.put(trigger(),0,True)
-    await svc.start()
-    return svc,calls
-
-
-async def terminal(svc, count=1):
-    async def done():
-        runs=(await svc.engine.io(svc.ledger.read))['runs']
-        return len(runs)==count and all(r['status'] not in {'queued','running'} for r in runs.values())
-    await until(done)
-    return list((await svc.engine.io(svc.ledger.read))['runs'].values())
 
 
 def test_store_duplicate_conflict_retention_capacity_and_paging(tmp_path):
@@ -81,152 +59,6 @@ def test_store_duplicate_conflict_retention_capacity_and_paging(tmp_path):
             store.replay(ids)
 
 
-@async_test
-async def test_commit_precedes_fanout_schema_and_write_failure(tmp_path,monkeypatch):
-    svc,calls=await setup(tmp_path)
-    seen=[]
-    h=svc.bus.activate('plugin','listener')
-    async def listener(e):
-        assert any(r['event']['id']==e['id'] for r in svc.events.page()['events'])
-        seen.append(e['id'])
-    svc.bus.subscribe(h,'listener',listener)
-    append=svc.events.append
-    def fail(*args):
-        raise OSError('Event Store fsync injected failure')
-    monkeypatch.setattr(svc.events,'append',fail)
-    try:
-        with pytest.raises(OSError):
-            await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'disk-fail')
-        assert not calls and not seen and not svc.events.page()['events']
-        monkeypatch.setattr(svc.events,'append',append)
-        with pytest.raises(Exception):
-            await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':'bad'},'bad')
-        assert not svc.events.page()['events']
-        reply=await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'good')
-        assert reply['persisted'] and reply['accepted']
-        await terminal(svc)
-        await until(lambda:asyncio.sleep(0,result=seen==['good']))
-        assert calls==['selected']
-        duplicate=await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'good')
-        assert duplicate['duplicate'] and len(svc.ledger.read()['runs'])==1
-    finally:
-        await svc.close()
-
-
-@async_test
-async def test_crash_after_commit_before_delivery_and_frozen_trigger_set(tmp_path):
-    svc,calls=await setup(tmp_path)
-    svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
-    await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'accepted')
-    svc.ledger.put(trigger('new-after-accept'),0,True)
-    assert not calls
-    await svc.close()
-    recovered,calls=await setup_existing(tmp_path)
-    try:
-        rows=await terminal(recovered)
-        assert rows[0]['triggerId']=='t' and calls==['selected']
-        await until(lambda:asyncio.sleep(0,result=recovered.events.stats()['pending']==0))
-    finally:
-        await recovered.close()
-
-
-async def setup_existing(root,pause=None):
-    calls=[]
-    async def effect(sid,args):
-        calls.append(sid);return {'ok':True}
-    svc=Service(root,SimpleNamespace(workers={},set_running_observer=lambda cb:None,
-        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')),pause or effect)
-    svc.engine.actions=Store(root/'actions')
-    await svc.start()
-    return svc,calls
-
-
-@async_test
-async def test_partial_run_write_recovery_dedup_and_no_automatic_run_retry(tmp_path,monkeypatch):
-    svc,calls=await setup(tmp_path)
-    svc.ledger.put(trigger('second'),0,True)
-    append=svc.ledger.append
-    def partial(run):
-        if run['triggerId']=='second':
-            raise OSError('second Run disk failure')
-        return append(run)
-    monkeypatch.setattr(svc.ledger,'append',partial)
-    try:
-        await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'partial')
-        await terminal(svc)
-        await until(lambda:asyncio.sleep(0,result=bool(svc.events.pending()[0]['lastError'])))
-        assert len(calls)==1
-        monkeypatch.setattr(svc.ledger,'append',append)
-        svc.wake.set()
-        rows=await terminal(svc,2)
-        assert calls==['selected','selected']
-        await svc.replay(['partial'])
-        await until(lambda:asyncio.sleep(0,result=svc.events.stats()['pending']==0))
-        assert calls==['selected','selected']
-        assert all(r['attemptCount']==1 and len(r['attempts'])==1 for r in rows)
-    finally:
-        await svc.close()
-
-
-@async_test
-async def test_uncertain_preserves_attempt_and_refuses_user_replay(tmp_path):
-    entered=asyncio.Event()
-    async def effect(*args):
-        entered.set();await asyncio.Event().wait()
-    svc,_=await setup(tmp_path,effect)
-    await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'uncertain')
-    await asyncio.wait_for(entered.wait(),3)
-    await svc.close()
-    recovered,calls=await setup_existing(tmp_path)
-    try:
-        row=(await terminal(recovered))[0]
-        assert row['status']=='uncertain' and row['attempts'][0]['status']=='uncertain'
-        with pytest.raises(ValueError,match='reconciliation'):
-            await recovered.replay(['uncertain'])
-        assert not calls
-    finally:
-        await recovered.close()
-
-
-@async_test
-async def test_api_bounded_pages_replay_authorization_and_dedup(tmp_path):
-    svc,calls=await setup(tmp_path)
-    app=__import__('fastapi').FastAPI();app.state.automation=svc;install(SimpleNamespace(app=app))
-    try:
-        await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'api')
-        await terminal(svc)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app),base_url='http://test') as client:
-            assert (await client.post('/api/automation/events/replay',json={'eventIds':['api']})).status_code==401
-            token=(await client.post('/api/automation/login',json={'key':svc.auth.key()})).json()['token']
-            auth={'Authorization':'Bearer '+token}
-            assert (await client.get('/api/automation/events?limit=101')).status_code==400
-            page=(await client.get('/api/automation/events?limit=1')).json()
-            assert page['events'][0]['event']['id']=='api'
-            assert (await client.post('/api/automation/events/replay',json={'eventIds':['api']},headers=auth)).status_code==200
-            assert (await client.post('/api/automation/events/replay',json={'eventIds':['missing']},headers=auth)).status_code==409
-            assert (await client.post('/api/automation/events',json={'source':'core'})).status_code==405
-            storage=(await client.get('/api/automation',headers=auth)).json()['storage']
-            assert storage['events']['events']==1
-        await until(lambda:asyncio.sleep(0,result=svc.events.stats()['pending']==0))
-        assert calls==['selected']
-    finally:
-        await svc.close()
-
-
-def test_run_retention_protects_pending_uncertain_and_retained_event(tmp_path):
-    ledger=Ledger(tmp_path,max_runs=5)
-    ledger.put(trigger(),0,True)
-    old=(datetime.now(timezone.utc)-timedelta(days=8)).isoformat()
-    for i,status in enumerate(['succeeded','queued','running','uncertain','failed']):
-        ledger.append(dict(id=str(i),triggerId='t',triggerRevision=1,event=fact(str(i)),status=status,finishedAt=old))
-    with pytest.raises(CapacityError):
-        ledger.append(dict(id='full',triggerId='t',triggerRevision=1,event=fact('full'),status='queued'))
-    result=ledger.maintenance({'4'})
-    assert result=={'deletedRuns':1} and set(ledger.read()['runs'])=={'1','2','3','4'}
-    ledger.recover()
-    assert ledger.read()['runs']['2']['attempts'][0]['legacy']
-
-
 def test_payload_and_bytes_capacity_fail_closed(tmp_path):
     store=EventStore(tmp_path,max_bytes=10);store.initialize()
     with pytest.raises(CapacityError):
@@ -260,207 +92,294 @@ def test_failed_delivery_page_preserves_each_count_and_rolls_back_together(tmp_p
     assert store.lookup('a')['lastError'] == 'dependency unavailable'
     assert store.stats()['pending'] == 3
 
-def test_empty_event_release_is_read_only_and_existing_run_still_admitted(tmp_path):
-    ledger = Ledger(tmp_path)
+
+def test_durable_event_commit_precedes_any_admission_or_fanout(canonical, monkeypatch):
+    h = canonical
+    job, target = subscription(h)
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    original = svc.events.append
+    def fail(*args, **kwargs):
+        raise OSError('Event commit failed')
+    monkeypatch.setattr(svc.events, 'append', fail)
+    with pytest.raises(OSError, match='commit failed'):
+        asyncio.run(svc.accept(ev, svc.core))
+    assert not svc.events.page()['events']
+    assert not h.service.final.runs(job['id']) and not h.provider.calls
+    monkeypatch.setattr(svc.events, 'append', original)
+    receipt = asyncio.run(svc.accept(ev, svc.core))
+    assert receipt['persisted'] and not receipt['duplicate']
+    assert not h.service.final.runs(job['id'])
+    asyncio.run(svc.deliver(svc.events.lookup(ev['id'])))
+    assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
+
+
+def test_crash_after_commit_preserves_frozen_subscription_set_and_original_id(canonical):
+    h = canonical
+    job, first = subscription(h)
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    asyncio.run(svc.accept(ev, svc.core))
+    _, late = subscription(h, job, key='late')
+    stored = svc.events.lookup(ev['id'])
+    assert [t['id'] for t in stored['targets']] == [first['id']]
+    reopened = EventStore(svc.ledger.path.parent)
+    reopened.owner_fence = h.service.owner
+    assert reopened.lookup(ev['id']) == stored
+    asyncio.run(svc.deliver(stored))
+    asyncio.run(svc.deliver(reopened.lookup(ev['id'])))
+    assert len(h.service.final.runs(job['id'])) == 1
+    receipt = svc.events.subscription_receipts(ev['id'])['trigger:' + first['id']]
+    assert receipt['runId'] == h.service.final.runs(job['id'])[0]['runId']
+    assert 'trigger:' + late['id'] not in svc.events.subscription_receipts(ev['id'])
+    assert not h.provider.calls
+
+
+def test_partial_subscription_failure_retries_only_missing_identity(canonical, monkeypatch):
+    h = canonical
+    job, first = subscription(h)
+    _, second = subscription(h, job, key='second')
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    asyncio.run(svc.accept(ev, svc.core))
+    row = svc.events.lookup(ev['id'])
+    original = h.service.admission.admit
+    async def failed(event, target):
+        if target['id'] == first['id']:
+            raise OSError('one subscription unavailable')
+        return await original(event, target)
+    monkeypatch.setattr(h.service.admission, 'admit', failed)
+    with pytest.raises(ValueError, match='one subscription'):
+        asyncio.run(svc.deliver(row))
+    before = svc.events.subscription_receipts(ev['id'])['trigger:' + second['id']]
+    assert len(h.service.final.runs(job['id'])) == 1
+    monkeypatch.setattr(h.service.admission, 'admit', original)
+    asyncio.run(svc.deliver(row))
+    after = svc.events.subscription_receipts(ev['id'])
+    assert after['trigger:' + second['id']] == before
+    assert after['trigger:' + first['id']]['runId'] != before['runId']
+    assert len(h.service.final.runs(job['id'])) == 2 and not h.provider.calls
+
+
+def test_lost_subscription_receipt_queries_original_admission_never_resends(canonical, monkeypatch):
+    h = canonical
+    job, target = subscription(h)
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    asyncio.run(svc.accept(ev, svc.core))
+    row = svc.events.lookup(ev['id'])
+    original = svc.events.subscription
+    def lost(*args, **kwargs):
+        raise OSError('receipt commit lost')
+    monkeypatch.setattr(svc.events, 'subscription', lost)
+    with pytest.raises(ValueError, match='receipt commit lost'):
+        asyncio.run(svc.deliver(row))
+    first = h.service.final.runs(job['id'])[0]['runId']
+    monkeypatch.setattr(svc.events, 'subscription', original)
+    asyncio.run(svc.deliver(row))
+    assert svc.events.subscription_receipts(ev['id'])['trigger:' + target['id']]['runId'] == first
+    assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
+
+
+def test_replay_of_uncertain_canonical_run_preserves_effect_identity(canonical):
+    h = canonical
+    job, target = subscription(h)
+    ev = canonical_fact(h)
+    asyncio.run(deliver(h, ev))
+    rid = h.service.final.runs(job['id'])[0]['runId']
+    h.provider.unknown = True
+    asyncio.run(h.service.dispatch_once())
+    before = copy.deepcopy(h.service.final.get(job['id'])['attempts'])
+    assert run(h, rid)['state'] == 'uncertain'
+    asyncio.run(h.automation.replay([ev['id']]))
+    asyncio.run(h.automation.deliver(h.automation.events.lookup(ev['id'])))
+    h.automation.events.delivery(ev['id'], done=True)
+    asyncio.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id'])['attempts'] == before
+    assert len(h.provider.calls) == 1 and len(h.service.final.runs(job['id'])) == 1
+
+
+def test_legacy_uncertain_event_replay_remains_refused(tmp_path):
+    svc = Service(tmp_path / 'automation', SimpleNamespace(workers={}), None)
+    svc.ledger.put(trigger(), 0, True)
+    svc.ledger.append(dict(id='old', triggerId='t', triggerRevision=1, event=fact(), status='uncertain'))
+    svc.events.initialize()
+    svc.events.append(fact(), [])
+    before = svc.ledger.path.read_bytes()
+    with pytest.raises(ValueError, match='reconciliation'):
+        asyncio.run(svc.replay(['e']))
+    assert svc.ledger.path.read_bytes() == before
+
+
+@pytest.mark.parametrize('state', ['disabled', 'retired'])
+def test_trigger_disabled_after_accept_never_resurrects(canonical, state):
+    h = canonical
+    job, target = subscription(h)
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    asyncio.run(svc.accept(ev, svc.core))
+    response = control(h, 'triggers', target, 'disable' if state == 'disabled' else 'retire')
+    assert response.status_code == 200, response.text
+    asyncio.run(svc.deliver(svc.events.lookup(ev['id'])))
+    assert svc.events.subscription_receipts(ev['id'])['trigger:' + target['id']]['admissionResult'] == 'skipped'
+    assert not h.service.final.runs(job['id']) and not h.provider.calls
+
+
+def test_retention_preserves_all_legacy_history_and_unsettled_admissions(tmp_path):
+    ledger = Ledger(tmp_path / 'automation')
     ledger.put(trigger(), 0, True)
-    before = ledger.path.read_bytes()
-    ledger.release_event('missing')
-    assert ledger.path.read_bytes() == before
-    ledger.append(dict(id='r', triggerId='t', triggerRevision=1,
-                       event=fact('ready'), status='queued', admitted=False))
-    before = ledger.read()
-    ledger.release_event('ready')
-    after = ledger.read()
-    assert after['revision'] == before['revision'] + 1
-    assert after['runs']['r']['revision'] == before['runs']['r']['revision'] + 1
-    assert after['runs']['r']['admitted'] is True
-    assert ledger.claim('r')['id'] == 'r'
+    old = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    for status in ('succeeded', 'running', 'uncertain', 'failed'):
+        ledger.append(dict(id=status, triggerId='t', triggerRevision=1, event=fact(status),
+                           status=status, finishedAt=old))
+    for status in ('queued', 'uncertain', 'admitted', 'failed'):
+        ledger.append(dict(id='admission-' + status, recordType='triggerAdmission', triggerId='t',
+            triggerRevision=1, event=fact('new-' + status), status=status, finishedAt=old))
+    before = copy.deepcopy(ledger.read()['runs'])
+    assert ledger.maintenance({'new-failed'}) == {'deletedRuns':1}
+    after = ledger.read()['runs']
+    assert set(before) - set(after) == {'admission-admitted'}
+    assert all(after[key] == value for key, value in before.items() if key != 'admission-admitted')
 
 
-@pytest.mark.parametrize('commit_delay', [0, .06])
-@async_test
-async def test_pending_old_plugin_events_do_not_starve_independent_event(tmp_path, monkeypatch, commit_delay):
-    svc,calls=await setup(tmp_path)
-    # Stop only dispatcher while arranging a deterministic >one-page backlog.
-    svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
-    waiting={**trigger('wait'),'eventTypes':['workers.all_idle','missing.fact']}
-    svc.ledger.put(waiting,0,True)
-    waiting=svc.ledger.read()['triggers']['wait']
-    for i in range(65):
-        svc.events.append(fact('waiting-'+str(i)),[waiting])
-    await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'independent')
-    # Model slow durable ledger replacement after arranging the backlog. An
-    # unavailable dependency must not force a no-op commit for every old fact.
-    from packages.automation import store as ledger_store
-    import time
-    original_atomic = ledger_store.atomic
-    def slow_atomic(*args, **kwargs):
-        time.sleep(commit_delay)
-        return original_atomic(*args, **kwargs)
-    monkeypatch.setattr(ledger_store, 'atomic', slow_atomic)
-    from contextlib import contextmanager
-    original_connection = svc.events.connection
-    @contextmanager
-    def slow_event_commit():
-        with original_connection() as db:
-            changes = db.total_changes
-            yield db
-            if db.total_changes != changes:
-                time.sleep(commit_delay)
-    monkeypatch.setattr(svc.events, 'connection', slow_event_commit)
-    svc.dispatcher=asyncio.create_task(svc.dispatch())
-    try:
-        rows=await asyncio.wait_for(terminal(svc),3)
-        assert rows[0]['event']['id']=='independent' and calls==['selected']
-        assert svc.events.stats()['pending']>=65
-    finally:
-        await svc.close()
+def test_concurrent_event_redelivery_persists_one_envelope_and_run(canonical):
+    h = canonical
+    job, target = subscription(h)
+    svc = h.automation
+    svc.started = True
+    ev = canonical_fact(h)
+    async def check():
+        replies = await asyncio.gather(*(svc.accept(ev, svc.core) for _ in range(16)))
+        assert sum(not r['duplicate'] for r in replies) == 1
+        await svc.deliver(svc.events.lookup(ev['id']))
+    asyncio.run(check())
+    assert svc.events.stats()['events'] == 1
+    assert len(h.service.final.runs(job['id'])) == 1
+    assert not h.provider.calls
 
 
-@async_test
-async def test_dispatch_cancel_flushes_completed_failure_without_delivering_pending(tmp_path, monkeypatch):
-    svc, calls = await setup(tmp_path)
-    svc.dispatcher.cancel()
-    await asyncio.gather(svc.dispatcher, return_exceptions=True)
-    svc.events.append(fact('failed'), [])
-    svc.events.append(fact('blocked'), [])
-    entered = asyncio.Event()
-    async def matching(event, **kwargs):
-        if event['id'] == 'failed':
-            raise ValueError('dependency unavailable')
-        entered.set()
-        await asyncio.Event().wait()
-    monkeypatch.setattr(svc.engine, 'match', matching)
-    svc.dispatcher = asyncio.create_task(svc.dispatch())
-    try:
-        await asyncio.wait_for(entered.wait(), 1)
-        svc.dispatcher.cancel()
-        await asyncio.gather(svc.dispatcher, return_exceptions=True)
-        assert svc.events.lookup('failed')['deliveryCount'] == 1
-        assert svc.events.lookup('failed')['lastError'] == 'dependency unavailable'
-        assert svc.events.lookup('blocked')['deliveryCount'] == 0
-        assert svc.events.stats()['pending'] == 2 and not calls
-    finally:
-        await svc.close()
+def test_capacity_alarm_refuses_new_event_without_evicting_history(canonical):
+    h = canonical
+    job, target = subscription(h)
+    svc = h.automation
+    svc.events.max_events = 1
+    asyncio.run(deliver(h, canonical_fact(h, 'kept')))
+    with pytest.raises(CapacityError):
+        asyncio.run(svc.accept(canonical_fact(h, 'refused'), svc.core))
+    assert svc.events.stats()['full'] and svc.events.stats()['warning']
+    assert [r['event']['id'] for r in svc.events.page()['events']] == ['kept']
+    assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
 
 
-@async_test
-async def test_slow_commit_cancellation_settles_and_restart_delivers(tmp_path,monkeypatch):
+def test_slow_event_commit_cancellation_settles_before_return(canonical, monkeypatch):
     import threading
-    svc,calls=await setup(tmp_path)
-    entered,release=threading.Event(),threading.Event()
-    original=svc.events.append
-    def blocked(*args):
-        entered.set();assert release.wait(3)
+    h = canonical
+    job, _ = subscription(h)
+    svc = h.automation
+    svc.started = True
+    entered, release = threading.Event(), threading.Event()
+    original = svc.events.append
+    def held(*args):
+        entered.set()
+        assert release.wait(3)
         return original(*args)
-    monkeypatch.setattr(svc.events,'append',blocked)
-    publish_task=asyncio.create_task(svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'cancel-persist'))
-    try:
-        assert await asyncio.to_thread(entered.wait,2)
-        # Unrelated loop work can complete while fsync/commit is blocked.
-        await asyncio.wait_for(asyncio.sleep(0),.1)
-        assert not calls
-        publish_task.cancel()
-        release.set()
-        with pytest.raises(asyncio.CancelledError):
-            await publish_task
-        assert svc.events.page()['events'][0]['event']['id']=='cancel-persist'
-    finally:
-        release.set();await svc.close()
-    recovered,calls=await setup_existing(tmp_path)
-    try:
-        await terminal(recovered)
-        assert calls==['selected']
-    finally:
-        await recovered.close()
+    monkeypatch.setattr(svc.events, 'append', held)
+    async def check():
+        task = asyncio.create_task(svc.accept(canonical_fact(h), svc.core))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            await asyncio.wait_for(asyncio.sleep(0), .5)
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert svc.events.lookup('event')['status'] == 'pending'
+            await svc.deliver(svc.events.lookup('event'))
+            assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(check())
 
 
-@async_test
-async def test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id(tmp_path):
-    svc,calls=await setup(tmp_path)
-    svc.dispatcher.cancel();await asyncio.gather(svc.dispatcher,return_exceptions=True)
-    await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'disabled')
-    svc.ledger.put({**trigger(),'enabled':False},1,True)
-    svc.dispatcher=asyncio.create_task(svc.dispatch())
-    try:
-        rows=await terminal(svc)
-        assert rows[0]['status']=='cancelled' and not calls and rows[0]['attempts']==[]
-    finally:
-        await svc.close()
-    ledger=Ledger(tmp_path/'attempt')
-    ledger.put(trigger(),0,True)
-    ledger.append(dict(id='r',triggerId='t',triggerRevision=1,event=fact(),status='queued'))
-    first=ledger.claim('r')
-    ledger.defer_unavailable('r',first['revision'])
-    second=ledger.claim('r')
-    assert first['activeAttemptId']==second['activeAttemptId'] and second['attemptCount']==1
-    ledger.update('r',status='failed',error='ordinary error')
-    assert ledger.claim('r') is None
+def test_revoked_plugin_handle_waiting_for_admission_cannot_commit(canonical):
+    h = canonical
+    svc = h.automation
+    svc.started = True
+    handle = svc.bus.activate('plugin', 'owned')
+    svc.bus.register(handle, 'owned.tick', {'type':'object'})
+    async def check():
+        await svc.admission.acquire()
+        task = asyncio.create_task(svc.bus.publish_async(handle, 'owned.tick', {}, 'revoked'))
+        try:
+            await asyncio.sleep(0)
+            await svc.plugin_disabled(handle)
+            svc.admission.release()
+            with pytest.raises(ValueError, match='revoked'):
+                await task
+            assert not svc.events.page()['events']
+        finally:
+            if svc.admission.locked():
+                svc.admission.release()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(check())
 
 
-@async_test
-async def test_capacity_alarm_visible_without_evicting_uncertain(tmp_path):
-    svc,calls=await setup(tmp_path)
-    svc.events.max_events=1
-    try:
-        await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'one')
-        await terminal(svc)
-        with pytest.raises(CapacityError):
-            await svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'two')
-        assert svc.events.stats()['warning'] and svc.events.stats()['full']
-        assert any(d['phase']=='event-admission' for d in svc.bus.diagnostics)
-        assert len(svc.events.page()['events'])==1 and calls==['selected']
-    finally:
-        await svc.close()
+def test_original_time_event_pin_ack_never_releases_another_event(tmp_path):
+    clock = [100.0]
+    store = EventStore(tmp_path, clock=lambda:clock[0], retention=10)
+    store.initialize()
+    for eid in ('first', 'second'):
+        ev = {**fact(eid), 'type':'scheduler.time.v1', 'source':{'type':'core', 'id':'scheduler'}}
+        store.append(ev, [])
+        store.delivery(eid, done=True)
+    clock[0] = 200.0
+    assert store.maintenance()['deletedEvents'] == 0
+    store.release_pin('first')
+    assert store.maintenance()['deletedEvents'] == 1
+    assert store.lookup('first') is None and store.lookup('second')['event']['id'] == 'second'
+    store.release_pin('first')  # Original-ID ack is idempotent.
+    assert store.lookup('second') is not None
 
 
-@async_test
-async def test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay(tmp_path):
-    ledger=Ledger(tmp_path)
-    ledger.put(trigger(),0,True)
-    state=ledger.read()
-    state['runs']['legacy']={'id':'legacy','event':fact('old'),'triggerId':'t','triggerRevision':1,
-                            'actionId':'pause','arguments':{},'status':'running','revision':1,'targetIds':['original']}
-    from packages.actions.store import atomic
-    atomic(ledger.path,state)
-    before=ledger.path.read_bytes()
-    assert ledger.read()['runs']['legacy']['status']=='running' and ledger.path.read_bytes()==before
-    recovered,calls=await setup_existing(tmp_path)
-    try:
-        row=recovered.ledger.read()['runs']['legacy']
-        assert row['status']=='uncertain' and row['attempts'][0]['legacy'] and row['targetIds']==['original']
-        assert not recovered.events.page()['events'] and not calls
-    finally:
-        await recovered.close()
-
-@async_test
-async def test_plugin_revocation_while_waiting_for_admission_rejects_old_handle(tmp_path):
-    svc,calls=await setup(tmp_path)
-    handle=svc.bus.activate('plugin','demo')
-    svc.bus.register(handle,'demo.tick',{'type':'object'})
-    await svc.admission.acquire()
-    publisher=asyncio.create_task(svc.bus.publish_async(handle,'demo.tick',{},'old-generation'))
-    try:
-        await asyncio.sleep(0)  # prepare completed; awaiting the owned admission lock
-        await svc.plugin_disabled(handle)
-        svc.admission.release()
-        with pytest.raises(ValueError,match='revoked'):
-            await publisher
-        assert not svc.events.page()['events'] and not calls
-    finally:
-        if svc.admission.locked():svc.admission.release()
-        await asyncio.gather(publisher,return_exceptions=True)
-        await svc.close()
+# Compatibility fixtures still imported by tests owned by other work packages.
+async def setup(root, pause=None):
+    calls=[]
+    async def effect(sid, args):
+        calls.append(sid)
+        return {'ok':True}
+    # The current service host projects its disabled quota adapter from the
+    # worker's owned Session root. Keep that identity explicitly inside fixture.
+    svc=Service(root, SimpleNamespace(workers={},set_running_observer=lambda cb:None,
+        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')), pause or effect)
+    svc.engine.actions=Store(root/'actions')
+    svc.engine.actions.put('actions',action())
+    svc.ledger.put(trigger(),0,True)
+    await svc.start()
+    return svc,calls
 
 
-@async_test
-async def test_many_concurrent_same_event_ids_have_one_run_and_attempt(tmp_path):
-    svc,calls=await setup(tmp_path)
-    try:
-        replies=await asyncio.gather(*(svc.bus.publish_async(svc.core,'workers.all_idle',{'runningCount':0},'same') for _ in range(16)))
-        rows=await terminal(svc)
-        assert sum(not r['duplicate'] for r in replies)==1
-        assert svc.events.stats()['events']==1 and len(rows)==1 and rows[0]['attemptCount']==1
-        assert calls==['selected']
-    finally:
-        await svc.close()
+async def terminal(svc, count=1):
+    async def done():
+        runs=(await svc.engine.io(svc.ledger.read))['runs']
+        return len(runs)==count and all(r['status'] not in {'queued','running'} for r in runs.values())
+    await until(done)
+    return list((await svc.engine.io(svc.ledger.read))['runs'].values())
+
+
+async def setup_existing(root,pause=None):
+    calls=[]
+    async def effect(sid,args):
+        calls.append(sid);return {'ok':True}
+    svc=Service(root,SimpleNamespace(workers={},set_running_observer=lambda cb:None,
+        _sess=SimpleNamespace(SESSION_DIR=root/'sessions')),pause or effect)
+    svc.engine.actions=Store(root/'actions')
+    await svc.start()
+    return svc,calls
