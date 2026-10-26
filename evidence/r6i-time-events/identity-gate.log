@@ -1,0 +1,103 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+{
+  "gate": "blocked",
+  "sourceSha": "f0970e23df5108eabd7580847346129d1714ba14",
+  "cases": [
+    {
+      "phase": "before-admit",
+      "sameIdentityMigration": false,
+      "legacyEventId": "evt_schedule_2a357c3797a452fbfc88fd22c6466e88139df4dcdaa9bb53fdfeb758768eb3b3",
+      "legacyReceiptPresent": false,
+      "legacySnapshotPreserved": true,
+      "legacyDatabaseBytesUnchanged": true,
+      "sourceLinksPreservedInHistory": [
+        {
+          "triggerId": "old-trigger",
+          "sourceId": "schedule_05f49d3891414edf988b8298a8ebf215",
+          "jobId": "old-job"
+        }
+      ],
+      "sourceRequestsPreservedInHistory": [
+        {
+          "key": "synthetic-source",
+          "fingerprint": "f1af2d5abc93f8cffbe80e904f6604db3209da792ddecef9c5637652d091a66e",
+          "sourceId": "schedule_05f49d3891414edf988b8298a8ebf215"
+        }
+      ],
+      "migrationRejection": {
+        "code": "pending_publication",
+        "message": "Legacy source publication is unsettled; history only"
+      },
+      "directEnvelopeRejection": {
+        "code": "invalid_schema",
+        "message": "Legacy Event wire name is not accepted: id"
+      },
+      "canonicalEvents": 0,
+      "canonicalDrives": 0
+    },
+    {
+      "phase": "after-admit-before-cursor",
+      "sameIdentityMigration": false,
+      "legacyEventId": "evt_schedule_c50c59d26307af2615b2cd7fef6c26a51cd69075e998a0cf3f76630c49a2af1d",
+      "legacyReceiptPresent": true,
+      "legacySnapshotPreserved": true,
+      "legacyDatabaseBytesUnchanged": true,
+      "sourceLinksPreservedInHistory": [
+        {
+          "triggerId": "old-trigger",
+          "sourceId": "schedule_2c7f892a406a432297f1f9dc464e3858",
+          "jobId": "old-job"
+        }
+      ],
+      "sourceRequestsPreservedInHistory": [
+        {
+          "key": "synthetic-source",
+          "fingerprint": "f1af2d5abc93f8cffbe80e904f6604db3209da792ddecef9c5637652d091a66e",
+          "sourceId": "schedule_2c7f892a406a432297f1f9dc464e3858"
+        }
+      ],
+      "migrationRejection": {
+        "code": "pending_publication",
+        "message": "Legacy source publication is unsettled; history only"
+      },
+      "directEnvelopeRejection": {
+        "code": "invalid_schema",
+        "message": "Legacy Event wire name is not accepted: id"
+      },
+      "canonicalEvents": 0,
+      "canonicalDrives": 0
+    },
+    {
+      "phase": "before-ack",
+      "sameIdentityMigration": false,
+      "legacyEventId": "evt_schedule_e9f5d6eb7689aa1ab216775efccd3e2d8c9694da08a2104e9139bec06c5c4ff9",
+      "legacyReceiptPresent": true,
+      "legacySnapshotPreserved": true,
+      "legacyDatabaseBytesUnchanged": true,
+      "sourceLinksPreservedInHistory": [
+        {
+          "triggerId": "old-trigger",
+          "sourceId": "schedule_cb9e8cc0e4a54d19923f7ec9d5c9030b",
+          "jobId": "old-job"
+        }
+      ],
+      "sourceRequestsPreservedInHistory": [
+        {
+          "key": "synthetic-source",
+          "fingerprint": "f1af2d5abc93f8cffbe80e904f6604db3209da792ddecef9c5637652d091a66e",
+          "sourceId": "schedule_cb9e8cc0e4a54d19923f7ec9d5c9030b"
+        }
+      ],
+      "migrationRejection": {
+        "code": "pending_publication",
+        "message": "Legacy source publication is unsettled; history only"
+      },
+      "directEnvelopeRejection": {
+        "code": "invalid_schema",
+        "message": "Legacy Event wire name is not accepted: id"
+      },
+      "canonicalEvents": 0,
+      "canonicalDrives": 0
+    }
+  ]
+}

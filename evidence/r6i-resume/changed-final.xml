@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="54" time="38.835" timestamp="2026-10-27T00:36:09.947332+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]" time="0.944" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]" time="0.911" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]" time="0.852" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]" time="0.829"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:110: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]" time="0.946"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:110: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]" time="0.838"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:110: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication" time="0.449" /><testcase classname="tests.test_scheduler_source_migration" name="test_missing_original_commit_remains_uncertain_through_host_and_restart" time="0.394" /><testcase classname="tests.test_scheduler_source_migration" name="test_source_history_is_read_only_for_missing_and_pending_records" time="0.234" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]" time="0.648" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]" time="0.745" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]" time="0.617" /><testcase classname="tests.test_scheduler_source_migration" name="test_canonical_retirement_keeps_original_identity_links_requests_and_event_history" time="0.430" /><testcase classname="tests.test_scheduler_source_migration" name="test_unrecognized_source_snapshot_is_preserved_without_auto_adoption" time="0.226" /><testcase classname="tests.test_scheduler_dependency_cutover" name="test_all_production_consumers_have_no_static_legacy_host_imports" time="2.578" /><testcase classname="tests.test_scheduler_dependency_cutover" name="test_web_import_and_canonical_startup_reopen_without_loading_either_legacy_host" time="1.681" /><testcase classname="tests.test_scheduler_dependency_cutover" name="test_extracted_delete_preserves_original_protected_guard_and_reservation" time="0.116" /><testcase classname="tests.test_scheduler_store" name="test_data_root_redirected" time="0.002" /><testcase classname="tests.test_scheduler_store" name="test_env_var_overrides_root" time="0.002" /><testcase classname="tests.test_scheduler_store" name="test_create_writes_job_record" time="0.079" /><testcase classname="tests.test_scheduler_store" name="test_no_tmp_files_left_behind" time="0.074" /><testcase classname="tests.test_scheduler_store" name="test_create_generates_id_and_timestamps" time="0.081" /><testcase classname="tests.test_scheduler_store" name="test_create_computes_next_fire_at" time="0.071" /><testcase classname="tests.test_scheduler_store" name="test_create_defaults" time="0.072" /><testcase classname="tests.test_scheduler_store" name="test_create_interval_defaults_anchor_to_created_at" time="0.070" /><testcase classname="tests.test_scheduler_store" name="test_create_once_and_cron" time="0.151" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload0]" time="0.025" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload1]" time="0.022" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload2]" time="0.032" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload3]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload4]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload5]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_bad_misfire_policy" time="0.028" /><testcase classname="tests.test_scheduler_store" name="test_get_roundtrip" time="0.096" /><testcase classname="tests.test_scheduler_store" name="test_get_missing_or_traversal_returns_none" time="0.007" /><testcase classname="tests.test_scheduler_store" name="test_list_filters_disabled" time="0.179" /><testcase classname="tests.test_scheduler_store" name="test_update_recomputes_next_fire_on_schedule_change" time="0.164" /><testcase classname="tests.test_scheduler_store" name="test_update_keeps_explicit_next_fire_at" time="0.149" /><testcase classname="tests.test_scheduler_store" name="test_update_disable_clears_next_fire_at" time="0.211" /><testcase classname="tests.test_scheduler_store" name="test_update_rejects_bad_policy_and_returns_none_for_missing" time="0.106" /><testcase classname="tests.test_scheduler_store" name="test_delete" time="0.177" /><testcase classname="tests.test_scheduler_store" name="test_append_and_list_runs" time="0.123" /><testcase classname="tests.test_scheduler_store" name="test_runs_roll_over_at_500" time="21.157" /><testcase classname="tests.test_scheduler_store" name="test_list_runs_on_empty_store" time="0.006" /><testcase classname="tests.test_scheduler_store" name="test_claim_leader_stub_is_idempotent" time="0.003" /><testcase classname="tests.test_scheduler_store" name="test_migrate_legacy_tasks_roundtrip" time="0.086" /><testcase classname="tests.test_scheduler_store" name="test_migrate_is_idempotent" time="0.120" /><testcase classname="tests.test_scheduler_store" name="test_migrate_skips_invalid_files" time="0.044" /><testcase classname="tests.test_scheduler_store" name="test_migrate_merges_legacy_runs" time="0.082" /><testcase classname="tests.test_scheduler_store" name="test_create_defaults_name_to_min_vacant_job_n" time="0.338" /><testcase classname="tests.test_scheduler_store" name="test_create_blank_name_variants_all_get_default" time="0.278" /><testcase classname="tests.test_scheduler_store" name="test_name_is_editable_and_description_roundtrip" time="0.196" /><testcase classname="tests.test_scheduler_store" name="test_description_defaults_empty_and_exports" time="0.071" /><testcase classname="tests.test_scheduler_store" name="test_migrated_legacy_task_gets_name_description" time="0.086" /></testsuite></testsuites>

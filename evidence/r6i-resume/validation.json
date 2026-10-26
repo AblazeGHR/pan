@@ -1,0 +1,465 @@
+{
+  "baselineSha": "bac726cf84c0510dff8618afb82e227e660f590c",
+  "originalBaselineSha": "f0970e23df5108eabd7580847346129d1714ba14",
+  "sourceSha": "371ef174c3c69542d519ec1dc9f2fa1382c711b0",
+  "branch": "r5/p21-r6-time-events-20261025",
+  "matrices": {
+    "core-final-v2": {
+      "tests": 388,
+      "passed": 385,
+      "failed": 3,
+      "error": 0,
+      "skipped": 0,
+      "exit": 1
+    },
+    "changed-final": {
+      "tests": 54,
+      "passed": 51,
+      "failed": 3,
+      "error": 0,
+      "skipped": 0,
+      "exit": 1
+    },
+    "legacy-pass-final": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "exit": 0
+    },
+    "consumers-final": {
+      "tests": 243,
+      "passed": 240,
+      "failed": 3,
+      "error": 0,
+      "skipped": 0,
+      "exit": 1
+    },
+    "legacy-final": {
+      "tests": 63,
+      "passed": 25,
+      "failed": 38,
+      "error": 0,
+      "skipped": 0,
+      "exit": 1
+    },
+    "startup-final": {
+      "tests": 3,
+      "passed": 3,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "exit": 0
+    },
+    "import-after-extraction": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "exit": 0
+    }
+  },
+  "uniqueLatestCases": {
+    "tests": 690,
+    "passed": 646,
+    "failed": 44,
+    "error": 0,
+    "skipped": 0
+  },
+  "baselineReproducedFailures": [
+    {
+      "class": "tests.test_job_delete_http_owned",
+      "name": "test_real_owned_tree_delete_http[False]"
+    },
+    {
+      "class": "tests.test_job_delete_http_owned",
+      "name": "test_real_owned_tree_delete_http[True]"
+    },
+    {
+      "class": "tests.test_job_delete_safety",
+      "name": "test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_action_template_default_assign"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_action_template_send_session"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_action_template_unknown_falls_back_to_assign"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_list_jobs_mixed_kinds_and_filters"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_partial_failed_event_emitted"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_blank_name_rejected"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_enable_disable_stops_entries"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_rename_and_description"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_schedule_rejects_bad_spec"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_schedule_replaces_entries"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_scheduled_qq_action_is_strict_and_editable"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_target_clear_enters_undeliverable"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_target_switch_updates_flat_and_struct"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_patch_text_updates_dispatch_body"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_failure_keeps_disk_and_emits_nothing"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_post_accepts_session_message_and_rejects_empty_schedule"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_post_creates_scheduled_shell_action_without_target_or_runner"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_post_creates_scheduled_task_multi_entry"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_post_requires_existing_session"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_resume_legal_running_empty_scan_is_successful_noop"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_resume_legal_running_keeps_per_fire_client_message_id_stable"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_run_records_carry_entry_id"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_runs_and_next_and_run_now"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_scheduled_qq_backlog_retry_runs_without_session_target"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure"
+    },
+    {
+      "class": "tests.test_jobs_api",
+      "name": "test_structured_identity_new_records"
+    },
+    {
+      "class": "tests.test_scheduler_legacy_bridge",
+      "name": "test_run_now_does_not_move_periodic_next_fire"
+    }
+  ],
+  "newCoverageOfBaselineEpochBlocker": [
+    {
+      "class": "tests.test_scheduler_source_migration",
+      "name": "test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]"
+    },
+    {
+      "class": "tests.test_scheduler_source_migration",
+      "name": "test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]"
+    },
+    {
+      "class": "tests.test_scheduler_source_migration",
+      "name": "test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]"
+    }
+  ],
+  "baselineAndCandidateEpochProofEqual": true,
+  "calculatorAstEquivalence": {
+    "iso": true,
+    "_now": true,
+    "_new_entry_id": true,
+    "_epoch_to_iso": true,
+    "_normalize_schedule": true,
+    "_schedule_from_entry": true,
+    "_entry_from_schedule": true,
+    "effective_spec": true,
+    "_spec_to_entry": true,
+    "_entries_next_fire": true,
+    "compute_next_fire": true
+  },
+  "collection": {
+    "count": 7160,
+    "exit": 0,
+    "interpreter": ".validation/r6i-venv/Scripts/python.exe",
+    "note": "system-site-packages plus isolated playwright installation; initial missing-dependency evidence retained"
+  },
+  "sourceChanges": [
+    {
+      "status": "A",
+      "path": "docs/design/job-unification/R6_I_SOURCE_CUTOVER_20261027.md",
+      "sha256": "0a6ab1a8acbd097e312932011486010d4941cd0e71af831ee315b31c17a5e717"
+    },
+    {
+      "status": "M",
+      "path": "docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md",
+      "sha256": "728d7d77e74e9676d7a605b879a4d7a0205a20a7a555164749b8d5054348e036"
+    },
+    {
+      "status": "M",
+      "path": "packages/automation/job_links.py",
+      "sha256": "7f6e84a17eea94f0673de3cc6ad78308d894d72b5d09fc6e0a9d39458fd19b34"
+    },
+    {
+      "status": "M",
+      "path": "packages/automation/quota_policy.py",
+      "sha256": "37b5459c1c923f2b60f1c637c272c329a993aa32cd32edf93131ab3a31ba6006"
+    },
+    {
+      "status": "M",
+      "path": "packages/automation/service.py",
+      "sha256": "174f29a60bd6d8276996c7b32d5d9e5099d7375410f58a14e90e4cefd57a5642"
+    },
+    {
+      "status": "M",
+      "path": "packages/core/data_catalog.py",
+      "sha256": "3f164bd2a640b9e3a336348b3273724c1faa06d7b07de7c0648c212fbe057158"
+    },
+    {
+      "status": "M",
+      "path": "packages/core/platform/README.md",
+      "sha256": "eb301d0e3c3b53f9b003a03a5a723907f4a4b746a1e21b7b6a8cbd47202416ae"
+    },
+    {
+      "status": "A",
+      "path": "packages/core/platform/data_paths.py",
+      "sha256": "764649cf34d40dfd8f0a2d339fd5b71c2f70c28573eca05fe2c0c4990fd786f9"
+    },
+    {
+      "status": "M",
+      "path": "packages/jobs/action_runtime.py",
+      "sha256": "3dc18630031bd12bb9cad3c1ea13cf5b78382026431602abfd1e7b6314d7f533"
+    },
+    {
+      "status": "M",
+      "path": "packages/jobs/api.py",
+      "sha256": "af6865c340a7dfe3daa638cb109226d89602a62f4a2b7f2daab1483e52706248"
+    },
+    {
+      "status": "M",
+      "path": "packages/jobs/final_runtime/coordinator.py",
+      "sha256": "fddb021c2fc6f23f5930aeea1c969c3334ab311a92cf75257b4977e346caf562"
+    },
+    {
+      "status": "M",
+      "path": "packages/jobs/final_service.py",
+      "sha256": "dd94cfdf3adc04d9180206b8aac0f7c75ee71acbcb76f36255026aba5f36fa8d"
+    },
+    {
+      "status": "A",
+      "path": "packages/jobs/schedule_calculations.py",
+      "sha256": "8793ff19a131a6b42791b02aff8731625969d808b1d6226b8118288663c80aba"
+    },
+    {
+      "status": "A",
+      "path": "packages/jobs/scheduled_records.py",
+      "sha256": "699a2ac1dc3b6b5b7d8c54b16fb65a500bcd70d8d82816fd7410ba05d7129a48"
+    },
+    {
+      "status": "M",
+      "path": "packages/scheduler/event_api.py",
+      "sha256": "fbd7f26e7b31e87edc3339e629b59e90def11c87b7620c44c4154cd558f04576"
+    },
+    {
+      "status": "M",
+      "path": "packages/scheduler/history.py",
+      "sha256": "198e5de16f8a3020b3021de221417f73f7a4fb141339d0f86a325bebbd2c15d7"
+    },
+    {
+      "status": "M",
+      "path": "packages/scheduler/legacy_bridge.py",
+      "sha256": "cfe0fdbb1af4e10b20899296678bea57d24a91a3b4bf25d8217dff78c5e5c7a1"
+    },
+    {
+      "status": "A",
+      "path": "packages/scheduler/source_history.py",
+      "sha256": "72251224f543dc879dc792fdeca4acad3767370912322693c75b4357d0715f62"
+    },
+    {
+      "status": "A",
+      "path": "packages/scheduler/source_migration.py",
+      "sha256": "3b67598ba4c3b32bf005ca5daa0b4a60d6fc0024ca06693146ef198b99b397e6"
+    },
+    {
+      "status": "M",
+      "path": "packages/scheduler/store.py",
+      "sha256": "dad6a5f8a5fef1c515b96bae44b0bdc6cd713b8914ee193116df04dcde88221b"
+    },
+    {
+      "status": "A",
+      "path": "packages/scheduler/time_contract.py",
+      "sha256": "ba4862375a4827c91e3d23f0c2db72c4e591b6e0803bdca8aa3e03de9753c4d0"
+    },
+    {
+      "status": "M",
+      "path": "packages/scheduler/time_events.py",
+      "sha256": "951a1a88ee0cb7c00eb0fe7c75e834a426d5b91589d189c9b9eceee19e6ed567"
+    },
+    {
+      "status": "M",
+      "path": "packages/web/e2e/job-pin-server.py",
+      "sha256": "82c64e015004730ea2753004998324c4291c6b9410e9168842a43e27ef90a851"
+    },
+    {
+      "status": "A",
+      "path": "scripts/check_scheduler_dependencies.py",
+      "sha256": "c23403b5e6a133d91207a5be61d76ea60c8ee51134b29be14a7a28eb7584bc2d"
+    },
+    {
+      "status": "M",
+      "path": "scripts/verify_action_groups.py",
+      "sha256": "45ce214583b3a884dd4b30547c485e1ec9ffec4776b56c56d4e178908133492d"
+    },
+    {
+      "status": "M",
+      "path": "scripts/verify_action_panel_cache.py",
+      "sha256": "216a143d6dfe341abfac36a6572bfdecf5bb1f5f92e9ccc011f3b77b99de751b"
+    },
+    {
+      "status": "M",
+      "path": "tests/conftest.py",
+      "sha256": "4aaeca1b85daca4d89e9fb9633d140d036224f2472f81a0f0cda4c69325ac595"
+    },
+    {
+      "status": "M",
+      "path": "tests/support/isolated_http_server.py",
+      "sha256": "ef80723c9457ea26408d912192a33ef081ea141f7bf2d98018f013f4cb9cba52"
+    },
+    {
+      "status": "M",
+      "path": "tests/test_jobs_api.py",
+      "sha256": "73213e423b7aa51bc467b66be06227fc3dc735d7e897bcee71c11cbe417bb0bf"
+    },
+    {
+      "status": "A",
+      "path": "tests/test_scheduler_dependency_cutover.py",
+      "sha256": "c6c504a86acee4b1af52e79aa9c8896756bb3fa4331e813fb7b367c417444c8b"
+    },
+    {
+      "status": "M",
+      "path": "tests/test_scheduler_legacy_bridge.py",
+      "sha256": "7330dcd394fccc466f6d49cc61af2d26b72522e59784a7a448a7441d8c864f98"
+    },
+    {
+      "status": "A",
+      "path": "tests/test_scheduler_source_migration.py",
+      "sha256": "d042f6d45febf70a7773606934580fbbebf724303d7edb54e086ce8150a3392d"
+    }
+  ],
+  "priorUncommittedEvidenceRetainedSha256": {
+    "docs/reports/R6_I_TIME_EVENTS_20261026.md": "fb15f1ab253c339e21d90806a01e254ceedace2c04ffa5739794d3bca7f6b460",
+    "evidence/r6i-time-events/baseline-tests.log": "7b386058d0386f492516d34cef6c4ff19c3f34ad4c0adbfeb83e6fa75e6f7ddb",
+    "evidence/r6i-time-events/baseline-tests.xml": "71843235f08e67f9523d10915687afaabb90204cbd48bfed35ca027ecf7dc742",
+    "evidence/r6i-time-events/identity-gate.json": "645fa6f6d963c25b82c6f76eb4b6ed0ae23b572f568d0df63f899713db873eb5",
+    "evidence/r6i-time-events/identity-gate.log": "8f43ec0573d4ab9843bcaeae08f34b69206173bd834b583a34b7191007eb2c40",
+    "evidence/r6i-time-events/identity_probe.py": "7ca9da461b96248ad6e57cae70010e99b381688c95c52ed6b4104347e218ccad",
+    "evidence/r6i-time-events/summary.json": "bd114979dddf978354068383e5c0eac78b1121d3eeafb777dd3e5a8db3f47cd9"
+  },
+  "deletedHosts": [],
+  "retainedHosts": [
+    "packages/scheduler/time_events.py",
+    "packages/scheduler/store.py",
+    "packages/scheduler/legacy_bridge.py"
+  ],
+  "realProfileCohorts": {
+    "previouslyMigrated51": "not inspected or modified",
+    "unrecognized60": "not inspected or modified",
+    "allProfileActiveLegacyZero": "not asserted"
+  },
+  "unverifiedLayers": [
+    "full backend execution",
+    "production app full lifespan",
+    "browser E2E",
+    "React build (no React source changes)",
+    "POSIX/macOS execution",
+    "remote CI",
+    "real user data migration",
+    "deployment",
+    "human acceptance"
+  ],
+  "overallAcceptance": "blocked: baseline Attempt epoch receipt fence at epoch 2"
+}

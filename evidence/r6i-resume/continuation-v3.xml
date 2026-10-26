@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="12" time="9.024" timestamp="2026-10-27T00:26:00.806711+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]" time="0.923" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]" time="0.887" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]" time="0.898" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]" time="0.818"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:109: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]" time="0.839"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:109: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]" time="0.755"><failure message="packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt">tests\test_scheduler_source_migration.py:109: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication" time="0.500" /><testcase classname="tests.test_scheduler_source_migration" name="test_missing_original_commit_remains_uncertain_through_host_and_restart" time="0.352" /><testcase classname="tests.test_scheduler_source_migration" name="test_source_history_is_read_only_for_missing_and_pending_records" time="0.202" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]" time="0.721" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]" time="0.657" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]" time="0.608" /></testsuite></testsuites>

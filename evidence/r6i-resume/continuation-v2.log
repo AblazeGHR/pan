@@ -1,0 +1,76 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+FFF...                                                                   [100%]
+================================== FAILURES ===================================
+_ test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[before-admit] _
+tests\test_scheduler_source_migration.py:106: in test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt
+_ test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[after-admit-before-cursor] _
+tests\test_scheduler_source_migration.py:106: in test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt
+_ test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[before-ack] _
+tests\test_scheduler_source_migration.py:106: in test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys
+    asyncio.run(service.tick())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:934: in tick
+    await self.dispatch_once()
+packages\jobs\final_service.py:645: in dispatch_once
+    await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+packages\jobs\final_service.py:725: in _drive_run
+    self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
+packages\jobs\final_runtime\ledger.py:254: in finish_attempt
+    raise contracts.ContractError("revision_conflict", "Attempt ownerEpoch fence rejected the receipt")
+E   packages.jobs.final_contracts.ContractError: Attempt ownerEpoch fence rejected the receipt
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_source_migration.py::test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[before-admit]
+FAILED tests/test_scheduler_source_migration.py::test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[after-admit-before-cursor]
+FAILED tests/test_scheduler_source_migration.py::test_explicit_host_adoption_then_cold_runtime_continues_same_grid_and_effect_keys[before-ack]
