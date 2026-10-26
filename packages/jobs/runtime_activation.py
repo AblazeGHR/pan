@@ -64,7 +64,8 @@ def restore_cursor(service, item, entry):
     item["migrationCursor"] = copy.deepcopy(cursor)
 
 
-def activate_bundle(service, *, path, expected_hash, expected_plan_digest, active_ids):
+def activate_bundle(service, *, path, expected_hash, expected_plan_digest, active_ids,
+                    expected_user_authorization_digest=None):
     from packages.jobs.final_service import definition
 
     target = Path(path)
@@ -78,6 +79,14 @@ def activate_bundle(service, *, path, expected_hash, expected_plan_digest, activ
             bundle.get("mappingVersion") == "1" and bundle.get("state") == "committed-offline",
             "Unsupported canonical bundle")
     require(bundle.get("planDigest") == expected_plan_digest, "Canonical planDigest mismatch")
+    audited = "authorizationAudit" in bundle
+    if audited or expected_user_authorization_digest is not None:
+        from packages.jobs.migration_authorization import validate_bundle
+        try:
+            validate_bundle(bundle, expected_user_authorization_digest)
+        except ValueError as exc:
+            raise fc.ContractError("authorization_denied", str(exc)) from exc
+        require(active_ids == [], "Audited offline rehearsal does not authorize execution")
     source = Path(bundle["root"]).resolve()
     require(source == service.root.parent, "Canonical source/fence profile mismatch")
     require(not target.resolve().is_relative_to(source), "Canonical bundle must be outside source root")
@@ -111,6 +120,9 @@ def activate_bundle(service, *, path, expected_hash, expected_plan_digest, activ
         old = db.execute("SELECT document FROM final_documents WHERE kind='runtime_activation'").fetchone()
         if old:
             require(fc.loads(old[0]) == activation, "Activation conflicts with committed runtime graph")
+            if audited:
+                from packages.jobs.migration_history import install
+                install(service, db, bundle, verify_only=True)
             return activation
         # Entire graph, authorities, references and activation receipt share
         # one Creator DB transaction. Any failure rolls all imported rows back.
@@ -161,5 +173,8 @@ def activate_bundle(service, *, path, expected_hash, expected_plan_digest, activ
             actor = fc.loads(
                 db.execute("SELECT document FROM final_authorities WHERE kind=? AND id=?", (kind, object_id)).fetchone()[0])
             service._permit(actor, kind, "execute" if kind == "job" else "lifecycle", execution=True)
+        if audited:
+            from packages.jobs.migration_history import install
+            install(service, db, bundle)
         service._save(db, "runtime_activation", bundle["operationId"], activation)
     return activation

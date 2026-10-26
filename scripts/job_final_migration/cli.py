@@ -47,6 +47,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--target", type=Path, help="offline canonical bundle JSON, outside root")
     parser.add_argument("--context", type=Path, help="explicit pinned references and operator attestations JSON")
+    parser.add_argument("--user-authorization", type=Path, help="independently supplied user instruction receipt JSON")
+    parser.add_argument("--expected-user-authorization-digest", help="externally pinned user receipt digest; not read from context")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true", help="atomically publish the entire offline bundle")
     mode.add_argument("--rollback", action="store_true", help="roll back offline publication; never restore/run legacy")
@@ -133,6 +135,13 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("--context required with --target")
         if args.rollback and (args.context or args.mark_read_only or args.preserve_incompatible):
             raise ValueError("rollback does not accept context/read-only marker")
+        if bool(args.user_authorization) != bool(args.expected_user_authorization_digest):
+            raise ValueError("user authorization requires both receipt and externally pinned digest")
+        if args.user_authorization and (not target or args.rollback):
+            raise ValueError("user authorization requires context/target and cannot be used with rollback")
+        for source in (args.context, args.user_authorization):
+            if source and source.resolve() in {destination, target}:
+                raise ValueError("output/target collides with context/authorization input")
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -151,7 +160,10 @@ def main(argv: list[str] | None = None) -> int:
                                  mark_read_only=args.mark_read_only,
                                  expected_digest=args.expected_digest,
                                  allow_real_profile=args.allow_real_profile,
-                                 preserve_incompatible=args.preserve_incompatible)
+                                 preserve_incompatible=args.preserve_incompatible,
+                                 user_authorization=loads(args.user_authorization.read_text(encoding="utf-8-sig"))
+                                                    if args.user_authorization else None,
+                                 expected_user_authorization_digest=args.expected_user_authorization_digest)
         else:
             from packages.jobs.final_contracts import digest
             report["inventoryDigest"] = digest(report)
