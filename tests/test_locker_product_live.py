@@ -120,7 +120,10 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
             return rt.request('POST', '/api/interaction-cards', json={'ownerSessionId': one['id'], 'recipientId': 'user',
                 'requestKey': key_name, 'card': {'title': key_name, 'body': 'Full body retained only in Locker.', 'summaryBody': 'Summary '*60, **fields}})['card']
         approval = card('Approve real Pause', choices=[{'id': 'pause', 'label': 'Approve Pause', 'triggerRef': {'id': 'locker-live-pause', 'revision': 1}}, {'id': 'keep', 'label': 'Keep running'}])
-        reply = card('Answer without choices')
+        reply = card('Answer individual questions', schemaVersion=2, questions=[
+            {'id': 'detail', 'prompt': 'What should happen?', 'type': 'text'},
+            {'id': 'decline', 'prompt': 'Optional proposal', 'type': 'text'},
+        ])
         reason = card('Reject with reason')
         silent = card('Reject without reason')
         assert rt.request('GET', '/api/user-inbox', headers=auth)['cards'][0]['definition']['body'] == 'Full body retained only in Locker.'
@@ -190,6 +193,9 @@ def test_locker_messages_cards_real_service_browser_cli_restart(tmp_path, monkey
         rt.stop(); rt.start()
         cold_auth = {'Authorization': 'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         assert not rt.request('GET', f"/api/user-locker-messages/{archived['id']}",headers=cold_auth)['message']['read']
+        assert httpx.get(rt.base_url+'/api/user-locker-messages', headers=auth, trust_env=False).status_code == 200
+        assert httpx.get(rt.base_url+'/api/user-locker-messages', trust_env=False).status_code == 401
+        assert httpx.post(rt.base_url+'/api/automation/logout', headers=auth, trust_env=False).json() == {'ok': True}
         assert httpx.get(rt.base_url+'/api/user-locker-messages', headers=auth, trust_env=False).status_code == 401
         browser('cold', fixture, key)
         assert len(rt.request('GET', '/api/automation', headers=cold_auth)['runs']) == 1

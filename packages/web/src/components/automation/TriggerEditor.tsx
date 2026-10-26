@@ -25,7 +25,7 @@ export function TriggerEditor({ initial, data, onClose, leaveGuard, onBusyChange
   function setPending(value: boolean) { busyRef.current = value; setBusy(value); onBusyChange(value); }
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const token = useAutomationAuth((s) => s.token);
+  const token = useAutomationAuth((s) => s.token || s.authenticated);
   const server = draft.id ? data.automation.triggers[draft.id] : undefined;
   const changed = !!draft.id && (!server || server.revision !== revision);
   const action = data.actions.actions.find((a) => a.id === draft.actionId);

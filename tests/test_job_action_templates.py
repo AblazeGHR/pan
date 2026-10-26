@@ -356,6 +356,7 @@ async def test_api_permissions_unknown_fields_legacy_aliases_and_repair(tmp_path
             assert (await client.put(base,json={'config':config(),'expectedRevision':1})).status_code==401
             assert (await client.post('/api/jobs/job-templates',json={'item':{'name':'x','config':config()},'expectedRevision':0})).status_code==401
             token=(await client.post('/api/automation/login',json={'key':auth.key()})).json()['token'];headers={'Authorization':'Bearer '+token}
+            client.cookies.clear()  # This test exercises anonymous versus explicit Bearer calls.
             t=(await client.post('/api/jobs/job-templates',json={'item':{'name':'fixed','config':config()},'expectedRevision':0},headers=headers)).json()['item']
             endpoint='/api/jobs/job-templates/'+t['id']+'/instantiate'
             body={'expectedRevision':1,'idempotencyKey':'http-key'}

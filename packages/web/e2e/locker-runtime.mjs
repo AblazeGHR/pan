@@ -14,10 +14,12 @@ try {
   await page.getByRole('button',{name:'Submit',exact:true}).click();
   await page.getByText('Delivery details',{exact:true}).click();
   await expect(page.getByText('Trigger delivery: accepted',{exact:true})).toBeVisible();
-  const create=async(key)=>page.request.post(base+'/api/interaction-cards',{data:{ownerSessionId:owner,recipientId:'user',
+  const create=async(key)=>page.request.post(base+'/api/interaction-cards',{headers:{Origin:base},data:{ownerSessionId:owner,recipientId:'user',
     requestKey:key,card:{title:'Reject probe',body:'Retained body',summaryBody:'Safe reject',
       choices:[{id:'pause',label:'Pause',triggerRef:{id:'selected',revision:1}}]}}});
-  const card=(await (await create('browser-reject')).json()).card;
+  const created=await create('browser-reject');
+  expect(created.status()).toBe(200);
+  const card=(await created.json()).card;
   await page.getByRole('button',{name:'Refresh Locker',exact:true}).click();
   const row=page.locator(`[data-card-id="${card.id}"]`);
   await row.getByRole('button',{name:'Reject',exact:true}).click();

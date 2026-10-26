@@ -38,12 +38,13 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
         rt.request('PATCH',f'/api/sessions/{sid}/queue/paused',json={'paused':True})
         upload=rt.request('POST',f'/api/sessions/{sid}/attachments?filename=evidence.txt',content=b'owned evidence')
         aid=upload.get('attachmentId') or upload['storageFilename']
-        def create(key,kind='question',attachments=None):
+        def create(key,kind='question',attachments=None,parent=None):
             return rt.request('POST','/api/reminding-cards',headers=auth,json=dict(ownerSessionId=sid,requestKey=key,
-                kind=kind,body='Real user question '+key,attachments=attachments or []))['card']
+                kind=kind,body='Real user question '+key,attachments=attachments or [],parent=parent))['card']
         question=create('q',attachments=[{'id':aid,'name':'evidence.txt'}])
         task=create('t','task')
-        evidence['created']=[question,task]
+        child=create('attached',parent={'type':'user_card','id':question['id']})
+        evidence['created']=[question,task,child]
         async def mcp(sid,answer=False):
             from mcp import ClientSession,StdioServerParameters
             from mcp.client.stdio import stdio_client
@@ -62,7 +63,7 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
                         foreign=await call(operation='answer',card_id=question['id'],body='forged',expected_revision=0)
                         assert foreign['error']['code']=='not_found'
                         return
-                    assert {c['id'] for c in pending['cards']}=={question['id'],task['id']}
+                    assert {c['id'] for c in pending['cards']}=={question['id'],task['id'],child['id']}
                     assert next(c for c in pending['cards'] if c['id']==question['id'])['attachments'][0]['id']==aid
                     empty=await call(operation='answer',card_id=question['id'],body='',expected_revision=0)
                     assert empty['error']['code']=='invalid'
@@ -71,34 +72,37 @@ def test_real_http_stdio_locker_roundtrip_and_restart(tmp_path,monkeypatch):
                     duplicate=await call(operation='answer',card_id=question['id'],body='overwrite',expected_revision=1)
                     assert duplicate['error']['code']=='conflict'
                     assert (await call(operation='answer',card_id=task['id'],body='',expected_revision=0))['card']['answer']==''
+                    assert (await call(operation='answer',card_id=child['id'],body='Attached MCP answer',expected_revision=0))['card']['parent']==child['parent']
                     assert (await call(operation='list_pending'))['cards']==[]
         asyncio.run(mcp(other['id']))
         asyncio.run(mcp(sid,True))
         cards=rt.request('GET','/api/reminding-cards',headers=auth)['cards']
-        assert len(cards)==2 and all(c['status']=='answered' and not c['read'] for c in cards)
+        assert len(cards)==3 and all(c['status']=='answered' and not c['read'] for c in cards)
         locker=next(l for l in rt.request('GET','/api/user-lockers',headers=auth)['lockers'] if l['sessionId']==sid)
-        assert locker['total']==2 and locker['unread']==2
+        assert locker['total']==3 and locker['unread']==3
         with httpx.Client(base_url=rt.base_url,trust_env=False) as client:
             path=f"/api/reminding-cards/{question['id']}/attachments/{aid}"
             assert client.get(path).status_code==401
             assert client.get(path,headers=auth).content==b'owned evidence'
             assert client.get(f"/api/reminding-cards/{task['id']}/attachments/{aid}",headers=auth).status_code==404
-        browser=subprocess.run(['node','packages/web/e2e/user-cards.mjs',rt.base_url,str(out),question['id']],
+        browser=subprocess.run(['node','packages/web/e2e/user-cards.mjs',rt.base_url,str(out),question['id'],task['id'],child['id']],
             cwd=root,env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)
         (out/'visual.log').write_text(browser.stdout+'\n'+browser.stderr,encoding='utf-8')
         assert browser.returncode==0,browser.stderr
         pending=create('restart')
         before=rt.request('GET',f'/api/sessions/{sid}/queue')['items']
-        assert len(before)==4 and all(i['kind']=='report' for i in before)
+        assert len(before)==5 and all(i['kind']=='report' for i in before)
         assert not rt.fake_records(), 'Paused Session must not spawn a Worker'
         rt.stop(); rt.start(); auth=login()
         after=rt.request('GET',f'/api/sessions/{sid}/queue')['items']
         assert len(after)==len(before), 'Restart must not duplicate immediate notices'
         assert not rt.fake_records()
+        restored=rt.request('GET','/api/reminding-cards',headers=auth)['cards']
+        assert next(c for c in restored if c['id']==child['id'])['parent']==child['parent']
         rt.request('DELETE','/api/reminding-cards/'+pending['id'],headers=auth)
         rt.request('PUT','/api/reminding-cards/'+question['id']+'/read',headers=auth,json={'read':True})
         locker=next(l for l in rt.request('GET','/api/user-lockers',headers=auth)['lockers'] if l['sessionId']==sid)
-        assert locker['total']==2 and locker['unread']==1
+        assert locker['total']==3 and locker['unread']==2
         evidence.update(cards=cards,locker=locker,queueBeforeRestart=before,queueAfterRestart=after,providerRecords=rt.fake_records())
     finally:
         rt.stop()

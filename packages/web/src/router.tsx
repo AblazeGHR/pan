@@ -7,13 +7,15 @@ import { deferredView } from './views/deferredView';
 const EditorView = deferredView(() => import('./views/EditorView'));
 
 const ManageView = lazy(() => import('./views/ManageView'));
-const JobsView = lazy(() => import('./views/JobsView'));
 const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
 const LockerView = lazy(() => import('./views/LockerView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
 const CanonicalJobsView = lazy(() => import('./views/CanonicalJobsView'));
 const AutomationView = lazy(() => import('./views/AutomationView'));
+
+import { RetiredJobsRoute } from './views/RetiredJobsRoute';
+
 
 function deferredRoute(view: React.ReactNode) {
   return <Suspense fallback={<div className="p-4 text-sm text-text-tertiary">Loading...</div>}>{view}</Suspense>;
@@ -46,7 +48,7 @@ export const router = createBrowserRouter(
         },
         {
           path: 'jobs',
-          element: deferredRoute(<JobsView />),
+          element: <RetiredJobsRoute />,
         },
         {
           path: 'terminals',
@@ -58,10 +60,11 @@ export const router = createBrowserRouter(
         },
         {
           path: 'schedules',
-          element: <Navigate replace to="/jobs" />,
+          element: <Navigate replace to="/automation/canonical" />,
         },
       ],
     },
   ],
   { basename },
 );
+

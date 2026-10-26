@@ -196,17 +196,28 @@ def _read_state(session_dir: Path) -> dict:
         return {}
 
 
+def _win_casefold(value) -> str:
+    """Fold a path with Windows semantics regardless of the host platform.
+
+    ``os.path.normcase`` follows the *host* platform: on POSIX it is the
+    identity function, so a Windows-branch comparison would wrongly stay
+    case-sensitive and treat ``/`` and ``\\`` as distinct. Fold explicitly so
+    the branch means the same thing on every host.
+    """
+    return str(value).replace("/", "\\").casefold()
+
+
 def _same_path(a: str, b: str) -> bool:
     """Compare two filesystem paths ignoring slash direction (and case on Windows).
 
-    Windows：normcase（大小写不敏感 + / 归一为 \\，保持旧行为）。
+    Windows：大小写不敏感 + / 归一为 \\（保持旧行为）。
     POSIX：大小写敏感、原样比较（反斜杠是合法文件名字符）。
     """
     if _IS_WINDOWS:
         try:
-            return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
+            return _win_casefold(Path(a).resolve()) == _win_casefold(Path(b).resolve())
         except OSError:
-            return os.path.normcase(a) == os.path.normcase(b)
+            return _win_casefold(a) == _win_casefold(b)
     try:
         return str(Path(a).resolve()) == str(Path(b).resolve())
     except OSError:

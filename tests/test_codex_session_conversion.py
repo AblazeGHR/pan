@@ -136,7 +136,10 @@ def test_native_busy_idle_projection_cannot_restart_early(target, monkeypatch):
 
 def test_other_adapter_readonly_and_security_gate_reject(target, monkeypatch):
     app, s, _ = target
-    s.adapter = "kimi"
+    # Capability gate, not a hardcoded name set: kimi declares
+    # supports_native_control since the Terminal TUI landed (3bf174b1), so the
+    # "other adapter" case must use one that genuinely has no native transport.
+    s.adapter = "claude"
     assert request(app, {"enabled": True}).status_code == 409
     s.adapter = "codex"; s.readonly_session = True
     assert request(app, {"enabled": True}).status_code == 409

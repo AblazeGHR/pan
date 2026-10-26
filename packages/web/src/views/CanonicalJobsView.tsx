@@ -98,7 +98,6 @@ export default function CanonicalJobsView() {
             <p className="text-sm text-text-secondary">统一定义与 Run 管理 · 手动刷新</p>
           </div>
           <nav className="flex flex-wrap gap-3 text-sm">
-            <Link to="/jobs">Legacy Jobs</Link>
             <Link to="/automation">Automation</Link>
           </nav>
         </header>

@@ -820,6 +820,17 @@ describe('Session deep link and card ids', () => {
 });
 
 describe('attached reminders and entry window', () => {
+  it('loads older rows after entering a fully read source with the same window size', async () => {
+    cards = Array.from({length: 113}, (_, i) => ({...card(`row-${i}`), read: true}));
+    mount();
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(50));
+    fireEvent.click(screen.getByTestId('locker-source-l1'));
+    expect(screen.getByTestId('locker-source-l1').getAttribute('aria-current')).toBe('true');
+    const timeline = screen.getByRole('region', {name: 'Locker messages'});
+    fireEvent.scroll(timeline, {target: {scrollTop: 0}});
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(100));
+    expect(calls.filter((call) => call.method === 'PUT')).toEqual([]);
+  });
   it('preorders children by creation, leaves root order and unread anchor independent', () => {
     const first = {...card('a'), read: true};
     const last = card('b');

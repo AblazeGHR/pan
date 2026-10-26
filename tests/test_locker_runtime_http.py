@@ -111,6 +111,9 @@ def test_product_locker_login_choice_pause_restart(tmp_path,monkeypatch):
         evidence.update(runId=runs[0]['id'],cardId=card['id'],pause=True,rejectNoRun=True,deleteNoNotice=True)
         assert stop()==[]
         rt.start()
+        assert httpx.get(rt.base_url+'/api/user-lockers',headers=auth,trust_env=False).status_code==200
+        assert httpx.get(rt.base_url+'/api/user-lockers',trust_env=False).status_code==401
+        assert httpx.post(rt.base_url+'/api/automation/logout',headers=auth,trust_env=False).json()=={'ok':True}
         assert httpx.get(rt.base_url+'/api/user-lockers',headers=auth,trust_env=False).status_code==401
         auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         assert rt.request('GET',f"/api/user-inbox/{card['id']}",headers=auth)['card']['delivery']['state']=='accepted'

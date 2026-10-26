@@ -5,7 +5,7 @@ import type { AutomationSnapshot } from '@/types/automation';
 import { cardClass, fieldClass, JsonDetail } from './fields';
 
 export function RunList({ snapshot }: { snapshot: AutomationSnapshot }) {
-  const token = useAutomationAuth((s) => s.token);
+  const token = useAutomationAuth((s) => s.token || s.authenticated);
   const [filter, setFilter] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState<string | null>(null);

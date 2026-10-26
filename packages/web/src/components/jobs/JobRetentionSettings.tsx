@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchCompletedJobRetentionSettings,
-  updateCompletedJobRetentionSettings,
 } from '@/services/api';
 import type {
   CompletedJobRetentionRun,
@@ -116,15 +115,7 @@ export function JobRetentionSettings() {
     setError(null);
     setFeedback(null);
     try {
-      const result = await updateCompletedJobRetentionSettings(draft);
-      setRules(result.rules);
-      setDraft(cloneRules(result.rules));
-      setLastRuns(result.lastRuns);
-      if (!result.configValid) {
-        setError('Some saved retention values are invalid. Automatic cleanup remains disabled for those rules.');
-      } else {
-        setFeedback('Settings saved. The server applies changes without a restart.');
-      }
+      setFeedback('Legacy retention settings are read-only after Jobs migration. Manage canonical retention from Canonical Jobs.');
     } catch (reason) {
       setError(errMsg(reason));
     } finally {

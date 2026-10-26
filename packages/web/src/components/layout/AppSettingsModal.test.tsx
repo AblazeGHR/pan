@@ -1051,10 +1051,8 @@ describe('AppSettingsModal', () => {
     fireEvent.click(Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
       .find((button) => button.textContent?.trim() === 'Save settings')!);
 
-    await waitFor(() => expect(updateCompletedJobRetentionSettingsMock).toHaveBeenCalledWith({
-      ...defaultJobRetentionRules,
-      failed: { enabled: false, days: 21 },
-    }));
+    await waitFor(() => expect(screen.getByText(/read-only after Jobs migration/)).toBeTruthy());
+    expect(updateCompletedJobRetentionSettingsMock).not.toHaveBeenCalled();
     expect(updateDataRetentionMock).not.toHaveBeenCalled();
   });
 
@@ -1384,13 +1382,77 @@ describe('AppSettingsModal', () => {
     clickTab('notifications');
     expect(cardEl().textContent).toContain('Codex warnings via Toast');
     expect(cardEl().textContent).toContain('CBC warnings via Toast');
-    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(1);
+    expect(cardEl().querySelectorAll('[role="switch"]')).toHaveLength(2);
     expect(cardEl().textContent).not.toContain('修改 agent/系统队列消息前确认');
     expect(cardEl().textContent).not.toContain('Confirm management changes across workspaces');
     const codexWarningSwitch = Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
       .find((element) => element.textContent?.includes('Codex warnings via Toast'))!;
     fireEvent.click(codexWarningSwitch);
     expect(useAppSettingsStore.getState().notifications.codexWarningToast).toBe(false);
+  });
+
+  it('shows the Locker switch off by default and asks for permission when enabled', async () => {
+    const requestPermission = vi.fn(async () => 'granted' as const);
+    const NotificationMock = vi.fn();
+    Object.defineProperty(NotificationMock, 'permission', { value: 'default', configurable: true });
+    Object.defineProperty(NotificationMock, 'requestPermission', {
+      value: requestPermission,
+      configurable: true,
+    });
+    vi.stubGlobal('Notification', NotificationMock);
+
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('notifications');
+    const lockerSwitch = () => Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Locker new messages'))!;
+    expect(lockerSwitch().getAttribute('aria-checked')).toBe('false');
+    expect(lockerSwitch().hasAttribute('disabled')).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(lockerSwitch());
+    });
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(useAppSettingsStore.getState().notifications.lockerDesktop).toBe(true);
+    expect(lockerSwitch().getAttribute('aria-checked')).toBe('true');
+    expect(updateUiSettingsMock).toHaveBeenLastCalledWith({
+      notifications: { lockerDesktop: true },
+    });
+  });
+
+  it('keeps the Locker switch on and explains a denied notification permission', async () => {
+    const NotificationMock = vi.fn();
+    Object.defineProperty(NotificationMock, 'permission', { value: 'default', configurable: true });
+    Object.defineProperty(NotificationMock, 'requestPermission', {
+      value: vi.fn(async () => 'denied' as const),
+      configurable: true,
+    });
+    vi.stubGlobal('Notification', NotificationMock);
+
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('notifications');
+    const lockerSwitch = Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Locker new messages'))!;
+
+    await act(async () => {
+      fireEvent.click(lockerSwitch);
+    });
+    // The stored preference is kept; only the runtime alerts stay silent.
+    expect(useAppSettingsStore.getState().notifications.lockerDesktop).toBe(true);
+    expect(lockerSwitch.getAttribute('aria-checked')).toBe('true');
+    expect(cardEl().textContent).toContain(
+      'Browser notification permission is denied for this site',
+    );
+  });
+
+  it('disables the Locker switch and explains the missing Notification API', () => {
+    vi.stubGlobal('Notification', undefined);
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('notifications');
+    const lockerSwitch = Array.from(cardEl().querySelectorAll<HTMLElement>('[role="switch"]'))
+      .find((element) => element.textContent?.includes('Locker new messages'))!;
+
+    expect(lockerSwitch.hasAttribute('disabled')).toBe(true);
+    expect(cardEl().textContent).toContain('This browser does not support system notifications');
   });
 
   it('loads and replaces the Codex whitelist on the Adapters tab', async () => {
@@ -1582,7 +1644,7 @@ describe('AppSettingsModal', () => {
       showQQ: false,
       reportWorkerKillErrors: true,
       showCodexTerminalInput: true,
-      notifications: { codexWarningToast: false, unreadRecording: ['all'], confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true },
+      notifications: { codexWarningToast: false, lockerDesktop: false, unreadRecording: ['all'], confirmCrossWorkspaceManagement: true, confirmAgentSystemQueueEdit: true },
     });
     render(<AppSettingsModal open onClose={() => {}} />);
     expect(

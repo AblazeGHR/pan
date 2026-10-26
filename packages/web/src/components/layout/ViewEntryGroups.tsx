@@ -113,7 +113,6 @@ export function ViewEntryGroups({ isMobile }: { isMobile: boolean }) {
               <entry.icon size={12} className="shrink-0" /><span className="truncate">{entry.label}</span>
             </span>
             {/* Entry badges are absolute overlays: they do not affect layout or intercept clicks. */}
-            {entry.to === '/jobs' && <ViewEntryBadge kind="jobs" />}
             {entry.to === '/' && <ViewEntryBadge kind="chat" />}
             {entry.to === '/locker' && <ViewEntryBadge kind="locker" />}
           </NavLink> : <div key={slot} aria-hidden="true" />)}
