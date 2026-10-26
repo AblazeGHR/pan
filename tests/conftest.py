@@ -26,6 +26,7 @@ from packages.core import background_jobs as _jobs
 from packages.core import config as _config
 from packages.core import session_error_log as _session_error_log
 from packages.scheduler import store as _scheduler
+from packages.core.platform import data_paths as _data_paths
 from packages.core.terminal import registry as _terminal_registry
 
 
@@ -39,6 +40,7 @@ def isolate_session_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(_config, "CONFIG_FILE", tmp_path / "config.json")
     monkeypatch.setattr(_jobs, "DEFAULT_ROOT", tmp_path / "background_jobs")
     monkeypatch.setattr(_scheduler, "DEFAULT_ROOT", tmp_path / "background_jobs")
+    monkeypatch.setattr(_data_paths, "DEFAULT_ROOT", tmp_path / "background_jobs")
     monkeypatch.setattr(_scheduler, "LEGACY_TASKS_ROOT", tmp_path / "scheduler")
     monkeypatch.setattr(_terminal_registry, "DEFAULT_REGISTRY_ROOT", tmp_path / "terminals")
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")

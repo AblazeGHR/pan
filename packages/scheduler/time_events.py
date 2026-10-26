@@ -18,14 +18,9 @@ from pathlib import Path
 from packages.jobs.action_templates import Conflict
 from packages.jobs.runtime_owner import OwnerFence
 from packages.plugins.lifecycle import io
-from . import store
+from packages.jobs import schedule_calculations as calculator
 
-EVENT_TYPE = 'scheduler.time.v1'
-OWNER = 'scheduler-event-v1'
-PAYLOAD_SCHEMA = {'type': 'object', 'additionalProperties': False,
-    'required': ['scheduleId', 'scheduleRevision', 'scheduledAt', 'emittedAt', 'eventId'],
-    'properties': {'scheduleId': {'type': 'string'}, 'scheduleRevision': {'type': 'integer', 'minimum': 1},
-                   **{k: {'type': 'string'} for k in ('scheduledAt', 'emittedAt', 'eventId')}}}
+from .time_contract import EVENT_TYPE, OWNER, PAYLOAD_SCHEMA
 
 
 class Sources:
@@ -84,7 +79,7 @@ class Sources:
         db.execute('INSERT OR REPLACE INTO sources VALUES(?,?)', (item['id'], json.dumps(item, allow_nan=False)))
 
     def put(self, raw, expected, sid=None, *, at=None,creation_key=None):
-        from packages.core.background_jobs import _entry_next_fire
+        from packages.jobs.schedule_calculations import entry_next_fire as _entry_next_fire
         at = at or datetime.now().replace(microsecond=0)
         if not isinstance(raw, dict) or set(raw) - {'name', 'schedule', 'enabled', 'misfirePolicy', 'graceSec'}:
             raise ValueError('Unknown time Event source fields')
@@ -94,7 +89,7 @@ class Sources:
         spec = raw.get('schedule')
         if not isinstance(spec, dict) or set(spec) - {'kind', 'at', 'intervalSec', 'interval_sec', 'anchor', 'cron', 'timezone'}:
             raise ValueError('Invalid source schedule')
-        schedule = store._normalize_schedule(spec)
+        schedule = calculator._normalize_schedule(spec)
         if schedule['kind']=='interval' and (isinstance(spec.get('intervalSec',spec.get('interval_sec')),bool)
                 or not math.isfinite(schedule['intervalSec']) or schedule['intervalSec']<1):
             raise ValueError('Time Event interval requires at least one second')
@@ -102,7 +97,7 @@ class Sources:
         from packages.jobs import cron
         if schedule.get('timezone'):cron._resolve_tz(schedule['timezone'])
         policy = raw.get('misfirePolicy', 'fire_now')
-        if policy not in store.MISFIRE_POLICIES:raise ValueError('Invalid misfirePolicy')
+        if policy not in calculator.MISFIRE_POLICIES:raise ValueError('Invalid misfirePolicy')
         grace = raw.get('graceSec', 300)
         if isinstance(grace, bool) or not isinstance(grace, (int, float)) or not math.isfinite(grace) or not 0 <= grace <= 86400:
             raise ValueError('graceSec requires 0..86400 seconds')
@@ -123,15 +118,15 @@ class Sources:
             if old and old.get('pending'):raise Conflict('Settle admitted occurrence before editing source')
             if not old and db.execute('SELECT count(*) FROM sources').fetchone()[0] >= 256:raise ValueError('Source capacity reached')
             if schedule['kind'] == 'interval' and not schedule.get('anchor'):
-                schedule['anchor'] = (old['schedule'].get('anchor') if old and old['schedule']['kind'] == 'interval' else None) or store.iso(at)
+                schedule['anchor'] = (old['schedule'].get('anchor') if old and old['schedule']['kind'] == 'interval' else None) or calculator.iso(at)
             same = old and old['schedule'] == schedule
-            next_fire = old['nextFireAt'] if same else store.iso(_entry_next_fire(schedule, at))
+            next_fire = old['nextFireAt'] if same else calculator.iso(_entry_next_fire(schedule, at))
             if not same and next_fire is None:raise ValueError('Schedule has no future occurrence')
             item = dict(id=sid or 'schedule_' + uuid.uuid4().hex, name=raw['name'].strip(), owner=OWNER,
                         revision=expected + 1, enabled=raw.get('enabled', False), schedule=schedule,
                         misfirePolicy=policy, graceSec=grace, nextFireAt=next_fire,
                         publishCursor=copy.deepcopy(old.get('publishCursor')) if old else None,
-                        createdAt=old['createdAt'] if old else store.iso(at), updatedAt=store.iso(at))
+                        createdAt=old['createdAt'] if old else calculator.iso(at), updatedAt=calculator.iso(at))
             self.write(db, item)
             if creation_key:db.execute('INSERT INTO source_requests VALUES(?,?,?)',(creation_key,fingerprint,item['id']))
             return self.public(item)
@@ -210,7 +205,7 @@ class Sources:
             item=json.loads(row[0]); item['nextFireAt']=next_fire; self.write(db,item)
 
     def reserve(self, sid, at):
-        from packages.core.background_jobs import _entry_next_fire
+        from packages.jobs.schedule_calculations import entry_next_fire as _entry_next_fire
         from packages.jobs.cron import parse_datetime
         with self.connection() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -222,15 +217,15 @@ class Sources:
             if item.get('pending'):return item['pending']
             fire = parse_datetime(item.get('nextFireAt'))
             if not item['enabled'] or fire is None or fire > at:return None
-            next_fire = store.iso(_entry_next_fire(item['schedule'], max(at, fire)))
+            next_fire = calculator.iso(_entry_next_fire(item['schedule'], max(at, fire)))
             late = (at - fire).total_seconds() > item['graceSec']
             if late and (item['schedule']['kind'] == 'once' or item['misfirePolicy'] == 'skip'):
                 # Same expiry/coalescing rules as the legacy scheduler; no Event.
-                item.update(nextFireAt=next_fire, lastOutcome='expired' if item['schedule']['kind'] == 'once' else 'skipped', lastScheduledAt=store.iso(fire))
+                item.update(nextFireAt=next_fire, lastOutcome='expired' if item['schedule']['kind'] == 'once' else 'skipped', lastScheduledAt=calculator.iso(fire))
                 if item['schedule']['kind'] == 'once':item['enabled'] = False
                 self.write(db, item)
                 return None
-            scheduled = store.iso(fire)
+            scheduled = calculator.iso(fire)
             identity = json.dumps([OWNER, item['id'], item['revision'], scheduled], separators=(',', ':'))
             event_id = 'evt_schedule_' + hashlib.sha256(identity.encode()).hexdigest()
             emitted = datetime.now(timezone.utc).isoformat()

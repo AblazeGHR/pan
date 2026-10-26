@@ -306,6 +306,13 @@ class FinalService:
                 if op == "transfer-owner":
                     error("unsupported_operation", "Owner transfer needs its explicit composition contract")
                 if transition["state"] == "enabled":
+                    if kind == "event_creator":
+                        source = self.creators.get(object_id)
+                        adoption = source.get("pendingAdoption")
+                        if adoption and not adoption["publicationSettled"]:
+                            error("pending_publication", "Explicitly settle source publication before activation")
+                        from packages.scheduler.source_migration import validate_successors
+                        validate_successors(self, source)
                     self._references(db, kind, definition(kind, item), object_id=object_id, enabled=True)
                     db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, object_id, fc.canonical_json(actor)))
                 if kind == "event_creator":
@@ -898,10 +905,18 @@ class FinalService:
         result = await evaluate(target.get("condition"), self.state_reader, {})
         return await asyncio.to_thread(self.admit_event, event, target, condition_result=result)
 
-    async def tick(self):
+    def refresh_subscriptions(self):
         with self.transaction() as db:
             self.bus.subscriptions = {item["id"]: {**item, "subscriptionId": item["id"],
                 "creatorIds": item["creatorSelector"].get("ids", [])} for item in self._all(db, "trigger")}
+
+    def scheduler_migration(self, legacy_events):
+        """Explicit reviewed handoff port; never instantiated by startup scans."""
+        from packages.scheduler.source_migration import SourceMigration
+        return SourceMigration(self, legacy_events)
+
+    async def tick(self):
+        self.refresh_subscriptions()
         await self.creator_runtime.tick()
         for event in await asyncio.to_thread(self.events.page):
             snapshot = await asyncio.to_thread(self.events.get, event["eventId"])
@@ -958,6 +973,8 @@ class FinalService:
                     self._save(db, "job", job_id, job)
 
     def _guard_creator(self, item):
+        from packages.scheduler.source_migration import validate_successors
+        validate_successors(self, item)
         with self.transaction(readonly=True) as db:
             row = db.execute("SELECT document FROM final_authorities WHERE kind='event_creator' AND id=?", (item["id"],)).fetchone()
             if row is None:
@@ -1027,7 +1044,7 @@ def bind(app, automation, root, *, owner=None):
     service = FinalService(root, automation.auth, automation_ledger=automation.ledger, owner=owner)
     import os
     from packages.core import background_jobs
-    from packages.scheduler.store import data_root
+    from packages.core.platform.data_paths import job_root as data_root
     service.legacy_roots = [Path(os.environ.get("PAN_BACKGROUND_JOBS_DIR") or background_jobs.DEFAULT_ROOT), data_root()]
     service.state_reader = automation.engine.state_reader
     automation.events.owner_fence = service.owner

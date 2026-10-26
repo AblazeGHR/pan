@@ -73,9 +73,9 @@ def _view(job: dict) -> dict:
 
 
 def _job_root():
-    from packages.scheduler import store as scheduler_store
+    from packages.core.platform.data_paths import job_root
 
-    return scheduler_store.data_root()
+    return job_root()
 
 
 def _find_job(job_id: str) -> dict | None:
@@ -665,9 +665,9 @@ async def delete_job(job_id: str):
         return _err("unsupported_operation", "independent Job record deletion is not available in this phase")
     try:
         if job.get("kind") == background_jobs.SCHEDULED_TASK_KIND:
-            from packages.scheduler import store as scheduler_store
+            from packages.jobs.scheduled_records import delete_task
             task_id = job.get("taskId") or job["jobId"]
-            ok = await asyncio.to_thread(scheduler_store.delete_task, task_id)
+            ok = await asyncio.to_thread(delete_task, task_id, root=_job_root())
             if not ok:
                 ok = await asyncio.to_thread(background_jobs.delete_job, job["jobId"], registry_root=_job_root())
         else:

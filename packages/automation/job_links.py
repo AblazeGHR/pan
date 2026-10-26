@@ -20,7 +20,7 @@ class Links:
         return False  # Historical completion cannot authorize a source pass.
 
     def references(self, source_id):
-        from packages.scheduler.time_events import EVENT_TYPE
+        from packages.scheduler.time_contract import EVENT_TYPE
         refs = {row['triggerId']: {**row, 'name': 'Historical setup', 'enabled': False}
                 for row in self.sources.references(source_id)}
         for item in self.ledger.read()['triggers'].values():

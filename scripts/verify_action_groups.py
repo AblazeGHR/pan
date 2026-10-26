@@ -24,7 +24,7 @@ async def main():
     from mcp.client.stdio import stdio_client
     from packages.core import config, session, workspace, background_jobs, session_drafts
     from packages.core.terminal import registry
-    from packages.scheduler import store as scheduler
+    from packages.core.platform import data_paths as scheduler
 
     runtime = REPO / '.validation' / 'action-groups' / ('live-' + __import__('uuid').uuid4().hex[:10])
     runtime.mkdir(parents=True)
@@ -35,7 +35,6 @@ async def main():
     workspace.WORKSPACE_DIR = runtime / 'data' / 'workspaces'
     background_jobs.DEFAULT_ROOT = runtime / 'data' / 'background_jobs'
     scheduler.DEFAULT_ROOT = background_jobs.DEFAULT_ROOT
-    scheduler.LEGACY_TASKS_ROOT = runtime / 'data' / 'scheduler'
     registry.DEFAULT_REGISTRY_ROOT = runtime / 'data' / 'terminals'
     from packages.web import server as web
     from packages.core.character import CharacterManager

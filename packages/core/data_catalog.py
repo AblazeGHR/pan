@@ -49,7 +49,7 @@ def _path(label: str, value: str | Path, *, source: str = "default",
 
 
 def _jobs_root() -> tuple[Path, str, bool]:
-    # Keep the same precedence as packages.scheduler.store.data_root(), which
+    # Keep the same precedence as core.platform.data_paths.job_root(), which
     # is also the root used by the unified /api/jobs API.
     for name in ("PAN_SCHEDULER_DIR", "PAN_BACKGROUND_JOBS_DIR"):
         raw = os.environ.get(name)
