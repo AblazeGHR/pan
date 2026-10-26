@@ -58,7 +58,7 @@ import { registerLockedEnqueueHandler } from '@/shortcuts/composerBridge';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
 import { getShortcutActions } from '@/shortcuts/registry';
 import { bindingFromEvent, findBindingConflicts, formatBinding, platformBinding, resolveBinding } from '@/shortcuts/bindings';
-import { hasOpenModal, isShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
+import { hasOpenModal, isComposerShortcutTarget, isShortcutRecording } from '@/shortcuts/useGlobalShortcuts';
 import {
   ChevronDown,
   ChevronUp,
@@ -2234,6 +2234,14 @@ export function InputRow() {
                 <div className="relative">
                   <button
                     id="send-queue-button"
+                    // The queue is an overlay above the composer, not a focus
+                    // destination. Preventing the mousedown default keeps the
+                    // caret (and any IME composition) in the input while the
+                    // panel expands or collapses; focus only moves when the
+                    // user actually clicks or tabs into a queue control.
+                    onMouseDown={(event) => {
+                      if (isComposerShortcutTarget(document.activeElement)) event.preventDefault();
+                    }}
                     onClick={togglePanel}
                     title={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}
                     aria-label={queueCount > 0 ? `发送队列（${queueCount} 条待发）` : '发送队列'}

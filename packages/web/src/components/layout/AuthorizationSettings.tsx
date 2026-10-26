@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Field, inputClass } from '@/components/jobs/ScheduleListEditor';
-import { automationLogin, useAutomationAuth } from '@/stores/automationStore';
+import { automationLogin, automationLogout, automationRequest, useAutomationAuth } from '@/stores/automationStore';
 
 const PERMISSIONS = {
   trigger: ['read', 'create', 'updateConfig', 'lifecycle', 'delete'],
@@ -11,10 +11,10 @@ const PERMISSIONS = {
 } as const;
 type PermissionKind = keyof typeof PERMISSIONS;
 type Permissions = Record<PermissionKind, Record<string, boolean>>;
-type Status = { configured: boolean; revision: string; authorizationRevision: number; permissions: Permissions };
+type Status = { configured: boolean; revision: string; authorizationRevision: number; permissions: Permissions; sessionDays: number };
 
 export function AuthorizationSettings() {
-  const token = useAutomationAuth((state) => state.token);
+  const token = useAutomationAuth((state) => state.token || state.authenticated);
   const clear = useAutomationAuth((state) => state.clear);
   const [status, setStatus] = useState<Status | null>(null);
   const [key, setKey] = useState('');
@@ -26,16 +26,13 @@ export function AuthorizationSettings() {
   const [error, setError] = useState('');
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [permissionRevision, setPermissionRevision] = useState(0);
+  const [sessionDays, setSessionDays] = useState(0);
 
   useEffect(() => {
     if (!token) { setStatus(null); return; }
     let cancelled = false;
-    void fetch('/api/automation/authorization', { headers: { Authorization: `Bearer ${token}` } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Authorization status unavailable');
-        return response.json() as Promise<Status>;
-      })
-      .then((value) => { if (!cancelled) { setStatus(value); setPermissions(value.permissions); setPermissionRevision(value.authorizationRevision); } })
+    void automationRequest<Status>('automation/authorization')
+      .then((value) => { if (!cancelled) { setStatus(value); setPermissions(value.permissions); setPermissionRevision(value.authorizationRevision); setSessionDays(value.sessionDays ?? 0); } })
       .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Authorization status unavailable'); });
     return () => { cancelled = true; };
   }, [token]);
@@ -50,12 +47,7 @@ export function AuthorizationSettings() {
   const savePermissions = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
-      const response = await fetch('/api/automation/authorization/permissions', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ permissions, expectedRevision: permissionRevision }),
-      });
-      const body = await response.json().catch(() => ({})) as { detail?: string; revision?: number; permissions?: Permissions };
-      if (!response.ok) throw new Error(body.detail || `Permission save failed (${response.status})`);
+      const body = await automationRequest<{ revision: number; permissions: Permissions }>('automation/authorization/permissions', 'PUT', { permissions, expectedRevision: permissionRevision });
       if (body.permissions) setPermissions(body.permissions);
       if (typeof body.revision === 'number') setPermissionRevision(body.revision);
       setMessage('Permission matrix saved and active for new operations.');
@@ -68,13 +60,7 @@ export function AuthorizationSettings() {
     if (newPassword !== confirmNewPassword) { setError('New password confirmation does not match.'); return; }
     setBusy(true);
     try {
-      const response = await fetch('/api/automation/authorization', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword, expectedRevision: status?.revision }),
-      });
-      const body = await response.json().catch(() => ({})) as { detail?: string };
-      if (!response.ok) throw new Error(body.detail || `Password change failed (${response.status})`);
-      setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword(''); setMessage('Password changed. Please log in again with the new password.');
+      await automationRequest('automation/authorization', 'PUT', { currentPassword, newPassword, confirmNewPassword, expectedRevision: status?.revision });
       clear(); setStatus(null);
     } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Password change failed'); }
     finally { setBusy(false); }
@@ -83,10 +69,23 @@ export function AuthorizationSettings() {
   return <div className="space-y-4">
     <section className="rounded border border-border-default p-3 text-xs space-y-2">
       <h3 className="font-semibold text-text-primary">Local Authorization</h3>
-      <p className="text-text-secondary">The local user key is stored in the profile as <code>automation/user.key</code>. Bearer sessions stay in memory and are revoked after a password change.</p>
+      <p className="text-text-secondary">The local user key is stored in the profile as <code>automation/user.key</code>. Sessions are restored by an HttpOnly cookie and all sessions are revoked after a password change.</p>
       <p role="status" className="text-text-secondary">Login status: {token ? 'Logged in' : 'Logged out'} · key configured: {status?.configured ? 'Yes' : token ? 'Unknown' : 'Log in to check'}</p>
+      {token && <Button disabled={busy} onClick={() => void automationLogout().catch(() => setError('Server logout could not be confirmed.'))}>Log out</Button>}
       {!token && <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void login(); }}><Field label="Current local password"><input className={inputClass} type="password" autoComplete="current-password" value={key} onChange={(event) => setKey(event.target.value)} required /></Field><Button type="submit" disabled={busy}>Log in</Button></form>}
     </section>
+    {token && <section className="rounded border border-border-default p-3 space-y-3">
+      <Field label="Long login duration"><select className={inputClass} value={sessionDays} disabled={busy} onChange={async (event) => {
+        const days = Number(event.target.value); setBusy(true); setError(''); setMessage('');
+        try {
+          const saved = await automationRequest<{ sessionDays: number }>('automation/settings', 'PUT', { sessionDays: days });
+          setSessionDays(saved.sessionDays); useAutomationAuth.setState({ sessionDays: saved.sessionDays });
+          setMessage('Login duration saved for this profile.');
+        } catch (reason: unknown) { setError(reason instanceof Error ? reason.message : 'Login duration save failed'); }
+        finally { setBusy(false); }
+      }}>{[0, 7, 30, 90].map((days) => <option key={days} value={days}>{days} days</option>)}</select></Field>
+      <p className="text-xs text-text-secondary">0 = long login disabled: the cookie expires when the browser closes; server sessions expire after 12 hours. Other values use sliding expiration and apply to all sessions.</p>
+    </section>}
     {token && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void change(event)}>
       <h3 className="font-semibold text-text-primary">Change password</h3>
       <p className="text-[11px] text-text-secondary">Use 16-128 printable ASCII characters and at least 3 of lowercase, uppercase, digit, and symbol.</p>

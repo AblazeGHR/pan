@@ -14,7 +14,7 @@ import { EventRegister } from '@/components/automation/EventRegister';
 import { DraftBoundary } from '@/components/automation/DraftBoundary';
 
 function Login() {
-  const token = useAutomationAuth((s) => s.token);
+  const token = useAutomationAuth((s) => s.token || s.authenticated);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ function AutomationContent() {
     if (editor && !leaveGuard.current?.()) return;
     setEditor({ key: ++editorSequence.current, initial });
   }
-  const authorizationToken = useAutomationAuth((state) => state.token);
+  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   useEffect(() => { void refresh(); }, [refresh, authorizationToken]);
   return <section aria-label="Automation management" className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div className="mx-auto max-w-6xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Automation</h1><p className="mt-1 text-sm text-text-secondary">Jobs, event subscriptions and reusable time sources</p></div><div className="flex flex-wrap gap-2"><Link className="rounded border border-border-default p-2 text-sm" to="/automation/canonical">Canonical Jobs</Link><Link className="rounded border border-border-default p-2 text-sm" to="/actions">Manage Actions</Link><Button disabled={loading} onClick={() => void reload()}>Refresh</Button></div></header>

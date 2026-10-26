@@ -68,6 +68,11 @@ import { QqPluginsPanel } from './QqPluginsPanel';
 import { LocalPluginPanelsSettings } from './LocalPluginPanelsSettings';
 import { ShortcutsSettings } from './ShortcutsSettings';
 import { CodexNativePassthrough } from '@/components/session/CodexNativePassthrough';
+import {
+  lockerNotificationPermission,
+  requestLockerNotificationPermission,
+} from '@/services/lockerDesktopNotify';
+import type { LockerNotificationPermission } from '@/services/lockerDesktopNotify';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { reorderViewEntryIds, useViewEntries } from './viewEntries';
 import { resolveDropZone } from '@/components/session/sessionDrag';
@@ -497,6 +502,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
     setShowHistorySearch,
     setChatViewStyle,
     setCodexWarningToast,
+    setLockerDesktop,
     setConfirmCrossWorkspaceManagement,
     setConfirmAgentSystemQueueEdit,
     saveReportWorkerKillErrors,
@@ -584,6 +590,25 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
   // value, which the switch then honestly keeps showing.
   const [killReportSaving, setKillReportSaving] = useState(false);
   const [killReportError, setKillReportError] = useState<string | null>(null);
+
+  // Locker desktop notifications: the switch stores a preference, the browser
+  // owns the permission. Re-read it on every open, because the user can change
+  // it in the browser's site settings while Pan is running.
+  const [lockerPermission, setLockerPermission] = useState<LockerNotificationPermission>(
+    lockerNotificationPermission,
+  );
+  useEffect(() => {
+    if (open) setLockerPermission(lockerNotificationPermission());
+  }, [open]);
+
+  const toggleLockerDesktopNotify = async (next: boolean) => {
+    setLockerDesktop(next);
+    if (!next) return;
+    // Permission must be requested inside the switch's user gesture. A denied
+    // answer keeps the stored preference: allowing the site later starts the
+    // alerts without another visit to this panel.
+    setLockerPermission(await requestLockerNotificationPermission());
+  };
 
   const toggleReportWorkerKillErrors = useCallback(async (value: boolean) => {
     if (killReportSaving) return;
@@ -1474,6 +1499,40 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             <section>
               <CompletionBridgeDefaultsPanel />
               <UnreadRecordingPanel />
+              <div className="mb-5" data-testid="locker-desktop-notify-section">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
+                  Locker
+                </h3>
+                <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
+                  <SwitchRow
+                    label="Locker new messages"
+                    hint={
+                      lockerPermission === 'unsupported'
+                        ? 'This browser does not support system notifications.'
+                        : 'System notification only while this page is in the background.'
+                    }
+                    checked={notifications.lockerDesktop}
+                    disabled={lockerPermission === 'unsupported'}
+                    onChange={(v) => void toggleLockerDesktopNotify(v)}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  Off by default. Reuses the 30-second Locker unread poll: one notification per
+                  increase while Pan is in the background, never on first load and never when
+                  messages are read. Clicking the notification opens Locker.
+                </p>
+                {notifications.lockerDesktop && lockerPermission === 'denied' && (
+                  <div
+                    role="alert"
+                    data-testid="locker-notification-denied"
+                    className="mt-2 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger"
+                  >
+                    Browser notification permission is denied for this site. Locker alerts stay
+                    silent until notifications are allowed in the browser's site settings; the
+                    switch keeps your preference.
+                  </div>
+                )}
+              </div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
                 CLI adapter warnings
               </h3>

@@ -247,10 +247,9 @@ it('renders loading and list errors with a retry', async () => {
   click('刷新列表');
   await screen.findByText('Example');
 });
-it('keeps legacy navigation and performs no legacy transport requests', async () => {
+it('keeps canonical navigation and performs no legacy transport requests', async () => {
   host();
   await screen.findByText('Example');
-  expect(screen.getByRole('link', { name: 'Legacy Jobs' }).getAttribute('href')).toBe('/jobs');
   expect(screen.getByRole('link', { name: 'Automation' }).getAttribute('href')).toBe('/automation');
   expect(vi.mocked(fetch).mock.calls.every(([url]) => /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(String(url)))).toBe(
     true,

@@ -52,9 +52,8 @@ try {
   }
   await page.screenshot({ path: `${evidence}/terminal-desktop.png`, fullPage: true });
   await page.reload();
-  await page.getByLabel('Local user key', { exact: true }).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await expect(row.locator('.locker-status')).toHaveText('无需回答 · No answer needed');
+  await expect(page.getByRole('button', { name: 'Log in', exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await row.scrollIntoViewIfNeeded();
   await expect(row.locator('.locker-status')).toBeVisible();

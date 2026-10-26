@@ -86,6 +86,9 @@ export function useGlobalShortcuts(navigate: (to: string) => void): void {
       const action = owners[0]!;
       if (action.composerOnly) return;
       if (shouldIgnoreShortcutEvent(event, platform, action.allowInComposer === true)) return;
+      // Scoped actions must not consume the chord when their surface is
+      // missing (closed queue panel, no selection, update in flight).
+      if (action.isEnabled && !action.isEnabled()) return;
       event.preventDefault();
       event.stopPropagation();
       action.run({ navigate });

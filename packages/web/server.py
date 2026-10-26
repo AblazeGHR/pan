@@ -15149,6 +15149,166 @@ async def api_fs_delete(data: dict):
         return {"error": str(e)}
 
 
+# ── Editor: open one file with the system default application ──
+
+_EXTERNAL_OPEN_TIMEOUT_SECONDS = 2.0
+
+
+class ExternalOpenUnavailable(RuntimeError):
+    """This server/platform has no way to open a file with a system handler."""
+
+
+class ExternalOpenFailed(RuntimeError):
+    """The platform opener could not be started or exited with an error."""
+
+
+def _external_opener_argv(target: Path, platform: str | None = None) -> list[str] | None:
+    """Return the fixed opener argv for `platform`, or None when unavailable.
+
+    The caller supplies a filesystem path only; no part of the opener command
+    comes from the request, so this can never execute an arbitrary program.
+    Windows has no argv form (it uses ``os.startfile``).
+    """
+    selected = platform or sys.platform
+    if selected == "darwin":
+        return ["open", str(target)]
+    if selected.startswith("linux"):
+        opener = shutil.which("xdg-open")
+        return [opener, str(target)] if opener else None
+    return None
+
+
+def _reap_external_opener(process: "subprocess.Popen") -> None:
+    """Reap an opener that is still running, outside the request's thread.
+
+    Only the exit status is logged; the user's path never reaches the log.
+    """
+
+    def reap() -> None:
+        returncode = process.wait()
+        if returncode != 0:
+            logging.getLogger("pan.web.editor_open").warning(
+                "system file opener exited with status %s", returncode
+            )
+
+    threading.Thread(target=reap, name="external-open-reaper", daemon=True).start()
+
+
+def _opener_error_detail(exc: OSError) -> str:
+    """Readable opener failure without echoing the user's full path."""
+    code = getattr(exc, "winerror", None) or exc.errno
+    suffix = f" {code}" if code else ""
+    return f"system file opener failed ({type(exc).__name__}{suffix})"
+
+
+def _open_file_with_system_default(target: Path) -> None:
+    """Open one existing file with the OS default handler, never via a shell."""
+    if sys.platform == "win32":
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise ExternalOpenUnavailable("no system file opener is available")
+        try:
+            startfile(str(target))
+        except OSError as exc:
+            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+        return
+
+    argv = _external_opener_argv(target)
+    if argv is None:
+        raise ExternalOpenUnavailable("no system file opener is available")
+    try:
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+    except FileNotFoundError as exc:
+        raise ExternalOpenUnavailable("no system file opener is available") from exc
+    except OSError as exc:
+        raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+
+    try:
+        returncode = process.wait(timeout=_EXTERNAL_OPEN_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        # Editors and browsers often keep the launcher alive after the window
+        # opens. The file was handed off, so report success and reap the child
+        # out of band instead of holding the request open.
+        _reap_external_opener(process)
+        return
+    if returncode != 0:
+        raise ExternalOpenFailed(f"system file opener exited with status {returncode}")
+
+
+def _editor_open_allowed_roots(session_id: str) -> list[Path]:
+    """Filesystem roots a Session may hand to the system opener.
+
+    Mirrors the roots the server can verify: the Session workdir and the dirs
+    of the Session's effective Workspace. Browser-only Temp roots are excluded
+    on purpose — the client cannot grant itself filesystem access.
+    """
+    roots: list[Path] = []
+    session = _summary_session_get(session_id)
+    if session is not None and getattr(session, "workdir", None):
+        roots.append(Path(session.workdir))
+    for workspace_id in sess.effective_workspace_ids(session_id):
+        workspace = workspaces.get(workspace_id)
+        if workspace is None:
+            continue
+        for raw in workspace.dirs:
+            if isinstance(raw, str) and raw.strip():
+                roots.append(Path(raw))
+    return roots
+
+
+@app.post("/api/editor/open-external")
+async def api_editor_open_external(data: dict):
+    """Open one Editor file with the operating system's default application.
+
+    The request carries a path, never a command. It is resolved with the same
+    containment rules as the Editor read path (``..``, absolute escapes and
+    symlink targets are resolved first) and must stay inside the Session
+    workdir or one of its Workspace dirs.
+    """
+    session_id = data.get("session_id")
+    raw_path = data.get("path")
+    if not isinstance(session_id, str) or not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    if not isinstance(raw_path, str) or not raw_path.strip() or "\x00" in raw_path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    try:
+        target = _resolve_fs_path(session_id, raw_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        # Unresolvable syntax (for example a drive-relative Windows name) and
+        # symlink loops are client errors, not server failures.
+        raise HTTPException(status_code=400, detail="Invalid path") from exc
+    # Check containment before existence so traversal never distinguishes
+    # existing from missing files outside the allowed roots.
+    roots = _editor_open_allowed_roots(session_id)
+    if not roots or not _path_is_allowed(target, roots):
+        raise HTTPException(
+            status_code=403,
+            detail="Path is outside the allowed workspace roots",
+        )
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {target.name}")
+    if not target.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {target.name}")
+
+    try:
+        # Off the event loop: Popen/wait may block briefly on a slow handler.
+        await asyncio.to_thread(_open_file_with_system_default, target)
+    except ExternalOpenUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except ExternalOpenFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "name": target.name}
+
+
 # ── React SPA ──
 if REACT_DIST_EXISTS:
     react_name = (

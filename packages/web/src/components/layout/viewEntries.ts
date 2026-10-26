@@ -31,7 +31,6 @@ export type ViewEntry = {
 export const entries: ViewEntry[] = [
   { id: 'builtin:chat', to: '/', label: 'Chat', icon: MessageSquare, end: true },
   { id: 'builtin:editor', to: '/editor', label: 'Editor', icon: Code },
-  { id: 'builtin:jobs', to: '/jobs', label: 'Jobs', icon: ListChecks },
   { id: 'builtin:terminals', to: '/terminals', label: 'Terminal', icon: TerminalSquare, capability: 'terminal.native' },
   { id: 'builtin:locker', to: '/locker', label: 'Locker', icon: PanelsTopLeft },
   { id: 'builtin:actions', to: '/actions', label: 'Actions', icon: PanelsTopLeft },

@@ -234,6 +234,13 @@ export interface AppSettings {
   notifications: {
     /** Show structured Codex warning events through a Toast. */
     codexWarningToast: boolean;
+    /**
+     * Send one system (desktop) notification when the user Locker's unread
+     * total grows while the page is in the background. Off by default; the
+     * browser permission is requested when the switch is turned on, and the
+     * stored preference survives a denied permission.
+     */
+    lockerDesktop: boolean;
     completionBridge?: CompletionBridgeDefaults;
     /**
      * Which Sessions record done unread. Persisted globally in
@@ -269,6 +276,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   shortcuts: {},
   notifications: {
     codexWarningToast: true,
+    lockerDesktop: false,
     completionBridge: DEFAULT_COMPLETION_BRIDGE,
     unreadRecording: DEFAULT_UNREAD_RECORDING,
     confirmCrossWorkspaceManagement: true,
@@ -382,6 +390,10 @@ export function sanitizeSettings(
         typeof notifications.codexWarningToast === 'boolean'
           ? notifications.codexWarningToast
           : DEFAULT_SETTINGS.notifications.codexWarningToast,
+      lockerDesktop:
+        typeof notifications.lockerDesktop === 'boolean'
+          ? notifications.lockerDesktop
+          : DEFAULT_SETTINGS.notifications.lockerDesktop,
       confirmCrossWorkspaceManagement:
         typeof notifications.confirmCrossWorkspaceManagement === 'boolean'
           ? notifications.confirmCrossWorkspaceManagement
@@ -415,6 +427,8 @@ interface AppSettingsStore extends AppSettings {
   /** Restore every action to its built-in default (new actions stay unbound). */
   resetAllShortcuts: () => Promise<void>;
   setCodexWarningToast: (v: boolean) => void;
+  /** Persist the Locker desktop-notification switch. */
+  setLockerDesktop: (v: boolean) => void;
   saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
   /**
    * Persist the unread-recording scope set. Resolves only after the server
@@ -674,6 +688,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
         },
       }));
       persist({ notifications: { codexWarningToast: v } });
+    },
+
+    setLockerDesktop: (v) => {
+      set((s) => ({ notifications: { ...s.notifications, lockerDesktop: v } }));
+      persist({ notifications: { lockerDesktop: v } });
     },
 
     setConfirmCrossWorkspaceManagement: (v) => {

@@ -34,8 +34,8 @@ try {
   await expect(page.getByLabel('Query text value').first()).toHaveValue('combined-target');
   await page.screenshot({path:out + '/production-action.png',fullPage:true});
   await page.goto(base + '/react/automation');
-  await page.getByLabel('Local user key',{exact:true}).fill(process.env.PAN_TEST_JOB_KEY);
-  await page.getByRole('button',{name:'Log in',exact:true}).click();
+  // A full navigation restores the Cookie session from the earlier settings login.
+  await expect(page.getByRole('button',{name:'Log in',exact:true})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Log out',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Automation',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Runs',exact:true}).click();

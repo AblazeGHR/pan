@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useQueueStore } from '@/stores/queueStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { copyText } from '@/utils/clipboard';
 import { QueueSourceSession } from '@/components/chat/QueueSourceSession';
+import { registerQueueSelectedEditHandler } from '@/shortcuts/queueBridge';
 import { Pencil, ArrowUp, ArrowDown, Trash2, Check, ClipboardList, Copy, Pause, Play, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 
 const EMPTY: AgentQueueItem[] = [];
@@ -112,6 +113,10 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
   const items = (useQueueStore((state) => sessionId ? state.queues[sessionId] : undefined) ?? EMPTY)
     .filter((item) => item.meta?.dispatchState === 'queued');
   const edit = useQueueStore((state) => sessionId ? state.edits[sessionId] : null);
+  // Shared with the shortcut actions: the keyboard highlight must be reachable
+  // from the registry's run() even while the composer owns focus.
+  const selectedId = useQueueStore((state) => sessionId ? state.queueSelection[sessionId] ?? null : null);
+  const setQueueSelection = useQueueStore((state) => state.setQueueSelection);
   const load = useQueueStore((state) => state.loadForSession);
   const setReportsPaused = useQueueStore((state) => state.setAgentReportsPaused);
   const setItemLocked = useQueueStore((state) => state.setQueueItemLocked);
@@ -150,7 +155,7 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
   // Mobile-only: collapsed toolbar of queue-wide actions. Defaults to collapsed
   // and is re-collapsed on session switch so state never leaks across sessions.
   const [actionsOpen, setActionsOpen] = useState(false);
-  const requestEdit = async (item: AgentQueueItem) => {
+  const requestEdit = useCallback(async (item: AgentQueueItem) => {
     if (!sessionId || useQueueStore.getState().edits[sessionId]) return;
     const requestedSession = sessionId;
     await useAppSettingsStore.getState().ensureSettingsLoaded();
@@ -158,7 +163,18 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
     if (!(item.kind === 'task' && item.source === 'user') && useAppSettingsStore.getState().notifications.confirmAgentSystemQueueEdit) {
       setConfirmation({ sessionId: requestedSession, itemId: item.id });
     } else startEdit(item.id);
-  };
+  }, [sessionId, startEdit]);
+  // `queue.editSelected` reuses this exact transaction (confirmation, lease,
+  // composer hand-off) instead of re-implementing it in the registry.
+  useEffect(() => registerQueueSelectedEditHandler((requestedSession, itemId) => {
+    if (!sessionId || requestedSession !== sessionId) return false;
+    if (useSessionStore.getState().currentSessionId !== requestedSession) return false;
+    const item = (useQueueStore.getState().queues[requestedSession] ?? [])
+      .find((candidate) => candidate.id === itemId);
+    if (!item || item.meta?.dispatchState !== 'queued') return false;
+    void requestEdit(item);
+    return true;
+  }), [requestEdit, sessionId]);
   useEffect(() => { load(sessionId); setConfirmation(null); setActionsOpen(false); }, [load, sessionId]);
 
   const displayItems = useMemo(() => {
@@ -173,6 +189,23 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
     }
     return copy;
   }, [edit, items]);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!sessionId) return;
+    // Drop a highlight that belongs to a closed panel or a row that is gone;
+    // otherwise the next Alt+Arrow would continue from an invisible position.
+    const missing = selectedId !== null && !displayItems.some((item) => item.id === selectedId);
+    if (!open || missing) setQueueSelection(sessionId, null);
+  }, [displayItems, open, selectedId, sessionId, setQueueSelection]);
+
+  useEffect(() => {
+    if (!open || !selectedId) return;
+    // Keyboard selection may land outside the scroll viewport. `nearest`
+    // keeps a hover-selected row (already visible) perfectly still.
+    listRef.current?.querySelector<HTMLElement>('[data-queue-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, selectedId]);
 
   const allLocked = items.length > 0 && items.every((item) => item.meta?.locked === true);
   const hasQueued = items.some((item) => item.meta?.dispatchState === 'queued');
@@ -350,7 +383,7 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
               </div>
             </div>
           </div>
-          <div className="queue-list-scroll max-h-[45dvh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
+          <div ref={listRef} className="queue-list-scroll max-h-[45dvh] overflow-y-auto rounded-md border border-border-muted bg-bg-secondary">
             {displayItems.length === 0 ? (
               <div className="px-3 py-3 text-center text-xs text-text-tertiary">队列为空</div>
             ) : (
@@ -358,6 +391,9 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
                 {displayItems.map((item, index) => {
                   const editable = item.meta?.dispatchState === 'queued';
                   const locked = item.meta?.locked === true;
+                  // Keyboard selection and pointer hover share the very same
+                  // `bg-bg-hover` token, so both states are visually identical.
+                  const selected = item.id === selectedId;
                   const illegalLock = locked && item.meta?.lockSource === 'illegal';
                   // Report-policy lock materialized by Pause reports; identified by
                   // the structured queueLockAutoReport flag, never by body text.
@@ -374,8 +410,17 @@ export function SendQueuePanel({ nativeMode = false, onNewRemindingCard, remindi
                     : runtimeWorker?.sessionId !== sessionId || runtimeWorker?.status !== 'running' ? 'Steer 需要正在运行的 Worker；idle 时优先执行待重启'
                     : steering.has(`${sessionId}:${item.id}`) ? '正在执行 Steer'
                     : !editable ? '条目已不在待发队列' : '';
+                  // Pointer wins: entering a row moves the highlight here.
+                  // Leaving does not clear it, so the keyboard continues from
+                  // the row the mouse last touched.
                   return (
-                    <div key={item.id} className="queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover">
+                    <div
+                      key={item.id}
+                      data-queue-row={item.id}
+                      data-queue-selected={selected ? 'true' : undefined}
+                      onMouseEnter={() => { if (sessionId) setQueueSelection(sessionId, item.id); }}
+                      className={`queue-row-in group flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-bg-hover ${selected ? 'bg-bg-hover' : ''}`}
+                    >
                       <>
                           <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1 py-px text-[10px] leading-tight text-text-secondary">{label(item)} {item.kind}</span>
                           <button

@@ -444,7 +444,7 @@ function Card({
 }
 export default function LockerView() {
   const sidebarPanel = useContext(SidebarPanelContext);
-  const token = useAutomationAuth((state) => state.token);
+  const token = useAutomationAuth((state) => state.token || state.authenticated);
   const navigate = useNavigate();
   const activeWorkspaceId = useUIStore((state) => state.activeWorkspaceId);
   const workspaces = useWorkspaceStore((state) => state.workspaces);
@@ -452,7 +452,7 @@ export default function LockerView() {
   const [storedLockers, setLockers] = useState<Locker[]>([]);
   const [storedItems, setCards] = useState<LockerItem[]>([]);
   const [userCardRowStates, setUserCardRowStates] = useState<Record<string, UserCardRowState>>({});
-  const [loadedToken, setLoadedToken] = useState<string | null>(null);
+  const [loadedToken, setLoadedToken] = useState<string | boolean | null>(null);
   const dataVisible = !!token && loadedToken === token;
   const lockers = dataVisible ? storedLockers : [];
   const cards = dataVisible ? storedItems : [];
@@ -518,7 +518,7 @@ export default function LockerView() {
         allCards.push(...page.cards);
         after = page.nextAfter;
       }
-      if (generation.current !== run || useAutomationAuth.getState().token !== token) return;
+      if (generation.current !== run || (useAutomationAuth.getState().token || useAutomationAuth.getState().authenticated) !== token) return;
       setLockers(sourceResult.lockers.filter((locker) => locker.total > 0));
       setCards(allCards);
       setLoadedToken(token);
@@ -1003,7 +1003,7 @@ export default function LockerView() {
               start > 0 &&
               !prepend.current &&
               !entryNotice &&
-              !entering
+              entryScope.current === scope
             ) {
               prepend.current = { height: node.scrollHeight, top: node.scrollTop };
               setWindowSize(windowItems.length + 50);

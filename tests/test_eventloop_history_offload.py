@@ -24,10 +24,24 @@ import packages.web.server as server
 from packages.core import session as _sess
 
 
-def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch):
+@pytest.mark.parametrize('credential', ['anonymous', 'invalid-cookie', 'cookie', 'bearer'])
+def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch, tmp_path, credential):
     """Header/log policies must not create per-request task/stream graphs."""
     monkeypatch.setattr(server, '_log', lambda line: None)
     monkeypatch.setattr(server, '_LOG_SKIP', [])
+    from types import SimpleNamespace
+    from packages.automation.auth import UserAuth
+    auth = UserAuth(tmp_path / 'auth')
+    token = auth.login(auth.key())
+    async def io(fn, *args):
+        return await asyncio.to_thread(fn, *args)
+    monkeypatch.setattr(server.app.state, 'automation', SimpleNamespace(auth=auth, engine=SimpleNamespace(io=io)), raising=False)
+    headers = {
+        'anonymous': [],
+        'invalid-cookie': [(b'cookie', b'pan_automation_session=invalid.0')],
+        'cookie': [(b'cookie', ('pan_automation_session=' + token + '.0').encode())],
+        'bearer': [(b'authorization', ('Bearer ' + token).encode())],
+    }[credential]
 
     async def run():
         owner = asyncio.current_task()
@@ -51,7 +65,7 @@ def test_http_policies_stream_in_the_request_task_without_body_relay(monkeypatch
         for middleware in reversed(server.app.user_middleware):
             stack = middleware.cls(stack, *middleware.args, **middleware.kwargs)
         await stack({'type': 'http', 'method': 'GET', 'path': '/api/sessions',
-                     'query_string': b'', 'headers': [], 'http_version': '1.1',
+                     'query_string': b'', 'headers': headers, 'http_version': '1.1',
                      'scheme': 'http', 'server': ('test', 80)}, receive, send)
         assert seen == [owner], 'HTTP policies created task/stream relay objects'
         assert [(m.get('body'), m.get('more_body')) for m in messages[1:]] == [

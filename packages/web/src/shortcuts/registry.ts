@@ -7,8 +7,10 @@ import {
 import { useQueueStore } from '@/stores/queueStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
+import type { AgentQueueItem } from '@/types';
 import { runSessionToggleShortcut } from '@/utils/sessionQuickActions';
 import { requestLockedComposerEnqueue } from './composerBridge';
+import { hasQueueSelectedEditHandler, requestQueueSelectedEdit } from './queueBridge';
 
 export type ShortcutGroup = 'General' | 'Panels' | 'Queue' | 'Session' | 'Composer';
 
@@ -31,6 +33,13 @@ export interface ShortcutAction {
    */
   allowInComposer?: boolean;
   composerOnly?: boolean;
+  /**
+   * Runtime gate: a disabled action neither runs nor consumes the key. The
+   * dispatcher checks it before `preventDefault`, so scoped actions (for
+   * example the queue panel) can stay bound without swallowing the same chord
+   * when their surface is not available.
+   */
+  isEnabled?: () => boolean;
   run: (context: ShortcutContext) => void;
 }
 
@@ -44,6 +53,79 @@ function selectedSessionId(): string | null {
   const id = store.currentSessionId;
   if (!id) return null;
   return store.sessions.some((session) => session.id === id) ? id : null;
+}
+
+/** Rows the panel treats as selectable: exactly the still-queued projection. */
+function queuedRows(sessionId: string): AgentQueueItem[] {
+  return (useQueueStore.getState().queues[sessionId] ?? []).filter(
+    (item) => item.meta?.dispatchState === 'queued',
+  );
+}
+
+/**
+ * Scope of the queue-panel shortcuts: the panel must be expanded and the
+ * selected Session must still have queued rows. Native-control Sessions keep
+ * their panel always visible but leave `panelOpen` false, so Alt+Arrow stays
+ * available to the embedded CLI terminal there.
+ */
+function queuePanelScope(): { sessionId: string; items: AgentQueueItem[] } | null {
+  const store = useQueueStore.getState();
+  if (!store.panelOpen) return null;
+  const sessionId = selectedSessionId();
+  if (!sessionId) return null;
+  const items = queuedRows(sessionId);
+  return items.length > 0 ? { sessionId, items } : null;
+}
+
+function selectedQueueIndex(sessionId: string, items: AgentQueueItem[]): number {
+  const selected = useQueueStore.getState().queueSelection[sessionId] ?? null;
+  return selected ? items.findIndex((item) => item.id === selected) : -1;
+}
+
+function selectedQueueRow(): { sessionId: string; item: AgentQueueItem } | null {
+  const scope = queuePanelScope();
+  if (!scope) return null;
+  const index = selectedQueueIndex(scope.sessionId, scope.items);
+  if (index < 0) return null;
+  return { sessionId: scope.sessionId, item: scope.items[index]! };
+}
+
+/**
+ * Move the highlight by one row without wrapping. With nothing selected,
+ * Down starts at the first row and Up at the last one; the boundaries clamp,
+ * so a held chord can never jump to the other end or reorder the queue.
+ */
+function moveQueueSelection(delta: -1 | 1): void {
+  const scope = queuePanelScope();
+  if (!scope) return;
+  const index = selectedQueueIndex(scope.sessionId, scope.items);
+  const next = index < 0
+    ? (delta > 0 ? 0 : scope.items.length - 1)
+    : Math.min(scope.items.length - 1, Math.max(0, index + delta));
+  useQueueStore.getState().setQueueSelection(scope.sessionId, scope.items[next]!.id);
+}
+
+function canSelectQueueRow(): boolean {
+  return queuePanelScope() !== null;
+}
+
+function canEditSelectedQueueRow(): boolean {
+  const target = selectedQueueRow();
+  if (!target) return false;
+  if (!hasQueueSelectedEditHandler()) return false;
+  const store = useQueueStore.getState();
+  if (store.edits[target.sessionId]) return false;
+  const session = useSessionStore.getState().sessions.find(
+    (candidate) => candidate.id === target.sessionId,
+  );
+  return session?.readonlySession !== true;
+}
+
+function canToggleSelectedQueueLock(): boolean {
+  const target = selectedQueueRow();
+  if (!target) return false;
+  const store = useQueueStore.getState();
+  return !store.queueLockUpdating[target.sessionId] && !store.agentReportsPauseUpdating[target.sessionId];
 }
 
 const GENERAL_ACTIONS: ShortcutAction[] = [
@@ -100,6 +182,65 @@ const COMPOSER_ACTIONS: ShortcutAction[] = [
 ].map((action) => ({ ...action, group: 'Composer', composerOnly: true, run: () => {} }));
 
 const QUEUE_ACTIONS: ShortcutAction[] = [
+  {
+    id: 'queue.selectPrevious',
+    label: 'Select previous queued message',
+    description:
+      'Moves the queue-panel highlight up one row without moving or sending it. Only active while the queue panel is open with queued messages; selection clamps at the first row and never wraps.',
+    group: 'Queue',
+    defaultBinding: 'Alt+ArrowUp',
+    allowInComposer: true,
+    isEnabled: canSelectQueueRow,
+    run: () => moveQueueSelection(-1),
+  },
+  {
+    id: 'queue.selectNext',
+    label: 'Select next queued message',
+    description:
+      'Moves the queue-panel highlight down one row without moving or sending it. Only active while the queue panel is open with queued messages; selection clamps at the last row and never wraps.',
+    group: 'Queue',
+    defaultBinding: 'Alt+ArrowDown',
+    allowInComposer: true,
+    isEnabled: canSelectQueueRow,
+    run: () => moveQueueSelection(1),
+  },
+  {
+    id: 'queue.editSelected',
+    label: 'Edit selected queued message',
+    description:
+      'Opens the existing edit flow for the highlighted queue row and fills its body back into the composer. Agent/system confirmation and the edit lease still apply. Only active while the queue panel is open with a selected row; otherwise it does nothing.',
+    group: 'Queue',
+    defaultBinding: 'Alt+Enter',
+    allowInComposer: true,
+    isEnabled: canEditSelectedQueueRow,
+    run: () => {
+      if (!canEditSelectedQueueRow()) return;
+      const target = selectedQueueRow();
+      if (!target) return;
+      // The panel owns the confirmation, lease and composer focus hand-off.
+      requestQueueSelectedEdit(target.sessionId, target.item.id);
+    },
+  },
+  {
+    id: 'queue.toggleSelectedLock',
+    label: 'Lock or unlock selected queued message',
+    description:
+      'Toggles the lock on the highlighted queue row through the existing per-item lock action. Only active while the queue panel is open with a selected row; nothing happens without a selection or while a lock update is running.',
+    group: 'Queue',
+    defaultBinding: 'Alt+L',
+    allowInComposer: true,
+    isEnabled: canToggleSelectedQueueLock,
+    run: () => {
+      if (!canToggleSelectedQueueLock()) return;
+      const target = selectedQueueRow();
+      if (!target) return;
+      void useQueueStore.getState().setQueueItemLocked(
+        target.sessionId,
+        target.item.id,
+        target.item.meta?.locked !== true,
+      );
+    },
+  },
   {
     id: 'queue.togglePanel',
     label: 'Expand or collapse the queue',

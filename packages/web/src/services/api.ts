@@ -111,9 +111,7 @@ import type {
 } from '@/types';
 import type {
   Job,
-  JobCreateInput,
   JobKindMeta,
-  JobPatchInput,
   JobRunRecord,
 } from '@/types/jobs';
 import type { ActionRegistry } from '@/types/actions';
@@ -188,12 +186,19 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
 
 async function request<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
   if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$)|legacy\/jobs(?:\/|$))/.test(url)) {
-    const { useAutomationAuth } = await import('@/stores/automationStore');
-    const token = useAutomationAuth.getState().token;
-    if (token) options = { ...options, headers: { ...options?.headers, Authorization: `Bearer ${token}` } };
+    const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
+    const auth = authStore.getState();
+    options = { ...options, credentials: 'same-origin', headers: {
+      ...options?.headers, ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    } };
   }
   const finish = background ? () => {} : beginForegroundRequest();
   try { return await requestBody<T>(url, options, background, canonical); }
+  catch (error) {
+    const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
+    if (error instanceof ApiRequestError && error.status === 401) authStore.getState().clear();
+    throw error;
+  }
   finally { finish(); }
 }
 
@@ -2307,6 +2312,15 @@ export async function readFile(sessionId: string, path: string): Promise<string>
   return data.content;
 }
 
+/** Ask the Pan server to open one Editor file with the OS default handler. */
+export async function openFileExternally(sessionId: string, path: string): Promise<void> {
+  const data = await request<ApiFsGenericResponse>(`${BASE}/editor/open-external`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, path }),
+  });
+  if (data.error) throw new Error(data.error);
+}
+
 export async function writeFile(
   sessionId: string,
   path: string,
@@ -2538,7 +2552,6 @@ interface ApiJobsResponse { ok?: boolean; jobs?: Job[]; pinMetadataStatus?: 'ava
 interface ApiJobResponse { ok?: boolean; job?: Job; error?: SchedulerApiError; }
 interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: SchedulerApiError; }
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
-interface ApiJobDeleteResponse { ok?: boolean; deleted?: boolean; jobId?: string; error?: SchedulerApiError; }
 
 export interface CompletedJobRetentionRun {
   scannedAt: string;
@@ -2594,35 +2607,7 @@ export async function fetchCompletedJobRetentionSettings(): Promise<{
   };
 }
 
-/** PUT /api/legacy/jobs/settings/completed-retention. */
-export async function updateCompletedJobRetentionSettings(
-  rules: JobRetentionRules,
-): Promise<{
-  settings: CompletedJobRetentionSettings;
-  rules: JobRetentionRules;
-  configValid: boolean;
-  configValidity: Record<JobRetentionRule, boolean>;
-  lastRun: CompletedJobRetentionRun | null;
-  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
-}> {
-  const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/legacy/jobs/settings/completed-retention`,
-    { method: 'PUT', body: JSON.stringify({ rules }) },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
-    throw new Error('Job retention settings missing');
-  }
-  return {
-    settings: data.settings,
-    rules: data.rules,
-    configValid: data.configValid === true,
-    configValidity: data.configValidity,
-    lastRun: data.lastRun ?? null,
-    lastRuns: data.lastRuns,
-  };
-}
-
+/** Legacy retention settings are read-only in the React client. */
 /** GET /api/legacy/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(
   onPinMetadataStatus?: (status: 'available' | 'unavailable') => void,
@@ -2648,27 +2633,7 @@ export async function fetchJob(jobId: string): Promise<Job> {
   return data.job;
 }
 
-/** POST /api/legacy/jobs — creates one of the kinds advertised as creatable by /api/jobs/kinds. */
-export async function createJob(input: JobCreateInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
-/** PATCH /api/legacy/jobs/{id} — kind-specific editable fields; unsupported fields are rejected. */
-export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
 /** Unified Job API. The legacy endpoints remain available for old records. */
 export async function fetchActionRegistry(): Promise<ActionRegistry> {
@@ -2731,14 +2696,6 @@ export async function mutateActionJob(job: Job, operation: 'run-now' | 'cancel' 
       ...(['retry','confirm-recovery'].includes(operation) ? { confirm: true } : {}) });
 }
 
-/** DELETE /api/legacy/jobs/{id}。 */
-export async function deleteJob(jobId: string): Promise<void> {
-  const data = await request<ApiJobDeleteResponse>(
-    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`,
-    { method: 'DELETE' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-}
 
 /** GET /api/legacy/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
 export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRecord[]> {
@@ -2749,27 +2706,8 @@ export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRec
   return data.runs || [];
 }
 
-/** POST /api/legacy/jobs/{id}/run-now — manually trigger a scheduled-task action. */
-export async function runJobNow(jobId: string): Promise<Job> {
-  const data = await request<ApiJobResponse>(
-    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/run-now`,
-    { method: 'POST' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
 /** Persist Pan-owned presentation metadata for every Job kind/owner. */
-export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/pin`, {
-    method: 'PUT', body: JSON.stringify({ pinned }),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
-
 export interface WorkdirRetentionResult {
   candidates: Array<{ name: string; path: string; modifiedAt: string; entries: number }>;
   results: Array<{ name: string; deleted: boolean; reason?: string }>;
@@ -2809,7 +2747,5 @@ export async function fetchLegacyJob(jobId: string): Promise<Record<string, unkn
 }
 
 /** Legacy retry creates another background-process Job; it is not an Attempt. */
-export async function retryLegacyJob(jobId: string): Promise<void> {
-  const data = await request<{ error?: SchedulerApiError }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' });
-  if (data.error) throwSchedulerError(data.error);
-}
+
+

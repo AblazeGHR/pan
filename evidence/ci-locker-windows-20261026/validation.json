@@ -1,0 +1,199 @@
+{
+  "baseline": "5d0c7f1f471e10d21c287b9820e99dd90276e5f9",
+  "ciRun": 40206573331,
+  "ciRunHead": "e8e1763224bf88eb4556b701954534a42c094c01",
+  "pythonVersions": [
+    "3.14.5",
+    "3.12.12"
+  ],
+  "playwright": "1.63.0",
+  "chromium": "153.0.8010.12",
+  "pytest": {
+    "locker-ci-red": {
+      "tests": 4,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 88.485,
+      "cases": [
+        {
+          "name": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "result": "failed"
+        },
+        {
+          "name": "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+          "result": "failed"
+        },
+        {
+          "name": "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart",
+          "result": "failed"
+        },
+        {
+          "name": "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+          "result": "passed"
+        }
+      ]
+    },
+    "locker-scroll-red": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 15.134,
+      "cases": [
+        {
+          "name": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "result": "failed"
+        }
+      ]
+    },
+    "locker-ci-green": {
+      "tests": 4,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 79.534,
+      "cases": [
+        {
+          "name": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "result": "failed"
+        },
+        {
+          "name": "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+          "result": "passed"
+        }
+      ]
+    },
+    "locker-ci-final-314": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 75.821,
+      "cases": [
+        {
+          "name": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+          "result": "passed"
+        }
+      ]
+    },
+    "locker-ci-final-312": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 52.472,
+      "cases": [
+        {
+          "name": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart",
+          "result": "passed"
+        },
+        {
+          "name": "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+          "result": "passed"
+        }
+      ]
+    },
+    "locker-ci-contracts": {
+      "tests": 87,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 9.235
+    }
+  },
+  "frontend": {
+    "files": 2,
+    "passed": 42,
+    "failed": 0,
+    "skipped": 0,
+    "newRegressionBeforeFix": {
+      "failed": 1,
+      "filteredOut": 39,
+      "expectedRows": 100,
+      "actualRows": 50
+    }
+  },
+  "build": {
+    "exitCode": 0,
+    "compressedAssets": 90
+  },
+  "browserChecks": {
+    "scroll": [
+      "all unread: full chronological window, first unread at top with divider, no read writes",
+      "scroll-to-bottom button moves the real timeline to bottom without consuming unread",
+      "explicit first-row read: source entry targets second chronological row and moves divider",
+      "Read all: aggregate and source with no unread enter at latest 50/bottom without divider",
+      "scroll-top display pagination prepends 50 older mixed rows and keeps original anchor",
+      "refresh with new arrival while reading old rows preserves position and sends no read mutations",
+      "switching to aggregate targets the new first unread without marking read",
+      "explicit user read survives browser reload and login without further writes"
+    ],
+    "product": [
+      "real UserAuth login and production Locker APIs, no interception",
+      "real dedicated messages and Cards stably mixed; same Locker, two sources; no fake Card wrapper",
+      "Markdown attachment click downloads actual protected bytes",
+      "actual WorkspaceRail filters ordinary messages and Cards together",
+      "viewing, scrolling and Workspace switching do not mark ordinary messages or Cards read",
+      "manual unread persists through real refresh without a consumption cursor",
+      "source Read all writes the original ordinary-message row",
+      "real choice submit, per-question answer/reject with exact persisted response, reason/no-reason card rejection and terminal deletion",
+      "deleted source retains its ordinary record and unavailable Locker",
+      "1440/768/390/320 light/dark production layout without horizontal overflow",
+      "logout, captured late GET, successor login and actual 401 leave no old-user rows or sources"
+    ],
+    "cold": [
+      "real UserAuth login and production Locker APIs, no interception",
+      "cold restart retains ordinary/Card states, source deletion metadata; ordinary terminal cleanup"
+    ]
+  },
+  "cleanup": {
+    "scrollPortReleased": true,
+    "cardsPortReleased": true,
+    "productRemainingOwnedProcessCount": 0
+  },
+  "markerRaceProbe": {
+    "original": {
+      "readyBeforeWrite": true,
+      "emptyJsonReproduced": true
+    },
+    "atomic": {
+      "readyBeforeWrite": false,
+      "completeAfterPublish": true
+    }
+  },
+  "boundaries": {
+    "pushed": false,
+    "protectedServiceOperations": false,
+    "realProfileUsed": false,
+    "remoteCIOnCandidate": false
+  }
+}
