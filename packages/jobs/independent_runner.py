@@ -250,6 +250,12 @@ def _run_windows_task_on_desktop(root, job_id, claim, payload, env, log_path, de
                 return "UNKNOWN", None, pid, _identity(pid)
 
 def run(root, job_id):
+    from packages.jobs.runtime_owner import OwnerFence
+    with OwnerFence(Path(root).resolve().parent).legacy_pass():
+        return _run_legacy(root, job_id)
+
+
+def _run_legacy(root, job_id):
     root = str(Path(root).resolve())
     with _connect(root) as db:
         job = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()

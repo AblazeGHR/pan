@@ -328,6 +328,14 @@ class Ledger:
         policy = ledger["plans"].get(run_id, {}).get("notification", {})
         configured = summary.get("notificationPolicy", policy)
         deliveries = [("job:" + job["jobId"], "ws")]
+        recipients = {}
+        if summary.get("status") in configured.get("on", []):
+            for recipient in configured.get("recipients", []):
+                key = (recipient["recipientId"], recipient["channelId"])
+                if key not in recipients:
+                    recipients[key] = recipient["targetRef"]
+                    if key not in deliveries:
+                        deliveries.append(key)
         if summary.get("status") in configured.get("on", []) and configured.get("target") == "job":
             deliveries.append(("job:" + job["jobId"], "job"))
             deliveries.extend((session_id, "session") for session_id in configured.get("sessionIds", []))
@@ -342,6 +350,7 @@ class Ledger:
                 "transitionSeq": run["transitionSeq"],
                 "recipientId": recipient_id,
                 "channel": channel,
+                **({"targetRef": recipients[(recipient_id, channel)]} if (recipient_id, channel) in recipients else {}),
                 "legacyId": legacy_id,
                 "status": "pending",
                 "summary": copy.deepcopy(dict(summary)),

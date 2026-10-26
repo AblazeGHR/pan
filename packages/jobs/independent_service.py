@@ -25,6 +25,22 @@ REJECT_BODY_DRAIN_SECONDS = 1.0
 JOB_ID_RE = re.compile(r"^job_[0-9a-f]{24}$")
 
 
+def legacy_write(fn):
+    # Lazy import keeps standalone module import stdlib-only.
+    from functools import wraps
+    @wraps(fn)
+    def guarded(self, *args, **kwargs):
+        from packages.jobs.runtime_owner import OwnerFence
+        try:
+            with OwnerFence(self.root.parent).writer():
+                return fn(self, *args, **kwargs)
+        except ValueError as exc:
+            if getattr(exc, "code", None) == "revision_conflict":
+                raise ServiceError(409, "canonical runtime owns this profile; legacy writer refused") from exc
+            raise
+    return guarded
+
+
 class ServiceError(Exception):
     def __init__(self, status: int, message: str):
         self.status, self.message = status, message
@@ -80,7 +96,11 @@ class JobStore:
         self.logs.mkdir(exist_ok=True)
         self.db_path = self.root / "jobs.sqlite3"
         self.instance_id = secrets.token_hex(16)
-        self._init_db()
+        from packages.jobs.runtime_owner import OwnerFence
+        if OwnerFence(self.root.parent).status() is None:
+            self._init_db()
+        elif not self.db_path.exists():
+            raise ServiceError(409, "canonical runtime owns this profile; legacy store creation refused")
 
     @property
     def execution_host(self):
@@ -94,6 +114,7 @@ class JobStore:
         db.execute("PRAGMA busy_timeout=10000")
         return db
 
+    @legacy_write
     def _init_db(self):
         with self.connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
@@ -120,6 +141,7 @@ class JobStore:
             if "execution_audit" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN execution_audit TEXT NOT NULL DEFAULT '{}'")
 
+    @legacy_write
     def create(self, request: dict):
         from packages.jobs.window import validate_hide_window
         try:
@@ -199,6 +221,7 @@ class JobStore:
             raise ServiceError(503, "runner launch outcome is uncertain; job left UNKNOWN")
         return self.get(job_id)
 
+    @legacy_write
     def set_unknown(self, job_id):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -237,6 +260,7 @@ class JobStore:
         result['unified']=project(result)
         return result
 
+    @legacy_write
     def request_cancel(self, job_id):
         job = self.get(job_id)
         if job["status"] not in ("starting", "running"):
@@ -248,6 +272,7 @@ class JobStore:
             db.execute("UPDATE jobs SET cancel_requested=1,updated=? WHERE id=?", (time.time(), job_id))
         return self.get(job_id)
 
+    @legacy_write
     def retry(self, job_id):
         original = self.get(job_id)
         if original["status"] == "UNKNOWN":
@@ -263,6 +288,7 @@ class JobStore:
             rows = db.execute("SELECT payload FROM outbox WHERE acked=0 ORDER BY created").fetchall()
         return {"events": [json.loads(r["payload"]) for r in rows]}
 
+    @legacy_write
     def ack(self, event_id):
         with self.connect() as db:
             row = db.execute("SELECT job_id FROM outbox WHERE event_id=?", (event_id,)).fetchone()
@@ -272,6 +298,7 @@ class JobStore:
             db.execute("UPDATE jobs SET notification_state='delivered',updated=? WHERE id=?", (time.time(), row["job_id"]))
         return {"ok": True, "eventId": event_id}
 
+    @legacy_write
     def recover(self):
         """Active registrations without a verified live runner become explicit UNKNOWN."""
         if (self.root / "executions.sqlite3").exists():

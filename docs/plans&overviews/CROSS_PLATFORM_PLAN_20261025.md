@@ -92,6 +92,7 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 
 | 能力 | Windows | macOS | Linux | 说明 |
 |---|---|---|---|---|
+| `job.runtimeOwner` | 实现；本轮 fixture 实测 | 实现；本轮未实测 | 实现；本轮未实测 | 本地文件系统上的进程存活锁 + SQLite FULL/BEGIN IMMEDIATE epoch CAS；旧异步 pass/runner 持久 reservation；未知平台显式 unsupported。不提供网络文件系统/跨主机租约。见 `docs/design/job-unification/R4_RUNTIME_OWNER.md` |
 | `terminal.native` | 可用 | 不可用 | 不可用 | Windows ConPTY + Job Object；POSIX PTY 属 Phase D |
 | `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
 | `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |

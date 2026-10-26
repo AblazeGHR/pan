@@ -10,11 +10,12 @@ import copy
 import json
 import sqlite3
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Mapping
 
 from packages.jobs import final_contracts as contracts
+from packages.jobs.runtime_owner import OwnerFence
 
 from .providers import ProviderRegistry, TimeProvider, instant, now, timestamp
 
@@ -38,16 +39,23 @@ class CanonicalEventStore:
         self.path = Path(root) / "canonical-events.sqlite3"
         self.clock = clock
         self.lock = threading.RLock()
+        self.owner_fence = OwnerFence(Path(root).resolve().parent)
 
     @contextmanager
-    def connection(self):
-        with self.lock:
+    def connection(self, *, readonly=False):
+        readonly = readonly and self.path.exists()
+        guard = self.owner_fence.writer(canonical=True) if self.owner_fence is not None and not readonly else nullcontext()
+        with guard, self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             db = sqlite3.connect(self.path, timeout=5)
             db.row_factory = sqlite3.Row
             try:
                 db.execute("PRAGMA synchronous=FULL")
                 with db:
+                    if readonly:
+                        db.execute("PRAGMA query_only=ON")
+                        yield db
+                        return
                     db.execute("""CREATE TABLE IF NOT EXISTS events(
                         eventId TEXT PRIMARY KEY, factDigest TEXT NOT NULL,
                         record TEXT NOT NULL, targets TEXT NOT NULL, receivedAt TEXT NOT NULL)""")
@@ -87,24 +95,24 @@ class CanonicalEventStore:
                     "duplicate": False, "event": record, "targets": target_list}
 
     def get(self, event_id):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             row = db.execute("SELECT record,targets FROM events WHERE eventId=?", (event_id,)).fetchone()
             if not row:
                 return None
             return {"event": json.loads(row["record"]), "targets": json.loads(row["targets"])}
 
     def page(self):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             return [json.loads(row[0]) for row in db.execute("SELECT record FROM events ORDER BY rowid")]
 
     def stats(self):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             count = db.execute("SELECT count(*) FROM events").fetchone()[0]
             pins = db.execute("SELECT count(*) FROM event_pins").fetchone()[0]
             return {"events": count, "pins": pins}
 
     def is_pinned(self, event_id):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             return bool(db.execute("SELECT 1 FROM event_pins WHERE eventId=?", (event_id,)).fetchone())
 
     def release_pin(self, event_id):
@@ -172,22 +180,29 @@ class CreatorStore:
         self.registry = registry or ProviderRegistry.standard()
         self.clock = clock
         self.lock = threading.RLock()
+        self.owner_fence = OwnerFence(self.root.parent)
         self._joined = threading.local()
         self.profile_id = "profile_" + contracts.digest(str(self.root))[:24]
 
     @contextmanager
-    def connection(self):
+    def connection(self, *, readonly=False):
+        readonly = readonly and self.path.exists()
         borrowed = getattr(self._joined, "db", None)
         if borrowed is not None:
             yield borrowed
             return
-        with self.lock:
+        guard = self.owner_fence.writer(canonical=True) if self.owner_fence is not None and not readonly else nullcontext()
+        with guard, self.lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             db = sqlite3.connect(self.path, timeout=5)
             db.row_factory = sqlite3.Row
             try:
                 db.execute("PRAGMA synchronous=FULL")
                 with db:
+                    if readonly:
+                        db.execute("PRAGMA query_only=ON")
+                        yield db
+                        return
                     db.execute("CREATE TABLE IF NOT EXISTS creators(id TEXT PRIMARY KEY,document TEXT NOT NULL)")
                     db.execute("""CREATE TABLE IF NOT EXISTS requests(
                         key TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,objectId TEXT NOT NULL)""")
@@ -229,11 +244,11 @@ class CreatorStore:
         db.execute("INSERT OR REPLACE INTO creators VALUES(?,?)", (item["id"], _json(item)))
 
     def list(self):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             return [json.loads(row[0]) for row in db.execute("SELECT document FROM creators ORDER BY id")]
 
     def get(self, creator_id):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             item = self._read(db, creator_id)
             return copy.deepcopy(item) if item else None
 
@@ -388,7 +403,7 @@ class CreatorStore:
         )]
 
     def references(self, creator_id):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             return self._references(db, creator_id)
 
     def bind_link(self, creator_id, trigger_id, job_id, operation_id=None):

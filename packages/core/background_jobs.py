@@ -55,6 +55,22 @@ SERVICE_ACTIVE_PHASES = frozenset({
 SERVICE_TERMINAL_PHASES = frozenset({"ready", "offline", "failed", "timed_out"})
 
 
+def _legacy_write(fn):
+    from packages.jobs.runtime_owner import legacy_writer
+    signature = inspect.signature(fn)
+    def profile(*args, **kwargs):
+        values = signature.bind_partial(*args, **kwargs).arguments
+        root = values.get("registry_root") or os.environ.get("PAN_BACKGROUND_JOBS_DIR") or DEFAULT_ROOT
+        if fn.__name__ == "run_due_scheduled_tasks":
+            root = (_scheduled_task_root() or root)
+        if fn.__name__ == "_write_job":
+            root = values["path"].parent.parent
+        return Path(root).resolve().parent
+    # Reserve before acquiring a store/job lock. Only the final file commit
+    # takes the authority transaction, so lock order cannot invert with RMW.
+    return legacy_writer(profile, reservation=fn.__name__ != "_write_job")(fn)
+
+
 def _root(registry_root: str | Path | None = None) -> Path:
     value = registry_root or os.environ.get("PAN_BACKGROUND_JOBS_DIR")
     root = Path(value).expanduser() if value else DEFAULT_ROOT
@@ -89,6 +105,7 @@ def _atomic_write(path: Path, value: dict) -> None:
             time.sleep(0.01 * (attempt + 1))
 
 
+@_legacy_write
 def _write_job(path: Path, job: dict, *, created: bool = False) -> None:
     """Publish a full public snapshot only after the registry commit succeeds.
 
@@ -249,12 +266,14 @@ def _normalize_job(job: dict | None) -> dict | None:
     return result
 
 
+@_legacy_write
 def _save(job: dict, registry_root: str | Path | None = None) -> dict:
     with _lock, _job_lock(job["jobId"], registry_root):
         _write_job(_job_path(job["jobId"], registry_root), job)
     return job
 
 
+@_legacy_write
 def _create(job: dict, registry_root: str | Path | None = None) -> dict:
     """Create a job record atomically before its Runner is spawned."""
     with _lock, _job_lock(job["jobId"], registry_root):
@@ -265,6 +284,7 @@ def _create(job: dict, registry_root: str | Path | None = None) -> dict:
     return job
 
 
+@_legacy_write
 def _update(job_id: str, changes: dict[str, Any], *, replace: dict | None = None,
             registry_root: str | Path | None = None) -> dict:
     """Read, modify, and atomically replace one job while holding its lock."""
@@ -543,6 +563,7 @@ def _retarget_job_record(job: dict, old_session_id: str,
     return True
 
 
+@_legacy_write
 def retarget_session_jobs(old_session_id: str, new_session_id: str,
                           registry_root: str | Path | None = None) -> dict:
     """Retarget every matching record in the live Jobs registry roots.
@@ -664,6 +685,7 @@ def retarget_session_jobs(old_session_id: str, new_session_id: str,
     return summary
 
 
+@_legacy_write
 def update_job_field(job_id: str, changes: dict[str, Any],
                      registry_root: str | Path | None = None) -> dict:
     """跨 kind 的通用字段更新（name/description/enabled/paused/target 切换等）。
@@ -743,6 +765,7 @@ def _runner_command(job_id: str) -> list[str]:
     return [*resolve_pan_python_argv(), "-m", "packages.core.background_runner", "--job-id", job_id]
 
 
+@_legacy_write
 def _spawn_background_runner(job: dict, registry_root: str | Path | None = None) -> dict:
     with _registry_lock("spawn-" + job["jobId"], registry_root):
         current = get(job["jobId"], registry_root)
@@ -797,6 +820,7 @@ def _spawn_background_runner_unlocked(job: dict, registry_root: str | Path | Non
         return _normalize_job(current)
 
 
+@_legacy_write
 def start(target_session_id: str, argv: list[str], cwd: str, *,
           hide_window: bool = True,
           label: str | None = None,
@@ -852,6 +876,7 @@ def start(target_session_id: str, argv: list[str], cwd: str, *,
     return _spawn_background_runner(job, registry_root=registry_root)
 
 
+@_legacy_write
 def start_action_process(job_id: str, execution_id: str, *, registry_root=None) -> dict:
     """Attach the native Runner to an already admitted legacy Action Job.
 
@@ -875,6 +900,7 @@ def start_action_process(job_id: str, execution_id: str, *, registry_root=None) 
     return _spawn_background_runner(current, registry_root)
 
 
+@_legacy_write
 def start_scheduled_process(parent_job: dict, dispatch_key: str, *,
                             fire_at: str | None = None,
                             entry_id: str | None = None,
@@ -1136,6 +1162,7 @@ def _message_job_common(text: str, schedule: dict, *,
     return source_type, source_sid, creator_sid, normalized, next_run, now
 
 
+@_legacy_write
 def start_message(target_session_id: str, text: str, schedule: dict, *,
                   name: str | None = None,
                   description: str | None = None, source: str = "agent",
@@ -1173,6 +1200,7 @@ def start_message(target_session_id: str, text: str, schedule: dict, *,
     return _create(job, registry_root)
 
 
+@_legacy_write
 def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
                     name: str | None = None,
                     description: str | None = None, source: str = "agent",
@@ -1205,6 +1233,7 @@ def start_broadcast(target_session_ids: list[str], text: str, schedule: dict, *,
     return _create(job, registry_root)
 
 
+@_legacy_write
 def update_message(job_id: str, *, text: str | None = None,
                    schedule: dict | None = None, description: str | None = None,
                    name: str | None = None,
@@ -1260,6 +1289,7 @@ def update_message(job_id: str, *, text: str | None = None,
         return current
 
 
+@_legacy_write
 def cancel_message(job_id: str, registry_root: str | Path | None = None) -> dict:
     current = get(job_id, registry_root)
     if not current or current.get("kind") not in {
@@ -1272,6 +1302,7 @@ def cancel_message(job_id: str, registry_root: str | Path | None = None) -> dict
                             "updatedAt": time.time()}, registry_root=registry_root)
 
 
+@_legacy_write
 async def run_due_message_jobs(now: float | None = None,
                               registry_root: str | Path | None = None) -> int:
     """Claim and deliver due message Jobs once; safe across Pan processes."""
@@ -1504,6 +1535,7 @@ def is_recovery_running() -> bool:
     return bool(_recovery_task and not _recovery_task.done())
 
 
+@_legacy_write
 def delete_job(job_id: str, registry_root: str | Path | None = None) -> bool:
     """Serialize explicit delete/recheck; never unlink unconfirmed process owners.
 
@@ -1651,6 +1683,7 @@ def _job_is_expired_for_status(job: dict, status: str, cutoff: float) -> bool:
     return updated_at is not None and updated_at <= cutoff
 
 
+@_legacy_write
 def cleanup_jobs_by_statuses(*, registry_root: str | Path,
                              retention_days_by_status: dict[str, int],
                              now: float | None = None,
@@ -1828,6 +1861,7 @@ def _runner_active_or_unknown(job: dict) -> bool:
     return False
 
 
+@_legacy_write
 def cleanup_job_log_files(*, registry_root: str | Path,
                           retention_days: int,
                           now: float | None = None) -> dict:
@@ -1950,6 +1984,7 @@ def completed_job_retention_status() -> dict:
     return {"lastRun": last_runs["completed"], "lastRuns": last_runs}
 
 
+@_legacy_write
 def run_completed_job_retention(*, now: float | None = None,
                                 emit_events: bool = False) -> dict:
     """Hot-read settings and serialize cleanup against setting changes."""
@@ -2103,6 +2138,7 @@ def _run_completed_job_retention_locked(now: float, *, emit_events: bool = False
 # ── runs.jsonl（泛化执行历史，scheduled-task 首个消费者）──
 
 
+@_legacy_write
 def append_run_record(record: dict, registry_root: str | Path | None = None,
                       max_entries: int = 500) -> None:
     """Append one run row to ``runs.jsonl``; roll to the newest ``max_entries``."""
@@ -2216,6 +2252,7 @@ def _tail_log_output(path: Any, max_bytes: int = 16 * 1024) -> str:
         return ""
 
 
+@_legacy_write
 async def _run_job_action(job: dict, target: str | None,
                           dispatch_key: str,
                           fire_at: str | None = None,
@@ -2228,6 +2265,7 @@ async def _run_job_action(job: dict, target: str | None,
     return await invoke(job, dispatch_key, effect, registry_root)
 
 
+@_legacy_write
 async def _execute_job_action(job: dict, target: str | None, dispatch_key: str,
                               fire_at: str | None = None, entry_id: str | None = None,
                               registry_root: str | Path | None = None,
@@ -2933,6 +2971,7 @@ async def _fire_scheduled_entry(job: dict, entry: dict, now_dt: datetime,
     return 1
 
 
+@_legacy_write
 async def run_due_scheduled_tasks(now: float | None = None) -> int:
     """One unified scheduler pass over the scheduled-task registry.
 
@@ -3072,6 +3111,7 @@ def _owns_process(job: dict) -> Any:
         return None
 
 
+@_legacy_write
 def cancel(job_id: str, registry_root: str | Path | None = None) -> dict:
     job = get(job_id, registry_root)
     if not job:
@@ -3136,6 +3176,7 @@ def _kill_tree(proc: Any) -> None:
             pass
 
 
+@_legacy_write
 def retry(job_id: str) -> dict:
     old = get(job_id)
     if not old:
@@ -3190,6 +3231,7 @@ def get_active_service_job(root: str, port: int,
     return None
 
 
+@_legacy_write
 def create_service_job(*, request_id: str, operation: str, root: str, port: int,
                        old_pid: int | None = None,
                        old_pid_created_at: float | None = None,
@@ -3239,6 +3281,7 @@ def create_service_job(*, request_id: str, operation: str, root: str, port: int,
     return job
 
 
+@_legacy_write
 def transition_service_job(job_id: str, phase: str, *, registry_root: str | Path | None = None,
                            **changes: Any) -> dict:
     """Persist one legal lifecycle transition with a single atomic write."""
@@ -3306,6 +3349,7 @@ def find_service_job(request_id: str, registry_root: str | Path | None = None) -
     return None
 
 
+@_legacy_write
 def claim_hidden_runner(job_id: str) -> bool:
     """Publish the real Python owner before hidden task creation, exactly once.
 
@@ -3337,6 +3381,7 @@ def claim_hidden_runner(job_id: str) -> bool:
         return True
 
 
+@_legacy_write
 def runner_spawn(job_id: str, factory):
     """Serialize task spawn/publication without holding the global registry gate."""
     with _registry_lock("task-spawn-" + job_id):
@@ -3376,6 +3421,7 @@ def runner_spawn(job_id: str, factory):
             raise
 
 
+@_legacy_write
 def runner_update(job_id: str, **changes: Any) -> dict:
     job = get(job_id)
     if not job:
@@ -3419,6 +3465,7 @@ def runner_update(job_id: str, **changes: Any) -> dict:
         return current
 
 
+@_legacy_write
 def reconcile_running(registry_root: str | Path | None = None) -> int:
     """Resolve running records whose independent Runner disappeared.
 
@@ -3529,6 +3576,7 @@ def _terminal_broadcast_candidate(job: dict, root: str | Path) -> dict | None:
         return job_public_view(current)
 
 
+@_legacy_write
 def _mark_terminal_broadcast(job_id: str, root: str | Path) -> None:
     """成功发布后持久化幂等标记；纯簿记，不触碰 updatedAt（否则会把
     retention 的完成年龄刷新，让本应清理的终态记录逃过清理）。"""
@@ -3558,12 +3606,14 @@ def _load_terminal_broadcast_ledger() -> dict:
     return data if isinstance(data, dict) else {}
 
 
+@_legacy_write
 def _save_terminal_broadcast_ledger(ledger: dict) -> None:
     path = _terminal_broadcast_ledger_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write(path, {"jobs": ledger})
 
 
+@_legacy_write
 async def _broadcast_independent_terminals() -> None:
     """（独立 Job 服务路径）远程注册表里的终态补发 job.updated。
 
@@ -3622,6 +3672,7 @@ async def _broadcast_independent_terminals() -> None:
         _save_terminal_broadcast_ledger(ledger)
 
 
+@_legacy_write
 async def recover_notifications() -> int:
     from packages.jobs import pan_bridge
     try:
