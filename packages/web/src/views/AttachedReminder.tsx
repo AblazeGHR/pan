@@ -9,9 +9,11 @@ import {
 
 export function AttachedReminder({
   item,
+  hasChild,
   created,
 }: {
   item: LockerItem;
+  hasChild: boolean;
   created: (card: UserCard) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -21,17 +23,20 @@ export function AttachedReminder({
   const [error, setError] = useState('');
   // Keep the exact request after an uncertain response so retry cannot duplicate a card.
   const intent = useRef<Record<string, unknown> | null>(null);
+  const submitted = useRef(false);
+  if (hasChild) return null;
   return (
     <div className="locker-attach-action">
       <button type="button" onClick={() => setOpen(!open)}>
-        创建提醒卡
+        Attach a reminder card
       </button>
       {open && (
         <form
-          aria-label="Create attached reminding card"
+          aria-label="Attach a reminder card"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (busy) return;
+            if (busy || submitted.current || hasChild) return;
+            submitted.current = true;
             setBusy(true);
             setError('');
             const payload = intent.current ?? {
@@ -58,12 +63,13 @@ export function AttachedReminder({
                 intent.current = null;
               setError(String(value));
             } finally {
+              submitted.current = false;
               setBusy(false);
             }
           }}
         >
           <label>
-            提醒类型{' '}
+            Reminder type{' '}
             <select
               value={kind}
               disabled={busy || !!intent.current}
@@ -74,7 +80,7 @@ export function AttachedReminder({
             </select>
           </label>
           <label>
-            提醒内容
+            Reminder body
             <textarea
               required
               value={body}
@@ -84,7 +90,7 @@ export function AttachedReminder({
             />
           </label>
           <button type="submit" disabled={busy || !body.trim()}>
-            {busy ? 'Creating…' : intent.current ? 'Retry creation' : 'Create reminding card'}
+            {busy ? 'Creating…' : intent.current ? 'Retry creation' : 'Create'}
           </button>
           {error && (
             <p role="alert" className="locker-error">

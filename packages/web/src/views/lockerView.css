@@ -713,30 +713,30 @@
 }
 .locker-parent-chain {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
   margin: 0 24px;
   padding: 8px 0;
-  border-top: 2px dashed var(--color-accent);
   color: var(--color-accent);
   font-size: 11px;
 }
-.locker-parent-chain span {
+.locker-parent-chain-line {
+  height: 32px;
+  border-left: 2px dashed var(--color-accent);
+}
+.locker-parent-chain-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.locker-parent-chain-label span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .locker-attached-entry {
   position: relative;
-}
-.locker-attached-entry::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 6px;
-  border-left: 2px dashed var(--color-accent);
-  opacity: 0.6;
 }
 .locker-attach-action {
   padding: 4px 24px 12px;

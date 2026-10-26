@@ -4,7 +4,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
-const evidence = fileURLToPath(new URL('../../../audit/locker-threads/', import.meta.url));
+const evidence = fileURLToPath(new URL('../test-results/p11-attached-reminder/', import.meta.url));
 await mkdir(evidence, {recursive: true});
 const browser = await chromium.launch({headless: true});
 const errors = [], checks = [];
@@ -74,24 +74,42 @@ try {
     expect(await page.locator('[data-parent-id]').evaluateAll(nodes=>new Set(nodes.filter(n=>!n.hidden).map(n=>Math.round(n.getBoundingClientRect().left))).size)).toBe(1);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path:resolve(evidence,`locker-${width}.png`)});
+    const chain = page.locator('[data-locker-entry="early"] .locker-parent-chain');
+    await expect(chain).toHaveAttribute('aria-label', 'Attached to locker_message m30');
+    await expect(chain.locator('.locker-parent-chain-label')).toHaveText('m30');
+    const geometry = await chain.evaluate(node => {
+      const line = node.querySelector('.locker-parent-chain-line');
+      const box = node.getBoundingClientRect(), stroke = line.getBoundingClientRect();
+      return {offset: Math.abs((box.left + box.width / 2) - (stroke.left + stroke.width / 2)),
+        width: stroke.width, height: stroke.height, border: getComputedStyle(line).borderLeftStyle,
+        horizontal: getComputedStyle(node).borderTopWidth};
+    });
+    expect(geometry.offset).toBeLessThan(1);
+    expect(geometry.width).toBe(2);
+    expect(geometry.height).toBe(32);
+    expect(geometry.border).toBe('dashed');
+    expect(geometry.horizontal).toBe('0px');
+    await expect(page.locator('[data-locker-entry="m30"]').getByRole('button',{name:'Attach a reminder card',exact:true})).toHaveCount(0);
+    await expect(page.locator('[data-locker-entry="interactive"]').getByRole('button',{name:'Attach a reminder card',exact:true})).toHaveCount(0);
     await page.getByRole('button',{name:'Scroll to bottom',exact:true}).click();
     await expect.poll(async()=>timeline.evaluate(node=>Math.abs(node.scrollHeight-node.scrollTop-node.clientHeight))).toBeLessThan(2);
     await expect(page.getByRole('button',{name:'Scroll to bottom',exact:true})).toHaveCount(0);
     checks.push(`${width}: divider at m30, sorted flat chains, one answered row, smooth bottom button, no horizontal overflow`);
-    // Every parent class exposes creation. Nested insertion must be immediate.
+    // Linked leaves can grow the chain once; parents with children have no entry.
     const parent=page.locator('[data-locker-entry="nested"]');
-    await parent.getByRole('button',{name:'创建提醒卡',exact:true}).click();
-    await parent.getByLabel('提醒内容').fill('Created from nested parent');
-    await parent.getByRole('button',{name:'Create reminding card',exact:true}).click();
+    await parent.getByRole('button',{name:'Attach a reminder card',exact:true}).click();
+    await parent.getByLabel('Reminder body').fill('Created from nested parent');
+    await parent.getByRole('button',{name:'Create',exact:true}).click();
     await expect(page.locator('[data-parent-id="nested"]')).toBeVisible();
     expect(requests.find(r=>r.method==='POST'&&r.path==='/api/reminding-cards').body.parent).toEqual({type:'user_card',id:'nested'});
-    const terminal=page.locator('[data-locker-entry="interactive"]');
-    await terminal.getByRole('button',{name:'创建提醒卡',exact:true}).click();
-    await terminal.getByLabel('提醒内容').fill('Will fail locally'); failCreate=true;
-    await terminal.getByRole('button',{name:'Create reminding card',exact:true}).click();
+    await expect(parent.getByRole('button',{name:'Attach a reminder card',exact:true})).toHaveCount(0);
+    const terminal=page.locator('[data-locker-entry="m79"]');
+    await terminal.getByRole('button',{name:'Attach a reminder card',exact:true}).click();
+    await terminal.getByLabel('Reminder body').fill('Will fail locally'); failCreate=true;
+    await terminal.getByRole('button',{name:'Create',exact:true}).click();
     await expect(terminal.getByRole('alert')).toContainText('not_found');
-    await expect(terminal.getByLabel('提醒内容')).toBeEnabled();
-    checks.push(`${width}: nested creation inserts below parent; terminal parent offers creation; invalid parent error stays in form`);
+    await expect(terminal.getByLabel('Reminder body')).toBeEnabled();
+    checks.push(`${width}: centered vertical dashed connector with aria/id; occupied parents hide creation; linked leaf inserts once; invalid parent error stays in form`);
     await page.close();
   }
   const page = await open(1440,400,0);

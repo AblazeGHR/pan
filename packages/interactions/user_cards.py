@@ -82,6 +82,10 @@ class UserCardStore:
                     raise InteractionError('conflict','requestKey content conflict')
                 return self.view(old)
             validate_parent(db, parent, cid, principal.id, owner)
+            if parent and db.execute(
+                    'SELECT 1 FROM user_cards WHERE parent_type=? AND parent_id=? LIMIT 1',
+                    (parent['type'], parent['id'])).fetchone():
+                raise InteractionError('conflict', 'Parent already has an attached reminder card')
             if db.execute('SELECT count(*) FROM user_cards WHERE recipient=?',(principal.id,)).fetchone()[0]>=1000:
                 raise InteractionError('capacity','User card capacity reached')
             db.execute('INSERT INTO user_cards(id,owner,recipient,signature,kind,body,attachments,created_at,parent_type,parent_id) VALUES(?,?,?,?,?,?,?,?,?,?)',

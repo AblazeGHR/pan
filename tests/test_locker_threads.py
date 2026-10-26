@@ -10,6 +10,32 @@ from tests.test_user_locker_lifecycle import make, req
 USER = UserPrincipal('user')
 
 
+def test_concurrent_attachment_admission_is_serialized(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    store = InteractionStore(tmp_path/'cards.sqlite')
+    box = UserCardStore(store)
+    root = box.create(USER, payload('root'))
+    barrier = Barrier(2)
+
+    def attach(key):
+        barrier.wait(timeout=5)
+        try:
+            return box.create(USER, {**payload(key), 'parent': {'type': 'user_card', 'id': root['id']}})
+        except InteractionError as error:
+            assert error.code == 'conflict'
+            return error
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(attach, ['first', 'second']))
+    assert sum(isinstance(result, dict) for result in outcomes) == 1
+    assert sum(isinstance(result, InteractionError) for result in outcomes) == 1
+    assert len(box.list(principal=USER)) == 2
+    with box.db() as db:
+        assert db.execute('SELECT count(*) FROM user_card_outbox').fetchone()[0] == 2
+
+
 @pytest.mark.parametrize('kind', ['locker_message', 'interaction_card', 'user_card'])
 def test_parent_roundtrip_terminal_read_independence_and_cascade(tmp_path, kind):
     store = InteractionStore(tmp_path/'cards.sqlite')
@@ -26,6 +52,11 @@ def test_parent_roundtrip_terminal_read_independence_and_cascade(tmp_path, kind)
     grand_data = {**payload('grand'), 'parent': {'type': 'user_card', 'id': child['id']}}
     grand = box.create(USER, grand_data)
     assert box.create(USER, child_data) == child
+    # A new request cannot create a sibling; linked leaves may still grow a chain.
+    with pytest.raises(InteractionError, match='already has an attached') as duplicate:
+        box.create(USER, {**child_data, 'requestKey': 'duplicate'})
+    assert duplicate.value.code == 'conflict'
+    assert box.create(USER, grand_data) == grand
     assert UserCardStore(InteractionStore(store.path)).list(owner='owner')[-2]['parent'] == link
     if kind == 'locker_message':
         store.mark_message_read(USER, parent['id'])
@@ -171,6 +202,9 @@ def test_http_user_create_and_owner_tool_return_parent(tmp_path, monkeypatch):
     assert created.status_code == 200, created.text
     card = created.json()['card']
     assert card['parent'] == data['parent']
+    assert client.post('/api/reminding-cards', json=data, headers=auth).json()['card'] == card
+    duplicate = client.post('/api/reminding-cards', json={**data, 'requestKey': 'duplicate'}, headers=auth)
+    assert duplicate.status_code == 409
     assert client.get('/api/reminding-cards', headers=auth).json()['cards'] == [card]
     caller = {'X-Pan-Queue-Caller': source.id}
     assert client.post('/api/reminding-card-tools/list_pending', json={}, headers=caller).json()['cards'] == [card]
