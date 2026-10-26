@@ -61,12 +61,28 @@ def test_production_route_snapshot_and_same_handler_aliases():
         twin = next(r for r in routes if getattr(r, "path", None) == current and r.methods == route.methods)
         assert twin.endpoint is route.endpoint
         assert route.deprecated and not twin.deprecated
-    # Every original facade handler, including old writes, survives relocation.
+    # R5: the facade keeps every read/cancel handler; every other old mutation
+    # is replaced by an explicit retirement, at both old addresses.
     from packages.jobs.api import router as facade
+    from packages.automation.authorization import object_path as trusted_bridge
     for old in facade.routes:
         relocated = old.path.replace("/api/jobs", "/api/legacy/jobs", 1)
-        assert any(getattr(r, "path", None) == relocated and r.methods == old.methods
-                   and r.endpoint is old.endpoint for r in routes)
+        reads = old.methods <= {"GET", "HEAD", "OPTIONS"} or old.path.endswith("/cancel")
+        match = [r for r in routes if getattr(r, "path", None) == relocated and
+                 r.methods == old.methods]
+        assert match, (old.methods, old.path)
+        retired = [r for r in match if r.endpoint.__name__ == "retired_legacy_write"]
+        kept = [r for r in match if r.endpoint is old.endpoint]
+        if reads:
+            assert kept == match, (old.methods, old.path)
+        else:
+            assert len(retired) == len(match), (old.methods, old.path)
+        # A retired write never re-enters the trusted MCP object bridge.  The
+        # bare root path keeps its canonical meaning, so only concrete legacy
+        # sub-paths are asserted here.
+        if not reads and old.path not in {"/api/jobs", "/api/jobs/"}:
+            assert not trusted_bridge(old.path)
+            assert not trusted_bridge(relocated)
 
 
 @pytest.mark.parametrize("prefix", ["/api", "/api/final"])
@@ -118,8 +134,12 @@ def test_tcp_new_and_deprecated_crud_operations_and_legacy(h, tcp, prefix):
         assert response.status_code == 503 and response.json() == {"detail": "Job Action runtime unavailable"}
         assert "jobs" in client.get("/api/legacy/jobs").json()
         assert "kinds" in client.get("/api/legacy/jobs/kinds").json()
-        invalid = client.post("/api/legacy/jobs", json={"kind": "not-supported"})
-        assert invalid.json()["error"]["code"] == "invalid_argument"
+        # R5: the facade no longer validates and applies old writes.  It answers
+        # an explicit retirement for every mutation, valid body or not, so a
+        # stale client cannot tell a good payload from a bad one.
+        retired = client.post("/api/legacy/jobs", json={"kind": "not-supported"})
+        assert retired.status_code == 410
+        assert retired.json()["detail"]["code"] == "retired"
         for base in [prefix, other]:
             assert client.get(base + "/jobs", headers={"Authorization": "Bearer invalid"}).status_code == 401
 

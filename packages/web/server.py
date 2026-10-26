@@ -10929,6 +10929,34 @@ async def api_sessions_wake(data: dict):
 
 # ── Durable background jobs ──
 
+# ── R5: retire the pre-canonical durable Job writes ──
+# The old handlers stay defined below for R6 source removal, but they are no
+# longer routed: FastAPI fixes the handler at decoration time, so the boundary
+# has to be installed here rather than patched into the route table later.
+# Reads and the explicit cancel control are deliberately not retired: an old
+# Runner process must stay inspectable and cancellable until its owner drains.
+RETIRED_LEGACY_WRITE = {"code": "retired",
+                        "message": "Legacy Job write entrypoint retired; use the canonical /api API"}
+
+
+async def _retired_legacy_write(request: Request):
+    """Refuse a pre-canonical durable Job mutation after authenticating it.
+
+    Only trusted local MCP could ever reach these writers, so the provenance
+    check runs first and fails closed: an untrusted caller gets 401 instead of
+    falling through to a Runner spawn. A trusted caller then gets the explicit
+    retirement, before any store, process or redelivery is touched.
+    """
+    authorized = await _legacy_mcp_authority(request, "write", action=True)
+    if authorized is None:
+        raise HTTPException(status_code=401,
+                            detail="User Bearer or trusted MCP transport required")
+    raise HTTPException(status_code=410, detail=RETIRED_LEGACY_WRITE)
+
+
+_retired_legacy_write.retirement_boundary = True
+
+
 async def _legacy_mcp_authority(request: Request, capability: str, *, action: bool = False):
     """Authenticate only the private MCP compatibility transport.
 
@@ -10960,8 +10988,15 @@ async def _legacy_action_job(kind: str, fields: dict, request: Request):
             await runtime.launch(job['jobId'], expected=job['configRevision'], authority=auth)
     return legacy_view(await asyncio.to_thread(runtime.get, job['jobId']))
 
-@app.post("/api/background-jobs")
-async def api_background_job_start(data: dict, request: Request = None):
+@app.post("/api/background-jobs", deprecated=True)
+async def api_background_job_start_retired(request: Request):
+    return await _retired_legacy_write(request)
+
+
+api_background_job_start_retired.retirement_boundary = True
+
+
+async def _legacy_api_background_job_start(data: dict, request: Request = None):
     """Create a durable process Job with independent creator/target fields."""
     target = data.get("targetSessionId")
     argv = data.get("argv")
@@ -11044,8 +11079,15 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/session-message-jobs")
-async def api_session_message_job_start(data: dict, request: Request = None):
+@app.post("/api/session-message-jobs", deprecated=True)
+async def api_session_message_job_retired(request: Request):
+    return await _retired_legacy_write(request)
+
+
+api_session_message_job_retired.retirement_boundary = True
+
+
+async def _legacy_api_session_message_job_start(data: dict, request: Request = None):
     """Create a durable Session message or scheduled broadcast.
 
     ``text`` is delivered as message text; it is never an OS command.
@@ -11102,8 +11144,15 @@ async def api_session_message_job_start(data: dict, request: Request = None):
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
 
 
-@app.patch("/api/background-jobs/{job_id}")
-async def api_background_job_update(job_id: str, data: dict, request: Request = None):
+@app.patch("/api/background-jobs/{job_id}", deprecated=True)
+async def api_background_job_update_retired(request: Request):
+    return await _retired_legacy_write(request)
+
+
+api_background_job_update_retired.retirement_boundary = True
+
+
+async def _legacy_api_background_job_update(job_id: str, data: dict, request: Request = None):
     try:
         job = background_jobs.get(job_id)
         if job and job.get('legacyCompat'):
@@ -11147,8 +11196,15 @@ async def api_background_job_update(job_id: str, data: dict, request: Request = 
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/background-jobs/{job_id}/retry")
-async def api_background_job_retry(job_id: str, request: Request = None):
+@app.post("/api/background-jobs/{job_id}/retry", deprecated=True)
+async def api_background_job_retry_retired(request: Request):
+    return await _retired_legacy_write(request)
+
+
+api_background_job_retry_retired.retirement_boundary = True
+
+
+async def _legacy_api_background_job_retry(job_id: str, request: Request = None):
     try:
         old = background_jobs.get(job_id)
         if old and old.get('legacyCompat'):

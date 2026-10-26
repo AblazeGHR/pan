@@ -22,7 +22,8 @@ from packages.core.session import Session
 from packages.jobs import final_contracts as fc
 from packages.jobs.final_client import CanonicalClient, RESOURCES, TOOL_PREFIXES
 from packages.jobs.window import command_window_options
-from packages.mcp.server import CANONICAL_TOOLS
+from packages.mcp.server import (CANONICAL_TOOLS, RETAINED_LEGACY_MCP_TOOLS,
+                                 RETIRED_MCP_TOOLS)
 from packages.plugins.ipc import Bridge
 from packages.plugins.runtime import Runtime
 from packages.scheduler.providers import time_definition
@@ -73,9 +74,16 @@ async def test_real_stdio_crud_operations_permissions_and_legacy(h, tmp_path, pr
             names = [tool.name for tool in tools]
             assert max(Counter(names).values()) == 1
             assert set(CANONICAL_TOOLS) <= set(names)
-            # All 92 baseline tools, including separately registered terminal tools.
+            # All baseline tools minus the R5 retired Job writes, plus canonical.
             baseline = json.loads((ROOT / "tests/fixtures/job_final_legacy_tools.json").read_text())
-            assert set(names) == set(baseline) | set(CANONICAL_TOOLS)
+            assert set(names) == (set(baseline) - set(RETIRED_MCP_TOOLS)) | set(CANONICAL_TOOLS)
+            # The retirement is exact: old writes are gone, reads/cancel remain.
+            assert not set(RETIRED_MCP_TOOLS) & set(names)
+            assert set(RETAINED_LEGACY_MCP_TOOLS) <= set(names)
+            # tools/call agrees with tools/list: an unknown name is refused.
+            missing = await client.call_tool("agent_background_start", {
+                "argv": ["echo", "x"], "cwd": str(ROOT), "name": "retired"})
+            assert missing.isError is True
 
             async def call(name, **arguments):
                 value = unpack(await client.call_tool(name, arguments))

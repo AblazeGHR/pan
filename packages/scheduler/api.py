@@ -15,8 +15,8 @@ import asyncio
 import inspect
 from datetime import datetime
 
-from fastapi import APIRouter, Request
-from packages.automation.authorization import may_read_jobs, require_job
+from fastapi import APIRouter, HTTPException, Request
+from packages.automation.authorization import may_read_jobs, principal, require_job
 
 from packages.core import session as sess
 from packages.core.config import load_config
@@ -28,6 +28,26 @@ from . import store as scheduler_store
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
 from .event_api import router as event_sources_router
 router.include_router(event_sources_router)
+
+
+RETIRED = {"code": "retired",
+           "message": "Legacy scheduler write entrypoint retired; use canonical event/job operations"}
+
+
+def retire(endpoint):
+    """Authenticate, then refuse a pre-canonical scheduler mutation.
+
+    Historical task reads and execution history stay served so existing
+    schedules remain inspectable until their owner is drained; create, update,
+    delete, pause/resume, run-now, owner-switch and event-source writes are not.
+    """
+    async def retired_route(request: Request):
+        await principal(request)
+        raise HTTPException(status_code=410, detail=RETIRED)
+    retired_route.__name__ = endpoint.__name__
+    retired_route.__doc__ = endpoint.__doc__
+    retired_route.retirement_boundary = True
+    return retired_route
 
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
@@ -560,3 +580,57 @@ async def engine_status():
     except Exception as exc:  # 引擎不可用时不能让健康检查 500
         return _err("engine_not_running", str(exc))
     return _ok(status=state if isinstance(state, dict) else {})
+
+
+# R5: retire the old scheduler mutations at the route table.  Handler bodies
+# remain for R6 source removal; task reads and run history stay available.
+RETIRED_ROUTES = {
+    ("POST", "/tasks"),
+    ("PATCH", "/tasks/{task_id}"),
+    ("DELETE", "/tasks/{task_id}"),
+    ("POST", "/tasks/{task_id}/pause"),
+    ("POST", "/tasks/{task_id}/resume"),
+    ("POST", "/tasks/{task_id}/run-now"),
+    ("POST", "/tasks/{task_id}/owner-switch"),
+    ("POST", "/event-sources"),
+    ("PUT", "/event-sources/{sid}"),
+    ("DELETE", "/event-sources/{sid}"),
+}
+
+RETAINED_ROUTES = {
+    ("GET", "/tasks"),
+    ("GET", "/tasks/{task_id}"),
+    ("GET", "/tasks/{task_id}/runs"),
+    ("GET", "/next"),
+    ("GET", "/status"),
+    ("GET", "/event-sources"),
+}
+
+for _route in router.routes:
+    _path = getattr(_route, "path", None)
+    if _path is None:
+        # Included sub-router: retire the old event-source mutations on the
+        # sub-router itself so both mount points see the same boundary.
+        for _sub in _route.original_router.routes:
+            _retire = any((method, _sub.path) in RETIRED_ROUTES for method in _sub.methods)
+            _known = any((method, _sub.path) in RETIRED_ROUTES | RETAINED_ROUTES
+                         for method in _sub.methods)
+            if not _known:
+                raise RuntimeError(f"Unclassified scheduler route: {sorted(_sub.methods)} {_sub.path}")
+            if _retire:
+                _sub.endpoint = retire(_sub.endpoint)
+                _sub.deprecated = True
+                _sub.response_model = None
+        continue
+    _path = _path.removeprefix(router.prefix)
+    _retire = any((method, _path) in RETIRED_ROUTES for method in _route.methods)
+    _known = any((method, _path) in RETIRED_ROUTES | RETAINED_ROUTES
+                 for method in _route.methods)
+    if not _known:
+        raise RuntimeError(f"Unclassified scheduler route: {sorted(_route.methods)} {_route.path}")
+    if _retire:
+        _route.endpoint = retire(_route.endpoint)
+        _route.deprecated = True
+        # The retirement handler has its own signature; drop any response model
+        # FastAPI inferred for the replaced business handler.
+        _route.response_model = None

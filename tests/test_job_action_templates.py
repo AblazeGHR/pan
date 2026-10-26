@@ -331,57 +331,77 @@ async def test_reference_graph_cycle_rejected_and_template_restore_does_not_enab
 
 @async_test
 async def test_api_permissions_unknown_fields_legacy_aliases_and_repair(tmp_path,monkeypatch):
+    """R5 successor: the old template/Action-Job HTTP surface only refuses.
+
+    The previous version exercised the whole draft -> repair -> instantiate ->
+    run-now flow.  That flow no longer exists, so it is replaced by the two
+    properties that still matter: authentication is checked first (an
+    anonymous caller cannot probe), and an authenticated caller gets an
+    explicit retirement with no persisted Job, template or receipt.
+    """
     from fastapi import FastAPI
     from packages.automation.auth import UserAuth
     from packages.automation.api import install as install_auth
     from packages.actions.api import install as install_actions
     from packages.jobs import action_api,api as legacy
     rt,_=await setup(tmp_path);app=FastAPI();auth=UserAuth(tmp_path/'auth');auth.key()
-    # The existing login router uses engine.io; reuse the production settle helper.
     from packages.plugins.lifecycle import io
     app.state.automation=SimpleNamespace(job_runtime=rt,auth=auth,engine=SimpleNamespace(io=io))
     server=SimpleNamespace(app=app,sess=SimpleNamespace(list_all=lambda **kw:[]))
-    install_auth(server);install_actions(server);app.include_router(action_api.router);app.include_router(legacy.router)
+    install_auth(server);install_actions(server)
+    # Mount through the production installer: that is what applies the R5
+    # retirement boundary, so the assertions below describe the shipped app.
+    from packages.jobs import final_api
+    final_api.install(app, action_api.router, legacy.router)
     monkeypatch.setattr('packages.actions.api.Store',lambda:rt.actions)
     monkeypatch.setattr(legacy,'_job_root',lambda:rt.root)
     monkeypatch.setattr('packages.jobs.pan_bridge.request',lambda *args:None)
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://owned') as client:
-            assert (await client.post('/api/jobs/action-jobs',json={'config':config()})).status_code==401
-            token=auth.login(auth.key());headers={'Authorization':'Bearer '+token}
-            assert (await client.post('/api/jobs/action-jobs',json={'config':{**config(),'text':'inject'}},headers=headers)).status_code==400
-            draft=(await client.post('/api/jobs/action-jobs',json={'config':{**config(),'enabled':False}},headers=headers)).json()['job']
-            assert not draft['enabled']
-            base='/api/jobs/action-jobs/'+draft['jobId']
-            assert (await client.put(base,json={'config':config(),'expectedRevision':1})).status_code==401
-            assert (await client.post('/api/jobs/job-templates',json={'item':{'name':'x','config':config()},'expectedRevision':0})).status_code==401
-            token=(await client.post('/api/automation/login',json={'key':auth.key()})).json()['token'];headers={'Authorization':'Bearer '+token}
-            t=(await client.post('/api/jobs/job-templates',json={'item':{'name':'fixed','config':config()},'expectedRevision':0},headers=headers)).json()['item']
-            endpoint='/api/jobs/job-templates/'+t['id']+'/instantiate'
-            body={'expectedRevision':1,'idempotencyKey':'http-key'}
-            assert (await client.post(endpoint,json=body)).status_code==401
-            assert (await client.post(endpoint,json={**body,'overrides':{'arguments':{}}},headers=headers)).status_code==400
-            first=(await client.post(endpoint,json=body,headers=headers)).json()['job']
-            second=(await client.post(endpoint,json=body,headers=headers)).json()['job']
-            assert first['jobId']==second['jobId']
-            legacy_patch=(await client.patch('/api/jobs/'+first['jobId'],json={'enabled':True})).json()
-            assert not legacy_patch['ok']
-            assert not (await client.post('/api/jobs/'+first['jobId']+'/run-now')).json()['ok']
-            assert not (await client.delete('/api/jobs/'+first['jobId'])).json()['ok']
+            retired=[
+                ('post','/api/jobs/action-jobs',{'config':config()}),
+                ('post','/api/jobs/job-templates',{'item':{'name':'x','config':config()},'expectedRevision':0}),
+                ('delete','/api/jobs/job-templates/jtpl_x',None),
+                ('post','/api/jobs/job-templates/jtpl_x/instantiate',{'expectedRevision':1,'idempotencyKey':'http-key'}),
+                ('post','/api/jobs/job_x/run-now',{'expectedRevision':1}),
+            ]
+            # ``/api/jobs/{id}`` is owned by the canonical object route now, so
+            # PATCH/DELETE there validate a canonical body instead of reaching
+            # the old facade handler.  They must never fall through to it.
+            canonical_owned=[
+                ('patch','/api/jobs/job_x',{'enabled':True}),
+                ('delete','/api/jobs/job_x',None),
+            ]
+            # Authentication precedes the retirement answer, so an anonymous
+            # caller cannot distinguish a retired path from a missing one.
+            # ``PATCH /api/jobs/{id}`` is now owned by the canonical object
+            # route, which answers 405: also impossible to mutate, and it
+            # reveals nothing about the retired legacy handler.
+            for method,path,body in retired+canonical_owned:
+                anonymous=await client.request(method,path,json=body)
+                assert anonymous.status_code in (401,405,400),(method,path,anonymous.text)
+                assert 'retired' not in anonymous.text
+            token=(await client.post('/api/automation/login',json={'key':auth.key()})).json()['token']
+            headers={'Authorization':'Bearer '+token}
+            before_jobs=list(rt.list());before_templates=rt.templates.list()
+            for method,path,body in retired:
+                refused=await client.request(method,path,json=body,headers=headers)
+                assert refused.status_code==410,(method,path,refused.text)
+                assert refused.json()['detail']['code']=='retired',(method,path)
+            for method,path,body in canonical_owned:
+                refused=await client.request(method,path,json=body,headers=headers)
+                # Canonical owns this address and rejects the old shape; it
+                # must never fall through to the retired facade handler.
+                assert refused.status_code in (400,404,405),(method,path,refused.text)
+                assert 'retired' not in refused.text,(method,path)
+            # Nothing was created, enabled, run or deleted by trying.
+            assert list(rt.list())==before_jobs
+            assert rt.templates.list()==before_templates
+            # The Action registry itself is not part of the Job retirement.
             assert (await client.delete('/api/actions/actions/pause')).status_code==401
             assert (await client.delete('/api/actions/actions/pause?confirmReferences=true',headers=headers)).status_code==200
-            incomplete=(await client.get('/api/jobs/action-jobs',headers=headers)).json()['jobs']
-            assert all(j['integrity']['status']=='incomplete' for j in incomplete)
-            rt.actions.put('actions',action())
-            repaired=(await client.put(base,json={'config':config(),'expectedRevision':1},headers=headers)).json()['job']
-            assert not repaired['enabled'] and repaired['configRevision']==2
-            assert (await client.put(base,json={'config':config(),'expectedRevision':1},headers=headers)).status_code==409
-            enabled=(await client.put(base,json={'config':config(),'expectedRevision':2},headers=headers)).json()['job']
-            assert enabled['enabled']
-            assert (await client.post(base+'/run-now',json={'expectedRevision':3})).status_code==401
-            assert (await client.post(base+'/run-now',json={'expectedRevision':3,'text':'extra'},headers=headers)).status_code==400
-            assert (await client.post(base+'/run-now',json={'expectedRevision':3},headers=headers)).status_code==200
-            await finished(rt,draft['jobId'])
+            # Reads of the retired surface still work for existing records.
+            assert (await client.get('/api/jobs/action-jobs',headers=headers)).status_code==200
     finally:await rt.close()
 
 
