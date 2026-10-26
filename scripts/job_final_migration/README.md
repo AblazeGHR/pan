@@ -169,6 +169,36 @@ SQLite WAL 仅在稳定的私有 DB/WAL 副本上 backup；发现 rollback journ
 静默排除后宣称一致。`remaining-legacy-by-id.json` 列出每项仍保留的 legacy 身份及原因；
 它不探测真实进程，因此不能把文件存在、`active_resource` 原因或历史状态解释为当前运行数。
 
+## P9C 人类审阅包（非执行材料）
+
+只从已有 P9B 私有隔离副本生成材料，不重新打开 practical 数据根，不调用旧 get/list、Mapper 或 migrate：
+
+```powershell
+python -m scripts.job_final_migration.review_packet --evidence .validation/p9b-private-20261026-v2 --out .validation/p9c-private-new/review-packet --expected-manifest-sha256 b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5
+```
+
+`--out` 必须不存在且位于 P9B 证据目录外。生成器先复核 manifest SHA、全部稳定文件 SHA、WP08 输入集合及
+inventory，再输出 `simple-review.csv`、`preserved-review.csv`、`records.json`、`REVIEW.md`、
+`decisions.json`、`reviewed-context.draft.json`、`packet-manifest.json`。输出只进入忽略的私有目录；
+真实 ID/路径/引用不能提交到仓库。CSV 中不可信的公式前缀按文本转义。
+
+`recordSha256` 由实际 JSON 内容重新规范化后计算；无法解析时标注 raw-source-bytes basis。
+不直接信任旧 inventory 的 `recordDigest` 字段名，因为逐文件记录中它可能实际为规范化 JSON 文本。
+`sourceFileSha256` 是原文件 bytes SHA。拟 canonical ID 使用既有确定性公式，仅为提案，不分配对象。
+bundle 身份绑定 inventory、原快照及归档 envelope；canonicalBundleProduced=false，没有可导入 bundleDigest。
+
+草稿 wrapper 和嵌套 context 都带 `reviewManifest/status=draft_unapproved`；wrapper 的 `planDigest`
+绑定精确的 nested context、逐 ID hash、选择集合和草稿元数据，避免把 digest 包含自身造成循环。
+实际 principal/owner/grants/fence/策略均留空，approvedSelection/active_ids 为空。
+无签名、占位签名、自报 signer、手改 approved 状态，都不能让 P9C packet/context 进入 apply。
+本版本没有可信签署者注册或密码学签名验证契约，所以所有 P9C review 格式一律拒绝，dry-run 也不能将其映射为定义。
+新增拒绝规则限于 P9C 材料；已有 v1 操作员 attestation 合同没有被升级为签名验证系统。
+未来授权必须另行确定签署者、可信验证方式和当前权限，不能删除草稿标记或把占位审核当作授权。
+
+同一快照生成不同输出目录时，每个文件 bytes、packetDigest 与 draft planDigest 都稳定；
+不嵌入当前时间或输出目录。source root 的实际身份仍参与 inventory/operation 摘要，迁移快照位置后须重新审阅。
+历史保留建议只是供人类确认：原始 bytes 可归档不等于效果已结算、安全历史读路径已验收或 R6 可放行。
+
 ## 支持与验证矩阵
 
 | 功能 | Windows | Linux / macOS |

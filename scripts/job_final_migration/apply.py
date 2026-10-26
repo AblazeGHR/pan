@@ -19,6 +19,22 @@ from .inventory import SIMPLE, build_inventory, is_within_root
 from .mapping import ApplyError, Mapper, require
 
 BUNDLE_SCHEMA = "pan.job-final-migration.bundle/v1"
+REVIEW_DRAFT_SCHEMA = "pan.job-final-migration.review-draft/v1"
+REVIEW_PACKET_SCHEMA = "pan.job-final-migration.review-packet/v1"
+
+
+def reject_review_material(context: dict) -> None:
+    """P9C is review material, never an executable authorization format.
+
+    No trusted signer/verifier contract exists for these packets. A claimed
+    approval, nonempty signature, or matching digest cannot grant authority.
+    Existing v1 operator contexts keep their separate attestation contract.
+    """
+    require(not any(key in context for key in ("reviewManifest", "reviewPacket"))
+            and context.get("schema") not in {REVIEW_DRAFT_SCHEMA, REVIEW_PACKET_SCHEMA}
+            and context.get("status") != "draft_unapproved",
+            "review_packet_not_authorized: draft/unsigned review material cannot apply; "
+            "no trusted review signature verifier is configured")
 
 
 def plan_digest(inventory: dict, context: dict) -> str:
@@ -146,6 +162,7 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     expected_digest is the planDigest from a reviewed context-bound dry-run.
     A committed bundle is an offline artifact, NOT runtime owner activation.
     """
+    reject_review_material(context)
     root = Path(root).resolve(strict=True)
     target = outside_root(root, target)
     inventory = build_inventory(root, allow_real_profile=allow_real_profile)
