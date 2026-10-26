@@ -1,0 +1,219 @@
+# 完整失败清单
+
+候选 199 failed + 1 timed out；完整身份核对 6500 unique、missing=0、unexpected=0。
+
+基线状态 passed 表示完整 main 同身份通过；not_collected 表示候选新增测试。首行错误仅作脱敏归因索引，完整 traceback 保留在本机。
+
+## 集成新增红项（156）
+
+- `tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]` — failed；baseline=passed；KeyError('deleted') [single exception in ExceptionGroup]
+- `tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]` — failed；baseline=passed；KeyError('deleted') [single exception in ExceptionGroup]
+- `tests.test_authorization_mcp::test_user_management_ignores_grants_forged_http_rejected_system_definitions_immutable` — failed；baseline=passed；AssertionError: assert not True
+- `tests.test_authorization_runtime::test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_authorization_runtime::test_trigger_effect_revision_barrier` — failed；baseline=passed；TimeoutError
+- `tests.test_automation_action_chain::test_trigger_chain_mapping_freezes_on_event_acceptance` — failed；baseline=not_collected；packages.automation.store.Conflict: Edit executable steps from the target Job
+- `tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result0-failed]` — failed；baseline=not_collected；AssertionError: assert (['one'] == ['one']
+- `tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result1-uncertain]` — failed；baseline=not_collected；AssertionError: assert (['one'] == ['one']
+- `tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result2-uncertain]` — failed；baseline=not_collected；AssertionError: assert (['one'] == ['one']
+- `tests.test_automation_action_chain::test_trigger_cancel_and_restart_running_step_never_replays` — failed；baseline=not_collected；packages.automation.store.Conflict: Control execution through the target Job; historical Runs are read only
+- `tests.test_automation_action_chain::test_trigger_boundary_recovers_same_run_without_effect_retry` — failed；baseline=not_collected；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_action_chain::test_trigger_failed_retry_only_current_idempotent_step` — failed；baseline=not_collected；AssertionError: timed out
+- `tests.test_automation_action_chain::test_trigger_running_step_restart_never_replays` — failed；baseline=not_collected；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_action_chain::test_trigger_post_effect_write_failure_blocks_chain` — failed；baseline=not_collected；AttributeError: 'Ledger' object has no attribute 'save_chain'
+- `tests.test_automation_action_chain::test_trigger_action_revoked_between_steps` — failed；baseline=not_collected；AssertionError: assert (['one'] == ['one']
+- `tests.test_automation_core::test_running_edge_durable_pause_and_dedupe` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_automation_core::test_state_cache_mapping_errors_and_skip` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_automation_core::test_admission_fence_partial_persist_and_slow_disk` — failed；baseline=passed；AssertionError: assert ([] == ['selected']
+- `tests.test_automation_core::test_target_checkpoint_failure_stops_and_marks_uncertain` — failed；baseline=passed；AssertionError: assert [] == ['first']
+- `tests.test_automation_core::test_dependency_revocation_during_durable_claim_waits` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_automation_http::test_real_running_event_pause_blocks_queue` — failed；baseline=passed；AssertionError: timed out waiting for durable automatic Pause: None
+- `tests.test_automation_job_links::test_disabling_source_does_not_cancel_admitted_job_chain` — failed；baseline=not_collected；TimeoutError
+- `tests.test_automation_retry_http::test_node_parallel_finite_retries_and_uncertain_confirmation_http` — failed；baseline=passed；AssertionError: timed out waiting for two blocked real retry attempts at Trigger cap: None
+- `tests.test_automation_retry_parallel::test_uncertain_confirmation_keeps_run_and_new_attempt` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_retry_parallel::test_cleanup_unconfirmed_never_authorizes_automatic_retry` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_parallel_bounded_independent_and_live_reduction` — failed；baseline=passed；Failed: DID NOT RAISE Conflict
+- `tests.test_automation_retry_parallel::test_atomic_claim_fences_concurrent_readers_and_trigger_limit` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_retry_parallel::test_retry_backoff_budget_identities_event_dedup_and_recovery` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_idempotence_or_policy_cannot_be_promoted_after_first_start` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_action_change_during_backoff_fails_without_new_effect` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_wait_cancel_disable_and_reenable_never_replay_history` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_query_retry_uses_frozen_targets_and_only_failed_targets` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_uncertain_no_auto_retry_confirm_revision_and_frozen_query` — failed；baseline=passed；AssertionError: assert ('admitted' == 'uncertain'
+- `tests.test_automation_retry_parallel::test_serial_retry_head_order_and_parallel_independent_tail[serial]` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_serial_retry_head_order_and_parallel_independent_tail[parallel]` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_disable_running_allows_finish_cancels_queue_and_wait` — failed；baseline=passed；AssertionError: assert ['admitted', 'admitted'] == ['cancelled', 'running']
+- `tests.test_automation_retry_parallel::test_retry_pause_gate_plugin_loss_and_new_generation` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_cancel_after_finish_commit_preserves_committed_outcome` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'finish'
+- `tests.test_automation_retry_parallel::test_retry_schedule_write_failure_is_uncertain_not_reexecution` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_uncertain_query_confirmation_reuses_ids_and_successes` — failed；baseline=passed；TimeoutError
+- `tests.test_automation_retry_parallel::test_manual_confirmation_is_bounded_and_disabled_rejected` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_retry_parallel::test_schema_and_confirmation_api_require_user_and_exact_revision` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_retry_parallel::test_committed_retry_does_not_overlap_unretired_attempt_task` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'finish'
+- `tests.test_automation_retry_parallel::test_run_capacity_diagnostic_and_waiting_counts_as_pending` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_event_store_replay_during_backoff_never_resets_attempt` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_automation_retry_parallel::test_close_after_parallel_claim_before_child_start_creates_no_effect` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_retry_parallel::test_parallel_empty_snapshot_wake_is_not_lost` — failed；baseline=passed；TimeoutError
+- `tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[codex]` — failed；baseline=passed；AssertionError: assert 200 == 409
+- `tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[cbc]` — failed；baseline=passed；AssertionError: assert 200 == 409
+- `tests.test_eta_final_combined::test_node_query_pause_production_ui_restart_and_delay_mcp` — failed；baseline=passed；AssertionError: timed out waiting for Node -> query -> Pause: None
+- `tests.test_eta_report_integration_http::test_trusted_locker_and_error_report_share_product_runtime` — failed；baseline=passed；AssertionError: timed out waiting for trusted directed Pause completes alongside reporting: None
+- `tests.test_event_store::test_commit_precedes_fanout_schema_and_write_failure` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_event_store::test_crash_after_commit_before_delivery_and_frozen_trigger_set` — failed；baseline=passed；AssertionError: assert ('t' == 't'
+- `tests.test_event_store::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry` — failed；baseline=passed；assert 0 == 1
+- `tests.test_event_store::test_uncertain_preserves_attempt_and_refuses_user_replay` — failed；baseline=passed；TimeoutError
+- `tests.test_event_store::test_api_bounded_pages_replay_authorization_and_dedup` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_event_store::test_run_retention_protects_pending_uncertain_and_retained_event` — failed；baseline=passed；AssertionError: assert ({'deletedRuns': 0} == {'deletedRuns': 1}
+- `tests.test_event_store::test_empty_event_release_is_read_only_and_existing_run_still_admitted` — failed；baseline=passed；assert 1 == (1 + 1)
+- `tests.test_event_store::test_pending_old_plugin_events_do_not_starve_independent_event[0]` — failed；baseline=passed；AssertionError: assert ('independent' == 'independent'
+- `tests.test_event_store::test_pending_old_plugin_events_do_not_starve_independent_event[0.06]` — failed；baseline=passed；AssertionError: assert ('independent' == 'independent'
+- `tests.test_event_store::test_slow_commit_cancellation_settles_and_restart_delivers` — failed；baseline=passed；AssertionError: assert [] == ['selected']
+- `tests.test_event_store::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id` — failed；baseline=passed；KeyError: 'attempts'
+- `tests.test_event_store::test_capacity_alarm_visible_without_evicting_uncertain` — failed；baseline=passed；AssertionError: assert (1 == 1 and [] == ['selected']
+- `tests.test_event_store::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay` — failed；baseline=passed；AssertionError: assert ('running' == 'uncertain'
+- `tests.test_event_store::test_many_concurrent_same_event_ids_have_one_run_and_attempt` — failed；baseline=passed；KeyError: 'attemptCount'
+- `tests.test_event_store_http::test_actual_running_event_persists_before_query_pause` — failed；baseline=passed；AssertionError: timed out waiting for durable automatic Pause: None
+- `tests.test_event_store_http::test_node_durable_event_http_replay_restart_and_uncertain` — failed；baseline=passed；AssertionError: timed out waiting for durable Event -> query -> Pause: False
+- `tests.test_event_trigger_reliability::test_revoke_during_action_preparation_defers_same_attempt[action_read]` — failed；baseline=passed；TimeoutError
+- `tests.test_event_trigger_reliability::test_revoke_during_action_preparation_defers_same_attempt[target_checkpoint]` — failed；baseline=passed；TimeoutError
+- `tests.test_event_trigger_reliability::test_one_scheduler_io_failure_recovers_without_external_kick[read]` — failed；baseline=passed；TimeoutError
+- `tests.test_event_trigger_reliability::test_one_scheduler_io_failure_recovers_without_external_kick[claim]` — failed；baseline=passed；TimeoutError
+- `tests.test_event_trigger_reliability::test_cancel_backoff_head_wakes_serial_tail` — failed；baseline=passed；TimeoutError
+- `tests.test_event_trigger_reliability::test_old_profile_copy_reopen_failure_recovery_and_repeat_maintenance` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'recover'
+- `tests.test_event_trigger_reliability::test_revocation_between_targets_preserves_success_and_never_auto_replays` — failed；baseline=passed；AssertionError: assert ([] == ['first']
+- `tests.test_event_trigger_reliability::test_locker_trusted_binding_still_verified_before_each_target` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_interaction_runtime::test_real_auth_and_directed_engine` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_chain::test_restart_boundary_reuses_original_run_and_never_reruns_completed` — failed；baseline=not_collected；AssertionError: assert ('failed' == 'completed'
+- `tests.test_job_action_chain::test_system_shell_steps_have_distinct_trusted_child_admissions` — failed；baseline=not_collected；AssertionError: {'id': 'jexec_80b046f7650c42c4a9279e55b95e4ec0', 'runId': 'run_2522dfeac8524c6a834df174', 'attemptId': 'attempt_5982a50bc12f4e8f80d6a2fc', 'authorization': {'type': 'user'}, ...}
+- `tests.test_job_action_chain::test_real_owned_commands_pass_structured_output_without_server` — failed；baseline=not_collected；AssertionError: {'id': 'jexec_352e7087abb444429b8fd15d50d3ccc5', 'runId': 'run_33e36d2d81ac44dfb47538da', 'attemptId': 'attempt_9857ee1aee7f47f195b042be', 'authorization': {'type': 'user'}, ...}
+- `tests.test_job_action_chain::test_admitted_fixed_template_step_uses_original_template_revision` — failed；baseline=not_collected；AssertionError: {'id': 'jexec_6eb1ddc3e2274520a11fe41bf41e92df', 'runId': 'run_2a4908b70b684c699ca11c02', 'attemptId': 'attempt_86eefc49c5ee45f9a4133768', 'authorization': {'type': 'user'}, ...}
+- `tests.test_job_action_http::test_complete_template_reference_snapshot_and_recovery_http` — failed；baseline=passed；AssertionError: timed out waiting for real Worker event creates Job via delegated fixed template: KeyError('actionId')
+- `tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]` — failed；baseline=passed；TimeoutError
+- `tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]` — failed；baseline=passed；TimeoutError
+- `tests.test_job_action_templates::test_cancel_exception_shutdown_and_recovery_remove_snapshots` — failed；baseline=passed；TimeoutError
+- `tests.test_job_action_templates::test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only` — failed；baseline=passed；AssertionError: assert ('cleaning' == 'cleaning'
+- `tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_snapshot_write_or_post_effect_checkpoint_failure_never_replays` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_terminal_job_write_failure_after_cleanup_recovers_same_run_once` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_fixed_template_action_capability_idempotence_and_group_gate` — failed；baseline=passed；KeyError: 'id'
+- `tests.test_job_action_templates::test_running_template_instantiation_uses_private_context_after_template_delete` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_api_permissions_unknown_fields_legacy_aliases_and_repair` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_duplicate_profile_owner_cannot_recover_or_close_active_execution` — failed；baseline=passed；TimeoutError
+- `tests.test_job_action_templates::test_notification_retry_is_independent_of_effect_and_snapshot` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_chain_phase5_e2e::test_real_mcp_legacy_message_and_process_become_action_jobs` — failed；baseline=not_collected；AssertionError('GET /api/jobs/job_34ac17dcdf89466fafc1f65d: 401 {"error":{"code":"unauthenticated","message":"unauthenticated"}}\nOwned server log:\n') [single exception in ExceptionGroup]
+- `tests.test_job_chain_phase5_e2e::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy` — failed；baseline=not_collected；AssertionError('timed out waiting for native command admitted before owned host crash: None') [single exception in ExceptionGroup]
+- `tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard` — failed；baseline=passed；KeyError: 'deleted'
+- `tests.test_job_final_admission::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs` — failed；baseline=not_collected；assert False
+- `tests.test_job_final_admission::test_fa01_direct_trigger_reuses_visible_managed_job_across_events_and_restart` — failed；baseline=not_collected；AssertionError: assert (1 == 1 and [] == ['selected', 'selected']
+- `tests.test_job_final_admission::test_fa02_revision_is_provenance_not_event_dedup_identity` — failed；baseline=not_collected；AssertionError: assert ([] == ['selected']
+- `tests.test_job_final_admission::test_fa02_state_cached_false_and_read_error_never_execute[0-admitted]` — failed；baseline=not_collected；AssertionError: assert [] == ['selected']
+- `tests.test_job_final_admission::test_fa03_target_job_lifecycle_blocks_effects[disabled]` — failed；baseline=not_collected；AssertionError: assert ([] == ['selected']
+- `tests.test_job_final_admission::test_fa03_target_job_lifecycle_blocks_effects[paused]` — failed；baseline=not_collected；AssertionError: assert ([] == ['selected']
+- `tests.test_job_final_admission::test_fa03_direct_chain_has_one_managed_job_and_no_automation_attempts` — failed；baseline=not_collected；AssertionError: assert (1 == 1 and 'failed' == 'completed'
+- `tests.test_job_final_admission::test_fa01_interrupted_intent_queries_original_identity_without_resend[True]` — failed；baseline=not_collected；AssertionError: assert [] == ['selected']
+- `tests.test_job_inbox_http::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak` — failed；baseline=passed；AssertionError: file:///D:/project/pan-worktrees/job-qa-integration-20261025/packages/web/e2e/job-unified-live.mjs:34
+- `tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]` — failed；baseline=passed；AssertionError: assert 0 == 1
+- `tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]` — failed；baseline=passed；AssertionError: assert 0 == 1
+- `tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]` — failed；baseline=passed；AssertionError: assert 0 == 1
+- `tests.test_job_overlap::test_parallel_claim_bound_independent_jobs_and_terminal_cleanup` — failed；baseline=passed；TimeoutError
+- `tests.test_job_overlap::test_queue_is_persistent_bounded_and_disable_cancels_waiting` — failed；baseline=passed；TimeoutError
+- `tests.test_job_unified_contract::test_monitoring_without_signal_enters_restarting` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_job_unified_http::test_unified_event_system_actions_legacy_and_production_ui` — failed；baseline=passed；AssertionError: timed out waiting for real Worker running edge -> Event Store -> unified Job query -> Pause: AssertionError('GET /api/jobs/job_f54d172ab7004dc78b35f4ca: 404 {"error":{"code":"not_found","message":"Object not found"}}\nOwned server log:\n')
+- `tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http` — failed；baseline=passed；AssertionError: DELETE /api/jobs/job_unknown_fixture: 401 {"error":{"code":"unauthenticated","message":"unauthenticated"}}
+- `tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id` — failed；baseline=not_collected；AssertionError: timed out
+- `tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime` — failed；baseline=not_collected；AssertionError: assert 'failed' == 'uncertain'
+- `tests.test_locker_independent_http::test_owned_notification_consumption_and_restart` — failed；baseline=passed；AssertionError: timed out waiting for one directed Pause Run: None
+- `tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'run_attempt'
+- `tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[pinned_action]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'run_attempt'
+- `tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[after_admission]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'run_attempt'
+- `tests.test_locker_order_scroll_live::test_locker_order_scroll_live` — failed；baseline=passed；AssertionError:
+- `tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart` — failed；baseline=passed；AssertionError:
+- `tests.test_locker_runtime_http::test_product_locker_login_choice_pause_restart` — failed；baseline=passed；AssertionError: timed out waiting for selected real Run completes Pause: None
+- `tests.test_locker_trusted_binding::test_fixed_meaning_barriers[approval]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_locker_trusted_binding::test_fixed_meaning_barriers[admission]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_locker_trusted_binding::test_fixed_meaning_barriers[effect]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_locker_trusted_binding::test_fixed_meaning_barriers[revoked_effect]` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[False]` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[True]` — failed；baseline=passed；AssertionError: timed out
+- `tests.test_locker_trusted_binding::test_later_attempt_cannot_read_new_action` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_mcp_handbook.TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer` — failed；baseline=passed；AssertionError: session_handoff
+- `tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[standalone]` — failed；baseline=passed；TimeoutError
+- `tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[pan_native]` — failed；baseline=passed；TimeoutError
+- `tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[gateway]` — failed；baseline=passed；TimeoutError
+- `tests.test_plugin_events::test_external_rejections_disconnect_and_queue_restore` — failed；baseline=passed；TimeoutError
+- `tests.test_plugin_events::test_slow_external_subscriber_isolated_and_bounded` — failed；baseline=passed；TimeoutError
+- `tests.test_plugin_events::test_service_restart_restores_queued_only_after_actual_plugin_ready` — failed；baseline=passed；AttributeError: 'Engine' object has no attribute 'execute'
+- `tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]` — failed；baseline=passed；TimeoutError() [single exception in ExceptionGroup]
+- `tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]` — failed；baseline=passed；TimeoutError() [single exception in ExceptionGroup]
+- `tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]` — failed；baseline=passed；TimeoutError() [single exception in ExceptionGroup]
+- `tests.test_plugin_events_http::test_real_http_plugin_lifecycle_and_restart` — failed；baseline=passed；AssertionError: timed out waiting for external event Action: None
+- `tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown` — failed；baseline=passed；KeyError: 'ok'
+- `tests.test_scheduler_legacy_bridge::test_switched_task_flows_event_trigger_job_and_system_action_audit` — failed；baseline=not_collected；AssertionError: timed out
+- `tests.test_session_query::test_recovery_preserves_frozen_targets_and_never_requeries` — failed；baseline=passed；AssertionError: assert ('admitted' == 'uncertain'
+- `tests.test_session_query::test_query_real_isolated_http_fakecli` — failed；baseline=passed；AssertionError: timed out waiting for durable automatic Pause: None
+- `tests.test_session_query::test_query_overflow_is_failed_run_without_effects` — failed；baseline=passed；AssertionError: assert ('admitted' == 'failed'
+- `tests.test_system_fields_http::test_worker_error_persists_system_session_and_pauses_via_mapping` — failed；baseline=passed；AssertionError: {'id': 'run_b8030b4212ef492c854eede175048c36', 'recordType': 'triggerAdmission', 'triggerId': 'runtime_issue_pause', 'triggerRevision': 2, ...}
+- `tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart` — failed；baseline=passed；AssertionError: node:internal/modules/run_main:107
+- `tests.test_automation_concurrency::test_close_before_new_runner_first_step_retires_registration` — failed；baseline=passed；AssertionError: assert 't' in {}
+- `tests.test_automation_concurrency::test_concurrent_stale_kicks_keep_one_runner_and_close_cancels_it` — failed；baseline=passed；TimeoutError
+- `tests.test_automation_concurrency::test_deferral_disable_order_and_stale_revision_never_resurrect` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_concurrency::test_disable_between_claim_and_dependency_deferral_cancels` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'claim'
+- `tests.test_automation_concurrency::test_empty_snapshot_then_match_cannot_lose_wakeup` — failed；baseline=passed；TimeoutError
+- `tests.test_automation_concurrency::test_kick_after_owner_retirement_starts_successor` — failed；baseline=passed；KeyError: 't'
+- `tests.test_automation_concurrency::test_start_recovery_inflight_at_close_must_not_reopen` — failed；baseline=passed；AttributeError: 'Ledger' object has no attribute 'recover'
+- `tests.test_automation_concurrency::test_kick_read_inflight_at_close_must_not_spawn` — timed_out；baseline=passed；pytest-timeout diagnostic 30s; original full run also timed out at default 300s
+
+## 环境缺依赖（37）
+
+- `tests.test_terminal_composition::test_composition_r2_engine_close_budget_owner_retryable` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_durable_ma::test_refused_host_skip_requires_verified_cleanup_and_releases_resources` — failed；baseline=failed；AssertionError: Regex pattern did not match.
+- `tests.test_terminal_emulator::test_construct_ready_identity_and_close` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_start_cursor_beyond_53_bits_travels_as_string` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_main_screen_matrix_and_recovery` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_alternate_screen_matrix_and_recovery` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_split_utf8_1_4_rest_matches_continuous` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_holdback_split_csi_and_protocol_a_recovery` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_holdback_split_osc_degrades_partial_and_recovers` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_snapshot_cursor_excludes_pending_tail` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_resize_queue_ordering_matches_reference` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_browserless_large_output_and_log_cursor_eviction` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_snapshot_cursor_is_applied_not_producer_frontier` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_expired_control_never_executes_late` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_enqueue_never_waits_for_node` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_overflow_is_sticky_degraded_and_bounded` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_control_queue_overflow_is_visible` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_unknown_sequence_after_event_saturation_is_detected` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_engine_op_error_is_sticky_degraded` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_reset_baseline_uses_execution_position_not_future_frontier` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_reset_clears_old_gap_and_never_fakes_full` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_duplicate_feed_bytes_not_double_consumed` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_sidecar_crash_is_visible_and_close_converges` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_close_failure_retains_resources_then_retry_converges` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_guard_close_failure_is_retryable` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_no_process_leaks_after_close` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_stderr_join_failure_is_accounted_and_retryable` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_stream_close_failure_is_accounted_and_retryable` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_resize_wait_confirmation_surface` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_close_timeout_bounds_total_call_including_lock_wait` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_kill_timeout_wired_to_remaining_budget` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_batching_merges_adjacent_feeds` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_batching_stops_at_gap_and_control` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_batching_prefix_split_utf8_csi_osc_equivalence` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_batching_error_ack_binds_batch` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_emulator::test_feed_batching_accounting_in_flight_and_close` — failed；baseline=failed；packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\project\pan-worktrees\job-qa-integration-20261025\packages\core\terminal\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装
+- `tests.test_terminal_tools_api::test_real_stdio_mcp_conpty_roundtrip` — failed；baseline=failed；AssertionError("{'ok': False, 'error': {'code': 'terminal-tool-failed'}}\nassert False") [single exception in ExceptionGroup]
+
+## 基线已有（7）
+
+- `tests.test_terminal_emulator::test_runner_hard_death_kills_sidecar_via_job` — failed；baseline=failed；AssertionError: Traceback (most recent call last):
+- `tests.test_terminal_emulator::test_assign_phase_membership_gate_fail_closed[is_member_false]` — failed；baseline=failed；AssertionError: spy 未捕获 sidecar 进程
+- `tests.test_terminal_emulator::test_assign_phase_membership_gate_fail_closed[is_member_raises]` — failed；baseline=failed；AssertionError: spy 未捕获 sidecar 进程
+- `tests.test_terminal_emulator::test_assign_phase_membership_gate_fail_closed[active_none]` — failed；baseline=failed；AssertionError: spy 未捕获 sidecar 进程
+- `tests.test_terminal_emulator::test_assign_phase_membership_gate_fail_closed[active_raises]` — failed；baseline=failed；AssertionError: spy 未捕获 sidecar 进程
+- `tests.test_terminal_emulator::test_assign_phase_membership_gate_fail_closed[active_zero]` — failed；baseline=failed；AssertionError: spy 未捕获 sidecar 进程
+- `tests.test_web_frontend::test_root_redirects_to_react_when_dist_exists` — failed；baseline=failed；RuntimeError: queue retry cancellation failed: Event loop is closed; Worker worker-1 process stop failed: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at D:\project\Pan-main\.venv\Lib\site-packages\anyio\_core\_tasks.py:327> cb=[TaskGroup._spawn.<locals>.task_done() at D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py:870]> got Future <Future pending> attached to a different loop
+
+## 前端失败（两树相同）
+
+- `frontend mock backend rejects handoff instead of pretending relationship transfer succeeded` — AssertionError: expected [Function] to throw error including '演示模式不支持替身交接' but got 'Session handoff is unavailable in dem…'
+- `reaudit · ordered event pipeline E1b · Codex delta and final tool envelope with one item renders once` — AssertionError: expected [ { role: 'tool', …(3) } ] to deeply equal [ { role: 'tool', …(2) } ]
