@@ -1,0 +1,289 @@
+{
+  "pattern": "agent_send_force",
+  "activeHits": [],
+  "historicalLineCounts": {
+    "artifacts/": 134,
+    "audit/": 36,
+    "docs/archive/": 6,
+    "evidence/": 10
+  },
+  "historicalFiles": [
+    {
+      "path": "artifacts/authorization-candidate/unit.xml",
+      "lines": 1,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39926544494/attempt2/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39961776834/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39965883287/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39970102909/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39971712612/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39976748349/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39977913668/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39983726899/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39984709747/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39991213850/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-39997143184/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-40005263943/gate.json",
+      "lines": 10,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/main-ci-40083487423/pytest-results.xml",
+      "lines": 3,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/r5-p4/collection-missing-deps.log",
+      "lines": 5,
+      "category": "artifacts/"
+    },
+    {
+      "path": "artifacts/r5-p4/collection.log",
+      "lines": 5,
+      "category": "artifacts/"
+    },
+    {
+      "path": "audit/auto-force-sources-20261020/report.md",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/codex-native-control/20261010/evidence-r2/python-full.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/codex-session-mode/20261010/evidence/python-full.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/codex-session-mode/20261010/python-rerun/python-full.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/delayed-restart-mcp-20261022/delayed-restart-remote.log",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/delayed-restart-mcp-20261022/delayed-restart-remote.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/delayed-restart-mcp-20261022/delayed-restart-targeted.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261006/collection.json",
+      "lines": 3,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final312.log",
+      "lines": 3,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final312.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final314.log",
+      "lines": 3,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261006/job-final314.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/cleanup-final312.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/cleanup-final314.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261007-cleanup/collection.json",
+      "lines": 3,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261007/remaining-final312.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/github-ci/20261007/remaining-final314.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/sticky-wake-integration-20261021/semantic-preservation.json",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/candidate-main-full-repository-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/final-closeout-full-repository-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/final-isolated-job-full-repository-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-4823-final-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-586ec3f0-final-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-ed1-final-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-final-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/browser/full-repository-uv.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/premerge-20261006/python-final.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "audit/terminal/implementation/premerge-20261006/python-full.xml",
+      "lines": 1,
+      "category": "audit/"
+    },
+    {
+      "path": "docs/archive/user-docs-before-refresh-20260928/README.md",
+      "lines": 1,
+      "category": "docs/archive/"
+    },
+    {
+      "path": "docs/archive/user-docs-before-refresh-20260928/USER_MANUAL.en.md",
+      "lines": 2,
+      "category": "docs/archive/"
+    },
+    {
+      "path": "docs/archive/user-docs-before-refresh-20260928/USER_MANUAL.md",
+      "lines": 3,
+      "category": "docs/archive/"
+    },
+    {
+      "path": "evidence/report-prompt-reference-20261025/backend-regression.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/report-prompt-reference-20261025/batch-fix-regression.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/shortcuts-settings-20261019/pytest-collect-order.txt",
+      "lines": 3,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/source-aware-auto-report-20261019/source-chain.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/source-aware-auto-report-20261019/targeted-regression.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/source-aware-main-integration-20261021/core.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/source-aware-main-integration-20261021/final-boundaries.xml",
+      "lines": 1,
+      "category": "evidence/"
+    },
+    {
+      "path": "evidence/source-aware-main-integration-20261021/ma-auto-report.xml",
+      "lines": 1,
+      "category": "evidence/"
+    }
+  ],
+  "scope": "git tracked files; new rename tests also checked by workspace rg",
+  "workspaceRgExitCode": 1
+}

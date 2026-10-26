@@ -154,7 +154,7 @@ try {
   await page.locator('[data-session-card-id]').first().waitFor({ state: 'visible' });
   const managerBefore = await history(ids['E2E-B']);
 
-  // Hold one real Codex task open so agent_send captures its active taskId.
+  // Hold one real Codex task open so agent_send_to_queue captures its active taskId.
   await api('/api/assign', {
     sessionId: ids['E2E-A'],
     text: 'handoff-context-before-crash',

@@ -71,7 +71,7 @@ Session 摘要/详情返回 `legalOffline`、`illegalOffline` 和 `legalityDiagn
 Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原有幂等语义
 返回 pending/receipt，不重复执行。
 
-`POST /api/send`（普通 send 和 `agent_send_force` 的统一入口）不生成新的
+`POST /api/send`（`agent_send` 和 `agent_send_to_queue` 的统一入口）不生成新的
 业务编号。对来源为 Pan agent 的消息，入队时复制目标 Session 当时的
 `active_task_id`；没有活动任务就是 `taskId: null`。普通消息的 inherited taskId
 只用于完成 report 配对，不参加 assign 去重，所以连续 send 不会互相去重。正式
@@ -79,9 +79,9 @@ Session 的持久 `active_task_id`；同一 `taskId` 的 assign 重试仍按原�
 快照。Session 重启/恢复只从持久 queue 中的未完成正式 task 恢复活动上下文，绝不
 从 `lastResult` 或 history 猜测。
 
-### 即时 force / 原生 Steer
+### 当前任务默认更新 / 原生 Steer
 
-`agent_send_force` 与兼容 `worker_send_force` 都向 `/api/send` 传
+`agent_send` 与兼容 `worker_send_force` 都向 `/api/send` 传
 `{"sessionId":"...","text":"...","source":"agent","force":true}`。
 可选 `clientMessageId` 是事务去重键；调用者身份由 MCP 附加为
 `sourceSessionId`。MCP 不先调用 restart，也不自行选择底层协议。

@@ -12563,7 +12563,7 @@ async def api_task(data: dict):
     if data.get("taskId") is not None:
         send_kwargs["task_id"] = data.get("taskId")
     elif data.get("inheritTaskId") and source_type == "agent" and session_id:
-        # agent_send_force uses this legacy task route after restarting.  Keep
+        # Legacy task callers can inherit the same context as agent_send. Keep
         # the same enqueue-time snapshot as /api/send without turning the
         # inherited id into a second assign idempotency key.
         send_kwargs["task_id"] = target.active_task_id if target else None

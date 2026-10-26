@@ -991,7 +991,7 @@ try {
   assert.ok(recoveryQueueItem, 'active task queues the agent follow-up durably');
   assert.equal(recoveryQueueItem.taskId, 'e2e-handoff-recovery-context');
   assert.equal(recoveryQueueItem.taskIdSource, 'active',
-    'agent_send records the active MA task id as pairing context');
+    'agent_send_to_queue records the active MA task id as pairing context');
   assert.equal(recoveryQueueItem.sourceSessionId, ids['E2E-B']);
 
   await fs.writeFile(path.join(runtime, 'release-handoff-context'), 'release');

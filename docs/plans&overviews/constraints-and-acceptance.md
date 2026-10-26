@@ -17,7 +17,7 @@
 ## 二、Pan 编排记忆
 
 - Session 是持久身份和任务上下文，Worker 是可重建的临时进程；Worker 被回收不等于 Session 被删除。
-- 普通新任务使用 `agent_assign`；多轮补充使用 `agent_send`；只有紧急打断才使用 `agent_send_force`。
+- 新任务使用 `agent_assign`；当前任务的补充、澄清、纠正和约束更新默认使用 `agent_send`（不绕过暂停/锁）；只有明确留待当前任务结束后的独立延迟事项使用 `agent_send_to_queue`。
 - 完成通知优先使用 `report_subscribe` → `queue_pending`；服务版本或端口不匹配时，明确记录并使用定向 `session_get` 轮询兜底。
 - 新 TA 默认使用 `codex` adapter；模型按任务选择 `gpt-5.6-luna`，不要误用 CBC 模型列表。实际低成本行为测试使用 `gpt-5.6-luna`、`low` 和极短提示。
 - TA 工作树、Session、Worker、服务实例必须在报告中分别列出，不能混称。

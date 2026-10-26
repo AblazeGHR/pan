@@ -1,0 +1,9 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p8-mcp-send-rename-20261025/packages/web/src
+
+ ✓ components/chat/messageFilter.test.ts (15 tests) 5ms
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  15:32:14
+   Duration  1.20s (transform 40ms, setup 12ms, collect 34ms, tests 5ms, environment 0ms, prepare 125ms)

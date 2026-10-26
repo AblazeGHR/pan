@@ -1,0 +1,288 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p8-mcp-send-rename-20261025
+.................................FFFFFF..................F.............. [ 62%]
+............................................                             [100%]
+================================== FAILURES ===================================
+___ test_public_send_routes_keep_task_and_admission_gates[open-agent_send] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E190>
+tool_name = 'agent_send', gate = 'open'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+_ test_public_send_routes_keep_task_and_admission_gates[open-agent_send_to_queue] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E820>
+tool_name = 'agent_send_to_queue', gate = 'open'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+___ test_public_send_routes_keep_task_and_admission_gates[pause-agent_send] ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E040>
+tool_name = 'agent_send', gate = 'pause'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+_ test_public_send_routes_keep_task_and_admission_gates[pause-agent_send_to_queue] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9EAC0>
+tool_name = 'agent_send_to_queue', gate = 'pause'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+___ test_public_send_routes_keep_task_and_admission_gates[lock-agent_send] ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9DDA0>
+tool_name = 'agent_send', gate = 'lock'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+_ test_public_send_routes_keep_task_and_admission_gates[lock-agent_send_to_queue] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1F6F3F0>
+tool_name = 'agent_send_to_queue', gate = 'lock'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+>       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError
+_________ test_current_catalog_schema[agent_background_start-fields8] _________
+
+remote_gateway = ('http://127.0.0.1:52215/mcp', 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3RlYW0uY2xvdWRmbGFyZWFjY2Vzc...mluzDfXyMr8MHTzZV4rBZEQGSYBUsd1U4OMoq_m13jW88u2wugTS0y-TdArlMJVzWOGD4xqLw6vrmTj7N5AbyNZtYBi5FE83jonIoHijrJS8d7WR2bKKQ')
+name = 'agent_background_start'
+fields = {'hide_window', 'name', 'target_session_id'}
+
+    @pytest.mark.parametrize("name,fields", [
+        ("session_get", {"limit", "roles", "tool_output", "before"}),
+        ("session_message_get", {"message_id", "roles", "tool_output"}),
+        ("session_history_search", {"query", "cursor", "roles", "tool_output"}),
+        ("model_catalog", {"adapter", "session_id"}),
+        ("agent_restart_delayed", {"session_id"}),
+        ("agent_restart_delayed_status", {"session_id"}),
+        ("report_consume", {"item_id"}),
+        ("action_drafts", {"operation", "kind", "item", "expected_revision"}),
+        ("agent_background_start", {"name", "target_session_id", "hide_window"}),
+    ])
+    def test_current_catalog_schema(remote_gateway, name, fields):
+        url, token = remote_gateway
+        tools = {tool.name: tool for tool in _mcp_list_tools(url, token)}
+>       assert fields <= tools[name].inputSchema["properties"].keys()
+                         ^^^^^^^^^^^
+E       KeyError: 'agent_background_start'
+
+tests\test_mcp_remote_parity.py:310: KeyError
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_mcp_remote_parity.py::test_remote_tools_list_equals_stdio_registry
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_mcp_remote_parity.py::test_remote_tools_list_equals_stdio_registry
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+tests/test_mcp_remote_parity.py: 26 warnings
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:109: DeprecationWarning: Use `streamable_http_client` instead.
+    self.gen = func(*args, **kwds)
+
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+  D:\project\pan-worktrees\job-p8-mcp-send-rename-20261025\tests\test_real_queue_http_e2e.py:363: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+  D:\project\pan-worktrees\job-p8-mcp-send-rename-20261025\tests\test_real_queue_http_e2e.py:700: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+tests/test_mcp_remote_parity.py::test_remote_delayed_restart_real_http
+  D:\project\pan-worktrees\job-p8-mcp-send-rename-20261025\tests\test_real_queue_http_e2e.py:756: PytestUnknownMarkWarning: Unknown pytest.mark.timeout - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.timeout(120)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[open-agent_send]
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[open-agent_send_to_queue]
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[pause-agent_send]
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[pause-agent_send_to_queue]
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[lock-agent_send]
+FAILED tests/test_force_steer.py::test_public_send_routes_keep_task_and_admission_gates[lock-agent_send_to_queue]
+FAILED tests/test_mcp_remote_parity.py::test_current_catalog_schema[agent_background_start-fields8]

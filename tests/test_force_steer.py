@@ -150,7 +150,7 @@ def test_mcp_force_entries_delegate_capability_choice_to_backend(monkeypatch, al
     def api(method, route, body):
         calls.append((method, route, body)); return {'status': 'accepted', 'outcome': 'accepted'}
     monkeypatch.setattr(mcp, '_api', api)
-    if alias == 'agent': result = mcp.agent_send_force('target', 'urgent', 'force-stable')
+    if alias == 'agent': result = mcp.agent_send('target', 'urgent', 'force-stable')
     elif alias == 'worker_session': result = mcp.worker_send_force(session_id='target', text='urgent', client_message_id='force-stable')
     else: result = mcp.worker_send_force(worker_id='old-worker', text='urgent', client_message_id='force-stable')
     assert result['outcome'] == 'accepted' and len(calls) == 1
@@ -158,6 +158,50 @@ def test_mcp_force_entries_delegate_capability_choice_to_backend(monkeypatch, al
     assert method == 'POST' and route == '/api/send'
     assert body['force'] is True and body['sessionId'] == 'target'
     assert body['sourceSessionId'] == 'sender' and body['clientMessageId'] == 'force-stable'
+
+
+@pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+@pytest.mark.parametrize('gate', ['open', 'pause', 'illegal_lock'])
+def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+    """Public tool -> HTTP handler -> queue/native delivery, with no live CLI."""
+    from packages.web import server
+    s, w, stdin = live()
+    s.queue_paused = gate == 'pause'
+    sess._cache['sender'] = sess.Session(id='sender', name='sender')
+    if gate == 'illegal_lock':
+        identity = worker._offline.owner(w)
+        worker._offline.admit(s, identity, kind='foreground')
+        worker._offline.detect(s, 'test-crash', identity=identity,
+                               eligible=lambda _: True, remember=lambda _: None)
+    monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+    monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+    monkeypatch.setattr(worker, 'restart_or_start_worker',
+                        AsyncMock(side_effect=AssertionError('no restart')))
+    monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+    def write(data):
+        control = json.loads(data)
+        worker._route_steer_receipt(w, {
+            'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+            'ok': True, 'outcome': 'accepted'})
+    stdin.write.side_effect = write
+    def api(method, route, body):
+        assert (method, route) == ('POST', '/api/send')
+        assert body.get('force', False) is (tool_name == 'agent_send')
+        return asyncio.run(server.api_send(body))
+    monkeypatch.setattr(mcp, '_api', api)
+    result = getattr(mcp, tool_name)(s.id, 'task context')
+    immediate = tool_name == 'agent_send' and gate == 'open'
+    assert result.get('status') == ('accepted' if immediate else 'queued'), result
+    assert stdin.write.call_count == int(immediate)
+    item = s.history[-1] if immediate else s.queue_pending[0]
+    assert item['taskId'] == s.active_task_id == 'original-task'
+    assert item['taskIdSource'] == 'active'
+    assert item['sourceSessionId'] == 'sender'
+    assert item['source'] == 'agent'
+    if not immediate:
+        assert len(s.queue_pending) == 1
+        if gate != 'open':
+            assert not worker.queue_item_eligible(s, item)
 
 
 def test_force_body_conflict_is_rechecked_inside_queue_lock(monkeypatch):

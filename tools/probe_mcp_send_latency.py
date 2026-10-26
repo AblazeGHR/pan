@@ -63,7 +63,7 @@ def main():
             return value
 
         mcp._api = measured_api
-        for kind in ("agent_send", "worker_send"):
+        for kind in ("agent_send_to_queue", "worker_send"):
             for i in range(args.rounds):
                 text = f"{kind}-{i}"
                 prefixed = mcp._agent_message_prefix(text)
@@ -71,7 +71,7 @@ def main():
                 stages.clear()
                 wall = time.time()
                 started = time.perf_counter()
-                payload = (mcp.agent_send(sid, text) if kind == "agent_send"
+                payload = (mcp.agent_send_to_queue(sid, text) if kind == "agent_send_to_queue"
                            else mcp.worker_send(worker_id=worker_id, text=text))
                 acked = time.perf_counter()
                 assert payload.get("status") == "queued", payload
@@ -91,7 +91,7 @@ def main():
                 report["rows"].append(row)
         report["aggregate"] = {
             kind: _percentiles([r["httpAckMs"] for r in report["rows"] if r["kind"] == kind])
-            for kind in ("agent_send", "worker_send")}
+            for kind in ("agent_send_to_queue", "worker_send")}
         out = ROOT / "evidence" / f"mcp-send-latency-{args.label}.json"
         out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps(report["aggregate"]))

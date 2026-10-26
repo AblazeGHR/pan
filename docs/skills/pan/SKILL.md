@@ -148,7 +148,7 @@ Bearer/revision。Action 显式 idempotent 与 Trigger retry 显式开启才允�
 |------|------|
 | **MA（meta-agent）** | 编排角色：对用户目标的闭环负责，亲自理解需求、判断依赖、独立验收和决定下一步；按需委派实施。MA 以 Session 身份存在（如 `SMA` 模板创建的会话），实际运行在 Worker 进程中（MA Worker） |
 | **TA（task-agent）** | 执行角色：承接具体开发、测试、调查或文档任务。TA 同样以 Session 身份存在、运行在 Worker 进程中（TA Worker）；由 MA 经 `agent_assign` 派发任务 |
-| **Session** | 持久编排对象（身份层）：承载 MA 或 TA 身份，持久身份（`ses_<16hex>`），拥有收件箱（`queue_pending`）、agentLevel、managedBy 链。投递/编排语义（`agent_assign` / `agent_send` / 报告投递）都以 session_id 寻址；独立于 Worker 生命周期 |
+| **Session** | 持久编排对象（身份层）：承载 MA 或 TA 身份，持久身份（`ses_<16hex>`），拥有收件箱（`queue_pending`）、agentLevel、managedBy 链。投递/编排语义（`agent_assign` / `agent_send` / `agent_send_to_queue` / 报告投递）都以 session_id 寻址；独立于 Worker 生命周期 |
 | **Worker** | 物理执行体（进程层）：临时的 cbc/kimi/opencode/claude/codex CLI 子进程，实际运行某个 MA 或 TA 的 Session。可被 kill、回收、随时重建（进程是顺带的）；**MA 与 TA 都运行在 Worker 中，不要把 Worker 与 TA 划等号** |
 | **Adapter** | CLI 工具类型：`cbc`（CodeBuddy CLI）、`kimi`（Kimi CLI）、`opencode`（OpenCode CLI）、`claude`（Claude Code CLI）、`codex`（OpenAI Codex CLI）——五个已内置注册。**adapter 列表持续增加——以实际为准**：用 `model_list` 或查注册表 `packages/core/adapters/__init__.py` 确认当前可用 adapter |
 | **Model** | Adapter 使用的具体 AI 模型名称，如 `hy3`、`deepseek-v4-flash` |
@@ -179,19 +179,19 @@ MA 的并行派发、串行依赖及事件驱动等待规则必须阅读 [MA 行
 
 同样按 [MA 行为准则](references/ma.md#派发与事件驱动等待) 由完成通知推进；旧 `worker_handoff` 阻塞原语已移除。
 
-### 2.3 在已有会话上继续对话（agent_assign / agent_send / agent_send_force）
+### 2.3 在已有会话上继续对话（agent_assign / agent_send_to_queue / agent_send）
 
 三种向已有 Session（= 编排对象，承载 MA/TA 身份）派活的方式，区别如下（`worker_assign` / `worker_send` / `worker_send_force` 为兼容别名，行为一致）：
 
 | 方式 | 目标 | 行为 | 适用 |
 |------|------|------|------|
 | `agent_assign(session_id, text, task_id?)` | 以 **Agent** 为目标派**新任务** | 异步分派，立即返回 queued；worker 自动 spawn（无活 worker 时）；完成经 `report_subscribe` 内部报告回调（§3）；传 `task_id` 幂等（§7.4） | **新任务 / 并行 fan-out / 幂等重试（默认首选）** |
-| `agent_send(session_id, text)` | 向**已有 Session** 发消息（多轮协作） | 消息排队，目标空闲（当前任务完成后）才处理，**不打断**进行中任务；**无活 worker 不报错**——入持久队列，watchdog 自动 spawn 后分发 | 明确允许当前任务结束后处理的独立后续事项 |
-| `agent_send_force(session_id, text, client_message_id?)` | 向**已有 Session** 即时尝试送达 | **按能力 Steer 优先**：running stream 原生 admission；idle 普通 handoff；无 Steer 能力才 restart+send；无 Worker 持久入队 | 当前任务的补充 / 澄清 / 纠正 / 约束与验收条件更新 |
+| `agent_send_to_queue(session_id, text)` | 向**已有 Session** 发消息（多轮协作） | 消息排队，目标空闲（当前任务完成后）才处理，**不打断**进行中任务；**无活 worker 不报错**——入持久队列，watchdog 自动 spawn 后分发 | 明确允许当前任务结束后处理的独立后续事项 |
+| `agent_send(session_id, text, client_message_id?)` | 向**已有 Session** 即时尝试送达 | **按能力 Steer 优先**：running stream 原生 admission；idle 普通 handoff；无 Steer 能力才 restart+send；无 Worker 持久入队 | 当前任务的补充 / 澄清 / 纠正 / 约束与验收条件更新 |
 
-**按消息用途选择工具**：向正在执行任务的 TA 更新当前任务，默认使用 `agent_send_force`，包括需求补充、用户澄清、实现纠正、约束或验收条件变化，以及影响当前工作的证据。无须额外判断是否紧急，不因消息较短、语气不急或称为“补充”而改用普通发送。只有明确希望在当前任务结束后处理的独立后续事项，才使用 `agent_send`。Force 是按能力选择发送路径，不等同于必然重启。
+**按消息用途选择工具**：向正在执行任务的 TA 更新当前任务，默认使用 `agent_send`，包括需求补充、用户澄清、实现纠正、约束或验收条件变化，以及影响当前工作的证据。无须额外判断是否紧急，不因消息较短、语气不急或称为“补充”而改用普通发送。只有明确希望在当前任务结束后处理的独立后续事项，才使用 `agent_send_to_queue`。`agent_send` 是按能力选择发送路径，不等同于必然重启。
 
-上述默认 Force 规则不覆盖 Illegal 保护：Illegal Session 的当前任务补充同样持久入队并锁定，Force 不等同于取消 Illegal。只有显式 Wake（原子发消息、解自己的 Illegal 锁、置队首）、手动解锁或 Start/Restart 才可按有效 ready 条件恢复；保留 owner/unknown、Pause、Manual、报告策略和 lease 的原作用范围。
+上述默认 `agent_send` 规则不覆盖 Illegal 保护：Illegal Session 的当前任务补充同样持久入队并锁定，Force 不等同于取消 Illegal。只有显式 Wake（原子发消息、解自己的 Illegal 锁、置队首）、手动解锁或 Start/Restart 才可按有效 ready 条件恢复；保留 owner/unknown、Pause、Manual、报告策略和 lease 的原作用范围。
 
 发送来源由可信发送 Session 与 managedBy 祖先链分类：发往自己的 MA 或更高祖先标为 Report，其余保持 MA；不按正文前缀猜身份，不改变访问/claim/订阅。显式上行仍保留原 task 信封、附件和幂等/force 回执，并遵守 Stop reports。Behavior → Auto report 只控制回答的自动汇报：MA 默认开，System/真用户默认关；插件按注册声明默认（未声明 false），各插件独立覆盖。执行入场持久快照决定本轮行为；Report 输入回答不会再次自动汇报，避免回流循环。契约与恢复/混合批次规则见 [source-aware-auto-report](../../source-aware-auto-report.md)。
 
@@ -204,7 +204,7 @@ force 返回 queued/accepted/rejected/unknown；accepted 仅为 CLI admission，
 
 T-040 任务关联规则（单 Session、单 Worker、FIFO）：`agent_assign(...,
 task_id="T-001")` 入队时把 `T-001` 设为该 Session 的持久活动任务。随后
-`agent_send`/`agent_send_force` 在入队时复制这个 taskId 到自己的 queue item，
+`agent_send_to_queue`/`agent_send` 在入队时复制这个 taskId 到自己的 queue item，
 所以连续普通消息可以共同回传 `T-001`，但每条消息仍是独立的 FIFO item，不会被
 assign 幂等去重。新的 assign（如 `T-002`）入队后立即切换活动上下文，后续 send
 继承 `T-002`。正式任务完成或终止后只清空仍等于该 taskId 的活动上下文；已入队的
@@ -221,8 +221,8 @@ FIFO 保证切换顺序：旧任务的已入队普通消息仍先处理，新的
 1. agent_list()（= session_list）→ 找到目标 session_id 与 workerStatus
 2. 按需选择：
    - 新任务 → agent_assign(session_id, text)      # worker 自动 spawn，无需手动 spawn
-   - 明确留待当前任务结束的独立后续 → agent_send(session_id, text) # 排队
-   - 更新当前任务：补充 / 澄清 / 纠正 → agent_send_force(session_id, text) # 默认；Steer 优先
+   - 明确留待当前任务结束的独立后续 → agent_send_to_queue(session_id, text) # 排队
+   - 更新当前任务：补充 / 澄清 / 纠正 → agent_send(session_id, text) # 默认；Steer 优先
    - workerStatus 为 null（已回收/已死）→ 先 agent_spawn(session_id) 重建，再视情况 assign / send
 ```
 
@@ -420,10 +420,10 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 | `agent_spawn` | `session_id`, `adapter?`, `model?` | 为 Session 生成 worker 进程。已有 worker 会先 kill（一个 Session 一个 worker） |
 | `agent_task` | `session_id`, `text`, `source?` | 发任务（异步，返回 queued）；无活 worker 自动 spawn；`source` 默认 `"agent"` |
 | `agent_assign` | `session_id`, `text`, `task_id?` | **异步分派**（并行 fan-out / 新任务默认首选）：立即返回 queued，worker 自动 spawn；完成经 `report_subscribe` 内部报告回调（§3）/ `session_get` 读取。传 `task_id` 幂等（同 taskId 重发不双跑，见 §7.4） |
-| `agent_send` | `session_id`, `text` | 向 Session 发消息（多轮协作，§2.3）；**仅用于明确留待当前任务结束的独立后续事项**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；更新当前任务默认用 `agent_send_force`，无须判断是否紧急；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
-| `agent_send_force` | `session_id`, `text`, `client_message_id?` | 当前任务更新的默认工具（补充、澄清、纠正、约束与验收条件、相关证据），无须判断紧急程度；按 adapter 能力 Steer 优先，idle 普通 handoff，无能力才 restart+send。返回 queued/accepted/rejected/unknown；accepted 不是已消费，unknown 禁止重发或降级重启。稳定 client_message_id 用于事务对账。保留 delayed restart、pause/锁/租约门禁及身份前缀（§2.3/§7.5） |
-| `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send` 的持久 FIFO 语义；返回每个目标结果 |
-| `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，普通任务继续用 `agent_assign`/`agent_send`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。**需要完成通知的长命令优先用 `agent_background_start`**（自带终态通知，见下文使用政策）；`agent_notify` 用于手动事后回报 |
+| `agent_send_to_queue` | `session_id`, `text` | 向 Session 发消息（多轮协作，§2.3）；**仅用于明确留待当前任务结束的独立后续事项**：消息排队送达，不打断进行中任务；**无活 worker 不报错**——入持久队列（返回 `pendingSpawn=true`），watchdog 自动 spawn 后分发；更新当前任务默认用 `agent_send`，无须判断是否紧急；Pan 内 session 自动加 `////by agent` 前缀（§7.5） |
+| `agent_send` | `session_id`, `text`, `client_message_id?` | 当前任务更新的默认工具（补充、澄清、纠正、约束与验收条件、相关证据），无须判断紧急程度；按 adapter 能力 Steer 优先，idle 普通 handoff，无能力才 restart+send。返回 queued/accepted/rejected/unknown；accepted 不是已消费，unknown 禁止重发或降级重启。稳定 client_message_id 用于事务对账。保留 delayed restart、pause/锁/租约门禁及身份前缀（§2.3/§7.5） |
+| `agent_send_many` | `session_ids`, `text` | 对选定 Session 逐个复用 `agent_send_to_queue` 的持久 FIFO 语义；返回每个目标结果 |
+| `agent_notify` | `target_session_id`, `text` | **持久化通知**：用于异步、安全地执行脱离当前 Agent/worker 生命周期的后台命令或长时间任务（nohup、长时测试、编译、外部脚本等），后台命令完成后事后回报；不要求 SMA 轮询或阻塞等待。通知进入目标 `queue_pending`，原 worker 退出不丢；无活 worker 自动唤醒/spawn。仅自己或自己 managed 的 Agent 可投递。它不是普通任务派发替代品，新任务用 `agent_assign`，当前任务更新用 `agent_send`，独立延迟事项用 `agent_send_to_queue`；后台命令仍须遵守权限、审批、安全和结果验证规则，不能绕过审批或隔离。**需要完成通知的长命令优先用 `agent_background_start`**（自带终态通知，见下文使用政策）；`agent_notify` 用于手动事后回报 |
 | `agent_background_start` | `argv`, `cwd`, `name`, `target_session_id?`, `label?`, `hide_window?` | 启动持久后台 Job（独立 Runner，终态自动通知目标 Session）。适用对象：预计**超过 3 分钟**的 OS 命令——3 分钟是一般选择门槛，不是运行 timeout，也不硬性禁止短任务或附带新 API 校验。**MA/TA 均适用：执行前自主判断（入口规则 §0 第 5 条），不需要 MA 提醒或另行授权。** 启动后**不轮询**（见下文使用政策）。创建者由当前 `PAN_AGENT_SESSION_ID` 记录为 `creatorSessionId`，目标记录为 `targetSessionId`；A 可为 managed 的 B 创建 Job，但终态通知只投递给 B。argv 不经过 shell，`cwd` 可为任意已存在目录（Agent 应传绝对路径，含仓库外 worktree）；Job 由独立 Runner 执行，不占用当前 Session 的 Worker 生命周期。Windows 默认 `hide_window=True` 隐藏命令控制台；显式 `False` 显示。HTTP 对应字段为 `hideWindow`，必须是真布尔值 |
 | `agent_background_get` | `job_id` | 读取 Job Registry 事实，包括状态、PID 身份、日志路径和通知状态；只允许当前或 managed Session 目标，不消费目标的 `queue_pending`。**用途 = 终态通知后的结果核验 + 用户明确要求的一次性诊断/取消/异常修复**；不要循环调用它等待运行进度（见下文使用政策） |
 | `agent_background_list` | `target_session_id?` | 列出后台 Job（盘点/诊断用，不作进度等待循环）；省略目标时默认列出当前 Agent Session，显式目标必须是当前或 managed Session。目标 Session 删除后 Job 事实仍可保留 |
@@ -451,8 +451,8 @@ MA 的验收记录见 [MA 行为准则](references/ma.md#验收与收尾)，TA �
 | `worker_spawn` | `session_id?`, `name?`, `adapter?`, `model?`, `workdir?` | `agent_spawn` 别名（session_id 调用时）；`name` 直接建新 session 并 spawn 为遗留独有路径 |
 | `worker_task` | `session_id?`, `worker_id?`, `text`, `source?` | `agent_task` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
 | `worker_assign` | `session_id`, `text`, `task_id?` | `agent_assign` 的精确别名（委托同一实现，契约一致） |
-| `worker_send` | `worker_id?`, `session_id?`, `text` | `agent_send` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径（worker 已死报 `worker_not_found`） |
-| `worker_send_force` | `worker_id?`, `session_id?`, `text`, `client_message_id?` | `agent_send_force` 能力路由别名；legacy worker_id 先解析到 Session 后委托同一实现 |
+| `worker_send` | `worker_id?`, `session_id?`, `text` | `agent_send_to_queue` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径（worker 已死报 `worker_not_found`） |
+| `worker_send_force` | `worker_id?`, `session_id?`, `text`, `client_message_id?` | `agent_send` 能力路由别名；legacy worker_id 先解析到 Session 后委托同一实现 |
 | `worker_kill` | `worker_id?`, `session_id?` | `agent_kill` 别名（session_id 调用时）；`worker_id` 寻址为遗留路径 |
 | `worker_list` | (无) | 列出所有**运行中的 worker 进程**（物理层面视图；编排巡检用 `agent_list`） |
 
@@ -475,7 +475,7 @@ bridge、管道 CLI 与辅助启动逐调用点设置策略，不保证任意第
 ConPTY 和 takeover/用户交互窗口保持专用启动与生命周期语义。真实窗口验收须看
 自有进程的 Windows API 证据，不能仅由 flags、配置或截图反推来源。
 
-**使用政策（MA 与 TA 均适用。仅适用于 `agent_background_*` 这类执行 OS 命令、带终态通知的持久后台 Job——独立 Runner；不适用于 `agent_message_job_*` 时间消息/定时群发 Job、Scheduler 定时任务，也不改变普通 `agent_assign`/`agent_send` 派发流程）**：
+**使用政策（MA 与 TA 均适用。仅适用于 `agent_background_*` 这类执行 OS 命令、带终态通知的持久后台 Job——独立 Runner；不适用于 `agent_message_job_*` 时间消息/定时群发 Job、Scheduler 定时任务，也不改变普通 `agent_assign`/`agent_send_to_queue` 派发流程）**：
 
 1. **执行前自主判断（入口规则）**：准备执行 OS 命令时先按本政策过一遍——**预计超过 3 分钟**（全量测试、build、长脚本等典型场景）默认 `agent_background_start`。这是执行者自己的决定：**不等 MA 提醒、不需 MA 另行授权**（命令本身仍遵守既有权限/审批/安全/managed 隔离，Job 不是绕过通道）。参数要点：`target_session_id` 用自己（自用场景，终态通知才能叫醒自己）；`cwd` 与 argv 中的可执行文件/文件参数用绝对路径；Windows `hide_window=True` 隐藏控制台（显式 `False` 才显示）；stdout/stderr 落持久日志，Registry 记终态。本规则随本 skill 被加载阅读而生效——不存在未加载 skill 也自动触发的机制。
 2. **选择门槛**：这类后台 Job 为承载长时任务、避免轮询而设，一般**预计超过 3 分钟**的命令才用。3 分钟是一般选择门槛，不是运行 timeout，也不是硬性禁止短任务或新增 API 校验。
@@ -490,12 +490,12 @@ ConPTY 和 takeover/用户交互窗口保持专用启动与生命周期语义。
 2. 后台命令完成后，由仍可运行的脚本/Agent 调用 `agent_notify` 写入结果或状态。
 3. Pan 将通知持久化到目标 Session 的 `queue_pending`；即使原 worker 已退出，服务重启后仍可恢复，目标无活 worker 时自动 spawn。
 
-通知和完成报告共用持久队列的报告消费通道，但通知不会变成 `agent_assign` 任务，也不应拿来替代 `agent_assign`/`agent_send`。通知调用本身只负责可靠回报，不授予后台命令额外权限；命令执行与结果验证仍受原有审批、安全及 managed 隔离约束。
+通知和完成报告共用持久队列的报告消费通道，但通知不会变成 `agent_assign` 任务，也不应拿来替代 `agent_assign`/`agent_send_to_queue`。通知调用本身只负责可靠回报，不授予后台命令额外权限；命令执行与结果验证仍受原有审批、安全及 managed 隔离约束。
 
 `agent_notify` 与后台 Job 终态通知必须按来源区分：`agent_notify` 仍保留
 调用方的 `sourceSessionId` 和现有 `@@@@by agent` 渲染；只有 Scheduler/Runner
 使用显式 `noticeKind=background_job_terminal` 时才渲染 `////by pan system`。
-Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
+Agent 创建的定时 Session-message Job 继续走普通 `agent_send_to_queue`，保留
 `////by agent : <creatorSessionId> | <title>` 前缀和 `sourceSessionId`，不会被
 误分类为系统通知。旧 Job JSON 缺失 `creatorSessionId` 时按无创建者兼容读取。
 
@@ -613,7 +613,7 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 - `worker_handoff`（MCP）与 `POST /api/handoff` 已于 **2026-08-26 彻底移除**（原为立项 4.7 弃用后归档）。串行依赖与并行 fan-out 一律 `agent_assign`（别名 `worker_assign`）+ `report_subscribe`（§3）。
 - 理由（原立项 4.7）："等"应是 MA 的默认 idle 状态，而非阻塞调用；阻塞会占用协调者、易被中断。
 - **幂等**：`agent_assign` 的 `task_id` 是幂等键——重发同 task_id：已完成 → 返回缓存结果；进行中 → 返回 `{"status":"pending",...}` 不重复入队（防双跑）。taskId 注册表有 TTL 惰性清理。
-- 普通 `agent_send` 继承的 taskId 仅用于 report 配对，不是幂等键；连续 send
+- 普通 `agent_send_to_queue` 继承的 taskId 仅用于 report 配对，不是幂等键；连续 send
   不会因为共享同一 taskId 而合并或去重。正式 assign 使用 `taskIdSource=assign`，
   inherited send 使用 `taskIdSource=active`（这是 queue item 元数据，不是新的业务
   ID）。
@@ -622,7 +622,7 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 
 ### 7.5 `////by agent` 前缀
 
-- `agent_send` / `agent_send_force`（兼容别名 `worker_send` / `worker_send_force`）在 Pan 内 session（环境注入 `PAN_AGENT_SESSION_ID`/`PAN_AGENT_SESSION_TITLE`）下发消息时自动加前缀（立项 4.8）：
+- `agent_send_to_queue` / `agent_send`（兼容别名 `worker_send` / `worker_send_force`）在 Pan 内 session（环境注入 `PAN_AGENT_SESSION_ID`/`PAN_AGENT_SESSION_TITLE`）下发消息时自动加前缀（立项 4.8）：
 
 ```
 ////by agent : ses_xxx | session-title
@@ -630,8 +630,8 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send`，保留
 ```
 
 - 用途：目标 TA Worker 区分「MA 编排消息」与真实用户消息。
-- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`agent_assign` 不发此前缀（只有 `agent_send` / `agent_send_force` 拼）。
-- **消息用途选择规则**：更新正在执行的当前任务 → 默认 `agent_send_force`；明确留待当前任务结束的独立后续事项 → `agent_send`（排队）。不要因“补充”或语气不急选择普通发送。`agent_send_force`（能力路由，Steer 优先，无能力才 restart）。force 不绕过 delayed restart、锁、Pause everything 或编辑租约；accepted 仅代表原生 admission，unknown 禁止自动重发。
+- 编排时注意：目标 worker 收到带该前缀的消息应识别为编排指令；`agent_assign` 不发此前缀（只有 `agent_send_to_queue` / `agent_send` 拼）。
+- **消息用途选择规则**：更新正在执行的当前任务 → 默认 `agent_send`；明确留待当前任务结束的独立后续事项 → `agent_send_to_queue`（排队）。不要因“补充”或语气不急选择普通发送。`agent_send`（能力路由，Steer 优先，无能力才 restart）。force 不绕过 delayed restart、锁、Pause everything 或编辑租约；accepted 仅代表原生 admission，unknown 禁止自动重发。
 
 ### 7.6 pending_signal 队列（+ 落盘 queue_pending）
 

@@ -223,7 +223,7 @@ export interface Session {
   restartError?: string;
   pluginRestart?: DelayedRestartState | null;
   history: Message[];
-  /** Latest formal assign task context used by subsequent agent_send messages. */
+  /** Latest formal assign task context used by agent_send/agent_send_to_queue messages. */
   activeTaskId?: string | null;
   historyTruncated?: boolean;
   /** Null/undefined means the cold summary cannot know the total yet. */

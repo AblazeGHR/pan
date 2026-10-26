@@ -26,7 +26,7 @@ def test_send_reads_caller_metadata_once_and_keeps_source_identity(monkeypatch, 
 
     monkeypatch.setattr(mcp, "_api", api)
     result = (mcp.worker_send(worker_id="worker-target", text="message") if legacy_worker
-              else mcp.agent_send("ses-target", "message"))
+              else mcp.agent_send_to_queue("ses-target", "message"))
     assert result["status"] == "queued"
     caller_reads = [path for method, path, _ in calls if path.startswith("/api/sessions/ses-caller")]
     assert caller_reads == ["/api/sessions/ses-caller?view=metadata"]
@@ -51,7 +51,7 @@ def test_send_metadata_preserves_claim_and_foreign_manager_denial(monkeypatch, f
         return {"status": "queued"}
 
     monkeypatch.setattr(mcp, "_api", api)
-    result = mcp.agent_send("ses-target", "message")
+    result = mcp.agent_send_to_queue("ses-target", "message")
     if foreign_manager or not can_claim:
         assert result["error"]["code"] == "permission_denied"
         assert posted == []
