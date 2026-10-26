@@ -1,4 +1,4 @@
-"""Small, Pan-independent host for argv background jobs.
+"""Pan-independent canonical execution host with historical Job readers.
 
 This module intentionally imports only the standard library. Run it with
 ``python -m packages.jobs.independent_service --root ABSOLUTE_PATH --port PORT``.
@@ -6,14 +6,11 @@ This module intentionally imports only the standard library. Run it with
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import secrets
 import sqlite3
-import subprocess
-import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,42 +44,20 @@ class ServiceError(Exception):
 
 
 class ServiceLock:
-    """Non-blocking per-root single-writer lock held for the listener lifetime."""
+    """Compatibility name for the platform's process-lifetime root lock."""
     def __init__(self, root: Path):
-        self.path = root / "service.lock"
-        self.file = None
+        from packages.core.platform.runtime_lock import RuntimeLock
+        self._lock = RuntimeLock(root / "service.lock")
 
-    def acquire(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.file = self.path.open("a+b")
-        self.file.seek(0)
-        if os.name == "nt":
-            import msvcrt
-            if self.path.stat().st_size == 0:
-                self.file.write(b"\0"); self.file.flush()
-            self.file.seek(0)
-            try: msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError:
-                self.file.close(); self.file = None
-                raise RuntimeError("another independent Job service owns this root") from None
-        else:
-            import fcntl
-            try: fcntl.flock(self.file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                self.file.close(); self.file = None
-                raise RuntimeError("another independent Job service owns this root") from None
+    @property
+    def path(self): return self._lock.path
 
-    def release(self):
-        if self.file is None: return
-        try:
-            if os.name == "nt":
-                import msvcrt
-                self.file.seek(0); msvcrt.locking(self.file.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(self.file.fileno(), fcntl.LOCK_UN)
-        finally:
-            self.file.close(); self.file = None
+    @property
+    def file(self): return self._lock.file
+
+    def acquire(self): self._lock.acquire()
+
+    def release(self): self._lock.release()
 
 
 class JobStore:
@@ -92,134 +67,31 @@ class JobStore:
             raise ValueError("--root must be absolute")
         self.root = path.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.logs = self.root / "logs"
-        self.logs.mkdir(exist_ok=True)
         self.db_path = self.root / "jobs.sqlite3"
         self.instance_id = secrets.token_hex(16)
-        from packages.jobs.runtime_owner import OwnerFence
-        if OwnerFence(self.root.parent).status() is None:
-            self._init_db()
-        elif not self.db_path.exists():
-            raise ServiceError(409, "canonical runtime owns this profile; legacy store creation refused")
+        self._execution_host = None
+        self._execution_lock = threading.Lock()
 
     @property
     def execution_host(self):
-        # Lazy imports preserve the standalone legacy startup/import contract.
+        # Canonical startup must not create or reserve a legacy registry/owner.
         from packages.jobs.independent_executor import ExecutionHost, ExecutionStore
-        return ExecutionHost(ExecutionStore(self.root))
+        with self._execution_lock:
+            if self._execution_host is None:
+                self._execution_host = ExecutionHost(ExecutionStore(self.root))
+            return self._execution_host
 
-    def connect(self):
-        db = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
+    def connect(self, *, readonly=False):
+        if not self.db_path.exists():
+            raise ServiceError(404, "historical job store not found")
+        mode = "ro" if readonly else "rw"
+        db = sqlite3.connect(self.db_path.as_uri() + "?mode=" + mode, uri=True, timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout=10000")
         return db
 
-    @legacy_write
-    def _init_db(self):
-        with self.connect() as db:
-            db.execute("PRAGMA journal_mode=WAL")
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS jobs (
-                  id TEXT PRIMARY KEY, payload TEXT NOT NULL, status TEXT NOT NULL,
-                  created REAL NOT NULL, updated REAL NOT NULL,
-                  runner_pid INTEGER, runner_filetime TEXT, task_pid INTEGER,
-                  task_filetime TEXT, runner_claim TEXT, exit_code INTEGER, log_path TEXT NOT NULL,
-                  cancel_requested INTEGER NOT NULL DEFAULT 0,
-                  notification_state TEXT NOT NULL DEFAULT 'pending',
-                  idempotency_key TEXT UNIQUE, payload_hash TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS outbox (
-                  event_id TEXT PRIMARY KEY, job_id TEXT NOT NULL,
-                  payload TEXT NOT NULL, acked INTEGER NOT NULL DEFAULT 0,
-                  created REAL NOT NULL,
-                  FOREIGN KEY(job_id) REFERENCES jobs(id)
-                );
-            """)
-            columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
-            if "runner_claim" not in columns:
-                db.execute("ALTER TABLE jobs ADD COLUMN runner_claim TEXT")
-            if "execution_audit" not in columns:
-                db.execute("ALTER TABLE jobs ADD COLUMN execution_audit TEXT NOT NULL DEFAULT '{}'")
-
-    @legacy_write
     def create(self, request: dict):
-        from packages.jobs.window import validate_hide_window
-        try:
-            hide_window = validate_hide_window(request.get("hideWindow", True))
-        except ValueError as exc:
-            raise ServiceError(400, str(exc)) from exc
-        argv = request.get("argv")
-        cwd = request.get("cwd")
-        target = request.get("targetSessionId")
-        creator = request.get("creatorSessionId")
-        label = request.get("label")
-        name = request.get("name")
-        description = request.get("description")
-        idem = request.get("idempotencyKey")
-        if not isinstance(argv, list) or not argv or any(not isinstance(x, str) or not x for x in argv):
-            raise ServiceError(400, "argv must be a non-empty array of strings")
-        if not isinstance(cwd, str) or not cwd or not Path(cwd).is_dir():
-            raise ServiceError(400, "cwd must be an existing directory")
-        if not isinstance(target, str) or not target:
-            raise ServiceError(400, "targetSessionId is required")
-        if creator is not None and not isinstance(creator, str):
-            raise ServiceError(400, "creatorSessionId must be a string")
-        if label is not None and not isinstance(label, str):
-            raise ServiceError(400, "label must be a string")
-        name = name.strip() if isinstance(name, str) else name
-        if description is not None and not isinstance(description, str):
-            raise ServiceError(400, "description must be a string")
-        if idem is not None and (not isinstance(idem, str) or not idem or len(idem) > 256):
-            raise ServiceError(400, "idempotencyKey must be a non-empty string up to 256 chars")
-        payload = {"argv": argv, "cwd": str(Path(cwd).resolve()), "targetSessionId": target,
-                   "creatorSessionId": creator, "label": label, "name": name,
-                   "description": description, "hideWindow": hide_window}
-        payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
-        now, job_id = time.time(), "job_" + secrets.token_hex(12)
-        log_path = str((self.logs / f"{job_id}.log").resolve())
-        from packages.jobs.system_actions import prepare
-        admission = {"jobId":job_id,"kind":"background-process",**payload}
-        # This host has already type-checked every declared process parameter.
-        # Keep its stdlib-only standalone contract; no Pan runtime/schema import.
-        prepare(admission,job_id+':initial',prevalidated=True)
-        audit = {key:admission[key] for key in ('runId','attempts','attemptSnapshot','snapshotCleanup')}
-        with self.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
-            if idem:
-                row = db.execute("SELECT id,payload_hash,payload FROM jobs WHERE idempotency_key=?", (idem,)).fetchone()
-                if row:
-                    db.execute("COMMIT")
-                    previous = json.loads(row["payload"])
-                    previous.setdefault("hideWindow", True)
-                    if row["payload_hash"] != payload_hash and previous != payload:
-                        raise ServiceError(409, "idempotencyKey already used with a different payload")
-                    return self.get(row["id"])
-            if not isinstance(name, str) or not name or len(name) > 200:
-                raise ServiceError(400, "name must contain 1 to 200 characters")
-            db.execute("INSERT INTO jobs(id,payload,status,created,updated,log_path,idempotency_key,payload_hash,execution_audit) VALUES(?,?,?,?,?,?,?,?,?)",
-                       (job_id, payload_json, "starting", now, now, log_path, idem, payload_hash,json.dumps(audit)))
-            db.execute("COMMIT")
-        # The durable starting record exists before any runner can execute.
-        runner_env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_") and k.upper() != "PYTHONPATH"}
-        runner_env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
-        command = [sys.executable, "-m", "packages.jobs.independent_runner", "--root", str(self.root), "--job-id", job_id]
-        kwargs = {"cwd": str(Path(__file__).resolve().parents[2]), "env": runner_env,
-                  "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
-                  "close_fds": True}
-        if os.name == "nt":
-            # Preserve a windowless console through Python venv redirectors.
-            # DETACHED_PROCESS is not inherited by their flags=0 child launch.
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
-        else:
-            kwargs["start_new_session"] = True
-        try:
-            subprocess.Popen(command, **kwargs)
-        except Exception:
-            # Do not re-run an ambiguous launch. Leave durable starting facts for inspection.
-            self.set_unknown(job_id)
-            raise ServiceError(503, "runner launch outcome is uncertain; job left UNKNOWN")
-        return self.get(job_id)
+        raise ServiceError(410, "legacy job creation retired; use canonical /executions")
 
     @legacy_write
     def set_unknown(self, job_id):
@@ -233,14 +105,16 @@ class JobStore:
             db.execute('COMMIT')
 
     def get(self, job_id):
-        with self.connect() as db:
+        with self.connect(readonly=True) as db:
             row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         if not row:
             raise ServiceError(404, "job not found")
         return self._public(row)
 
     def list(self):
-        with self.connect() as db:
+        if not self.db_path.exists():
+            return {"jobs": []}
+        with self.connect(readonly=True) as db:
             rows = db.execute("SELECT * FROM jobs ORDER BY created DESC").fetchall()
         return {"jobs": [self._public(r) for r in rows]}
 
@@ -256,8 +130,7 @@ class JobStore:
                 "runnerPid": row["runner_pid"], "runnerFiletime": row["runner_filetime"],
                 "exitCode": row["exit_code"], "logPath": row["log_path"],
                 "notificationState": row["notification_state"]}
-        from packages.jobs.unified import project
-        result['unified']=project(result)
+        result.update(legacy=True, readOnly=True)
         return result
 
     @legacy_write
@@ -272,71 +145,63 @@ class JobStore:
             db.execute("UPDATE jobs SET cancel_requested=1,updated=? WHERE id=?", (time.time(), job_id))
         return self.get(job_id)
 
-    @legacy_write
     def retry(self, job_id):
-        original = self.get(job_id)
-        if original["status"] == "UNKNOWN":
-            raise ServiceError(409, "UNKNOWN job ownership is unresolved; retry refused")
-        if original["status"] not in ("failed", "cancelled"):
-            raise ServiceError(409, "only failed or cancelled jobs may be retried")
-        req = {k: original.get(k) for k in ("argv", "cwd", "targetSessionId", "creatorSessionId", "label", "name", "description", "hideWindow")}
-        req["name"] = (req.get("name") or "Retry background process").strip()[:200] or "Retry background process"
-        return self.create(req)
+        raise ServiceError(410, "legacy job retry retired; query the original execution")
 
     def events(self):
-        with self.connect() as db:
+        if not self.db_path.exists():
+            return {"events": []}
+        with self.connect(readonly=True) as db:
             rows = db.execute("SELECT payload FROM outbox WHERE acked=0 ORDER BY created").fetchall()
         return {"events": [json.loads(r["payload"]) for r in rows]}
 
     @legacy_write
     def ack(self, event_id):
         with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT job_id FROM outbox WHERE event_id=?", (event_id,)).fetchone()
             if not row:
                 raise ServiceError(404, "event not found")
             db.execute("UPDATE outbox SET acked=1 WHERE event_id=?", (event_id,))
             db.execute("UPDATE jobs SET notification_state='delivered',updated=? WHERE id=?", (time.time(), row["job_id"]))
+            db.commit()
         return {"ok": True, "eventId": event_id}
 
-    @legacy_write
     def recover(self):
-        """Active registrations without a verified live runner become explicit UNKNOWN."""
+        """Recover canonical receipts independently of the legacy writer fence."""
         if (self.root / "executions.sqlite3").exists():
             from packages.core.platform.execution_host import supervisor_alive
             self.execution_host.store.recover(supervisor_alive)
+        if self.db_path.exists():
+            from packages.jobs.runtime_owner import OwnerFence
+            # A cut-over profile may retain legacy bytes for audit. Do not
+            # reopen its writer or let it block canonical receipt recovery.
+            if OwnerFence(self.root.parent).status() is None:
+                self._recover_legacy()
+
+    @legacy_write
+    def _recover_legacy(self):
         with self.connect() as db:
             rows = db.execute("SELECT id,runner_pid,runner_filetime FROM jobs WHERE status IN ('starting','running')").fetchall()
         for row in rows:
-            if row["runner_pid"] and row["runner_filetime"]:
-                try:
-                    from packages.core.terminal.identity import probe_process
-                    probe = probe_process(int(row["runner_pid"]))
-                    alive = (getattr(probe.status, "value", probe.status) == "alive" and
-                             probe.identity and str(probe.identity.created_at_filetime) == row["runner_filetime"])
-                    if alive:
-                        continue
-                except Exception:
-                    pass
+            if row["runner_pid"] and row["runner_filetime"] and _live_identity(row["runner_pid"]) == row["runner_filetime"]:
+                continue
             self.set_unknown(row["id"])
 
 
 def _live_identity(pid):
-    """Return a live PID's raw creation identity; inability to verify is None."""
-    if os.name != "nt":
-        try:
-            stat = Path(f"/proc/{int(pid)}/stat").read_text()
-            rest = stat[stat.rfind(")") + 2:].split()
-            return rest[19] if len(rest) > 19 else None
-        except OSError:
-            return None
+    """Compatibility birth probe through the platform owner, never PID alone."""
     try:
-        from packages.core.terminal.identity import probe_process
-        probe = probe_process(int(pid))
-        if getattr(probe.status, "value", probe.status) != "alive" or not probe.identity:
-            return None
-        return str(probe.identity.created_at_filetime)
+        from packages.core.platform.process import default_process_owner, ProcessStatus
+        owner = default_process_owner()
+        identity = owner.identity(int(pid))
+        if identity is not None:
+            check = owner.check(identity)
+            if check.status is ProcessStatus.ALIVE and check.ours is True:
+                return identity.birth
     except Exception:
         return None
+    return None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -424,7 +289,9 @@ class Handler(BaseHTTPRequestHandler):
                         raise ServiceError(404, "execution not found") from exc
                     except (ExecutionConflict, ValueError) as exc:
                         raise ServiceError(409, "execution fence/cancellation conflict") from exc
-            if path == "/jobs" and method == "POST": return self._json(201, self.store.create(self._body()))
+            if path == "/jobs" and method == "POST":
+                self._body()
+                raise ServiceError(410, "legacy job creation retired; use canonical /executions")
             if path == "/jobs" and method == "GET": return self._json(200, self.store.list())
             if path == "/events" and method == "GET": return self._json(200, self.store.events())
             if path.startswith("/events/") and method == "POST" and path.endswith("/ack"):
@@ -434,7 +301,9 @@ class Handler(BaseHTTPRequestHandler):
                 if len(parts) == 2 and method == "GET": return self._json(200, self.store.get(parts[1]))
                 if len(parts) == 3 and method == "POST":
                     if parts[2] == "cancel": return self._json(200, self.store.request_cancel(parts[1]))
-                    if parts[2] == "retry": return self._json(201, self.store.retry(parts[1]))
+                    if parts[2] == "retry":
+                        self._body()
+                        raise ServiceError(410, "legacy job retry retired; query the original execution")
             raise ServiceError(404, "route not found")
         except ServiceError as e:
             if method == "POST" and e.status in {403, 415}:

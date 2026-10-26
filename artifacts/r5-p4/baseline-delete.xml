@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.312" timestamp="2026-10-26T11:06:17.231028+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_main_combination" name="test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard" time="0.269"><failure message="KeyError: 'deleted'">tests\test_job_delete_main_combination.py:65: in test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard
+    assert (await client.delete(endpoint,headers=headers)).json()['deleted']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'deleted'</failure></testcase></testsuite></testsuites>

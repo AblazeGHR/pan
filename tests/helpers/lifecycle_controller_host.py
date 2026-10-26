@@ -7,6 +7,7 @@ kind,root,tree,destination=sys.argv[1:5]
 os.environ['PAN_BACKGROUND_JOBS_DIR']=root
 from packages.core import background_jobs as jobs, config
 from packages.jobs.independent_service import JobStore
+from tests.helpers.legacy_process_fixture import historical_process
 jobs._sessions.get=lambda sid:{'id':sid}
 config.load_config=lambda:{}
 runtime=sys.argv[6] if len(sys.argv)>6 else sys.executable
@@ -27,6 +28,6 @@ if len(sys.argv)>5 and sys.argv[5]=='post-spawn':
 argv=[runtime,tree,destination,'2']
 if len(sys.argv)>5 and sys.argv[5]=='post-spawn':argv.append('--runner-ancestry')
 store=JobStore(root) if kind=='independent' else None
-job=store.create({'name':'Validate owned lifecycle','argv':argv,'cwd':destination,'targetSessionId':'owned'}) if store else jobs.start('owned',argv,destination, name='Validate controller recovery')
+job=historical_process(root,argv,destination) if store else jobs.start('owned',argv,destination, name='Validate controller recovery')
 (Path(destination)/'job.json').write_text(json.dumps(job))
 time.sleep(30)

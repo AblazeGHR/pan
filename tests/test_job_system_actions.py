@@ -34,47 +34,33 @@ def test_product_actions_are_real_immutable_registry_items(tmp_path):
             validate_action(item, automation=False)  # No legacy Group/provider capability widening.
 
 
-def test_compatibility_effect_uses_persisted_snapshot_and_cleans(tmp_path):
+def test_compatibility_effect_uses_persisted_snapshot_and_cleans(tmp_path, monkeypatch):
     async def run():
         job = record(tmp_path)
-        async def effect(frozen):
-            admitted = jobs.get(job['jobId'], tmp_path)
-            assert admitted['attemptSnapshot']['arguments']['text'] == 'original'
-            assert admitted['attempts'][-1]['status'] == 'running'
-            assert 'attemptSnapshot' not in jobs.job_public_view(admitted)
-            jobs._update(job['jobId'], {'text': 'edited'}, registry_root=tmp_path)
-            assert frozen['text'] == 'original'
-            return {'status': 'queued', 'queueItemId': 'q1', 'text': 'must not retain in receipt'}
-        await system.invoke(job, 'dispatch1', effect, tmp_path)
-        current = jobs.get(job['jobId'], tmp_path)
-        assert current['text'] == 'edited'
-        assert 'attemptSnapshot' not in current
-        assert current['snapshotCleanup'] == 'cleaned'
-        assert current['attempts'][-1]['receipt'] == {'status': 'queued', 'queueItemId': 'q1'}
-        with pytest.raises(ValueError, match='already admitted'):
-            await system.invoke(job, 'dispatch1', effect, tmp_path)
+        before = jobs.get(job['jobId'], tmp_path)
+        async def forbidden(*args): pytest.fail('retired dispatcher performed an effect')
+        for dispatch_key in ('original', 'retry'):
+            with pytest.raises(PermissionError, match='retired'):
+                await system.invoke(job, dispatch_key, forbidden, tmp_path)
+            with pytest.raises(PermissionError, match='retired'):
+                await system.execute(system.definition('scheduled-task'), {}, {}, forbidden)
+        assert jobs.get(job['jobId'], tmp_path) == before
+        assert system.recovery_ready(system.definition('background-process'), {}) is False
     asyncio.run(run())
 
 
 def test_write_failure_blocks_effect_and_unknown_does_not_replay(tmp_path, monkeypatch):
     async def run():
         job = record(tmp_path)
-        calls = []
-        async def effect(_): calls.append(1); return {'status': 'unknown'}
-        writer = jobs._atomic_write
-        def fail(*_): raise OSError('injected admission failure')
-        monkeypatch.setattr(jobs, '_atomic_write', fail)
-        with pytest.raises(OSError): await system.invoke(job, 'dispatch1', effect, tmp_path)
-        assert calls == []
-        monkeypatch.setattr(jobs, '_atomic_write', writer)
-        await system.invoke(job, 'dispatch1', effect, tmp_path)
-        assert calls == [1]
-        current = jobs.get(job['jobId'], tmp_path)
-        assert current['attempts'][-1]['status'] == 'uncertain'
-        assert current['attempts'][-1]['sideEffectUncertainty']
-        assert 'attemptSnapshot' not in current
-        with pytest.raises(ValueError): await system.invoke(job, 'dispatch1', effect, tmp_path)
-        assert calls == [1]
+        before = jobs.get(job['jobId'], tmp_path)
+        async def forbidden(*args): pytest.fail('retired dispatcher performed an effect')
+        for dispatch_key in ('original', 'retry'):
+            with pytest.raises(PermissionError, match='retired'):
+                await system.invoke(job, dispatch_key, forbidden, tmp_path)
+            with pytest.raises(PermissionError, match='retired'):
+                await system.execute(system.definition('scheduled-task'), {}, {}, forbidden)
+        assert jobs.get(job['jobId'], tmp_path) == before
+        assert system.recovery_ready(system.definition('background-process'), {}) is False
     asyncio.run(run())
 
 

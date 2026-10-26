@@ -1,0 +1,18 @@
+Isolated test child: inherited PAN_* removed; cwd=[USER_HOME]\AppData\Local\Temp\pan-r5-p4-baseline-z5y4gi57
+F                                                                        [100%]
+================================== FAILURES ===================================
+__ test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard ___
+tests\test_job_delete_main_combination.py:65: in test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard
+    assert (await client.delete(endpoint,headers=headers)).json()['deleted']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'deleted'
+============================== warnings summary ===============================
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  [USER_HOME]\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_delete_main_combination.py::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard
+1 failed, 1 warning in 1.95s

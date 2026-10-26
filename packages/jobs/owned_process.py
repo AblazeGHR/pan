@@ -1,6 +1,5 @@
 """Assign an owned child to its kernel Job during CreateProcess (Windows 10+)."""
 import ctypes
-from ctypes import wintypes as w
 from contextlib import contextmanager
 
 EXTENDED_STARTUPINFO_PRESENT = 0x00080000
@@ -14,6 +13,11 @@ def job_startup_info(startup, guard):
     guard must outlive CreateProcess. All ctypes buffers remain alive through
     DeleteProcThreadAttributeList. Failure prevents user command execution.
     """
+    from packages.core.platform import supports
+    from packages.core.platform.process import UnsupportedPlatformError
+    if not supports("process.hiddenDesktop"):
+        raise UnsupportedPlatformError("process.hiddenDesktop unsupported on this platform")
+    from ctypes import wintypes as w
     class StartupInfoEx(ctypes.Structure):
         _fields_ = [('StartupInfo', type(startup)), ('lpAttributeList', ctypes.c_void_p)]
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)

@@ -171,6 +171,7 @@ def test_fe02_intent_and_terminal_outbox_transactions_are_atomic(tmp_path):
 def test_fe02_live_supervisor_survives_host_reload_and_ack_loss(tmp_path):
     store = ExecutionStore(tmp_path)
     doc = claim(store, process_plan(tmp_path))
+    store.phase(doc["effectId"], attempt(), doc["claim"], "executing")
     store.phase(doc["effectId"], attempt(), doc["claim"], "running", processIdentity={"pid": 8, "birth": "original"})
     reloaded = ExecutionStore(tmp_path)
     probes = []
@@ -515,3 +516,138 @@ def test_fe05_bootstrap_exit_receipt_requires_matching_nonce_and_success(tmp_pat
             read_bootstrap_receipt(receipt, "original")
     with pytest.raises(RuntimeError):
         read_bootstrap_receipt(tmp_path / "missing.json", "original", timeout=.01)
+
+
+@pytest.mark.parametrize("field,value", [("leaseId", "old"), ("ownerEpoch", 2), ("generation", 2), ("attemptId", "old")])
+def test_r5_reopened_store_rejects_stale_phase_and_receipt(tmp_path, field, value):
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, process_plan(tmp_path))
+    reopened = ExecutionStore(tmp_path)
+    wrong = attempt(**{field: value})
+    with pytest.raises(ExecutionConflict): reopened.phase(doc["effectId"], wrong, doc["claim"], "executing")
+    with pytest.raises(ExecutionConflict):
+        reopened.finish(doc["effectId"], wrong, doc["claim"], EffectReceipt(key(), "succeeded", {}).as_dict())
+    assert reopened.get(doc["effectId"]) == doc and reopened.events()["events"] == []
+
+
+def test_r5_phase_transaction_prevents_duplicate_or_reverse_lifecycle_effect(tmp_path, monkeypatch):
+    store, doc, plan, calls = life_setup(tmp_path, monkeypatch)
+    # Simulate supervisor crash immediately after it fenced the stop boundary.
+    store.phase(doc["effectId"], attempt(), doc["claim"], "stopping")
+    for phase in ("stopping", "preparing", "starting", "ready"):
+        with pytest.raises(ExecutionConflict): store.phase(doc["effectId"], attempt(), doc["claim"], phase)
+    with pytest.raises(ExecutionConflict): store.cancel(doc["effectId"], attempt())
+    repeated = run(execute_claimed(store, doc))
+    assert repeated["phase"] == "stopping" and calls == []
+    store.recover(lambda _: False)
+    assert run(execute_claimed(store, doc))["result"]["outcome"] == "unknown" and calls == []
+
+
+def test_r5_exit_phase_never_allows_start(tmp_path):
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, life_plan(tmp_path, "service.exit"))
+    for phase in ("stopping", "stopped"):
+        store.phase(doc["effectId"], attempt(), doc["claim"], phase)
+    with pytest.raises(ExecutionConflict): store.phase(doc["effectId"], attempt(), doc["claim"], "starting")
+
+
+def test_r5_cancel_wins_before_process_phase_without_spawn(tmp_path):
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, process_plan(tmp_path))
+    cancelled = store.cancel(doc["effectId"], attempt())
+    class Forbidden:
+        async def execute(self, **kwargs): pytest.fail("cancelled effect was executed")
+    assert run(execute_claimed(store, doc, executor=Forbidden())) == cancelled
+    assert cancelled["result"]["cleanupProof"]["effectStarted"] is False
+
+
+def test_r5_ack_crash_rolls_back_and_redelivers_same_original_receipt(tmp_path):
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, process_plan(tmp_path))
+    result = EffectReceipt(key(), "succeeded", {"externalReceiptId": "original-receipt"}, {"confirmed": True}).as_dict()
+    store.finish(doc["effectId"], attempt(), doc["claim"], result)
+    host = ExecutionHost(store)
+    durable = {}
+    async def persist(event):
+        durable[event["eventId"]] = event
+        return True
+    with store.connect() as db:
+        db.execute("CREATE TRIGGER crash_ack BEFORE UPDATE ON execution_outbox BEGIN SELECT RAISE(ABORT,'ack crash'); END")
+    with pytest.raises(sqlite3.IntegrityError): run(recover_execution_events(host, persist))
+    reopened = ExecutionStore(tmp_path)
+    event, = reopened.events()["events"]
+    assert durable[event["eventId"]] == event
+    with reopened.connect() as db: db.execute("DROP TRIGGER crash_ack")
+    assert run(recover_execution_events(ExecutionHost(reopened), persist)) == 1
+    assert reopened.events()["events"] == [] and len(durable) == 1
+    assert reopened.get(doc["effectId"])["result"] == result
+
+
+def test_r5_consumer_failure_before_durable_commit_does_not_ack(tmp_path):
+    store = ExecutionStore(tmp_path)
+    doc = claim(store, process_plan(tmp_path))
+    store.finish(doc["effectId"], attempt(), doc["claim"], EffectReceipt(key(), "unknown", {"messageId": "original"}).as_dict())
+    original = store.events()
+    async def crash(event): raise OSError("consumer commit failed")
+    with pytest.raises(OSError): run(recover_execution_events(ExecutionHost(store), crash))
+    assert ExecutionStore(tmp_path).events() == original
+
+
+def test_r5_canonical_startup_and_recovery_work_under_active_runtime_owner(tmp_path, monkeypatch):
+    from packages.jobs.independent_service import JobStore
+    from packages.jobs.runtime_owner import OwnerFence
+    from packages.core.platform import execution_host
+    owner = OwnerFence(tmp_path)
+    owner.claim(0)
+    owner.set_state("active")
+    try:
+        root = tmp_path / "independent"
+        store = ExecutionStore(root)
+        doc = claim(store, process_plan(tmp_path))
+        monkeypatch.setattr(execution_host, "supervisor_alive", lambda _: False)
+        container = JobStore(str(root))
+        container.recover()
+        recovered = container.execution_host.get_execution(doc["effectId"])
+        assert recovered["result"]["outcome"] == "unknown"
+        assert container.list() == {"jobs": []} and not container.db_path.exists()
+        assert owner.status()["state"] == "active"
+    finally: owner.release()
+
+
+
+def test_r5_lifecycle_offline_lookup_is_read_only_and_fenced(tmp_path, monkeypatch):
+    store, doc, plan, calls = life_setup(tmp_path, monkeypatch, "service.exit")
+    final = run(execute_claimed(store, doc))
+    def forbidden(*args): pytest.fail("receipt lookup attempted authorization/admission/launch")
+    protected = lifecycle.ProtectedLifecycleExecutor(job_id="job_original", store=ExecutionStore(store.root),
+        authorize=forbidden, launch=forbidden)
+    assert run(protected.lookup_receipt(attempt=attempt(), effect_key=key())) == final["result"]
+    with pytest.raises(ExecutionConflict):
+        run(protected.lookup_receipt(attempt=attempt(ownerEpoch=2), effect_key=key()))
+    assert calls == ["stop"] and len(store.events()["events"]) == 1
+
+
+
+def test_r5_active_owner_preserves_legacy_bytes_while_recovering_canonical(tmp_path, monkeypatch):
+    from packages.jobs.independent_service import JobStore, ServiceError
+    from packages.jobs.runtime_owner import OwnerFence
+    from packages.core.platform import execution_host
+    from tests.test_independent_job_service import _historical
+    root = tmp_path / "independent"
+    identity = _historical(root)
+    before = (root / "jobs.sqlite3").read_bytes()
+    doc = claim(ExecutionStore(root), process_plan(tmp_path))
+    owner = OwnerFence(tmp_path)
+    owner.claim(0)
+    owner.set_state("active")
+    try:
+        monkeypatch.setattr(execution_host, "supervisor_alive", lambda _: False)
+        container = JobStore(str(root))
+        container.recover()
+        assert container.execution_host.get_execution(doc["effectId"])["result"]["outcome"] == "unknown"
+        assert container.get(identity)["status"] == "running"
+        assert (root / "jobs.sqlite3").read_bytes() == before
+        with pytest.raises(ServiceError) as caught: container.request_cancel(identity)
+        assert caught.value.status == 409
+        assert (root / "jobs.sqlite3").read_bytes() == before
+    finally: owner.release()

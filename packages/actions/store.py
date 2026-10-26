@@ -20,6 +20,49 @@ API_ROUTES = {'/api/sessions', '/api/models', '/api/workspaces'}
 EFFECTS = {'read', 'write_local', 'write_external', 'high_risk'}
 
 
+SYSTEM_KINDS = ('background-process', 'session-message', 'session-broadcast', 'scheduled-task', 'main-lifecycle')
+
+
+def system_definition(kind):
+    if kind not in SYSTEM_KINDS:
+        raise ValueError('Unknown system executor')
+    fields = {
+        'background-process': {'sessionId': {'type': 'string', 'minLength': 1},
+            'argv': {'type': 'array', 'minItems': 1, 'items': {'type': 'string'}},
+            'cwd': {'type': 'string', 'minLength': 1}, 'hideWindow': {'type': 'boolean', 'default': True}},
+        'session-message': {'sessionId': {'type': 'string', 'minLength': 1}, 'text': {'type': 'string', 'minLength': 1}},
+        'session-broadcast': {'sessionIds': {'type': 'array', 'minItems': 1, 'maxItems': 256, 'items': {'type': 'string', 'minLength': 1}}, 'text': {'type': 'string', 'minLength': 1}},
+        'scheduled-task': {'sessionId': {'type': ['string', 'null']}, 'text': {'type': 'string'},
+            'action': {'oneOf': [
+                {'type': 'object', 'additionalProperties': False, 'required': ['api'],
+                 'properties': {'api': {'enum': ['assign', 'send_session', 'resume_legal_running']}}},
+                {'type': 'object', 'additionalProperties': False, 'required': ['api', 'args'], 'properties': {
+                    'api': {'const': 'shell'}, 'args': {'type': 'object', 'additionalProperties': False,
+                    'required': ['command', 'cwd'], 'properties': {'command': {'type': 'string', 'minLength': 1},
+                    'cwd': {'type': 'string', 'minLength': 1}, 'hideWindow': {'type': 'boolean'}}}}},
+                {'type': 'object', 'additionalProperties': False, 'required': ['api', 'args'], 'properties': {
+                    'api': {'const': 'send_qq'}, 'args': {'type': 'object', 'additionalProperties': False,
+                    'required': ['targetType', 'targetId'], 'properties': {'targetType': {'enum': ['user', 'group']},
+                    'targetId': {'type': 'string', 'minLength': 1}, 'botUin': {'type': 'string'}}}}},
+            ]}},
+        'main-lifecycle': {},
+    }[kind]
+    required = {'background-process': ['sessionId', 'argv', 'cwd'], 'session-message': ['sessionId', 'text'],
+                'session-broadcast': ['sessionIds', 'text'], 'scheduled-task': ['sessionId', 'text', 'action'], 'main-lifecycle': []}[kind]
+    return {'id': 'system_' + kind.replace('-', '_'), 'name': kind, 'description': 'Product executor: ' + kind,
+            'system': True, 'enabled': True, 'idempotent': False,
+            'monitoring': kind == 'background-process', 'recoverable': kind == 'background-process',
+            'effect': 'high_risk' if kind == 'main-lifecycle' else 'write_local', 'output_format': 'json',
+            'input_schema': {'type': 'object', 'properties': fields, 'required': required, 'additionalProperties': False},
+            'execution': {'kind': 'system_job', 'operation': kind}}
+
+
+def validate_system_action(action):
+    expected = system_definition(action.get('execution', {}).get('operation'))
+    if {**action, 'enabled': expected['enabled']} != expected:
+        raise ValueError('System Action definitions are immutable product definitions')
+
+
 class PersistenceError(OSError):
     """Storage failure, distinct from user authorization PermissionError."""
 
@@ -118,8 +161,7 @@ def validate_action(raw, automation=True):
     if not isinstance(ex, dict):
         raise ValueError('Execution is required')
     if ex.get('kind') == 'system_job' and automation:
-        from packages.jobs.system_actions import validate
-        validate(action)
+        validate_system_action(action)
     elif ex.get('kind') == 'api':
         if (set(ex) != {'kind', 'method', 'path'} or ex['method'] != 'GET'
                 or not isinstance(ex['path'], str) or ex['path'] not in API_ROUTES or action['effect'] != 'read'):

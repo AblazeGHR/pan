@@ -1,0 +1,46 @@
+{
+  "baseline": "cb3b5bd16f3ed43e54df7ceffc1249b71476df3a",
+  "branch": "r5/p4-executors-platform-20261025",
+  "forbiddenProductPathsChanged": [],
+  "deletedFiles": [],
+  "canonicalChecks": {
+    "packages/jobs/independent_executor.py": {
+      "oldCreateRetryAttributes": []
+    },
+    "packages/jobs/independent_execution_runner.py": {
+      "oldCreateRetryAttributes": []
+    }
+  },
+  "files": {
+    "packages/actions/store.py": "e27ddb18049bd6d6f4549a1271f673e408fd5aa19d492b45c758918ff17fee57",
+    "packages/actions/typed_executor.py": "b5e6ad93ddd4fd623b7a10bd186bf33338b06ce3ba76ad0fa8229ec1546b098e",
+    "packages/core/main_lifecycle.py": "36ee38ac48d8a05cc9cc467f1a6a94ee48fce40e5645947c4bc18d080f2fe368",
+    "packages/core/platform/__init__.py": "91017498cd9928b7eab64fda6b88c040c528f2ae20861eee59a2830359f5522f",
+    "packages/core/platform/desktop_win.py": "5975d5220cbdf595166293e9acee795670eb2fb775984031d59f9042b9183420",
+    "packages/core/platform/process_structs_win.py": "28b735b260a3c7ad8b4629ae2d701d67fe985df319b66f7a1fd479970d547f93",
+    "packages/core/platform/restricted_token_win.py": "aec5fbf9443533ccebc4a2d4280af7f45617c9913aa0d33f920f4da6c4d4735b",
+    "packages/jobs/desktop.py": "89c3470652f6a501c4b80b99f06f32c03a8a4b868da542124b07e98086a14144",
+    "packages/jobs/independent_client.py": "e8515572ef200015c89d64773eab95e7f7cd5e47277d59877fecdd861ea16161",
+    "packages/jobs/independent_execution_runner.py": "a9bc4ac949d9beaaa76384710c21274ce5466bbf639cfa843574646eed544c38",
+    "packages/jobs/independent_executor.py": "95503840cf6ace8e55bbdad01b1e01b7e00c971b75730323b34acdb58cfdde75",
+    "packages/jobs/independent_runner.py": "228dbb028318711fca7b61b8af500a6a566be96e7b52e8e6a37b0807bcd7190c",
+    "packages/jobs/independent_service.py": "e036cd760a2c3d0290af92b3cea90cc86397d8591cafb5b3bd5a0e0d6a61e5a8",
+    "packages/jobs/owned_process.py": "1491dec4ebe62324ac8a41c2051ac3a797daa390912f09f4861abb17e48dfab2",
+    "packages/jobs/restricted_token.py": "df847672bf9a36adf57f3bb75b59c5c74b830d0e9cf0d8398822b28328e20404",
+    "packages/jobs/system_actions.py": "6bc33a0e646091b3847f686ab72292752e37b4ac57287a9ce39d3d6fe06d6751",
+    "tests/helpers/legacy_process_fixture.py": "e7989dc4fcde7b0c5708036bcd564938cfb35cc4e8f68dc0c38c6adcc2c8f622",
+    "tests/helpers/lifecycle_controller_host.py": "e4859e00a94d949bffa71430c7d4ef50bba09cd476b80a53ba6808d840359344",
+    "tests/test_independent_job_bridge.py": "887fb414b41581967cac846227c1b2928608d3eecb65d69e98af04e299efcc94",
+    "tests/test_independent_job_service.py": "a8ee9652b04ba9612bbde5f9313dca0dd6767d6948b09b0d299fb0ea97cc554a",
+    "tests/test_job_cleanup_failures.py": "86ac81ab3c46b4e1ac8916e52bbcbb898296952a92cc24a0513e455827209d25",
+    "tests/test_job_final_executors.py": "eab0603366bec4aa98079339bd2b2cb2941334eab6baf7b6d0790c84e7a32c28",
+    "tests/test_job_final_independent_execution.py": "948643bc932a7efc4f49f2aebd7aab20da742318775766e7e52afcf33443e8ce",
+    "tests/test_job_lifecycle_prevention.py": "960278af2fe094697d2123367d94484aca92629aa0087351e2794ca56f326808",
+    "tests/test_job_system_actions.py": "471973f6439ca4e9c4b35c0a8b96ee74e43d7410ca9528f8e39807f47fc7b8dd",
+    "tests/test_main_lifecycle_jobs.py": "feb987a01228ffbc4b514afcb7c22d92c308e61539cc84b016628ef92f5b65be",
+    "tests/test_platform_api.py": "7d99da6c79de1f305706b86eb61311a397596c6d7d8c190ceab125fca0d3e85f",
+    "tests/test_platform_layer.py": "3c685e04565252cb7c3b93a9e27d7dfbf6461c04e738acd7a522cb87475abb3e",
+    "tests/test_r5_p4_platform.py": "25a4d998145f2252ca36d973cf43c6b505e39f8e6caa1853e87b20da77db4468"
+  },
+  "sourceSha": "021b4f603112e1af56aefaa7b49f4003b26f89f0"
+}

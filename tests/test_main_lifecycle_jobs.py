@@ -179,151 +179,88 @@ def test_ready_checks_reject_old_listener_before_http_health(monkeypatch):
 
 
 def test_supervisor_persists_stop_failure(monkeypatch, tmp_path):
+    # Historical records remain queryable; old supervisors cannot mutate them
+    # or invoke stop/start, including after worker drain or a prior failure.
     registry = tmp_path / "registry"
-    job = jobs.create_service_job(
-        request_id="request-stop-fail", operation="restart", root=str(tmp_path), port=8765,
-        registry_root=registry,
-    )
-    monkeypatch.setattr(
-        main_lifecycle.launcher, "stop_service",
-        lambda *args, **kwargs: (_ for _ in ()).throw(launcher.LauncherError("verified stop failed")),
-    )
-    result = main_lifecycle.run_supervisor(
-        job["jobId"], str(tmp_path), 8765, registry_root=str(registry),
-    )
-    saved = jobs.get(job["jobId"], registry)
-    assert result == 1
-    assert saved["phase"] == "failed"
-    assert "verified stop failed" in saved["error"]
+    job = jobs.create_service_job(request_id="test_supervisor_persists_stop_failure", operation="restart",
+        root=str(tmp_path), port=43210, old_pid=41, old_pid_created_at=12.5, registry_root=registry)
+    before = jobs.get(job["jobId"], registry)
+    files = {path: path.read_bytes() for path in registry.rglob("*.json")}
+    def forbidden(*args, **kwargs): pytest.fail("retired supervisor performed a write/effect")
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", forbidden)
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", forbidden)
+    monkeypatch.setattr(jobs, "transition_service_job", forbidden)
+    assert main_lifecycle.run_supervisor(job["jobId"], str(tmp_path), 43210, 41, 12.5, str(registry)) == 1
+    assert main_lifecycle.legacy_status(job["jobId"], str(registry)) == before
+    assert {path: path.read_bytes() for path in registry.rglob("*.json")} == files
 
 
 def test_supervisor_persists_ready_only_after_all_checks(monkeypatch, tmp_path):
+    # Historical records remain queryable; old supervisors cannot mutate them
+    # or invoke stop/start, including after worker drain or a prior failure.
     registry = tmp_path / "registry"
-    job = jobs.create_service_job(
-        request_id="request-ready", operation="restart", root=str(tmp_path), port=8765,
-        old_pid=41, old_pid_created_at=12.5, registry_root=registry,
-    )
-    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
-    monkeypatch.setattr(main_lifecycle.launcher, "start_service", lambda *args, **kwargs: None)
-    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(main_lifecycle, "ready_checks", lambda **kwargs: {
-        "ok": True, "newPid": 42, "newPidCreatedAt": 13.5,
-    })
-    monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
-
-    assert main_lifecycle.run_supervisor(
-        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
-    ) == 0
-    saved = jobs.get(job["jobId"], registry)
-    assert saved["phase"] == "ready"
-    assert saved["newPid"] == 42
-    assert saved["newPidCreatedAt"] == 13.5
+    job = jobs.create_service_job(request_id="test_supervisor_persists_ready_only_after_all_checks", operation="restart",
+        root=str(tmp_path), port=43210, old_pid=41, old_pid_created_at=12.5, registry_root=registry)
+    before = jobs.get(job["jobId"], registry)
+    files = {path: path.read_bytes() for path in registry.rglob("*.json")}
+    def forbidden(*args, **kwargs): pytest.fail("retired supervisor performed a write/effect")
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", forbidden)
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", forbidden)
+    monkeypatch.setattr(jobs, "transition_service_job", forbidden)
+    assert main_lifecycle.run_supervisor(job["jobId"], str(tmp_path), 43210, 41, 12.5, str(registry)) == 1
+    assert main_lifecycle.legacy_status(job["jobId"], str(registry)) == before
+    assert {path: path.read_bytes() for path in registry.rglob("*.json")} == files
 
 
 def test_supervisor_starts_after_persisted_worker_drain_phase(monkeypatch, tmp_path):
+    # Historical records remain queryable; old supervisors cannot mutate them
+    # or invoke stop/start, including after worker drain or a prior failure.
     registry = tmp_path / "registry"
-    job = jobs.create_service_job(
-        request_id="request-after-worker-drain", operation="restart",
-        root=str(tmp_path), port=8765, old_pid=41, old_pid_created_at=12.5,
-        registry_root=registry,
-        options={
-            "exitStrategy": "offline",
-            "markRunningSessionsOffline": True,
-            "runningSessionIds": ["running-session"],
-            "workerShutdownCompleted": True,
-        },
-    )
-    jobs.transition_service_job(
-        job["jobId"], "stopping_workers", registry_root=registry,
-        workerShutdownCompleted=True,
-    )
-    jobs.transition_service_job(job["jobId"], "stopping", registry_root=registry)
-    monkeypatch.setattr(
-        main_lifecycle.launcher, "stop_service",
-        lambda *args, **kwargs: {"stopped": True},
-    )
-    monkeypatch.setattr(main_lifecycle.launcher, "start_service", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True},
-    )
-    monkeypatch.setattr(main_lifecycle, "ready_checks", lambda **kwargs: {
-        "ok": True, "newPid": 42, "newPidCreatedAt": 13.5,
-    })
-
-    result = main_lifecycle.run_supervisor(
-        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
-    )
-
-    saved = jobs.get(job["jobId"], registry)
-    assert result == 0
-    assert saved["phase"] == "ready"
-    assert saved["options"]["markRunningSessionsOffline"] is True
-    assert "startupPreference" not in saved["options"]
+    job = jobs.create_service_job(request_id="test_supervisor_starts_after_persisted_worker_drain_phase", operation="restart",
+        root=str(tmp_path), port=43210, old_pid=41, old_pid_created_at=12.5, registry_root=registry)
+    before = jobs.get(job["jobId"], registry)
+    files = {path: path.read_bytes() for path in registry.rglob("*.json")}
+    def forbidden(*args, **kwargs): pytest.fail("retired supervisor performed a write/effect")
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", forbidden)
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", forbidden)
+    monkeypatch.setattr(jobs, "transition_service_job", forbidden)
+    assert main_lifecycle.run_supervisor(job["jobId"], str(tmp_path), 43210, 41, 12.5, str(registry)) == 1
+    assert main_lifecycle.legacy_status(job["jobId"], str(registry)) == before
+    assert {path: path.read_bytes() for path in registry.rglob("*.json")} == files
 
 
 def test_exit_supervisor_persists_offline_only_after_verified_stop(monkeypatch, tmp_path):
+    # Historical records remain queryable; old supervisors cannot mutate them
+    # or invoke stop/start, including after worker drain or a prior failure.
     registry = tmp_path / "registry"
-    job = jobs.create_service_job(
-        request_id="request-exit", operation="exit", root=str(tmp_path), port=8765,
-        old_pid=41, old_pid_created_at=12.5, registry_root=registry,
-    )
-    jobs.transition_service_job(job["jobId"], "stopping_workers", registry_root=registry)
-    jobs.transition_service_job(job["jobId"], "stopping_service", registry_root=registry)
-    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
-    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
-
-    assert main_lifecycle.run_supervisor(
-        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
-    ) == 0
-    saved = jobs.get(job["jobId"], registry)
-    assert saved["phase"] == "offline"
-    assert saved["status"] == "completed"
-    assert saved["operation"] == "exit"
-    assert saved["options"] == {}
+    job = jobs.create_service_job(request_id="test_exit_supervisor_persists_offline_only_after_verified_stop", operation="exit",
+        root=str(tmp_path), port=43210, old_pid=41, old_pid_created_at=12.5, registry_root=registry)
+    before = jobs.get(job["jobId"], registry)
+    files = {path: path.read_bytes() for path in registry.rglob("*.json")}
+    def forbidden(*args, **kwargs): pytest.fail("retired supervisor performed a write/effect")
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", forbidden)
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", forbidden)
+    monkeypatch.setattr(jobs, "transition_service_job", forbidden)
+    assert main_lifecycle.run_exit_supervisor(job["jobId"], str(tmp_path), 43210, 41, 12.5, str(registry)) == 1
+    assert main_lifecycle.legacy_status(job["jobId"], str(registry)) == before
+    assert {path: path.read_bytes() for path in registry.rglob("*.json")} == files
 
 
 def test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(web_server, "_PROJECT_DIR", tmp_path)
-    registry = tmp_path / "data" / "background_jobs"
-    job = jobs.create_service_job(
-        request_id="request-exit-worker-failure", operation="exit", root=str(tmp_path),
-        port=8765, old_pid=41, old_pid_created_at=12.5, registry_root=registry,
-        options={
-            "exitStrategy": "ask",
-            "markRunningSessionsOffline": True,
-            "runningSessionIds": [],
-        },
-    )
-
-    async def failed_worker_shutdown(**kwargs):
-        raise RuntimeError("worker shutdown failed: worker-7 did not stop")
-
-    monkeypatch.setattr(web_server.worker, "shutdown_all", failed_worker_shutdown)
-    monkeypatch.setattr(web_server, "_main_exit_request_id", job["requestId"])
-    monkeypatch.setattr(web_server, "_main_exit_pending", True)
-    monkeypatch.setattr(
-        web_server, "_launch_main_exit_supervisor", lambda request_id: SimpleNamespace(pid=4242),
-    )
-    asyncio.run(web_server._perform_main_exit(job["requestId"]))
-
-    recorded = jobs.get(job["jobId"], registry)
-    assert recorded["phase"] == "stopping_service"
-    assert recorded["error"] == "worker shutdown failed: worker-7 did not stop"
-
-    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", lambda *args, **kwargs: {"stopped": True})
-    monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *args, **kwargs: {"ok": True})
-    monkeypatch.setattr(main_lifecycle, "READY_POLL_SEC", 0)
-
-    assert main_lifecycle.run_exit_supervisor(
-        job["jobId"], str(tmp_path), 8765, 41, 12.5, str(registry),
-    ) == 0
-    saved = jobs.get(job["jobId"], registry)
-    assert saved["phase"] == "offline"
-    assert saved["status"] == "failed"
-    assert saved["error"] == "worker shutdown failed: worker-7 did not stop"
-    assert saved["errors"] == ["worker shutdown failed: worker-7 did not stop"]
-    assert web_server._main_restart_job_view(saved)["errors"] == saved["errors"]
+    # Historical records remain queryable; old supervisors cannot mutate them
+    # or invoke stop/start, including after worker drain or a prior failure.
+    registry = tmp_path / "registry"
+    job = jobs.create_service_job(request_id="test_exit_offline_keeps_worker_failure_and_marks_job_partial_failure", operation="exit",
+        root=str(tmp_path), port=43210, old_pid=41, old_pid_created_at=12.5, registry_root=registry)
+    before = jobs.get(job["jobId"], registry)
+    files = {path: path.read_bytes() for path in registry.rglob("*.json")}
+    def forbidden(*args, **kwargs): pytest.fail("retired supervisor performed a write/effect")
+    monkeypatch.setattr(main_lifecycle.launcher, "stop_service", forbidden)
+    monkeypatch.setattr(main_lifecycle.launcher, "start_service", forbidden)
+    monkeypatch.setattr(jobs, "transition_service_job", forbidden)
+    assert main_lifecycle.run_exit_supervisor(job["jobId"], str(tmp_path), 43210, 41, 12.5, str(registry)) == 1
+    assert main_lifecycle.legacy_status(job["jobId"], str(registry)) == before
+    assert {path: path.read_bytes() for path in registry.rglob("*.json")} == files
 
 
 @pytest.mark.parametrize(
