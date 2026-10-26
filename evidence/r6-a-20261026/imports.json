@@ -1,0 +1,1249 @@
+{
+  "schema": "pan.r6-a.import-smoke/v1",
+  "modules": [
+    {
+      "module": "packages",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.command_runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.executor",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.provider",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.session_query",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.actions.typed_executor",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.auth",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.authorization",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.chain_engine",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.contracts",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.engine",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.event_store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.events",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.example_plugin",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.job_link_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.job_links",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.policy",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.quota_host",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.quota_identity",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.quota_policy",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.quota_provider",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.service",
+      "status": "imported"
+    },
+    {
+      "module": "packages.automation.store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.cc_switch_bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.cc_switch_bridge.launch_export",
+      "status": "imported"
+    },
+    {
+      "module": "packages.cc_switch_bridge.provider",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.base",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc.native_adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc.native_bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc.native_hook",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.cbc.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.claude",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.claude.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.claude.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.app_server_wrapper",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.control_owner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.native_admission",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.native_transport",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.owned_kernel",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.provider_launch",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.resident_tui",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.tool_projection",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.codex.wrapper",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.dsh",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.dsh.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.dsh.events",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.dsh.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.dsh.wrapper",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi.native_adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi.native_bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.kimi.wrapper",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.mcp",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.opencode",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.opencode.adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.opencode.sessions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.opencode.wrapper",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.registry",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.resolution",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.adapters.validation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.agent_inbox",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.attachment_projection",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.auto_report",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.background_jobs",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.background_retry",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.background_runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.character",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.cli",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.cli_diagnostics",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.codex_quota",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.codex_quota_provider",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.codex_quota_store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.config",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.console_bootstrap",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.console_exit",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.console_logs",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.data_catalog",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.data_retention",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.history_identity_backfill",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.history_read",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.history_search_index",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.history_search_query",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.history_search_scan",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.host_console",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.host_server",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.inbox_service",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.launcher",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.legal_offline",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.lifecycle_action",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.lifecycle_legacy",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.logging_setup",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.login_startup",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.main_lifecycle",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.manifest_loader",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.markdown_links",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.chunker",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.embedder",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.search",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.session_indexer",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory.watcher",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.memory_context",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.message_navigation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.model_catalog",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.notifications",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.desktop_win",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.execution_host",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.process",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.process_posix",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.process_structs_win",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.restricted_token_win",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.platform.runtime_lock",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.qq_reports",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.queue_locks",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.reminders",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.automation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.driver",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.filetools",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.hybrid",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.pty_session",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.storage",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.rewind.transcript",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.runtime_diagnostics",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.runtime_issues",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.self_queue",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.session",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.session_bookmarks",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.session_drafts",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.session_error_log",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.system_fields",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.takeover",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.takeover_job",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.attachments",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.backend",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.contracts",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.driver",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.emulator",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.guard",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.identity",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.ipc",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.launcher",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.observer",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.output",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.ownership",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.registry",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.runner_client",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.secret_store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.service",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.spawn_win",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.terminal.win_pipe",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.unread_policy",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.windows_toast",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.workdir_retention",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.worker",
+      "status": "imported"
+    },
+    {
+      "module": "packages.core.workspace",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.contracts",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.locker_messages",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.related_context",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.threads",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.trusted",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.user_cards",
+      "status": "imported"
+    },
+    {
+      "module": "packages.interactions.user_cards_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.action_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.action_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.action_templates",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.actions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.chain_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.chains",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.cleanup",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.cron",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.desktop",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_cli",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_client",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_contracts",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_runtime.coordinator",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_runtime.executor",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_runtime.executors",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_runtime.ledger",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.final_service",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.independent_client",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.independent_execution_runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.independent_executor",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.independent_runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.independent_service",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.legacy_compat",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.migration_authorization",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.migration_history",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.owned_process",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.pan_bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.pins",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.process_cleanup",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.process_wait",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.restricted_token",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.retired",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.runtime_activation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.runtime_owner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.system_actions",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.templates",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.unified",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.window",
+      "status": "imported"
+    },
+    {
+      "module": "packages.jobs.window_guard",
+      "status": "imported"
+    },
+    {
+      "module": "packages.mcp",
+      "status": "imported"
+    },
+    {
+      "module": "packages.mcp.final_tools",
+      "status": "imported"
+    },
+    {
+      "module": "packages.mcp.monitor_workers",
+      "status": "imported"
+    },
+    {
+      "module": "packages.mcp.server",
+      "status": "imported"
+    },
+    {
+      "module": "packages.mcp.terminal_tools",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.catalog",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.data",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.event_adapter",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.ipc",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.lifecycle",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.mcp",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.panel_builds",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.panels",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.providers",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.stdio_runner",
+      "status": "imported"
+    },
+    {
+      "module": "packages.plugins.validation",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.bot",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels.base",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels.llonebot",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels.napcat",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels.onebot",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.channels.snowluma",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.gateway_plugins",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.mcp",
+      "status": "imported"
+    },
+    {
+      "module": "packages.qq.plugin",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.__main__",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.lan_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.main",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.mcp_gateway",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.mcp_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.tailscale_runtime",
+      "status": "imported"
+    },
+    {
+      "module": "packages.remote.tunnel",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.composition",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.creators",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.cron",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.engine",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.event_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.legacy_bridge",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.providers",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.store",
+      "status": "imported"
+    },
+    {
+      "module": "packages.scheduler.time_events",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.agent_inbox_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.native_control_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.native_file_picker",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.network_json",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.server",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.static_assets",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.terminal_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.terminal_tools",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.terminal_tools_api",
+      "status": "imported"
+    },
+    {
+      "module": "packages.web.terminal_ws",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.auth",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.bot",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.channel",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.ilink",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.ilink_channel",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.ilink_spec",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.mcp",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.plugin",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.server",
+      "status": "imported"
+    },
+    {
+      "module": "packages.wechat.store",
+      "status": "imported"
+    }
+  ],
+  "excludedLaunchOrTestFiles": [
+    "packages/devTools/performance/benchmark-history-pages.py",
+    "packages/qq/test_channels.py",
+    "packages/qq/test_qq_api.py",
+    "packages/qq/test_snowluma_accounts.py",
+    "packages/web/e2e/automation.server.py",
+    "packages/web/e2e/bookmark-remove-live.e2e.py",
+    "packages/web/e2e/bookmark-remove-live.server.py",
+    "packages/web/e2e/composerUrlNodeHttp.e2e.py",
+    "packages/web/e2e/frontend-full.server.py",
+    "packages/web/e2e/handoff-original-prompt.server.py",
+    "packages/web/e2e/historySearchServer.py",
+    "packages/web/e2e/job-pin-server.py",
+    "packages/web/e2e/jobs-badge-retry.server.py",
+    "packages/web/e2e/jobs-badge.server.py",
+    "packages/web/e2e/live-indicators.server.py",
+    "packages/web/e2e/login-startup-api.py",
+    "packages/web/e2e/manual-report-real.server.py",
+    "packages/web/e2e/navigation-check.py",
+    "packages/web/e2e/navigation-job.py",
+    "packages/web/e2e/navigation-profile.py",
+    "packages/web/e2e/navigationServer.py",
+    "packages/web/e2e/network-list.server.py",
+    "packages/web/e2e/notification-deeplink.server.py",
+    "packages/web/e2e/notification-workspace-jump.server.py",
+    "packages/web/e2e/queueDraftAttachments.http.py",
+    "packages/web/e2e/queueDraftAttachmentsRoute.http.py",
+    "packages/web/e2e/server.py",
+    "packages/web/e2e/session-click-latency-server.py",
+    "packages/web/e2e/session-summary.fake.py",
+    "packages/web/e2e/session-summary.server.py",
+    "packages/wechat/test_channel.py",
+    "packages/wechat/test_ilink.py",
+    "packages/wechat/test_mcp.py",
+    "packages/wechat/test_plugin.py"
+  ],
+  "runtimeNetworkAndSubprocessForbidden": true,
+  "writesRestrictedToTemporaryRoot": true,
+  "passed": 301,
+  "failed": 0
+}

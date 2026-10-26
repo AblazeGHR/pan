@@ -10,7 +10,8 @@ async def execute_job_chain(runtime, job):
     from packages.actions.executor import execute_dynamic
     from packages.automation.engine import PersistenceError
     from .action_runtime import AuthorizationRevoked, SnapshotPersistenceError
-    from .system_actions import execute as execute_system, recovery_ready
+    from .retired import reject_execution as execute_system
+    from .system_actions import recovery_ready
 
     execution = job['execution']
     eid, jid = execution['id'], job['jobId']

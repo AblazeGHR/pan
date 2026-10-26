@@ -1,0 +1,1065 @@
+{
+  "schema": "pan.r6-a.review/v1",
+  "baseline": "43655680",
+  "symbols": [
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "start",
+      "before": {
+        "line": 662,
+        "endLine": 731
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2835,
+          "owner": "retry",
+          "target": "packages.core.background_jobs.start",
+          "enclosingLeaf": [
+            "retry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/jobs/api.py",
+          "line": 644,
+          "owner": "create_job",
+          "target": "packages.core.background_jobs.start",
+          "enclosingLeaf": [
+            "create_job"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        },
+        {
+          "path": "packages/web/server.py",
+          "line": 11128,
+          "owner": "api_background_job_start",
+          "target": "packages.core.background_jobs.start",
+          "enclosingLeaf": [
+            "api_background_job_start"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "retry",
+      "before": {
+        "line": 2820,
+        "endLine": 2842
+      },
+      "callers": [
+        {
+          "path": "packages/web/server.py",
+          "line": 11316,
+          "owner": "api_background_job_retry",
+          "target": "packages.core.background_jobs.retry",
+          "enclosingLeaf": [
+            "api_background_job_retry"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "start_scheduled_process",
+      "before": {
+        "line": 759,
+        "endLine": 858
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1969,
+          "owner": "_execute_job_action",
+          "target": "packages.core.background_jobs.start_scheduled_process",
+          "enclosingLeaf": [
+            "_execute_job_action"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_message_next_run",
+      "before": {
+        "line": 978,
+        "endLine": 983
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1307,
+          "owner": "run_due_message_jobs",
+          "target": "packages.core.background_jobs._message_next_run",
+          "enclosingLeaf": [
+            "run_due_message_jobs"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1318,
+          "owner": "run_due_message_jobs",
+          "target": "packages.core.background_jobs._message_next_run",
+          "enclosingLeaf": [
+            "run_due_message_jobs"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_normalize_target_session_ids",
+      "before": {
+        "line": 986,
+        "endLine": 998
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1066,
+          "owner": "start_broadcast",
+          "target": "packages.core.background_jobs._normalize_target_session_ids",
+          "enclosingLeaf": [
+            "start_broadcast"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1114,
+          "owner": "update_message",
+          "target": "packages.core.background_jobs._normalize_target_session_ids",
+          "enclosingLeaf": [
+            "update_message"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_message_job_common",
+      "before": {
+        "line": 1001,
+        "endLine": 1017
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1036,
+          "owner": "start_message",
+          "target": "packages.core.background_jobs._message_job_common",
+          "enclosingLeaf": [
+            "start_message"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1069,
+          "owner": "start_broadcast",
+          "target": "packages.core.background_jobs._message_job_common",
+          "enclosingLeaf": [
+            "start_broadcast"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "start_message",
+      "before": {
+        "line": 1021,
+        "endLine": 1055
+      },
+      "callers": [
+        {
+          "path": "packages/jobs/api.py",
+          "line": 686,
+          "owner": "create_job",
+          "target": "packages.core.background_jobs.start_message",
+          "enclosingLeaf": [
+            "create_job"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        },
+        {
+          "path": "packages/web/server.py",
+          "line": 11236,
+          "owner": "api_session_message_job_start",
+          "target": "packages.core.background_jobs.start_message",
+          "enclosingLeaf": [
+            "api_session_message_job_start"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "start_broadcast",
+      "before": {
+        "line": 1059,
+        "endLine": 1088
+      },
+      "callers": [
+        {
+          "path": "packages/jobs/api.py",
+          "line": 692,
+          "owner": "create_job",
+          "target": "packages.core.background_jobs.start_broadcast",
+          "enclosingLeaf": [
+            "create_job"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        },
+        {
+          "path": "packages/web/server.py",
+          "line": 11243,
+          "owner": "api_session_message_job_start",
+          "target": "packages.core.background_jobs.start_broadcast",
+          "enclosingLeaf": [
+            "api_session_message_job_start"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "update_message",
+      "before": {
+        "line": 1092,
+        "endLine": 1144
+      },
+      "callers": [
+        {
+          "path": "packages/jobs/api.py",
+          "line": 930,
+          "owner": "patch_job",
+          "target": "packages.core.background_jobs.update_message",
+          "enclosingLeaf": [
+            "patch_job"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        },
+        {
+          "path": "packages/web/server.py",
+          "line": 11284,
+          "owner": "api_background_job_update",
+          "target": "packages.core.background_jobs.update_message",
+          "enclosingLeaf": [
+            "api_background_job_update"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "run_due_message_jobs",
+      "before": {
+        "line": 1161,
+        "endLine": 1334
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3392,
+          "owner": "recover_notifications",
+          "target": "packages.core.background_jobs.run_due_message_jobs",
+          "enclosingLeaf": [
+            "recover_notifications"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_tail_log_output",
+      "before": {
+        "line": 1870,
+        "endLine": 1880
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2212,
+          "owner": "_reconcile_scheduled_processes",
+          "target": "packages.core.background_jobs._tail_log_output",
+          "enclosingLeaf": [
+            "_reconcile_scheduled_processes"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1987,
+          "owner": "_execute_job_action",
+          "target": "packages.core.background_jobs._tail_log_output",
+          "enclosingLeaf": [
+            "_execute_job_action"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_run_job_action",
+      "before": {
+        "line": 1884,
+        "endLine": 1893
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2544,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._run_job_action",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2335,
+          "owner": "_redeliver_undelivered",
+          "target": "packages.core.background_jobs._run_job_action",
+          "enclosingLeaf": [
+            "_redeliver_undelivered"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 201,
+          "owner": "run_now",
+          "target": "packages.core.background_jobs._run_job_action",
+          "enclosingLeaf": [
+            "run_now"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_execute_job_action",
+      "before": {
+        "line": 1897,
+        "endLine": 2040
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1891,
+          "owner": "effect",
+          "target": "packages.core.background_jobs._execute_job_action",
+          "enclosingLeaf": [
+            "_run_job_action"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_scheduled_task_requeue_after",
+      "before": {
+        "line": 2043,
+        "endLine": 2052
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2634,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._scheduled_task_requeue_after",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_append_task_run",
+      "before": {
+        "line": 2146,
+        "endLine": 2180
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2466,
+          "owner": "_backlog_undelivered_fire",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_backlog_undelivered_fire"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2588,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2502,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2520,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2398,
+          "owner": "_redeliver_undelivered",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_redeliver_undelivered"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2383,
+          "owner": "_redeliver_undelivered",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_redeliver_undelivered"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2389,
+          "owner": "_redeliver_undelivered",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "_redeliver_undelivered"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 228,
+          "owner": "run_now",
+          "target": "packages.core.background_jobs._append_task_run",
+          "enclosingLeaf": [
+            "run_now"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_reconcile_scheduled_processes",
+      "before": {
+        "line": 2197,
+        "endLine": 2278
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2617,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._reconcile_scheduled_processes",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_redeliver_undelivered",
+      "before": {
+        "line": 2281,
+        "endLine": 2403
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2666,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._redeliver_undelivered",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_advance_paused_entries",
+      "before": {
+        "line": 2406,
+        "endLine": 2418
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2671,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._advance_paused_entries",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_repair_missing_next_fire",
+      "before": {
+        "line": 2421,
+        "endLine": 2434
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2673,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._repair_missing_next_fire",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_backlog_undelivered_fire",
+      "before": {
+        "line": 2437,
+        "endLine": 2473
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2539,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._backlog_undelivered_fire",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2558,
+          "owner": "_fire_scheduled_entry",
+          "target": "packages.core.background_jobs._backlog_undelivered_fire",
+          "enclosingLeaf": [
+            "_fire_scheduled_entry"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_fire_scheduled_entry",
+      "before": {
+        "line": 2476,
+        "endLine": 2599
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 2698,
+          "owner": "run_due_scheduled_tasks",
+          "target": "packages.core.background_jobs._fire_scheduled_entry",
+          "enclosingLeaf": [
+            "run_due_scheduled_tasks"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "run_due_scheduled_tasks",
+      "before": {
+        "line": 2603,
+        "endLine": 2715
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3394,
+          "owner": "recover_notifications",
+          "target": "packages.core.background_jobs.run_due_scheduled_tasks",
+          "enclosingLeaf": [
+            "recover_notifications"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 166,
+          "owner": "tick_once",
+          "target": "packages.core.background_jobs.run_due_scheduled_tasks",
+          "enclosingLeaf": [
+            "tick_once"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_terminal_broadcast_candidate",
+      "before": {
+        "line": 3254,
+        "endLine": 3279
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3406,
+          "owner": "recover_notifications",
+          "target": "packages.core.background_jobs._terminal_broadcast_candidate",
+          "enclosingLeaf": [
+            "recover_notifications"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_mark_terminal_broadcast",
+      "before": {
+        "line": 3283,
+        "endLine": 3295
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3411,
+          "owner": "recover_notifications",
+          "target": "packages.core.background_jobs._mark_terminal_broadcast",
+          "enclosingLeaf": [
+            "recover_notifications"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_broadcast_independent_terminals",
+      "before": {
+        "line": 3320,
+        "endLine": 3375
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3453,
+          "owner": "recover_notifications",
+          "target": "packages.core.background_jobs._broadcast_independent_terminals",
+          "enclosingLeaf": [
+            "recover_notifications"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "recover_notifications",
+      "before": {
+        "line": 3379,
+        "endLine": 3461
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3467,
+          "owner": "_recovery_loop",
+          "target": "packages.core.background_jobs.recover_notifications",
+          "enclosingLeaf": [
+            "_recovery_loop"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "_recovery_loop",
+      "before": {
+        "line": 3464,
+        "endLine": 3473
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 3481,
+          "owner": "start_recovery_loop",
+          "target": "packages.core.background_jobs._recovery_loop",
+          "enclosingLeaf": [
+            "start_recovery_loop"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "symbol": "start_recovery_loop",
+      "before": {
+        "line": 3476,
+        "endLine": 3482
+      },
+      "callers": [],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/jobs/system_actions.py",
+      "symbol": "invoke",
+      "before": {
+        "line": 147,
+        "endLine": 148
+      },
+      "callers": [
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1889,
+          "owner": "_run_job_action",
+          "target": "packages.jobs.system_actions.invoke",
+          "enclosingLeaf": [
+            "_run_job_action"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/core/background_jobs.py",
+          "line": 1893,
+          "owner": "_run_job_action",
+          "target": "packages.jobs.system_actions.invoke",
+          "enclosingLeaf": [
+            "_run_job_action"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/jobs/system_actions.py",
+      "symbol": "execute",
+      "before": {
+        "line": 205,
+        "endLine": 206
+      },
+      "callers": [
+        {
+          "path": "packages/jobs/action_runtime.py",
+          "line": 612,
+          "owner": "execute",
+          "target": "packages.jobs.system_actions.execute",
+          "enclosingLeaf": [],
+          "disposition": "old system Action refusal port moved to side-effect-free retired.reject_execution"
+        },
+        {
+          "path": "packages/jobs/action_runtime.py",
+          "line": 613,
+          "owner": "execute",
+          "target": "packages.jobs.system_actions.execute",
+          "enclosingLeaf": [],
+          "disposition": "old system Action refusal port moved to side-effect-free retired.reject_execution"
+        },
+        {
+          "path": "packages/jobs/chain_runtime.py",
+          "line": 13,
+          "owner": "execute_job_chain",
+          "target": "packages.jobs.system_actions.execute",
+          "enclosingLeaf": [],
+          "disposition": "old system Action refusal port moved to side-effect-free retired.reject_execution"
+        },
+        {
+          "path": "packages/jobs/chain_runtime.py",
+          "line": 45,
+          "owner": "progress_factory",
+          "target": "packages.jobs.system_actions.execute",
+          "enclosingLeaf": [],
+          "disposition": "old system Action refusal port moved to side-effect-free retired.reject_execution"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "_emit",
+      "before": {
+        "line": 68,
+        "endLine": 88
+      },
+      "callers": [
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 252,
+          "owner": "run_now",
+          "target": "packages.scheduler.engine._emit",
+          "enclosingLeaf": [
+            "run_now"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 116,
+          "owner": "_ensure_registered",
+          "target": "packages.scheduler.engine._emit",
+          "enclosingLeaf": [
+            "_ensure_registered"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 257,
+          "owner": "run_now",
+          "target": "packages.scheduler.engine._emit",
+          "enclosingLeaf": [
+            "run_now"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "_emit_strict",
+      "before": {
+        "line": 91,
+        "endLine": 96
+      },
+      "callers": [
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 117,
+          "owner": "_ensure_registered",
+          "target": "packages.scheduler.engine._emit_strict",
+          "enclosingLeaf": [
+            "_ensure_registered"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "_consume",
+      "before": {
+        "line": 99,
+        "endLine": 103
+      },
+      "callers": [
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 84,
+          "owner": "_emit",
+          "target": "packages.scheduler.engine._consume",
+          "enclosingLeaf": [
+            "_emit"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "_ensure_registered",
+      "before": {
+        "line": 107,
+        "endLine": 118
+      },
+      "callers": [
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 130,
+          "owner": "start_loop",
+          "target": "packages.scheduler.engine._ensure_registered",
+          "enclosingLeaf": [
+            "start_loop"
+          ],
+          "disposition": "removed execution closure"
+        },
+        {
+          "path": "packages/scheduler/engine.py",
+          "line": 165,
+          "owner": "tick_once",
+          "target": "packages.scheduler.engine._ensure_registered",
+          "enclosingLeaf": [
+            "tick_once"
+          ],
+          "disposition": "removed execution closure"
+        }
+      ],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "start_loop",
+      "before": {
+        "line": 125,
+        "endLine": 138
+      },
+      "callers": [],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "tick_once",
+      "before": {
+        "line": 163,
+        "endLine": 169
+      },
+      "callers": [],
+      "survivingProductionCallers": 0
+    },
+    {
+      "path": "packages/scheduler/engine.py",
+      "symbol": "run_now",
+      "before": {
+        "line": 176,
+        "endLine": 265
+      },
+      "callers": [
+        {
+          "path": "packages/jobs/api.py",
+          "line": 1193,
+          "owner": "run_job_now",
+          "target": "packages.scheduler.engine.run_now",
+          "enclosingLeaf": [
+            "run_job_now"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        },
+        {
+          "path": "packages/scheduler/api.py",
+          "line": 528,
+          "owner": "run_task_now",
+          "target": "packages.scheduler.engine.run_now",
+          "enclosingLeaf": [
+            "run_task_now"
+          ],
+          "disposition": "already retired producer body replaced by authenticated refusal"
+        }
+      ],
+      "survivingProductionCallers": 0
+    }
+  ],
+  "resolvedBaselineReferenceCount": 62,
+  "unresolved": [],
+  "afterQualifiedProductionReferences": [],
+  "unchangedHardKeepFilesSha256": {
+    "packages/jobs/final_runtime/coordinator.py": "b57b03938243a2542f1b293794af552ef1a858a5df9f2013d89755b729021798",
+    "packages/jobs/final_service.py": "907a0c2db77eb250ba871e9879d8a7efe55f3f8b97275b29e5708faf264b8aef",
+    "packages/jobs/runtime_owner.py": "234d63d2a05c0af261a89e5869157eaf10a77b7e4e567ea67d17e92cd8ca79be",
+    "packages/jobs/migration_history.py": "3d2d0421e8c838fdd193567663ace8edf7da6a81ec98ee9fbad089aa04f353a3",
+    "packages/jobs/independent_service.py": "e036cd760a2c3d0290af92b3cea90cc86397d8591cafb5b3bd5a0e0d6a61e5a8",
+    "packages/jobs/independent_executor.py": "95503840cf6ace8e55bbdad01b1e01b7e00c971b75730323b34acdb58cfdde75",
+    "packages/jobs/independent_execution_runner.py": "a9bc4ac949d9beaaa76384710c21274ce5466bbf639cfa843574646eed544c38",
+    "packages/core/session.py": "e2121454118ef6ac5c5d4e498624fd67cdebe485e770dc67b225476750b685bd",
+    "packages/core/inbox_service.py": "cee525b065eef712aae792fc6d1f721c5dc4dd329ce485f690c857a2e984817b",
+    "packages/jobs/pins.py": "cd23f95844b766b34df4b32e160c5ce9c2cf1753e10c4d8b06f72721c6e3a42b",
+    "packages/core/data_retention.py": "54907246cea038856e788184951d02956ba36f865046945c16fd930610ab6f81",
+    "packages/core/main_lifecycle.py": "2238ba21f01b5f1185152251216b8297ec7e87e948554ad16a950e07bd986112",
+    "packages/automation/store.py": "4ddfde72325d4bd1b7711f847da41d93e64fe72dddb53f6e74cd348a0477cd05",
+    "packages/automation/engine.py": "8b00682c7c5b5af9c1693a015c53e7b3d75d9ee448acc3bbb6ca6e85a62a09b1",
+    "packages/scheduler/store.py": "6cd795bef243a142c3028232d1aaf5c07041714af24b458bbbfb2edf030e0ede",
+    "packages/scheduler/creators.py": "858a8dd1570609a7b12405e1463bc9239f130d94bfc3bf38e28b9fe45da33453",
+    "packages/scheduler/time_events.py": "676fb0a46265b19909b51f785c7ffc69f7f90a07e54661de9d6c12cdc8a758ad",
+    "scripts/job_final_migration/p9d_support.py": "3c73ac2547cb5fe5a154b00aa8c4031a8434674a4efe07e6c3a72344f98f37cb",
+    "packages/mcp/server.py": "8b1eca011d7fbfeda818dc031cc5d53119bd27adf61aff14035e83609704eb13"
+  },
+  "unchangedBackgroundFacadeAndResourceFunctionsSha256": {
+    "get": "19058a5cbde56ad5ab928e6df2a1018d39baf1906e9e1bf6346aa5f81f014381",
+    "list_jobs": "71ef2d94affce1180452cb72ebb1488d0059ee1c79777ac145712bad789c251f",
+    "list_run_records": "87ffe9750c551096413893b921b5f35a61ed248a1da33c4f2a45820aed3aa58f",
+    "retarget_session_jobs": "8cbb9c8a59b6444a947da58061a4f8d2542adcf855ca30cf69897710a7aa653a",
+    "delete_job": "c97242a9fb52aeae7121b8ae1761313bc7b48ba2921b4b73242b44091ec6f80d",
+    "cancel": "b4b6946005f35a94dc9e0b6aa128941ecbd247ee2818b8fabb78167dc319d7c9",
+    "cancel_message": "10bdabb60a8ea3150481dbf6eb3f50d50a2aa96c9b5c975a9ec22d6e93de0d8f",
+    "_owns_process": "76b4c0a74e10cb784c1b99d868c680ffdf02af5aeb27ede79c90cdcc2fc26250",
+    "reconcile_running": "3c5d64d7d57221c0ea4a18b1c2de1838f47c69aa8b8777b66ba007d495d2d0fc",
+    "retry_due": "a9e02ee21561915df83f25a8b3303b330f70c663b2496cf6b5811f6bf473ee23",
+    "_root": "f84d103ee095b2e1d9f5af0a7383290d405b3d4d4c1210f93ee1a6d20e2ef29c",
+    "_job_path": "d5f66892ecb831a2c8b90dfc4e7eb87a23061fd216f3c9abd2ed68c92400b453",
+    "_job_lock": "6023193f2cc05b432cc4a569ae39279fe2013775090de6a7d5ddb9e0091960a3",
+    "_registry_lock": "3c0e73112b89f4953be366ac87544844a1bd275add36ceb365b6725d4b1a9dfd",
+    "_load_terminal_broadcast_ledger": "3db19a9fc6848f149a0014f18aecdc3130a91b812c08cd25422ce2d5002760d3"
+  },
+  "readFacadeRootBehavior": "_root still creates jobs/logs directories as before; existing records preserve bytes. No real profile opened.",
+  "dynamicReview": "whole tracked text scan plus AST imports/literal getattr and effective route snapshot tests; candidate string-based loaders absent from surviving production manifests; external plugins/deployed processes not assessed."
+}

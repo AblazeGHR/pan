@@ -11083,58 +11083,14 @@ async def _legacy_mcp_authority(request: Request, capability: str, *, action: bo
 
 
 async def _legacy_action_job(kind: str, fields: dict, request: Request):
-    from packages.jobs.legacy_compat import legacy_view
-    svc = getattr(request.app.state, 'automation', None)
-    runtime = getattr(svc, 'job_runtime', None)
-    if runtime is None or runtime.closed:
-        raise ValueError('unified Job runtime unavailable')
-    auth = await _legacy_mcp_authority(request, 'create', action=True)
-    if auth is None:
-        raise ValueError('legacy Action creation requires trusted MCP transport')
-    job = await asyncio.to_thread(runtime.create_legacy, kind, fields, auth,
-                                  creation_key=fields.get('_legacyRequestKey'))
-    if kind == background_jobs.BACKGROUND_PROCESS_KIND:
-        current = await asyncio.to_thread(runtime.get, job['jobId'])
-        if not current.get('attempts') and not current.get('execution'):
-            await runtime.launch(job['jobId'], expected=job['configRevision'], authority=auth)
-    return legacy_view(await asyncio.to_thread(runtime.get, job['jobId']))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 async def api_background_job_start(data: dict, request: Request = None):
-    """Create a durable process Job with independent creator/target fields."""
-    target = data.get("targetSessionId")
-    argv = data.get("argv")
-    cwd = data.get("cwd")
-    try:
-        retry_fields = {arg: data[key] for key, arg in {
-            "retryIf": "retry_if", "maxRetries": "max_retries", "backoffSec": "backoff_sec",
-            "idempotencyKey": "idempotency_key", "deduplication": "deduplication",
-        }.items() if key in data}
-        if (await _legacy_mcp_authority(request, 'create', action=True)) is not None:
-            if retry_fields:
-                raise ValueError("retryIf policy is only supported for background process Jobs")
-            if not isinstance(target, str) or not sess.get(target):
-                raise ValueError("target session does not exist")
-            argv, cwd_path = background_jobs._validate_command(argv, cwd)
-            from packages.jobs.window import validate_hide_window
-            validate_hide_window(data.get("hideWindow", True))
-            name = background_jobs.normalize_name(data.get("name"))
-            if name is None or len(name) > 200:
-                raise ValueError("name is required")
-            fields = {**data, "targetSessionId": target, "argv": argv,
-                      "cwd": str(cwd_path), "name": name}
-            # _legacy_action_job performs the capability check again only via
-            # the same trusted marker; no payload source is treated as identity.
-            return await _legacy_action_job(background_jobs.BACKGROUND_PROCESS_KIND, fields, request)
-        return background_jobs.start(
-            target, argv, cwd, label=data.get("label"), name=data.get("name"),
-            hide_window=data.get("hideWindow", True),
-            creator_session_id=data.get("creatorSessionId"),
-            **retry_fields,
-        )
-    except ValueError as exc:
-        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
-    except OSError as exc:
-        return {"ok": False, "error": {"code": "runner_spawn_failed", "message": str(exc)}}
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @app.get("/api/background-jobs")
@@ -11190,133 +11146,21 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
 
 
 async def api_session_message_job_start(data: dict, request: Request = None):
-    """Create a durable Session message or scheduled broadcast.
-
-    ``text`` is delivered as message text; it is never an OS command.
-    """
-    target = data.get("targetSessionId")
-    target_ids = data.get("targetSessionIds")
-    text = data.get("text")
-    source_type, source_session_id, source_error = _request_source_metadata(data)
-    if source_error:
-        return source_error
-    if target_ids is not None and target is not None:
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "provide targetSessionId or targetSessionIds, not both"}}
-    if target_ids is None:
-        target_ids = [target] if isinstance(target, str) else None
-    if not isinstance(target_ids, list) or not target_ids:
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "targetSessionId or targetSessionIds is required"}}
-    if any(not isinstance(target_id, str) or not target_id.strip()
-           for target_id in target_ids):
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "target session IDs must be non-empty strings"}}
-    target_ids = list(dict.fromkeys(target_ids))
-    for target_id in target_ids:
-        target_session = sess.get(target_id) if isinstance(target_id, str) else None
-        if not target_session:
-            return {"ok": False, "error": {"code": "invalid_job",
-                                             "message": "target session does not exist"}}
-        denied = _source_access_error(target_session, source_session_id)
-        if denied:
-            return denied
-    try:
-        common = {
-            "description": data.get("description", data.get("label")),
-            "source": source_type, "source_session_id": source_session_id,
-            "creator_session_id": data.get("creatorSessionId") or source_session_id,
-        }
-        if len(target_ids) == 1 and data.get("targetSessionIds") is None:
-            if (await _legacy_mcp_authority(request, 'create', action=True)) is not None:
-                fields = {**data, "targetSessionId": target_ids[0],
-                          "creatorSessionId": data.get("creatorSessionId") or source_session_id,
-                          "name": data.get("name")}
-                return await _legacy_action_job(background_jobs.SESSION_MESSAGE_KIND, fields, request)
-            return background_jobs.start_message(
-                target_ids[0], text, data.get("schedule"), **common)
-        if (await _legacy_mcp_authority(request, 'create', action=True)) is not None:
-            fields = {**data, "targetSessionIds": target_ids,
-                      "creatorSessionId": data.get("creatorSessionId") or source_session_id,
-                      "name": data.get("name")}
-            return await _legacy_action_job(background_jobs.SESSION_BROADCAST_KIND, fields, request)
-        return background_jobs.start_broadcast(
-            target_ids, text, data.get("schedule"), **common)
-    except ValueError as exc:
-        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 async def api_background_job_update(job_id: str, data: dict, request: Request = None):
-    try:
-        job = background_jobs.get(job_id)
-        if job and job.get('legacyCompat'):
-            from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
-            if is_legacy_action_job(job):
-                auth = await _legacy_mcp_authority(request, 'updateConfig')
-                runtime = request.app.state.automation.job_runtime
-                raw = {**job['config']}
-                if 'text' in data:
-                    raw['arguments'] = {**raw['arguments'], 'text': data['text']}
-                if 'description' in data:
-                    raw['description'] = data['description']
-                if 'targetSessionIds' in data:
-                    target_ids = list(dict.fromkeys(data['targetSessionIds']))
-                    if job['legacyCompat'] == background_jobs.SESSION_BROADCAST_KIND:
-                        raw['arguments'] = {**raw['arguments'], 'sessionIds': target_ids}
-                    elif len(target_ids) == 1:
-                        raw['arguments'] = {**raw['arguments'], 'sessionId': target_ids[0]}
-                    else:
-                        raise ValueError('single-message Jobs require exactly one target session')
-                if 'schedule' in data:
-                    from packages.jobs.legacy_compat import _schedule
-                    raw['schedule'] = _schedule(data['schedule'])
-                updated = await asyncio.to_thread(runtime.update, job_id, raw, job['configRevision'], True, auth)
-                if 'schedule' in data:
-                    await asyncio.to_thread(background_jobs._update, job_id, {
-                        'legacySchedule': copy.deepcopy(data['schedule']),
-                        'nextRunAt': background_jobs._iso_utc(background_jobs._normalize_message_schedule(data['schedule'], time.time())[1])})
-                return legacy_view(updated)
-        if not job or job.get("kind") not in {
-            background_jobs.SESSION_MESSAGE_KIND,
-            background_jobs.SESSION_BROADCAST_KIND,
-        }:
-            raise ValueError("message Job not found")
-        return background_jobs.update_message(
-            job_id, text=data.get("text"), schedule=data.get("schedule"),
-            description=data.get("description"),
-            target_session_ids=data.get("targetSessionIds"))
-    except ValueError as exc:
-        code = "job_not_found" if "not found" in str(exc) else "invalid_job"
-        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 async def api_background_job_retry(job_id: str, request: Request = None):
-    try:
-        old = background_jobs.get(job_id)
-        if old and old.get('legacyCompat'):
-            from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
-            if is_legacy_action_job(old):
-                if old.get('status') not in {'completed', 'failed', 'cancelled'}:
-                    raise ValueError('Job cannot be retried without a known terminal result')
-                auth = await _legacy_mcp_authority(request, 'create', action=True)
-                if auth is None:
-                    raise ValueError('legacy Action retry requires trusted MCP transport')
-                runtime = request.app.state.automation.job_runtime
-                fields = {key: copy.deepcopy(old.get(key)) for key in (
-                    'targetSessionId','targetSessionIds','argv','cwd','hideWindow','label','text','schedule','name','description')}
-                fields['retryOf'] = job_id
-                if old.get('legacySchedule') is not None:
-                    fields['schedule'] = copy.deepcopy(old['legacySchedule'])
-                fields['_legacyRequestKey'] = None
-                fresh = await asyncio.to_thread(runtime.create_legacy, old['legacyCompat'], fields, auth)
-                await asyncio.to_thread(background_jobs._update, fresh['jobId'], {'retryOf': job_id})
-                if old['legacyCompat'] == background_jobs.BACKGROUND_PROCESS_KIND:
-                    await runtime.launch(fresh['jobId'], expected=fresh['configRevision'], authority=auth)
-                return legacy_view(await asyncio.to_thread(runtime.get, fresh['jobId']))
-        return background_jobs.retry(job_id)
-    except ValueError as exc:
-        code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
-        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 # R5: the durable Job mutations are no longer routed.  The handlers above keep
