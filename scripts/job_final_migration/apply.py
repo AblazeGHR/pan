@@ -156,14 +156,21 @@ def _publish(target: Path, bundle: dict, check) -> bool:
 def migrate(root: str | Path, target: str | Path, context: dict, *,
             apply: bool = False, mark_read_only: bool = False,
             expected_digest: str | None = None, allow_real_profile: bool = False,
-            preserve_incompatible: bool = False) -> dict:
+            preserve_incompatible: bool = False, user_authorization: dict | None = None,
+            expected_user_authorization_digest: str | None = None) -> dict:
     """Build/commit a disabled canonical graph outside root. Default is dry-run.
 
     expected_digest is the planDigest from a reviewed context-bound dry-run.
     A committed bundle is an offline artifact, NOT runtime owner activation.
     """
     reject_review_material(context)
+    audit = None
+    if "userAuthorizationDigest" in context or user_authorization is not None:
+        from packages.jobs.migration_authorization import validate_context
+        audit = validate_context(context, user_authorization, expected_user_authorization_digest)
     root = Path(root).resolve(strict=True)
+    if audit:
+        require(str(root) == audit["profileRoot"], "user_authorization: apply root mismatch")
     target = outside_root(root, target)
     inventory = build_inventory(root, allow_real_profile=allow_real_profile)
     inventory_digest = fc.digest(inventory)
@@ -199,6 +206,9 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     require(isinstance(selected, list) and len(selected) == len(set(selected)) and set(selected) <= simple_ids,
             "invalid selectedMigrationIds: only explicit simple candidates may import")
     require(preserve_incompatible or set(selected) == simple_ids, "selection requires partial apply")
+    if audit:
+        require(set(selected) == simple_ids and all(item["type"] == "MIG-BG" for item in inventory["instances"]
+                if item["migrationId"] in selected), "user_authorization: P9D covers all simple background processes only")
     for item in inventory["instances"]:
         if item["classification"] == SIMPLE and item["migrationId"] in selected:
             require(_hash(sources[item["sourceFile"]]) == item["originalDigest"], "plan_stale: source hash changed")
@@ -225,6 +235,9 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
             "reasonCodes": ["unclassified_source_file"], "targetIds": [], "historicalOnly": True,
             "executable": False} for name in unclassified)
         report["plan"]["preserved"] = preserved
+        if audit:
+            for item in preserved:
+                item.update(recognition="unrecognized", disposition="unrecognized", unknownSettlementAttempted=False)
         report["plan"]["items"] = [p for p in report["plan"]["items"] if p["migrationId"] in selected]
         report["plan"]["invariant"] = {"sourceTotal": len(inventory["instances"]), "planned": len(entries),
             "preserved": len(inventory["instances"]) - len(entries), "classificationPending": 0}
@@ -265,6 +278,9 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
         "sourceBackups": {key: {"sha256": _hash(raw), "encoding": "base64", "bytes": base64.b64encode(raw).decode("ascii")}
                           for key, raw in sources.items()},
         "runtimeActivated": False, "runtimeFenceVerified": False})
+    if audit:
+        bundle.update(authorizationAudit=copy.deepcopy(audit), authorizationContext=copy.deepcopy(context))
+        bundle = _seal(bundle)
     wrote = _publish(target, bundle, recheck)
     report["readOnly"] = False
     report["migrationExecuted"] = True

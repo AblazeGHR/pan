@@ -199,6 +199,44 @@ bundle 身份绑定 inventory、原快照及归档 envelope；canonicalBundlePro
 不嵌入当前时间或输出目录。source root 的实际身份仍参与 inventory/operation 摘要，迁移快照位置后须重新审阅。
 历史保留建议只是供人类确认：原始 bytes 可归档不等于效果已结算、安全历史读路径已验收或 R6 可放行。
 
+## P9D user-authorization 与隔离导入
+
+P9D 在用户明确决定“51 simple 全部按 user 迁移、60 complex/unknown 全部 unrecognized 保留”后，
+使用独立的新上下文，不修改或签署 P9C 草稿：
+
+```powershell
+python scripts/run_tests_isolated.py -- python -m scripts.job_final_migration.p9d_rehearsal run --evidence .validation/p9b-private-20261026-v2 --packet .validation/p9c-private-20261026/review-packet --private .validation/p9d-new/rehearsal --instruction .validation/p9d-private-20261026/user-instruction.txt --reference conversation/user/P9D-policy-decision-current-turn --recorded-at <本次记录的UTC时间> --original-root D:/project/Pan/data --expected-manifest-sha256 b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5
+```
+
+`--original-root` 只作为日志重定位前缀与人工命令中的原始路径，生成器不打开该目录。
+只有 P9B 的 `source-copy` 被读取，全部稳定文件再复制到新的 `--private/profile`，原 P9B/P9C 工件保持不变。
+复制来的真实 owner authority 不允许被采用/重置；新 profile 建立自己的 OwnerFence，provider/Action pin 来自
+该 profile 实际发布的 `product_process`。executor 拒绝所有效果，active_ids=[]，不运行真实 Pan 服务或端口。
+
+`user-authorization.json` 是用户指令的审计收据：包含原指令文本及 hash、记录时间（不是猜测的消息时间）、
+conversation/user 引用、51 个 ID/hash、packetDigest、user/local principal/owner、隔离 profile 和上下文摘要。
+assistant 仅为记录者，不是批准人。signature=null，没有密码学签名验证；真实性依赖受信任的会话/操作员交接。
+文件 hash 是完整性证据，不等于密码学身份证明。仅嵌入 approved、伪填 user 或占位签名不提供批准。
+
+通用 CLI 对该上下文要求独立的 `--user-authorization` 和 `--expected-user-authorization-digest`；
+runtime activation 同样要求 `expected_user_authorization_digest`。摘要不能由嵌入 context 自行提供。
+审计/上下文/选择/每条 hash/owner 被修改、来源是 agent、占位审核或缺外部 pin 时均拒绝。
+拥有可信调用边界及文件写权限的操作员仍是信任根；本版本不声称防御控制该边界的恶意操作员。
+现有 v1 fixture attestation 与 P9C 一律拒绝规则保持各自契约。
+
+51 个定义保持 disabled、manual-only。新导入策略为 overlap forbid、关闭自动恢复和新通知、历史保留/pinned；
+这不是声称旧记录原本具有这些策略。原 source JSON、通知状态、creator/source 身份和原 pins 均作为历史保留。
+`migration_history`、`migration_receipt` 和 `migration_unrecognized` 与整图激活同事务提交，失败全部回滚。
+`packages.jobs.migration_history` 可按原 ID/terminal key 查询，不回调旧 loader；日志只读隔离 profile 内的 hash 固定副本。
+source-stated delivered 收据仅按原键登记历史结算，不再次投递、不伪造 canonical Run，也不声称外部投递已重新核验。
+unrecognized 的原 bytes/身份、reason、targetIds=[]、executable=false 单独保存，不转换、不重投、不结算未知效果。
+
+预演先模拟 bundle 写失败，再在写历史的事务中抛错，之后让子进程在第 17 条 Job 写入后 exit 77；
+每次失败均要求 graph/history/receipt/unrecognized/activation 行数为零且旧写封锁。恢复后导入全部 51 条并重启、
+重复 apply，ID、历史和原键保持一致，不增加 Run/outbox/effect。
+`manual-deletion/` 只有 CSV/JSON/Markdown/惰性 txt 命令，没有自动删除函数；实际原始源没有被写入或删除。
+范围内 activeLegacy=0 仅针对这个隔离 profile 的已迁移 51 条，不能推定真实环境或所有 legacy 身份清零。
+
 ## 支持与验证矩阵
 
 | 功能 | Windows | Linux / macOS |
