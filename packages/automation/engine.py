@@ -9,6 +9,7 @@ from packages.core.system_fields import system_binding_name, system_value
 from .events import now
 from .store import Conflict
 from .chain_engine import JobAdmission
+from packages.jobs.runtime_owner import legacy_writer
 
 
 def field(value, path):
@@ -115,6 +116,7 @@ class Engine:
                     await self.io(self.ledger.import_subscription, job)
         return (await self.io(self.ledger.read))['triggers']
 
+    @legacy_writer(lambda self, *a, **kw: self.ledger.path.parent.parent)
     async def match(self, event, targets=None, strict=False):
         async with self.matching:
             state = await self.io(self.ledger.read)
@@ -212,8 +214,8 @@ class Engine:
                     current = (await self.io(self.ledger.read))['runs'][run['id']]
                     await self.io(self.ledger.update, run['id'], status='uncertain' if current['status'] == 'admitting' else 'failed',
                                   error=str(exc), finishedAt=now())
-            if self.job_runtime and not self.closed:
-                await self.job_runtime.tick({'enabled': True})
+            # Admission ends here. Only the canonical Job owner dispatches
+            # effects; an Automation wake must never drive a runtime tick.
 
     async def close(self):
         self.closed = True

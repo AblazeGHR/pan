@@ -5,7 +5,8 @@ from pathlib import Path
 import time
 
 from packages.actions.store import atomic
-from packages.automation.store import Ledger
+from packages.automation.store import Ledger, Conflict
+import pytest
 from tests.test_automation_core import async_test, trigger, event
 
 
@@ -23,11 +24,14 @@ async def test_owned_ledger_growth_measurement(tmp_path):
         start=time.perf_counter()
         state=await asyncio.to_thread(ledger.read)
         read_ms=(time.perf_counter()-start)*1000
+        before=ledger.path.read_bytes()
         start=time.perf_counter()
-        await asyncio.to_thread(ledger.update,'r0',note='owned growth probe')
-        write_ms=(time.perf_counter()-start)*1000
+        with pytest.raises(Conflict, match='read only'):
+            await asyncio.to_thread(ledger.update,'r0',note='owned growth probe')
+        refusal_ms=(time.perf_counter()-start)*1000
+        assert ledger.path.read_bytes()==before
         assert len(state['runs'])==size
-        samples.append(dict(runs=size,bytes=ledger.path.stat().st_size,readMs=read_ms,atomicUpdateMs=write_ms))
+        samples.append(dict(runs=size,bytes=ledger.path.stat().st_size,readMs=read_ms,readOnlyRefusalMs=refusal_ms))
     assert samples[0]['bytes']<samples[-1]['bytes']
-    out=Path('artifacts/eta-final');out.mkdir(parents=True,exist_ok=True)
-    (out/'ledger-growth.json').write_text(json.dumps({'samples':samples,'retention':'7-day terminal pruning with protected pending/uncertain records; finite synthetic sample only, not a capacity guarantee'},indent=2),encoding='utf-8')
+    out=tmp_path/'evidence';out.mkdir(parents=True,exist_ok=True)
+    (out/'ledger-growth.json').write_text(json.dumps({'samples':samples,'retention':'Legacy history is preserved read only; canonical retention belongs to Jobs; finite synthetic sample only, not a capacity guarantee'},indent=2),encoding='utf-8')

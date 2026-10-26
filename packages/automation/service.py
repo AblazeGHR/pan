@@ -1,6 +1,7 @@
 """Explicit automation lifetime, durable event admission and bounded dispatch."""
 import asyncio
 import threading
+from pathlib import Path
 
 from packages.actions.store import Store
 from packages.core.runtime_issues import runtime_issue_event_schema
@@ -46,6 +47,10 @@ class Service:
         self.ingester = None
         self.job_runtime = None
         self.engine_started = False
+        from .quota_policy import Runtime as QuotaPolicy
+        # Configuration/evaluation stay available without starting the retired
+        # query scheduler. Effects require a separately bound host adapter.
+        self.quota_policy = QuotaPolicy(root, Path(root).parent / 'background_jobs')
 
     def canonical(self):
         final = getattr(self, 'final_jobs', None)
@@ -316,69 +321,17 @@ class Service:
                 pass
 
     async def start(self):
-        if self.stopping:
+        if self.stopping or self.started:
             return
-        if self.canonical():
-            # Canonical TriggerAdmission owns all new Run creation. Do not
-            # start the retired Job runtime, time source pass or TriggerRun loop.
-            await self.engine.io(self.auth.key)
-            await self.engine.io(self.events.initialize)
-            self.loop = asyncio.get_running_loop()
-            self.started = True
-            self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
-            self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
-            self.worker.set_running_observer(self.observe)
-            return
-        from packages.jobs.action_runtime import Runtime
-        from packages.scheduler.store import data_root
-        self.job_runtime = Runtime(data_root(), self.engine.actions, self.pause)
-        # Runtime rechecks the same profile-wide capability and revision at
-        # dispatch and immediately before the provider effect.
-        self.job_runtime.authorization = self.auth.permission_allowed
-        self.job_runtime.event_available = self.bus.available
-        await self.job_runtime.start()
-        self.engine.job_runtime = self.job_runtime
-        from .quota_policy import Runtime as QuotaRuntime
-        self.quota_policy = QuotaRuntime(self.ledger.path.parent, data_root())
-        from .quota_host import production
-        self.quota_policy.adapter = production(self.quota_policy.store, self.worker, self.worker._sess.SESSION_DIR.parent)
-        self.quota_policy.adapter.runtime = self.quota_policy
-        await self.quota_policy.recover()
-        self.job_runtime.quota_policy = self.quota_policy
-        from packages.core.runtime_issues import set_observer
-        self.loop = asyncio.get_running_loop()
-
-        def observe_issue(mapping):
-            # Quota policy keeps its existing issue consumer; the durable Event
-            # path is additive and must not suppress it on failure.
-            try:
-                self.quota_policy.observe(mapping)
-            except Exception as exc:
-                self.diagnostic('runtime-issue-quota', exc)
-            self.observe_runtime_issue(mapping)
-
-        set_observer(observe_issue)
-        if self.stopping:
-            return
+        if not self.canonical():
+            from .engine import DependencyUnavailable
+            raise DependencyUnavailable('Canonical Job owner required; legacy Automation host is retired')
+        # The composition root supplies the owner. Automation owns the Event
+        # inbox and ingress tasks only, never a Job/time/chain execution loop.
         await self.engine.io(self.auth.key)
         await self.engine.io(self.events.initialize)
-        if self.stopping:
-            return
-        await self.maintenance()
-        self.engine_started = True
-        await self.engine.start()
-        if self.stopping:
-            return
+        self.loop = asyncio.get_running_loop()
         self.started = True
-        from packages.scheduler.time_events import Sources, Runtime as TimeEvents
-        self.time_sources=Sources(data_root())
-        from .job_links import Links
-        self.links=Links(self.job_runtime,self.ledger,self.time_sources)
-        from packages.scheduler.legacy_bridge import LegacySchedulerBridge
-        self.scheduler_compat=LegacySchedulerBridge(self)
-        await self.links.recover()
-        async def acknowledged(event_id):await self.engine.io(self.events.release_pin,event_id)
-        self.job_runtime.time_events=TimeEvents(self.time_sources,self.accept_time,self.bus.diagnostics,acknowledged,self.links.source_ready,self.scheduler_compat.project_cursor)
         self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
         self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
         self.worker.set_running_observer(self.observe)
@@ -387,16 +340,14 @@ class Service:
         if self.started:
             self.worker.set_running_observer(None)
         self.stopping = True
-        if getattr(self,'quota_policy',None):
-            self.quota_policy.closed = True
-        if self.job_runtime:
-            self.job_runtime.closed = True
+        await self.quota_policy.close()
         self.wake.set()
         # Settle accepted writes before returning; pending records survive close.
         tasks = [t for t in (self.ingester, self.dispatcher) if t]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self.ingester = self.dispatcher = None
         async with self.admission:
             self.started = False
         await self.bus.close()
@@ -404,14 +355,6 @@ class Service:
             await self.engine.close()
         else:
             self.engine.closed = True
-        if getattr(self,'quota_policy',None):
-            await self.quota_policy.close()
-        if self.job_runtime:
-            await self.job_runtime.close()
-        if getattr(self,'quota_policy',None):
-            self.quota_policy.closed = True
-            from packages.core.runtime_issues import set_observer
-            set_observer(None)
         self.loop = None
         self._reset_runtime_issue_reservations()
 

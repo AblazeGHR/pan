@@ -17,6 +17,7 @@ from packages.automation.events import Bus
 from packages.automation.service import Service
 from packages.automation.store import Conflict, Ledger
 from packages.core import worker
+from tests.test_automation_canonical import canonical, subscription, fact, admit, run, deliver, create, control, enabled, USER
 
 
 def async_test(fn):
@@ -92,164 +93,6 @@ async def setup(tmp_path, execute=None):
     engine.close = close
     await engine.start()
     return engine, calls, handle
-
-
-@async_test
-async def test_running_edge_durable_pause_and_dedupe(tmp_path, monkeypatch):
-    engine, calls, _ = await setup(tmp_path)
-    ledger = engine.ledger
-    ledger.put(trigger(), 0, True)
-    svc = Service(tmp_path / 'service', worker, None)
-    svc.engine, svc.ledger = engine, ledger
-    engine.bus = svc.bus
-    await engine.job_runtime.close()
-    svc.pause = engine.job_runtime.pause
-    await svc.start()
-    monkeypatch.setattr(worker, 'workers', {})
-    worker.set_running_observer(svc.observe)
-    w = worker.Worker('own', 'source', None)
-    worker.workers[w.worker_id] = w
-    worker._register_worker(w)
-    try:
-        w.status = 'running'
-        w.status = 'idle'
-        rows = await settled(engine, 1)
-        assert calls == ['selected']
-        assert rows[0]['status'] == 'admitted'
-        job = engine.job_runtime.get(rows[0]['targetJobId'])
-        assert job['lastExecution']['stepExecutions'][0]['checkpoint']['targetIds'] == ['selected']
-        await engine.match(rows[0]['event'])
-        await settled(engine, 1)
-        assert calls == ['selected']
-        w.status = 'idle'
-        assert len(ledger.read()['runs']) == 1
-        w.status = 'running'
-        w.status = 'error'
-        await settled(engine, 2)
-        assert calls == ['selected', 'selected']
-    finally:
-        worker.workers.pop('own')
-        worker._unregister_worker(w)
-        worker.set_running_observer(None)
-        await svc.close()
-
-
-@async_test
-async def test_serial_cross_trigger_dynamic_and_disable(tmp_path):
-    entered, release = asyncio.Event(), asyncio.Event()
-    calls = []
-    async def execute(a, args, ev, progress):
-        calls.append((ev['id'], a['name']))
-        if ev['id'] == 'one':
-            entered.set()
-            await release.wait()
-        return {'ok': True}
-    engine, _, _ = await setup(tmp_path, execute)
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        await engine.match(event('one'))
-        await entered.wait()
-        await engine.match(event('two'))
-        engine.actions.put('actions', {**action(), 'name': 'Latest'})
-        # Different Trigger completes while first is blocked.
-        engine.ledger.put(trigger('other'), 0, True)
-        await engine.match(event('three'))
-        async def other_done():
-            return ('three', 'Latest') in calls
-        await until(other_done)
-        assert ('three', 'Latest') in calls
-        assert not any(e == 'two' for e, _ in calls)
-        release.set()
-        rows = await settled(engine, 4)
-        assert [n for e, n in calls if e == 'two'] == ['Pause selected']  # Definitions freeze at Job admission.
-        assert all(r['result']['admissionId'] for r in rows)
-        assert all(engine.job_runtime.get(j['jobId'])['finalRuntime']['plans'] for j in engine.job_runtime.list())
-    finally:
-        release.set()
-        await engine.close()
-
-
-@async_test
-async def test_disable_cancels_queued_running_continues(tmp_path):
-    entered, release = asyncio.Event(), asyncio.Event()
-    async def execute(*args):
-        entered.set()
-        await release.wait()
-        return {'ok': True}
-    engine, _, _ = await setup(tmp_path, execute)
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        await engine.match(event('one'))
-        await entered.wait()
-        await engine.match(event('two'))
-        engine.ledger.put({**trigger(), 'enabled': False}, 1, True)
-        release.set()
-        assert {r['status'] for r in await settled(engine, 2)} == {'admitted'}  # Pause/disable gates future admissions only.
-        assert engine.job_runtime.list()[0]['runCount'] == 2
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_state_cache_mapping_errors_and_skip(tmp_path):
-    engine, calls, _ = await setup(tmp_path)
-    reads = []
-    async def reader(key):
-        reads.append(key)
-        return 0
-    engine.state_reader = reader
-    cond = {'and': [{'field': 'count', 'op': 'eq', 'value': 0}, {'not': {'field': 'count', 'op': 'gt', 'value': 1}}]}
-    engine.ledger.put(trigger(condition=cond), 0, True)
-    engine.ledger.put(trigger('skip', condition={'field': 'count', 'op': 'gt', 'value': 1}), 0, True)
-    engine.ledger.put({**trigger('bad'), 'arguments': {'missing': {'from': 'event', 'path': 'payload.missing'}}}, 0, True)
-    try:
-        await engine.match(event())
-        rows = await settled(engine, 3)
-        assert [r['status'] for r in rows] == ['admitted', 'skipped', 'failed']
-        assert reads == ['count', 'count']
-        assert calls == ['selected']
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_append_failure_no_effect_and_loop_responsive(tmp_path, monkeypatch):
-    engine, calls, _ = await setup(tmp_path)
-    engine.ledger.put(trigger(), 0, True)
-    def fail(_):
-        raise OSError('disk full injected')
-    monkeypatch.setattr(engine.ledger, 'append', fail)
-    try:
-        await engine.match(event())
-        assert not calls and not engine.ledger.read()['runs']
-        assert engine.diagnostics[-1]['phase'] == 'persist'
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_recover_queued_uncertain_and_unavailable(tmp_path):
-    engine, calls, handle = await setup(tmp_path)
-    engine.ledger.put(trigger(), 0, True)
-    base = dict(triggerId='t', triggerRevision=1, actionId='pause', event=event(), arguments={})
-    engine.ledger.append(dict(base, id='running', status='running'))
-    engine.ledger.append(dict(base, id='queued', event=event('next'), status='queued'))
-    before = engine.ledger.read()['runs']
-    await engine.bus.deactivate(handle)
-    await engine.start()
-    handle = engine.bus.activate('core', 'workers')
-    engine.bus.register(handle, 'workers.all_idle', {'type':'object'})
-    try:
-        await engine.kick()
-        assert engine.ledger.read()['runs'] == before
-        await engine.match(event('new'))
-        rows = engine.ledger.read()['runs']
-        assert rows['running'] == before['running'] and rows['queued'] == before['queued']
-        assert list(rows.values())[-1]['status'] == 'failed'
-        assert 'handoff/reconciliation' in list(rows.values())[-1]['error']
-        assert not calls and not engine.job_runtime.list()
-    finally:
-        await engine.close()
 
 
 @async_test
@@ -329,124 +172,6 @@ async def test_http_user_boundary_revision_token_expiry(tmp_path):
     await svc.engine.close()
 
 
-@async_test
-async def test_shutdown_interrupted_is_uncertain(tmp_path):
-    entered = asyncio.Event()
-    async def execute(*args):
-        entered.set()
-        await asyncio.Event().wait()
-    engine, _, _ = await setup(tmp_path, execute)
-    engine.ledger.put(trigger(), 0, True)
-    await engine.match(event())
-    await entered.wait()
-    await engine.close()
-    row = next(iter(engine.ledger.read()['runs'].values()))
-    assert row['status'] == 'admitted'
-    assert engine.job_runtime.get(row['targetJobId'])['lastStatus'] == 'uncertain'
-
-@async_test
-async def test_admission_fence_partial_persist_and_slow_disk(tmp_path, monkeypatch):
-    import threading
-    engine, calls, _ = await setup(tmp_path)
-    engine.ledger.put(trigger(), 0, True)
-    engine.ledger.put(trigger('second'), 0, True)
-    original = engine.ledger.append
-    blocked, release = threading.Event(), threading.Event()
-    def append(run):
-        if run['triggerId'] == 'second':
-            blocked.set()
-            assert release.wait(5)
-            raise OSError('second match disk failure')
-        return original(run)
-    monkeypatch.setattr(engine.ledger, 'append', append)
-    task = asyncio.create_task(engine.match(event()))
-    try:
-        await until(lambda: asyncio.to_thread(blocked.is_set))
-        # A management kick and other loop work remain responsive while disk waits.
-        await asyncio.wait_for(engine.kick(), .5)
-        await asyncio.sleep(.02)
-        assert not calls
-        release.set()
-        await task
-        rows = await settled(engine, 1)
-        assert calls == ['selected'] and rows[0]['admitted']
-        assert engine.diagnostics[-1]['phase'] == 'persist'
-    finally:
-        release.set()
-        await task
-        await engine.close()
-
-
-@async_test
-async def test_target_checkpoint_failure_stops_and_marks_uncertain(tmp_path, monkeypatch):
-    engine, calls, _ = await setup(tmp_path)
-    engine.actions.put('actions', action(['first', 'second']))
-    engine.ledger.put(trigger(), 0, True)
-    runtime = engine.job_runtime
-    original = runtime.chain_save
-    def update(jid, eid, steps, phase):
-        if steps[0]['checkpoint'].get('targetResults'):
-            raise OSError('checkpoint disk failure')
-        return original(jid, eid, steps, phase)
-    monkeypatch.setattr(runtime, 'chain_save', update)
-    try:
-        await engine.match(event())
-        rows = await settled(engine, 1)
-        assert calls == ['first']
-        assert rows[0]['status'] == 'admitted'
-        job = runtime.get(rows[0]['targetJobId'])
-        assert job['lastStatus'] == 'uncertain'
-        checkpoint = job['lastExecution']['stepExecutions'][0]['checkpoint']
-        assert checkpoint['targetIds'] == ['first', 'second']
-        assert checkpoint['targetResults'] == []
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_dynamic_action_disabled_deleted_and_contract_failure(tmp_path):
-    engine, calls, _ = await setup(tmp_path)
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        engine.actions.put('actions', {**action(), 'enabled': False})
-        await engine.match(event('disabled'))
-        await settled(engine, 1)
-        engine.actions.delete('actions', 'pause')
-        await engine.match(event('deleted'))
-        await settled(engine, 2)
-        a = action()
-        a['input_schema']['required'] = ['new']
-        a['input_schema']['properties']['new'] = {'type': 'integer'}
-        engine.actions.put('actions', a)
-        await engine.match(event('contract-changed'))
-        rows = await settled(engine, 3)
-        assert all(r['status'] == 'failed' for r in rows) and not calls
-    finally:
-        await engine.close()
-
-
-@async_test
-async def test_backlog_full_visible_and_zero_targets(tmp_path):
-    engine, calls, _ = await setup(tmp_path)
-    engine.max_pending = 0
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        await engine.match(event())
-        row = (await settled(engine, 1))[0]
-        assert row['status'] == 'failed' and row['error'] == 'Trigger backlog full' and not calls
-        a = action()
-        a['execution']['selector']['ids'] = []
-        progress_calls = []
-        async def progress(**kw):
-            progress_calls.append(kw)
-        async def pause(*args):
-            raise AssertionError('no targets')
-        result = await execute_dynamic(a, {}, {}, progress, pause)
-        assert result == {'ok': True, 'matched': 0, 'succeeded': 0, 'failed': 0, 'targets': []}
-    finally:
-        await engine.close()
-
-
 def test_trigger_concurrent_revision_and_atomic_failure(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     import packages.automation.store as module
@@ -480,6 +205,149 @@ def test_auth_expiry_and_restart(tmp_path, monkeypatch):
     clock[0] += 43201
     assert not auth.authorized('Bearer ' + token)
 
+
+def test_event_admits_once_and_only_job_owner_dispatches(canonical):
+    h = canonical
+    job, target = subscription(h)
+    ev = fact(h)
+    first = admit(h, ev, target)
+    assert first['runId'] == admit(h, ev, target)['runId']
+    assert h.provider.calls == []
+    assert h.automation.ledger.read()['runs'] == {}
+    assert len(h.service.final.runs(job['id'])) == 1
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, first['runId'])['state'] == 'completed'
+    assert [text for text, _ in h.provider.calls] == ['0']
+
+
+@pytest.mark.parametrize('value,expected', [(0, 'accepted'), (2, 'skipped'), ('error', 'error')])
+def test_state_cache_false_and_unavailable_never_execute(canonical, value, expected):
+    h = canonical
+    reads = []
+    async def reader(key):
+        reads.append(key)
+        if value == 'error':
+            raise OSError('State unavailable')
+        return value
+    h.service.state_reader = reader
+    condition = {'and': [{'field':'count', 'op':'eq', 'value':0},
+                         {'not':{'field':'count', 'op':'gt', 'value':1}}]}
+    job, target = subscription(h, condition=condition)
+    if expected == 'error':
+        with pytest.raises(OSError, match='State unavailable'):
+            admit(h, fact(h), target)
+        assert h.service.final.runs(job['id']) == []
+    else:
+        result = admit(h, fact(h), target)
+        assert result['status'] == expected
+        assert len(h.service.final.runs(job['id'])) == (expected == 'accepted')
+    assert reads == ['count']
+    assert not h.provider.calls
+
+
+@pytest.mark.parametrize('filters,payload,expected', [
+    ({'payload.runningCount':0}, {'runningCount':0}, 'accepted'),
+    ({'payload.runningCount':1}, {'runningCount':0}, 'skipped'),
+    ({'payload.missing':0}, {'runningCount':0}, 'skipped'),
+])
+def test_event_filters_gate_canonical_admission(canonical, filters, payload, expected):
+    h = canonical
+    job, target = subscription(h, eventFilter=filters)
+    result = admit(h, fact(h, payload=payload), target)
+    assert result['status'] == expected
+    assert len(h.service.final.runs(job['id'])) == (expected == 'accepted')
+    assert h.provider.calls == []
+
+
+@pytest.mark.parametrize('field', ['disabled', 'paused'])
+def test_legacy_disabled_and_paused_remain_nonexecuting_admission_evidence(tmp_path, field):
+    bus = Bus()
+    handle = bus.activate('core', 'workers')
+    bus.register(handle, 'workers.all_idle', {'type':'object'})
+    ledger = Ledger(tmp_path / 'automation')
+    item = trigger()
+    item['enabled' if field == 'disabled' else 'paused'] = field == 'paused'
+    ledger.put(item, 0, True)
+    engine = Engine(ledger, bus, None, execute=lambda *args: pytest.fail('retired effect'))
+    asyncio.run(engine.match(event()))
+    row = next(iter(ledger.read()['runs'].values()))
+    assert row['status'] == 'skipped' and 'disabled or paused' in row['error']
+    assert not engine.tasks
+
+
+@pytest.mark.parametrize('state', ['disabled', 'paused'])
+def test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run(canonical, state):
+    h = canonical
+    job, target = subscription(h)
+    first = admit(h, fact(h, 'prior'), target)
+    response = control(h, 'jobs', job, 'disable' if state == 'disabled' else 'pause')
+    assert response.status_code == 200, response.text
+    from packages.jobs.final_contracts import ContractError
+    with pytest.raises(ContractError, match='Job is not enabled') as exc:
+        admit(h, fact(h, 'future'), target)
+    assert exc.value.code == 'reference_conflict'
+    assert len(h.service.final.runs(job['id'])) == 1
+    assert run(h, first['runId'])['state'] == 'queued'
+    assert not h.provider.calls
+
+
+def test_original_event_trigger_identity_survives_revision_and_retirement(canonical):
+    h = canonical
+    job, target = subscription(h)
+    ev = fact(h)
+    original = admit(h, ev, target)
+    assert control(h, 'triggers', target, 'retire').status_code == 200
+    replay = admit(h, ev, target)
+    assert replay['replayed'] and replay['runId'] == original['runId']
+    assert h.client.get('/api/operations/' + original['operationId']).status_code == 200
+    assert h.client.get('/api/job-runs/' + original['runId']).json()['runId'] == original['runId']
+    assert admit(h, fact(h, 'after-retire'), target)['status'] == 'skipped'
+    assert len(h.service.final.runs(job['id'])) == 1
+
+
+def test_trigger_lifecycle_grant_cannot_authorize_a_job_effect(canonical):
+    from packages.jobs.final_contracts import ContractError
+    h = canonical
+    job = enabled(h)
+    grants = h.automation.auth._default_permissions()
+    grants['trigger'] = {key:True for key in grants['trigger']}
+    h.automation.auth.change_permissions(grants, 0)
+    actor = {'type':'agent', 'id':'owned-agent', 'revision':1}
+    created = h.service.write('trigger', None, {'definition':{'name':'agent-trigger',
+        'eventTypes':['workers.all_idle'], 'creatorSelector':{'mode':'registeredType', 'providerType':'core'},
+        'targetJobId':job['id']}, 'expectedRevision':0, 'requestKey':'agent-trigger'}, actor=actor)['result']['object']
+    target = h.service.control('trigger', created['id'], {'operation':'enable', 'expectedRevision':1,
+        'expectedStateRevision':0, 'requestKey':'agent-enable', 'parameters':{}}, actor=actor)['result']['object']
+    with pytest.raises(ContractError) as exc:
+        admit(h, fact(h), target)
+    assert exc.value.code == 'authorization_denied'
+    assert not h.service.final.runs(job['id']) and not h.provider.calls
+    disabled = control(h, 'triggers', target, 'disable').json()['result']['object']
+    user_target = control(h, 'triggers', disabled, 'enable', 'user-enable').json()['result']['object']
+    result = admit(h, fact(h, 'user-event'), user_target)
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, result['runId'])['state'] == 'completed' and len(h.provider.calls) == 1
+
+
+def test_delegated_execution_revision_rechecked_before_first_effect(canonical):
+    h = canonical
+    job, target = subscription(h)
+    grants = h.automation.auth._default_permissions()
+    grants['job']['execute'] = True
+    grants['trigger']['lifecycle'] = True
+    h.automation.auth.change_permissions(grants, 0)
+    # Explicit agent lifecycle takes responsibility for this Trigger.
+    disabled = control(h, 'triggers', target, 'disable').json()['result']['object']
+    actor = {'type':'agent', 'id':'owned-agent', 'revision':1}
+    target = h.service.control('trigger', disabled['id'], {'operation':'enable', 'expectedRevision':1,
+        'expectedStateRevision':disabled['stateRevision'], 'requestKey':'agent-enable', 'parameters':{}},
+        actor=actor)['result']['object']
+    result = admit(h, fact(h), target)
+    h.automation.auth.change_permissions(h.automation.auth._default_permissions(), 1)
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, result['runId'])['state'] == 'failed'
+    assert h.service.final.get(job['id'])['attempts'] == {} and not h.provider.calls
+
 @async_test
 async def test_run_cancel_api_revision_and_business_state(tmp_path):
     svc = Service(tmp_path, worker, None)
@@ -500,66 +368,3 @@ async def test_run_cancel_api_revision_and_business_state(tmp_path):
         assert (await client.post(path, json={'expectedRevision': 2}, headers=headers)).status_code == 409
     await svc.engine.close()
     await svc.bus.close()
-
-@async_test
-async def test_example_internal_plugin_runtime_lifecycle(tmp_path):
-    from packages.automation.example_plugin import ExamplePlugin
-    svc = Service(tmp_path, worker, None)
-    plugin = ExamplePlugin(svc)
-    await svc.start()
-    await plugin.enable()
-    handle = plugin.handle
-    result = await plugin.tick(3)
-    await until(lambda: asyncio.sleep(0, result=bool(plugin.received)))
-    await asyncio.gather(*(q.join() for _, q, _ in svc.bus.subscribers.values()))
-    assert plugin.received == [result['event']['id']]
-    await plugin.disable()
-    assert not svc.bus.available('example.tick')
-    with pytest.raises(ValueError):
-        svc.bus.publish(handle, 'example.tick', {'value': 4})
-    await svc.bus.close()
-    await svc.engine.close()
-
-@async_test
-async def test_redelivery_does_not_spend_backlog_capacity(tmp_path):
-    entered, release = asyncio.Event(), asyncio.Event()
-    async def execute(*args):
-        entered.set()
-        await release.wait()
-        return {'ok': True}
-    engine, _, _ = await setup(tmp_path, execute)
-    engine.max_pending = 2
-    engine.ledger.put(trigger(), 0, True)
-    try:
-        await engine.match(event())
-        await entered.wait()
-        engine.ledger.put(trigger('new'), 0, True)
-        await engine.match(event())
-        rows = list(engine.ledger.read()['runs'].values())
-        assert len(rows) == 2 and not any(r['status'] == 'failed' for r in rows)
-        release.set()
-        await settled(engine, 2)
-    finally:
-        release.set()
-        await engine.close()
-
-
-@async_test
-async def test_dependency_revocation_during_durable_claim_waits(tmp_path, monkeypatch):
-    engine, calls, _ = await setup(tmp_path)
-    engine.ledger.put(trigger(), 0, True)
-    original = engine.ledger.release_event
-    def release(eid):
-        engine.bus.definitions['workers.all_idle']['available'] = False
-        return original(eid)
-    monkeypatch.setattr(engine.ledger, 'release_event', release)
-    try:
-        await engine.match(event())
-        row = next(iter(engine.ledger.read()['runs'].values()))
-        assert row['status'] == 'queued' and not calls
-        engine.bus.definitions['workers.all_idle']['available'] = True
-        await engine.kick()
-        assert (await settled(engine, 1))[0]['status'] == 'admitted'
-        assert calls == ['selected']
-    finally:
-        await engine.close()

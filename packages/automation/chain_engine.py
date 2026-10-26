@@ -3,12 +3,14 @@ import copy
 
 from packages.jobs.final_runtime.coordinator import TriggerAdmissionPort
 from packages.jobs.final_runtime.ledger import admission_for_cause, cause
+from packages.jobs.runtime_owner import legacy_writer
 
 
 class JobAdmission(TriggerAdmissionPort):
     def __init__(self, engine):
         self.engine = engine
 
+    @legacy_writer(lambda self, *a, **kw: self.engine.ledger.path.parent.parent)
     async def target(self, trigger, run):
         engine = self.engine
         runtime = engine.job_runtime
@@ -59,6 +61,7 @@ class JobAdmission(TriggerAdmissionPort):
         return copy.deepcopy(admission_for_cause(job.get('finalRuntime', {}),
             cause(run['event'], {'triggerId':run['triggerId']})))
 
+    @legacy_writer(lambda self, *a, **kw: self.engine.ledger.path.parent.parent)
     async def admit(self, event, target):
         engine, runtime = self.engine, self.engine.job_runtime
         def commit():

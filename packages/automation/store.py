@@ -174,6 +174,8 @@ class Ledger:
     def update(self, rid, expected_revision=None, **fields):
         def change(state):
             run = state['runs'][rid]
+            if run.get('recordType') != 'triggerAdmission':
+                raise Conflict('Historical Runs are read only; query the original Job identity')
             if expected_revision is not None and run['revision'] != expected_revision:
                 raise Conflict('Run revision changed')
             state['runs'][rid].update(fields, revision=run['revision'] + 1)
