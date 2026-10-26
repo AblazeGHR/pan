@@ -1,4 +1,4 @@
-"""Read-only R6-C reverse references and import-only route/MCP catalog snapshot.
+"""Read-only R6-C/D reverse references and import-only route/MCP catalog snapshot.
 
 Scans every tracked and unignored text file, including tests, agents, scripts
 and manifests.
@@ -17,6 +17,7 @@ PATTERN = re.compile(
     r'scheduler_(?:create|list|get|update|delete|pause|resume|run_now|runs)\b'
     r'|(?:/api/|\$\{BASE\}/|[\'"`])scheduler/(?:tasks|next|status|event-sources)'
     r'|scheduler[./]api|scheduler_api|owner-switch'
+    r'|scheduler[./](?:store|engine|time_events|legacy_bridge|cron)\b'
     r'|scheduleStore|EventRegister|automationWorkspace|AutomationView'
     r'|(?:fetchScheduledTasks|createScheduledTask|updateScheduledTask|deleteScheduledTask'
     r'|pauseScheduledTask|resumeScheduledTask|runScheduledTaskNow|fetchTaskRuns'
@@ -46,8 +47,13 @@ def scan(root):
     tracked = subprocess.check_output(
         ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=root).decode().split('\0')
     references, imports, dynamic, frontend_dynamic, scanned = [], [], [], [], []
+    host_imports = []
+    parse_errors = []
+    hosts = {'packages.scheduler.' + name for name in
+             ('store', 'engine', 'time_events', 'legacy_bridge', 'cron')}
     for relative in tracked:
-        if not relative or relative.startswith('evidence/r6c-scheduler-surface/'):
+        if not relative or relative.startswith(('evidence/r6c-scheduler-surface/',
+                                                'evidence/r6d-scheduler-host/')):
             continue
         path = root / relative
         if not path.is_file():
@@ -71,9 +77,21 @@ def scan(root):
             continue
         try:
             tree = ast.parse(source)
-        except SyntaxError:
+        except SyntaxError as exc:
+            parse_errors.append({'path': relative, 'line': exc.lineno, 'message': exc.msg})
             continue
         for node in ast.walk(tree):
+            resolved = []
+            if isinstance(node, ast.Import):
+                resolved = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                parts = list(Path(relative).parent.parts)
+                base = '.'.join(parts[:len(parts) - node.level + 1]) if node.level else ''
+                module = '.'.join(part for part in (base, node.module) if part)
+                resolved = [module] + [module + '.' + alias.name for alias in node.names]
+            for module in sorted(hosts.intersection(resolved)):
+                host_imports.append({'path': relative, 'line': node.lineno,
+                                     'module': module, 'code': ast.unparse(node)})
             if isinstance(node, (ast.Import, ast.ImportFrom)) and 'scheduler' in ast.unparse(node):
                 imports.append({'path': relative, 'line': node.lineno, 'code': ast.unparse(node)})
             if isinstance(node, ast.Call) and (
@@ -81,10 +99,12 @@ def scan(root):
                 or isinstance(node.func, ast.Attribute) and node.func.attr == 'import_module'
             ):
                 dynamic.append({'path': relative, 'line': node.lineno, 'code': ast.unparse(node)})
-    return {'schema': 'pan.r6c.scheduler-surface/v1',
+    return {'schema': 'pan.r6d.scheduler-host/v1',
             'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
             'scannedTextFiles': scanned, 'references': references,
             'schedulerImports': imports, 'allDynamicImports': dynamic,
+            'hostImports': host_imports,
+            'pythonParseErrors': parse_errors,
             'frontendDynamicImports': frontend_dynamic,
             'limits': 'Tracked/unignored repository text, Python AST and lexical JS/TS imports; '
                       'dynamic imports require review. '

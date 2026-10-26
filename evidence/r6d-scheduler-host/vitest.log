@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p16-r6-scheduler-host-20261025/packages/web/src
+
+ ✓ services/schedulerRetirement.test.ts (1 test) 63ms
+ ✓ router.retirement.test.tsx (1 test) 47ms
+ ✓ views/CanonicalJobsView.test.tsx (18 tests) 1472ms
+ ✓ views/AutomationWorkspace.test.tsx (12 tests) 1845ms
+
+ Test Files  4 passed (4)
+      Tests  32 passed (32)
+   Start at  22:04:59
+   Duration  4.28s (transform 426ms, setup 33ms, collect 1.36s, tests 3.43s, environment 2.02s, prepare 574ms)
