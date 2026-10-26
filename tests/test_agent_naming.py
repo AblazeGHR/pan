@@ -2,7 +2,7 @@
 
 - agent_* 一等 MCP 工具可用且与 worker_* 等价（同 session_id 调用产生同一
   API 调用序列——worker_* 内部委托同一实现，不复制逻辑）
-- agent_send / agent_send_force 无活 worker 不报错：入队路径（POST /api/send，
+- agent_send_to_queue / agent_send 无活 worker 不报错：入队路径（POST /api/send，
   阶段 6 pendingSpawn 语义）
 - agent_kill 无活 worker → ok（killed=false）无害 no-op
 - M18 隔离不倒退：agent_* 同样过 _check_access
@@ -80,21 +80,21 @@ def _strip_calls(fake):
 # ── 工具存在性 ──
 
 def test_agent_tools_exist():
-    for name in ("agent_spawn", "agent_task", "agent_assign", "agent_send",
-                 "agent_send_force", "agent_kill", "agent_list"):
+    for name in ("agent_spawn", "agent_task", "agent_assign", "agent_send_to_queue",
+                 "agent_send", "agent_kill", "agent_list"):
         assert callable(getattr(mcp_server, name)), name
 
 
-# ── agent_send ──
+# ── agent_send_to_queue ──
 
-def test_agent_send_posts_api_send_with_prefix(monkeypatch):
+def test_agent_send_to_queue_posts_api_send_with_prefix(monkeypatch):
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
         "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     _env(monkeypatch)
-    r = mcp_server.agent_send(session_id="ses_child", text="hi")
+    r = mcp_server.agent_send_to_queue(session_id="ses_child", text="hi")
     assert r.get("ok") is True, r
     assert any(c[0] == "POST" and c[1] == "/api/send"
                and c[2]["sessionId"] == "ses_child"
@@ -104,24 +104,24 @@ def test_agent_send_posts_api_send_with_prefix(monkeypatch):
                for c in fake.calls), fake.calls
 
 
-def test_agent_send_denied_unmanaged(monkeypatch):
+def test_agent_send_to_queue_denied_unmanaged(monkeypatch):
     fake = _FakeAPI({
         **_ma_session(managed=[]),
         "ses_other": {"id": "ses_other", "managedBy": "ses_rival"},
     })
     monkeypatch.setattr(mcp_server, "_api", fake)
     _env(monkeypatch)
-    r = mcp_server.agent_send(session_id="ses_other", text="hi")
+    r = mcp_server.agent_send_to_queue(session_id="ses_other", text="hi")
     assert r.get("ok") is False
     assert r["error"]["code"] == "permission_denied"
     assert all(c[1] != "/api/send" for c in fake.calls)
 
 
-def test_agent_send_equals_worker_send(monkeypatch):
-    """等价性：agent_send 与 worker_send(session_id=...) 产生同一调用序列。"""
+def test_agent_send_to_queue_equals_worker_send(monkeypatch):
+    """等价性：agent_send_to_queue 与 worker_send(session_id=...) 产生同一调用序列。"""
     _env(monkeypatch)
     calls_list = []
-    for fn in (mcp_server.agent_send, mcp_server.worker_send):
+    for fn in (mcp_server.agent_send_to_queue, mcp_server.worker_send):
         fake = _FakeAPI({
             **_ma_session(managed=["ses_child"]),
             "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
@@ -132,9 +132,9 @@ def test_agent_send_equals_worker_send(monkeypatch):
     assert calls_list[0] == calls_list[1] and "/api/send" in calls_list[0][-1]
 
 
-# ── agent_send_force ──
+# ── agent_send ──
 
-def test_agent_send_force_no_worker_starts_then_sends_by_session(monkeypatch):
+def test_agent_send_no_worker_starts_then_sends_by_session(monkeypatch):
     """No worker: the backend owns durable enqueue/start through /api/send."""
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
@@ -142,12 +142,12 @@ def test_agent_send_force_no_worker_starts_then_sends_by_session(monkeypatch):
     }, workers=[])
     monkeypatch.setattr(mcp_server, "_api", fake)
     _env(monkeypatch)
-    r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
+    r = mcp_server.agent_send(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
     _assert_force_capability_route(fake)
 
 
-def test_agent_send_force_with_worker_restarts(monkeypatch):
+def test_agent_send_with_worker_restarts(monkeypatch):
     """Legacy test identity: MCP delegates restart/Steer choice to the backend."""
     fake = _FakeAPI({
         **_ma_session(managed=["ses_child"]),
@@ -155,7 +155,7 @@ def test_agent_send_force_with_worker_restarts(monkeypatch):
     }, workers=[{"workerId": "worker-9", "sessionId": "ses_child"}])
     monkeypatch.setattr(mcp_server, "_api", fake)
     _env(monkeypatch)
-    r = mcp_server.agent_send_force(session_id="ses_child", text="urgent")
+    r = mcp_server.agent_send(session_id="ses_child", text="urgent")
     assert r.get("ok") is True, r
     _assert_force_capability_route(fake)
 
@@ -173,10 +173,10 @@ def _assert_force_capability_route(fake):
     })]
 
 
-def test_agent_send_force_equals_worker_send_force(monkeypatch):
+def test_agent_send_equals_worker_send_force(monkeypatch):
     _env(monkeypatch)
     calls_list = []
-    for fn in (mcp_server.agent_send_force, mcp_server.worker_send_force):
+    for fn in (mcp_server.agent_send, mcp_server.worker_send_force):
         fake = _FakeAPI({
             **_ma_session(managed=["ses_child"]),
             "ses_child": {"id": "ses_child", "managedBy": "ses_ma"},
@@ -334,12 +334,12 @@ def test_agent_list_summary_delegates_to_session_list(monkeypatch):
 
 if __name__ == "__main__":
     test_agent_tools_exist()
-    test_agent_send_posts_api_send_with_prefix()
-    test_agent_send_denied_unmanaged()
-    test_agent_send_equals_worker_send()
-    test_agent_send_force_no_worker_enqueues()
-    test_agent_send_force_with_worker_restarts()
-    test_agent_send_force_equals_worker_send_force()
+    test_agent_send_to_queue_posts_api_send_with_prefix()
+    test_agent_send_to_queue_denied_unmanaged()
+    test_agent_send_to_queue_equals_worker_send()
+    test_agent_send_no_worker_starts_then_sends_by_session()
+    test_agent_send_with_worker_restarts()
+    test_agent_send_equals_worker_send_force()
     test_agent_kill_no_worker_noop_ok()
     test_agent_kill_with_worker()
     test_agent_kill_denied_unmanaged()

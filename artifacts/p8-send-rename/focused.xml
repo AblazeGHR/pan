@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="116" time="145.805" timestamp="2026-10-26T15:27:55.979327+08:00"><testcase classname="tests.test_mcp_send_rename" name="test_real_stdio_tools_list_has_only_the_two_send_names" time="0.753" /><testcase classname="tests.test_mcp_send_rename" name="test_manifests_and_handbook_share_the_public_send_vocabulary" time="0.007" /><testcase classname="tests.test_agent_naming" name="test_agent_tools_exist" time="0.003" /><testcase classname="tests.test_agent_naming" name="test_agent_send_to_queue_posts_api_send_with_prefix" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_send_to_queue_denied_unmanaged" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_send_to_queue_equals_worker_send" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_send_no_worker_starts_then_sends_by_session" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_send_with_worker_restarts" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_send_equals_worker_send_force" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_kill_no_worker_noop_ok" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_kill_with_worker" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_kill_denied_unmanaged" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_kill_equals_worker_kill" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_assign_posts_api_assign" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_assign_equals_worker_assign" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_task_posts_api_task" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_task_equals_worker_task" time="0.002" /><testcase classname="tests.test_agent_naming" name="test_agent_spawn_posts_api_spawn" time="0.003" /><testcase classname="tests.test_agent_naming" name="test_agent_list_summary_delegates_to_session_list" time="0.003" /><testcase classname="tests.test_force_steer" name="test_capable_force_immediately_attempts_steer_without_restart[accepted]" time="0.027" /><testcase classname="tests.test_force_steer" name="test_capable_force_immediately_attempts_steer_without_restart[rejected]" time="0.059" /><testcase classname="tests.test_force_steer" name="test_capable_force_immediately_attempts_steer_without_restart[unknown]" time="0.053" /><testcase classname="tests.test_force_steer" name="test_idle_capability_or_delayed_intent_uses_queue_without_restart[idle-True-False]" time="0.006" /><testcase classname="tests.test_force_steer" name="test_idle_capability_or_delayed_intent_uses_queue_without_restart[queued-True-False]" time="0.006" /><testcase classname="tests.test_force_steer" name="test_idle_capability_or_delayed_intent_uses_queue_without_restart[idle-False-True]" time="0.006" /><testcase classname="tests.test_force_steer" name="test_idle_capability_or_delayed_intent_uses_queue_without_restart[running-False-True]" time="0.007" /><testcase classname="tests.test_force_steer" name="test_idle_noncapable_force_uses_normal_send_not_restart" time="0.005" /><testcase classname="tests.test_force_steer" name="test_force_illegal_session_queues_without_steer_or_restart" time="0.005" /><testcase classname="tests.test_force_steer" name="test_noncapable_force_retains_restart_then_send" time="0.007" /><testcase classname="tests.test_force_steer" name="test_noncapable_force_preserves_active_edit_lease" time="0.005" /><testcase classname="tests.test_force_steer" name="test_mcp_force_entries_delegate_capability_choice_to_backend[agent]" time="0.002" /><testcase classname="tests.test_force_steer" name="test_mcp_force_entries_delegate_capability_choice_to_backend[worker_session]" time="0.002" /><testcase classname="tests.test_force_steer" name="test_mcp_force_entries_delegate_capability_choice_to_backend[worker_id]" time="0.002" /><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[open-agent_send]" time="0.004"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E190&gt;
+tool_name = 'agent_send', gate = 'open'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[open-agent_send_to_queue]" time="0.017"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E820&gt;
+tool_name = 'agent_send_to_queue', gate = 'open'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[pause-agent_send]" time="0.005"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9E040&gt;
+tool_name = 'agent_send', gate = 'pause'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[pause-agent_send_to_queue]" time="0.031"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9EAC0&gt;
+tool_name = 'agent_send_to_queue', gate = 'pause'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[lock-agent_send]" time="0.004"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1E9DDA0&gt;
+tool_name = 'agent_send', gate = 'lock'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_public_send_routes_keep_task_and_admission_gates[lock-agent_send_to_queue]" time="0.004"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000230C1F6F3F0&gt;
+tool_name = 'agent_send_to_queue', gate = 'lock'
+
+    @pytest.mark.parametrize('tool_name', ['agent_send', 'agent_send_to_queue'])
+    @pytest.mark.parametrize('gate', ['open', 'pause', 'lock'])
+    def test_public_send_routes_keep_task_and_admission_gates(monkeypatch, tool_name, gate):
+        """Public tool -&gt; HTTP handler -&gt; queue/native delivery, with no live CLI."""
+        from packages.web import server
+        s, w, stdin = live()
+        s.queue_paused = gate == 'pause'
+        s.queue_lock_manual = gate == 'lock'
+        monkeypatch.setattr(mcp, '_check_access', lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'sender'})
+        monkeypatch.setattr(worker, 'restart_or_start_worker',
+                            AsyncMock(side_effect=AssertionError('no restart')))
+        monkeypatch.setattr(worker, '_wake_worker', AsyncMock())
+        def write(data):
+            control = json.loads(data)
+            worker._route_steer_receipt(w, {
+                'type': 'pan.steer_receipt', 'requestId': control['requestId'],
+                'ok': True, 'outcome': 'accepted'})
+        stdin.write.side_effect = write
+        def api(method, route, body):
+            assert (method, route) == ('POST', '/api/send')
+            assert body.get('force', False) is (tool_name == 'agent_send')
+            return asyncio.run(server.api_send(body))
+        monkeypatch.setattr(mcp, '_api', api)
+        result = getattr(mcp, tool_name)(s.id, 'task context')
+        immediate = tool_name == 'agent_send' and gate == 'open'
+&gt;       assert result['status'] == ('accepted' if immediate else 'queued')
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_force_steer.py:189: KeyError</failure></testcase><testcase classname="tests.test_force_steer" name="test_force_body_conflict_is_rechecked_inside_queue_lock" time="0.007" /><testcase classname="tests.test_force_steer" name="test_force_cannot_clear_illegal_discovered_after_routing[steer]" time="0.005" /><testcase classname="tests.test_force_steer" name="test_force_cannot_clear_illegal_discovered_after_routing[restart]" time="0.005" /><testcase classname="tests.test_mcp_remote_parity" name="test_gateway_has_no_second_tool_registry" time="0.004" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_tools_list_equals_stdio_registry" time="4.520" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_access_requires_valid_jwt" time="8.819" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_send_force_keeps_capability_semantics" time="4.430" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_unknown_result_is_not_retried" time="4.397" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_call_still_runs_managed_access_gate" time="4.505" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_unbound_call_cannot_use_local_session_tools" time="8.740" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_get-fields0]" time="4.380" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_message_get-fields1]" time="4.196" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[session_history_search-fields2]" time="4.337" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[model_catalog-fields3]" time="4.439" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[agent_restart_delayed-fields4]" time="4.215" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[agent_restart_delayed_status-fields5]" time="4.100" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[report_consume-fields6]" time="4.143" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[action_drafts-fields7]" time="4.240" /><testcase classname="tests.test_mcp_remote_parity" name="test_current_catalog_schema[agent_background_start-fields8]" time="4.230"><failure message="KeyError: 'agent_background_start'">remote_gateway = ('http://127.0.0.1:52215/mcp', 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3RlYW0uY2xvdWRmbGFyZWFjY2Vzc...mluzDfXyMr8MHTzZV4rBZEQGSYBUsd1U4OMoq_m13jW88u2wugTS0y-TdArlMJVzWOGD4xqLw6vrmTj7N5AbyNZtYBi5FE83jonIoHijrJS8d7WR2bKKQ')
+name = 'agent_background_start'
+fields = {'hide_window', 'name', 'target_session_id'}
+
+    @pytest.mark.parametrize("name,fields", [
+        ("session_get", {"limit", "roles", "tool_output", "before"}),
+        ("session_message_get", {"message_id", "roles", "tool_output"}),
+        ("session_history_search", {"query", "cursor", "roles", "tool_output"}),
+        ("model_catalog", {"adapter", "session_id"}),
+        ("agent_restart_delayed", {"session_id"}),
+        ("agent_restart_delayed_status", {"session_id"}),
+        ("report_consume", {"item_id"}),
+        ("action_drafts", {"operation", "kind", "item", "expected_revision"}),
+        ("agent_background_start", {"name", "target_session_id", "hide_window"}),
+    ])
+    def test_current_catalog_schema(remote_gateway, name, fields):
+        url, token = remote_gateway
+        tools = {tool.name: tool for tool in _mcp_list_tools(url, token)}
+&gt;       assert fields &lt;= tools[name].inputSchema["properties"].keys()
+                         ^^^^^^^^^^^
+E       KeyError: 'agent_background_start'
+
+tests\test_mcp_remote_parity.py:310: KeyError</failure></testcase><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[report_consume-arguments0]" time="4.293" /><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[report_consume-arguments1]" time="4.519" /><testcase classname="tests.test_mcp_remote_parity" name="test_unbound_report_and_queue_never_read_or_write_api[self_queue_consume-arguments2]" time="4.347" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[aud]" time="4.612" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[iss]" time="4.237" /><testcase classname="tests.test_mcp_remote_parity" name="test_access_rejects_wrong_claims[exp]" time="4.352" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[agent_restart_delayed-arguments0]" time="4.250" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[agent_restart_delayed_status-arguments1]" time="4.260" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_get-arguments2]" time="4.233" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_message_get-arguments3]" time="4.220" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[session_history_search-arguments4]" time="4.297" /><testcase classname="tests.test_mcp_remote_parity" name="test_real_managed_gate_before_backend[agent_send-arguments5]" time="4.242" /><testcase classname="tests.test_mcp_remote_parity" name="test_remote_delayed_restart_real_http" time="16.102" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[root-report-assign]" time="0.007" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[root-report-send]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[root-report-force]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[root-report-task]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[ma-report-assign]" time="0.010" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[ma-report-send]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[ma-report-force]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[ma-report-task]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[self-agent-assign]" time="0.012" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[self-agent-send]" time="0.007" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[self-agent-force]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[self-agent-task]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[sibling-agent-assign]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[sibling-agent-send]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[sibling-agent-force]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[sibling-agent-task]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[unrelated-agent-assign]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[unrelated-agent-send]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[unrelated-agent-force]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[unrelated-agent-task]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[child-agent-assign]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[child-agent-send]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[child-agent-force]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_http_entries_classify_from_sender_chain[child-agent-task]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_cycle_dangling_self_no_identity_and_no_text_guess" time="0.003" /><testcase classname="tests.test_source_aware_auto_report" name="test_stop_reports_locks_explicit_upstream_without_losing_parts" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_policy_defaults_independence_and_no_report_echo" time="0.003" /><testcase classname="tests.test_source_aware_auto_report" name="test_snapshot_roundtrip_and_report_identity_stable" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_dynamic_plugin_contract_omission_override_and_reset" time="0.016" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[None]" time="0.004" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[value1]" time="0.008" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[value2]" time="0.005" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[value3]" time="0.004" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[value4]" time="0.003" /><testcase classname="tests.test_source_aware_auto_report" name="test_settings_strict_validation_no_write[value5]" time="0.026" /><testcase classname="tests.test_source_aware_auto_report" name="test_terminal_snapshot_gates_only_automatic_report" time="0.074" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[agent_assign]" time="0.007" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[worker_assign]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[agent_send_to_queue]" time="0.006" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[worker_send]" time="0.016" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[agent_send]" time="0.008" /><testcase classname="tests.test_source_aware_auto_report" name="test_mcp_identity_reaches_same_http_classification[worker_send_force]" time="0.010" /><testcase classname="tests.test_source_aware_auto_report" name="test_accepted_steer_merges_only_into_its_admitted_execution[False]" time="0.032" /><testcase classname="tests.test_source_aware_auto_report" name="test_accepted_steer_merges_only_into_its_admitted_execution[True]" time="0.019" /><testcase classname="tests.test_source_aware_auto_report" name="test_reservation_persists_snapshot_before_handoff_and_recovery_reuses_it" time="0.070" /></testsuite></testsuites>

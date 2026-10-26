@@ -29,8 +29,8 @@ Tools exposed:
     - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
     - agent_task: Send a task to an agent (auto-spawns if no live worker)
     - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
-    - agent_send: Send a message to an agent (queued; no live worker → pending queue)
-    - agent_send_force: Urgent delivery (capability-routed Steer first, otherwise restart; no worker → queue)
+    - agent_send_to_queue: Deferred follow-up after the current task finishes
+    - agent_send: Default current-task update (capability-routed; preserves pause/locks)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
     - agent_inbox: Shared Locker list/read/consume and subscription/mode/backlog/recovery
@@ -452,7 +452,7 @@ def _agent_message_prefix(text: str) -> str:
 
     立项 4.8：Pan 内 session（adapter 注入 PAN_AGENT_SESSION_ID/TITLE）向其他
     agent 发消息时标注发送者身份，目标 worker 据此区分编排消息与真实用户消息。
-    agent_send / agent_send_force 及其 worker_* 别名共用本实现。
+    agent_send_to_queue / agent_send 及其 worker_* 别名共用本实现。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
@@ -1871,12 +1871,12 @@ def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict
 
 
 @mcp.tool()
-def agent_send(session_id: str, text: str = "") -> dict:
+def agent_send_to_queue(session_id: str, text: str = "") -> dict:
     """Deferred follow-up: handle only after the agent's current task finishes.
 
     仅用于明确允许当前任务结束后处理的独立后续事项，消息排队，不打断当前任务。
     向正在执行任务的 TA 更新当前任务（需求补充、用户澄清、实现纠正、约束或
-    验收条件变化、影响当前工作的证据）必须使用 `agent_send_force`，不要使用
+    验收条件变化、影响当前工作的证据）必须使用 `agent_send`，不要使用
     本工具；不以消息长短、语气或是否称为“补充”判断。
 
     无活 worker 时**不报错**——消息入该 agent 的持久队列（返回含
@@ -1910,7 +1910,7 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
     """Send one message to several selected Sessions immediately.
 
     This is the backend fan-out counterpart to selecting Sessions in the
-    Dashboard.  Each target uses the ordinary ``agent_send`` queue semantics;
+    Dashboard.  Each target uses the ordinary ``agent_send_to_queue`` queue semantics;
     use ``agent_message_job_create`` with ``target_session_ids`` for a durable
     scheduled fan-out.
 
@@ -1932,12 +1932,12 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
 
 @mcp.tool()
-def agent_send_force(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
+def agent_send(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
     """Default for sending updates to the agent's current task.
 
     向正在执行任务的 TA 更新当前任务时默认用本工具：需求补充、用户澄清、
     实现纠正、约束或验收条件变化、影响当前工作的证据，无须额外判断是否紧急。
-    只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send`。
+    只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send_to_queue`。
     Pan 自动处理投递方式；本工具不绕过暂停、锁或其他发送限制。
     返回接受或入队不代表任务已完成。回执不明时不要重复发送；
     client_message_id 标识同一发送事务，对账时保留原 ID。
@@ -1973,10 +1973,10 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
     的 queue_pending，原 worker 退出也不会丢失；没有活 worker 时会自动唤醒
     / spawn 目标 worker。
 
-    与 agent_send 的区别：agent_send 发的是待处理任务消息（排队等空闲处理）；
+    与 agent_send_to_queue 的区别：agent_send_to_queue 发的是待处理任务消息（排队等空闲处理）；
     agent_notify 发的是提醒通知（目标以「通知」形态消费，不排入任务序列）。
-    它不是普通任务派发的替代品：普通任务继续使用 agent_assign 或
-    agent_send。后台命令本身仍必须遵守权限、审批、安全和结果验证规则，不能
+    它不是普通任务派发的替代品：新任务用 agent_assign，当前任务更新用
+    agent_send，独立延迟事项用 agent_send_to_queue。后台命令本身仍须遵守权限、审批、安全和结果验证规则，不能
     通过 agent_notify 绕过审批或 managed 隔离。
 
     与 agent_background_start 的分工：需要完成通知的长命令优先用
@@ -3011,22 +3011,22 @@ def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dic
 @mcp.tool()
 def worker_send(worker_id: str | None = None, text: str = "",
                 session_id: str | None = None) -> dict:
-    """DEPRECATED alias — prefer agent_send(session_id, text).
+    """DEPRECATED alias — prefer agent_send_to_queue(session_id, text).
 
-    Compat alias of `agent_send` for session_id calls (delegates to the same
+    Compat alias of `agent_send_to_queue` for session_id calls (delegates to the same
     implementation: queued multi-turn message, no live worker → pending
     queue with pendingSpawn=true). The legacy `worker_id` addressing path is
     kept here only. Message is queued — the target handles it when idle,
     never interrupting a running task; use `worker_send_force` /
-    `agent_send_force` to interrupt.
+    `agent_send` to interrupt.
 
     When this MCP server runs inside a Pan-managed session, the text is
     prefixed with the sending agent's identity (////by agent, 立项 4.8) —
-    identical to `agent_send`.
+    identical to `agent_send_to_queue`.
 
     Args:
         worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
-        session_id: Session ID (delegates to agent_send)
+        session_id: Session ID (delegates to agent_send_to_queue)
         text: Task text / prompt
 
     完整编排流程见 /pan skill。
@@ -3047,7 +3047,7 @@ def worker_send(worker_id: str | None = None, text: str = "",
         return _api("POST", "/api/task", body)
     if session_id:
         # 委托一等实现（////by agent 前缀在其内部拼接）
-        return agent_send(session_id=session_id, text=text)
+        return agent_send_to_queue(session_id=session_id, text=text)
     return {"ok": False, "error": {
         "code": "missing_params",
         "message": "session_id or worker_id is required"}}
@@ -3056,16 +3056,16 @@ def worker_send(worker_id: str | None = None, text: str = "",
 @mcp.tool()
 def worker_send_force(worker_id: str | None = None, text: str = "",
                       session_id: str | None = None, client_message_id: str | None = None) -> dict:
-    """DEPRECATED alias — prefer agent_send_force(session_id, text).
+    """DEPRECATED alias — prefer agent_send(session_id, text).
 
-    Compat alias of `agent_send_force` for session_id calls (delegates to
+    Compat alias of `agent_send` for session_id calls (delegates to
     the same implementation: capability-routed Steer first; no live worker → pending
     queue). The legacy `worker_id` addressing path is kept here only.
-    Identity prefix (////by agent) identical to `agent_send_force`.
+    Identity prefix (////by agent) identical to `agent_send`.
 
     Args:
         worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
-        session_id: Session ID (delegates to agent_send_force)
+        session_id: Session ID (delegates to agent_send)
         text: Task text / prompt
 
         client_message_id: Stable force-send transaction ID; do not resend unknown outcomes.
@@ -3076,9 +3076,9 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
-        return agent_send_force(target_sid, text, client_message_id)
+        return agent_send(target_sid, text, client_message_id)
     if session_id:
-        return agent_send_force(session_id=session_id, text=text, client_message_id=client_message_id)
+        return agent_send(session_id=session_id, text=text, client_message_id=client_message_id)
     return {"ok": False, "error": {
         "code": "missing_params",
         "message": "session_id or worker_id is required"}}

@@ -1461,7 +1461,7 @@ class Session:
     # policy". Old JSON without the field loads as None.
     unread_recording_override: str | None = None
     # The latest formal assign task selected for this Session.  This is a
-    # routing context for subsequent agent_send messages, not a second queue
+    # routing context for subsequent agent_send/agent_send_to_queue messages, not a second queue
     # or an idempotency registry.  It is persisted so a Worker respawn cannot
     # fall back to a process-local "last task" guess.
     active_task_id: str | None = None

@@ -964,7 +964,7 @@ def _terminal_enrichment_key(
     generation: int, *, task_idempotent: bool = True,
 ) -> str:
     """Build the durable idempotency key for one terminal turn."""
-    # An inherited agent_send/agent_send_force row deliberately carries the
+    # An inherited agent_send_to_queue/agent_send row deliberately carries the
     # current formal task id for report pairing.  It is not the formal assign
     # idempotency key: each queue row has its own sequence and must get its own
     # terminal identity, otherwise a follow-up can be swallowed as a durable
@@ -4517,7 +4517,7 @@ def _is_task_item(item) -> bool:
 def _is_formal_task_item(item) -> bool:
     """Return whether a task row owns the assign idempotency key.
 
-    An inherited ``taskId`` links an agent_send message to the active formal
+    An inherited ``taskId`` links an agent_send/agent_send_to_queue message to the active formal
     task for reporting, but must not make repeated follow-up messages look like
     duplicate assign calls.  Older task rows have no origin marker and are
     therefore treated as formal for backward compatibility.

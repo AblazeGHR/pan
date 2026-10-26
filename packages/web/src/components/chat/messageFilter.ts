@@ -56,7 +56,7 @@ export function filterVisibleMessages(
  *   `source: "agent"`, no inherited task id and no `////by agent` prefix
  *   (mirrors the `ma-assign` label tag).
  * - `maMsg`    — MA msg: every other agent-sourced row — the `////by agent`
- *   identity prefix that `agent_send` / `agent_send_force` prepend, or an
+ *   identity prefix that `agent_send_to_queue` / `agent_send` prepend, or an
  *   inherited-task-id follow-up (`taskIdSource: "active"`).
  *
  * MA classification is structured: `source: "agent"` is required for both MA
@@ -123,7 +123,7 @@ export interface QuickJumpIndexItem {
  *   Leading whitespace is ignored; current and legacy headers are accepted.
  * - `role: "user"` + `source: "agent"` → inside the confirmed provenance,
  *   the send/follow-up split: the `////by agent` identity prefix of
- *   `agent_send` / `agent_send_force`, or an inherited
+ *   `agent_send_to_queue` / `agent_send`, or an inherited
  *   `taskIdSource: "active"` follow-up, yields `maMsg`; otherwise
  *   `maAssign`.  The prefix only splits an already-confirmed source — it
  *   never proves the source itself.  Invariant: `maAssign` ⇔
@@ -133,7 +133,7 @@ export interface QuickJumpIndexItem {
  *   report prefix → `null`.
  *
  * Indistinguishable boundary (documented on purpose): an env-less
- * `agent_send` / `agent_send_force` without the identity prefix and without
+ * `agent_send_to_queue` / `agent_send` without the identity prefix and without
  * an inherited active task id carries exactly the same durable fields as an
  * assign and classifies as `maAssign`; only the prefix and the inherited id
  * separate send/force from assign.  History persisted before the structured
@@ -174,8 +174,8 @@ export type MessageSourceTag = 'ta-report' | 'system' | 'ma-assign';
  * - `ma-assign` — a formal dispatch into this Session: `role: "user"`,
  *   structured `source: "agent"` (编排注入), no inherited task id
  *   (`taskIdSource: "active"`, backend `_is_formal_task_item`) and no
- *   `////by agent` identity prefix (that prefix marks `agent_send` /
- *   `agent_send_force` messages instead).
+ *   `////by agent` identity prefix (that prefix marks `agent_send_to_queue` /
+ *   `agent_send` messages instead).
  *
  * Browser messages (`user`), scheduler/background jobs (`automation`),
  * prompt injection (`system_prompt`) and report/notice rows (`report`) can
