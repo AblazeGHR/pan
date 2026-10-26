@@ -1,7 +1,7 @@
 """Legacy scheduler configuration, status and nonexecuting preview facade.
 
 R6-A removed the unmounted legacy start/tick/run-now host. Canonical time
-providers own scheduling; historical tasks and runs remain in the store.
+providers own scheduling; historical tasks and runs use the read-only archive projection.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from datetime import datetime
 
 from packages.core import background_jobs
 from packages.jobs import cron
-from . import store
+from .history import History
 
 _log = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def status() -> dict:
 # ── 手动触发 / 预览 ──
 
 
-async def preview_next(task_id: str | None = None, count: int = 5) -> list[dict]:
+async def preview_next(task_id: str | None = None, count: int = 5, history=None) -> list[dict]:
     """预览接下来的触发点，形如 ``[{"taskId": ..., "fireAt": ...}]``（契约不变）。"""
     try:
         count = int(count)
@@ -90,20 +90,23 @@ async def preview_next(task_id: str | None = None, count: int = 5) -> list[dict]
     count = max(1, min(count, cron.MAX_PREVIEW))
     now = datetime.now().replace(microsecond=0)
 
+    history = history or History()
     if task_id:
-        task = store.get_task(task_id)
+        task = history.get(task_id)
         tasks = [task] if task else []
     else:
-        tasks = store.list_tasks(include_disabled=False)
+        tasks = history.tasks(include_disabled=False)
 
     preview: list[dict] = []
     for task in tasks:
         if not task or not task.get("enabled"):
             continue
-        spec = store.effective_spec(task)
+        spec = dict(task.get("schedule") or {})
+        if spec.get("kind") == "interval" and not spec.get("anchor"):
+            spec["anchor"] = task.get("createdAt", task.get("created_at"))
         tz = (task.get("schedule") or {}).get("timezone")
         for point in cron.next_n(spec, now, count, tz_name=tz):
-            preview.append({"taskId": task.get("id"), "fireAt": store.iso(point)})
+            preview.append({"taskId": task.get("id"), "fireAt": point.replace(microsecond=0).isoformat()})
     preview.sort(key=lambda item: (str(item["fireAt"]), str(item["taskId"])))
     return preview[:count]
 

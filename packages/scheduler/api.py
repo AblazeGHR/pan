@@ -3,7 +3,7 @@
 契约来源：``data/workdirs/time_setting/PLAN_SCHEDULER.md`` §4（唯一契约源）。
 
 职责边界：本模块只做参数校验、camelCase 字段映射、统一响应包络与 WS 广播；
-持久化 / cron 求值 / 调度循环全部委托给内核（``store`` / ``cron`` / ``engine``）。
+历史读取委托给无副作用的 ``history``，预览 / 状态委托给 ``engine``。
 
 **禁止 import ``packages.web.server``**（会与 server.py 形成循环依赖）：WS 广播
 函数由 server.py 在启动时通过 :func:`bind` 注入。
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import sqlite3
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
@@ -23,7 +24,7 @@ from packages.core.config import load_config
 
 from . import cron as scheduler_cron
 from . import engine as scheduler_engine
-from . import store as scheduler_store
+from .history import History
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
 from .event_api import router as event_sources_router
@@ -83,12 +84,6 @@ _RUN_RENAMES = {
 def _compat(request):
     return getattr(getattr(getattr(request, 'app', None), 'state', None), 'automation', None) if request is not None else None
 
-
-async def _legacy_update(request, task_id, patch):
-    svc = _compat(request)
-    bridge = getattr(svc, 'scheduler_compat', None) if svc else None
-    job = scheduler_store._job_for_task(task_id)
-    return await bridge.update(task_id, patch) if bridge and job and job.get('legacySchedulerCompat') else None
 
 # 注入的 WS 广播函数（server.py → bind(broadcast=broadcast)）
 _state: dict = {"broadcast": None}
@@ -309,15 +304,36 @@ def _emit_task(event_type: str, task: dict, **extra) -> None:
 # ── 路由 ──
 
 
+def _history(request):
+    service = getattr(getattr(getattr(request, 'app', None), 'state', None), 'job_final_service', None)
+    return History(getattr(service, 'root', None))
+
+
+async def _history_access(request):
+    # Preserve legacy task visibility, while rejecting unauthenticated reads.
+    if request is not None:
+        await principal(request)
+
+
+def _history_error(exc):
+    return _err("history_unavailable", str(exc))
+
+
 @router.get("/tasks")
-async def list_tasks(includeDisabled: bool = True, request: Request = None):
-    """列出全部定时任务（含 nextFireAt / lastFireAt / lastStatus）。"""
-    tasks = scheduler_store.list_tasks(include_disabled=includeDisabled)
-    if not await may_read_jobs(request):
-        from packages.jobs.action_runtime import is_action_job
-        tasks=[t for t in tasks if (not is_action_job(scheduler_store._job_for_task(t['id']))
-                                    or scheduler_store._job_for_task(t['id']).get('legacySchedulerCompat'))]
-    return _ok(tasks=[_public(t) for t in tasks])
+async def list_tasks(includeDisabled: bool = True, request: Request = None,
+                     limit: int | None = None, offset: int = 0):
+    await _history_access(request)
+    if (limit is not None and not 1 <= limit <= 500) or offset < 0:
+        return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
+    try:
+        tasks = _history(request).tasks(includeDisabled)
+        if not await may_read_jobs(request):
+            from packages.jobs.action_runtime import is_action_job
+            tasks = [t for t in tasks if not is_action_job(t['history']['source'])
+                     or t['history']['source'].get('legacySchedulerCompat')]
+        return _ok(tasks=[_public(t) for t in tasks[offset:None if limit is None else offset + limit]], total=len(tasks))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.post("/tasks")
@@ -329,14 +345,18 @@ async def create_task(data: dict, request: Request = None):
 
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str, request: Request = None):
-    """单个定时任务详情。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    job = scheduler_store._job_for_task(task_id)
-    if not job or not job.get('legacySchedulerCompat'):
-        await require_job(request, job)
-    return _ok(task=_public(task))
+    await _history_access(request)
+    try:
+        history = _history(request)
+        task = history.get(task_id)
+        if task is None:
+            return _err("not_found", f"task {task_id} not found")
+        source = task['history']['source']
+        if not source.get('legacySchedulerCompat'):
+            await require_job(request, source)
+        return _ok(task=_public(task), **history.evidence(task))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.patch("/tasks/{task_id}")
@@ -348,25 +368,8 @@ async def update_task(task_id: str, data: dict, request: Request = None):
 
 @router.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, request: Request = None):
-    """删除定时任务。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    try:
-        job = scheduler_store._job_for_task(task_id)
-        if job and job.get('legacySchedulerCompat'):
-            svc = _compat(request); bridge = getattr(svc, 'scheduler_compat', None) if svc else None
-            if bridge:
-                await bridge.delete(task_id)
-            else:
-                raise ValueError('Scheduler compatibility runtime unavailable')
-        else:
-            scheduler_store.delete_task(task_id)
-    except ValueError as exc:
-        return _err("job_busy", str(exc))
-    _emit({"type": "scheduler.task.deleted", "taskId": task_id,
-           "sessionId": task.get("target_session_id")})
-    return _ok(deleted=True, taskId=task_id)
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/pause")
@@ -391,17 +394,22 @@ async def run_task_now(task_id: str, request: Request = None):
 
 
 @router.get("/tasks/{task_id}/runs")
-async def task_runs(task_id: str, limit: int = 100, request: Request = None):
-    """某任务的执行历史（runs.jsonl，最新在前）。"""
-    if scheduler_store.get_task(task_id) is None:
-        return _err("not_found", f"task {task_id} not found")
-    if not isinstance(limit, int) or limit < 1 or limit > 500:
-        return _err("invalid_argument", "limit must be between 1 and 500")
-    job = scheduler_store._job_for_task(task_id)
-    if not job or not job.get('legacySchedulerCompat'):
-        await require_job(request, job)
-    runs = scheduler_store.list_runs(task_id=task_id, limit=limit)
-    return _ok(runs=[_public_run(r) for r in runs])
+async def task_runs(task_id: str, limit: int = 100, request: Request = None, offset: int = 0):
+    await _history_access(request)
+    if not 1 <= limit <= 500 or offset < 0:
+        return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
+    try:
+        history = _history(request)
+        task = history.get(task_id)
+        if task is None:
+            return _err("not_found", f"task {task_id} not found")
+        source = task['history']['source']
+        if not source.get('legacySchedulerCompat'):
+            await require_job(request, source)
+        runs = history.runs(task)
+        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.get("/next")
@@ -409,13 +417,19 @@ async def next_preview(task_id: str | None = None, count: int = 5, request: Requ
     """下次触发时间预览（前端「下次运行」列用）。"""
     if not isinstance(count, int) or count < 1 or count > 20:
         return _err("invalid_argument", "count must be between 1 and 20")
-    if task_id and scheduler_store.get_task(task_id) is None:
+    await _history_access(request)
+    if task_id and _history(request).get(task_id) is None:
         return _err("not_found", f"task {task_id} not found")
     try:
-        items = await scheduler_engine.preview_next(task_id=task_id, count=count)
+        history = _history(request)
+        tasks = history.tasks()
         if not await may_read_jobs(request):
             from packages.jobs.action_runtime import is_action_job
-            items=[item for item in (items or []) if not is_action_job(scheduler_store._job_for_task(item.get('taskId', item.get('task_id'))))]
+            allowed = {t['id'] for t in tasks if not is_action_job(t['history']['source'])}
+        else:
+            allowed = {t['id'] for t in tasks}
+        items = await scheduler_engine.preview_next(task_id=task_id, count=count, history=history)
+        items = [item for item in items if item['taskId'] in allowed]
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     return _ok(next=items or [])

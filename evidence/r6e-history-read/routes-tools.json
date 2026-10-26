@@ -1,0 +1,244 @@
+{
+  "routes": [
+    {
+      "path": "/api/scheduler/event-sources",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.event_api.listing",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/event-sources",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.create",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/event-sources/{sid}",
+      "methods": [
+        "PUT"
+      ],
+      "handler": "packages.scheduler.api.update",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/event-sources/{sid}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.scheduler.api.delete",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.api.list_tasks",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/tasks",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.create_task",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.api.get_task",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "handler": "packages.scheduler.api.update_task",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "handler": "packages.scheduler.api.delete_task",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}/pause",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.pause_task",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}/resume",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.resume_task",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}/run-now",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.run_task_now",
+      "deprecated": true
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}/runs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.api.task_runs",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/next",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.api.next_preview",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/status",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.scheduler.api.engine_status",
+      "deprecated": false
+    }
+  ],
+  "tools": [
+    "action_drafts",
+    "agent_assign",
+    "agent_background_cancel",
+    "agent_background_get",
+    "agent_background_list",
+    "agent_inbox",
+    "agent_kill",
+    "agent_list",
+    "agent_message_job_cancel",
+    "agent_message_job_get",
+    "agent_message_job_list",
+    "agent_notify",
+    "agent_restart_delayed",
+    "agent_restart_delayed_status",
+    "agent_send",
+    "agent_send_many",
+    "agent_send_to_queue",
+    "agent_spawn",
+    "agent_task",
+    "authorization_objects",
+    "codex_quota",
+    "event_creator_control",
+    "event_creator_create",
+    "event_creator_get",
+    "event_creator_list",
+    "event_creator_retire",
+    "event_creator_update",
+    "interaction_card",
+    "job_action_list",
+    "job_config_drafts",
+    "job_control",
+    "job_create",
+    "job_get",
+    "job_list",
+    "job_operation_find",
+    "job_operation_get",
+    "job_retire",
+    "job_run",
+    "job_run_again",
+    "job_run_cancel",
+    "job_run_clone_and_run",
+    "job_run_get",
+    "job_run_pause",
+    "job_run_resume",
+    "job_run_retry",
+    "job_runs",
+    "job_template_control",
+    "job_template_create",
+    "job_template_get",
+    "job_template_list",
+    "job_template_retire",
+    "job_template_update",
+    "job_update",
+    "locker_message",
+    "manager_chain",
+    "model_catalog",
+    "model_list",
+    "notification_send",
+    "pan_handbook",
+    "permission_prompt",
+    "reminder_cancel",
+    "reminder_list",
+    "reminder_register",
+    "reminding_card",
+    "report_consume",
+    "report_status",
+    "report_subscribe",
+    "report_unsubscribe",
+    "scheduler_get",
+    "scheduler_list",
+    "scheduler_runs",
+    "self_queue_consume",
+    "self_queue_read",
+    "session_batch_delete",
+    "session_claim",
+    "session_claim_many",
+    "session_create",
+    "session_delete",
+    "session_get",
+    "session_handoff",
+    "session_history",
+    "session_history_search",
+    "session_import",
+    "session_list",
+    "session_managed",
+    "session_message_get",
+    "session_qq_subscribe",
+    "session_qq_unsubscribe",
+    "session_readonly",
+    "session_unclaim",
+    "session_unclaim_many",
+    "session_update",
+    "session_usage",
+    "system_fields",
+    "terminal_close",
+    "terminal_create",
+    "terminal_detach",
+    "terminal_get",
+    "terminal_input",
+    "terminal_list",
+    "terminal_read",
+    "terminal_snapshot",
+    "trigger_control",
+    "trigger_create",
+    "trigger_get",
+    "trigger_list",
+    "trigger_retire",
+    "trigger_update",
+    "worker_assign",
+    "worker_kill",
+    "worker_list",
+    "worker_send",
+    "worker_send_force",
+    "worker_spawn",
+    "worker_task",
+    "workspace_create",
+    "workspace_delete",
+    "workspace_list"
+  ]
+}

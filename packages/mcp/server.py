@@ -2514,8 +2514,8 @@ def _scheduler_task_path(task_id: str, suffix: str = "") -> str:
 
 
 @mcp.tool()
-def scheduler_list(target_session_id: str | None = None) -> dict:
-    """List scheduled tasks with their next run time and last run status.
+def scheduler_list(target_session_id: str | None = None, limit: int | None = None, offset: int = 0) -> dict:
+    """List read-only scheduled-task history with original status (never executable).
 
     返回 {"ok": true, "tasks": [...]}，每条含 id / name / targetSessionId /
     schedule / nextFireAt / lastFireAt / lastStatus / runCount / enabled / paused。
@@ -2523,6 +2523,8 @@ def scheduler_list(target_session_id: str | None = None) -> dict:
     Args:
         target_session_id: 只列出派发目标为该 session 的任务（后端无过滤参数，
             在 MCP 层按 targetSessionId 过滤）；省略 = 全部任务（只读）
+        limit: 页大小（1–500），过滤目标 session 前应用
+        offset: 分页起点（非负），按创建时间/原 ID 排序
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks。
     完整编排流程见 /pan skill。
@@ -2530,7 +2532,10 @@ def scheduler_list(target_session_id: str | None = None) -> dict:
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
         return denied
-    result = _api("GET", _SCHEDULER_TASKS_PATH)
+    query = f"?offset={offset}" if limit is not None or offset else ""
+    if limit is not None:
+        query += f"&limit={limit}"
+    result = _api("GET", _SCHEDULER_TASKS_PATH + query)
     if not target_session_id or not isinstance(result, dict):
         return result
     tasks = result.get("tasks")
@@ -2547,7 +2552,7 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
     """Get one scheduled task by id.
 
     Args:
-        task_id: 定时任务 ID（sch_ 前缀）
+        task_id: 原始定时任务或迁移历史 ID
         target_session_id: 该任务派发的目标 session（省略时按返回体补一次只读鉴权）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}。
@@ -2566,7 +2571,7 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
 
 @mcp.tool()
 def scheduler_runs(task_id: str, target_session_id: str | None = None,
-                   limit: int = 50) -> dict:
+                   limit: int = 50, offset: int = 0) -> dict:
     """Execution history of a scheduled task (newest first).
 
     返回 {"ok": true, "runs": [...]}，每条含 runId / taskId / fireAt / actualAt /
@@ -2576,6 +2581,7 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         task_id: 定时任务 ID
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
         limit: 返回条数上限
+        offset: 分页起点（非负，最新归档行在前）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}/runs。
     完整编排流程见 /pan skill。
@@ -2588,7 +2594,7 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         denied = _scheduler_auth(_scheduler_target_of(task), claim=False)
         if denied:
             return denied
-    return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}"))
+    return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}" + (f"&offset={offset}" if offset else "")))
 
 
 @mcp.tool()
