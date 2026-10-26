@@ -1,5 +1,6 @@
 """P9D: audited user decision, real isolated SQLite imports, no effects."""
 import asyncio
+import base64
 import copy
 import hashlib
 import json
@@ -38,6 +39,7 @@ def evidence_for(tmp_path, n_simple=1, n_complex=1):
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_bytes(b"original historical log\n")
     (root / "background_jobs/jobs/job_unknown.json").write_bytes(b'{broken partial unknown')
+    _write_json(root / "background_jobs/jobs/.completed-retention.json", {"retentionDays": 30})
     manifest = [{"path": p.relative_to(root).as_posix(), "kind": "file", "state": "stable",
                  "sha256": hashlib.sha256(p.read_bytes()).hexdigest(), "bytes": p.stat().st_size}
                 for p in sorted(root.rglob("*")) if p.is_file()]
@@ -209,3 +211,18 @@ def test_runtime_replay_rejects_changed_original_key_receipt(tmp_path):
         assert restarted.task is None and restarted.executor.calls == []
         assert restarted.owner.status()["state"] == "failed"
     asyncio.run(check())
+
+
+def test_retention_metadata_is_preserved_without_allocating_an_identity(tmp_path):
+    root, _, inventory, context, receipt, _ = context_fixture(tmp_path)
+    relative = "background_jobs/jobs/.completed-retention.json"
+    before = (root / relative).read_bytes()
+    target = tmp_path / "bundle.json"
+    commit(root, context, receipt, target, inventory)
+    bundle = migration.read_bundle(target)
+    metadata = [e for e in bundle["preserved"] if e["sourceFile"] == relative]
+    assert len(metadata) == 1 and metadata[0]["originalId"] is None and not metadata[0].get("migrationId")
+    assert metadata[0]["targetIds"] == [] and metadata[0]["executable"] is False
+    assert base64.b64decode(bundle["sourceBackups"][relative]["bytes"]) == before
+    assert (root / relative).read_bytes() == before
+    assert len(bundle["entries"]) == 1
