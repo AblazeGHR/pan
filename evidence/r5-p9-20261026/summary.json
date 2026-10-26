@@ -1,0 +1,587 @@
+{
+  "schema": "pan.r5-p9.rehearsal-evidence/v1",
+  "result": "BLOCKED",
+  "baselineSha": "bdb0a50bf735d682c11329220d8d40ce8fa2d009",
+  "productSourceSha": "bdb0a50bf735d682c11329220d8d40ce8fa2d009",
+  "branch": "r5/p9-practical-rehearsal-20261025",
+  "productionMigrationComplete": false,
+  "privateEvidenceRoot": ".validation/p9-private-20261026",
+  "copy": {
+    "files": 179194,
+    "bytes": 5119558200,
+    "directories": 26406,
+    "links": 8089,
+    "errors": 1,
+    "changedDuringRead": 8,
+    "copyHashMismatches": 0,
+    "topLevel": {
+      "workdirs": {
+        "files": 173763,
+        "bytes": 3313899287
+      },
+      "cf_pid.txt": {
+        "files": 1,
+        "bytes": 5
+      },
+      "main_pid.txt": {
+        "files": 1,
+        "bytes": 4
+      },
+      "workspaces": {
+        "files": 13,
+        "bytes": 2460
+      },
+      ".cli-start.lock": {
+        "files": 1,
+        "bytes": 1
+      },
+      "process.json": {
+        "files": 1,
+        "bytes": 2193
+      },
+      "qq_bot.json": {
+        "files": 1,
+        "bytes": 287
+      },
+      "process.pid": {
+        "files": 1,
+        "bytes": 21
+      },
+      "qq_bot.pid": {
+        "files": 1,
+        "bytes": 4
+      },
+      "session-pins.json": {
+        "files": 1,
+        "bytes": 123
+      },
+      "validation_env": {
+        "files": 3326,
+        "bytes": 65445102
+      },
+      "terminals": {
+        "files": 9,
+        "bytes": 5229
+      },
+      "user_inbox": {
+        "files": 1,
+        "bytes": 212992
+      },
+      "tailscale": {
+        "files": 1,
+        "bytes": 1
+      },
+      "startup_recovery": {
+        "files": 149,
+        "bytes": 74999
+      },
+      "sessions": {
+        "files": 274,
+        "bytes": 245219812
+      },
+      "session-drafts": {
+        "files": 49,
+        "bytes": 5782
+      },
+      "session-bookmarks": {
+        "files": 5,
+        "bytes": 1579
+      },
+      "scripts": {
+        "files": 1,
+        "bytes": 2474
+      },
+      "qq_plugins": {
+        "files": 2,
+        "bytes": 17123341
+      },
+      "qq_media": {
+        "files": 435,
+        "bytes": 339928477
+      },
+      "qq_inbox": {
+        "files": 11,
+        "bytes": 302459
+      },
+      "qq_history": {
+        "files": 18,
+        "bytes": 274710
+      },
+      "plugins": {
+        "files": 6,
+        "bytes": 366864
+      },
+      "mcp_remote": {
+        "files": 9,
+        "bytes": 2547893
+      },
+      "mcp-configs": {
+        "files": 65,
+        "bytes": 37318
+      },
+      "logs": {
+        "files": 26,
+        "bytes": 983587221
+      },
+      "codex": {
+        "files": 4,
+        "bytes": 12519
+      },
+      "cloudflared": {
+        "files": 1,
+        "bytes": 277
+      },
+      "cleanup-archive-20261025": {
+        "files": 5,
+        "bytes": 284484
+      },
+      "cleanup-archive-20261024": {
+        "files": 14,
+        "bytes": 13918614
+      },
+      "background_jobs": {
+        "files": 549,
+        "bytes": 92048218
+      },
+      "automation": {
+        "files": 12,
+        "bytes": 2934815
+      },
+      "attachments": {
+        "files": 436,
+        "bytes": 39705173
+      },
+      "agent_inbox": {
+        "files": 1,
+        "bytes": 1605632
+      },
+      "actions": {
+        "files": 1,
+        "bytes": 7830
+      }
+    },
+    "elapsedSeconds": 314.9,
+    "sourceAccess": "read-only file opens and metadata only",
+    "applicationConsistentSnapshot": false,
+    "completePhysicalCopy": false,
+    "manifestSha256": "944011720bb2e2907f296eab436d47fda88eb07cf43123a2e985cffad0eac769"
+  },
+  "comparison": {
+    "verifiedFiles": 179194,
+    "verifiedBytes": 5119558200,
+    "mismatches": [],
+    "extraFiles": [],
+    "missingFiles": [],
+    "retainedLinks": 8089,
+    "changedDuringRead": 8,
+    "changedAcrossResume": null,
+    "sourceReopenedForComparison": false,
+    "canonicalRecordsImported": 0,
+    "recordComparison": "all archived bytes, IDs and fields identical if mismatches/missing/extra are empty; canonical import blocked",
+    "quarantinedFailedReadFragments": [
+      {
+        "path": "actions/job-runtime/service.lock",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "disposition": "failed source read fragment; preserved outside source-copy"
+      }
+    ],
+    "hashVerification": "Prior full SHA comparison verified all 179194 manifested files; only an unmanifested failed fragment was moved afterwards",
+    "priorFullComparisonSha256": "a518ce1f19f71757e1eded81ab3c04fe3019adbfc0a716f9540c1da5b0188ccf",
+    "resumeSourceDriftVerified": false
+  },
+  "inventory": {
+    "categories": {
+      "actions": 5,
+      "locker:lockers": 16,
+      "locker:messages": 1795,
+      "locker:sqlite_sequence": 2,
+      "locker:origins": 1795,
+      "locker:migrations": 11,
+      "metadata:automation": 2,
+      "sqlite:events": 687,
+      "sqlite:sqlite_sequence": 1,
+      "retention-marker": 1,
+      "job:background-process": 102,
+      "job:main-lifecycle": 5,
+      "job:session-message": 4,
+      "metadata:background_jobs": 1,
+      "runs-ledger": 15,
+      "metadata:session-bookmarks": 4,
+      "session-pins": 1,
+      "session-history": 65033,
+      "sessions": 137,
+      "locker:cards": 14,
+      "locker:user_lockers": 4,
+      "locker:owner_receipts": 4,
+      "locker:tombstones": 4,
+      "locker:rejection_outbox": 2,
+      "locker:response_outbox": 10,
+      "locker:user_cards": 3,
+      "locker:user_card_deleted": 1,
+      "locker:user_card_reminders": 1,
+      "locker:user_card_settings": 1
+    },
+    "formats": {
+      "actions": {
+        "unversioned": 5
+      },
+      "locker:lockers": {
+        "unversioned": 16
+      },
+      "locker:messages": {
+        "unversioned": 1795
+      },
+      "locker:sqlite_sequence": {
+        "unversioned": 2
+      },
+      "locker:origins": {
+        "unversioned": 1795
+      },
+      "locker:migrations": {
+        "unversioned": 11
+      },
+      "metadata:automation": {
+        "unversioned": 2
+      },
+      "sqlite:events": {
+        "unversioned": 687
+      },
+      "sqlite:sqlite_sequence": {
+        "unversioned": 1
+      },
+      "retention-marker": {
+        "unversioned": 1
+      },
+      "job:background-process": {
+        "unversioned": 102
+      },
+      "job:main-lifecycle": {
+        "unversioned": 5
+      },
+      "job:session-message": {
+        "unversioned": 4
+      },
+      "metadata:background_jobs": {
+        "unversioned": 1
+      },
+      "runs-ledger": {
+        "unversioned": 15
+      },
+      "metadata:session-bookmarks": {
+        "1": 4
+      },
+      "session-pins": {
+        "1": 1
+      },
+      "session-history": {
+        "unversioned": 65033
+      },
+      "sessions": {
+        "unversioned": 137
+      },
+      "locker:cards": {
+        "unversioned": 14
+      },
+      "locker:user_lockers": {
+        "unversioned": 4
+      },
+      "locker:owner_receipts": {
+        "unversioned": 4
+      },
+      "locker:tombstones": {
+        "unversioned": 4
+      },
+      "locker:rejection_outbox": {
+        "unversioned": 2
+      },
+      "locker:response_outbox": {
+        "unversioned": 10
+      },
+      "locker:user_cards": {
+        "unversioned": 3
+      },
+      "locker:user_card_deleted": {
+        "unversioned": 1
+      },
+      "locker:user_card_reminders": {
+        "unversioned": 1
+      },
+      "locker:user_card_settings": {
+        "unversioned": 1
+      }
+    },
+    "criticalFields": {
+      "keyRevision": 1,
+      "status": 126,
+      "notificationState": 102,
+      "dispatchKey": 1,
+      "dispatch_key": 15,
+      "delivered_keys": 1900,
+      "handoff_prompt": 137,
+      "handoff_receipt": 137,
+      "result_cursor": 137,
+      "last_legal_worker_state": 137,
+      "offline_owner": 137,
+      "owner_retirements": 137,
+      "manual_report_receipts": 137,
+      "qq_report_outbox": 137,
+      "notification_settings": 137,
+      "owner": 42,
+      "request_key": 14,
+      "response_key": 14,
+      "state": 12
+    },
+    "parseErrors": 0,
+    "wp08": {
+      "total": 111,
+      "simple": 51,
+      "complex": 59,
+      "unknown": 1,
+      "scanErrors": 0,
+      "bySourceType": {
+        "MIG-BG": {
+          "total": 102,
+          "simple": 51,
+          "complex": 50,
+          "unknown": 1
+        },
+        "MIG-MAIN-LIFECYCLE": {
+          "total": 5,
+          "simple": 0,
+          "complex": 5,
+          "unknown": 0
+        },
+        "MIG-MSG": {
+          "total": 4,
+          "simple": 0,
+          "complex": 4,
+          "unknown": 0
+        }
+      },
+      "invariant": {
+        "sourceTotal": 111,
+        "simplePlusPreserved": 111,
+        "classificationPending": 0
+      }
+    },
+    "reasonCounts": {
+      "uncertain_effect": 21,
+      "active_resource": 14,
+      "unsupported_complex_instance": 50,
+      "pending_notice": 1,
+      "unknown_field": 3,
+      "unknown_schema": 1,
+      "unverified_authority": 1,
+      "corrupt_record": 1,
+      "schedule_semantic_loss": 4,
+      "counter_coupling": 4
+    },
+    "wp08InputFiles": 115,
+    "wp08InputBytes": 257472,
+    "unscannedPhysicalFiles": 179079,
+    "recordIndexSha256": "d3931fb762ab802f79ac152cf3e0c9260159d8ae93bddab4863f6971182cfd3a",
+    "sourceVersion": "heterogeneous per-record versions; process marker is not build provenance",
+    "fullMigrationGate": "BLOCKED"
+  },
+  "additionalCounts": {
+    "sessionHandoffReceiptsNonNull": 0,
+    "sessionHandoffPromptsNonEmpty": 12,
+    "sessionNotificationOutboxEntries": 9,
+    "pins": {
+      "session-pins.json": {
+        "type": "dict",
+        "fields": {
+          "version": "int",
+          "revision": "int",
+          "sessionIds": 2
+        }
+      },
+      "background_jobs/pins.json": {
+        "type": "dict",
+        "fields": {}
+      }
+    },
+    "registryCollections": {
+      "actions/registry.json": {
+        "actions": 5,
+        "groups": 0,
+        "retired_plugins": 0,
+        "actionRevisions": 7,
+        "actionGenerations": 2
+      },
+      "automation/registry.json": {
+        "triggers": 0,
+        "runs": 0
+      }
+    }
+  },
+  "sqlite": [
+    {
+      "role": "agent_inbox",
+      "integrity": "ok",
+      "tables": {
+        "lockers": 16,
+        "sources": 0,
+        "messages": 1795,
+        "sqlite_sequence": 1,
+        "subscriptions": 0,
+        "routes": 0,
+        "origins": 1795,
+        "deleted_messages": 0,
+        "legacy_bindings": 0,
+        "migrations": 11
+      },
+      "sha256": "e9e4bbb6aebfddff77ea423d084974ff0e9447eae3eb5b841b6afe0cb80a1341"
+    },
+    {
+      "role": "automation",
+      "integrity": "ok",
+      "tables": {
+        "events": 687,
+        "sqlite_sequence": 1
+      },
+      "sha256": "c16480c42636c2edebd4b77ffe9fe9c29912a54d4be902fb5d27fa2cb50b0ce0"
+    },
+    {
+      "role": "user_inbox",
+      "integrity": "ok",
+      "tables": {
+        "cards": 14,
+        "user_lockers": 4,
+        "locker_messages": 0,
+        "sqlite_sequence": 1,
+        "locker_message_tombstones": 0,
+        "owner_receipts": 4,
+        "tombstones": 4,
+        "rejection_outbox": 2,
+        "response_outbox": 10,
+        "detached_deliveries": 0,
+        "user_cards": 3,
+        "user_card_deleted": 1,
+        "user_card_reminders": 1,
+        "user_card_outbox": 0,
+        "user_card_settings": 1,
+        "question_events": 0
+      },
+      "sha256": "2436c62468738bc476057bcd67238466f42b3f56d4aeeaa1c87e011e22a3547d"
+    }
+  ],
+  "actualApplyAttempts": [
+    {
+      "operation": "dry-run",
+      "result": "blocked",
+      "error": "ApplyError",
+      "detail": "unknown/corrupt source or scan error: refusing whole apply",
+      "targetExists": false
+    },
+    {
+      "operation": "stale-plan",
+      "result": "blocked",
+      "error": "ApplyError",
+      "detail": "plan_stale: --expected-digest required/mismatched",
+      "targetExists": false
+    },
+    {
+      "operation": "explicit-apply",
+      "result": "blocked",
+      "error": "ApplyError",
+      "detail": "unknown/corrupt source or scan error: refusing whole apply",
+      "targetExists": false
+    }
+  ],
+  "actualCanonicalImport": {
+    "state": "blocked-prerequisite",
+    "canonicalBundleProduced": false,
+    "importedRecords": 0,
+    "mappedOriginalIds": 0,
+    "activeIds": [],
+    "activeLegacy": null,
+    "oldOwner": null,
+    "unknownOwnership": null,
+    "reason": "No approved complete WP08 bundle; unknown source and unapproved context"
+  },
+  "tests": {
+    "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+    "runs": [
+      {
+        "artifact": "focused-tests.xml",
+        "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_migration_apply.py tests/test_job_final_migration.py tests/test_job_final_contracts.py tests/test_job_runtime_owner.py tests/test_job_inbox_migration_drill.py -q -o addopts= --tb=short --junitxml=.validation/p9-private-20261026/focused-tests.xml",
+        "exitCode": 0,
+        "tests": "208",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "43.945"
+      },
+      {
+        "artifact": "registry-tests.xml",
+        "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_runtime_registry.py -q -o addopts= --tb=short --junitxml=.validation/p9-private-20261026/registry-tests.xml",
+        "exitCode": 0,
+        "tests": "30",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "6.972"
+      },
+      {
+        "artifact": "p9-recovery-tests.xml",
+        "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_p9_practical_rehearsal.py -q -o addopts= --tb=short --junitxml=.validation/p9-private-20261026/p9-recovery-tests.xml",
+        "exitCode": 0,
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "3.358"
+      }
+    ],
+    "totalPassed": 241
+  },
+  "artifactSha256": {
+    "copy-manifest.jsonl": "944011720bb2e2907f296eab436d47fda88eb07cf43123a2e985cffad0eac769",
+    "copy-summary.json": "1686bc716d3d650da0ba9cf58026636046e95ac929e67af92621592dafd7693f",
+    "copy-blockers.json": "5f8c5b0569bc737564389488a08e8164e3470ccc8220c6a516138726a9661fa2",
+    "wp08-inventory.json": "9d25ed9c36845781681a933b49368394bda532c71411e854741492e4ac80bb7a",
+    "record-index.jsonl": "d3931fb762ab802f79ac152cf3e0c9260159d8ae93bddab4863f6971182cfd3a",
+    "references.json": "14d4696a36a39cd811e916ae9b2165154fbcd4deda1bf131831fc7a8448a8e3a",
+    "object-identities.json": "c8a6b71174d702429db93fcdda98e3d104128cde04cb6270848d93ba827a7264",
+    "original-id-map.json": "f26e940fe27a7da192a913d25b660c0da20acd162da6684764486d76c9943a33",
+    "sqlite-inventory.json": "eadbeb648131cc0aa20ac32afe0a9410d83c9716e1f41782b49706a3bdc615d4",
+    "status-counts.json": "3afa9e29183f2431be94a7d5897ec58801290d205f6de07ec72380a7d3c7e703",
+    "supplementary-counts.json": "ac367b3d567f369467fdfbecbae588cedb51d9bbdb79c7539bf2d0362a0f5264",
+    "blockers.json": "ce684b2baf714c9d967e1292f3dc0f4df6587900e6a34695ccad1f06b61758cf",
+    "unapproved-context.json": "0a09818b012c67b53436e1c5dc38197268c2a8895fe5bb3499d44c218643b261",
+    "apply-attempts.json": "b26a3fff87c3910e17740ff28df00dc27fc818757f33420477b23664eb16a6fe",
+    "preservation-bundle-manifest.json": "7620da4bb4fc0d9850231c968262ff4cf545040e123905bfddea5b42752202ff",
+    "initial-before-after-comparison.json": "a518ce1f19f71757e1eded81ab3c04fe3019adbfc0a716f9540c1da5b0188ccf",
+    "before-after-comparison.json": "3fba50c78721a8c4409fca9ab0bac1641f4d0d57bc0b855a4711ce337724c8fc",
+    "test-summary.json": "7ef1ac79fbd289f6750333bd0c3fc761cac9ff83acc6ef4dad58c84a1fbfbaef",
+    "focused-tests.xml": "6ac5a2034122ffea5567d8464a68f4f01b89f2f1e7f5450b7980ac4b15947720",
+    "registry-tests.xml": "8b5c7af9240435d76ea73b85d4ac19276933d445d6ca30d16a956740b40a79bd",
+    "p9-recovery-tests.xml": "fb5f59ecf7b11d4146f36633f3fe4325f236c60504aa8ca9817d3705a9fa37cd",
+    "focused-tests.log": "972dcbee690b9a4433131adc06c97af8b9c2e423f280f25c3690eaa5f7c1e2ae",
+    "registry-tests.log": "7f0fb97e7f9f2feb016708185678d1e224986f93172d343b87eab170e0ab2833",
+    "p9-recovery-tests.log": "0a1b313db9c83e7603a6c37f903894207e8426c6dca0d1203b7ea226ba94a81d"
+  },
+  "unverified": [
+    "production ownership/fencing/activeLegacy=0",
+    "complete consistent source snapshot",
+    "real-data canonical import, original ID mapping and runtime history queries",
+    "real-data pins/retention/handoff/notification settlement",
+    "external independent/shared history",
+    "real provider effects",
+    "HTTP/browser/MCP",
+    "full backend suite/build",
+    "remote or three-platform CI",
+    "power loss/network filesystem",
+    "deployment/human acceptance"
+  ],
+  "evidenceCodeSha256": {
+    "scripts/p9_practical_rehearsal.py": "c84cc6d792f7c24d38dc747f75a94a7aa45524671a30ff1129a4db49c658effb",
+    "tests/test_p9_practical_rehearsal.py": "ac8ded576da7f5f0be555d718af2c69f2b82902400bb135b8106139290cbfab3"
+  },
+  "protectedRefsObserved": {
+    "main": "7f303faa355bfc763f0452ad68d31b920e4dc6e1",
+    "practical": "5b6165ca7d1b2751b5ddf736a9679bcefb24a068"
+  }
+}
