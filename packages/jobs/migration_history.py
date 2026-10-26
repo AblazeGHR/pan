@@ -95,3 +95,52 @@ def read_log(service, original_id, *, actor):
     raw = path.read_bytes()
     require(hashlib.sha256(raw).hexdigest() == ref["sha256"], "Archived log changed")
     return raw
+
+
+class Archive:
+    """Strictly read-only view; never construct a service, store or owner.
+
+    HTTP authorization belongs to the caller. SQLite opens mode=ro (never the
+    CreatorStore connection, whose readonly flag can still initialize storage).
+    """
+    def __init__(self, root):
+        from pathlib import Path
+        self.root = Path(root).resolve()
+
+    def documents(self):
+        import sqlite3
+        path = self.root / 'event-creators' / 'creators.sqlite3'
+        if not path.exists():
+            return []
+        # WAL readers can create/update shared memory, even with mode=ro.
+        # Refuse WAL explicitly; immutable=1 would silently lose committed rows.
+        if path.with_name(path.name + '-wal').exists():
+            raise ValueError('Historical ledger WAL cannot be read without shared-memory side effects')
+        db = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
+        try:
+            db.execute('PRAGMA query_only=ON')
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE name='final_documents'").fetchone():
+                return []
+            return [(kind, fc.loads(raw)) for kind, raw in db.execute(
+                "SELECT kind, document FROM final_documents WHERE kind IN "
+                "('migration_history','migration_unrecognized','migration_receipt') ORDER BY kind,id")]
+        finally:
+            db.close()
+
+    def source(self, record):
+        raw = base64.b64decode(record['rawBytesBase64'], validate=True)
+        require('sha256:' + hashlib.sha256(raw).hexdigest() == record['sourceSha256'],
+                'Historical source bytes/hash mismatch')
+        return fc.loads(raw.decode('utf-8-sig'))
+
+    def log(self, record):
+        ref = record.get('log')
+        if not isinstance(ref, dict) or not ref.get('relativePath'):
+            return None
+        path = self.root.parent / ref['relativePath']
+        require(path.resolve().is_relative_to(self.root.parent) and not any(
+            p.is_symlink() or (hasattr(p, 'is_junction') and p.is_junction())
+            for p in (path, *path.parents)), 'Archived log path escapes profile')
+        raw = path.read_bytes()
+        require(hashlib.sha256(raw).hexdigest() == ref['sha256'], 'Archived log changed')
+        return raw
