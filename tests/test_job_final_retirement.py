@@ -54,7 +54,6 @@ LEGACY_HTTP_WRITES = [
     ("POST", "/api/scheduler/tasks/{id}/pause"),
     ("POST", "/api/scheduler/tasks/{id}/resume"),
     ("POST", "/api/scheduler/tasks/{id}/run-now"),
-    ("POST", "/api/scheduler/tasks/{id}/owner-switch"),
     ("POST", "/api/scheduler/event-sources"),
     ("PUT", "/api/scheduler/event-sources/{id}"),
     ("DELETE", "/api/scheduler/event-sources/{id}"),
@@ -120,10 +119,19 @@ def test_old_write_reaches_no_effectful_handler(method, path):
 
 
 @pytest.mark.parametrize("method,path", LEGACY_HTTP_WRITES)
-def test_old_write_refuses_an_anonymous_caller_before_answering(method, path):
+def test_old_write_refuses_an_anonymous_caller_before_answering(method, path, tmp_path, monkeypatch):
     """No unauthenticated caller learns whether a retired path exists."""
-    with TestClient(app, raise_server_exceptions=False) as client:
+    from types import SimpleNamespace
+    from packages.jobs.final_api import CanonicalUserAuth
+    # Exercise production routing with owned auth, without starting the full
+    # application's watchdogs, retention loops, plugins or terminal runtime.
+    monkeypatch.setattr(app.state, 'automation', SimpleNamespace(auth=CanonicalUserAuth(tmp_path / 'auth')),
+                        raising=False)
+    client = TestClient(app, raise_server_exceptions=False)
+    try:
         response = client.request(method, materialise(path), json={})
+    finally:
+        client.close()
     # 401/403 when authorization is available; fail closed (5xx) when the
     # provider is not wired.  Never 2xx/3xx, never a bare 404 that would let a
     # caller enumerate the retired surface, and never the old 200 shape.

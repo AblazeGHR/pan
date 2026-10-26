@@ -1,0 +1,345 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p15-r6-scheduler-surface-20261025
+FFFFFFFFFFFF.FFF.F...................................................... [ 58%]
+...................................................                      [100%]
+================================== FAILURES ===================================
+_______________________ test_create_list_get_roundtrip ________________________
+tests\test_scheduler_api.py:49: in test_create_list_get_roundtrip
+    created = asyncio.run(api.create_task(_payload()))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_______________________ test_update_task_changes_fields _______________________
+tests\test_scheduler_api.py:71: in test_update_task_changes_fields
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_________________________ test_delete_task_removes_it _________________________
+tests\test_scheduler_api.py:91: in test_delete_task_removes_it
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_____________________ test_pause_and_resume_toggle_paused _____________________
+tests\test_scheduler_api.py:98: in test_pause_and_resume_toggle_paused
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_________________________ test_task_runs_starts_empty _________________________
+tests\test_scheduler_api.py:104: in test_task_runs_starts_empty
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+__________________ test_create_rejects_unknown_schedule_kind __________________
+tests\test_scheduler_api.py:113: in test_create_rejects_unknown_schedule_kind
+    result = asyncio.run(api.create_task(_payload(schedule={"kind": "weekly"})))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+______________________ test_create_rejects_invalid_cron _______________________
+tests\test_scheduler_api.py:118: in test_create_rejects_invalid_cron
+    result = asyncio.run(api.create_task(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+__________________ test_create_rejects_non_positive_interval __________________
+tests\test_scheduler_api.py:124: in test_create_rejects_non_positive_interval
+    result = asyncio.run(api.create_task(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_____________________ test_create_rejects_once_without_at _____________________
+tests\test_scheduler_api.py:130: in test_create_rejects_once_without_at
+    result = asyncio.run(api.create_task(_payload(schedule={"kind": "once"})))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+______________________ test_create_rejects_missing_text _______________________
+tests\test_scheduler_api.py:135: in test_create_rejects_missing_text
+    result = asyncio.run(api.create_task({"targetSessionId": "ses_ok",
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+_____________________ test_create_rejects_unknown_session _____________________
+tests\test_scheduler_api.py:141: in test_create_rejects_unknown_session
+    result = asyncio.run(api.create_task(_payload(targetSessionId="ses_missing")))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+__________ test_update_rejects_invalid_schedule_and_unknown_session ___________
+tests\test_scheduler_api.py:146: in test_update_rejects_invalid_schedule_and_unknown_session
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+___________________ test_unknown_task_id_reports_not_found ____________________
+tests\test_scheduler_api.py:164: in test_unknown_task_id_reports_not_found
+    asyncio.run(api.update_task("sch_missing", {"name": "x"})),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:363: in update_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+______________________ test_run_now_delegates_to_engine _______________________
+tests\test_scheduler_api.py:185: in test_run_now_delegates_to_engine
+    monkeypatch.setattr(api.scheduler_engine, "run_now", fake_run_now)
+E   AttributeError: <module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'> has no attribute 'run_now'
+___________________ test_run_now_reports_engine_not_running ___________________
+tests\test_scheduler_api.py:197: in test_run_now_reports_engine_not_running
+    monkeypatch.setattr(api.scheduler_engine, "run_now", down)
+E   AttributeError: <module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'> has no attribute 'run_now'
+______________________ test_bind_broadcasts_task_events _______________________
+tests\test_scheduler_api.py:224: in test_bind_broadcasts_task_events
+    created = asyncio.run(api.create_task(_payload()))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_api.py::test_create_list_get_roundtrip - Attribut...
+FAILED tests/test_scheduler_api.py::test_update_task_changes_fields - Attribu...
+FAILED tests/test_scheduler_api.py::test_delete_task_removes_it - AttributeEr...
+FAILED tests/test_scheduler_api.py::test_pause_and_resume_toggle_paused - Att...
+FAILED tests/test_scheduler_api.py::test_task_runs_starts_empty - AttributeEr...
+FAILED tests/test_scheduler_api.py::test_create_rejects_unknown_schedule_kind
+FAILED tests/test_scheduler_api.py::test_create_rejects_invalid_cron - Attrib...
+FAILED tests/test_scheduler_api.py::test_create_rejects_non_positive_interval
+FAILED tests/test_scheduler_api.py::test_create_rejects_once_without_at - Att...
+FAILED tests/test_scheduler_api.py::test_create_rejects_missing_text - Attrib...
+FAILED tests/test_scheduler_api.py::test_create_rejects_unknown_session - Att...
+FAILED tests/test_scheduler_api.py::test_update_rejects_invalid_schedule_and_unknown_session
+FAILED tests/test_scheduler_api.py::test_unknown_task_id_reports_not_found - ...
+FAILED tests/test_scheduler_api.py::test_run_now_delegates_to_engine - Attrib...
+FAILED tests/test_scheduler_api.py::test_run_now_reports_engine_not_running
+FAILED tests/test_scheduler_api.py::test_bind_broadcasts_task_events - Attrib...
+16 failed, 107 passed, 2 warnings in 16.01s

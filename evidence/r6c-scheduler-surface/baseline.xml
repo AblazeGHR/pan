@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="16" skipped="0" tests="123" time="15.446" timestamp="2026-10-26T20:30:04.536243+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_api" name="test_create_list_get_roundtrip" time="0.009"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:49: in test_create_list_get_roundtrip
+    created = asyncio.run(api.create_task(_payload()))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_update_task_changes_fields" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:71: in test_update_task_changes_fields
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_delete_task_removes_it" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:91: in test_delete_task_removes_it
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_pause_and_resume_toggle_paused" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:98: in test_pause_and_resume_toggle_paused
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_task_runs_starts_empty" time="0.018"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:104: in test_task_runs_starts_empty
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_unknown_schedule_kind" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:113: in test_create_rejects_unknown_schedule_kind
+    result = asyncio.run(api.create_task(_payload(schedule={"kind": "weekly"})))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_invalid_cron" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:118: in test_create_rejects_invalid_cron
+    result = asyncio.run(api.create_task(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_non_positive_interval" time="0.027"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:124: in test_create_rejects_non_positive_interval
+    result = asyncio.run(api.create_task(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_once_without_at" time="0.018"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:130: in test_create_rejects_once_without_at
+    result = asyncio.run(api.create_task(_payload(schedule={"kind": "once"})))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_missing_text" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:135: in test_create_rejects_missing_text
+    result = asyncio.run(api.create_task({"targetSessionId": "ses_ok",
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_create_rejects_unknown_session" time="0.014"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:141: in test_create_rejects_unknown_session
+    result = asyncio.run(api.create_task(_payload(targetSessionId="ses_missing")))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_update_rejects_invalid_schedule_and_unknown_session" time="0.017"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:146: in test_update_rejects_invalid_schedule_and_unknown_session
+    task_id = asyncio.run(api.create_task(_payload()))["task"]["id"]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_next_preview_rejects_bad_count" time="0.017" /><testcase classname="tests.test_scheduler_api" name="test_unknown_task_id_reports_not_found" time="0.031"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:164: in test_unknown_task_id_reports_not_found
+    asyncio.run(api.update_task("sch_missing", {"name": "x"})),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:363: in update_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_run_now_delegates_to_engine" time="0.005"><failure message="AttributeError: &lt;module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'&gt; has no attribute 'run_now'">tests\test_scheduler_api.py:185: in test_run_now_delegates_to_engine
+    monkeypatch.setattr(api.scheduler_engine, "run_now", fake_run_now)
+E   AttributeError: &lt;module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'&gt; has no attribute 'run_now'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_run_now_reports_engine_not_running" time="0.002"><failure message="AttributeError: &lt;module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'&gt; has no attribute 'run_now'">tests\test_scheduler_api.py:197: in test_run_now_reports_engine_not_running
+    monkeypatch.setattr(api.scheduler_engine, "run_now", down)
+E   AttributeError: &lt;module 'packages.scheduler.engine' from 'D:\\project\\pan-worktrees\\job-p15-r6-scheduler-surface-20261025\\packages\\scheduler\\engine.py'&gt; has no attribute 'run_now'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_status_and_next_preview" time="0.005" /><testcase classname="tests.test_scheduler_api" name="test_bind_broadcasts_task_events" time="0.003"><failure message="AttributeError: 'NoneType' object has no attribute 'app'">tests\test_scheduler_api.py:224: in test_bind_broadcasts_task_events
+    created = asyncio.run(api.create_task(_payload()))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\scheduler\api.py:332: in create_task
+    return await retired_legacy_write(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_api.py:105: in retired_legacy_write
+    await actor(request)
+packages\jobs\final_api.py:157: in actor
+    svc = getattr(request.app.state, "automation", None)
+                  ^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'app'</failure></testcase><testcase classname="tests.test_scheduler_api" name="test_on_event_supports_async_broadcast" time="0.003" /><testcase classname="tests.test_scheduler_mcp" name="test_missing_identity_short_circuits_every_tool" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;0]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;1]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;2]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;3]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;4]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;5]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;6]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;7]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_denied_target_never_issues_http[&lt;lambda&gt;8]" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_write_tools_claim_and_read_tools_do_not" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_omitted_target_is_resolved_then_authorized_before_mutation" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_create_posts_schedule_body" time="0.003" /><testcase classname="tests.test_scheduler_mcp" name="test_create_once_uses_at" time="0.002" /><testcase classname="tests.test_scheduler_mcp" name="test_list_and_get_paths" time="0.003" /><testcase classname="tests.test_scheduler_mcp" name="test_list_filters_by_target_session" time="0.004" /><testcase classname="tests.test_scheduler_mcp" name="test_update_patches_only_provided_fields" time="0.007" /><testcase classname="tests.test_scheduler_mcp" name="test_delete_pause_resume_run_now_paths" time="0.007" /><testcase classname="tests.test_scheduler_mcp" name="test_runs_path_carries_limit" time="0.005" /><testcase classname="tests.test_scheduler_mcp" name="test_task_id_is_url_quoted" time="0.019" /><testcase classname="tests.test_scheduler_mcp" name="test_backend_error_is_passed_through_unchanged" time="0.004" /><testcase classname="tests.test_scheduler_mcp" name="test_network_error_is_returned_as_error" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_durable_job_route_is_not_bound_to_its_old_handler[POST-/api/background-jobs]" time="0.414" /><testcase classname="tests.test_job_final_retirement" name="test_durable_job_route_is_not_bound_to_its_old_handler[POST-/api/session-message-jobs]" time="0.007" /><testcase classname="tests.test_job_final_retirement" name="test_durable_job_route_is_not_bound_to_its_old_handler[PATCH-/api/background-jobs/{id}]" time="0.008" /><testcase classname="tests.test_job_final_retirement" name="test_durable_job_route_is_not_bound_to_its_old_handler[POST-/api/background-jobs/{id}/retry]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs]" time="0.009" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PUT-/api/jobs/action-jobs/{id}]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/run-now]" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/lifecycle]" time="0.009" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/pause]" time="0.008" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/resume]" time="0.010" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/retry]" time="0.008" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/action-jobs/{id}/confirm-recovery]" time="0.011" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[DELETE-/api/jobs/action-jobs/{id}]" time="0.007" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/job-templates]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PUT-/api/jobs/job-templates/{id}]" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[DELETE-/api/jobs/job-templates/{id}]" time="0.008" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/job-templates/{id}/instantiate]" time="0.007" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/templates]" time="0.011" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[DELETE-/api/jobs/templates/{id}]" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PUT-/api/jobs/settings/completed-retention]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/jobs/{id}/run-now]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/background-jobs]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/session-message-jobs]" time="0.011" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PATCH-/api/background-jobs/{id}]" time="0.004" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/background-jobs/{id}/retry]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/tasks]" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PATCH-/api/scheduler/tasks/{id}]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[DELETE-/api/scheduler/tasks/{id}]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/tasks/{id}/pause]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/tasks/{id}/resume]" time="0.002" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/tasks/{id}/run-now]" time="0.004" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/tasks/{id}/owner-switch]" time="0.004" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[POST-/api/scheduler/event-sources]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[PUT-/api/scheduler/event-sources/{id}]" time="0.002" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_reaches_no_effectful_handler[DELETE-/api/scheduler/event-sources/{id}]" time="0.002" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs]" time="0.490" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PUT-/api/jobs/action-jobs/{id}]" time="0.366" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/run-now]" time="0.357" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/lifecycle]" time="0.415" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/pause]" time="0.355" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/resume]" time="0.362" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/retry]" time="0.424" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/action-jobs/{id}/confirm-recovery]" time="0.357" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[DELETE-/api/jobs/action-jobs/{id}]" time="0.355" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/job-templates]" time="0.408" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PUT-/api/jobs/job-templates/{id}]" time="0.367" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[DELETE-/api/jobs/job-templates/{id}]" time="0.431" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/job-templates/{id}/instantiate]" time="0.389" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/templates]" time="0.421" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[DELETE-/api/jobs/templates/{id}]" time="0.383" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PUT-/api/jobs/settings/completed-retention]" time="0.426" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/jobs/{id}/run-now]" time="0.470" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/background-jobs]" time="0.380" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/session-message-jobs]" time="0.372" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PATCH-/api/background-jobs/{id}]" time="0.422" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/background-jobs/{id}/retry]" time="0.420" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/tasks]" time="0.395" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PATCH-/api/scheduler/tasks/{id}]" time="0.371" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[DELETE-/api/scheduler/tasks/{id}]" time="0.448" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/tasks/{id}/pause]" time="0.365" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/tasks/{id}/resume]" time="0.378" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/tasks/{id}/run-now]" time="0.408" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/tasks/{id}/owner-switch]" time="0.410" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[POST-/api/scheduler/event-sources]" time="0.361" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[PUT-/api/scheduler/event-sources/{id}]" time="0.376" /><testcase classname="tests.test_job_final_retirement" name="test_old_write_refuses_an_anonymous_caller_before_answering[DELETE-/api/scheduler/event-sources/{id}]" time="0.426" /><testcase classname="tests.test_job_final_retirement" name="test_trusted_caller_is_told_the_entrypoint_is_retired[POST-/api/background-jobs]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_trusted_caller_is_told_the_entrypoint_is_retired[POST-/api/session-message-jobs]" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_trusted_caller_is_told_the_entrypoint_is_retired[PATCH-/api/background-jobs/{id}]" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_trusted_caller_is_told_the_entrypoint_is_retired[POST-/api/background-jobs/{id}/retry]" time="0.004" /><testcase classname="tests.test_job_final_retirement" name="test_delegated_old_write_created_no_record" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/legacy/jobs]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/legacy/jobs/kinds]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/jobs/action-jobs]" time="0.002" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/jobs/action-jobs/schema]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/background-jobs]" time="0.003" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/scheduler/tasks]" time="0.004" /><testcase classname="tests.test_job_final_retirement" name="test_retained_reads_are_still_routed[GET-/api/scheduler/status]" time="0.002" /><testcase classname="tests.test_job_final_retirement" name="test_retirement_is_implemented_at_the_route_table_not_by_hiding_paths" time="0.006" /><testcase classname="tests.test_job_final_retirement" name="test_mcp_retires_old_writes_and_keeps_reads_and_cancel" time="0.005" /><testcase classname="tests.test_job_final_retirement" name="test_cli_keeps_host_lifecycle_and_final_client" time="0.014" /><testcase classname="tests.test_job_final_retirement" name="test_canonical_surface_is_unchanged" time="0.052" /></testsuite></testsuites>
