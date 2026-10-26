@@ -11105,7 +11105,13 @@ async def api_background_job_start(data: dict, request: Request = None):
     argv = data.get("argv")
     cwd = data.get("cwd")
     try:
+        retry_fields = {arg: data[key] for key, arg in {
+            "retryIf": "retry_if", "maxRetries": "max_retries", "backoffSec": "backoff_sec",
+            "idempotencyKey": "idempotency_key", "deduplication": "deduplication",
+        }.items() if key in data}
         if (await _legacy_mcp_authority(request, 'create', action=True)) is not None:
+            if retry_fields:
+                raise ValueError("retryIf policy is only supported for background process Jobs")
             if not isinstance(target, str) or not sess.get(target):
                 raise ValueError("target session does not exist")
             argv, cwd_path = background_jobs._validate_command(argv, cwd)
@@ -11123,6 +11129,7 @@ async def api_background_job_start(data: dict, request: Request = None):
             target, argv, cwd, label=data.get("label"), name=data.get("name"),
             hide_window=data.get("hideWindow", True),
             creator_session_id=data.get("creatorSessionId"),
+            **retry_fields,
         )
     except ValueError as exc:
         return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
