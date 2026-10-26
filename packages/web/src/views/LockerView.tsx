@@ -47,6 +47,7 @@ import {
   cardChoiceBinding,
   type QuestionAnswer,
   lockerProjection,
+  lockerParent,
   lockerTimeline,
   lockerEntryWindow,
   isUserCard,
@@ -456,6 +457,11 @@ export default function LockerView() {
   const dataVisible = !!token && loadedToken === token;
   const lockers = dataVisible ? storedLockers : [];
   const cards = dataVisible ? storedItems : [];
+  const parentsWithChildren = new Set(
+    cards.flatMap((item) =>
+      isUserCard(item) && item.parent ? [`${item.parent.type}:${item.parent.id}`] : [],
+    ),
+  );
   const [selected, setSelected] = useState('aggregate');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1054,8 +1060,11 @@ export default function LockerView() {
                   className="locker-parent-chain"
                   aria-label={`Attached to ${parent.type} ${parent.id}`}
                 >
-                  <Link2 size={14} />
-                  <span>{parent.id}</span>
+                  <span className="locker-parent-chain-line" aria-hidden="true" />
+                  <span className="locker-parent-chain-label">
+                    <Link2 size={14} />
+                    <span>{parent.id}</span>
+                  </span>
                 </div>
               )}
               {isUserCard(card) ? (
@@ -1095,6 +1104,7 @@ export default function LockerView() {
               )}
               <AttachedReminder
                 item={card}
+                hasChild={parentsWithChildren.has(`${lockerParent(card).type}:${card.id}`)}
                 created={(created) =>
                   setCards((previous) =>
                     previous.some((item) => item.id === created.id)
