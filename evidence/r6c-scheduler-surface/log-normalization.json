@@ -1,0 +1,72 @@
+[
+  {
+    "path": "baseline-legacy.log",
+    "rawBackup": "baseline-legacy.log.raw.gz",
+    "rawSha256": "9d8dccd84aa93d0ae38d71845064005a2616a22ac80fb99eeb21786b3c633b41",
+    "textSha256": "0c2aa6c23d8a6fd88393dc45624bbd5eb3deb9ca23090d700adb171c2ed7a36a",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "baseline.log",
+    "rawBackup": "baseline.log.raw.gz",
+    "rawSha256": "80487de0f3ff8cfc2580748b6880aa7f75ba420262ad3eb4444f09c66fb480e1",
+    "textSha256": "5d982e227aeb87f1c95dd39abe3ccafe02045fc2d8f077a5cc2cc5a503bee62d",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "final.log",
+    "rawBackup": "final.log.raw.gz",
+    "rawSha256": "3a34d9e800db382a4712dedde60b073efc0b77470960b4f208495ae832306ac6",
+    "textSha256": "cb928a348514e0d31e4f5df8198909116986b9c54570c5649f3a9facbf99f2e8",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "focused.log",
+    "rawBackup": "focused.log.raw.gz",
+    "rawSha256": "ba4f0c2cc7c40a356154c99ba7a56db638ba11bd161ed27b07a3bdf16db19dae",
+    "textSha256": "8b5dcc26fd9949d2e143d76952b24d128dae20e50808f6d911bcbd6c4cef03e8",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "frontend-install.log",
+    "rawBackup": "frontend-install.log.raw.gz",
+    "rawSha256": "a6e32575f0ff3f114b2770f0189e7872e667b893af71a3ea473c6103d389eede",
+    "textSha256": "f371c42933d074b073ff890d14bf7dfaaf81686a46c934de40bd6b9a163d7a88",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "legacy-regression.log",
+    "rawBackup": "legacy-regression.log.raw.gz",
+    "rawSha256": "47ab889f0616121584f3668f0d544f618f50dd21787d34cb9ea3bf2807086324",
+    "textSha256": "57a09720e77e3be381cf2049bfbb13d78ba2306ca807bd7bc3b189bcdca3d4cb",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "react.log",
+    "rawBackup": "react.log.raw.gz",
+    "rawSha256": "a806036aaa67aee0388f5a4184908e20d27175b32873c40429d505d57aee688f",
+    "textSha256": "03c289ceaf1d52ced00fc71dfaeed6c64a87005477702ced3d7fd638ae0eb64c",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "regression.log",
+    "rawBackup": "regression.log.raw.gz",
+    "rawSha256": "751bc94965f6e24a0034fa206b5a4812d2b069e94b05d795970e900820e7fec7",
+    "textSha256": "11890f2700fa4060617c2ed7281c709c53c3e4c4ebd85998c4495a443137d5f9",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "stdio.log",
+    "rawBackup": "stdio.log.raw.gz",
+    "rawSha256": "8fe1501b8c2fefbe13e5aea64c758c0d048370627f098413e2720d741dedd7a4",
+    "textSha256": "aff14e271c6073014e58d6d1e743b0b91116617b8f162e04bce41e160858fe0a",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  },
+  {
+    "path": "final-no-lifespan.log",
+    "rawBackup": "final-no-lifespan.log.raw.gz",
+    "rawSha256": "18ec59c22ba3b3381d86739cb8d902d3ec5fc1a497c70f048f0b0e251a9a796d",
+    "textSha256": "f720d51ca7cfddf154f47b904f4154e5db49bbcc834ceb132c3ded9a51e9c3dc",
+    "change": "UTF-8 display text; trailing line whitespace/EOF blank lines only"
+  }
+]

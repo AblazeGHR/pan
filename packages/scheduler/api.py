@@ -39,7 +39,8 @@ def retire(endpoint):
 
     Historical task reads and execution history stay served so existing
     schedules remain inspectable until their owner is drained; create, update,
-    delete, pause/resume, run-now, owner-switch and event-source writes are not.
+    delete, pause/resume, run-now and event-source writes are not.
+    R6-C removed owner-switch entirely; its old address is not found.
     """
     async def retired_route(request: Request):
         await principal(request)
@@ -81,12 +82,6 @@ _RUN_RENAMES = {
 
 def _compat(request):
     return getattr(getattr(getattr(request, 'app', None), 'state', None), 'automation', None) if request is not None else None
-
-
-async def _switch(request, task_id):
-    svc = _compat(request)
-    bridge = getattr(svc, 'scheduler_compat', None) if svc else None
-    return await bridge.switch(task_id) if bridge else None
 
 
 async def _legacy_update(request, task_id, patch):
@@ -344,18 +339,6 @@ async def get_task(task_id: str, request: Request = None):
     return _ok(task=_public(task))
 
 
-@router.post("/tasks/{task_id}/owner-switch")
-async def switch_owner(task_id: str, request: Request = None):
-    """Explicit idempotent legacy Schedule -> Event owner switch."""
-    try:
-        task = await _switch(request, task_id)
-    except (ValueError, KeyError) as exc:
-        return _err('legacy_unmappable', str(exc))
-    if task is None:
-        return _err('legacy_unmappable', 'Scheduler compatibility runtime unavailable or record is not losslessly mapped')
-    return _ok(task=_public(scheduler_store.get_task(task_id) or task), switched=True)
-
-
 @router.patch("/tasks/{task_id}")
 async def update_task(task_id: str, data: dict, request: Request = None):
     """Retired legacy producer; authentication and refusal precede all work."""
@@ -457,7 +440,6 @@ RETIRED_ROUTES = {
     ("POST", "/tasks/{task_id}/pause"),
     ("POST", "/tasks/{task_id}/resume"),
     ("POST", "/tasks/{task_id}/run-now"),
-    ("POST", "/tasks/{task_id}/owner-switch"),
     ("POST", "/event-sources"),
     ("PUT", "/event-sources/{sid}"),
     ("DELETE", "/event-sources/{sid}"),

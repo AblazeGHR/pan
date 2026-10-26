@@ -39,8 +39,7 @@ Tools exposed:
     - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
     - agent_message_job_create/get/list/update/cancel: Schedule Session messages or broadcasts
     - agent_send_many: Send one message to selected Sessions
-    - scheduler_create/list/get/update/delete/pause/resume/run_now/runs:
-      Scheduled tasks (闹钟式定时任务：设定任务文本 + 触发时间/重复规则，到点自动派给目标 session)
+    - scheduler_list/get/runs: Read-only historical scheduled tasks and execution history
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_restart_delayed: Restart a live Worker at its next valid idle boundary
     - agent_restart_delayed_status: Read the delayed restart receipt without mutation
@@ -2140,8 +2139,6 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
         suffix = "/receipt" if operation == "receipt" else ""
         return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
 
-
-
 @mcp.tool()
 def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[str] | None = None,
                 session_id: str | None = None, mode: str = "silent", limit: int = 100) -> dict:
@@ -2476,7 +2473,7 @@ def agent_background_retry(job_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Scheduled tasks（定时任务插件）— /api/scheduler/* 的 MCP 薄封装
+# Historical scheduled tasks — read-only /api/scheduler/tasks projection
 # ---------------------------------------------------------------------------
 
 _SCHEDULER_TASKS_PATH = "/api/scheduler/tasks"
@@ -2514,96 +2511,6 @@ def _scheduler_target_of(payload: object) -> str | None:
 
 def _scheduler_task_path(task_id: str, suffix: str = "") -> str:
     return f"{_SCHEDULER_TASKS_PATH}/{quote(task_id, safe='')}{suffix}"
-
-
-def _scheduler_task_call(method: str, task_id: str, target_session_id: str | None,
-                         body: dict | None = None, suffix: str = "") -> dict:
-    """Resolve → authorize (claim=True) → mutate，鉴权失败绝不发出写请求。"""
-    if not _scheduler_identity():
-        return {"error": "missing_identity"}
-    target = target_session_id or _scheduler_target_of(
-        _api("GET", _scheduler_task_path(task_id)))
-    denied = _scheduler_auth(target, claim=True)
-    if denied:
-        return denied
-    return _api(method, _scheduler_task_path(task_id, suffix), body)
-
-
-@mcp.tool()
-def scheduler_create(
-    target_session_id: str,
-    text: str,
-    kind: str,
-    name: str | None = None,
-    at: str | None = None,
-    interval_sec: int | None = None,
-    cron: str | None = None,
-    timezone: str | None = None,
-    enabled: bool = True,
-    max_runs: int | None = None,
-    misfire_policy: str | None = None,
-) -> dict:
-    """Create a scheduled task: a todo + a trigger time, dispatched to a session like an alarm.
-
-    像手机闹钟：提前设定「任务文本 + 触发时间 + 重复规则」，到点插件自动把
-    `text` 派发给 `target_session_id` 的 worker 执行（等价于到点替你发一次
-    agent_assign）。也可以给自己排一条「半小时后回来检查」的提醒。
-
-    三种 schedule（用 `kind` 选择，注意各自必填参数）：
-    - once：一次性。`at` = 本地朴素时间 "YYYY-MM-DDTHH:MM:SS"（如
-      "2026-09-16T09:00:00"），到点触发一次后自动停用。
-    - interval：固定间隔。`interval_sec` = 间隔秒数（>0，如 1800 = 每 30 分钟），
-      按创建锚点推进、不漂移。
-    - cron：日历重复。`cron` = 5 段表达式 "分 时 日 月 周"，如
-      "0 9 * * 1-5" = 每工作日 9:00，"*/30 * * * *" = 每 30 分钟；周 0/7 = 周日。
-
-    返回后端原样结果：成功 {"ok": true, "task": {...}}（含 nextFireAt）；
-    失败 {"ok": false, "error": {"code": ..., "message": ...}}，如
-    invalid_schedule / session_not_found。
-
-    Args:
-        target_session_id: 到点派发的目标 Agent（= session）ID；必须是自己或自己
-            managed 的 session，否则 permission_denied（写操作会自动 claim 未归属 session）
-        text: 到点要执行的任务文本（原样派发给目标 session）
-        kind: "once" | "interval" | "cron"
-        name: 任务名（展示用，建议填）
-        at: kind="once" 必填，本地时间 "YYYY-MM-DDTHH:MM:SS"
-        interval_sec: kind="interval" 必填，间隔秒数（>0）
-        cron: kind="cron" 必填，5 段 cron 表达式
-        timezone: IANA 时区名（默认取配置 scheduler.default_timezone，通常
-            "Asia/Shanghai"）；时间字符串本身不带时区
-        enabled: 总开关，False 则完全不参与扫描
-        max_runs: 最多触发次数，null = 无限；达到后自动停用
-        misfire_policy: 错过触发点的处理，"fire_now"（补派一次）| "skip"（跳过）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks。
-    完整编排流程见 /pan skill。
-    """
-    denied = _scheduler_auth(target_session_id, claim=True)
-    if denied:
-        return denied
-    schedule: dict = {"kind": kind}
-    if at:
-        schedule["at"] = at
-    if interval_sec is not None:
-        schedule["intervalSec"] = interval_sec
-    if cron:
-        schedule["cron"] = cron
-    if timezone:
-        schedule["timezone"] = timezone
-    body: dict = {
-        "targetSessionId": target_session_id,
-        "text": text,
-        "schedule": schedule,
-        "enabled": enabled,
-    }
-    if name:
-        body["name"] = name
-    if max_runs is not None:
-        body["maxRuns"] = max_runs
-    if misfire_policy:
-        body["misfirePolicy"] = misfire_policy
-    return _api("POST", _SCHEDULER_TASKS_PATH, body)
 
 
 @mcp.tool()
@@ -2655,115 +2562,6 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
         if denied:
             return denied
     return result
-
-
-@mcp.tool()
-def scheduler_update(
-    task_id: str,
-    target_session_id: str | None = None,
-    name: str | None = None,
-    text: str | None = None,
-    schedule: dict | None = None,
-    enabled: bool | None = None,
-    max_runs: int | None = None,
-    misfire_policy: str | None = None,
-) -> dict:
-    """Patch a scheduled task (only the provided fields are changed).
-
-    改 schedule 时后端会按新规则重算 nextFireAt。三种 schedule 见
-    `scheduler_create`：once（at）/ interval（intervalSec）/ cron（cron，
-    如 "0 9 * * 1-5" = 每工作日 9:00）。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务当前派发的目标 session（省略时先只读解析再鉴权）
-        name: 新任务名
-        text: 新的任务文本
-        schedule: 新的 schedule dict，键 kind / at / intervalSec / anchor / cron /
-            timezone（如 {"kind": "cron", "cron": "0 9 * * 1-5"}）
-        enabled: 总开关（False 停用）
-        max_runs: 最多触发次数（null = 无限）
-        misfire_policy: "fire_now" | "skip"
-
-    调用链：身份校验 → _check_access(claim=True) → PATCH /api/scheduler/tasks/{task_id}。
-    完整编排流程见 /pan skill。
-    """
-    body: dict = {}
-    if name is not None:
-        body["name"] = name
-    if text is not None:
-        body["text"] = text
-    if schedule is not None:
-        body["schedule"] = schedule
-    if enabled is not None:
-        body["enabled"] = enabled
-    if max_runs is not None:
-        body["maxRuns"] = max_runs
-    if misfire_policy is not None:
-        body["misfirePolicy"] = misfire_policy
-    return _scheduler_task_call("PATCH", task_id, target_session_id, body)
-
-
-@mcp.tool()
-def scheduler_delete(task_id: str, target_session_id: str | None = None) -> dict:
-    """Delete a scheduled task.
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → DELETE /api/scheduler/tasks/{task_id}。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("DELETE", task_id, target_session_id)
-
-
-@mcp.tool()
-def scheduler_pause(task_id: str, target_session_id: str | None = None) -> dict:
-    """Pause a scheduled task (skips firing but keeps advancing nextFireAt).
-
-    与 enabled 的区别：enabled 是总开关（关掉后 nextFireAt 不再推进）；paused 是
-    临时挂起，跳过触发但时间锚点照常走，恢复后不会爆发补跑。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/pause。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/pause")
-
-
-@mcp.tool()
-def scheduler_resume(task_id: str, target_session_id: str | None = None) -> dict:
-    """Resume a paused scheduled task (no back-fill of missed fires).
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/resume。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/resume")
-
-
-@mcp.tool()
-def scheduler_run_now(task_id: str, target_session_id: str | None = None) -> dict:
-    """Trigger a scheduled task immediately, without touching its nextFireAt.
-
-    手动立即派发一次（用独立的 dispatch_key 幂等，不影响后续自动触发节奏）。
-    派发是异步的：本工具返回只代表已触发，执行结果看 scheduler_runs 历史。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/run-now。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/run-now")
 
 
 @mcp.tool()
@@ -3415,22 +3213,28 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
 
 
 # R5 retirement: historical Job writes are no longer discoverable or callable
-# through MCP.  Their tool functions stay defined for R6 source removal; the
-# registrations are withdrawn here so ``tools/list`` and ``tools/call`` agree.
+# through MCP. Scheduler write functions were removed in R6-C; other retired
+# functions remain pending their own source-removal packages. ``tools/list``
+# and ``tools/call`` agree on both kinds of tombstone.
 # Retained on purpose: reads (get/list/runs) and the explicit cancels.  A legacy
 # Job that still owns a Runner process must remain inspectable and cancellable
 # until its owner is drained; an orphaned process is worse than a stale read.
-RETIRED_MCP_TOOLS = (
-    "agent_background_start",
-    "agent_background_retry",
-    "agent_message_job_create",
-    "agent_message_job_update",
+# R6-C source tombstones: never registered, even temporarily.
+REMOVED_SCHEDULER_MCP_TOOLS = (
     "scheduler_create",
     "scheduler_update",
     "scheduler_delete",
     "scheduler_pause",
     "scheduler_resume",
     "scheduler_run_now",
+)
+
+RETIRED_MCP_TOOLS = (
+    "agent_background_start",
+    "agent_background_retry",
+    "agent_message_job_create",
+    "agent_message_job_update",
+    *REMOVED_SCHEDULER_MCP_TOOLS,
 )
 RETAINED_LEGACY_MCP_TOOLS = (
     "agent_background_get",
@@ -3444,7 +3248,8 @@ RETAINED_LEGACY_MCP_TOOLS = (
     "scheduler_runs",
 )
 for _retired_tool in RETIRED_MCP_TOOLS:
-    mcp.remove_tool(_retired_tool)
+    if _retired_tool not in REMOVED_SCHEDULER_MCP_TOOLS:
+        mcp.remove_tool(_retired_tool)
 _registered_tools = {tool.name for tool in mcp._tool_manager.list_tools()}
 for _retained_tool in RETAINED_LEGACY_MCP_TOOLS:
     assert _retained_tool in _registered_tools, f"Retained legacy tool disappeared: {_retained_tool}"

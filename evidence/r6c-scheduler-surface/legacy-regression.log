@@ -1,0 +1,48 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p15-r6-scheduler-surface-20261025
+FFFF.................................................................... [ 85%]
+............                                                             [100%]
+================================== FAILURES ===================================
+_________________ test_tick_dispatches_and_advances_next_fire _________________
+tests\test_scheduler_integration.py:97: in test_tick_dispatches_and_advances_next_fire
+    task = _create(client, schedule={"kind": "interval", "intervalSec": 60})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_integration.py:73: in _create
+    assert response.status_code == 200, response.text
+E   AssertionError: {"detail":"Authorization unavailable"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_____________ test_run_now_dispatches_without_advancing_next_fire _____________
+tests\test_scheduler_integration.py:137: in test_run_now_dispatches_without_advancing_next_fire
+    task = _create(client, schedule={"kind": "cron", "cron": "*/5 * * * *"})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_integration.py:73: in _create
+    assert response.status_code == 200, response.text
+E   AssertionError: {"detail":"Authorization unavailable"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_____________ test_http_exports_camel_case_fields_frontend_reads ______________
+tests\test_scheduler_integration.py:170: in test_http_exports_camel_case_fields_frontend_reads
+    task = _create(client, schedule={"kind": "interval", "intervalSec": 1800})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_integration.py:73: in _create
+    assert response.status_code == 200, response.text
+E   AssertionError: {"detail":"Authorization unavailable"}
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+__________________________ test_error_envelope_shape __________________________
+tests\test_scheduler_integration.py:202: in test_error_envelope_shape
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_integration.py::test_tick_dispatches_and_advances_next_fire
+FAILED tests/test_scheduler_integration.py::test_run_now_dispatches_without_advancing_next_fire
+FAILED tests/test_scheduler_integration.py::test_http_exports_camel_case_fields_frontend_reads
+FAILED tests/test_scheduler_integration.py::test_error_envelope_shape - asser...
+4 failed, 80 passed, 1 warning in 26.24s

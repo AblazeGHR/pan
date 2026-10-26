@@ -499,20 +499,14 @@ Agent 创建的定时 Session-message Job 继续走普通 `agent_send_to_queue`�
 `////by agent : <creatorSessionId> | <title>` 前缀和 `sourceSessionId`，不会被
 误分类为系统通知。旧 Job JSON 缺失 `creatorSessionId` 时按无创建者兼容读取。
 
-### 定时任务（Scheduler，闹钟式）
+### 历史定时任务（Scheduler，只读）
 
-> 像闹钟：设定「任务文本 + 触发时间 + 重复规则」，到点自动把 `text` 派发给目标 session 的 worker（等价到点替你发一次 `agent_assign`）。三种 schedule 用 `kind` 选择：`once`（`at` 本地朴素时间）/ `interval`（`interval_sec` >0）/ `cron`（5 段表达式如 `0 9 * * 1-5`）。目标必须是自己或自己 managed 的 session；写操作会自动 claim 未归属 session，受 `_check_access` 隔离。
+> 仅保留历史只读工具，不创建、修改、删除或立即触发任务。旧 scheduler 写工具已删除，调用返回 unknown tool。新周期任务使用 canonical Event Creator + Trigger + Job，按各工具 schema 提供 revision、request_key 并查询 operation envelope；历史任务 ID 不能代替 canonical ID。
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `scheduler_create` | `target_session_id`, `text`, `kind`, `name?`, `at?`, `interval_sec?`, `cron?`, `timezone?`, `enabled?`(默认 true), `max_runs?`, `misfire_policy?` | 创建定时任务。`kind` = `once`/`interval`/`cron`，各自必填参数见上；`timezone` 默认取配置（通常 `Asia/Shanghai`）；`max_runs` null = 无限；`misfire_policy` = `fire_now`/`skip`。返回 `{"ok":true,"task":{...含 nextFireAt}}` 或 `invalid_schedule`/`session_not_found` |
 | `scheduler_list` | `target_session_id?` | 列出定时任务（含 `nextFireAt`/`lastStatus`/`runCount`/`enabled`/`paused`）；按目标过滤在 MCP 层完成，省略 = 全部（只读） |
 | `scheduler_get` | `task_id`, `target_session_id?` | 读取单个任务（`sch_` 前缀 id） |
-| `scheduler_update` | `task_id`, `target_session_id?`, `name?`, `text?`, `schedule?`, `enabled?`, `max_runs?`, `misfire_policy?` | 部分更新；改 `schedule` 会重算 `nextFireAt` |
-| `scheduler_delete` | `task_id`, `target_session_id?` | 删除任务 |
-| `scheduler_pause` | `task_id`, `target_session_id?` | 挂起：跳过触发但时间锚点照常推进（与 `enabled=false` 总开关不同，后者停止推进） |
-| `scheduler_resume` | `task_id`, `target_session_id?` | 恢复挂起任务（不回补漏掉的触发） |
-| `scheduler_run_now` | `task_id`, `target_session_id?` | 立即手动触发一次（独立 dispatch_key 幂等，不影响后续节奏）；异步派发，结果看 `scheduler_runs` |
 | `scheduler_runs` | `task_id`, `target_session_id?`, `limit?`(默认 50) | 执行历史（新→旧）：`runId`/`fireAt`/`actualAt`/`status`(dispatched\|error\|skipped\|expired)/`sessionId`/`error` |
 
 ### 系统通知与提醒
