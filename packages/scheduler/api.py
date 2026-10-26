@@ -327,55 +327,9 @@ async def list_tasks(includeDisabled: bool = True, request: Request = None):
 
 @router.post("/tasks")
 async def create_task(data: dict, request: Request = None):
-    """创建定时任务。Body: {name?, targetSessionId, text, schedule, enabled?, maxRuns?, misfirePolicy?}"""
-    if not isinstance(data, dict):
-        return _err("invalid_argument", "request body must be a JSON object")
-
-    text = data.get("text")
-    if not isinstance(text, str) or not text.strip():
-        return _err("invalid_argument", "text is required")
-
-    target = data.get("targetSessionId") or data.get("target_session_id")
-    if not isinstance(target, str) or not target.strip():
-        return _err("invalid_argument", "targetSessionId is required")
-    if not _session_exists(target):
-        return _err("session_not_found", f"Session {target} not found")
-
-    spec, why = _validate_schedule(data.get("schedule"))
-    if why:
-        return _err("invalid_schedule", why)
-
-    max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
-    if why:
-        return _err("invalid_argument", why)
-
-    policy = data.get("misfirePolicy", data.get("misfire_policy"))
-    if policy is None:
-        policy = "fire_now"
-    if policy not in _MISFIRE_POLICIES:
-        return _err("invalid_argument",
-                    f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
-
-    payload = {
-        "name": data.get("name") if isinstance(data.get("name"), str) else "",
-        "description": data.get("description") if isinstance(data.get("description"), str) else "",
-        "target_session_id": target,
-        "text": text,
-        "enabled": _as_bool(data.get("enabled"), True),
-        "paused": False,
-        "schedule": spec,
-        "max_runs": max_runs,
-        "misfire_policy": policy,
-    }
-    try:
-        task = scheduler_store.create_task(payload)
-        switched = await _switch(request, task['id'])
-        if switched:
-            task = scheduler_store.get_task(task['id']) or task
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    _emit_task("scheduler.task.created", task)
-    return _ok(task=_public(task))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.get("/tasks/{task_id}")
@@ -404,63 +358,9 @@ async def switch_owner(task_id: str, request: Request = None):
 
 @router.patch("/tasks/{task_id}")
 async def update_task(task_id: str, data: dict, request: Request = None):
-    """局部更新：name / text / targetSessionId / schedule / enabled / paused / maxRuns / misfirePolicy。"""
-    if not isinstance(data, dict):
-        return _err("invalid_argument", "request body must be a JSON object")
-    if scheduler_store.get_task(task_id) is None:
-        return _err("not_found", f"task {task_id} not found")
-
-    patch: dict = {}
-    if "name" in data:
-        if not isinstance(data["name"], str):
-            return _err("invalid_argument", "name must be a string")
-        patch["name"] = data["name"]
-    if "description" in data:
-        if not isinstance(data["description"], str):
-            return _err("invalid_argument", "description must be a string")
-        patch["description"] = data["description"]
-    if "text" in data:
-        if not isinstance(data["text"], str) or not data["text"].strip():
-            return _err("invalid_argument", "text must be a non-empty string")
-        patch["text"] = data["text"]
-    if "targetSessionId" in data or "target_session_id" in data:
-        target = data.get("targetSessionId") or data.get("target_session_id")
-        if not isinstance(target, str) or not target.strip():
-            return _err("invalid_argument", "targetSessionId is required")
-        if not _session_exists(target):
-            return _err("session_not_found", f"Session {target} not found")
-        patch["target_session_id"] = target
-    if "schedule" in data:
-        spec, why = _validate_schedule(data["schedule"])
-        if why:
-            return _err("invalid_schedule", why)
-        patch["schedule"] = spec
-    if "enabled" in data:
-        patch["enabled"] = _as_bool(data["enabled"], False)
-    if "paused" in data:
-        patch["paused"] = _as_bool(data["paused"], False)
-    if "maxRuns" in data or "max_runs" in data:
-        max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
-        if why:
-            return _err("invalid_argument", why)
-        patch["max_runs"] = max_runs
-    if "misfirePolicy" in data or "misfire_policy" in data:
-        policy = data.get("misfirePolicy", data.get("misfire_policy"))
-        if policy not in _MISFIRE_POLICIES:
-            return _err("invalid_argument",
-                        f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
-        patch["misfire_policy"] = policy
-
-    try:
-        task = await _legacy_update(request, task_id, patch)
-        if task is None:
-            task = scheduler_store.update_task(task_id, patch)
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", task)
-    return _ok(task=_public(task))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.delete("/tasks/{task_id}")
@@ -488,57 +388,23 @@ async def delete_task(task_id: str, request: Request = None):
 
 @router.post("/tasks/{task_id}/pause")
 async def pause_task(task_id: str, request: Request = None):
-    """暂停（跳过触发，但 next_fire_at 仍按锚点推进，恢复后不爆发补跑）。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    updated = await _legacy_update(request, task_id, {"paused": True})
-    if updated is None:
-        updated = scheduler_store.update_task(task_id, {"paused": True})
-    if updated is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", updated)
-    return _ok(task=_public(updated))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/resume")
 async def resume_task(task_id: str, request: Request = None):
-    """恢复暂停的任务。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    updated = await _legacy_update(request, task_id, {"paused": False})
-    if updated is None:
-        updated = scheduler_store.update_task(task_id, {"paused": False})
-    if updated is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", updated)
-    return _ok(task=_public(updated))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/run-now")
 async def run_task_now(task_id: str, request: Request = None):
-    """立即触发一次（不影响 next_fire_at 的正常推进）。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    try:
-        job = scheduler_store._job_for_task(task_id)
-        svc = _compat(request); bridge = getattr(svc, 'scheduler_compat', None) if svc else None
-        result = await bridge.run_now(task_id) if job and job.get('legacySchedulerCompat') and bridge else await scheduler_engine.run_now(task_id)
-    except RuntimeError as exc:
-        return _err("engine_not_running", str(exc))
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    if isinstance(result, dict) and result.get("error"):
-        error = result["error"]
-        if isinstance(error, dict):
-            return _err(str(error.get("code") or "engine_not_running"),
-                        str(error.get("message") or "run-now failed"))
-        return _err("engine_not_running", str(error))
-    current = scheduler_store.get_task(task_id) or task
-    _emit_task("scheduler.task.fired", current, run=result)
-    return _ok(run=result, task=_public(current))
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.get("/tasks/{task_id}/runs")

@@ -105,11 +105,11 @@ def test_old_stores_are_readable_and_all_new_writes_refused(h, tmp_path):
             assert exc.value.status == 410
             with pytest.raises(ServiceError):
                 independent.retry("job_missing")
-            with pytest.raises(fc.ContractError):
+            with pytest.raises(AttributeError, match="retired"):
                 await legacy.run_due_message_jobs()
-            with pytest.raises(fc.ContractError):
+            with pytest.raises(AttributeError, match="retired"):
                 await legacy.run_due_scheduled_tasks()
-            with pytest.raises(fc.ContractError):
+            with pytest.raises(AttributeError, match="retired"):
                 await legacy.recover_notifications()
             assert legacy.get("job_fixture")["text"] == "old"
             assert ledger.read()["runs"]["old"]["status"] == "running"

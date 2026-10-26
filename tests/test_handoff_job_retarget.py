@@ -4,7 +4,6 @@ import asyncio
 import concurrent.futures
 import json
 import threading
-import time
 
 from packages.core import background_jobs as jobs
 from packages.core import session as sess
@@ -315,44 +314,31 @@ def test_successful_handoff_keeps_successor_visible_when_one_job_write_fails(
     assert any(event.get("jobRetarget") == result["jobRetarget"] for event in events)
 
 
-def test_inflight_message_send_cannot_be_recalled_but_next_run_uses_retargeted_id(
-        tmp_path, monkeypatch):
+def test_retired_message_cannot_send_and_handoff_keeps_original_identity(tmp_path, monkeypatch):
+    import pytest
+
     root = tmp_path / "registry"
     _session(OLD, tmp_path)
-    started = asyncio.Event()
-    release = asyncio.Event()
     calls = []
 
-    async def send(session_id, text, **kwargs):
-        calls.append(session_id)
-        if len(calls) == 1:
-            started.set()
-            await release.wait()
-        return {"status": "queued", "sessionId": session_id}
+    async def forbidden(*args, **kwargs):
+        calls.append(args)
+        pytest.fail("retired message host sent a notice")
 
-    monkeypatch.setattr(worker, "send_session", send)
-    job = jobs.start_message(
-        OLD, "repeat", {"type": "interval", "intervalSeconds": 1},
-        registry_root=root)
-    due = time.time() + 2
-
-    async def exercise():
-        running = asyncio.create_task(
-            jobs.run_due_message_jobs(now=due, registry_root=root))
-        await asyncio.wait_for(started.wait(), timeout=5)
-        changed = jobs.retarget_session_jobs(OLD, NEW, registry_root=root)
-        assert changed["updated"] == 1
-        release.set()
-        assert await asyncio.wait_for(running, timeout=5) == 1
-
-        stored = jobs.get(job["jobId"], registry_root=root)
-        assert stored["status"] == "scheduled"
-        assert stored["targetSessionId"] == NEW
-        jobs._update(job["jobId"], {
-            "nextRunAt": jobs._iso_utc(time.time() - 1),
-        }, registry_root=root)
-        assert await jobs.run_due_message_jobs(
-            now=time.time() + 2, registry_root=root) == 1
-
-    asyncio.run(exercise())
-    assert calls == [OLD, NEW]
+    monkeypatch.setattr(worker, "send_session", forbidden)
+    original = {"jobId": "job_retained_message", "kind": jobs.SESSION_MESSAGE_KIND,
+                "status": "unknown", "enabled": False, "targetSessionId": OLD,
+                "receipt": {"originalKey": "original-receipt", "status": "unknown"}}
+    jobs._create(original, registry_root=root)
+    before = jobs.get(original["jobId"], root)
+    for name in ("start_message", "run_due_message_jobs"):
+        with pytest.raises(AttributeError, match="retired"):
+            getattr(jobs, name)
+    assert jobs.get(original["jobId"], root) == before
+    changed = jobs.retarget_session_jobs(OLD, NEW, registry_root=root)
+    assert changed["updated"] == 1
+    current = jobs.get(original["jobId"], root)
+    assert current["jobId"] == original["jobId"]
+    assert current["targetSessionId"] == NEW and current["receipt"] == original["receipt"]
+    assert current["status"] == "unknown" and not current["enabled"]
+    assert calls == []

@@ -1,0 +1,14 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p13-r6-leaves-20261025
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+  warnings.warn(
+{"passed": 297, "failed": 10, "excluded": 27}
+{"module": "packages.qq.bot", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.channels", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.channels.llonebot", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.channels.napcat", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.channels.onebot", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.channels.snowluma", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.plugin", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.test_channels", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.test_qq_api", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}
+{"module": "packages.qq.test_snowluma_accounts", "status": "error", "type": "ModuleNotFoundError", "message": "No module named 'nonebot'"}

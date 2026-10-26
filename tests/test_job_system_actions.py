@@ -40,9 +40,9 @@ def test_compatibility_effect_uses_persisted_snapshot_and_cleans(tmp_path, monke
         before = jobs.get(job['jobId'], tmp_path)
         async def forbidden(*args): pytest.fail('retired dispatcher performed an effect')
         for dispatch_key in ('original', 'retry'):
-            with pytest.raises(PermissionError, match='retired'):
+            with pytest.raises(AttributeError, match='retired'):
                 await system.invoke(job, dispatch_key, forbidden, tmp_path)
-            with pytest.raises(PermissionError, match='retired'):
+            with pytest.raises(AttributeError, match='retired'):
                 await system.execute(system.definition('scheduled-task'), {}, {}, forbidden)
         assert jobs.get(job['jobId'], tmp_path) == before
         assert system.recovery_ready(system.definition('background-process'), {}) is False
@@ -55,9 +55,9 @@ def test_write_failure_blocks_effect_and_unknown_does_not_replay(tmp_path, monke
         before = jobs.get(job['jobId'], tmp_path)
         async def forbidden(*args): pytest.fail('retired dispatcher performed an effect')
         for dispatch_key in ('original', 'retry'):
-            with pytest.raises(PermissionError, match='retired'):
+            with pytest.raises(AttributeError, match='retired'):
                 await system.invoke(job, dispatch_key, forbidden, tmp_path)
-            with pytest.raises(PermissionError, match='retired'):
+            with pytest.raises(AttributeError, match='retired'):
                 await system.execute(system.definition('scheduled-task'), {}, {}, forbidden)
         assert jobs.get(job['jobId'], tmp_path) == before
         assert system.recovery_ready(system.definition('background-process'), {}) is False

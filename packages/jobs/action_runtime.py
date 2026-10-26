@@ -609,7 +609,7 @@ class Runtime:
                 except Exception as exc:raise SnapshotPersistenceError(str(exc)) from exc
             progress.checkpoint={'id':job['execution']['runId'],**copy.deepcopy(job['execution'].get('recoveryCheckpoint',{}))}
             progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'),job['execution']['authorization'],job['execution'].get('authorizationRevision'))
-            from .system_actions import execute as execute_system
+            from .retired import reject_execution as execute_system
             progress.execute_system=execute_system
             if job['execution']['attemptCount']>1 and job['execution']['policy']['recovery']['enabled']:
                 from .system_actions import recovery_ready

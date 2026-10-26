@@ -4,7 +4,6 @@ import json
 import math
 import os
 import sys
-import threading
 from contextlib import contextmanager
 
 import pytest
@@ -305,69 +304,34 @@ def test_invalid_persisted_retention_config_disables_automatic_deletion(
     assert jobs.get("job_invalid_config", root) is not None
 
 
-def test_recovery_cycle_invokes_the_retention_gate(retention_env, monkeypatch):
-    import asyncio
-
+def test_retired_recovery_never_drives_retention(retention_env, monkeypatch):
     called = []
-
-    async def no_op(*, registry_root=None):
-        return 0
-
-    monkeypatch.setattr(jobs, "run_due_message_jobs", no_op)
-    monkeypatch.setattr(jobs, "run_due_scheduled_tasks", no_op)
-    monkeypatch.setattr(jobs, "reconcile_running", lambda registry_root=None: 0)
-    monkeypatch.setattr(jobs, "run_completed_job_retention",
-                        lambda **kwargs: called.append(("retention", kwargs)))
-
-    asyncio.run(jobs.recover_notifications())
-
-    assert called == [("retention", {"emit_events": False})]
+    monkeypatch.setattr(jobs, "run_completed_job_retention", lambda **kw: called.append(kw))
+    with pytest.raises(AttributeError, match="retired"):
+        getattr(jobs, "recover_notifications")
+    assert called == []
 
 
-def test_recovery_runs_retention_off_loop_and_emits_deleted_event_on_loop(
-        retention_env, monkeypatch):
+def test_explicit_retention_still_emits_deleted_event(retention_env, monkeypatch):
     import asyncio
 
     root, config_path = retention_env
     _record(root, "job_thread_deleted", updated_at=0)
-    _write_config(config_path, {"jobs": {
-        "completedRetention": {"enabled": True, "days": 1},
-    }})
-
-    async def no_op(*, registry_root=None):
-        return 0
-
-    monkeypatch.setattr(jobs, "run_due_message_jobs", no_op)
-    monkeypatch.setattr(jobs, "run_due_scheduled_tasks", no_op)
-    monkeypatch.setattr(jobs, "reconcile_running", lambda registry_root=None: 0)
-    worker_calls = []
-    original_cleaner = jobs.cleanup_completed_jobs
-
-    def counted_cleaner(**kwargs):
-        worker_calls.append((threading.get_ident(), kwargs["emit_events"]))
-        return original_cleaner(**kwargs)
-
-    monkeypatch.setattr(jobs, "cleanup_completed_jobs", counted_cleaner)
+    _write_config(config_path, {"jobs": {"completedRetention": {"enabled": True, "days": 1}}})
     broadcasts = []
 
     async def broadcast(event):
-        broadcasts.append((event, threading.get_ident(), asyncio.get_running_loop()))
+        broadcasts.append((event, asyncio.get_running_loop()))
 
     jobs_api.bind(broadcast=broadcast)
 
     async def exercise():
         loop = asyncio.get_running_loop()
-        loop_thread = threading.get_ident()
-        await jobs.recover_notifications()
+        result = await asyncio.to_thread(jobs.run_completed_job_retention, emit_events=False)
+        assert result["deletedJobIds"] == ["job_thread_deleted"]
+        jobs._emit_retention_deleted(result["deletedJobIds"])
         await asyncio.sleep(0)
-        assert len(worker_calls) == 1
-        assert worker_calls[0][1] is False
-        assert worker_calls[0][0] != loop_thread
-        assert broadcasts == [(
-            {"type": "job.deleted", "jobId": "job_thread_deleted"},
-            loop_thread,
-            loop,
-        )]
+        assert broadcasts == [({"type": "job.deleted", "jobId": "job_thread_deleted"}, loop)]
 
     asyncio.run(exercise())
     assert jobs.get("job_thread_deleted", root) is None

@@ -136,15 +136,16 @@ def test_store_engine_bridge_imports_and_old_api_reads_survive_cutover(tmp_path,
             lambda: store.create_task({}), lambda: store.update_task(task['id'], {'enabled': True}),
             lambda: store.delete_task(task['id']), lambda: store.replace_task_schedule(task['id'], []),
             lambda: store.set_task_misfire_policy(task['id'], 'skip'), lambda: store.append_run({}),
-            store.migrate_legacy_tasks, store._merge_legacy_runs, engine._ensure_registered,
-            lambda: asyncio.run(engine.start_loop()), lambda: asyncio.run(engine.tick_once()),
-            lambda: asyncio.run(engine.run_now(task['id'])),
+            store.migrate_legacy_tasks, store._merge_legacy_runs,
             lambda: asyncio.run(bridge.switch(task['id'])), lambda: asyncio.run(bridge.update(task['id'], {})),
             lambda: asyncio.run(bridge.run_now(task['id'])), lambda: asyncio.run(bridge.delete(task['id'])),
             lambda: bridge.project_cursor('old'),
         ):
             with pytest.raises(fc.ContractError, match='fence'):
                 operation()
+        for name in ('_ensure_registered', 'start_loop', 'tick_once', 'run_now'):
+            with pytest.raises(AttributeError, match='retired'):
+                getattr(engine, name)
         assert all(path.read_bytes() == value for path, value in before.items())
     finally:
         owner.release()

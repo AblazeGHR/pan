@@ -1,7 +1,7 @@
 """Canonical typed executor port and non-executing historical audit helpers.
 
-Legacy definitions, snapshots and settlement readers remain until R6. Legacy
-dispatchers explicitly refuse execution; protected lifecycle uses its own port.
+Legacy definitions, snapshots and settlement helpers remain for retained hosts.
+R6-A removed the legacy dispatchers; protected lifecycle uses its own port.
 """
 import copy
 import hashlib
@@ -34,7 +34,6 @@ async def execute_typed(*, attempt, effect_key, frozen_plan, retry=False, execut
     return await (executor if executor is not None else TypedExecutor(**executor_options)).execute(
         attempt=attempt, effect_key=effect_key, frozen_plan=frozen_plan, retry=retry
     )
-
 
 
 # Historical definitions remain readable until R6; their authority belongs to
@@ -144,10 +143,6 @@ def sync(job, created=False):
         finish(job, job['status'])
 
 
-async def invoke(job, dispatch_key, effect, registry_root=None):
-    raise PermissionError("Legacy system Action execution retired; use execute_typed with a canonical Attempt")
-
-
 def settle(job_id, status, receipt, registry_root):
     from packages.core import background_jobs as jobs
     with jobs._lock, jobs._job_lock(job_id, registry_root):
@@ -202,5 +197,13 @@ async def wait_process(child, root):
         if not _waiters[jid]: _waiters.pop(jid, None)
 
 
-async def execute(action, params, context, progress):
-    raise PermissionError("Legacy system Action execution retired; use execute_typed with a canonical Attempt")
+# Removed R6-A leaves are absent; stale Python callers receive an explicit refusal.
+_RETIRED_ENTRYPOINTS = frozenset({
+    'invoke',
+    'execute',
+})
+
+
+def __getattr__(name):
+    from packages.jobs.retired import missing
+    return missing(name, _RETIRED_ENTRYPOINTS)

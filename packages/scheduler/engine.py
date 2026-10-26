@@ -1,28 +1,17 @@
-"""调度引擎 shim —— 独立 tick 循环已并入统一 job 内核（P1 统一）。
+"""Legacy scheduler configuration, status and nonexecuting preview facade.
 
-``packages.core.background_jobs`` 的 recovery loop 现在每轮调用
-``run_due_scheduled_tasks``（认领 → 派发 → stale requeue），本模块只保留：
-
-- :func:`start_loop` / :func:`stop_loop`：注册数据根/配置/事件回调 + 触发
-  迁移；**不再自起循环，leader 锁退役**（per-job 认领天然多实例安全）；
-- :func:`tick_once`：统一一轮的薄封装（测试 / 手动驱动用）；
-- :func:`run_now` / :func:`preview_next` / :func:`status`：契约不变的引擎动作。
-
-事件负载形状与 PR 完全一致（``scheduler.task.fired`` 等），前端面板无感。
-设计文档：``docs/design/job-unification/DESIGN_DISPATCH_CLAIM_FUSION.md``。
+R6-A removed the unmounted legacy start/tick/run-now host. Canonical time
+providers own scheduling; historical tasks and runs remain in the store.
 """
 
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
-import uuid
 from datetime import datetime
 
 from packages.core import background_jobs
 from packages.jobs import cron
-from packages.jobs.runtime_owner import legacy_writer
 from . import store
 
 _log = logging.getLogger(__name__)
@@ -65,77 +54,7 @@ def scheduler_config() -> dict:
     return cfg
 
 
-def _emit(event: dict) -> None:
-    """统一循环的事件回调入口 → start_loop 注入的 ``_on_event``。"""
-    callback = _on_event
-    if callback is None:
-        return
-    try:
-        result = callback(event)
-    except Exception:
-        _log.exception("scheduler: on_event 回调异常")
-        return
-    if inspect.isawaitable(result):
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop is not None:
-            loop.create_task(_consume(result))
-        else:
-            close = getattr(result, "close", None)
-            if callable(close):
-                close()
-
-
-async def _emit_strict(event: dict) -> bool:
-    """统一循环严格发射：直连 scheduler_api.emit_strict，不经吞异常的
-    on_event 链，把成功/失败如实返回给需要重试语义的调用方。"""
-    from packages.scheduler.api import emit_strict
-
-    return await emit_strict(event)
-
-
-async def _consume(awaitable) -> None:
-    try:
-        await awaitable
-    except Exception:
-        _log.exception("scheduler: on_event 异步回调异常")
-
-
-@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
-def _ensure_registered() -> None:
-    """把本插件的数据根 / 配置 / 事件回调注册进统一内核（幂等）。
-
-    resolver 用 lambda 延迟求值，测试期 monkeypatch ``store.DEFAULT_ROOT`` /
-    ``scheduler_config`` 仍然生效。
-    """
-    background_jobs.register_scheduled_tasks(
-        root_resolver=lambda: str(store.data_root()),
-        config_resolver=lambda: scheduler_config(),
-        on_event=_emit,
-        on_event_strict=_emit_strict,
-    )
-
-
 # ── 生命周期（循环已统一，这里只做注册 + 迁移）──
-
-
-@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
-async def start_loop(on_event=None) -> None:
-    """注册进统一循环；幂等。leader 锁已退役。"""
-    global _on_event
-    if on_event is not None:
-        _on_event = on_event
-    _ensure_registered()
-    try:
-        migrated = store.migrate_legacy_tasks()
-        if migrated:
-            _log.info("scheduler: 迁移了 %d 个旧任务到统一注册表", migrated)
-    except Exception:
-        _log.exception("scheduler: 旧任务迁移失败（下次启动重试）")
-    if not scheduler_config().get("enabled", True):
-        _log.info("scheduler: 配置关闭（scheduler.enabled=false），统一循环将跳过扫描")
 
 
 async def stop_loop() -> None:
@@ -159,110 +78,7 @@ def status() -> dict:
     }
 
 
-@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
-async def tick_once() -> int:
-    """扫一轮到期任务（统一循环同一入口；测试/手动驱动用）。"""
-    _ensure_registered()
-    handled = await background_jobs.run_due_scheduled_tasks()
-    _stats["due_scanned"] = int(_stats.get("due_scanned") or 0) + handled
-    _stats["last_tick_at"] = background_jobs.scheduled_task_stats().get("lastTickAt")
-    return handled
-
-
 # ── 手动触发 / 预览 ──
-
-
-@legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
-async def run_now(task_id: str) -> dict:
-    """手动立即触发一次；**不推进** next_fire_at（契约不变）。"""
-    task = store.get_task(task_id)
-    if task is None:
-        return {"ok": False, "error": {"code": "not_found",
-                                       "message": f"任务不存在：{task_id}"}}
-    job = store._job_for_task(task_id)
-    if job is None:
-        return {"ok": False, "error": {"code": "not_found",
-                                       "message": f"任务不存在：{task_id}"}}
-    from packages.jobs.action_runtime import is_protected_job as is_action_job
-    if is_action_job(job):
-        return {'ok':False,'error':{'code':'user_confirmation_required','message':'Use protected Action Job runtime'}}
-    now = datetime.now().replace(microsecond=0)
-    action = job.get("action")
-    action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
-    if (action_api not in {"shell", "send_qq",
-                           background_jobs.RESUME_LEGAL_RUNNING_ACTION}
-            and not task.get("target_session_id")):
-        return {"ok": False, "error": {"code": "invalid_argument",
-                                       "message": "target session is required"}}
-    dispatch_key = (f"{task_id}:manual:{uuid.uuid4().hex}"
-                    if action_api in {"shell", "send_qq"}
-                    else f"{task_id}:{int(now.timestamp())}")
-    try:
-        result = await background_jobs._run_job_action(
-            job, task.get("target_session_id"), dispatch_key,
-            fire_at=store.iso(now), entry_id="manual",
-            registry_root=store.data_root())
-    except Exception as exc:
-        result = {"status": "error", "result": str(exc)}
-    if not isinstance(result, dict):
-        result = {"status": "error", "result": f"unexpected action result: {result!r}"}
-    result_status = str(result.get("status") or "error")
-    ok = result_status not in {"error", "failed", "cancelled"}
-    record_status = ("running" if result_status == "running" else
-                     "completed" if result_status == "completed" else
-                     "dispatched" if ok else "error")
-    error = None if ok else str(result.get("error") or result.get("result") or "执行失败")
-    record = {
-        "run_id": uuid.uuid4().hex[:12],
-        "task_id": task_id,
-        "fire_at": store.iso(now),
-        "actual_at": store.iso(datetime.now().replace(microsecond=0)),
-        "dispatch_key": dispatch_key,
-        "status": record_status,
-        "session_id": task.get("target_session_id"),
-        "worker_id": result.get("workerId"),
-        "error": error,
-        "result": result,
-    }
-    if result.get("processJobId"):
-        background_jobs._append_task_run(
-            job, task_id, now, dispatch_key, record_status, error,
-            store.data_root(), entry_id="manual", result=result)
-    else:
-        try:
-            store.append_run(record)
-        except Exception:
-            pass
-
-    run_count = int(task.get("run_count") or 0) + 1
-    patch: dict = {
-        "last_fire_at": store.iso(now),
-        "last_status": record_status,
-        "last_error": error,
-        "run_count": run_count,
-    }
-    background_jobs.update_job_field(
-        job["jobId"], {"lastDelivery": result}, registry_root=store.data_root())
-    max_runs = task.get("max_runs")
-    if isinstance(max_runs, int) and run_count >= max_runs:
-        patch["enabled"] = False
-        patch["next_fire_at"] = None
-    updated = store.update_task(task_id, patch)
-
-    _emit({"type": "scheduler.task.fired", "taskId": task_id,
-           "fireAt": store.iso(now), "dispatchKey": dispatch_key,
-           "status": record_status, "error": error, "terminal": True})
-    updated_job = background_jobs.get(job["jobId"], registry_root=store.data_root())
-    if updated_job:
-        _emit({"type": "job.updated", "jobId": job["jobId"],
-               "job": background_jobs.job_public_view(updated_job)})
-    return {
-        "ok": True,
-        "taskId": task_id,
-        "dispatchKey": dispatch_key,
-        "status": record_status,
-        "run": record,
-    }
 
 
 async def preview_next(task_id: str | None = None, count: int = 5) -> list[dict]:
@@ -290,3 +106,20 @@ async def preview_next(task_id: str | None = None, count: int = 5) -> list[dict]
             preview.append({"taskId": task.get("id"), "fireAt": store.iso(point)})
     preview.sort(key=lambda item: (str(item["fireAt"]), str(item["taskId"])))
     return preview[:count]
+
+
+# Removed R6-A leaves are absent; stale Python callers receive an explicit refusal.
+_RETIRED_ENTRYPOINTS = frozenset({
+    '_emit',
+    '_emit_strict',
+    '_consume',
+    '_ensure_registered',
+    'start_loop',
+    'tick_once',
+    'run_now',
+})
+
+
+def __getattr__(name):
+    from packages.jobs.retired import missing
+    return missing(name, _RETIRED_ENTRYPOINTS)
