@@ -83,3 +83,22 @@ actual activeLegacy / oldOwner / unknownOwnership 清零没有证明，也未操
 私有目录保留：`copy-manifest.jsonl`、`copy-summary.json`、`copy-blockers.json`、中断清单/片段、`source-copy/`、`wp08-inventory.json`、`record-index.jsonl`、`references.json`、`object-identities.json`、`sqlite-inventory.json`、`status-counts.json`、`supplementary-counts.json`、`blockers.json`、`unapproved-context.json`、`apply-attempts.json`、`preservation-bundle-manifest.json`、`before-after-comparison.json`、测试 logs/JUnit。
 
 重新达到数据门禁至少需要：可验证的一致性/受控源快照；锁文件/链接/共享根的明确采集范围；unknown 与所有复杂/不确定/在途对象的处置；真实受控授权、固定 Action/provider 引用与策略上下文；Sessions/历史/Locker/outbox/independent 的正式导入或原键只读索引契约；随后在另一个隔离 canonical profile 完成实际导入、原 ID 查询、历史/pins/handoff/通知结算、restart、重复 apply 及恢复验证。上述工作不包含在本次已通过的 241 条合成回归结论中，也不授权停写、服务操作或生产迁移。
+
+## P9B remediation（2026-10-26）
+
+本次继续修复没有把 BLOCKED 改成 green。快照脚本新增了明确 allowlist：`sessions`、`background_jobs`、`automation`、`scheduler`、`actions`、`attachments`、Locker/Inbox、历史、pins、drafts、terminals 等真实数据目录；worktrees、依赖、缓存、构建产物和其它无关根目录被排除，`followlinks=false`。allowlist 副本统计为 **1,971 files / 723,823,286 bytes / 22 explicit exclusions / 3 SQLite snapshots / 0 capture blockers**。SQLite 先在私有 DB/WAL 副本上完成 backup 和 integrity check，不通过源库连接。跨 store 一致性仍未声称。
+
+先前观察到的 8 个变化文件逐一二次读取，全部得到稳定的双 hash（`oldChangesStable=8`, `oldChangesBlocked=0`）。这些文件中只有 `session-drafts` 和 `background_jobs/logs` 属于迁移范围；其余是日志或插件状态，明确保留为范围外变化证据。旧 full-copy 中锁文件的拒读不再作为业务文件失败：`actions/job-runtime/service.lock` 是 `action_runtime.py` 的进程互斥锁，按显式排除保留其理由；不停止持有者、不把它算成迁移记录。
+
+WP08 新增显式 `--preserve-incompatible` partial apply。它要求 context 中的 `partialPolicy={version:1,mode:preserve-incompatible}`，并把 `selectedMigrationIds` 纳入 planDigest；只允许 selected simple 候选进入 disabled/draft canonical graph，complex、unknown、未选 simple 和未分类文件带原路径/hash/原因进入 `preserved`，`targetIds=[]`、`historicalOnly=true`、`executable=false`。默认 apply 仍 fail closed，未知或 scan error 不会被静默跳过。对实际 allowlist 副本的部分 apply 尝试结果为：
+
+```text
+dry-run: blocked, unknown/corrupt source or scan error
+apply with stale planDigest: blocked, plan_stale
+full explicit apply: blocked, unknown/corrupt source or scan error
+partial-preserve-apply: blocked, unverified_authority: missing reviewed record <migrationId>
+```
+
+最后一项是预期的真实阻断：没有获得可验证的实际 owner/authorization/context，不能把 51 个 simple 形状候选伪造成可导入。它不再因为 59 complex + 1 unknown 而拒绝整个 partial plan，而是在第一项真实授权缺失处停止；目标文件不存在，未产生任何 canonical ID。合成 partial apply 已证明 6 个 selected simple 进入 bundle、2 个 complex/unknown 原 bytes 进入 historical preserve，重复 apply 不重复，失败 replace 保留旧完整包，unknown 不执行/不重投；allowlist 和变化文件重试也有测试。
+
+P9B 新增 10 个测试，当前组合回归为 **251 passed、1 skipped、0 failed、0 errors**；原先的 241 个测试全部保持通过，唯一 skip 是 Windows 当前用户没有创建 symlink 的权限，并在测试中显式记录。新增内容没有 build、HTTP、8768、服务或真实 runtime activation。这个 SHA 可作为“快照范围/partial policy 的实现证据”，不能作为 R6 迁移完成依据；R6 仍被实际 authorization/fence、simple 集合正式导入、complex/unknown legacy 保留、independent 根外历史和全量 activeLegacy 证明阻断。

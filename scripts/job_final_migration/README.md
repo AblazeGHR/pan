@@ -135,6 +135,23 @@ rollback 原子改成 `rolled-back-offline`，撤销当前包的 canonical 发�
 操作员先核实原进程确已退出，再清除该 target 的 lock 后，用原 root/context/target/planDigest 重跑。
 孤立临时文件不是已提交记录，不被自动读取。没有复用真实资料、自动 GC 或删除源 store 的入口。
 
+### P9B partial preserve
+
+显式 `--preserve-incompatible` 可在审阅过的 context 中执行部分离线 apply。context 必须包含：
+
+```json
+{
+  "partialPolicy": {"version": 1, "mode": "preserve-incompatible"},
+  "selectedMigrationIds": ["<simple candidate migrationId>"]
+}
+```
+
+`selectedMigrationIds` 会绑定到 `planDigest`，只能包含当前 inventory 的 simple candidates。selected
+记录才会生成 disabled/draft canonical objects；complex、unknown、未选 simple 及未分类 source 文件进入
+`preserved`，带原路径、hash、原因和 `targetIds=[]/historicalOnly=true/executable=false`，不执行、不重投。
+默认 apply 不变，仍遇 unknown/corrupt 或 scan error 整体拒绝。部分 apply 仍要求每个 selected record 的
+当前授权、Action/provider 引用、owner/fence 证据完整，不能用 partial flag 绕过授权。
+
 这是本地文件系统上的原子发布协议，未宣称网络文件系统、真实断电落盘或恶意目录替换下的跨主机一致性。
 source snapshot、context 和迁移包可能含命令/文本/授权材料，必须按私有迁移材料保管，不能提交到仓库；
 仓库证据只保存合成 fixture 测试、统计、命令与 SHA。

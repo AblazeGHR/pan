@@ -192,12 +192,22 @@ def audit(private):
 
     private = private.resolve(strict=True)
     root = private / "source-copy"
-    summary = json.loads((private / "copy-summary.json").read_text(encoding="utf-8"))
-    manifest = []
-    with (private / "copy-manifest.jsonl").open(encoding="utf-8") as stream:
-        for line in stream:
-            manifest.append(json.loads(line))
-    files = {r["path"]: r for r in manifest if r.get("kind") == "file" and "copySha256" in r}
+    summary_path = private / "copy-summary.json"
+    manifest_path = private / "copy-manifest.jsonl"
+    if (private / "snapshot-summary.json").exists():
+        summary = json.loads((private / "snapshot-summary.json").read_text(encoding="utf-8"))
+        manifest = json.loads((private / "snapshot-manifest.json").read_text(encoding="utf-8"))
+        summary["manifestSha256"] = digest_file(private / "snapshot-manifest.json")
+        manifest = [{**row, "copySha256": row.get("sha256")} for row in manifest
+                    if row.get("kind") == "file" and row.get("state", "").startswith("stable")]
+    else:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        manifest = []
+        with manifest_path.open(encoding="utf-8") as stream:
+            for line in stream:
+                manifest.append(json.loads(line))
+        manifest = [row for row in manifest if row.get("kind") == "file" and "copySha256" in row]
+    files = {r["path"]: r for r in manifest}
     inventory = build_inventory(root, allow_real_profile=True)
     dump(private / "wp08-inventory.json", inventory)
     reason_counts = collections.Counter(c for item in inventory["instances"] for c in item["reasonCodes"])
@@ -304,15 +314,22 @@ def audit(private):
     dump(private / "blockers.json", inventory["plan"]["preserved"])
     # No invented Action pins, source grants, retention policy or live-owner
     # attestations. An empty reviewed context demonstrates fail-closed input.
-    context = {"schemaVersion": 1, "profileId": "p9_unapproved_copy", "actions": {}, "records": {}}
+    context = {"schemaVersion": 1, "profileId": "p9_unapproved_copy", "actions": {}, "records": {},
+               "partialPolicy": {"version": 1, "mode": "preserve-incompatible"},
+               "selectedMigrationIds": [item["migrationId"] for item in inventory["instances"]
+                                         if item["classificationDetail"] == "simple"]}
     dump(private / "unapproved-context.json", context)
     reviewed = migration.plan_digest(inventory, context)
     attempts = []
-    for label, apply, expected in (("dry-run", False, None), ("stale-plan", True, "0" * 64), ("explicit-apply", True, reviewed)):
+    for label, apply, expected, partial_apply in (("dry-run", False, None, False),
+                                                  ("stale-plan", True, "0" * 64, False),
+                                                  ("explicit-apply", True, reviewed, False),
+                                                  ("partial-preserve-apply", True, reviewed, True)):
         target = private / "canonical" / "practical-bundle.json"
         try:
             report = migration.migrate(root, target, context, apply=apply, mark_read_only=apply,
-                                       expected_digest=expected, allow_real_profile=True)
+                                       expected_digest=expected, allow_real_profile=True,
+                                       preserve_incompatible=partial_apply)
             attempts.append({"operation": label, "result": "returned", "report": report})
         except (ValueError, KeyError, OSError, TypeError) as exc:
             attempts.append({"operation": label, "result": "blocked", "error": type(exc).__name__, "detail": str(exc),

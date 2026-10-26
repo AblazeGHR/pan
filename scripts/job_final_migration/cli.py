@@ -53,6 +53,8 @@ def _parser() -> argparse.ArgumentParser:
     mode.add_argument("--dry-run", action="store_true", help="explicit default: validate without target writes")
     parser.add_argument("--expected-digest", help="reviewed planDigest (apply) or bundleDigest (rollback)")
     parser.add_argument("--mark-read-only", action="store_true", help="record old-record read-only intent in committed bundle")
+    parser.add_argument("--preserve-incompatible", action="store_true",
+                        help="reviewed partial apply: preserve complex/unknown bytes, import selected simple only")
     return parser
 
 
@@ -123,13 +125,13 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("report output collides with migration target/backup/lock")
         if destination and destination.exists() and destination.stat().st_nlink > 1:
             raise ValueError("report output has multiple hard links")
-        if (args.apply or args.rollback or args.context or args.mark_read_only) and not target:
+        if (args.apply or args.rollback or args.context or args.mark_read_only or args.preserve_incompatible) and not target:
             raise ValueError("--target required for apply/context/rollback/read-only marker")
         if args.mark_read_only and not args.apply:
             raise ValueError("--mark-read-only requires --apply")
         if target and not args.rollback and not args.context:
             raise ValueError("--context required with --target")
-        if args.rollback and (args.context or args.mark_read_only):
+        if args.rollback and (args.context or args.mark_read_only or args.preserve_incompatible):
             raise ValueError("rollback does not accept context/read-only marker")
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -148,7 +150,8 @@ def main(argv: list[str] | None = None) -> int:
                 report = migrate(root, target, context, apply=args.apply,
                                  mark_read_only=args.mark_read_only,
                                  expected_digest=args.expected_digest,
-                                 allow_real_profile=args.allow_real_profile)
+                                 allow_real_profile=args.allow_real_profile,
+                                 preserve_incompatible=args.preserve_incompatible)
         else:
             from packages.jobs.final_contracts import digest
             report["inventoryDigest"] = digest(report)

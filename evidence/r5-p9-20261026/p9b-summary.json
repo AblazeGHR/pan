@@ -1,0 +1,55 @@
+{
+  "schema": "pan.r5-p9b.rehearsal-evidence/v1",
+  "result": "BLOCKED",
+  "scope": "bounded allowlisted practical-data rehearsal; no source writes, services, 8768 or push",
+  "snapshot": {
+    "followlinks": false,
+    "capturedFiles": 1971,
+    "capturedBytes": 723823286,
+    "explicitExclusions": 22,
+    "sqliteSnapshots": 3,
+    "captureBlockers": 0,
+    "oldChangesRetried": 8,
+    "oldChangesStable": 8,
+    "crossStoreConsistent": false
+  },
+  "wp08Inventory": {
+    "sourceTotal": 111,
+    "simpleCandidates": 51,
+    "complexPreserved": 59,
+    "unknownPreserved": 1,
+    "scanErrors": 0
+  },
+  "actualApply": {
+    "fullApply": "blocked: unknown/corrupt source or scan error",
+    "stalePlan": "blocked: plan_stale",
+    "partialApply": "blocked: unverified_authority missing reviewed record",
+    "canonicalRecordsImported": 0,
+    "targetCreated": false,
+    "activeIds": [],
+    "allLegacyCleared": false
+  },
+  "partialPolicy": {
+    "implemented": true,
+    "requiresExplicitContext": true,
+    "complexUnknownExecutable": false,
+    "preserveOriginalBytes": true,
+    "selectedIdsInPlanDigest": true
+  },
+  "tests": {
+    "originalRegressionPassed": 241,
+    "newP9BPassed": 10,
+    "totalPassed": 251,
+    "skipped": 1,
+    "failed": 0,
+    "errors": 0
+  },
+  "unverified": [
+    "real owner fencing and authorization evidence",
+    "actual simple canonical import and runtime settlement",
+    "full activeLegacy=0 proof",
+    "complex/unknown retirement or manual recreation",
+    "external independent history roots",
+    "deployment, remote CI, browser, HTTP, provider effects"
+  ]
+}
