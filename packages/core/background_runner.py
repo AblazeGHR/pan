@@ -15,6 +15,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job-id", required=True)
     args = parser.parse_args()
+    from packages.jobs.runtime_owner import OwnerFence
+    with OwnerFence(jobs._root().parent).legacy_pass():
+        return _run_legacy(args)
+
+
+def _run_legacy(args) -> int:
     job = jobs.get(args.job_id)
     if not job:
         return 2

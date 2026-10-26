@@ -172,6 +172,9 @@ class Engine:
             return persisted
 
     async def kick(self):
+        from packages.jobs.runtime_owner import OwnerFence
+        if OwnerFence(self.ledger.path.parent.parent).status() is not None:
+            return  # Legacy TriggerRuns are read-only after owner cutover.
         if self.closed:
             return
         async with self.dispatching:

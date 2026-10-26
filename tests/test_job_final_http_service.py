@@ -507,8 +507,13 @@ def test_ft01_bound_background_driver_survives_reload_without_resend(h):
     asyncio.run(drive())
     assert len(h.provider.calls) == 1
     restored = FinalService(h.root, h.automation.auth, executor=h.service.executor)
-    restored.recover()
-    asyncio.run(restored.dispatch_once())
+    async def restart():
+        await restored.start()
+        try:
+            await restored.dispatch_once()
+        finally:
+            await restored.close()
+    asyncio.run(restart())
     assert len(h.provider.calls) == 1
 
 

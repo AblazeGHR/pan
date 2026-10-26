@@ -220,10 +220,25 @@ async def _shutdown_summary_projection_backfill(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Fence before watchdogs, retention, plugins or legacy recovery can start.
+    # A failed startup keeps the durable cutover; it never reopens old writers.
+    from packages.jobs.runtime_owner import OwnerFence
+    owner = OwnerFence(sess.SESSION_DIR.parent)
+    status = owner.status()
+    owner.claim(status["epoch"] if status else 0)
+    try:
+        async with _owned_lifespan(app, owner):
+            yield
+    finally:
+        owner.release()
+
+
+@asynccontextmanager
+async def _owned_lifespan(app: FastAPI, owner):
     """Startup: load all saved sessions (don't auto-spawn Workers).
     Shutdown: kill all child processes."""
     sessions = sess.list_all(load_history=False)
-    interrupted_restarts = _recover_interrupted_main_restart_jobs()
+    interrupted_restarts = 0  # R4: legacy lifecycle records remain read-only.
     if interrupted_restarts:
         _log(
             "[main-restart] marked "
@@ -263,17 +278,11 @@ async def lifespan(app: FastAPI):
     from packages.core import qq_reports
     qq_reports.start(_send_scheduled_qq, sessions)
     worker.start_global_watchdog()
-    background_jobs.register_scheduled_tasks(qq_send=_send_scheduled_qq)
-    background_jobs.start_recovery_loop()
     global _DATA_RETENTION_LOOP
     _DATA_RETENTION_LOOP = asyncio.get_running_loop()
     _get_data_retention_service().start()
     reminder_task = asyncio.create_task(_reminder_loop())
-    # 定时任务调度循环（同 background_jobs：拿不到 leader 锁的实例只服务读请求）
-    try:
-        await scheduler_engine.start_loop(on_event=scheduler_api.on_event)
-    except Exception as e:
-        _log(f"[Pan] Scheduler loop not started: {e}")
+    # R4: the canonical Creator runtime is the sole time producer.
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -326,9 +335,21 @@ async def lifespan(app: FastAPI):
                     from packages.automation.authorization import bind_objects
                     bind_objects(plugin_runtime, app)
                     try:
-                        final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final')
+                        final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
+                        async def send_final_notice(row):
+                            if row['channel'] == 'ws':
+                                await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                                                 'outboxId': row['outboxId'], **row['summary']})
+                                return {'outcome': 'succeeded'}
+                            if row['channel'] == 'session':
+                                result = await worker.enqueue_notice(row['targetRef'], json.dumps(row['summary']),
+                                    source='automation', event_id=row['outboxId'], notice_kind='job_terminal',
+                                    job_id=row['jobId'], notice_status=row['summary']['status'])
+                                return {'outcome': 'succeeded' if result.get('ok') else 'unknown'}
+                            return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
+                        final_jobs.outbox_sender = send_final_notice
+                        await final_jobs.start(activation=load_config().get('job_runtime_activation'))
                         await automation.start()
-                        await final_jobs.start()
                         from packages.interactions.runtime import bind as bind_interactions
                         if getattr(app.state, 'interaction_trigger_adapter', None) is None:
                             app.state.interaction_trigger_adapter = bind_interactions(automation)
@@ -356,12 +377,14 @@ async def lifespan(app: FastAPI):
                                 await plugin_runtime.unbind_events()
                             finally:
                                 try:
-                                    if final_jobs is not None:
-                                        await final_jobs.close()
-                                finally:
-                                    app.state.job_final_service = None
-                                    automation.final_jobs = None
                                     await automation.close()
+                                finally:
+                                    try:
+                                        if final_jobs is not None:
+                                            await final_jobs.close()
+                                    finally:
+                                        app.state.job_final_service = None
+                                        automation.final_jobs = None
                         finally:
                             app.state.automation = None
                             from packages.web.native_file_picker import native_file_picker

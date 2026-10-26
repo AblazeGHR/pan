@@ -47,6 +47,10 @@ class Service:
         self.job_runtime = None
         self.engine_started = False
 
+    def canonical(self):
+        final = getattr(self, 'final_jobs', None)
+        return final is not None and final.owner.token is not None
+
     def diagnostic(self, phase, error, event_id=None):
         self.bus.diagnostics.append(dict(phase=phase, error=str(error), eventId=event_id, at=now()))
 
@@ -137,7 +141,8 @@ class Service:
         async with self.admission:
             if not self.started or self.stopping:
                 raise ValueError('Durable event admission is closed')
-            await self.engine.subscriptions()
+            if not self.canonical():
+                await self.engine.subscriptions()
             state = await self.engine.io(self.ledger.read)
             if handle is not None and handle not in self.bus.handles:
                 raise ValueError('Event publisher revoked before durable admission')
@@ -154,7 +159,7 @@ class Service:
             # Snapshot every subscription, including non-executing admissions.
             targets = [{**t,'_admissionStatus':'disabled' if not t['enabled'] or t.get('paused') else
                        'unavailable' if not self.engine.available(t) else 'eligible'}
-                       for t in state['triggers'].values() if event['type'] in t['eventTypes']]
+                       for t in ([] if self.canonical() else state['triggers'].values()) if event['type'] in t['eventTypes']]
             final_jobs = getattr(self, 'final_jobs', None)
             if final_jobs is not None:
                 targets.extend(await self.engine.io(final_jobs.targets, event))
@@ -182,7 +187,7 @@ class Service:
         event=row['event']; eid=event['id']
         receipts=await self.engine.io(self.events.subscription_receipts,eid)
         errors=[]
-        if not row['targets']:
+        if not row['targets'] and not self.canonical():
             await self.engine.match(copy.deepcopy(event),targets=[],strict=True)
         for target in row['targets']:
             key=('job:'+target['jobId']) if target.get('_job') else 'trigger:'+target['id']
@@ -199,6 +204,10 @@ class Service:
                     result = await final_jobs.admission.admit(copy.deepcopy(event), target)
                     await self.engine.io(self.events.subscription,eid,key,'admitted',
                         admissionResult=result.get('status'),runId=result.get('runId'),revision=target['revision'])
+                    continue
+                if self.canonical():
+                    # Retained old subscriptions remain evidence, never work.
+                    await self.engine.io(self.events.subscription,eid,key,'unavailable',revision=target.get('revision'))
                     continue
                 if target.get('_job'):
                     # Retained pre-cutover inbox rows enter the same Trigger path.
@@ -245,7 +254,7 @@ class Service:
         # using a retained pair which this stale retainedIds snapshot will prune.
         async with self.admission, self.engine.matching:
             removed = await self.engine.io(self.events.maintenance)
-            runs = await self.engine.io(self.ledger.maintenance, removed['retainedIds'])
+            runs = {} if self.canonical() else await self.engine.io(self.ledger.maintenance, removed['retainedIds'])
         return {'deletedEvents': removed['deletedEvents'], **runs}
 
     async def dispatch(self):
@@ -308,6 +317,17 @@ class Service:
 
     async def start(self):
         if self.stopping:
+            return
+        if self.canonical():
+            # Canonical TriggerAdmission owns all new Run creation. Do not
+            # start the retired Job runtime, time source pass or TriggerRun loop.
+            await self.engine.io(self.auth.key)
+            await self.engine.io(self.events.initialize)
+            self.loop = asyncio.get_running_loop()
+            self.started = True
+            self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
+            self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
+            self.worker.set_running_observer(self.observe)
             return
         from packages.jobs.action_runtime import Runtime
         from packages.scheduler.store import data_root

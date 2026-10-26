@@ -17,6 +17,9 @@ from packages.core import worker
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
+    # Other scheduler fixtures bind a strict broadcaster globally. Keep both
+    # callback paths owned by this fixture, including terminal retry tests.
+    monkeypatch.setattr(jobs, "_scheduled_task_hooks", {})
     monkeypatch.setattr(jobs, "DEFAULT_ROOT", tmp_path / "background_jobs")
     monkeypatch.setattr(jobs, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(sess, "SESSION_DIR", tmp_path / "sessions")

@@ -11,6 +11,7 @@ from packages.actions.store import atomic
 from packages.core.system_fields import validate_argument_bindings
 from .events import now
 from packages.jobs import chains
+from packages.jobs.runtime_owner import legacy_writer
 from .event_store import CapacityError, RETENTION_SECONDS
 from .policy import concurrency, retry_policy
 
@@ -51,6 +52,7 @@ class Ledger:
             return receipt
         return self.mutate(change)
 
+    @legacy_writer(lambda self, *a, **kw: self.path.parent.parent)
     def mutate(self, change):
         with self.lock:
             state = self.read()

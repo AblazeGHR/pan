@@ -44,8 +44,15 @@ def request(method, *args, **kwargs):
     if client is None:
         return None
     try:
+        if method in {"start", "retry"}:
+            from packages.core import background_jobs
+            from packages.jobs.runtime_owner import OwnerFence
+            with OwnerFence(background_jobs._root().parent).legacy_pass():
+                return getattr(client, method)(*args, **kwargs)
         return getattr(client, method)(*args, **kwargs)
     except Exception as exc:
+        if getattr(exc, "code", None) == "revision_conflict":
+            raise
         raise JobServiceUnavailable("independent Job service unavailable") from exc
 
 
@@ -60,6 +67,13 @@ def public_job(job):
 
 async def recover_events(enqueue_notice):
     """Ack only after durable Pan enqueue; replay uses the existing event ledger."""
+    from packages.core import background_jobs
+    from packages.jobs.runtime_owner import OwnerFence
+    with OwnerFence(background_jobs._root().parent).legacy_pass():
+        return await _recover_legacy_events(enqueue_notice)
+
+
+async def _recover_legacy_events(enqueue_notice):
     client = configured_client()
     if client is None:
         return 0

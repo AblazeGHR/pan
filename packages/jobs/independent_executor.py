@@ -298,6 +298,18 @@ class IndependentExecutor:
     def __init__(self, *, job_id, client):
         self.job_id, self.client = job_id, client
 
+    async def lookup_receipt(self, *, attempt, effect_key):
+        """Query the original identity after owner restart; never submit again."""
+        doc = await asyncio.to_thread(self.client.get_execution, effect_id(effect_key))
+        if (doc.get("jobId") != self.job_id or doc.get("effectKey") != dict(effect_key)
+                or fence(doc.get("attempt", {})) != fence(attempt)
+                or doc.get("effectId") != effect_id(effect_key)):
+            raise ExecutionConflict("recovered receipt identity/fence mismatch")
+        result = doc.get("result")
+        if result is not None and result.get("effectKey") != dict(effect_key):
+            raise ExecutionConflict("recovered receipt effectKey mismatch")
+        return result
+
     async def execute(self, *, attempt, effect_key, frozen_plan, retry=False):
         doc = await asyncio.to_thread(self.client.submit_execution, {
             "jobId": self.job_id, "attempt": dict(attempt), "effectKey": dict(effect_key),

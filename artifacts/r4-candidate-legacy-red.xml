@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="2.757" timestamp="2026-10-26T10:38:44.567641+08:00"><testcase classname="tests.test_automation_concurrency" name="test_empty_snapshot_then_match_cannot_lose_wakeup" time="2.175"><failure message="TimeoutError">[user]\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+[user]\AppData\Local\Programs\Python\Python314\Lib\asyncio\locks.py:213: in wait
+    await fut
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+tests\test_automation_concurrency.py:31: in test_empty_snapshot_then_match_cannot_lose_wakeup
+    await signal(captured)
+tests\test_automation_concurrency.py:8: in signal
+    await asyncio.wait_for(ev.wait(), 2)
+[user]\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+[user]\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: in __aexit__
+    raise TimeoutError from exc_val
+E   TimeoutError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_disable_between_claim_and_dependency_deferral_cancels" time="0.058"><failure message="AttributeError: 'Ledger' object has no attribute 'claim'">tests\test_automation_concurrency.py:58: in test_disable_between_claim_and_dependency_deferral_cancels
+    await engine.match(event())
+packages\automation\engine.py:120: in match
+    state = await self.io(self.ledger.read)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_automation_concurrency.py:51: in io
+    if fn == engine.ledger.claim and result:
+             ^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Ledger' object has no attribute 'claim'</failure></testcase><testcase classname="tests.test_automation_retry_parallel" name="test_uncertain_confirmation_keeps_run_and_new_attempt" time="0.022"><failure message="AttributeError: 'Ledger' object has no attribute 'claim'">tests\test_automation_retry_parallel.py:28: in test_uncertain_confirmation_keeps_run_and_new_attempt
+    first=ledger.claim('r')
+          ^^^^^^^^^^^^
+E   AttributeError: 'Ledger' object has no attribute 'claim'</failure></testcase></testsuite></testsuites>

@@ -22,6 +22,7 @@ from packages.jobs.final_runtime.executor import TypedExecutor, WorkerSessionPro
 from packages.jobs.final_runtime.ledger import aggregate, new_id, now, principal
 from packages.scheduler.creators import CreatorStore, CanonicalEventStore, CreatorRuntime, EventBus
 from packages.scheduler.composition import CompositionCoordinator
+from packages.jobs.runtime_owner import OwnerFence
 
 
 PREFIX = "/api"
@@ -49,7 +50,7 @@ class AggregateStore:
         self.service = service
 
     def get(self, job_id):
-        with self.service.transaction() as db:
+        with self.service.transaction(readonly=True) as db:
             return copy.deepcopy(self.service._get(db, "job", job_id))
 
     def mutate(self, job_id, change):
@@ -70,7 +71,7 @@ class TriggerAdmission:
 
 
 class FinalService:
-    def __init__(self, root, auth, *, automation_ledger=None, executor=None):
+    def __init__(self, root, auth, *, automation_ledger=None, executor=None, owner=None):
         self.root = Path(root).resolve()
         self.auth = auth
         self.automation_ledger = automation_ledger
@@ -88,18 +89,38 @@ class FinalService:
         self.diagnostics = []
         self._dispatch_lock = asyncio.Lock()
         self.state_reader = None
+        self.outbox_sender = None
+        self._outbox_lock = asyncio.Lock()
+        self.owner = owner or OwnerFence(self.root.parent)
+        if self.owner.root != self.root.parent:
+            error("reference_conflict", "Runtime owner belongs to another profile")
+        self._adopt_owner = owner is not None
+        self.legacy_roots = []
+        # A reopened service can read before claim, but cannot bootstrap writes
+        # through an already established authority.
+        established = self.owner.status() is not None
+        if not established:
+            self._initialize_schema()
+            self._install_product_actions()
+        self.creators.owner_fence = self.owner
+        self.events.owner_fence = self.owner
+
+    def _initialize_schema(self):
         with self.transaction() as db:
             db.execute("CREATE TABLE IF NOT EXISTS final_documents(kind TEXT,id TEXT,document TEXT NOT NULL,PRIMARY KEY(kind,id))")
             db.execute("CREATE TABLE IF NOT EXISTS final_operations(id TEXT PRIMARY KEY,scope TEXT,requestKey TEXT,document TEXT NOT NULL,UNIQUE(scope,requestKey))")
             db.execute("CREATE TABLE IF NOT EXISTS final_authorities(kind TEXT,id TEXT,document TEXT NOT NULL,PRIMARY KEY(kind,id))")
             db.execute("CREATE TABLE IF NOT EXISTS final_event_receipts(eventId TEXT,triggerId TEXT,status TEXT,PRIMARY KEY(eventId,triggerId))")
             db.execute("CREATE TABLE IF NOT EXISTS final_event_operations(eventId TEXT,triggerId TEXT,operationId TEXT,factDigest TEXT,PRIMARY KEY(eventId,triggerId))")
-        self._install_product_actions()
 
     @contextmanager
-    def transaction(self):
-        with self.creators.transaction() as db:
-            yield db
+    def transaction(self, *, readonly=False):
+        if readonly:
+            with self.creators.connection(readonly=True) as db:
+                yield db
+        else:
+            with self.owner.writer(canonical=True), self.creators.transaction() as db:
+                yield db
 
     @staticmethod
     def _get(db, kind, object_id):
@@ -221,13 +242,13 @@ class FinalService:
 
     def list(self, kind, *, actor, cursor=None, limit=100):
         self._permit(actor, kind, "read")
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             items = self.creators.list() if kind == "event_creator" else self._all(db, kind)
             return self._page([self._public(kind, item) for item in items], kind, cursor, limit, actor)
 
     def get(self, kind, object_id, *, actor):
         self._permit(actor, kind, "read")
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             return self._object(db, kind, object_id)
 
     def write(self, kind, object_id, body, *, actor):
@@ -372,7 +393,7 @@ class FinalService:
 
     def get_run(self, run_id, *, actor):
         self._permit(actor, "job", "read")
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             return copy.deepcopy(self._find_run(db, run_id)[1])
 
     def runs(self, job_id, *, actor, cursor=None, limit=100):
@@ -467,7 +488,7 @@ class FinalService:
             return self._operation(db, actor, operation, body["requestKey"], {"runId": run_id, **body}, "job", mutate)
 
     def operation(self, operation_id, *, actor):
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             row = db.execute("SELECT document FROM final_operations WHERE id=?", (operation_id,)).fetchone()
             if row is None:
                 raise KeyError(operation_id)
@@ -478,7 +499,7 @@ class FinalService:
             return copy.deepcopy(record["response"])
 
     def operation_for_key(self, operation, request_key, *, actor):
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             row = db.execute("SELECT id FROM final_operations WHERE scope=? AND requestKey=?", (self._scope(actor, operation), request_key)).fetchone()
             if row is None:
                 raise KeyError(request_key)
@@ -572,7 +593,7 @@ class FinalService:
 
     def actions(self, *, actor):
         self._permit(actor, "action", "read")
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             return {"items": self._all(db, "action"), "nextCursor": None}
 
     def _guard_effect(self, db, job, run_id, frozen, action):
@@ -661,6 +682,7 @@ class FinalService:
                     self._settle(db, job, run_id, failure=getattr(exc, "code", "invalid_schema"))
                     return
                 attempt = self.final.ledger.begin_attempt(job, self.root, run_id, step["stepId"])
+                attempt["ownerEpoch"] = self.owner.token[0] if self.owner.token else attempt["ownerEpoch"]
                 for row in db.execute("SELECT id,document FROM final_operations").fetchall():
                     op = json.loads(row[1])
                     if op["operation"] == "retry" and op["response"].get("runId") == run_id and op["response"]["status"] == "accepted":
@@ -727,8 +749,17 @@ class FinalService:
     def recover(self):
         """Never replay an effect whose host/receipt outcome was lost."""
         with self.transaction() as db:
+            if self.owner.token is not None:
+                for creator in self.creators.list():
+                    creator["ownerEpoch"] = max(creator["ownerEpoch"] + 1, self.owner.token[0])
+                    creator["lease"] = None
+                    self.creators._write(db, creator)
             for job in self._all(db, "job"):
                 state = aggregate(job, self.root)
+                for row in state["outbox"].values():
+                    if row["status"] == "sending":
+                        row.update(status="uncertain", receipt={"code": "notification_host_restarted"})
+                self._save(db, "job", job["jobId"], job)
                 for run in state["runs"].values():
                     active_attempts = [attempt for attempt in state["attempts"].values()
                                        if attempt["runId"] == run["runId"] and attempt["state"] == "running"]
@@ -742,15 +773,54 @@ class FinalService:
                     self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
                     self._settle(db, job, run["runId"])
 
+    async def recover_external_receipts(self):
+        adapter = getattr(self.executor, "independent_executor", None) or self.executor
+        lookup = getattr(adapter, "lookup_receipt", None)
+        if lookup is None:
+            return
+        with self.transaction(readonly=True) as db:
+            pending = [(job["jobId"], copy.deepcopy(state["attempts"][row["attemptId"]]), copy.deepcopy(row["effectKey"]))
+                       for job in self._all(db, "job") for state in [aggregate(job, self.root)]
+                       for row in state["effectAdmissions"].values()
+                       if state["attempts"][row["attemptId"]]["state"] == "running"]
+        for job_id, attempt, key in pending:
+            try:
+                receipt = await lookup(attempt=attempt, effect_key=key)
+            except Exception:
+                self.diagnostics.append({"at": now(), "code": "external_receipt_unavailable"})
+                continue
+            if receipt is None or receipt.get("outcome") not in {"succeeded", "rejected"}:
+                continue  # Still alive/unknown is not permission to replay.
+            outcome = "completed" if receipt["outcome"] == "succeeded" else "failed"
+            with self.transaction() as db:
+                job = self._get(db, "job", job_id)
+                state = aggregate(job, self.root)
+                self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], outcome,
+                    expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
+                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt)
+                rid = attempt["runId"]
+                if outcome == "completed":
+                    state["plans"][rid].setdefault("outputs", {})[attempt["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
+                    target = "completed" if all(s["state"] == "completed" for s in state["steps"][rid].values()) else "retry_wait"
+                else:
+                    target = "failed"
+                if state["runs"][rid]["state"] == "cancelling":
+                    self.final.ledger.transition_run(job, self.root, rid, "settling")
+                    target = "uncertain"  # Cancellation still needs original tree proof.
+                self.final.ledger.transition_run(job, self.root, rid, target)
+                self._save(db, "job", job_id, job)
+                if target != "retry_wait":
+                    self._settle(db, job, rid)
+
     def targets(self, event):
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             return [{**item, "_final": True, "enabled": item["state"] == "enabled"}
                     for item in self._all(db, "trigger") if event["type"] in item["eventTypes"]]
 
     def admit_event(self, event, target, *, condition_result=None):
         """WP03 admission only: no Action or provider effect is invoked here."""
         result = self._admit_event(event, target, condition_result=condition_result)
-        if self.automation_ledger is not None and "operationId" in result:
+        if self.automation_ledger is not None and self.owner.token is None and "operationId" in result:
             self.automation_ledger.record_final_admission(event.get("eventId", event.get("id")), target["id"], result)
         return result
 
@@ -837,16 +907,82 @@ class FinalService:
                 with self.transaction() as db:
                     db.execute("INSERT OR IGNORE INTO final_event_receipts VALUES(?,?,?)", (event["eventId"], target["id"], result["status"]))
         await self.dispatch_once()
+        await self.deliver_outbox()
+
+    async def deliver_outbox(self):
+        if self.outbox_sender is None:
+            return
+        async with self._outbox_lock:
+            with self.transaction() as db:
+                pending = [(job["jobId"], copy.deepcopy(row)) for job in self._all(db, "job")
+                           for row in aggregate(job, self.root)["outbox"].values() if row["status"] == "pending"]
+            for job_id, row in pending:
+                with self.transaction() as db:
+                    job = self._get(db, "job", job_id)
+                    current = aggregate(job, self.root)["outbox"][row["outboxId"]]
+                    if current["status"] != "pending":
+                        continue
+                    if row["channel"] != "ws":
+                        frozen = aggregate(job, self.root)["plans"][row["runId"]]["frozen"]
+                        try:
+                            self._permit(frozen["authority"], "job", "execute", execution=True)
+                        except fc.ContractError:
+                            current["status"] = "suppressed"
+                            self._save(db, "job", job_id, job)
+                            continue
+                    current["status"] = "sending"
+                    self._save(db, "job", job_id, job)
+                try:
+                    receipt = await self.outbox_sender({**row, "jobId": job_id})
+                except BaseException as exc:
+                    if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                        raise
+                    receipt = {"outcome": "unknown"}
+                if not isinstance(receipt, dict):
+                    receipt = {"outcome": "unknown", "code": "invalid_notification_receipt"}
+                with self.transaction() as db:
+                    job = self._get(db, "job", job_id)
+                    current = aggregate(job, self.root)["outbox"][row["outboxId"]]
+                    current.update(status="acked" if receipt.get("outcome") == "succeeded" else "uncertain",
+                                   receipt=receipt)
+                    self._save(db, "job", job_id, job)
 
     def _guard_creator(self, item):
-        with self.transaction() as db:
+        with self.transaction(readonly=True) as db:
             row = db.execute("SELECT document FROM final_authorities WHERE kind='event_creator' AND id=?", (item["id"],)).fetchone()
             if row is None:
                 error("authorization_denied", "Creator authority unavailable")
             self._permit(json.loads(row[0]), "event_creator", "lifecycle", execution=True)
 
-    async def start(self):
-        await asyncio.to_thread(self.recover)
+    async def start(self, *, activation=None, expected_epoch=None):
+        status = self.owner.status()
+        epoch = (status["epoch"] if status else 0) if expected_epoch is None else expected_epoch
+        if self._adopt_owner:
+            if status is None or status["state"] != "activating" or self.owner.token is None:
+                error("revision_conflict", "Startup owner handoff is not activating")
+            with self.owner.writer(canonical=True):
+                self._adopt_owner = False
+        else:
+            self.owner.claim(epoch)
+        try:
+            if any(Path(root).resolve().parent != self.owner.root for root in self.legacy_roots):
+                error("reference_conflict", "Legacy store belongs to a different owner profile")
+            if self.automation_ledger is not None and self.automation_ledger.path.resolve().parent.parent != self.owner.root:
+                error("reference_conflict", "Automation ledger belongs to a different owner profile")
+            self._initialize_schema()
+            self._install_product_actions()
+            if activation is not None:
+                self.owner.activation_intent(fc.digest(activation))
+                from packages.jobs.runtime_activation import activate_bundle
+                activate_bundle(self, **activation)
+            elif self.owner.activation_intent() and not self._has_activation():
+                error("reference_conflict", "Incomplete activation requires its original reviewed bundle")
+            await self.recover_external_receipts()
+            await asyncio.to_thread(self.recover)
+            self.owner.set_state("active")
+        except BaseException:
+            self.owner.release(failed=True)
+            raise
         self.closed = False
         async def loop():
             while not self.closed:
@@ -860,6 +996,10 @@ class FinalService:
                 await asyncio.sleep(0.25)
         self.task = asyncio.create_task(loop())
 
+    def _has_activation(self):
+        with self.transaction(readonly=True) as db:
+            return bool(db.execute("SELECT 1 FROM final_documents WHERE kind='runtime_activation'").fetchone())
+
     async def close(self):
         self.closed = True
         if self.task is not None:
@@ -869,12 +1009,18 @@ class FinalService:
             except asyncio.CancelledError:
                 pass
             self.task = None
+        self.owner.release()
 
 
-def bind(app, automation, root):
+def bind(app, automation, root, *, owner=None):
     """Production and isolated HTTP tests use the same host binding."""
-    service = FinalService(root, automation.auth, automation_ledger=automation.ledger)
+    service = FinalService(root, automation.auth, automation_ledger=automation.ledger, owner=owner)
+    import os
+    from packages.core import background_jobs
+    from packages.scheduler.store import data_root
+    service.legacy_roots = [Path(os.environ.get("PAN_BACKGROUND_JOBS_DIR") or background_jobs.DEFAULT_ROOT), data_root()]
     service.state_reader = automation.engine.state_reader
+    automation.events.owner_fence = service.owner
     automation.final_jobs = service
     app.state.job_final_service = service
     return service
