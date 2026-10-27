@@ -53,7 +53,10 @@ def test_external_turn_keeps_queue_and_allocates_new_report_identity(monkeypatch
         assert s.last_result["taskSeq"] == 13
         assert s.last_result["result"] == "native answer"
         assert s.queue_pending == [queued]
-        assert [(r["role"], r["content"]) for r in s.history] == [("user", "原生输入"), ("assistant", "native answer")]
+        assert [(r["role"], r["content"]) for r in s.history] == [("user", "原生输入"), ("assistant", "native answer"), ("terminal", "")]
+        assert s.history[-1]["terminal"]["status"] == "done"
+        assert s.history[-1]["terminal"]["taskSeq"] == 13
+        assert s.history[-1]["terminal"]["anchorMessageId"] == s.history[-2]["messageId"]
         assert s.history[0]["nativeItemId"] == "u1" and s.history[0]["turnId"] == "native-turn"
         assert reports.await_args.args[3] is None
         assert w._task_started_at > 0

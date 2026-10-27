@@ -5,6 +5,7 @@ import type { AttachmentLocation } from './attachment';
 export type { AttachmentLocation } from './attachment';
 
 export interface Message {
+  terminal?: HistoryTerminal;
   role: string;
   content: string;
   /** Stable canonical history identity. Absent on legacy rows. */
@@ -53,6 +54,21 @@ export interface Message {
   envelope?: Record<string, unknown>;
   eventId?: string;
   channel?: string;
+}
+
+export interface HistoryTerminal {
+  eventId: string;
+  terminalKey: string;
+  status: 'done' | 'error';
+  occurredAt: string;
+  order: number;
+  anchorMessageId: string | null;
+  taskSeq: number | null;
+  taskId: string | null;
+  executionSeq: number | null;
+  workerId: string;
+  generation: number;
+  error?: { source?: string; code: string | number | null; message: string; truncated?: boolean };
 }
 
 export type MessagePart =
@@ -472,6 +488,7 @@ export interface StreamEvent {
   historyEpoch?: string;
   historyRevision?: number;
   /** Durable result/history coverage boundary. */
+  historyTerminalId?: string;
   terminalCoverage?: {
     historyEpoch?: string;
     historyRevision?: number;

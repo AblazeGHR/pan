@@ -618,7 +618,7 @@ def assign_pan_message_ids(
     old_body = [index for index, row in enumerate(previous)
                 if _is_searchable_history_body(row)]
     if not new_body:
-        return rows
+        return _retain_history_terminals(rows, previous)
 
     old_unmatched = set(old_body)
     new_unmatched = set(new_body)
@@ -773,7 +773,38 @@ def assign_pan_message_ids(
             assigned[index] = message_id
             used_ids.add(message_id)
         row["messageId"] = assigned[index]
-    return rows
+    return _retain_history_terminals(rows, previous)
+
+
+def _retain_history_terminals(rows: list[dict], previous: list[dict]) -> list[dict]:
+    """Retain Pan facts at the existing explicit reimport boundary only.
+
+    Missing terminal metadata in old/native history is valid. Never synthesize
+    events or retarget an anchor when its body no longer exists. A missing
+    anchor leaves a standalone event before the next surviving original row.
+    """
+    known = [row for row in previous if isinstance(row, dict)
+             and row.get("kind") == "terminal" and isinstance(row.get("terminal"), dict)
+             and isinstance(row.get("messageId"), str) and row.get("messageId")
+             and row.get("messageId") == row["terminal"].get("eventId")
+             and row["terminal"].get("status") in {"done", "error"}]
+    if not known:
+        return rows
+    ids = {row["messageId"] for row in known}
+    result = [row for row in rows if not isinstance(row, dict) or row.get("messageId") not in ids]
+    # Reverse insertion keeps adjacent standalone events in original order.
+    for event in reversed(known):
+        anchor = event["terminal"].get("anchorMessageId")
+        at = next((i + 1 for i, row in enumerate(result)
+                   if isinstance(row, dict) and anchor and row.get("messageId") == anchor), None)
+        if at is None:
+            old_at = previous.index(event)
+            following = {row.get("messageId") for row in previous[old_at + 1:]
+                         if isinstance(row, dict) and row.get("messageId")}
+            at = next((i for i, row in enumerate(result)
+                       if isinstance(row, dict) and row.get("messageId") in following), len(result))
+        result.insert(at, copy.deepcopy(event))
+    return result
 
 
 def append_history(s: "Session", message: dict) -> None:

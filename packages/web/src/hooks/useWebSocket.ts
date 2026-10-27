@@ -40,6 +40,7 @@ function appendTerminalResultMarker(
   event: StreamEvent,
   deferUntilCoverage = false,
 ): void {
+  if (event.historyTerminalId) return;
   const status = terminalResultStatus(event);
   const markerId = workerResultMarkerId(sessionId, event);
   const marker: Message = {
@@ -287,6 +288,7 @@ export function useWebSocket() {
               : {}),
           },
           terminalKey: typeof last.terminalKey === 'string' ? last.terminalKey : undefined,
+          historyTerminalId: typeof last.historyTerminalId === 'string' ? last.historyTerminalId : undefined,
           resultCursor: typeof last.resultCursor === 'number' ? last.resultCursor : undefined,
           taskSeq: typeof last.taskSeq === 'number' ? last.taskSeq : undefined,
           executionSeq: typeof last.executionSeq === 'number' ? last.executionSeq : undefined,
@@ -750,6 +752,11 @@ export function useWebSocket() {
 
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       ingestLiveSessionSummary(e);
+      // History facts survive stale Worker frames too. Refresh their canonical
+      // page without allowing an old execution to clear the current stream.
+      if (e.historyTerminalId && e.sessionId === useSessionStore.getState().currentSessionId) {
+        scheduleSelectedHistory();
+      }
       if (!isCurrentWorkerEvent(e, true)) {
         // A terminal event attributed to an older worker generation is dropped
         // (a late result must not clear its replacement), but the drop must not
