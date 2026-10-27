@@ -1,0 +1,50 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_provider_boundaries.py",
+    "tests/test_job_retirement_quota_transport.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\remaining-nine-native.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 9.689,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 3,
+    "failure": 3,
+    "error": 0,
+    "skipped": 0
+  }
+}

@@ -151,5 +151,18 @@ for row in nodes:
         row['strictSuccessors'] = strict[row['node']]
         row['currentExecution'] = 'revision3 strict matrix'
         row['boundary'] = 'Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.'
+# Preserve the dated, still-open review when rebuilding historical mapping.
+# This overlay records evidence only; it cannot promote any original node.
+review_path = OUT / 'gap-evidence-20261028.json'
+if review_path.is_file():
+    review = json.loads(review_path.read_text(encoding='utf-8'))
+    assert review['closedGapCount'] == 0
+    gaps = {row['node'] for row in nodes if row['status'] == 'gap'}
+    assert gaps == set(review['nodes'])
+    for row in nodes:
+        if row['node'] in review['nodes']:
+            item = review['nodes'][row['node']]
+            assert item['status'] == 'gap' and item['closed'] is False
+            row['currentGapReview'] = item
 (OUT / 'successors.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 print(json.dumps({'originalNodes': len(nodes), 'retirementItems': len(items)}))

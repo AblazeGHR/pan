@@ -134,7 +134,22 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "迁为明确 native Session operation/provider；保留 effect admission 时冻结合法候选和 run-again 显式新 Run。该具体动态选择后继尚未在本次证明。"
+      "boundary": "迁为明确 native Session operation/provider；保留 effect admission 时冻结合法候选和 run-again 显式新 Run。该具体动态选择后继尚未在本次证明。",
+      "currentGapReview": {
+        "kind": "missing-native-capability",
+        "blockingFact": "No canonical Action/executor for current legal-offline candidate query and explicit resume; session_operation in dynamic executor only pauses.",
+        "sharedSymbols": [
+          "packages/jobs/final_service.py::FinalService._install_product_actions",
+          "packages/actions/typed_executor.py::TypedExecutor.execute",
+          "packages/actions/executor.py::execute_dynamic"
+        ],
+        "minimalCoordination": "MA must define authorized native query/resume port, persist selected original Session IDs at effect admission, and re-use legal-offline/Wake gates. Do not inject a query provider in the test.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "supportNodes": [],
+        "evidence": {}
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_resume_legal_running_empty_scan_is_successful_noop",
@@ -145,7 +160,22 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "旧 route 410 正确；空候选是否完成必须在 native typed provider 契约补精确测试，本次不声称覆盖该业务效果。"
+      "boundary": "旧 route 410 正确；空候选是否完成必须在 native typed provider 契约补精确测试，本次不声称覆盖该业务效果。",
+      "currentGapReview": {
+        "kind": "missing-native-capability",
+        "blockingFact": "Same native resume port missing; _session_broadcast rejects empty sessionIds, so broadcast cannot prove empty dynamic selection completes.",
+        "sharedSymbols": [
+          "packages/actions/typed_executor.py::TypedExecutor._session_broadcast",
+          "packages/actions/typed_executor.py::TypedExecutor.execute",
+          "packages/jobs/final_service.py::FinalService._install_product_actions"
+        ],
+        "minimalCoordination": "Specify completed zero-selection receipt on native resume operation; preserve broadcast nonempty contract.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "supportNodes": [],
+        "evidence": {}
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged",
@@ -256,7 +286,25 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "迁 typed channel Action 参数/schema，保留 bot/target 持久及非自报授权。未连接真实 QQ provider。"
+      "boundary": "迁 typed channel Action 参数/schema，保留 bot/target 持久及非自报授权。未连接真实 QQ provider。",
+      "currentGapReview": {
+        "kind": "strict-red",
+        "redNodes": [
+          "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]"
+        ],
+        "blockingFact": "Canonical POST accepts invalid fixed numeric QQ target and commits definition/operation (201).",
+        "sharedSymbols": [
+          "packages/jobs/final_contracts.py::_check_job_references",
+          "packages/jobs/final_service.py::FinalService._references"
+        ],
+        "minimalCoordination": "Validate fully literal typed Action arguments against referenced inputSchema before write. Keep input/Event/step bindings deferred; retain immutable release and no provider call during validation.",
+        "status": "gap",
+        "closed": false,
+        "supportNodes": [],
+        "evidence": {
+          "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]": "failure"
+        }
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_scheduled_qq_action_is_strict_and_editable",
@@ -267,7 +315,25 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "用 native Job revision 更新 typed channel arguments；保持严格 schema、编辑不更改历史 frozen plan。"
+      "boundary": "用 native Job revision 更新 typed channel arguments；保持严格 schema、编辑不更改历史 frozen plan。",
+      "currentGapReview": {
+        "kind": "strict-red",
+        "redNodes": [
+          "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]"
+        ],
+        "blockingFact": "Canonical PUT accepts invalid fixed QQ target and commits revision 2 (200). Test fails before no-write assertion.",
+        "sharedSymbols": [
+          "packages/jobs/final_contracts.py::_check_job_references",
+          "packages/jobs/final_service.py::FinalService._references"
+        ],
+        "minimalCoordination": "Same literal validation as create, using existing CAS/transaction; do not rewrite frozen historical Runs. Full original invalid bot/endpoint/text/session-target matrix still needed.",
+        "status": "gap",
+        "closed": false,
+        "supportNodes": [],
+        "evidence": {
+          "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]": "failure"
+        }
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error",
@@ -292,7 +358,26 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "manual Run 不伪造时间 Event；显式 provider reject 与未知结果区分。旧 route 410 保持。"
+      "boundary": "manual Run 不伪造时间 Event；显式 provider reject 与未知结果区分。旧 route 410 保持。",
+      "currentGapReview": {
+        "kind": "partial-evidence",
+        "supportNodes": [
+          "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event"
+        ],
+        "blockingFact": "Actual executor without channel provider records rejected provider_unavailable and one failed Attempt, unchanged on dispatch replay. Production has no bound channel provider. Not a real QQ plugin response.",
+        "sharedSymbols": [
+          "packages/jobs/final_service.py::FinalService.__init__",
+          "packages/jobs/final_service.py::FinalService._install_product_actions",
+          "packages/actions/typed_executor.py::TypedExecutor._channel"
+        ],
+        "minimalCoordination": "MA to bind real owned plugin transport to canonical channel provider with trusted bot selection; then test success/reject receipt on actual transport and manual cause, without fake provider.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "evidence": {
+          "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event": "passed"
+        }
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_scheduled_qq_backlog_retry_runs_without_session_target",
@@ -303,7 +388,21 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "不恢复旧 undelivered backlog；用同 Run/Step/effectKey 新 Attempt，unknown 必须查询。本次未证明 QQ 专属重试。"
+      "boundary": "不恢复旧 undelivered backlog；用同 Run/Step/effectKey 新 Attempt，unknown 必须查询。本次未证明 QQ 专属重试。",
+      "currentGapReview": {
+        "kind": "missing-provider-retry-proof",
+        "blockingFact": "No production channel provider/receipt lookup. Product retry requires cleanup proof; cannot claim same QQ effect recovery by changing policy on a test-only Action.",
+        "sharedSymbols": [
+          "packages/jobs/final_service.py::FinalService.control_run",
+          "packages/actions/typed_executor.py::TypedExecutor._channel"
+        ],
+        "minimalCoordination": "Agree versioned channel idempotency/rejection proof and original effect lookup. Test explicit rejected retry with same Run/Step/effectKey and new Attempt; unknown stays query-only. Do not restore undeliveredFires.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "supportNodes": [],
+        "evidence": {}
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_post_accepts_session_message_and_rejects_empty_schedule",
@@ -328,7 +427,28 @@
       "originalNode": "retained-failed",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "native API 的目标检查在对应 typed provider/业务层；保留无效 Session 不发生效果；精确业务检查需 Session provider 专项。"
+      "boundary": "native API 的目标检查在对应 typed provider/业务层；保留无效 Session 不发生效果；精确业务检查需 Session provider 专项。",
+      "currentGapReview": {
+        "kind": "strict-red",
+        "redNodes": [
+          "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit"
+        ],
+        "supportNodes": [
+          "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning"
+        ],
+        "blockingFact": "Missing Session fixed literal accepted at POST (201); real WorkerSessionProvider rejects at execution, creates no Session/Worker and no Session bytes change. Runtime rejection does not prove write-time rejection.",
+        "sharedSymbols": [
+          "packages/jobs/final_service.py::FinalService._references",
+          "packages/actions/typed_executor.py::WorkerSessionProvider.send_session"
+        ],
+        "minimalCoordination": "MA to approve read-only literal Session existence validation before commit; do not check dynamic bindings prematurely or start Worker at validation.",
+        "status": "gap",
+        "closed": false,
+        "evidence": {
+          "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit": "failure",
+          "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning": "passed"
+        }
+      }
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_schedule_replaces_entries",
@@ -547,14 +667,48 @@
       "category": "additional-original-red",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "Unbound automatic recovery is unsupported; full bound policy revocation/budget successor missing"
+      "boundary": "Unbound automatic recovery is unsupported; full bound policy revocation/budget successor missing",
+      "currentGapReview": {
+        "kind": "missing-bound-recovery-policy",
+        "blockingFact": "FinalService._references always rejects automatic=true with capability_unsupported. No bound automatic policy to revoke after first Attempt; unsupported test is not a budget/revocation successor.",
+        "sharedSymbols": [
+          "packages/jobs/final_service.py::FinalService._references",
+          "packages/jobs/final_service.py::FinalService._guard_effect"
+        ],
+        "minimalCoordination": "Needs separate MA design/authorization for bound policy, permission recheck and budget transaction. Do not remove unsupported guard to make test run.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "supportNodes": [],
+        "evidence": {}
+      }
     },
     {
       "node": "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
       "category": "additional-original-red",
       "status": "gap",
       "strictSuccessors": [],
-      "boundary": "Original NameError before HTTP; canonical query/control real TCP successor missing; do not restore retired Job POST"
+      "boundary": "Original NameError before HTTP; canonical query/control real TCP successor missing; do not restore retired Job POST",
+      "currentGapReview": {
+        "kind": "real-tcp-support-only",
+        "supportNodes": [
+          "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence"
+        ],
+        "blockingFact": "Real TCP CAS/auth/persistence pass; active canonical owner fences both once/monitor95 query-jobs at 409 before query. No canonical unknown query terminal. Listener reopened, not process/lifespan restart.",
+        "sharedSymbols": [
+          "packages/automation/api.py::install.quota_query_job",
+          "packages/automation/quota_policy.py::Runtime.create_monitor",
+          "packages/automation/quota_policy.py::Runtime.ensure_job",
+          "packages/automation/quota_policy.py::Runtime._ensure_job"
+        ],
+        "minimalCoordination": "MA to migrate monitor/query admission to native Action/Job/Creator with original policy identity; preserve legacy_writer gate. Correcting old fixture NameError alone would still assert retired writer success.",
+        "status": "gap",
+        "closed": false,
+        "redNodes": [],
+        "evidence": {
+          "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence": "passed"
+        }
+      }
     }
   ],
   "retirementItems": [
