@@ -154,9 +154,12 @@
       "followup": "迁 Creator publication 与 Job admission 分离；补空选择不新增 backlog/effect 的 native provider 断言。",
       "successorEvidence": "tests/test_job_final_creators.py (只证明来源计数不依赖效果)",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "迁 Creator publication 与 Job admission 分离；补空选择不新增 backlog/effect 的 native provider 断言。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_remaining_successors.py::test_scheduled_fire_without_matching_candidates_is_noop_and_not_backlogged"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text",
@@ -348,9 +351,12 @@
       "followup": "保留 invalid time config 的无写入拒绝，入口改 canonical Creator schema。",
       "successorEvidence": "tests/test_job_final_creators.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "保留 invalid time config 的无写入拒绝，入口改 canonical Creator schema。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_remaining_successors.py::test_invalid_schedule_spec_is_rejected_before_creator_persistence"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_target_clear_enters_undeliverable",

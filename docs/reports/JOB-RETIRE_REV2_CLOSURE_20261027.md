@@ -43,18 +43,26 @@ revision3 focused 命令见 [revision3-focused.xml](../../evidence/job-retiremen
 
 ## revision3 严格后继补批
 
-本批只登记已有精确 canonical 语义测试，不把泛化 suite 当后继。原 43 节点当前为：
-**30 strict-successor、1 product-gap、12 gap**。新增映射均写入
+本批新增两项自有 canonical fixture，不把泛化 suite 当后继。原 43 节点当前为：
+**33 strict-successor、1 product-gap、9 gap**。新增映射均写入
 [successors.json](../../evidence/job-retirement-closure/successors.json)，覆盖结构化身份、生命周期/CAS、
 legacy fallback 拒绝、session effect/retry identity、动态 target 冻结、partial/outbox、multi-entry
 composition、owned shell、QQ typed error、schedule composition、target consistency 和 source identity。
 
-严格后继矩阵为 **28 passed / 0 failed/error/skip / exit 0**，命令和计数见
+本批严格后继矩阵为 **2 passed / 0 failed/error/skip / exit 0**，命令见
+[revision3-remaining.xml](../../evidence/job-retirement-closure/revision3-remaining.xml)；映射门禁为
+**7 passed / 0 failed/error/skip / exit 0**，见
+[revision3-remaining-gate.xml](../../evidence/job-retirement-closure/revision3-remaining-gate.xml)。此前 28 项
+严格矩阵仍由
 [revision3-strict-command.json](../../evidence/job-retirement-closure/revision3-strict-command.json)
-与 [revision3-strict.xml](../../evidence/job-retirement-closure/revision3-strict.xml)。
+与 [revision3-strict.xml](../../evidence/job-retirement-closure/revision3-strict.xml) 保留。
 
-仍未关闭的 12 个原节点是：三个 resume/empty-scan/scheduled-fire 分支，QQ target/edit、QQ
-targetless run-now、QQ backlog retry、existing-session 业务校验、bad schedule spec、automatic
-recovery revocation，以及原 quota real-HTTP fixture。它们分别需要 native provider/real HTTP/
+本批关闭：`test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged`（无匹配
+canonical trigger 候选不产生 Run/backlog）和 `test_patch_schedule_rejects_bad_spec`（TimeProvider
+非法配置在 Creator 持久化前拒绝且目录字节不变）。
+
+仍未关闭的 9 个原节点是：两个 resume/empty-scan 分支，QQ target/edit、QQ targetless run-now、QQ
+backlog retry、existing-session 业务校验、automatic recovery revocation，以及原 quota real-HTTP fixture。
+它们分别需要 native provider/real HTTP/
 owner-policy 的精确后继；本批没有用现有泛化测试冒充，也没有改共享产品代码。三个 scheduler host、
 unknown owner、真实迁移和 51/60 集合边界继续保持阻塞。
