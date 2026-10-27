@@ -11,8 +11,10 @@ export const schedulerRule = (type: string, ruleId = newId('rule')): JsonObject 
     : type === 'once'
       ? { at: '' }
       : type === 'weekly'
-        ? { weekday: 0, time: '09:00:00', timezone: 'UTC', dstPolicy: 'gap-skip-fold-first' }
-        : { expression: '0 9 * * *', timezone: 'UTC', dstPolicy: 'gap-skip-fold-first' }),
+        ? { weekday: 0, time: '09:00:00' }
+        : type === 'daily'
+          ? { time: '09:00:00' }
+          : { expression: '0 9 * * *' }),
 });
 const dst = [
   'strict',
@@ -35,18 +37,27 @@ export function CanonicalSchedulerFields({
     <section aria-label="Time rules" className="space-y-4">
       {rules.map((rule, index) => {
         const update = (key: string, next: unknown) =>
-          setRules(rules.map((r, i) => (i === index ? { ...r, [key]: next } : r)));
+          setRules(
+            rules.map((r, i) => {
+              if (i !== index) return r;
+              const updated = { ...r, [key]: next };
+              if (key === 'timezone' && next === '') delete updated.timezone;
+              return updated;
+            }),
+          );
         const text = (key: string, label: string, placeholder?: string) => (
           <label className="block text-sm">
             {label}
             <input
-              required
+              required={key !== 'timezone'}
               pattern={
-                key === 'seconds'
-                  ? '(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?'
-                  : key === 'time'
-                    ? '(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]'
-                    : undefined
+                key === 'at' || key === 'anchor'
+                  ? '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+\\-][0-9]{2}:[0-9]{2})'
+                  : key === 'seconds'
+                    ? '(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?'
+                    : key === 'time'
+                      ? '(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]'
+                      : undefined
               }
               className={fieldClass}
               value={String(rule[key] ?? '')}
@@ -77,12 +88,12 @@ export function CanonicalSchedulerFields({
                   )
                 }
               >
-                {['interval', 'once', 'weekly', 'cron'].map((type) => (
+                {['interval', 'once', 'daily', 'weekly', 'cron'].map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
                 ))}
-                {!['interval', 'once', 'weekly', 'cron'].includes(String(rule.type)) && (
+                {!['interval', 'once', 'daily', 'weekly', 'cron'].includes(String(rule.type)) && (
                   <option value={String(rule.type)}>{String(rule.type)} (preserved)</option>
                 )}
               </select>
@@ -105,8 +116,15 @@ export function CanonicalSchedulerFields({
                 </label>
               </>
             )}
-            {rule.type === 'once' &&
-              text('at', 'Scheduled time (RFC3339)', '2026-11-01T09:00:12.125+08:00')}
+            {rule.type === 'once' && (
+              <>
+                {text('at', 'Scheduled time (RFC3339)', '2026-11-01T09:00:12.125+08:00')}
+                <p className="text-xs">
+                  Enter an explicit UTC offset to resolve the local time, including repeated or
+                  missing DST times.
+                </p>
+              </>
+            )}
             {rule.type === 'weekly' && (
               <>
                 <label className="block text-sm">
@@ -135,23 +153,34 @@ export function CanonicalSchedulerFields({
                 {text('time', 'Time of day', '09:00:12')}
               </>
             )}
+            {rule.type === 'daily' && text('time', 'Time of day', '09:00:12')}
             {rule.type === 'cron' && text('expression', 'Cron expression', '0 9 * * *')}
-            {(rule.type === 'weekly' || rule.type === 'cron') && (
+            {(rule.type === 'daily' || rule.type === 'weekly' || rule.type === 'cron') && (
               <>
-                {text('timezone', 'Timezone', 'America/New_York or +08:00')}
-                <label className="block text-sm">
-                  DST policy
-                  <select
-                    aria-label={'DST policy'}
-                    className={fieldClass}
-                    value={String(rule.dstPolicy)}
-                    onChange={(e) => update('dstPolicy', e.target.value)}
-                  >
-                    {[...new Set([...dst, String(rule.dstPolicy)])].map((policy) => (
-                      <option key={policy}>{policy}</option>
-                    ))}
-                  </select>
-                </label>
+                {text(
+                  'timezone',
+                  'Timezone',
+                  'Follow current Pan host timezone (optional override)',
+                )}
+                <p className="text-xs">
+                  Blank follows the current Pan host timezone. DST gaps are skipped; repeated times
+                  run once.
+                </p>
+                {rule.dstPolicy !== undefined && (
+                  <label className="block text-sm">
+                    DST policy
+                    <select
+                      aria-label={'DST policy'}
+                      className={fieldClass}
+                      value={String(rule.dstPolicy)}
+                      onChange={(e) => update('dstPolicy', e.target.value)}
+                    >
+                      {[...new Set([...dst, String(rule.dstPolicy)])].map((policy) => (
+                        <option key={policy}>{policy}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </>
             )}
             <Button

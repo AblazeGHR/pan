@@ -12,6 +12,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useAutomationAuth.getState().clear();
 });
+it('instantiates a published time Template passively under the original revision and key', async () => {
+  const fetcher = vi.fn().mockImplementation(async () => new Response('{}'));
+  vi.stubGlobal('fetch', fetcher);
+  await canonicalJobs.instantiateTimeTemplate({ id: 'template/1', name: 'T', state: 'published', stateRevision: 1, revision: 7 }, 'original-key');
+  expect(fetcher.mock.calls[0]![0]).toBe('/api/job-templates/template%2F1/instantiate');
+  expect(JSON.parse(fetcher.mock.calls[0]![1].body)).toEqual({ expectedRevision: 7, requestKey: 'original-key', activate: false });
+});
 it('sends canonical JSON with the current in-memory Bearer including DELETE', async () => {
   useAutomationAuth.setState({ token: 'canonical-user', expiresAt: Date.now() + 60000 });
   const fetcher = vi.fn().mockImplementation(async () => new Response('{}'));

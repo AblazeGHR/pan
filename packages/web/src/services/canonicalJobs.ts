@@ -126,6 +126,10 @@ export const canonicalJobs = {
   actions: () => canonicalRequest<CanonicalPage<JsonObject> & { references?: Record<string, JsonObject> }>('actions'),
   creatorReferences: (id: string) => canonicalRequest<import('@/types/automationJobs').CreatorReferences>(`event-creators/${part(id)}/references`),
   creatorProviders: () => canonicalRequest<{ items: import('@/types/automationJobs').SchedulerProvider[] }>('event-creators/providers'),
+  instantiateTimeTemplate: (item: CanonicalObject, requestKey: string, activate = false) =>
+    canonicalRequest<CanonicalReceipt>(`job-templates/${part(item.id)}/instantiate`, 'POST', {
+      expectedRevision: revisionOf(item), requestKey, activate,
+    }),
   controlDefinition: (kind: CanonicalKind, item: CanonicalObject, operation: string, requestKey: string, expectedReferences?: string) =>
     canonicalRequest<CanonicalReceipt>(`${kind}/${part(item.id)}/operations`, 'POST', {
       operation, requestKey, expectedRevision: revisionOf(item), expectedStateRevision: item.stateRevision,

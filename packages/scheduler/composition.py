@@ -162,6 +162,7 @@ class CompositionCoordinator:
                     spec["definition"], request_key=operation["operationId"] + ":creator:" + spec["key"],
                     creator_id=ids["creators"][spec["key"]], state="disabled",
                     created_by=operation["authorizationEvidence"].get("principal"),
+                    owner=operation["authorizationEvidence"].get("principal"),
                     activation={"committed": False, "operationId": operation["operationId"]},
                 )
             self.port.create_disabled(copy.deepcopy(operation))

@@ -127,3 +127,12 @@ WP05b 本地证据为 Windows 独立 worker、同身份离线查询及临时 HTT
 使用 mock，未启停真实 Pan 服务。POSIX 的 independent worker 运行、三平台 CI、真实
 supervisor 停机/重启验收仍待验证。接线与收据契约见
 [WP05b execution](../design/job-unification/WP05B_EXECUTION_20261026.md)。
+
+### Scheduler current host zone (revision 2)
+
+`time.hostZone`: Windows/Linux/macOS use the platform `timezones.host_zone_name`
+boundary and tzlocal zoneinfo discovery, refreshed before unreserved calendar drives.
+Never substitute the current fixed offset for future DST rules. Failure is
+`provider_unavailable`; explicit overrides remain independent. Host changes invalidate
+only future, unreserved calendar cursor points; reserved envelopes settle unchanged.
+Windows discovery was exercised locally; Linux/macOS require CI/runtime verification.

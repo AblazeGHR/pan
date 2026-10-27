@@ -21,6 +21,7 @@ import packages.web.server as srv
 from packages.core import platform as platform_layer
 
 CAPABILITY_KEYS = {
+    "time.hostZone",
     "job.runtimeOwner",
     "terminal.native",
     "terminal.detach",

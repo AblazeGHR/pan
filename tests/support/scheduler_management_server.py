@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-def app_for(root):
+def app_for(root, *, seed_time_template_target=False):
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.responses import FileResponse
     from packages.core import config, session, background_jobs
@@ -15,6 +15,8 @@ def app_for(root):
     config.CONFIG_FILE = root / "config.json"
     config.CONFIG_FILE.write_text("{}", encoding="utf-8")
     session.SESSION_DIR = root / "sessions"
+    if seed_time_template_target:
+        session.save(session.Session(id="owned-session", name="Owned time Template target"))
     data_paths.DEFAULT_ROOT = background_jobs.DEFAULT_ROOT = root / "background_jobs"
     os.environ["PAN_BACKGROUND_JOBS_DIR"] = os.environ["PAN_SCHEDULER_DIR"] = str(root / "background_jobs")
     from packages.automation.service import Service
@@ -87,8 +89,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--seed-time-template-target", action="store_true")
     args = parser.parse_args()
     if args.port in (8767,8768) or not args.root.is_absolute():
         raise SystemExit("Owned absolute root and non-protected port required")
     args.root.mkdir(parents=True, exist_ok=True)
-    uvicorn.run(app_for(args.root), host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app_for(args.root, seed_time_template_target=args.seed_time_template_target), host="127.0.0.1", port=args.port, log_level="warning")

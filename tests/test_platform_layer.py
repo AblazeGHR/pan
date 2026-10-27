@@ -38,6 +38,7 @@ def test_default_uses_current_interpreter_platform():
 
 
 EXPECTED_CAPABILITIES = (
+    "time.hostZone",
     "job.runtimeOwner",
     "terminal.native",
     "terminal.detach",
@@ -59,7 +60,7 @@ def test_capabilities_match_implemented_platform_backends():
     # implementations. Other Phase A capabilities remain Windows-only.
     for name in EXPECTED_CAPABILITIES:
         assert plat.supports(name, "win32") is True, name
-        expected = name in {"processOwner", "job.runtimeOwner"}
+        expected = name in {"processOwner", "job.runtimeOwner", "time.hostZone"}
         assert plat.supports(name, "darwin") is expected, name
         assert plat.supports(name, "linux") is expected, name
 

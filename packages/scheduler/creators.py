@@ -532,6 +532,9 @@ class CreatorStore:
             provider = self.registry.get(item["providerRef"])
             if item["providerGeneration"] != provider.generation:
                 raise contracts.ContractError("provider_unavailable", "Provider generation fence rejected")
+            if hasattr(provider, "refresh_host_cursor") and provider.refresh_host_cursor(item, at):
+                self._write(db, item)
+                return None
             limit = item["config"].get("driveLimit") if item["providerRef"]["type"] == "time" else None
             if limit and item["producedCount"] >= limit["maxEvents"]:
                 item["state"] = "disabled"
@@ -596,6 +599,9 @@ class CreatorStore:
             if item["state"] != "paused" or item["ownerEpoch"] != epoch or item["config"].get("pausePolicy") != "advance":
                 return None
             provider = self.registry.get(item["providerRef"])
+            if hasattr(provider, "refresh_host_cursor") and provider.refresh_host_cursor(item, at):
+                self._write(db, item)
+                return None
             drive_id, unused_event_id = self._occurrence_ids(item, occurrence_key)
             prepared = provider.pause(item, occurrence_key, at, drive_id, len(item["drives"]) + 1)
             self._settle_without_event(db, item, prepared)
@@ -692,6 +698,17 @@ class CreatorStore:
                                   "phase": phase, "error": str(error)[:1000]}
                 self._write(db, item)
 
+    def refresh_time_zone(self, creator_id, at):
+        """Invalidate only unreserved calendar occurrences on host zone change."""
+        with self.connection() as db:
+            if not db.in_transaction:
+                db.execute("BEGIN IMMEDIATE")
+            item = self._read_db(db, creator_id)
+            provider = self.registry.get(item["providerRef"])
+            if hasattr(provider, "refresh_host_cursor") and provider.refresh_host_cursor(item, at):
+                self._write(db, item)
+            return copy.deepcopy(item)
+
     @staticmethod
     def _read_db(db, creator_id):
         item = CreatorStore._read(db, creator_id)
@@ -775,6 +792,7 @@ class CreatorRuntime:
                 if self.authorize is not None:
                     await asyncio.to_thread(self.authorize, item)
                 provider = self.creators.registry.get(item["providerRef"])
+                item = await asyncio.to_thread(self.creators.refresh_time_zone, item["id"], at)
                 occurrence_keys = provider.due_occurrences(item, at)
                 for occurrence_key in occurrence_keys:
                     if item["state"] == "paused":
