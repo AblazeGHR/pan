@@ -118,12 +118,13 @@ def install(
     pid_exists: bool | None = None,
 ) -> None:
     monkeypatch.setattr(
-        posix, "read_posix_identity", lambda pid: (identity, state)
+        posix, "read_posix_identity", lambda pid: (None, None) if group is not None and not group.alive else (identity, state)
     )
     if group is not None:
         monkeypatch.setattr(posix, "_killpg", group.killpg)
         monkeypatch.setattr(posix, "_group_exists", group.exists)
-    monkeypatch.setattr(posix, "_pid_exists", lambda pid: pid_exists)
+    monkeypatch.setattr(posix, "_pid_exists", lambda pid: False if group is not None and not group.alive else pid_exists)
+    monkeypatch.setattr(posix, "_tree_members", lambda pid, pgid: (identity,), raising=False)
 
 
 # --------------------------------------------------------------------------- pure parsing
@@ -368,7 +369,8 @@ def test_recover_refuses_when_leader_is_dead(
     install(monkeypatch, identity=None, state=None, group=group, pid_exists=False)
 
     result = owner.recover(_record(identity), terminate=True)
-    assert result.action == "already_dead"
+    assert result.action == "unknown"
+    assert result.remaining == (identity.pgid,)
     assert result.terminated is False
     assert group.calls == []  # leader 已死：拒绝按 pgid 盲杀
 
@@ -438,3 +440,130 @@ def test_recover_rejects_unusable_record(
     result = owner.recover({"pid": 1})
     assert result.action == "unknown"
     assert result.terminated is False
+
+@pytest.mark.parametrize("kind,boot_id", [("lstart", None), ("starttime", None)])
+def test_weak_birth_never_authorizes_kill(owner, monkeypatch, kind, boot_id):
+    handle, popen, identity = make_handle(owner)
+    weak = dataclasses.replace(identity, kind=kind, boot_id=boot_id)
+    handle.identity = weak
+    group = FakeGroup(die_on={SIGKILL}, popen=popen)
+    install(monkeypatch, identity=weak, group=group)
+    assert owner.check(weak).status is ProcessStatus.UNKNOWN
+    for operation in (owner.terminate, owner.kill_tree):
+        with pytest.raises(OwnershipUnknownError):
+            operation(handle)
+    result = owner.recover(_record(weak))
+    assert result.action == "unknown" and not result.terminated
+    assert group.calls == []
+
+
+@pytest.mark.parametrize("operation", ["terminate", "kill_tree"])
+@pytest.mark.parametrize("state", ["absent", "zombie", "moved", "denied"])
+def test_handle_never_signals_stale_group(owner, monkeypatch, operation, state):
+    handle, popen, identity = make_handle(owner)
+    group = FakeGroup(die_on={SIGKILL}, popen=popen)
+    observed = dataclasses.replace(identity, pgid=9999) if state == "moved" else identity
+    if state in {"absent", "denied"}:
+        observed = None
+    if state == "absent":
+        popen.returncode = 0
+    install(monkeypatch, identity=observed, state="Z" if state == "zombie" else "S",
+            group=group, pid_exists=False if state == "absent" else None)
+    with pytest.raises(OwnershipUnknownError):
+        getattr(owner, operation)(handle)
+    assert group.calls == []
+
+
+def test_no_escalation_after_leader_exits(owner, monkeypatch):
+    handle, popen, identity = make_handle(owner)
+    group = FakeGroup(die_on=set(), popen=popen)
+    install(monkeypatch, identity=identity, group=group)
+    def signal(pgid, sig):
+        group.calls.append(sig)
+        popen.returncode = -15
+        monkeypatch.setattr(posix, "read_posix_identity", lambda pid: (None, None))
+        monkeypatch.setattr(posix, "_pid_exists", lambda pid: False)
+    monkeypatch.setattr(posix, "_killpg", signal)
+    with pytest.raises(OwnershipUnknownError):
+        owner.terminate(handle, grace=0)
+    assert group.calls == [SIGTERM]
+
+
+def test_permission_denial_never_confirms_cleanup(owner, monkeypatch):
+    handle, popen, identity = make_handle(owner)
+    group = FakeGroup(die_on=set(), popen=popen)
+    install(monkeypatch, identity=identity, group=group)
+    def denied(pgid, sig):
+        raise PermissionError("owned test denial")
+    monkeypatch.setattr(posix, "_killpg", denied)
+    with pytest.raises(PermissionError):
+        owner.kill_tree(handle)
+    result = owner.recover(_record(identity), grace=0)
+    assert result.action == "unknown" and result.remaining == (handle.pid,)
+
+
+def test_zombie_snapshot_member_remains_resource(owner, monkeypatch):
+    _, _, identity = make_handle(owner)
+    install(monkeypatch, identity=identity, state="Z")
+    assert owner._member_remaining((identity,)) == (identity.pid,)
+
+
+def test_observed_weak_fallback_is_unknown(owner, monkeypatch):
+    _, _, identity = make_handle(owner)
+    install(monkeypatch, identity=dataclasses.replace(identity, kind="lstart", boot_id=None))
+    assert owner.check(identity).status is ProcessStatus.UNKNOWN
+
+
+def test_macos_spawn_fails_before_effect(owner, monkeypatch):
+    monkeypatch.setattr(posix.sys, "platform", "darwin")
+    calls = []
+    def forbidden_spawn(*args, **kwargs):
+        calls.append(args)
+        raise AssertionError("Popen reached before rejecting weak birth")
+    monkeypatch.setattr(posix.subprocess, "Popen", forbidden_spawn)
+    with pytest.raises(UnsupportedPlatformError, match="strong birth"):
+        owner.spawn(["effect"])
+    assert calls == []
+
+
+def test_escaped_descendant_refuses_snapshot(owner, monkeypatch):
+    import psutil
+    _, _, identity = make_handle(owner)
+    class Process:
+        pid = identity.pid
+        def children(self, recursive):
+            return [type("Escaped", (), {"pid": 9999})()]
+    monkeypatch.setattr(psutil, "Process", lambda pid: Process())
+    monkeypatch.setattr(posix, "read_posix_identity", lambda pid: (
+        identity if pid == identity.pid else dataclasses.replace(identity, pid=pid, pgid=pid), "S"))
+    with pytest.raises(OwnershipUnknownError, match="outside original group"):
+        posix._tree_members(identity.pid, identity.pgid)
+
+
+def test_linux_missing_boot_refuses_before_effect(owner, monkeypatch):
+    monkeypatch.setattr(posix.sys, "platform", "linux")
+    monkeypatch.setattr(posix, "read_boot_id", lambda: None)
+    def forbidden_spawn(*args, **kwargs):
+        raise AssertionError("Popen reached without boot identity")
+    monkeypatch.setattr(posix.subprocess, "Popen", forbidden_spawn)
+    with pytest.raises(OwnershipUnknownError, match="boot identity"):
+        owner.spawn(["effect"])
+
+
+def test_spawn_abort_wait_failure_is_explicit_unknown(owner, monkeypatch):
+    popen = FakePopen()
+    calls = []
+    monkeypatch.setattr(posix, "_killpg", lambda pid, sig: calls.append((pid, sig)))
+    with pytest.raises(OwnershipUnknownError, match="exit unconfirmed"):
+        owner._abort_spawn(popen)
+    assert calls == [(popen.pid, SIGKILL)]
+
+
+def test_spawn_abort_permission_denial_never_falls_back_to_pid(owner, monkeypatch):
+    popen = FakePopen()
+    def denied(*args):
+        raise PermissionError("test denial")
+    monkeypatch.setattr(posix, "_killpg", denied)
+    monkeypatch.setattr(posix, "_kill", lambda *args: pytest.fail("bare PID signal"))
+    with pytest.raises(OwnershipUnknownError, match="cleanup unconfirmed"):
+        owner._abort_spawn(popen)
